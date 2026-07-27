@@ -3,11 +3,11 @@ schema_version: 1
 locale: zh-CN
 branch: master
 nodes_managed: true
-exported_at: "2026-07-27T09:25:49Z"
+exported_at: "2026-07-27T10:23:11Z"
 modules:
     "":
-        dir_name: Sin 报文分析工具顶层构建工程
-        title: Sin 报文分析工具顶层构建工程
+        dir_name: Sin 桌面应用顶层工程
+        title: Sin 桌面应用顶层工程
         scope:
             - README.en.md
             - .gitignore
@@ -17,6 +17,7 @@ modules:
         source_files: []
         children:
             - application_source
+            - scripts
         depends_on: []
         related_to: []
     application_source:
@@ -27,4 +28,15 @@ modules:
         source_files: []
         children: []
         depends_on: []
-        related_to: []
+        related_to:
+            - path: scripts
+    scripts:
+        dir_name: sin 项目构建脚本
+        title: sin 项目构建脚本
+        scope:
+            - scripts/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: application_source

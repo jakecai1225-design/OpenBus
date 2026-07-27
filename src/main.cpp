@@ -2,9 +2,13 @@
 #include <QFile>
 
 #include "ui/mainwindow.h"
+#include "core/canframe.h"
 
 int main(int argc, char *argv[])
 {
+    // 注册元类型，支持信号/槽传递 CanFrame
+    qRegisterMetaType<CanFrame>("CanFrame");
+
     QApplication app(argc, argv);
     app.setApplicationName("sin");
     app.setOrganizationName("sin");
