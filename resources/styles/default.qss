@@ -1,0 +1,33 @@
+/* ============================================================
+   sin 默认样式表
+   ============================================================ */
+
+QMainWindow {
+    background-color: #f5f5f5;
+}
+
+QLabel {
+    color: #333333;
+}
+
+QPushButton {
+    background-color: #4a90d9;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+QPushButton:hover {
+    background-color: #5a9ee8;
+}
+
+QPushButton:pressed {
+    background-color: #3a7fc9;
+}
+
+QPushButton:disabled {
+    background-color: #cccccc;
+    color: #888888;
+}

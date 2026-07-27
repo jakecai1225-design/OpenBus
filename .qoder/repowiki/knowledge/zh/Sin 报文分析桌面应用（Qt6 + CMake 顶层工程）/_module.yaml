@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: ""
+title: Sin 报文分析桌面应用（Qt6 + CMake 顶层工程）
+scope:
+    - README.en.md
+    - .gitignore
+    - CMakeLists.txt
+    - LICENSE
+    - README.md
+source_files: []
+depends_on: []
+related_to: []

@@ -1,0 +1,47 @@
+# ---- 构建目录 ----
+build/
+build-*/
+out/
+debug/
+release/
+
+# ---- CMake ----
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CMakeUserPresets.json
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# ---- Qt 自动生成 ----
+moc_*.cpp
+moc_*.h
+ui_*.h
+qrc_*.cpp
+*.qmlc
+*.qmltc
+*_qmlcache.qrc
+
+# ---- Qt Creator / VS ----
+*.user
+*.user.*
+*.autosave
+CMakeSettings.json
+.vs/
+.vscode/
+
+# ---- 编译产物 ----
+*.o
+*.obj
+*.exe
+*.dll
+*.lib
+*.a
+*.so
+*.pdb
+
+# ---- 操作系统 ----
+Thumbs.db
+.DS_Store
+desktop.ini
