@@ -13,6 +13,13 @@
 - [resources/resources.qrc](file://resources/resources.qrc)
 </cite>
 
+## 更新摘要
+**所做更改**   
+- 更新了Qt Designer XML布局系统与手写C++代码混合架构的详细说明
+- 增强了mainwindow.ui文件的职责与最佳实践描述
+- 完善了UI描述文件与C++代码的协作模式
+- 补充了Qt Designer工作流程与代码生成机制
+
 ## 目录
 1. [简介](#简介)
 2. [项目结构](#项目结构)
@@ -27,6 +34,8 @@
 
 ## 简介
 本文件面向基于Qt Widgets的UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
+
+**更新** 本文档现已重点说明Qt Designer XML布局系统与手写C++代码的混合架构模式，强调可视化设计与代码实现的分离与协作。
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式：
@@ -64,6 +73,8 @@ E --> F["resources/styles/default.qss"]
 - QSS样式 default.qss: 集中式样式表，统一外观与主题基础
 - Qt资源 resources.qrc: 将样式与图标等资源打包进应用，便于分发与加载
 
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成清晰的混合开发模式。
+
 章节来源
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
@@ -73,11 +84,13 @@ E --> F["resources/styles/default.qss"]
 - [resources/resources.qrc](file://resources/resources.qrc)
 
 ## 架构总览
-整体采用“入口初始化 + 主窗口容器 + 样式/资源分离”的架构模式：
+整体采用"入口初始化 + 主窗口容器 + 样式/资源分离"的架构模式：
 - 入口负责生命周期与全局样式注入
 - 主窗口作为UI根节点，组织子控件与布局
 - 样式通过QSS集中管理，支持运行时切换
 - 资源通过qrc统一打包，避免路径问题
+
+**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，实现了可视化设计与程序逻辑的有效分离。
 
 ```mermaid
 graph TB
@@ -152,6 +165,8 @@ App->>App : 进入事件循环
 - 持有样式管理器与主题配置
 - 通过信号槽机制与子控件通信
 
+**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理。
+
 ```mermaid
 classDiagram
 class MainWindow {
@@ -191,10 +206,17 @@ MainWindow --> ThemeManager : "依赖"
 - 生成对应的头文件供C++代码引用
 - 推荐将复杂布局与交互逻辑从.ui中解耦到C++
 
+**更新** Qt Designer XML布局系统的核心优势：
+- **可视化设计**：拖拽式界面搭建，实时预览效果
+- **XML格式**：结构化存储界面定义，便于版本控制
+- **自动生成**：编译时生成C++代码，减少手动编码错误
+- **工具链集成**：与Qt Creator深度集成，提升开发效率
+
 最佳实践
 - 命名规范：控件名语义化，便于样式选择器定位
 - 布局优先：尽量使用布局管理器而非绝对坐标
 - 事件委托：将业务逻辑放在C++层，保持.ui简洁
+- **混合开发模式**：UI设计师专注于界面布局，开发者专注于逻辑实现
 
 章节来源
 - [src/ui/mainwindow.ui](file://src/ui/mainwindow.ui)
@@ -252,15 +274,49 @@ Refresh --> End
 章节来源
 - [README.en.md](file://README.en.md)
 
+### Qt Designer与C++混合开发模式
+**新增** 混合架构的核心优势与实践：
+
+#### 职责分离
+- **Qt Designer (.ui)**: 负责界面结构、控件布局、属性设置
+- **C++代码**: 负责业务逻辑、事件处理、数据绑定
+
+#### 代码生成机制
+- 编译时uic工具将.ui文件转换为C++头文件
+- 生成的类继承自相应Widget基类
+- setupUi()方法自动初始化界面元素
+
+#### 开发工作流程
+```mermaid
+flowchart LR
+Designer["Qt Designer<br/>界面设计"] --> UIC["uic工具<br/>代码生成"]
+UIC --> Header["生成的头文件<br/>Ui::MainWindow"]
+Header --> Implementation["手写C++实现<br/>MainWindow类"]
+Implementation --> Application["最终应用程序"]
+```
+
+图表来源
+- [src/ui/mainwindow.ui](file://src/ui/mainwindow.ui)
+- [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
+- [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+
+章节来源
+- [src/ui/mainwindow.ui](file://src/ui/mainwindow.ui)
+- [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
+- [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+
 ## 依赖关系分析
 模块间依赖与耦合
 - main.cpp 依赖样式加载与主窗口
 - MainWindow 依赖样式与主题管理
 - 样式与资源通过qrc解耦，降低硬编码路径风险
 
+**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系。
+
 ```mermaid
 graph LR
 Main["main.cpp"] --> MW["MainWindow"]
+MW --> UI["Ui::MainWindow<br/>(生成代码)"]
 MW --> QSS["QSS样式"]
 QSS --> QRC["resources.qrc"]
 ```
@@ -269,6 +325,7 @@ QSS --> QRC["resources.qrc"]
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [src/ui/mainwindow.ui](file://src/ui/mainwindow.ui)
 - [resources/resources.qrc](file://resources/resources.qrc)
 
 章节来源
@@ -288,6 +345,10 @@ QSS --> QRC["resources.qrc"]
 - 高DPI与缩放
   - 启用高DPI支持，合理设置像素密度
   - 对矢量图标与自适应布局进行验证
+- **Qt Designer优化**
+  - 避免在.ui文件中定义复杂的动画或过渡效果
+  - 合理使用布局嵌套层级，避免过深的控件树
+  - 利用Qt Creator的性能分析工具识别瓶颈
 
 [本节为通用指导，无需特定文件引用]
 
@@ -305,13 +366,17 @@ QSS --> QRC["resources.qrc"]
 - 多语言文本未替换
   - 确认已调用tr()包裹文本
   - 检查翻译文件是否被正确加载与安装
+- **Qt Designer相关问题**
+  - 检查.ui文件格式是否正确，XML语法是否有误
+  - 确认生成的头文件未被意外修改
+  - 验证控件名称与C++代码中的引用一致
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
 
 ## 结论
-本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
+本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -330,6 +395,10 @@ QSS --> QRC["resources.qrc"]
 - 可访问性
   - 设置合适的角色、提示与键盘导航
   - 确保颜色对比度符合无障碍标准
+- **Qt Designer规范**
+  - 合理组织控件层次结构，避免过深嵌套
+  - 使用有意义的对象名称，便于样式和脚本访问
+  - 充分利用布局管理器的自适应特性
 
 ### 样式定制指南
 - 主题设计
@@ -351,5 +420,23 @@ QSS --> QRC["resources.qrc"]
   - 统一创建具有相同样式的控件实例
 - 单例模式
   - 主题管理器与样式管理器可采用单例，确保全局一致性
+- **混合开发模式最佳实践**
+  - 保持.ui文件只包含界面定义，不包含业务逻辑
+  - 在C++代码中通过setupUi()访问生成的UI元素
+  - 使用信号槽机制连接UI事件与业务处理方法
+  - 定期同步UI设计师与开发者的工作成果
 
-[本节为概念性内容，无需特定文件引用]
+### Qt Designer工作流程
+**新增** 推荐的Qt Designer使用流程：
+
+1. **界面原型设计**：使用拖拽工具快速搭建界面框架
+2. **布局优化**：调整控件位置和布局参数
+3. **属性配置**：设置控件的基本属性和样式
+4. **代码生成**：编译项目生成C++头文件
+5. **逻辑实现**：在手写的C++代码中添加业务逻辑
+6. **迭代完善**：返回Designer调整界面，重复上述流程
+
+章节来源
+- [src/ui/mainwindow.ui](file://src/ui/mainwindow.ui)
+- [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
+- [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)

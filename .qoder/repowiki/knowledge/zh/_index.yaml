@@ -3,11 +3,11 @@ schema_version: 1
 locale: zh-CN
 branch: master
 nodes_managed: true
-exported_at: "2026-07-27T06:53:58Z"
+exported_at: "2026-07-27T09:25:49Z"
 modules:
     "":
-        dir_name: Sin 报文分析桌面应用（Qt6 + CMake 顶层工程）
-        title: Sin 报文分析桌面应用（Qt6 + CMake 顶层工程）
+        dir_name: Sin 报文分析工具顶层构建工程
+        title: Sin 报文分析工具顶层构建工程
         scope:
             - README.en.md
             - .gitignore
@@ -20,8 +20,8 @@ modules:
         depends_on: []
         related_to: []
     application_source:
-        dir_name: Sin 桌面应用 Qt 主程序入口与主窗口
-        title: Sin 桌面应用 Qt 主程序入口与主窗口
+        dir_name: Sin 桌面应用 Qt 主程序与主窗口
+        title: Sin 桌面应用 Qt 主程序与主窗口
         scope:
             - src/
         source_files: []

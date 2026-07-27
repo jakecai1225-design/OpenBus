@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: application_source
-title: Sin 桌面应用 Qt 主程序入口与主窗口
+title: Sin 桌面应用 Qt 主程序与主窗口
 scope:
     - src/
 source_files: []
