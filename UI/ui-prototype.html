@@ -114,7 +114,7 @@ body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;font-size:12px;overflow
 .pane{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .pane-title{background:#e0e0e0;color:#555;font-weight:bold;font-size:11px;padding:4px 6px;border-bottom:1px solid #c0c0c0;border-right:1px solid #c0c0c0}
 .pane:last-child .pane-title{border-right:none}
-.pane-content{flex:1;background:#1e1e1e;color:#d4d4d4;font-family:Consolas,monospace;font-size:13px;padding:6px 8px;overflow:auto;white-space:pre;line-height:1.6}
+.pane-content{flex:1;background:#f8f8f8;color:#333;font-family:Consolas,monospace;font-size:13px;padding:6px 8px;overflow:auto;white-space:pre;line-height:1.6}
 
 /* Graphic 视图 */
 .graphic-container{flex:1;display:flex;overflow:hidden}
@@ -149,7 +149,7 @@ body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;font-size:12px;overflow
 .dbc-signal-table th{background:#d8d8d8;padding:3px 6px;text-align:left;border:1px solid #c0c0c0}
 .dbc-signal-table td{padding:3px 6px;border:1px solid #e8e8e8;font-family:Consolas,monospace}
 
-/* 回放/录制控制页 */
+/* 信号发送/录制控制页 */
 .control-page{flex:1;overflow-y:auto;padding:20px 30px;background:#fff}
 .control-section{margin-bottom:20px}
 .control-section .title{font-weight:bold;font-size:13px;color:#333;margin-bottom:10px;border-bottom:1px solid #ddd;padding-bottom:4px}
@@ -253,7 +253,7 @@ body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;font-size:12px;overflow
   <button class="sbtn active" onclick="setScenario('trace',this)">Trace</button>
   <button class="sbtn" onclick="setScenario('graphic',this)">Graphic</button>
   <button class="sbtn" onclick="setScenario('dbc',this)">DBC详情</button>
-  <button class="sbtn" onclick="setScenario('playback',this)">回放控制</button>
+  <button class="sbtn" onclick="setScenario('send',this)">信号发送</button>
   <button class="sbtn" onclick="setScenario('record',this)">录制控制</button>
   <button class="sbtn" onclick="setScenario('project',this)">工程面板</button>
   <button class="sbtn" onclick="setScenario('trace-cfg',this)">Trace配置</button>
@@ -293,9 +293,8 @@ body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;font-size:12px;overflow
       <div class="menu-item" data-menu="tools" onclick="toggleMenu(this)">工具(T)
         <div class="menu-dropdown">
           <div class="item" onclick="closeMenus()">● 录制<span class="shortcut">Ctrl+R</span></div>
-          <div class="item" onclick="closeMenus()">▶ 播放<span class="shortcut">Space</span></div>
-          <div class="item" onclick="closeMenus()">⏸ 暂停</div>
-          <div class="item" onclick="closeMenus()">⏹ 停止</div>
+          <div class="item" onclick="closeMenus()">▶ 发送<span class="shortcut">Space</span></div>
+          <div class="item" onclick="closeMenus()">⏹ 停止发送</div>
           <div class="sep"></div>
           <div class="item" onclick="closeMenus()">清空 Trace</div>
           <div class="item checked" onclick="toggleCheck(this);closeMenus()">自动滚动</div>
@@ -337,7 +336,7 @@ body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;font-size:12px;overflow
         <div class="act-icon active" data-panel="trace" title="Trace" onclick="switchPanel('trace')">&#128203;</div>
         <div class="act-icon" data-panel="graphic" title="Graphic" onclick="switchPanel('graphic')">&#128200;</div>
         <div class="act-icon" data-panel="dbc" title="DBC" onclick="switchPanel('dbc')">&#128196;</div>
-        <div class="act-icon" data-panel="playback" title="回放" onclick="switchPanel('playback')">&#9654;</div>
+        <div class="act-icon" data-panel="send" title="发送" onclick="switchPanel('send')">&#128225;</div>
         <div class="act-icon" data-panel="record" title="录制" onclick="switchPanel('record')">&#9679;</div>
         <div class="act-icon" data-panel="device" title="设备" onclick="switchPanel('device')">&#128295;</div>
         <div class="act-icon" data-panel="settings" title="配置" onclick="switchPanel('settings')">&#9881;</div>
@@ -400,12 +399,12 @@ body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;font-size:12px;overflow
           </div>
         </div>
 
-        <!-- 回放面板 -->
-        <div class="sb-panel" id="panel-playback">
-          <div class="sb-header">回放</div>
+        <!-- 信号发送面板 -->
+        <div class="sb-panel" id="panel-send">
+          <div class="sb-header">信号发送</div>
           <div class="entry-list">
-            <div class="entry-item" onclick="switchCenterTab('playback')">
-              ▶ 回放控制
+            <div class="entry-item" onclick="switchCenterTab('send')">
+              &#128225; 信号发送
             </div>
           </div>
         </div>
@@ -489,7 +488,7 @@ body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;font-size:12px;overflow
         <div class="ctab" data-tab="graphic3" onclick="switchCenterTab('graphic3')">&#128200; Graphic3 <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
         <div class="ctab" data-tab="dbc" onclick="switchCenterTab('dbc')">&#128196; DBC: engine.dbc <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
         <div class="ctab" data-tab="dbc2" onclick="switchCenterTab('dbc2')">&#128196; DBC: body.dbc <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
-        <div class="ctab" data-tab="playback" onclick="switchCenterTab('playback')">▶ 回放控制 <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
+        <div class="ctab" data-tab="send" onclick="switchCenterTab('send')">&#128225; 信号发送 <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
         <div class="ctab" data-tab="record" onclick="switchCenterTab('record')">● 录制控制 <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
       </div>
 
@@ -765,46 +764,38 @@ OilPressure:     3.500 bar</div></div>
         </div>
       </div>
 
-      <!-- 回放控制面板 -->
-      <div class="tab-pane" id="pane-playback">
+      <!-- 信号发送面板 -->
+      <div class="tab-pane" id="pane-send">
         <div class="control-page">
           <div class="control-section">
-            <div class="title">回放控制</div>
+            <div class="title">工具栏</div>
             <div class="control-row">
-              <span class="btn success" style="font-size:14px;padding:6px 16px" onclick="alert('开始播放')">&#9654; 播放</span>
-              <span class="btn" style="font-size:14px;padding:6px 16px" onclick="alert('暂停')">&#9208; 暂停</span>
-              <span class="btn danger" style="font-size:14px;padding:6px 16px" onclick="alert('停止')">&#9209; 停止</span>
+              <span class="btn success" style="font-size:14px;padding:6px 16px" onclick="alert('全部发送')">&#9654; 全部发送</span>
+              <span class="btn danger" style="font-size:14px;padding:6px 16px" onclick="alert('全部停止')">&#9209; 全部停止</span>
+              <span class="btn" style="font-size:14px;padding:6px 16px" onclick="alert('从DBC导入')">+ 从DBC导入</span>
+              <span class="btn" style="font-size:14px;padding:6px 16px" onclick="alert('从文件回放')">&#128194; 从文件回放</span>
+              <span class="btn" style="font-size:14px;padding:6px 16px" onclick="alert('清空列表')">&#128465; 清空列表</span>
             </div>
           </div>
           <div class="control-section">
-            <div class="title">进度</div>
-            <div class="control-row">
-              <span class="label">进度:</span>
-              <div class="progress-bar"></div>
-              <span style="font-family:Consolas;font-size:11px">3.456s / 12.345s</span>
-            </div>
+            <div class="title">发送列表</div>
+            <table class="trace-table" style="font-size:11px">
+              <thead><tr><th>#</th><th>ID</th><th>名称</th><th>DLC</th><th>数据 (Hex)</th><th>周期(ms)</th><th>次数</th><th>状态</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr class="selected"><td>1</td><td>0x123</td><td>EngineStatus</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>100</td><td>&#8734;</td><td style="color:#0a0">发送中</td><td><span class="btn" style="font-size:10px;padding:2px 6px">&#9654;</span> <span class="btn" style="font-size:10px;padding:2px 6px">&#9209;</span></td></tr>
+                <tr><td>2</td><td>0x456</td><td>BrakeCtrl</td><td>8</td><td>11 22 33 44 55 66 77 88</td><td>50</td><td>10</td><td>停止</td><td><span class="btn" style="font-size:10px;padding:2px 6px">&#9654;</span> <span class="btn" style="font-size:10px;padding:2px 6px">&#9209;</span></td></tr>
+                <tr><td>3</td><td>0x200</td><td>DoorStatus</td><td>4</td><td>01 00 00 00</td><td>200</td><td>&#8734;</td><td>停止</td><td><span class="btn" style="font-size:10px;padding:2px 6px">&#9654;</span> <span class="btn" style="font-size:10px;padding:2px 6px">&#9209;</span></td></tr>
+              </tbody>
+            </table>
+            <div style="font-size:10px;color:#888;margin-top:4px">&#8593; 拖拽行可调整发送顺序</div>
           </div>
           <div class="control-section">
-            <div class="title">速度</div>
-            <div class="control-row">
-              <span class="label">回放速度:</span>
-              <span class="btn">0.1x</span>
-              <span class="btn">0.5x</span>
-              <span class="btn primary">1.0x</span>
-              <span class="btn">2.0x</span>
-              <span class="btn">5.0x</span>
-              <span class="btn">10.0x</span>
-            </div>
-          </div>
-          <div class="control-section">
-            <div class="title">选项</div>
-            <div class="control-row"><label class="chk"><input type="checkbox" checked> 循环回放</label></div>
-            <div class="control-row"><label class="chk"><input type="checkbox" checked> 回放时自动滚动 Trace</label></div>
-          </div>
-          <div class="control-section">
-            <div class="title">文件</div>
-            <div class="control-row"><span class="label">文件:</span><span style="font-family:Consolas">test.sin (10234 帧, 12.345s)</span></div>
-            <div class="control-row"><span class="label"></span><span class="btn primary" onclick="alert('选择文件...')">更换文件...</span></div>
+            <div class="title">编辑区</div>
+            <div class="control-row"><span class="label">ID:</span><input type="text" class="input-field" value="0x" style="width:80px;font-family:Consolas"> <span class="label">DLC:</span><input type="text" class="input-field" value="8" style="width:40px;font-family:Consolas"></div>
+            <div class="control-row"><span class="label">数据:</span><input type="text" class="input-field" value="00 00 00 00 00 00 00 00" style="width:240px;font-family:Consolas"></div>
+            <div class="control-row"><span class="label">周期:</span><input type="text" class="input-field" value="100" style="width:60px;font-family:Consolas">ms <span class="label">次数:</span><input type="text" class="input-field" value="0" style="width:60px;font-family:Consolas">(0=无限)</div>
+            <div class="control-row"><span class="label">从DBC:</span><select class="combo"><option>选择报文...</option><option>0x123 EngineStatus</option><option>0x456 BrakeCtrl</option></select> <select class="combo"><option>选择信号...</option><option>EngineRPM</option><option>ThrottlePos</option></select> <span class="btn">自动填充</span></div>
+            <div class="control-row"><span class="label"></span><span class="btn primary" onclick="alert('添加到列表')">+ 添加到列表</span> <span class="btn success" onclick="alert('发送单帧')">发送单帧</span></div>
           </div>
         </div>
       </div>
@@ -872,11 +863,10 @@ OilPressure:     3.500 bar</div></div>
             </div>
           </div>
           <div class="quick-group">
-            <div class="title">回放</div>
+            <div class="title">发送</div>
             <div class="btns">
-              <span class="btn success" onclick="alert('播放')">▶ 播放</span>
-              <span class="btn" onclick="alert('暂停')">⏸ 暂停</span>
-              <span class="btn" onclick="alert('停止')">⏹ 停止</span>
+              <span class="btn success" onclick="alert('全部发送')">▶ 全部发送</span>
+              <span class="btn danger" onclick="alert('全部停止')">⏹ 全部停止</span>
             </div>
           </div>
           <div class="quick-group">
@@ -905,43 +895,43 @@ OilPressure:     3.500 bar</div></div>
       <div class="dtab active" data-tab="output" onclick="switchBottomTab('output')">输出</div>
       <div class="dtab" data-tab="problems" onclick="switchBottomTab('problems')">问题</div>
     </div>
-    <div class="dock-pane" id="bottom-terminal"><div class="dock-content-terminal" style="background:#1e1e1e;color:#d4d4d4">
+    <div class="dock-pane" id="bottom-terminal"><div class="dock-content-terminal" style="background:#f8f8f8;color:#333">
       <div style="color:#888;font-size:11px;margin-bottom:4px">sin 终端 &mdash; 输入 help 查看可用命令</div>
       <div class="terminal-input">&gt; help</div>
-      <div style="color:#d4d4d4">可用命令:</div>
-      <div style="color:#aaa;padding-left:12px">help &mdash; 显示帮助</div>
-      <div style="color:#aaa;padding-left:12px">clear &mdash; 清空 Trace</div>
-      <div style="color:#aaa;padding-left:12px">sim on &mdash; 启动模拟器</div>
-      <div style="color:#aaa;padding-left:12px">sim off &mdash; 停止模拟器</div>
-      <div style="color:#aaa;padding-left:12px">record &lt;file&gt; &mdash; 开始录制</div>
-      <div style="color:#aaa;padding-left:12px">stop &mdash; 停止录制/回放</div>
-      <div style="color:#aaa;padding-left:12px">play &mdash; 播放</div>
-      <div style="color:#aaa;padding-left:12px">filter &lt;expr&gt; &mdash; 设置过滤器</div>
-      <div style="color:#aaa;padding-left:12px">stats &mdash; 显示统计</div>
-      <div style="color:#aaa;padding-left:12px">load &lt;file&gt; &mdash; 加载 DBC/录制文件</div>
+      <div style="color:#333">可用命令:</div>
+      <div style="color:#666;padding-left:12px">help &mdash; 显示帮助</div>
+      <div style="color:#666;padding-left:12px">clear &mdash; 清空 Trace</div>
+      <div style="color:#666;padding-left:12px">sim on &mdash; 启动模拟器</div>
+      <div style="color:#666;padding-left:12px">sim off &mdash; 停止模拟器</div>
+      <div style="color:#666;padding-left:12px">record &lt;file&gt; &mdash; 开始录制</div>
+      <div style="color:#666;padding-left:12px">stop &mdash; 停止录制/发送</div>
+      <div style="color:#666;padding-left:12px">send &mdash; 发送</div>
+      <div style="color:#666;padding-left:12px">filter &lt;expr&gt; &mdash; 设置过滤器</div>
+      <div style="color:#666;padding-left:12px">stats &mdash; 显示统计</div>
+      <div style="color:#666;padding-left:12px">load &lt;file&gt; &mdash; 加载 DBC/录制文件</div>
       <div class="terminal-input" style="margin-top:4px">&gt; sim on</div>
-      <div style="color:#d4d4d4">模拟器已启动</div>
+      <div style="color:#333">模拟器已启动</div>
       <div class="terminal-input">&gt; filter id == 0x123</div>
-      <div style="color:#d4d4d4">过滤: id == 0x123</div>
+      <div style="color:#333">过滤: id == 0x123</div>
       <div class="terminal-input">&gt; stats</div>
-      <div style="color:#d4d4d4">总帧数: 10234</div>
+      <div style="color:#333">总帧数: 10234</div>
       <div class="terminal-input">&gt; <span style="opacity:.5">|</span></div>
     </div></div>
-    <div class="dock-pane active" id="bottom-output"><div class="dock-content-terminal" style="background:#1e1e1e;color:#d4d4d4">
+    <div class="dock-pane active" id="bottom-output"><div class="dock-content-terminal" style="background:#f8f8f8;color:#333">
       <div style="color:#0a0">[14:30:01] sin 启动完成</div>
-      <div style="color:#d4d4d4">[14:30:03] DBC 已加载: engine.dbc</div>
-      <div style="color:#d4d4d4">[14:30:05] 已加载: test.sin (10234 帧, 12.35s)</div>
-      <div style="color:#d4d4d4">[14:30:06] 过滤已应用: id == 0x123</div>
-      <div style="color:#d4d4d4">[14:30:08] 回放开始 (速度: 1.0x)</div>
+      <div style="color:#333">[14:30:03] DBC 已加载: engine.dbc</div>
+      <div style="color:#333">[14:30:05] 已加载: test.sin (10234 帧, 12.35s)</div>
+      <div style="color:#333">[14:30:06] 过滤已应用: id == 0x123</div>
+      <div style="color:#333">[14:30:08] 文件回放开始 (速度: 1.0x)</div>
       <div style="color:#f0ad4e">[14:30:10] 警告: 录制文件未保存</div>
-      <div style="color:#d4d4d4">[14:30:12] 已添加信号: EngineRPM (ID=0x123)</div>
-      <div style="color:#d4d4d4">[14:30:12] 已添加信号: ThrottlePos (ID=0x123)</div>
-      <div style="color:#d4d4d4">[14:30:13] 已添加信号: CoolantTemp (ID=0x123)</div>
-      <div style="color:#d4d4d4">[14:30:15] 回放完成</div>
-      <div style="color:#d4d4d4">[14:30:16] 已切换到工程: EngineAnalysis</div>
-      <div style="color:#d4d4d4">[14:30:18] 模拟器已启动</div>
+      <div style="color:#333">[14:30:12] 已添加信号: EngineRPM (ID=0x123)</div>
+      <div style="color:#333">[14:30:12] 已添加信号: ThrottlePos (ID=0x123)</div>
+      <div style="color:#333">[14:30:13] 已添加信号: CoolantTemp (ID=0x123)</div>
+      <div style="color:#333">[14:30:15] 文件回放完成</div>
+      <div style="color:#333">[14:30:16] 已切换到工程: EngineAnalysis</div>
+      <div style="color:#333">[14:30:18] 模拟器已启动</div>
     </div></div>
-    <div class="dock-pane" id="bottom-problems"><div class="dock-content-terminal" style="background:#1e1e1e;color:#d4d4d4">
+    <div class="dock-pane" id="bottom-problems"><div class="dock-content-terminal" style="background:#f8f8f8;color:#333">
       <div class="problem-row"><span class="problem-sev err">!</span><span class="problem-src">Recorder</span><span class="problem-msg">无法创建录制文件: D:/test.sin (权限拒绝)</span></div>
       <div class="problem-row"><span class="problem-sev err">!</span><span class="problem-src">Player</span><span class="problem-msg">无法加载: corrupt.sin (文件格式错误)</span></div>
       <div class="problem-row"><span class="problem-sev warn">&#9888;</span><span class="problem-src">DBC</span><span class="problem-msg">加载失败: missing.dbc (文件不存在)</span></div>
@@ -1049,7 +1039,7 @@ OilPressure:     3.500 bar</div></div>
     <div class="dialog-header">快捷键</div>
     <div class="dialog-body" style="max-height:360px;overflow-y:auto">
       <table style="width:100%;color:#aaa;font-size:12px;border-collapse:collapse">
-        <tr><td style="padding:3px 0">播放 / 暂停</td><td style="text-align:right;color:#4a90d9;font-family:Consolas,monospace">Space</td></tr>
+        <tr><td style="padding:3px 0">发送</td><td style="text-align:right;color:#4a90d9;font-family:Consolas,monospace">Space</td></tr>
         <tr><td style="padding:3px 0">停止</td><td style="text-align:right;color:#4a90d9;font-family:Consolas,monospace">Ctrl+S</td></tr>
         <tr><td style="padding:3px 0">录制</td><td style="text-align:right;color:#4a90d9;font-family:Consolas,monospace">Ctrl+R</td></tr>
         <tr><td style="padding:3px 0">打开文件</td><td style="text-align:right;color:#4a90d9;font-family:Consolas,monospace">Ctrl+O</td></tr>
@@ -1152,6 +1142,15 @@ function switchCenterTab(name) {
   document.querySelectorAll('#center-area > .tab-pane').forEach(p => p.classList.remove('active'));
   const pane = document.getElementById('pane-' + name);
   if (pane) pane.classList.add('active');
+  // 标签页-侧边栏联动：根据标签页名称切换左侧栏面板
+  const tabPanelMap = {
+    'trace':'trace','trace2':'trace',
+    'graphic1':'graphic','graphic2':'graphic','graphic3':'graphic',
+    'dbc':'dbc','dbc2':'dbc',
+    'send':'send','record':'record'
+  };
+  const panel = tabPanelMap[name];
+  if (panel) switchPanel(panel);
 }
 
 // ===== 右侧栏标签页切换 =====
@@ -1224,7 +1223,7 @@ function showSplitView(direction) {
   if (center.querySelector('.split-container')) return;
   const tabs = document.getElementById('center-tabs');
   const allPanes = [];
-  ['trace','trace2','graphic1','graphic2','graphic3','dbc','dbc2','playback','record'].forEach(n => {
+  ['trace','trace2','graphic1','graphic2','graphic3','dbc','dbc2','send','record'].forEach(n => {
     const p = document.getElementById('pane-' + n);
     if (p) allPanes.push(p);
   });
@@ -1256,7 +1255,7 @@ function setScenario(name, btn) {
     case 'trace': switchPanel('trace'); switchCenterTab('trace'); break;
     case 'graphic': switchPanel('graphic'); switchCenterTab('graphic1'); break;
     case 'dbc': switchPanel('dbc'); switchCenterTab('dbc'); break;
-    case 'playback': switchPanel('playback'); switchCenterTab('playback'); break;
+    case 'send': switchPanel('send'); switchCenterTab('send'); break;
     case 'record': switchPanel('record'); switchCenterTab('record'); break;
     case 'project': switchPanel('project'); switchCenterTab('trace'); break;
     case 'trace-cfg': switchPanel('trace'); switchCenterTab('trace'); break;

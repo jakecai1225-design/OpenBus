@@ -5,65 +5,93 @@
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QStringList>
+#include <QStringConverter>
+#include <QDebug>
 #include <cmath>
 
 // ============================================================
-//  DbcSignal::decode
+//  DbcSignal::rawDecode / rawToPhys / decode
+//  位遍历算法参考 dbcppp (SignalImpl.cpp) 的实现
+//  Motorola: 从 startBit 开始逐位遍历，字节内向前移动
+//  Intel: 从 startBit 开始逐位遍历，连续递增
 // ============================================================
 
-double DbcSignal::decode(const QByteArray &data) const
+quint64 DbcSignal::rawDecode(const QByteArray &data) const
 {
-    if (data.isEmpty())
-        return 0.0;
+    if (data.isEmpty() || bitLength <= 0)
+        return 0;
 
-    int byteCount = (bitLength + 7) / 8;
     const unsigned char *p = reinterpret_cast<const unsigned char *>(data.constData());
-
+    int dataSize = data.size();
     quint64 raw = 0;
 
     if (littleEndian) {
-        // Intel byte order
-        int startByte = startBit / 8;
-        int startBitInByte = startBit % 8;
-        for (int i = 0; i < byteCount && (startByte + i) < data.size(); ++i) {
-            raw |= static_cast<quint64>(p[startByte + i]) << (8 * i);
-        }
-        raw >>= startBitInByte;
-    } else {
-        // Motorola byte order (big endian)
-        int startByte = startBit / 8;
-        int bitPos = startBit;
+        // Intel byte order: bitPos 连续递增
         for (int i = 0; i < bitLength; ++i) {
-            int byteIdx = startByte - (bitPos / 8);
-            int bitIdx = 7 - (bitPos % 8);
-            if (byteIdx >= 0 && byteIdx < data.size()) {
-                if (p[byteIdx] & (1 << bitIdx))
+            int bitPos = startBit + i;
+            int byteIdx = bitPos / 8;
+            int bitIdx = bitPos % 8;
+            if (byteIdx >= 0 && byteIdx < dataSize) {
+                if (p[byteIdx] & (1u << bitIdx))
                     raw |= (1ULL << i);
             }
-            // Move to next bit in Motorola order
-            if (bitPos % 8 == 0)
-                bitPos += 15;
+        }
+    } else {
+        // Motorola byte order (big endian)
+        // 参考 dbcppp: 从 startBit 开始，在字节内向前移动
+        // 当到达字节起始(src%8==0)时跳到下一个高字节的 bit7
+        int src = startBit;
+        for (int i = 0; i < bitLength; ++i) {
+            int byteIdx = src / 8;
+            int bitIdx = src % 8;
+            if (byteIdx >= 0 && byteIdx < dataSize) {
+                if (p[byteIdx] & (1u << bitIdx))
+                    raw |= (1ULL << (bitLength - 1 - i));
+            }
+            if ((src % 8) == 0)
+                src += 15;
             else
-                bitPos -= 1;
+                src -= 1;
         }
     }
 
-    // Mask to bit length
-    quint64 mask = (bitLength >= 64) ? ~0ULL : ((1ULL << bitLength) - 1);
-    raw &= mask;
+    return raw;
+}
 
-    // Sign extension
-    double value;
-    if (isSigned && bitLength < 64) {
-        quint64 signBit = 1ULL << (bitLength - 1);
-        if (raw & signBit)
-            raw |= ~mask; // extend sign
-        value = static_cast<double>(static_cast<qint64>(raw));
+double DbcSignal::rawToPhys(quint64 raw) const
+{
+    double phys;
+
+    if (extendedValueType == ExtendedValueType::Float && bitLength == 32) {
+        // IEEE 754 float
+        float f;
+        quint32 val = static_cast<quint32>(raw);
+        memcpy(&f, &val, sizeof(f));
+        phys = static_cast<double>(f);
+    } else if (extendedValueType == ExtendedValueType::Double && bitLength == 64) {
+        // IEEE 754 double
+        memcpy(&phys, &raw, sizeof(double));
     } else {
-        value = static_cast<double>(raw);
+        // Integer
+        quint64 mask = (bitLength >= 64) ? ~0ULL : ((1ULL << bitLength) - 1);
+        raw &= mask;
+
+        if (isSigned && bitLength < 64) {
+            quint64 signBit = 1ULL << (bitLength - 1);
+            if (raw & signBit)
+                raw |= ~mask; // extend sign
+            phys = static_cast<double>(static_cast<qint64>(raw));
+        } else {
+            phys = static_cast<double>(raw);
+        }
     }
 
-    return value * factor + offset;
+    return phys * factor + offset;
+}
+
+double DbcSignal::decode(const QByteArray &data) const
+{
+    return rawToPhys(rawDecode(data));
 }
 
 // ============================================================
@@ -132,10 +160,159 @@ const DbcFile *DbcManager::findFile(const QString &fileName) const
 }
 
 // ============================================================
-//  完整 DBC 解析器
-//  支持: VERSION, BU_, BO_, SG_, CM_, BA_DEF_, BA_DEF_DEF_,
+//  DBC 解析器
+//  参考 dbcppp (github.com/xR3b0rn/dbcppp) 的 DBC 语法规则
+//  支持: VERSION, NS_, BS_, BU_, BO_, SG_, CM_, BA_DEF_, BA_DEF_DEF_,
 //        BA_, VAL_, VAL_TABLE_, SIG_VALTYPE_, BO_TX_BU_
+//  预处理: 去除 // 和 /* */ 注释 (参考 dbcppp DBCSkipper)
 // ============================================================
+
+/// 去除 DBC 文件中的 // 单行注释和 /* */ 块注释
+/// 参考dbcppp DBCSkipper: 同时处理引号内的注释标记不剥离
+static QString stripDbcComments(const QString &content)
+{
+    QString result;
+    result.reserve(content.size());
+    const int len = content.size();
+    int i = 0;
+    bool inString = false;
+
+    while (i < len) {
+        QChar c = content[i];
+
+        if (inString) {
+            result += c;
+            if (c == '\\' && i + 1 < len) {
+                result += content[i + 1];
+                i += 2;
+                continue;
+            }
+            if (c == '"')
+                inString = false;
+            ++i;
+            continue;
+        }
+
+        if (c == '"') {
+            inString = true;
+            result += c;
+            ++i;
+            continue;
+        }
+
+        // // 单行注释
+        if (c == '/' && i + 1 < len && content[i + 1] == '/') {
+            while (i < len && content[i] != '\n')
+                ++i;
+            continue;
+        }
+
+        // /* 块注释
+        if (c == '/' && i + 1 < len && content[i + 1] == '*') {
+            i += 2;
+            while (i + 1 < len) {
+                if (content[i] == '*' && content[i + 1] == '/') {
+                    i += 2;
+                    break;
+                }
+                ++i;
+            }
+            if (i + 1 >= len)
+                i = len;  // 防止越界
+            continue;
+        }
+
+        result += c;
+        ++i;
+    }
+    return result;
+}
+
+/// 逐字段解析 SG_ 行，比正则更健壮
+/// 格式: SG_ Name [mux] : startBit|bitLen@endianSign (factor,offset) [min|max] "unit" receivers
+static bool parseSignalLine(const QString &line, DbcSignal &sig)
+{
+    QString s = line.trimmed();
+    if (!s.startsWith("SG_"))
+        return false;
+    s = s.mid(3).trimmed();
+
+    // 用 ':' 分割 name+mux 和剩余部分
+    int colonPos = s.indexOf(':');
+    if (colonPos < 0)
+        return false;
+
+    QString nameAndMux = s.left(colonPos).trimmed();
+    QString rest = s.mid(colonPos + 1).trimmed();
+
+    // 解析 name 和可选的 mux 标记
+    QStringList nameParts = nameAndMux.split(' ', Qt::SkipEmptyParts);
+    if (nameParts.isEmpty())
+        return false;
+    sig.name = nameParts[0];
+
+    if (nameParts.size() > 1) {
+        QString muxStr = nameParts[1];
+        if (muxStr == "M") {
+            sig.muxType = DbcSignal::MuxType::Multiplexor;
+        } else if (muxStr.startsWith('m')) {
+            sig.muxType = DbcSignal::MuxType::Multiplexed;
+            sig.muxValue = muxStr.mid(1).toInt();
+        }
+    }
+
+    // 用 '|' 分割 startBit 和 bitLen@endianSign
+    int pipePos = rest.indexOf('|');
+    if (pipePos < 0)
+        return false;
+    sig.startBit = rest.left(pipePos).trimmed().toInt();
+
+    // 用 '@' 分割 bitLen 和 endianSign
+    int atPos = rest.indexOf('@', pipePos);
+    if (atPos < 0)
+        return false;
+    sig.bitLength = rest.mid(pipePos + 1, atPos - pipePos - 1).trimmed().toInt();
+
+    // @ 后第一个字符是 endian (0=Motorola, 1=Intel)，第二个是 sign (+/-)
+    if (atPos + 2 >= rest.size())
+        return false;
+    sig.littleEndian = (rest[atPos + 1] == '1');
+    sig.isSigned = (rest[atPos + 2] == '-');
+
+    // 提取 (factor,offset)
+    int parenOpen = rest.indexOf('(', atPos);
+    int parenClose = rest.indexOf(')', parenOpen);
+    if (parenOpen < 0 || parenClose < 0)
+        return false;
+    QStringList foParts = rest.mid(parenOpen + 1, parenClose - parenOpen - 1).split(',');
+    if (foParts.size() >= 2) {
+        sig.factor = foParts[0].trimmed().toDouble();
+        sig.offset = foParts[1].trimmed().toDouble();
+    }
+
+    // 提取 [min|max]
+    int bracketOpen = rest.indexOf('[', parenClose);
+    int bracketClose = rest.indexOf(']', bracketOpen);
+    if (bracketOpen >= 0 && bracketClose >= 0) {
+        QStringList mmParts = rest.mid(bracketOpen + 1, bracketClose - bracketOpen - 1).split('|');
+        if (mmParts.size() >= 2) {
+            sig.minimum = mmParts[0].trimmed().toDouble();
+            sig.maximum = mmParts[1].trimmed().toDouble();
+        }
+    }
+
+    // 提取 "unit"
+    int quoteStart = rest.indexOf('"', bracketClose >= 0 ? bracketClose : parenClose);
+    int quoteEnd = (quoteStart >= 0) ? rest.indexOf('"', quoteStart + 1) : -1;
+    if (quoteStart >= 0 && quoteEnd >= 0)
+        sig.unit = rest.mid(quoteStart + 1, quoteEnd - quoteStart - 1);
+
+    // 剩余部分是 receivers
+    if (quoteEnd >= 0 && quoteEnd + 1 < rest.size())
+        sig.receiver = rest.mid(quoteEnd + 1).trimmed();
+
+    return true;
+}
 
 bool DbcManager::parseDbc(const QString &filePath, DbcFile &out)
 {
@@ -148,134 +325,116 @@ bool DbcManager::parseDbc(const QString &filePath, DbcFile &out)
     out.fileName = fi.fileName();
 
     QTextStream in(&file);
-    QStringList lines;
-    while (!in.atEnd())
-        lines.append(in.readLine());
+    in.setEncoding(QStringConverter::Latin1);
+    QString content = in.readAll();
 
-    // ---- 预处理：合并多行 CM_ 段 ----
-    // CM_ 注释可能跨行，以 ; 结尾
+    // 预处理: 去除注释
+    content = stripDbcComments(content);
+
+    // 预处理: 合并多行段 (CM_, BA_, VAL_ 等以 ; 结尾的段)
+    QStringList rawLines = content.split('\n');
     QStringList mergedLines;
     int i = 0;
-    while (i < lines.size()) {
-        QString line = lines[i].trimmed();
-        if (line.startsWith("CM_") && !line.endsWith(';')) {
-            // 合并后续行直到遇到 ;
+    while (i < rawLines.size()) {
+        QString line = rawLines[i].trimmed();
+        if (line.isEmpty()) {
+            ++i;
+            continue;
+        }
+
+        // 检查是否需要合并: 引号数量为奇数或不以 ; 结尾
+        // 仅对可能跨行的段 (CM_, BA_, VAL_, VAL_TABLE_, BA_DEF_)
+        bool needsMerge = false;
+        if (line.startsWith("CM_") || line.startsWith("BA_") ||
+            line.startsWith("VAL_") || line.startsWith("BA_DEF_")) {
+            // 引号为奇数说明跨行
+            int quoteCount = line.count('"');
+            if (quoteCount % 2 != 0 || !line.endsWith(';'))
+                needsMerge = true;
+        }
+
+        if (needsMerge) {
             QString merged = line;
             ++i;
-            while (i < lines.size() && !merged.endsWith(';')) {
-                merged += "\n" + lines[i];
+            while (i < rawLines.size()) {
+                merged += "\n" + rawLines[i];
+                QString mergedTrimmed = merged.trimmed();
+                int qCount = mergedTrimmed.count('"');
+                if (qCount % 2 == 0 && mergedTrimmed.endsWith(';'))
+                    break;
                 ++i;
             }
-            mergedLines.append(merged);
+            mergedLines.append(merged.trimmed());
         } else {
-            if (!line.isEmpty())
-                mergedLines.append(line);
+            mergedLines.append(line);
             ++i;
         }
     }
 
-    // ---- 逐行解析 ----
-    DbcMessage *currentMsg = nullptr;
+    qDebug() << "[DBC] Parsing:" << out.fileName
+             << "lines:" << mergedLines.size();
 
-    // 正则表达式
+    // 保留的正则表达式 (非 SG_ 的段)
     QRegularExpression boRe(R"(BO_\s+(\d+)\s+(\w+)\s*:\s*(\d+)\s+(\w+))");
-    // SG_ name : startBit|length@endian+sign (factor,offset) [min|max] "unit" receiver
-    // 可选多路复用标记: M (multiplexor) 或 m<value> (multiplexed)
-    QRegularExpression sgRe(
-        R"re(SG_\s+(\w+)\s+(M|m\d+)?\s*:\s*(\d+)\|(\d+)@(\d+)([+-])\s*\(([^,]+),([^)]+)\)\s*\[([^,]+),([^]]+)\]\s*"([^"]*)"\s+(.+))re");
     QRegularExpression buRe(R"(BU_\s*:\s*(.+))");
-    QRegularExpression valTableRe(
-        R"re(VAL_TABLE_\s+(\w+)\s+(.*);)re");
-    QRegularExpression valRe(
-        R"re(VAL_\s+(\d+)\s+(\w+)\s+(.*);)re");
-    QRegularExpression baDefRe(
-        R"re(BA_DEF_\s+(BU_|BO_|SG_)?\s*"([^"]+)"\s+(\w+)\s*(.*);)re");
-    QRegularExpression baDefDefRe(
-        R"re(BA_DEF_DEF_\s*"([^"]+)"\s+(.*);)re");
-    QRegularExpression baRe(
-        R"re(BA_\s*"([^"]+)"\s+(BO_|SG_|BU_)?\s*(.*);)re");
-    QRegularExpression sigValTypeRe(
-        R"re(SIG_VALTYPE_\s+(\d+)\s+(\w+)\s+(\d+))re");
-    QRegularExpression boTxBuRe(
-        R"re(BO_TX_BU_\s+(\d+)\s*:\s*(.+);)re");
+    QRegularExpression valTableRe(R"re(VAL_TABLE_\s+(\w+)\s+(.*);)re");
+    QRegularExpression valRe(R"re(VAL_\s+(\d+)\s+(\w+)\s+(.*);)re");
+    QRegularExpression baDefRe(R"re(BA_DEF_\s+(BU_|BO_|SG_)?\s*"([^"]+)"\s+(\w+)\s*(.*);)re");
+    QRegularExpression baDefDefRe(R"re(BA_DEF_DEF_\s*"([^"]+)"\s+(.*);)re");
+    QRegularExpression baRe(R"re(BA_\s*"([^"]+)"\s+(BO_|SG_|BU_)?\s*(.*);)re");
+    QRegularExpression sigValTypeRe(R"re(SIG_VALTYPE_\s+(\d+)\s+(\w+)\s+(\d+))re");
+    QRegularExpression boTxBuRe(R"re(BO_TX_BU_\s+(\d+)\s*:\s*(.+);)re");
+    QRegularExpression pairRe(R"re((\d+)\s+"([^"]*)")re");
+
+    DbcMessage *currentMsg = nullptr;
 
     for (const QString &raw : mergedLines) {
         QString line = raw.trimmed();
 
-        // VERSION
         if (line.startsWith("VERSION")) {
-            auto match = QRegularExpression(R"re(VERSION\s+"([^"]*)")re").match(line);
-            if (match.hasMatch())
-                out.version = match.captured(1);
+            auto m = QRegularExpression(R"re(VERSION\s+"([^"]*)")re").match(line);
+            if (m.hasMatch())
+                out.version = m.captured(1);
             continue;
         }
-
-        // NS_ — new symbols, skip
-        if (line.startsWith("NS_"))
-            continue;
-
-        // BS_ — bit timing, skip
-        if (line.startsWith("BS_"))
+        if (line.startsWith("NS_") || line.startsWith("BS_"))
             continue;
 
         // BU_ — nodes
-        auto buMatch = buRe.match(line);
-        if (buMatch.hasMatch()) {
-            QStringList nodeNames = buMatch.captured(1).trimmed().split(' ', Qt::SkipEmptyParts);
-            for (const auto &n : nodeNames)
-                out.nodes.append({n, {}, {}, {}});
+        if (line.startsWith("BU_")) {
+            auto m = buRe.match(line);
+            if (m.hasMatch()) {
+                for (const auto &n : m.captured(1).trimmed().split(' ', Qt::SkipEmptyParts))
+                    out.nodes.append({n, {}, {}, {}});
+            }
             continue;
         }
 
         // BO_ — message
-        auto boMatch = boRe.match(line);
-        if (boMatch.hasMatch()) {
-            DbcMessage msg;
-            msg.id = boMatch.captured(1).toUInt();
-            msg.name = boMatch.captured(2);
-            msg.dlc = boMatch.captured(3).toInt();
-            msg.sender = boMatch.captured(4);
-            out.messages.append(msg);
-            currentMsg = &out.messages.last();
+        if (line.startsWith("BO_")) {
+            auto m = boRe.match(line);
+            if (m.hasMatch()) {
+                DbcMessage msg;
+                msg.id = m.captured(1).toUInt();
+                msg.name = m.captured(2);
+                msg.dlc = m.captured(3).toInt();
+                msg.sender = m.captured(4);
+                out.messages.append(msg);
+                currentMsg = &out.messages.last();
+            }
             continue;
         }
 
-        // SG_ — signal
-        auto sgMatch = sgRe.match(line);
-        if (sgMatch.hasMatch() && currentMsg) {
+        // SG_ — signal (逐字段解析)
+        if (line.startsWith("SG_") && currentMsg) {
             DbcSignal sig;
-            sig.name = sgMatch.captured(1);
-
-            // 多路复用标记
-            QString muxStr = sgMatch.captured(2);
-            if (muxStr == "M") {
-                sig.muxType = DbcSignal::MuxType::Multiplexor;
-            } else if (muxStr.startsWith('m') && muxStr.size() > 1) {
-                sig.muxType = DbcSignal::MuxType::Multiplexed;
-                sig.muxValue = muxStr.mid(1).toInt();
-            }
-
-            sig.startBit = sgMatch.captured(3).toInt();
-            sig.bitLength = sgMatch.captured(4).toInt();
-            sig.littleEndian = (sgMatch.captured(5).toInt() == 1);
-            sig.isSigned = (sgMatch.captured(6) == QLatin1String("-"));
-            sig.factor = sgMatch.captured(7).toDouble();
-            sig.offset = sgMatch.captured(8).toDouble();
-            sig.minimum = sgMatch.captured(9).toDouble();
-            sig.maximum = sgMatch.captured(10).toDouble();
-            sig.unit = sgMatch.captured(11);
-            sig.receiver = sgMatch.captured(12).trimmed();
-
-            currentMsg->signalList.append(sig);
+            if (parseSignalLine(line, sig))
+                currentMsg->signalList.append(sig);
             continue;
         }
 
         // CM_ — comments
         if (line.startsWith("CM_")) {
-            // CM_ BU_ NodeName "comment";
-            // CM_ BO_ id "comment";
-            // CM_ SG_ id signalName "comment";
-            // CM_ "general comment";
             QRegularExpression cmBuRe(R"re(CM_\s+BU_\s+(\w+)\s+"(.*)"\s*;)re");
             QRegularExpression cmBoRe(R"re(CM_\s+BO_\s+(\d+)\s+"(.*)"\s*;)re");
             QRegularExpression cmSgRe(R"re(CM_\s+SG_\s+(\d+)\s+(\w+)\s+"(.*)"\s*;)re");
@@ -289,27 +448,26 @@ bool DbcManager::parseDbc(const QString &filePath, DbcFile &out)
                     if (n.name == nodeName) { n.comment = text; break; }
                 continue;
             }
-
             auto cmBo = cmBoRe.match(line);
             if (cmBo.hasMatch()) {
-                quint32 id = cmBo.captured(1).toUInt();
-                QString text = cmBo.captured(2);
-                text.replace("\\\"", "\"");
-                auto *msg = out.findMessage(id);
-                if (msg) msg->comment = text;
+                auto *msg = out.findMessage(cmBo.captured(1).toUInt());
+                if (msg) {
+                    QString text = cmBo.captured(2);
+                    text.replace("\\\"", "\"");
+                    msg->comment = text;
+                }
                 continue;
             }
-
             auto cmSg = cmSgRe.match(line);
             if (cmSg.hasMatch()) {
-                quint32 id = cmSg.captured(1).toUInt();
-                QString sigName = cmSg.captured(2);
-                QString text = cmSg.captured(3);
-                text.replace("\\\"", "\"");
-                auto *msg = out.findMessage(id);
+                auto *msg = out.findMessage(cmSg.captured(1).toUInt());
                 if (msg) {
-                    auto *sig = msg->findSignal(sigName);
-                    if (sig) sig->comment = text;
+                    auto *sig = msg->findSignal(cmSg.captured(2));
+                    if (sig) {
+                        QString text = cmSg.captured(3);
+                        text.replace("\\\"", "\"");
+                        sig->comment = text;
+                    }
                 }
                 continue;
             }
@@ -317,201 +475,190 @@ bool DbcManager::parseDbc(const QString &filePath, DbcFile &out)
         }
 
         // BA_DEF_ — attribute definition
-        auto baDefMatch = baDefRe.match(line);
-        if (baDefMatch.hasMatch()) {
-            DbcAttributeDef def;
-            def.name = baDefMatch.captured(2);
-            QString scopeStr = baDefMatch.captured(1);
-            QString typeStr = baDefMatch.captured(3);
-            QString config = baDefMatch.captured(4).trimmed();
+        if (line.startsWith("BA_DEF_")) {
+            auto m = baDefRe.match(line);
+            if (m.hasMatch()) {
+                DbcAttributeDef def;
+                def.name = m.captured(2);
+                QString scopeStr = m.captured(1);
+                QString typeStr = m.captured(3);
+                QString config = m.captured(4).trimmed();
 
-            if (scopeStr == "BU_") def.scope = DbcAttributeDef::Scope::Node;
-            else if (scopeStr == "BO_") def.scope = DbcAttributeDef::Scope::Message;
-            else if (scopeStr == "SG_") def.scope = DbcAttributeDef::Scope::Signal;
-            else def.scope = DbcAttributeDef::Scope::Network;
+                if (scopeStr == "BU_") def.scope = DbcAttributeDef::Scope::Node;
+                else if (scopeStr == "BO_") def.scope = DbcAttributeDef::Scope::Message;
+                else if (scopeStr == "SG_") def.scope = DbcAttributeDef::Scope::Signal;
+                else def.scope = DbcAttributeDef::Scope::Network;
 
-            if (typeStr == "INT") {
-                def.dataType = DbcAttributeDef::DataType::Int;
-                QStringList parts = config.split(' ', Qt::SkipEmptyParts);
-                if (parts.size() >= 2) {
-                    def.minValue = parts[0].toInt();
-                    def.maxValue = parts[1].toInt();
+                if (typeStr == "INT" || typeStr == "HEX") {
+                    def.dataType = DbcAttributeDef::DataType::Int;
+                    auto parts = config.split(' ', Qt::SkipEmptyParts);
+                    if (parts.size() >= 2) { def.minValue = parts[0].toInt(); def.maxValue = parts[1].toInt(); }
+                } else if (typeStr == "FLOAT") {
+                    def.dataType = DbcAttributeDef::DataType::Float;
+                    auto parts = config.split(' ', Qt::SkipEmptyParts);
+                    if (parts.size() >= 2) { def.minValue = parts[0].toDouble(); def.maxValue = parts[1].toDouble(); }
+                } else if (typeStr == "STRING") {
+                    def.dataType = DbcAttributeDef::DataType::String;
+                } else if (typeStr == "ENUM") {
+                    def.dataType = DbcAttributeDef::DataType::Enum;
+                    QString enumStr = config;
+                    if (enumStr.startsWith('"') && enumStr.endsWith('"'))
+                        enumStr = enumStr.mid(1, enumStr.size() - 2);
+                    def.enumChoices = enumStr.split(',', Qt::SkipEmptyParts);
+                    for (auto &s : def.enumChoices) s = s.trimmed();
                 }
-            } else if (typeStr == "FLOAT") {
-                def.dataType = DbcAttributeDef::DataType::Float;
-                QStringList parts = config.split(' ', Qt::SkipEmptyParts);
-                if (parts.size() >= 2) {
-                    def.minValue = parts[0].toDouble();
-                    def.maxValue = parts[1].toDouble();
-                }
-            } else if (typeStr == "STRING") {
-                def.dataType = DbcAttributeDef::DataType::String;
-            } else if (typeStr == "ENUM") {
-                def.dataType = DbcAttributeDef::DataType::Enum;
-                // 枚举值用逗号分隔，可能带引号
-                QString enumStr = config;
-                if (enumStr.startsWith('"') && enumStr.endsWith('"'))
-                    enumStr = enumStr.mid(1, enumStr.size() - 2);
-                def.enumChoices = enumStr.split(',', Qt::SkipEmptyParts);
-                for (auto &s : def.enumChoices)
-                    s = s.trimmed();
-            }
-
-            out.attributeDefs.append(def);
-            continue;
-        }
-
-        // BA_DEF_DEF_ — default attribute value
-        auto baDefDefMatch = baDefDefRe.match(line);
-        if (baDefDefMatch.hasMatch()) {
-            QString attrName = baDefDefMatch.captured(1);
-            QString valStr = baDefDefMatch.captured(2).trimmed();
-            // 去掉引号
-            if (valStr.startsWith('"') && valStr.endsWith('"'))
-                valStr = valStr.mid(1, valStr.size() - 2);
-
-            for (auto &def : out.attributeDefs) {
-                if (def.name == attrName) {
-                    if (def.dataType == DbcAttributeDef::DataType::Int)
-                        def.defaultValue = valStr.toInt();
-                    else if (def.dataType == DbcAttributeDef::DataType::Float)
-                        def.defaultValue = valStr.toDouble();
-                    else
-                        def.defaultValue = valStr;
-                    break;
-                }
+                out.attributeDefs.append(def);
             }
             continue;
         }
 
-        // BA_ — attribute value
-        auto baMatch = baRe.match(line);
-        if (baMatch.hasMatch()) {
-            QString attrName = baMatch.captured(1);
-            QString scopeStr = baMatch.captured(2);
-            QString rest = baMatch.captured(3).trimmed();
-
-            DbcAttributeValue av;
-            av.attributeName = attrName;
-
-            if (scopeStr == "BU_") {
-                // BA_ "attr" BU_ NodeName value;
-                QStringList parts = rest.split(' ', Qt::SkipEmptyParts);
-                if (parts.size() >= 2) {
-                    av.nodeName = parts[0];
-                    QString valStr = parts[1];
-                    if (valStr.startsWith('"') && valStr.endsWith('"'))
-                        valStr = valStr.mid(1, valStr.size() - 2);
-                    av.value = valStr;
-                }
-            } else if (scopeStr == "BO_") {
-                // BA_ "attr" BO_ id value;
-                QStringList parts = rest.split(' ', Qt::SkipEmptyParts);
-                if (parts.size() >= 2) {
-                    av.canId = parts[0].toUInt();
-                    QString valStr = parts[1];
-                    if (valStr.startsWith('"') && valStr.endsWith('"'))
-                        valStr = valStr.mid(1, valStr.size() - 2);
-                    bool ok;
-                    int intVal = valStr.toInt(&ok);
-                    if (ok) av.value = intVal;
-                    else av.value = valStr;
-                }
-            } else if (scopeStr == "SG_") {
-                // BA_ "attr" SG_ id signalName value;
-                QStringList parts = rest.split(' ', Qt::SkipEmptyParts);
-                if (parts.size() >= 3) {
-                    av.canId = parts[0].toUInt();
-                    av.signalName = parts[1];
-                    QString valStr = parts[2];
-                    if (valStr.startsWith('"') && valStr.endsWith('"'))
-                        valStr = valStr.mid(1, valStr.size() - 2);
-                    bool ok;
-                    int intVal = valStr.toInt(&ok);
-                    if (ok) av.value = intVal;
-                    else av.value = valStr;
-                }
-            } else {
-                // Network-level attribute: BA_ "attr" value;
-                QString valStr = rest;
+        // BA_DEF_DEF_ — default value
+        if (line.startsWith("BA_DEF_DEF_")) {
+            auto m = baDefDefRe.match(line);
+            if (m.hasMatch()) {
+                QString attrName = m.captured(1);
+                QString valStr = m.captured(2).trimmed();
                 if (valStr.startsWith('"') && valStr.endsWith('"'))
                     valStr = valStr.mid(1, valStr.size() - 2);
-                av.value = valStr;
-            }
-
-            out.attributeValues.append(av);
-            continue;
-        }
-
-        // VAL_TABLE_ — named value table
-        auto valTableMatch = valTableRe.match(line);
-        if (valTableMatch.hasMatch()) {
-            DbcValueTable vt;
-            vt.name = valTableMatch.captured(1);
-            QString rest = valTableMatch.captured(2).trimmed();
-
-            // 解析 "value "desc" value "desc" ..." 对
-            QRegularExpression pairRe(R"re((\d+)\s+"([^"]*)")re");
-            auto it = pairRe.globalMatch(rest);
-            while (it.hasNext()) {
-                auto m = it.next();
-                DbcValueDesc vd;
-                vd.value = m.captured(1).toInt();
-                vd.description = m.captured(2);
-                vt.entries.append(vd);
-            }
-            out.valueTables.append(vt);
-            continue;
-        }
-
-        // VAL_ — signal value table (inline)
-        auto valMatch = valRe.match(line);
-        if (valMatch.hasMatch()) {
-            quint32 id = valMatch.captured(1).toUInt();
-            QString sigName = valMatch.captured(2);
-            QString rest = valMatch.captured(3).trimmed();
-
-            auto *msg = out.findMessage(id);
-            if (msg) {
-                auto *sig = msg->findSignal(sigName);
-                if (sig) {
-                    QRegularExpression pairRe(R"re((\d+)\s+"([^"]*)")re");
-                    auto it = pairRe.globalMatch(rest);
-                    while (it.hasNext()) {
-                        auto m = it.next();
-                        DbcValueDesc vd;
-                        vd.value = m.captured(1).toInt();
-                        vd.description = m.captured(2);
-                        sig->valueTable.append(vd);
+                for (auto &def : out.attributeDefs) {
+                    if (def.name == attrName) {
+                        if (def.dataType == DbcAttributeDef::DataType::Int)
+                            def.defaultValue = valStr.toInt();
+                        else if (def.dataType == DbcAttributeDef::DataType::Float)
+                            def.defaultValue = valStr.toDouble();
+                        else
+                            def.defaultValue = valStr;
+                        break;
                     }
                 }
             }
             continue;
         }
 
-        // SIG_VALTYPE_ — signal value type
-        auto sigValTypeMatch = sigValTypeRe.match(line);
-        if (sigValTypeMatch.hasMatch()) {
-            // 1=IEEE float, 2=IEEE double
-            // 记录但当前不影响解码逻辑
+        // BA_ — attribute value
+        if (line.startsWith("BA_")) {
+            auto m = baRe.match(line);
+            if (m.hasMatch()) {
+                QString attrName = m.captured(1);
+                QString scopeStr = m.captured(2);
+                QString rest = m.captured(3).trimmed();
+                DbcAttributeValue av;
+                av.attributeName = attrName;
+
+                if (scopeStr == "BU_") {
+                    auto parts = rest.split(' ', Qt::SkipEmptyParts);
+                    if (parts.size() >= 2) {
+                        av.nodeName = parts[0];
+                        QString v = parts[1];
+                        if (v.startsWith('"') && v.endsWith('"')) v = v.mid(1, v.size() - 2);
+                        av.value = v;
+                    }
+                } else if (scopeStr == "BO_") {
+                    auto parts = rest.split(' ', Qt::SkipEmptyParts);
+                    if (parts.size() >= 2) {
+                        av.canId = parts[0].toUInt();
+                        QString v = parts[1];
+                        if (v.startsWith('"') && v.endsWith('"')) v = v.mid(1, v.size() - 2);
+                        bool ok; int iv = v.toInt(&ok);
+                        av.value = ok ? QVariant(iv) : QVariant(v);
+                    }
+                } else if (scopeStr == "SG_") {
+                    auto parts = rest.split(' ', Qt::SkipEmptyParts);
+                    if (parts.size() >= 3) {
+                        av.canId = parts[0].toUInt();
+                        av.signalName = parts[1];
+                        QString v = parts[2];
+                        if (v.startsWith('"') && v.endsWith('"')) v = v.mid(1, v.size() - 2);
+                        bool ok; int iv = v.toInt(&ok);
+                        av.value = ok ? QVariant(iv) : QVariant(v);
+                    }
+                } else {
+                    QString v = rest;
+                    if (v.startsWith('"') && v.endsWith('"')) v = v.mid(1, v.size() - 2);
+                    av.value = v;
+                }
+                out.attributeValues.append(av);
+            }
+            continue;
+        }
+
+        // VAL_TABLE_ — named value table
+        if (line.startsWith("VAL_TABLE_")) {
+            auto m = valTableRe.match(line);
+            if (m.hasMatch()) {
+                DbcValueTable vt;
+                vt.name = m.captured(1);
+                auto it = pairRe.globalMatch(m.captured(2).trimmed());
+                while (it.hasNext()) {
+                    auto mm = it.next();
+                    vt.entries.append({mm.captured(1).toInt(), mm.captured(2)});
+                }
+                out.valueTables.append(vt);
+            }
+            continue;
+        }
+
+        // VAL_ — signal value table (inline)
+        if (line.startsWith("VAL_")) {
+            auto m = valRe.match(line);
+            if (m.hasMatch()) {
+                auto *msg = out.findMessage(m.captured(1).toUInt());
+                if (msg) {
+                    auto *sig = msg->findSignal(m.captured(2));
+                    if (sig) {
+                        auto it = pairRe.globalMatch(m.captured(3).trimmed());
+                        while (it.hasNext()) {
+                            auto mm = it.next();
+                            sig->valueTable.append({mm.captured(1).toInt(), mm.captured(2)});
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+
+        // SIG_VALTYPE_ — signal value type (1=float, 2=double)
+        if (line.startsWith("SIG_VALTYPE_")) {
+            auto m = sigValTypeRe.match(line);
+            if (m.hasMatch()) {
+                quint32 id = m.captured(1).toUInt();
+                QString sigName = m.captured(2);
+                int valType = m.captured(3).toInt();
+                auto *msg = out.findMessage(id);
+                if (msg) {
+                    auto *sig = msg->findSignal(sigName);
+                    if (sig) {
+                        if (valType == 1)
+                            sig->extendedValueType = DbcSignal::ExtendedValueType::Float;
+                        else if (valType == 2)
+                            sig->extendedValueType = DbcSignal::ExtendedValueType::Double;
+                    }
+                }
+            }
             continue;
         }
 
         // BO_TX_BU_ — message transmitter nodes
-        auto boTxBuMatch = boTxBuRe.match(line);
-        if (boTxBuMatch.hasMatch()) {
-            quint32 id = boTxBuMatch.captured(1).toUInt();
-            QStringList nodes = boTxBuMatch.captured(2).split(',', Qt::SkipEmptyParts);
-            auto *msg = out.findMessage(id);
-            if (msg) {
-                for (auto &n : nodes)
-                    msg->txNodes.append(n.trimmed());
+        if (line.startsWith("BO_TX_BU_")) {
+            auto m = boTxBuRe.match(line);
+            if (m.hasMatch()) {
+                auto *msg = out.findMessage(m.captured(1).toUInt());
+                if (msg) {
+                    for (auto &n : m.captured(2).split(',', Qt::SkipEmptyParts))
+                        msg->txNodes.append(n.trimmed());
+                }
             }
             continue;
         }
     }
 
-    return !out.messages.isEmpty();
+    qDebug() << "[DBC] Parsed:" << out.messages.size() << "messages,"
+             << out.nodes.size() << "nodes,"
+             << out.valueTables.size() << "valueTables,"
+             << out.attributeDefs.size() << "attrDefs,"
+             << out.attributeValues.size() << "attrValues";
+
+    return true;
 }
 
 // ============================================================

@@ -107,13 +107,21 @@ struct DbcSignal
     // 多路复用
     enum class MuxType { None, Multiplexor, Multiplexed };
     MuxType muxType = MuxType::None;
-    int muxValue = -1;
+    int muxValue = -1;               // Multiplexed 时的开关值
+
+    // 扩展值类型 (对应 SIG_VALTYPE_ 段)
+    enum class ExtendedValueType { Integer, Float, Double };
+    ExtendedValueType extendedValueType = ExtendedValueType::Integer;
 
     // 值表
     QString valueTableName;           // 引用的命名值表名
     QList<DbcValueDesc> valueTable;   // 内联值表 (VAL_ 段直接定义)
 
-    // 从原始数据中解码信号值
+    // 提取原始值 (raw)，参考 dbcppp SignalImpl 的位遍历算法
+    quint64 rawDecode(const QByteArray &data) const;
+    // 从原始值转换为物理值 (raw * factor + offset)，支持 float/double
+    double rawToPhys(quint64 raw) const;
+    // 从原始数据中解码物理值
     double decode(const QByteArray &data) const;
 
     /// 查找值描述
