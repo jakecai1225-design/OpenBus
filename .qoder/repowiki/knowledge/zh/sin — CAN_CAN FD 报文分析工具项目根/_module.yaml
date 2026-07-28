@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: ""
-title: sin 项目根目录与构建配置
+title: sin — CAN/CAN FD 报文分析工具项目根
 scope:
     - README.md
     - README.en.md

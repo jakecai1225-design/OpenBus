@@ -3,11 +3,11 @@ schema_version: 1
 locale: zh-CN
 branch: master
 nodes_managed: true
-exported_at: "2026-07-28T06:27:47Z"
+exported_at: "2026-07-28T07:29:58Z"
 modules:
     "":
-        dir_name: sin 项目根目录与构建配置
-        title: sin 项目根目录与构建配置
+        dir_name: sin — CAN_CAN FD 报文分析工具项目根
+        title: sin — CAN/CAN FD 报文分析工具项目根
         scope:
             - README.md
             - README.en.md

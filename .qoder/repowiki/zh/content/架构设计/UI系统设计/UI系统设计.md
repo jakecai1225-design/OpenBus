@@ -28,19 +28,23 @@
 - [src/ui/spliteditorarea.cpp](file://src/ui/spliteditorarea.cpp)
 - [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
 - [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+- [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
+- [src/ui/dbcdetailtab.cpp](file://src/ui/dbcdetailtab.cpp)
+- [src/ui/playbacktab.h](file://src/ui/playbacktab.h)
+- [src/ui/playbacktab.cpp](file://src/ui/playbacktab.cpp)
+- [src/ui/recordtab.h](file://src/ui/recordtab.h)
+- [src/ui/recordtab.cpp](file://src/ui/recordtab.cpp)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- 基于UI原型文件的重大重构（1105行新增和761行删除），更新了界面组件架构说明
-- 新增了活动栏组件的详细架构说明，包括动态导航和状态管理
-- 添加了底部面板组件的专业功能描述，支持消息分类和实时日志输出
-- 完善了右侧面板的布局管理机制，实现可调整宽度的响应式设计
-- 扩展了分割编辑器区域的多视图支持，提供多文档编辑功能
-- 增强了侧边栏面板系统的动态管理功能，支持面板注册和切换
-- 更新了UI组件层次结构与依赖关系图，反映新的架构模式
-- 新增了响应式布局和可拖拽调整的设计模式说明
-- 强化了Qt Designer与C++混合开发模式的实践指导
+- 基于Applied Changes更新：UI系统新增了三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页），大幅增强了用户界面功能和交互体验
+- 新增DBC详情标签页的详细架构说明，支持CAN数据库文件的可视化编辑与配置管理
+- 添加播放控制标签页的专业功能描述，实现CAN总线数据的回放控制与时间轴操作
+- 完善录制标签页的实时数据捕获功能，提供录制状态管理与数据导出
+- 更新了主窗口与Tab组件的集成架构，实现动态标签页管理与状态同步
+- 扩展了信号槽通信机制，增强各Tab组件间的数据共享与事件协调
+- 强化了响应式布局设计，确保多标签页在不同屏幕尺寸下的良好显示效果
 
 ## 目录
 1. [简介](#简介)
@@ -49,7 +53,7 @@
 4. [架构总览](#架构总览)
 5. [详细组件分析](#详细组件分析)
 6. [新增专业组件](#新增专业组件)
-7. [增强面板系统](#增强面板系统)
+7. [专用Tab组件系统](#专用Tab组件系统)
 8. [依赖关系分析](#依赖关系分析)
 9. [性能考虑](#性能考虑)
 10. [故障排查指南](#故障排查指南)
@@ -59,7 +63,7 @@
 ## 简介
 本文件面向基于Qt Widgets的UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
 
-**更新** 本文档现已重点说明Qt Designer XML布局系统与手写C++代码的混合架构模式，强调可视化设计与代码实现的分离与协作，并新增了多个专业UI组件的详细架构说明，包括活动栏、底部面板、右侧面板和分割编辑器区域等核心组件。基于最新的UI原型文件重构，进一步增强了组件间的交互模式和响应式设计能力。
+**更新** 本文档现已重点说明Qt Designer XML布局系统与手写C++代码的混合架构模式，强调可视化设计与代码实现的分离与协作，并新增了多个专业UI组件的详细架构说明，包括活动栏、底部面板、右侧面板和分割编辑器区域等核心组件。**特别重要的是，新增了三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页），为CAN总线数据分析提供了完整的解决方案。**基于最新的UI原型文件重构，进一步增强了组件间的交互模式和响应式设计能力。
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式：
@@ -81,8 +85,11 @@ B --> J["src/ui/filterbar.h/.cpp"]
 B --> K["src/ui/graphicview.h/.cpp"]
 B --> L["src/ui/traceview.h/.cpp"]
 B --> M["src/ui/signalconfigdialog.h/.cpp"]
-A --> N["resources/resources.qrc"]
-N --> O["resources/styles/default.qss"]
+B --> N["src/ui/dbcdetailtab.h/.cpp"]
+B --> O["src/ui/playbacktab.h/.cpp"]
+B --> P["src/ui/recordtab.h/.cpp"]
+A --> Q["resources/resources.qrc"]
+Q --> R["resources/styles/default.qss"]
 ```
 
 图表来源
@@ -109,6 +116,12 @@ N --> O["resources/styles/default.qss"]
 - [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
 - [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
 - [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
+- [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
+- [src/ui/dbcdetailtab.cpp](file://src/ui/dbcdetailtab.cpp)
+- [src/ui/playbacktab.h](file://src/ui/playbacktab.h)
+- [src/ui/playbacktab.cpp](file://src/ui/playbacktab.cpp)
+- [src/ui/recordtab.h](file://src/ui/recordtab.h)
+- [src/ui/recordtab.cpp](file://src/ui/recordtab.cpp)
 - [resources/resources.qrc](file://resources/resources.qrc)
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 
@@ -122,7 +135,7 @@ N --> O["resources/styles/default.qss"]
 - QSS样式 default.qss: 集中式样式表，统一外观与主题基础
 - Qt资源 resources.qrc: 将样式与图标等资源打包进应用，便于分发与加载
 
-**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成清晰的混合开发模式，并新增了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等核心UI组件。这些组件通过信号槽机制实现松耦合通信，支持动态加载和响应式布局。
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成清晰的混合开发模式，并新增了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等核心UI组件。**特别重要的是，新增了三个专用Tab组件：DBC详情标签页用于CAN数据库文件的可视化编辑，播放控制标签页实现CAN总线数据的回放控制，录制标签页提供实时数据捕获功能。**这些组件通过信号槽机制实现松耦合通信，支持动态加载和响应式布局。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -138,7 +151,7 @@ N --> O["resources/styles/default.qss"]
 - 样式通过QSS集中管理，支持运行时切换
 - 资源通过qrc统一打包，避免路径问题
 
-**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。各组件间通过信号槽机制进行通信，确保模块间的松耦合和高内聚。
+**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。**新增了三个专用Tab组件系统，通过统一的标签页管理器进行协调，实现了模块间的松耦合和高内聚。**各组件间通过信号槽机制进行通信，确保模块间的松耦合和高内聚。
 
 ```mermaid
 graph TB
@@ -154,6 +167,11 @@ end
 subgraph "编辑区域层"
 SEA["SplitEditorArea<br/>分割编辑器区域"]
 SBP["SidebarPanels<br/>侧边栏面板"]
+end
+subgraph "专用Tab组件层"
+DBCT["DBCDetailTab<br/>DBC详情标签页"]
+PB["PlaybackTab<br/>播放控制标签页"]
+RT["RecordTab<br/>录制标签页"]
 end
 subgraph "专业组件层"
 FB["FilterBar<br/>过滤器栏"]
@@ -173,6 +191,9 @@ MW --> BP
 MW --> RP
 MW --> SEA
 MW --> SBP
+MW --> DBCT
+MW --> PB
+MW --> RT
 SEA --> FB
 SEA --> GV
 SEA --> TV
@@ -195,6 +216,12 @@ QRC --> QSS
 - [src/ui/spliteditorarea.cpp](file://src/ui/spliteditorarea.cpp)
 - [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
 - [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+- [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
+- [src/ui/dbcdetailtab.cpp](file://src/ui/dbcdetailtab.cpp)
+- [src/ui/playbacktab.h](file://src/ui/playbacktab.h)
+- [src/ui/playbacktab.cpp](file://src/ui/playbacktab.cpp)
+- [src/ui/recordtab.h](file://src/ui/recordtab.h)
+- [src/ui/recordtab.cpp](file://src/ui/recordtab.cpp)
 - [src/ui/filterbar.h](file://src/ui/filterbar.h)
 - [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
 - [src/ui/graphicview.h](file://src/ui/graphicview.h)
@@ -252,7 +279,7 @@ App->>App : 进入事件循环
 - 持有样式管理器与主题配置
 - 通过信号槽机制与子控件通信
 
-**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。主窗口作为协调者，统一管理各组件的生命周期和数据流。
+**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。**特别重要的是，新增了三个专用Tab组件的管理功能，包括DBC详情标签页、播放控制标签页和录制标签页的动态创建、切换和状态同步。**主窗口作为协调者，统一管理各组件的生命周期和数据流。
 
 ```mermaid
 classDiagram
@@ -264,6 +291,9 @@ class MainWindow {
 +switchTheme(newTheme)
 -initConnections()
 -updateStyles()
++addTabComponent(component)
++removeTabComponent(id)
++switchToTab(tabId)
 }
 class ActivityBar {
 +addActivityItem(item)
@@ -292,11 +322,32 @@ class SidebarPanels {
 +hidePanel(name)
 +updatePanelData(name, data)
 }
+class DBCDetailTab {
++loadDBCFile(path)
++displaySignals()
++editSignalProperties()
++exportConfiguration()
+}
+class PlaybackTab {
++startPlayback()
++stopPlayback()
++seekToPosition(time)
++setPlaybackSpeed(speed)
+}
+class RecordTab {
++startRecording()
++stopRecording()
++filterData()
++exportRecordedData()
+}
 MainWindow --> ActivityBar : "包含"
 MainWindow --> BottomPanel : "包含"
 MainWindow --> RightPanel : "包含"
 MainWindow --> SplitEditorArea : "包含"
 MainWindow --> SidebarPanels : "管理"
+MainWindow --> DBCDetailTab : "管理"
+MainWindow --> PlaybackTab : "管理"
+MainWindow --> RecordTab : "管理"
 ```
 
 图表来源
@@ -307,6 +358,9 @@ MainWindow --> SidebarPanels : "管理"
 - [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
 - [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
 - [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
+- [src/ui/playbacktab.h](file://src/ui/playbacktab.h)
+- [src/ui/recordtab.h](file://src/ui/recordtab.h)
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
@@ -779,13 +833,218 @@ Render --> End["完成"]
 
 [无图表来源 - 概念性流程图]
 
+## 专用Tab组件系统
+
+### DBC详情标签页（DBCDetailTab）
+功能特性
+- 提供CAN数据库文件（.dbc）的可视化编辑界面
+- 支持信号定义的查看、编辑与验证
+- 提供信号属性的批量修改功能
+- 支持DBC文件的导入导出与版本管理
+
+技术实现
+- 基于QTableWidget的信号列表展示
+- 自定义委托实现信号属性的编辑
+- 实时验证信号定义的合法性
+- 与DBCManager模块集成进行数据解析
+
+```mermaid
+classDiagram
+class DBCDetailTab {
++DBCDetailTab(parent)
++loadDBCFile(filePath)
++displaySignalList()
++editSignalProperties(signal)
++validateSignal(signal)
++exportConfiguration()
++importTemplate(template)
++signalChanged()
++databaseLoaded()
+}
+class SignalProperty {
++name string
++value string
++type string
++range string
++unit string
++isValid() bool
+}
+class DBCManager {
++parseDBCFile(path)
++extractSignals()
++validateDatabase()
++exportToDBC()
+}
+DBCDetailTab --> SignalProperty : "管理"
+DBCDetailTab --> DBCManager : "使用"
+```
+
+图表来源
+- [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
+- [src/ui/dbcdetailtab.cpp](file://src/ui/dbcdetailtab.cpp)
+
+章节来源
+- [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
+- [src/ui/dbcdetailtab.cpp](file://src/ui/dbcdetailtab.cpp)
+
+### 播放控制标签页（PlaybackTab）
+功能特性
+- 实现CAN总线数据的回放控制功能
+- 提供时间轴操作与位置跳转
+- 支持播放速度调节与循环播放
+- 实时显示播放状态与进度信息
+
+技术实现
+- 基于QSlider的时间轴控制界面
+- 定时器驱动的数据回放机制
+- 与Player模块集成进行数据回放
+- 支持播放队列的管理与调度
+
+```mermaid
+classDiagram
+class PlaybackTab {
++PlaybackTab(parent)
++startPlayback()
++stopPlayback()
++pausePlayback()
++seekToPosition(time)
++setPlaybackSpeed(speed)
++setLoopMode(mode)
++updatePlayStatus(status)
++displayTimeline()
+}
+class PlaybackControl {
++position double
++speed double
++isPlaying bool
++isPaused bool
++loopMode string
++play()
++pause()
++stop()
++seek(time)
+}
+class Player {
++loadData(data)
++playback()
++pause()
++resume()
++stop()
++getPosition()
+}
+PlaybackTab --> PlaybackControl : "控制"
+PlaybackTab --> Player : "调用"
+```
+
+图表来源
+- [src/ui/playbacktab.h](file://src/ui/playbacktab.h)
+- [src/ui/playbacktab.cpp](file://src/ui/playbacktab.cpp)
+
+章节来源
+- [src/ui/playbacktab.h](file://src/ui/playbacktab.h)
+- [src/ui/playbacktab.cpp](file://src/ui/playbacktab.cpp)
+
+### 录制标签页（RecordTab）
+功能特性
+- 提供CAN总线数据的实时录制功能
+- 支持录制参数配置与过滤设置
+- 实时显示录制状态与数据统计
+- 支持录制文件的保存与导出
+
+技术实现
+- 基于QPlainTextEdit的实时日志显示
+- 异步数据捕获与存储机制
+- 与Recorder模块集成进行数据录制
+- 支持录制过程中的实时监控
+
+```mermaid
+classDiagram
+class RecordTab {
++RecordTab(parent)
++startRecording()
++stopRecording()
++configureRecording(params)
++filterData(filterRules)
++displayRealtimeData()
++exportRecordedData()
++updateRecordStatus(status)
++showStatistics()
+}
+class RecordingConfig {
++duration int
++bufferSize int
++filterRules list
++outputFormat string
++autoSave bool
++validate() bool
+}
+class Recorder {
++startCapture()
++stopCapture()
++addFilter(rule)
++removeFilter(rule)
++saveToFile(path)
++getStatistics()
+}
+RecordTab --> RecordingConfig : "配置"
+RecordTab --> Recorder : "控制"
+```
+
+图表来源
+- [src/ui/recordtab.h](file://src/ui/recordtab.h)
+- [src/ui/recordtab.cpp](file://src/ui/recordtab.cpp)
+
+章节来源
+- [src/ui/recordtab.h](file://src/ui/recordtab.h)
+- [src/ui/recordtab.cpp](file://src/ui/recordtab.cpp)
+
+### Tab组件管理系统
+架构设计
+- 统一的标签页管理器，负责Tab组件的生命周期管理
+- 支持动态添加与移除Tab组件
+- 实现Tab组件间的通信与数据共享
+- 提供Tab状态同步与持久化机制
+
+```mermaid
+classDiagram
+class TabManager {
++TabManager(parent)
++addTab(component, name, icon)
++removeTab(id)
++switchTab(id)
++getAllTabs()
++getActiveTab()
++updateTabState(id, state)
++saveTabStates()
++restoreTabStates()
+}
+class TabComponent {
++id string
++name string
++icon QIcon
++isVisible bool
++updateState(state)
++serialize() QVariantMap
++deserialize(map)
+}
+TabManager --> TabComponent : "管理"
+```
+
+图表来源
+- [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
+- [src/ui/mainwindow.cpp]
+
+章节来源
+- [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
+- [src/ui/mainwindow.cpp]
+
 ## 依赖关系分析
 模块间依赖与耦合
 - main.cpp 依赖样式加载与主窗口
 - MainWindow 依赖样式与主题管理
 - 样式与资源通过qrc解耦，降低硬编码路径风险
 
-**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域和侧边栏面板系统。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。
+**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。
 
 ```mermaid
 graph LR
@@ -796,6 +1055,9 @@ MW --> BP["BottomPanel"]
 MW --> RP["RightPanel"]
 MW --> SEA["SplitEditorArea"]
 MW --> SBP["SidebarPanels"]
+MW --> DBCT["DBCDetailTab"]
+MW --> PB["PlaybackTab"]
+MW --> RT["RecordTab"]
 SEA --> FB["FilterBar"]
 SEA --> GV["GraphicView"]
 SEA --> TV["TraceView"]
@@ -807,6 +1069,9 @@ BP --> Logging["日志管理"]
 RP --> Properties["属性管理"]
 SEA --> Editors["编辑器管理"]
 SBP --> Panels["面板管理"]
+DBCT --> DBC["DBC管理"]
+PB --> Player["播放器"]
+RT --> Recorder["录制器"]
 ```
 
 图表来源
@@ -818,6 +1083,9 @@ SBP --> Panels["面板管理"]
 - [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
 - [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
 - [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
+- [src/ui/playbacktab.h](file://src/ui/playbacktab.h)
+- [src/ui/recordtab.h](file://src/ui/recordtab.h)
 - [src/ui/filterbar.h](file://src/ui/filterbar.h)
 - [src/ui/graphicview.h](file://src/ui/graphicview.h)
 - [src/ui/traceview.h](file://src/ui/traceview.h)
@@ -856,6 +1124,12 @@ SBP --> Panels["面板管理"]
   - 右侧面板的内容切换使用虚拟化技术
   - 分割编辑器区域实现编辑器的按需创建
   - 侧边栏面板系统优化面板切换性能
+- **专用Tab组件性能优化**
+  - DBC详情标签页实现大数据集的虚拟滚动
+  - 播放控制标签页使用高效的定时器机制
+  - 录制标签页采用异步数据写入避免阻塞
+  - Tab组件管理系统优化组件切换性能
+  - 实现Tab组件的懒加载与销毁机制
 
 [本节为通用指导，无需特定文件引用]
 
@@ -888,13 +1162,19 @@ SBP --> Panels["面板管理"]
   - 右侧面板内容切换卡顿需要优化数据绑定
   - 分割编辑器区域布局错乱需要检查约束设置
   - 侧边栏面板系统面板注册失败需要检查命名冲突
+- **专用Tab组件问题**
+  - DBC文件加载失败需要检查文件格式与权限
+  - 播放控制标签页时间轴不同步需要检查定时器精度
+  - 录制标签页数据丢失需要检查缓冲区大小与写入频率
+  - Tab组件切换卡顿需要优化组件初始化过程
+  - 标签页状态同步失败需要检查信号槽连接
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
 
 ## 结论
-本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统，为CAN总线数据分析提供了完整的解决方案。遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
+本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统，**特别是新增的三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页），为CAN总线数据分析提供了完整的解决方案。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -928,6 +1208,12 @@ SBP --> Panels["面板管理"]
   - 右侧面板应具备可调整的宽度与状态持久化
   - 分割编辑器区域需支持多文档编辑与同步操作
   - 侧边栏面板系统应提供灵活的注册与管理接口
+- **专用Tab组件规范**
+  - DBC详情标签页应支持大数据集的虚拟滚动
+  - 播放控制标签页需实现精确的时间轴控制
+  - 录制标签页应具备异步数据写入机制
+  - Tab组件管理系统需提供统一的接口规范
+  - 各Tab组件应实现状态同步与持久化
 
 ### 样式定制指南
 - 主题设计
@@ -965,6 +1251,12 @@ SBP --> Panels["面板管理"]
   - 右侧面板应提供内容切换的动画效果
   - 分割编辑器区域需支持编辑器的拖拽重排
   - 侧边栏面板系统应实现面板状态的自动保存
+- **专用Tab组件最佳实践**
+  - DBC详情标签页应实现高效的文件解析与缓存
+  - 播放控制标签页需支持精确的时间同步
+  - 录制标签页应具备容错机制与数据备份
+  - Tab组件管理系统应优化组件生命周期管理
+  - 各Tab组件应实现独立的状态管理机制
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -976,9 +1268,11 @@ SBP --> Panels["面板管理"]
 5. **逻辑实现**：在手写的C++代码中添加业务逻辑
 6. **迭代完善**：返回Designer调整界面，重复上述流程
 7. **专业组件集成**：将专业组件嵌入到主界面中
-8. **性能调优**：针对大数据量场景进行性能优化
-9. **响应式适配**：测试不同屏幕尺寸下的布局表现
-10. **主题验证**：验证样式在不同主题下的显示效果
+8. **专用Tab组件开发**：实现DBC详情、播放控制和录制功能的标签页
+9. **性能调优**：针对大数据量场景进行性能优化
+10. **响应式适配**：测试不同屏幕尺寸下的布局表现
+11. **主题验证**：验证样式在不同主题下的显示效果
+12. **Tab组件测试**：确保标签页切换流畅且状态同步正常
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)

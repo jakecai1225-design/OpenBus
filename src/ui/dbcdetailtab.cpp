@@ -12,6 +12,13 @@
 #include <QLabel>
 #include <QHeaderView>
 #include <QGroupBox>
+#include <QStackedWidget>
+#include <QScrollArea>
+
+// 树节点 UserRole
+static const int RoleNodeType = Qt::UserRole;       // int -> NodeType
+static const int RoleCanId    = Qt::UserRole + 1;   // uint -> message/signal canId
+static const int RoleName     = Qt::UserRole + 2;   // QString -> signal/node/vt name
 
 DbcDetailTab::DbcDetailTab(const QString &dbcFileName, DbcManager *mgr, QWidget *parent)
     : QWidget(parent)
@@ -30,54 +37,8 @@ DbcDetailTab::DbcDetailTab(const QString &dbcFileName, DbcManager *mgr, QWidget 
 
     // 左右分割
     auto *splitter = new QSplitter(Qt::Horizontal, this);
-
-    // ---- 左侧: 搜索 + 树 ----
-    auto *leftWidget = new QWidget(this);
-    auto *leftLayout = new QVBoxLayout(leftWidget);
-    leftLayout->setContentsMargins(0, 0, 0, 0);
-    leftLayout->setSpacing(0);
-
-    m_searchEdit = new QLineEdit(this);
-    m_searchEdit->setPlaceholderText("搜索信号...");
-    m_searchEdit->setContentsMargins(4, 4, 4, 4);
-    leftLayout->addWidget(m_searchEdit);
-
-    m_tree = new QTreeWidget(this);
-    m_tree->setHeaderHidden(true);
-    m_tree->setIndentation(16);
-    leftLayout->addWidget(m_tree, 1);
-
-    splitter->addWidget(leftWidget);
-
-    // ---- 右侧: 详情 ----
-    auto *rightWidget = new QWidget(this);
-    auto *rightLayout = new QVBoxLayout(rightWidget);
-    rightLayout->setContentsMargins(8, 8, 8, 8);
-    rightLayout->setSpacing(8);
-
-    // 网络信息
-    auto *netGroup = new QGroupBox("网络信息", rightWidget);
-    auto *netLayout = new QVBoxLayout(netGroup);
-    m_msgTitleLabel = new QLabel("(点击左侧 Message 查看详情)", netGroup);
-    m_msgInfoLabel = new QLabel("", netGroup);
-    netLayout->addWidget(m_msgTitleLabel);
-    netLayout->addWidget(m_msgInfoLabel);
-    rightLayout->addWidget(netGroup);
-
-    // 信号表格
-    auto *sigGroup = new QGroupBox("Signals", rightWidget);
-    auto *sigLayout = new QVBoxLayout(sigGroup);
-    m_sigTable = new QTableWidget(0, 7, sigGroup);
-    m_sigTable->setHorizontalHeaderLabels({"名称", "起始位", "长度", "因子", "偏移", "最小值", "最大值"});
-    m_sigTable->verticalHeader()->setVisible(false);
-    m_sigTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_sigTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-    for (int i = 1; i < 7; ++i)
-        m_sigTable->horizontalHeader()->setSectionResizeMode(i, QHeaderView::ResizeToContents);
-    sigLayout->addWidget(m_sigTable);
-    rightLayout->addWidget(sigGroup, 1);
-
-    splitter->addWidget(rightWidget);
+    buildLeftPane(splitter);
+    buildRightPane(splitter);
     splitter->setStretchFactor(0, 3);
     splitter->setStretchFactor(1, 7);
 
@@ -89,98 +50,567 @@ DbcDetailTab::DbcDetailTab(const QString &dbcFileName, DbcManager *mgr, QWidget 
     connect(m_tree, &QTreeWidget::itemDoubleClicked, this, &DbcDetailTab::onTreeItemDoubleClicked);
 
     refreshTree();
+    showPlaceholder();
+}
+
+// ============================================================
+//  左侧面板
+// ============================================================
+
+void DbcDetailTab::buildLeftPane(QSplitter *splitter)
+{
+    auto *leftWidget = new QWidget(this);
+    auto *leftLayout = new QVBoxLayout(leftWidget);
+    leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->setSpacing(0);
+
+    m_searchEdit = new QLineEdit(this);
+    m_searchEdit->setPlaceholderText("搜索信号/报文/节点...");
+    m_searchEdit->setContentsMargins(4, 4, 4, 4);
+    leftLayout->addWidget(m_searchEdit);
+
+    m_tree = new QTreeWidget(this);
+    m_tree->setHeaderHidden(true);
+    m_tree->setIndentation(16);
+    leftLayout->addWidget(m_tree, 1);
+
+    splitter->addWidget(leftWidget);
+}
+
+// ============================================================
+//  右侧面板 — StackedWidget
+// ============================================================
+
+void DbcDetailTab::buildRightPane(QSplitter *splitter)
+{
+    m_detailStack = new QStackedWidget(this);
+
+    // Page: Message
+    auto *msgPage = new QWidget(m_detailStack);
+    buildMessagePage(msgPage);
+    m_pageMessage = m_detailStack->addWidget(msgPage);
+
+    // Page: Signal
+    auto *sigPage = new QWidget(m_detailStack);
+    buildSignalPage(sigPage);
+    m_pageSignal = m_detailStack->addWidget(sigPage);
+
+    // Page: Node
+    auto *nodePage = new QWidget(m_detailStack);
+    buildNodePage(nodePage);
+    m_pageNode = m_detailStack->addWidget(nodePage);
+
+    // Page: ValueTable
+    auto *vtPage = new QWidget(m_detailStack);
+    buildValueTablePage(vtPage);
+    m_pageValueTable = m_detailStack->addWidget(vtPage);
+
+    // Page: Placeholder
+    auto *placeholder = new QWidget(m_detailStack);
+    auto *phLayout = new QVBoxLayout(placeholder);
+    phLayout->setAlignment(Qt::AlignCenter);
+    auto *phLabel = new QLabel("点击左侧树中的条目查看详情", placeholder);
+    phLabel->setAlignment(Qt::AlignCenter);
+    phLabel->setStyleSheet("color: #999; font-size: 13px;");
+    phLayout->addWidget(phLabel);
+    m_pagePlaceholder = m_detailStack->addWidget(placeholder);
+
+    splitter->addWidget(m_detailStack);
+}
+
+// ---- Message 详情页 ----
+
+void DbcDetailTab::buildMessagePage(QWidget *page)
+{
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(6);
+
+    m_msgTitleLabel = new QLabel(page);
+    m_msgTitleLabel->setStyleSheet("font-weight: bold; font-size: 13px;");
+    layout->addWidget(m_msgTitleLabel);
+
+    m_msgInfoLabel = new QLabel(page);
+    m_msgInfoLabel->setStyleSheet("color: #555;");
+    layout->addWidget(m_msgInfoLabel);
+
+    m_msgCommentLabel = new QLabel(page);
+    m_msgCommentLabel->setWordWrap(true);
+    m_msgCommentLabel->setStyleSheet("color: #666; font-style: italic;");
+    m_msgCommentLabel->setVisible(false);
+    layout->addWidget(m_msgCommentLabel);
+
+    // 信号表格
+    auto *sigGroup = new QGroupBox("Signals", page);
+    auto *sigLayout = new QVBoxLayout(sigGroup);
+    m_msgSigTable = new QTableWidget(0, 9, sigGroup);
+    m_msgSigTable->setHorizontalHeaderLabels(
+        {"名称", "起始位", "长度", "字节序", "符号", "因子", "偏移", "最小/最大", "单位"});
+    m_msgSigTable->verticalHeader()->setVisible(false);
+    m_msgSigTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_msgSigTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    for (int i = 1; i < 9; ++i)
+        m_msgSigTable->horizontalHeader()->setSectionResizeMode(i, QHeaderView::ResizeToContents);
+    sigLayout->addWidget(m_msgSigTable);
+    layout->addWidget(sigGroup, 1);
+}
+
+// ---- Signal 详情页 ----
+
+void DbcDetailTab::buildSignalPage(QWidget *page)
+{
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(6);
+
+    m_sigTitleLabel = new QLabel(page);
+    m_sigTitleLabel->setStyleSheet("font-weight: bold; font-size: 13px;");
+    layout->addWidget(m_sigTitleLabel);
+
+    // 属性表
+    auto *propGroup = new QGroupBox("属性", page);
+    auto *propLayout = new QVBoxLayout(propGroup);
+    m_sigPropTable = new QTableWidget(0, 2, propGroup);
+    m_sigPropTable->setHorizontalHeaderLabels({"属性", "值"});
+    m_sigPropTable->verticalHeader()->setVisible(false);
+    m_sigPropTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_sigPropTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_sigPropTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    propLayout->addWidget(m_sigPropTable);
+    layout->addWidget(propGroup);
+
+    // 注释
+    m_sigCommentLabel = new QLabel(page);
+    m_sigCommentLabel->setWordWrap(true);
+    m_sigCommentLabel->setStyleSheet("color: #666; font-style: italic;");
+    m_sigCommentLabel->setVisible(false);
+    layout->addWidget(m_sigCommentLabel);
+
+    // 值表
+    auto *vtGroup = new QGroupBox("Value Table", page);
+    auto *vtLayout = new QVBoxLayout(vtGroup);
+    m_sigValueTable = new QTableWidget(0, 2, vtGroup);
+    m_sigValueTable->setHorizontalHeaderLabels({"值", "描述"});
+    m_sigValueTable->verticalHeader()->setVisible(false);
+    m_sigValueTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_sigValueTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_sigValueTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    vtLayout->addWidget(m_sigValueTable);
+    vtGroup->setVisible(false);
+    layout->addWidget(vtGroup, 1);
+}
+
+// ---- Node 详情页 ----
+
+void DbcDetailTab::buildNodePage(QWidget *page)
+{
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(6);
+
+    m_nodeTitleLabel = new QLabel(page);
+    m_nodeTitleLabel->setStyleSheet("font-weight: bold; font-size: 13px;");
+    layout->addWidget(m_nodeTitleLabel);
+
+    m_nodeCommentLabel = new QLabel(page);
+    m_nodeCommentLabel->setWordWrap(true);
+    m_nodeCommentLabel->setStyleSheet("color: #666; font-style: italic;");
+    m_nodeCommentLabel->setVisible(false);
+    layout->addWidget(m_nodeCommentLabel);
+
+    // TX 报文表
+    auto *txGroup = new QGroupBox("发送的报文 (TX)", page);
+    auto *txLayout = new QVBoxLayout(txGroup);
+    m_nodeTxTable = new QTableWidget(0, 3, txGroup);
+    m_nodeTxTable->setHorizontalHeaderLabels({"ID", "名称", "DLC"});
+    m_nodeTxTable->verticalHeader()->setVisible(false);
+    m_nodeTxTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_nodeTxTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    txLayout->addWidget(m_nodeTxTable);
+    layout->addWidget(txGroup, 1);
+
+    // RX 信号表
+    auto *rxGroup = new QGroupBox("接收的信号 (RX)", page);
+    auto *rxLayout = new QVBoxLayout(rxGroup);
+    m_nodeRxTable = new QTableWidget(0, 3, rxGroup);
+    m_nodeRxTable->setHorizontalHeaderLabels({"报文ID", "信号名", "报文名"});
+    m_nodeRxTable->verticalHeader()->setVisible(false);
+    m_nodeRxTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_nodeRxTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    rxLayout->addWidget(m_nodeRxTable);
+    layout->addWidget(rxGroup, 1);
+}
+
+// ---- ValueTable 详情页 ----
+
+void DbcDetailTab::buildValueTablePage(QWidget *page)
+{
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(6);
+
+    m_vtTitleLabel = new QLabel(page);
+    m_vtTitleLabel->setStyleSheet("font-weight: bold; font-size: 13px;");
+    layout->addWidget(m_vtTitleLabel);
+
+    m_vtTable = new QTableWidget(0, 2, page);
+    m_vtTable->setHorizontalHeaderLabels({"值", "描述"});
+    m_vtTable->verticalHeader()->setVisible(false);
+    m_vtTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_vtTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_vtTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    layout->addWidget(m_vtTable, 1);
+}
+
+// ============================================================
+//  树刷新
+// ============================================================
+
+const DbcFile *DbcDetailTab::currentDbcFile() const
+{
+    if (!m_dbcMgr) return nullptr;
+    return m_dbcMgr->findFile(m_dbcFileName);
 }
 
 void DbcDetailTab::refreshTree()
 {
     m_tree->clear();
-    if (!m_dbcMgr) return;
+    const DbcFile *file = currentDbcFile();
+    if (!file) return;
 
-    for (const auto &file : m_dbcMgr->files()) {
-        if (file.fileName != m_dbcFileName) continue;
+    // 顶层: 网络
+    auto *netItem = new QTreeWidgetItem(m_tree, {file->fileName});
+    netItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Network));
+    netItem->setExpanded(true);
 
-        // 网络
-        auto *netItem = new QTreeWidgetItem(m_tree, {"网络: " + file.fileName});
-        netItem->setExpanded(true);
+    // ---- Category: Network Nodes ----
+    auto *catNodes = new QTreeWidgetItem(netItem, {"Network Nodes"});
+    catNodes->setData(0, RoleNodeType, static_cast<int>(NodeType::CategoryNodes));
+    catNodes->setExpanded(true);
+    for (const auto &node : file->nodes) {
+        auto *nodeItem = new QTreeWidgetItem(catNodes, {node.name});
+        nodeItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Node));
+        nodeItem->setData(0, RoleName, node.name);
+    }
 
-        for (const auto &msg : file.messages) {
-            QString msgText = QString("Msg_0x%1 (%2)")
-                .arg(msg.id, 0, 16).toUpper()
-                .arg(msg.name);
-            auto *msgItem = new QTreeWidgetItem(netItem, {msgText});
-            msgItem->setData(0, Qt::UserRole, msg.id);
+    // ---- Category: Messages ----
+    auto *catMsgs = new QTreeWidgetItem(netItem, {"Messages"});
+    catMsgs->setData(0, RoleNodeType, static_cast<int>(NodeType::CategoryMessages));
+    catMsgs->setExpanded(true);
+    for (const auto &msg : file->messages) {
+        QString msgText = QString("0x%1  %2")
+            .arg(msg.id, 0, 16).toUpper()
+            .arg(msg.name);
+        auto *msgItem = new QTreeWidgetItem(catMsgs, {msgText});
+        msgItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Message));
+        msgItem->setData(0, RoleCanId, msg.id);
 
-            for (const auto &sig : msg.signalList) {
-                auto *sigItem = new QTreeWidgetItem(msgItem, {sig.name});
-                sigItem->setData(0, Qt::UserRole + 0, msg.id);
-                sigItem->setData(0, Qt::UserRole + 1, sig.name);
-            }
+        for (const auto &sig : msg.signalList) {
+            QString sigText = sig.name;
+            if (sig.muxType == DbcSignal::MuxType::Multiplexor)
+                sigText += "  [M]";
+            else if (sig.muxType == DbcSignal::MuxType::Multiplexed)
+                sigText += QString("  [m%1]").arg(sig.muxValue);
+            auto *sigItem = new QTreeWidgetItem(msgItem, {sigText});
+            sigItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Signal));
+            sigItem->setData(0, RoleCanId, msg.id);
+            sigItem->setData(0, RoleName, sig.name);
+        }
+    }
+
+    // ---- Category: Value Tables ----
+    if (!file->valueTables.isEmpty()) {
+        auto *catVT = new QTreeWidgetItem(netItem, {"Value Tables"});
+        catVT->setData(0, RoleNodeType, static_cast<int>(NodeType::CategoryValueTables));
+        catVT->setExpanded(true);
+        for (const auto &vt : file->valueTables) {
+            auto *vtItem = new QTreeWidgetItem(catVT, {vt.name});
+            vtItem->setData(0, RoleNodeType, static_cast<int>(NodeType::ValueTable));
+            vtItem->setData(0, RoleName, vt.name);
         }
     }
 }
+
+// ============================================================
+//  搜索过滤
+// ============================================================
 
 void DbcDetailTab::onSearchChanged(const QString &text)
 {
-    // 隐藏不匹配的信号项
     for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
-        auto *top = m_tree->topLevelItem(i);
-        for (int j = 0; j < top->childCount(); ++j) {
-            auto *msg = top->child(j);
-            bool msgMatch = msg->text(0).contains(text, Qt::CaseInsensitive);
-            for (int k = 0; k < msg->childCount(); ++k) {
-                auto *sig = msg->child(k);
-                bool sigMatch = sig->text(0).contains(text, Qt::CaseInsensitive);
-                sig->setHidden(!text.isEmpty() && !sigMatch && !msgMatch);
+        auto *net = m_tree->topLevelItem(i);
+        for (int j = 0; j < net->childCount(); ++j) {
+            auto *cat = net->child(j);
+            for (int k = 0; k < cat->childCount(); ++k) {
+                auto *item = cat->child(k);
+                bool itemMatch = item->text(0).contains(text, Qt::CaseInsensitive);
+
+                // 对于 Message，检查子 Signal
+                bool childMatch = false;
+                for (int m = 0; m < item->childCount(); ++m) {
+                    auto *sig = item->child(m);
+                    bool sigMatch = sig->text(0).contains(text, Qt::CaseInsensitive);
+                    sig->setHidden(!text.isEmpty() && !sigMatch && !itemMatch);
+                    if (sigMatch) childMatch = true;
+                }
+                item->setHidden(!text.isEmpty() && !itemMatch && !childMatch);
             }
         }
     }
 }
+
+// ============================================================
+//  树点击 → 切换右侧详情
+// ============================================================
 
 void DbcDetailTab::onTreeItemClicked(QTreeWidgetItem *item, int)
 {
     if (!item) return;
-    // 检查是否是 Message 级别
-    QVariant idVar = item->data(0, Qt::UserRole);
-    if (idVar.isValid()) {
-        quint32 canId = idVar.toUInt();
-        // 检查是否有子项 (Message 有 signal 子项)
-        if (item->childCount() > 0) {
-            showMessageDetail(canId);
-        }
+
+    auto typeVal = item->data(0, RoleNodeType);
+    if (!typeVal.isValid()) return;
+
+    NodeType type = static_cast<NodeType>(typeVal.toInt());
+
+    switch (type) {
+    case NodeType::Message: {
+        quint32 canId = item->data(0, RoleCanId).toUInt();
+        showMessageDetail(canId);
+        break;
+    }
+    case NodeType::Signal: {
+        quint32 canId = item->data(0, RoleCanId).toUInt();
+        QString sigName = item->data(0, RoleName).toString();
+        showSignalDetail(canId, sigName);
+        break;
+    }
+    case NodeType::Node: {
+        QString nodeName = item->data(0, RoleName).toString();
+        showNodeDetail(nodeName);
+        break;
+    }
+    case NodeType::ValueTable: {
+        QString vtName = item->data(0, RoleName).toString();
+        showValueTableDetail(vtName);
+        break;
+    }
+    default:
+        showPlaceholder();
+        break;
     }
 }
 
 void DbcDetailTab::onTreeItemDoubleClicked(QTreeWidgetItem *item, int)
 {
     if (!item) return;
-    QString sigName = item->data(0, Qt::UserRole + 1).toString();
-    if (!sigName.isEmpty()) {
-        quint32 canId = item->data(0, Qt::UserRole + 0).toUInt();
+    auto typeVal = item->data(0, RoleNodeType);
+    if (!typeVal.isValid()) return;
+
+    NodeType type = static_cast<NodeType>(typeVal.toInt());
+    if (type == NodeType::Signal) {
+        quint32 canId = item->data(0, RoleCanId).toUInt();
+        QString sigName = item->data(0, RoleName).toString();
         emit signalDoubleClicked(canId, sigName);
     }
 }
 
+// ============================================================
+//  详情显示 — Message
+// ============================================================
+
 void DbcDetailTab::showMessageDetail(quint32 canId)
 {
-    if (!m_dbcMgr) return;
-
-    const DbcMessage *msg = m_dbcMgr->findMessage(canId);
+    const DbcFile *file = currentDbcFile();
+    if (!file) return;
+    const DbcMessage *msg = file->findMessage(canId);
     if (!msg) return;
 
-    m_msgTitleLabel->setText(QString("Message: %1 (0x%2)")
+    m_msgTitleLabel->setText(QString("Message: %1  (0x%2)")
         .arg(msg->name).arg(msg->id, 0, 16).toUpper());
-    m_msgInfoLabel->setText(QString("DLC: %1   发送节点: %2")
-        .arg(msg->dlc).arg(msg->sender));
 
-    m_sigTable->setRowCount(msg->signalList.size());
+    QStringList info;
+    info << QString("ID: 0x%1 (%2)").arg(msg->id, 0, 16).toUpper().arg(msg->id);
+    info << QString("DLC: %1").arg(msg->dlc);
+    info << QString("Sender: %1").arg(msg->sender);
+    if (msg->cycleTime > 0)
+        info << QString("Cycle Time: %1 ms").arg(msg->cycleTime);
+    if (!msg->sendType.isEmpty())
+        info << QString("Send Type: %1").arg(msg->sendType);
+    if (!msg->txNodes.isEmpty())
+        info << QString("TX Nodes: %1").arg(msg->txNodes.join(", "));
+    m_msgInfoLabel->setText(info.join("    |    "));
+
+    if (!msg->comment.isEmpty()) {
+        m_msgCommentLabel->setText("Comment: " + msg->comment);
+        m_msgCommentLabel->setVisible(true);
+    } else {
+        m_msgCommentLabel->setVisible(false);
+    }
+
+    // 信号表格
+    m_msgSigTable->setRowCount(msg->signalList.size());
     for (int i = 0; i < msg->signalList.size(); ++i) {
         const auto &sig = msg->signalList[i];
-        m_sigTable->setItem(i, 0, new QTableWidgetItem(sig.name));
-        m_sigTable->setItem(i, 1, new QTableWidgetItem(QString::number(sig.startBit)));
-        m_sigTable->setItem(i, 2, new QTableWidgetItem(QString::number(sig.bitLength)));
-        m_sigTable->setItem(i, 3, new QTableWidgetItem(QString::number(sig.factor)));
-        m_sigTable->setItem(i, 4, new QTableWidgetItem(QString::number(sig.offset)));
-        m_sigTable->setItem(i, 5, new QTableWidgetItem(QString::number(sig.minimum)));
-        m_sigTable->setItem(i, 6, new QTableWidgetItem(QString::number(sig.maximum)));
+        m_msgSigTable->setItem(i, 0, new QTableWidgetItem(sig.name));
+        m_msgSigTable->setItem(i, 1, new QTableWidgetItem(QString::number(sig.startBit)));
+        m_msgSigTable->setItem(i, 2, new QTableWidgetItem(QString::number(sig.bitLength)));
+        m_msgSigTable->setItem(i, 3, new QTableWidgetItem(sig.littleEndian ? "Intel" : "Motorola"));
+        m_msgSigTable->setItem(i, 4, new QTableWidgetItem(sig.isSigned ? "Signed" : "Unsigned"));
+        m_msgSigTable->setItem(i, 5, new QTableWidgetItem(QString::number(sig.factor)));
+        m_msgSigTable->setItem(i, 6, new QTableWidgetItem(QString::number(sig.offset)));
+        m_msgSigTable->setItem(i, 7, new QTableWidgetItem(
+            QString("[%1, %2]").arg(sig.minimum).arg(sig.maximum)));
+        m_msgSigTable->setItem(i, 8, new QTableWidgetItem(sig.unit));
     }
+
+    m_detailStack->setCurrentIndex(m_pageMessage);
+}
+
+// ============================================================
+//  详情显示 — Signal
+// ============================================================
+
+void DbcDetailTab::showSignalDetail(quint32 canId, const QString &sigName)
+{
+    const DbcFile *file = currentDbcFile();
+    if (!file) return;
+    const DbcMessage *msg = file->findMessage(canId);
+    if (!msg) return;
+    const DbcSignal *sig = msg->findSignal(sigName);
+    if (!sig) return;
+
+    m_sigTitleLabel->setText(QString("Signal: %1  (Message: %2, 0x%3)")
+        .arg(sig->name).arg(msg->name).arg(msg->id, 0, 16).toUpper());
+
+    // 属性表
+    auto addRow = [&](const QString &name, const QString &value) {
+        int row = m_sigPropTable->rowCount();
+        m_sigPropTable->insertRow(row);
+        m_sigPropTable->setItem(row, 0, new QTableWidgetItem(name));
+        m_sigPropTable->setItem(row, 1, new QTableWidgetItem(value));
+    };
+
+    m_sigPropTable->setRowCount(0);
+    addRow("Name", sig->name);
+    addRow("Start Bit", QString::number(sig->startBit));
+    addRow("Bit Length", QString::number(sig->bitLength));
+    addRow("Byte Order", sig->littleEndian ? "Intel (Little Endian)" : "Motorola (Big Endian)");
+    addRow("Value Type", sig->isSigned ? "Signed" : "Unsigned");
+    addRow("Factor", QString::number(sig->factor));
+    addRow("Offset", QString::number(sig->offset));
+    addRow("Minimum", QString::number(sig->minimum));
+    addRow("Maximum", QString::number(sig->maximum));
+    addRow("Unit", sig->unit.isEmpty() ? "(none)" : sig->unit);
+    addRow("Receiver", sig->receiver);
+    addRow("Sender", msg->sender);
+
+    // 多路复用
+    if (sig->muxType == DbcSignal::MuxType::Multiplexor)
+        addRow("Multiplexing", "Multiplexor");
+    else if (sig->muxType == DbcSignal::MuxType::Multiplexed)
+        addRow("Multiplexing", QString("Multiplexed (value=%1)").arg(sig->muxValue));
+    else
+        addRow("Multiplexing", "None");
+
+    // 值表名称
+    if (!sig->valueTableName.isEmpty())
+        addRow("Value Table", sig->valueTableName);
+
+    // 注释
+    if (!sig->comment.isEmpty()) {
+        m_sigCommentLabel->setText("Comment: " + sig->comment);
+        m_sigCommentLabel->setVisible(true);
+    } else {
+        m_sigCommentLabel->setVisible(false);
+    }
+
+    // 值表
+    auto *vtGroup = m_sigValueTable->parentWidget();
+    if (!sig->valueTable.isEmpty()) {
+        m_sigValueTable->setRowCount(sig->valueTable.size());
+        for (int i = 0; i < sig->valueTable.size(); ++i) {
+            m_sigValueTable->setItem(i, 0, new QTableWidgetItem(QString::number(sig->valueTable[i].value)));
+            m_sigValueTable->setItem(i, 1, new QTableWidgetItem(sig->valueTable[i].description));
+        }
+        vtGroup->setVisible(true);
+    } else {
+        vtGroup->setVisible(false);
+    }
+
+    m_detailStack->setCurrentIndex(m_pageSignal);
+}
+
+// ============================================================
+//  详情显示 — Node
+// ============================================================
+
+void DbcDetailTab::showNodeDetail(const QString &nodeName)
+{
+    const DbcFile *file = currentDbcFile();
+    if (!file) return;
+    const DbcNode *node = file->findNode(nodeName);
+    if (!node) return;
+
+    m_nodeTitleLabel->setText(QString("Node: %1").arg(node->name));
+
+    if (!node->comment.isEmpty()) {
+        m_nodeCommentLabel->setText("Comment: " + node->comment);
+        m_nodeCommentLabel->setVisible(true);
+    } else {
+        m_nodeCommentLabel->setVisible(false);
+    }
+
+    // TX 报文
+    m_nodeTxTable->setRowCount(node->txMessageIds.size());
+    for (int i = 0; i < node->txMessageIds.size(); ++i) {
+        quint32 id = node->txMessageIds[i];
+        const DbcMessage *msg = file->findMessage(id);
+        m_nodeTxTable->setItem(i, 0, new QTableWidgetItem(QString("0x%1").arg(id, 0, 16).toUpper()));
+        m_nodeTxTable->setItem(i, 1, new QTableWidgetItem(msg ? msg->name : "?"));
+        m_nodeTxTable->setItem(i, 2, new QTableWidgetItem(msg ? QString::number(msg->dlc) : "?"));
+    }
+
+    // RX 信号
+    m_nodeRxTable->setRowCount(node->rxSignals.size());
+    for (int i = 0; i < node->rxSignals.size(); ++i) {
+        quint32 id = node->rxSignals[i].first;
+        const QString &sigName = node->rxSignals[i].second;
+        const DbcMessage *msg = file->findMessage(id);
+        m_nodeRxTable->setItem(i, 0, new QTableWidgetItem(QString("0x%1").arg(id, 0, 16).toUpper()));
+        m_nodeRxTable->setItem(i, 1, new QTableWidgetItem(sigName));
+        m_nodeRxTable->setItem(i, 2, new QTableWidgetItem(msg ? msg->name : "?"));
+    }
+
+    m_detailStack->setCurrentIndex(m_pageNode);
+}
+
+// ============================================================
+//  详情显示 — ValueTable
+// ============================================================
+
+void DbcDetailTab::showValueTableDetail(const QString &vtName)
+{
+    const DbcFile *file = currentDbcFile();
+    if (!file) return;
+    const DbcValueTable *vt = file->findValueTable(vtName);
+    if (!vt) return;
+
+    m_vtTitleLabel->setText(QString("Value Table: %1").arg(vt->name));
+
+    m_vtTable->setRowCount(vt->entries.size());
+    for (int i = 0; i < vt->entries.size(); ++i) {
+        m_vtTable->setItem(i, 0, new QTableWidgetItem(QString::number(vt->entries[i].value)));
+        m_vtTable->setItem(i, 1, new QTableWidgetItem(vt->entries[i].description));
+    }
+
+    m_detailStack->setCurrentIndex(m_pageValueTable);
+}
+
+// ============================================================
+//  Placeholder
+// ============================================================
+
+void DbcDetailTab::showPlaceholder()
+{
+    m_detailStack->setCurrentIndex(m_pagePlaceholder);
 }

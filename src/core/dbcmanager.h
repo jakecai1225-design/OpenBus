@@ -9,7 +9,7 @@
  * @brief DBC 文件管理器
  *
  * 管理已加载的 DBC 文件，提供信号查询。
- * 支持加载 .dbc 文件（简化解析器）。
+ * 完整解析器，支持 BO_/SG_/BU_/CM_/BA_/VAL_/VAL_TABLE_ 等 DBC 段。
  */
 class DbcManager : public QObject
 {
@@ -36,6 +36,9 @@ public:
     /// 获取所有报文（跨所有 DBC）
     QList<const DbcMessage *> allMessages() const;
 
+    /// 查找指定文件名的 DbcFile
+    const DbcFile *findFile(const QString &fileName) const;
+
 signals:
     void dbcLoaded(const QString &fileName);
     void dbcUnloaded(const QString &fileName);
@@ -43,8 +46,11 @@ signals:
 private:
     QList<DbcFile> m_files;
 
-    /// 简化版 DBC 文件解析
+    /// 完整 DBC 文件解析（支持 BU_/CM_/BA_/VAL_/VAL_TABLE_ 等全部段）
     bool parseDbc(const QString &filePath, DbcFile &out);
+
+    /// 解析后处理：关联节点收发关系、应用属性值
+    void postProcess(DbcFile &file);
 };
 
 #endif // DBCMANAGER_H
