@@ -1,0 +1,148 @@
+<!-- 左侧栏（永久停靠） -->
+<div class="left-dock">
+  <div class="activitybar">
+    <div class="act-icon" data-panel="project" title="工程" onclick="switchPanel('project')">&#128193;</div>
+    <div class="act-icon active" data-panel="trace" title="Trace" onclick="switchPanel('trace')">&#128203;</div>
+    <div class="act-icon" data-panel="graphic" title="Graphic" onclick="switchPanel('graphic')">&#128200;</div>
+    <div class="act-icon" data-panel="dbc" title="DBC" onclick="switchPanel('dbc')">&#128196;</div>
+    <div class="act-icon" data-panel="send" title="发送" onclick="switchPanel('send')">&#128225;</div>
+    <div class="act-icon" data-panel="record" title="录制" onclick="switchPanel('record')">&#9679;</div>
+    <div class="act-icon" data-panel="device" title="设备" onclick="switchPanel('device')">&#128295;</div>
+    <div class="act-icon" data-panel="settings" title="配置" onclick="switchPanel('settings')">&#9881;</div>
+  </div>
+  <div class="sidebar">
+
+    <!-- 工程面板 -->
+    <div class="sb-panel" id="panel-project">
+      <div class="sb-header">工程列表</div>
+      <div class="entry-list">
+        <div class="entry-item active" onclick="alert('打开工程: EngineAnalysis')">
+          <span class="arrow">&#9660;</span> &#128193; EngineAnalysis <span class="badge">当前</span>
+        </div>
+        <div class="entry-item" onclick="alert('打开工程: BodyControl')">
+          <span class="arrow">&#9654;</span> &#128193; BodyControl
+        </div>
+        <div class="entry-item" onclick="alert('打开工程: DebugSession')">
+          <span class="arrow">&#9654;</span> &#128193; DebugSession
+        </div>
+      </div>
+      <div class="sb-body">
+        <div class="btn-row">
+          <span class="btn primary" onclick="alert('新建工程')">+ 新建</span>
+          <span class="btn">&#128190; 保存</span>
+          <span class="btn danger">&#128465; 删除</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trace 配置面板 -->
+    <div class="sb-panel active" id="panel-trace">
+      <div class="sb-header">Trace</div>
+      <div class="entry-list">
+        <div class="entry-item active" onclick="switchCenterTab('trace')">
+          📋 Trace
+        </div>
+      </div>
+    </div>
+
+    <!-- DBC 面板 -->
+    <div class="sb-panel" id="panel-dbc">
+      <div class="sb-header">DBC 文件列表</div>
+      <div class="entry-list">
+        <div class="entry-item" onclick="switchCenterTab('dbc')">
+          <span class="arrow">&#9660;</span> 📄 engine.dbc
+        </div>
+        <div class="entry-sub" onclick="switchCenterTab('dbc')">▼ Msg_0x123 (EngineStatus)</div>
+        <div class="entry-sub" style="padding-left:40px" onclick="switchCenterTab('dbc')">EngineRPM</div>
+        <div class="entry-sub" style="padding-left:40px" onclick="switchCenterTab('dbc')">ThrottlePos</div>
+        <div class="entry-sub" style="padding-left:40px" onclick="switchCenterTab('dbc')">CoolantTemp</div>
+        <div class="entry-sub" onclick="switchCenterTab('dbc')">▶ Msg_0x456 (BrakeCtrl)</div>
+        <div class="entry-item" onclick="alert('加载 body.dbc')">
+          <span class="arrow">&#9654;</span> 📄 body.dbc
+        </div>
+      </div>
+      <div class="sb-body">
+        <div class="btn-row">
+          <span class="btn primary" onclick="alert('加载 DBC 文件')">+ 加载 DBC</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 信号发送面板 -->
+    <div class="sb-panel" id="panel-send">
+      <div class="sb-header">信号发送</div>
+      <div class="entry-list">
+        <div class="entry-item" onclick="switchCenterTab('send')">
+          &#128225; 信号发送
+        </div>
+      </div>
+    </div>
+
+    <!-- 录制面板 -->
+    <div class="sb-panel" id="panel-record">
+      <div class="sb-header">录制</div>
+      <div class="entry-list">
+        <div class="entry-item" onclick="switchCenterTab('record')">
+          ● 录制控制
+        </div>
+      </div>
+    </div>
+
+    <!-- Graphic 配置面板 -->
+    <div class="sb-panel" id="panel-graphic">
+      <div class="sb-header">Graphic 页面</div>
+      <div class="entry-list">
+        <div class="entry-item" onclick="switchCenterTab('graphic1')">
+          📈 Graphic1 <span class="badge">3 信号</span>
+        </div>
+        <div class="entry-item" onclick="switchCenterTab('graphic2')">
+          📈 Graphic2 <span class="badge">2 信号</span>
+        </div>
+        <div class="entry-item" onclick="switchCenterTab('graphic3')">
+          📈 Graphic3 <span class="badge">空</span>
+        </div>
+      </div>
+      <div class="sb-body">
+        <div class="btn-row">
+          <span class="btn primary" onclick="alert('新建 Graphic 页面')">+ 新建 Graphic</span>
+        </div>
+        <div style="font-size:10px;color:#aaa;margin-top:6px">坐标缩放/移动/自适应在 Graphic 标签页内部</div>
+      </div>
+    </div>
+
+    <!-- 设备面板 -->
+    <div class="sb-panel" id="panel-device">
+      <div class="sb-header">设备连接</div>
+      <div class="sb-body">
+        <div class="sb-label">通道:</div>
+        <select class="combo" style="width:100%;margin-bottom:6px"><option>通道 1</option><option>通道 2</option></select>
+        <div class="sb-label">波特率:</div>
+        <select class="combo" style="width:100%;margin-bottom:6px"><option>500000</option><option>250000</option><option>1000000</option></select>
+        <div class="sb-label">FD 配置:</div>
+        <select class="combo" style="width:100%;margin-bottom:8px"><option>CAN 2.0</option><option>CAN FD</option></select>
+        <div class="btn-row">
+          <span class="btn primary">&#128279; 连接</span>
+          <span class="btn">断开</span>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:#888">状态: <span style="color:#c00">未连接</span></div>
+      </div>
+    </div>
+
+    <!-- 配置面板 -->
+    <div class="sb-panel" id="panel-settings">
+      <div class="sb-header">设置</div>
+      <div class="entry-list">
+        <div class="entry-item" onclick="alert('打开通用设置标签页')">
+          ⚙ 通用设置
+        </div>
+        <div class="entry-item" onclick="alert('打开界面设置标签页')">
+          🖥 界面设置
+        </div>
+        <div class="entry-item" onclick="alert('打开快捷键设置标签页')">
+          ⌨ 快捷键
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

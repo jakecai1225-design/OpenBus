@@ -1,0 +1,64 @@
+<!-- 底部 Dock -->
+<div class="bottom-dock">
+  <div class="dtabs">
+    <div class="dtab" data-tab="terminal" onclick="switchBottomTab('terminal')">终端</div>
+    <div class="dtab active" data-tab="output" onclick="switchBottomTab('output')">输出</div>
+    <div class="dtab" data-tab="problems" onclick="switchBottomTab('problems')">问题</div>
+  </div>
+  <div class="dock-pane" id="bottom-terminal"><div class="dock-content-terminal" style="background:#f8f8f8;color:#333">
+    <div style="color:#888;font-size:11px;margin-bottom:4px">sin 终端 &mdash; 输入 help 查看可用命令</div>
+    <div class="terminal-input">&gt; help</div>
+    <div style="color:#333">可用命令:</div>
+    <div style="color:#666;padding-left:12px">help &mdash; 显示帮助</div>
+    <div style="color:#666;padding-left:12px">clear &mdash; 清空 Trace</div>
+    <div style="color:#666;padding-left:12px">sim on &mdash; 启动模拟器</div>
+    <div style="color:#666;padding-left:12px">sim off &mdash; 停止模拟器</div>
+    <div style="color:#666;padding-left:12px">record &lt;file&gt; &mdash; 开始录制</div>
+    <div style="color:#666;padding-left:12px">stop &mdash; 停止录制/发送</div>
+    <div style="color:#666;padding-left:12px">send &mdash; 发送</div>
+    <div style="color:#666;padding-left:12px">filter &lt;expr&gt; &mdash; 设置过滤器</div>
+    <div style="color:#666;padding-left:12px">stats &mdash; 显示统计</div>
+    <div style="color:#666;padding-left:12px">load &lt;file&gt; &mdash; 加载 DBC/录制文件</div>
+    <div class="terminal-input" style="margin-top:4px">&gt; sim on</div>
+    <div style="color:#333">模拟器已启动</div>
+    <div class="terminal-input">&gt; filter id == 0x123</div>
+    <div style="color:#333">过滤: id == 0x123</div>
+    <div class="terminal-input">&gt; stats</div>
+    <div style="color:#333">总帧数: 10234</div>
+    <div class="terminal-input">&gt; <span style="opacity:.5">|</span></div>
+  </div></div>
+  <div class="dock-pane active" id="bottom-output"><div class="dock-content-terminal" style="background:#f8f8f8;color:#333">
+    <div style="color:#0a0">[14:30:01] sin 启动完成</div>
+    <div style="color:#333">[14:30:03] DBC 已加载: engine.dbc</div>
+    <div style="color:#333">[14:30:05] 已加载: test.sin (10234 帧, 12.35s)</div>
+    <div style="color:#333">[14:30:06] 过滤已应用: id == 0x123</div>
+    <div style="color:#333">[14:30:08] 文件回放开始 (速度: 1.0x)</div>
+    <div style="color:#f0ad4e">[14:30:10] 警告: 录制文件未保存</div>
+    <div style="color:#333">[14:30:12] 已添加信号: EngineRPM (ID=0x123)</div>
+    <div style="color:#333">[14:30:12] 已添加信号: ThrottlePos (ID=0x123)</div>
+    <div style="color:#333">[14:30:13] 已添加信号: CoolantTemp (ID=0x123)</div>
+    <div style="color:#333">[14:30:15] 文件回放完成</div>
+    <div style="color:#333">[14:30:16] 已切换到工程: EngineAnalysis</div>
+    <div style="color:#333">[14:30:18] 模拟器已启动</div>
+  </div></div>
+  <div class="dock-pane" id="bottom-problems"><div class="dock-content-terminal" style="background:#f8f8f8;color:#333">
+    <div class="problem-row"><span class="problem-sev err">!</span><span class="problem-src">Recorder</span><span class="problem-msg">无法创建录制文件: D:/test.sin (权限拒绝)</span></div>
+    <div class="problem-row"><span class="problem-sev err">!</span><span class="problem-src">Player</span><span class="problem-msg">无法加载: corrupt.sin (文件格式错误)</span></div>
+    <div class="problem-row"><span class="problem-sev warn">&#9888;</span><span class="problem-src">DBC</span><span class="problem-msg">加载失败: missing.dbc (文件不存在)</span></div>
+    <div class="problem-row"><span class="problem-sev warn">&#9888;</span><span class="problem-src">Filter</span><span class="problem-msg">语法错误: id === 0x123 (多余的等号)</span></div>
+    <div class="problem-row"><span class="problem-sev warn">&#9888;</span><span class="problem-src">Recorder</span><span class="problem-msg">录制文件未保存</span></div>
+  </div></div>
+</div>
+
+<!-- 状态栏 -->
+<div class="statusbar">
+  <span id="status-text">就绪</span>
+  <span style="opacity:.8" id="status-conn">🔗 已连接</span>
+  <span class="spacer"></span>
+  <span id="status-tab">Trace</span>
+  <span id="status-rows">7行</span>
+  <span id="status-selected">选中0行</span>
+  <span id="status-filter">过滤7/7</span>
+  <span>10234帧</span>
+  <span>12.345s</span>
+</div>

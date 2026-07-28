@@ -1,0 +1,33 @@
+<!-- 右键菜单（标签页） -->
+<div class="ctx-menu" id="tab-ctx-menu">
+  <div class="item" onclick="showSplitView('horizontal');hideCtx()">向右拆分</div>
+  <div class="item" onclick="showSplitView('vertical');hideCtx()">向下拆分</div>
+  <div class="sep"></div>
+  <div class="item" onclick="hideCtx()">关闭此标签页</div>
+  <div class="item" onclick="hideCtx()">关闭其他标签页</div>
+</div>
+
+<!-- 拆分视图模板 -->
+<div id="split-template" style="display:none">
+  <div class="split-pane" id="split-pane-2">
+    <div class="split-label">&#128208; 拆分组 2 &mdash; 右键标签页可关闭</div>
+    <div class="center-tabs"><div class="ctab active">&#128203; Trace (副本)</div></div>
+    <div class="tab-pane active" style="display:flex">
+      <div class="filterbar"><input type="text" placeholder="输入过滤表达式..."><span class="btn">清除</span></div>
+      <div class="trace-table-wrap">
+        <table class="trace-table">
+          <thead><tr><th style="width:100px">Time &#9650;</th><th style="width:40px">Ch</th><th style="width:40px">Dir</th><th style="width:120px">ID</th><th style="width:60px">DLC</th><th>Data</th><th style="width:80px">Flags</th></tr></thead>
+          <tbody>
+            <tr><td>0.000123</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr>
+            <tr><td>0.000456</td><td>1</td><td>Rx</td><td>0x456</td><td>8</td><td>11 22 33 44 55 66 77 88</td><td>FD</td></tr>
+            <tr><td>0.000789</td><td>2</td><td>Tx</td><td>0x123</td><td>8</td><td>AA BB CC DD EE FF 00 11</td><td>---</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="bottom-split">
+        <div class="pane"><div class="pane-title">帧结构</div><div class="pane-content">(选中报文查看...)</div></div>
+        <div class="pane"><div class="pane-title">信号解析</div><div class="pane-content">(选中报文查看...)</div></div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,355 @@
+<!-- 中央编辑区 -->
+<div class="center" id="center-area">
+  <div class="center-tabs" id="center-tabs">
+    <div class="ctab active" data-tab="trace" onclick="switchCenterTab('trace')">&#128203; Trace <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
+    <div class="ctab" data-tab="trace2" onclick="switchCenterTab('trace2')">&#128203; Trace 2 <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
+    <div class="ctab" data-tab="graphic1" onclick="switchCenterTab('graphic1')">&#128200; Graphic1 <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
+    <div class="ctab" data-tab="graphic2" onclick="switchCenterTab('graphic2')">&#128200; Graphic2 <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
+    <div class="ctab" data-tab="graphic3" onclick="switchCenterTab('graphic3')">&#128200; Graphic3 <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
+    <div class="ctab" data-tab="dbc" onclick="switchCenterTab('dbc')">&#128196; DBC: engine.dbc <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
+    <div class="ctab" data-tab="dbc2" onclick="switchCenterTab('dbc2')">&#128196; DBC: body.dbc <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
+    <div class="ctab" data-tab="send" onclick="switchCenterTab('send')">&#128225; 信号发送 <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
+    <div class="ctab" data-tab="record" onclick="switchCenterTab('record')">● 录制控制 <span class="close-x" onclick="event.stopPropagation();alert('关闭标签页')">&#10005;</span></div>
+  </div>
+
+  <!-- Trace 面板 -->
+  <div class="tab-pane active" id="pane-trace">
+    <div class="filterbar"><input type="text" placeholder="输入过滤表达式... (例: id == 0x123)" value=""><span class="btn" onclick="this.previousElementSibling.value=''">清除</span></div>
+    <div class="trace-table-wrap">
+      <table class="trace-table">
+        <thead><tr>
+          <th style="width:100px" onclick="alert('按 Time 排序')">Time <span class="sort-arrow">&#9650;</span></th>
+          <th style="width:40px">Ch</th><th style="width:40px">Dir</th><th style="width:120px">ID</th><th style="width:60px">DLC</th><th>Data</th><th style="width:80px">Flags</th>
+        </tr></thead>
+        <tbody id="trace-tbody">
+          <tr class="selected" onclick="selectRow(this)"><td>0.000123</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr>
+          <tr onclick="selectRow(this)"><td>0.000456</td><td>1</td><td>Rx</td><td>0x456</td><td>8</td><td>11 22 33 44 55 66 77 88</td><td>FD</td></tr>
+          <tr onclick="selectRow(this)"><td>0.000789</td><td>2</td><td>Tx</td><td>0x123</td><td>8</td><td>AA BB CC DD EE FF 00 11</td><td>---</td></tr>
+          <tr onclick="selectRow(this)"><td>0.001012</td><td>1</td><td>Rx</td><td>0x789</td><td>64</td><td>01 02 03 04 05 06 07 08 09 0A ...</td><td>FD BRS</td></tr>
+          <tr onclick="selectRow(this)"><td>0.001345</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr>
+          <tr onclick="selectRow(this)"><td>0.001678</td><td>2</td><td>Tx</td><td>0x456</td><td>8</td><td>11 22 33 44 55 66 77 88</td><td>---</td></tr>
+          <tr onclick="selectRow(this)"><td>0.002001</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="bottom-split">
+      <div class="pane"><div class="pane-title">帧结构</div><div class="pane-content" id="frame-info">Time:       0.000123
+Channel:    1
+Direction:  Rx
+ID:         0x123
+DLC:        8
+Data:       01 02 03 04 05 06 07 08
+Flags:      ---
+
+Hex:  01 02 03 04 05 06 07 08</div></div>
+      <div class="pane"><div class="pane-title">信号解析</div><div class="pane-content" id="signal-decode">EngineStatus  (0x123)
+-----------------------------------
+
+EngineRPM:     1234.500 rpm
+ThrottlePos:    45.200 %
+CoolantTemp:    89.000 C
+OilPressure:     3.500 bar</div></div>
+    </div>
+  </div>
+
+  <!-- Trace 2 面板（过滤: id == 0x456） -->
+  <div class="tab-pane" id="pane-trace2">
+    <div class="filterbar"><input type="text" placeholder="输入过滤表达式..." value="id == 0x456"><span class="btn" onclick="this.previousElementSibling.value=''">清除</span></div>
+    <div class="trace-table-wrap">
+      <table class="trace-table">
+        <thead><tr>
+          <th style="width:100px">Time &#9650;</th><th style="width:40px">Ch</th><th style="width:40px">Dir</th><th style="width:120px">ID</th><th style="width:60px">DLC</th><th>Data</th><th style="width:80px">Flags</th>
+        </tr></thead>
+        <tbody>
+          <tr onclick="selectRow(this)"><td>0.000456</td><td>1</td><td>Rx</td><td>0x456</td><td>8</td><td>11 22 33 44 55 66 77 88</td><td>FD</td></tr>
+          <tr onclick="selectRow(this)"><td>0.001678</td><td>2</td><td>Tx</td><td>0x456</td><td>8</td><td>11 22 33 44 55 66 77 88</td><td>---</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="bottom-split">
+      <div class="pane"><div class="pane-title">帧结构</div><div class="pane-content">(选中报文查看...)</div></div>
+      <div class="pane"><div class="pane-title">信号解析</div><div class="pane-content">(选中报文查看...)</div></div>
+    </div>
+  </div>
+
+  <!-- Graphic1 面板 -->
+  <div class="tab-pane" id="pane-graphic1">
+    <div class="graphic-container">
+      <div class="graphic-signal-list">
+        <div class="header">信号列表</div>
+        <div class="body">
+          <div class="graphic-signal-row"><input type="checkbox" checked><div class="color-dot" style="background:#e81123"></div><span class="name">EngineRPM</span><span class="axis-label">Y1</span></div>
+          <div class="graphic-signal-row"><input type="checkbox" checked><div class="color-dot" style="background:#4a90d9"></div><span class="name">ThrottlePos</span><span class="axis-label">Y2</span></div>
+          <div class="graphic-signal-row"><input type="checkbox" checked><div class="color-dot" style="background:#0a0"></div><span class="name">CoolantTemp</span><span class="axis-label">Y3</span></div>
+          <div class="graphic-signal-row"><input type="checkbox"><div class="color-dot" style="background:#888"></div><span class="name">OilPressure</span><span class="axis-label">Y4</span></div>
+        </div>
+        <div style="padding:6px 8px;border-top:1px solid #c0c0c0">
+          <div class="btn-row"><span class="btn" onclick="alert('从 DBC 添加信号')">+ 从 DBC 添加</span></div>
+          <div class="btn-row"><span class="btn" onclick="alert('从 Trace 添加信号')">+ 从 Trace 添加</span></div>
+          <div class="btn-row"><span class="btn success" onclick="alert('开始渲染')">▶ 开始渲染</span><span class="btn danger" onclick="alert('停止渲染')">⏹ 停止</span></div>
+        </div>
+      </div>
+      <div class="graphic-canvas-area">
+        <div class="graphic-toolbar">
+          <span class="btn">&#8862; 缩放</span><span class="btn">&#10530; 适应</span><span class="btn">&#128208; 测量</span>
+          <span style="color:#888;margin-left:8px">时间: 0.000s ~ 12.345s</span>
+        </div>
+        <div class="graphic-canvas">
+          <svg viewBox="0 0 800 300" preserveAspectRatio="none">
+            <defs><pattern id="grid1" width="80" height="50" patternUnits="userSpaceOnUse"><path d="M 80 0 L 0 0 0 50" fill="none" stroke="#e8e8e8" stroke-width="1"/></pattern></defs>
+            <rect width="800" height="300" fill="url(#grid1)"/>
+            <text x="10" y="295" font-size="10" fill="#aaa">0s</text><text x="380" y="295" font-size="10" fill="#aaa">6s</text><text x="750" y="295" font-size="10" fill="#aaa">12s</text>
+            <text x="5" y="20" font-size="9" fill="#e81123">5000</text><text x="5" y="155" font-size="9" fill="#4a90d9">50%</text><text x="5" y="290" font-size="9" fill="#0a0">90C</text>
+            <polyline fill="none" stroke="#e81123" stroke-width="1.5" points="40,250 120,200 200,150 280,100 360,120 440,80 520,60 600,100 680,150 760,180"/>
+            <polyline fill="none" stroke="#4a90d9" stroke-width="1.5" points="40,220 120,180 200,190 280,150 360,140 440,170 520,200 600,160 680,130 760,110"/>
+            <polyline fill="none" stroke="#0a0" stroke-width="1.5" stroke-dasharray="4,2" points="40,260 120,255 200,250 280,245 360,240 440,235 520,230 600,228 680,225 760,222"/>
+          </svg>
+          <div class="graphic-legend">
+            <div style="display:flex;align-items:center;gap:6px;margin:2px 0"><div style="width:10px;height:10px;border-radius:50%;background:#e81123"></div>EngineRPM</div>
+            <div style="display:flex;align-items:center;gap:6px;margin:2px 0"><div style="width:10px;height:10px;border-radius:50%;background:#4a90d9"></div>ThrottlePos</div>
+            <div style="display:flex;align-items:center;gap:6px;margin:2px 0"><div style="width:10px;height:10px;border-radius:50%;background:#0a0"></div>CoolantTemp</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Graphic2 面板 -->
+  <div class="tab-pane" id="pane-graphic2">
+    <div class="graphic-container">
+      <div class="graphic-signal-list">
+        <div class="header">信号列表</div>
+        <div class="body">
+          <div class="graphic-signal-row"><input type="checkbox" checked><div class="color-dot" style="background:#f0ad4e"></div><span class="name">BrakePressure</span><span class="axis-label">Y1</span></div>
+          <div class="graphic-signal-row"><input type="checkbox" checked><div class="color-dot" style="background:#9b59b6"></div><span class="name">SteeringAngle</span><span class="axis-label">Y2</span></div>
+        </div>
+        <div style="padding:6px 8px;border-top:1px solid #c0c0c0">
+          <div class="btn-row"><span class="btn" onclick="alert('从 DBC 添加信号')">+ 从 DBC 添加</span></div>
+          <div class="btn-row"><span class="btn success">▶ 开始渲染</span><span class="btn danger">⏹ 停止</span></div>
+        </div>
+      </div>
+      <div class="graphic-canvas-area">
+        <div class="graphic-toolbar"><span class="btn">&#8862; 缩放</span><span class="btn">&#10530; 适应</span><span class="btn">&#128208; 测量</span></div>
+        <div class="graphic-canvas">
+          <svg viewBox="0 0 800 300" preserveAspectRatio="none">
+            <rect width="800" height="300" fill="#fafafa"/>
+            <polyline fill="none" stroke="#f0ad4e" stroke-width="1.5" points="40,200 120,150 200,250 280,100 360,180 440,120 520,220 600,90 680,160 760,140"/>
+            <polyline fill="none" stroke="#9b59b6" stroke-width="1.5" points="40,150 120,180 200,120 280,200 360,160 440,100 520,180 600,140 680,120 760,170"/>
+          </svg>
+          <div class="graphic-legend">
+            <div style="display:flex;align-items:center;gap:6px;margin:2px 0"><div style="width:10px;height:10px;border-radius:50%;background:#f0ad4e"></div>BrakePressure</div>
+            <div style="display:flex;align-items:center;gap:6px;margin:2px 0"><div style="width:10px;height:10px;border-radius:50%;background:#9b59b6"></div>SteeringAngle</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Graphic3 面板（空） -->
+  <div class="tab-pane" id="pane-graphic3">
+    <div class="graphic-container">
+      <div class="graphic-signal-list">
+        <div class="header">信号列表</div>
+        <div class="body" style="display:flex;align-items:center;justify-content:center;color:#aaa;font-size:11px">暂无信号</div>
+        <div style="padding:6px 8px;border-top:1px solid #c0c0c0">
+          <div class="btn-row"><span class="btn" onclick="alert('从 DBC 添加信号')">+ 从 DBC 添加</span></div>
+          <div class="btn-row"><span class="btn" onclick="alert('从 Trace 添加信号')">+ 从 Trace 添加</span></div>
+        </div>
+      </div>
+      <div class="graphic-canvas-area">
+        <div class="graphic-toolbar"><span class="btn">&#8862; 缩放</span><span class="btn">&#10530; 适应</span></div>
+        <div class="graphic-canvas" style="display:flex;align-items:center;justify-content:center;color:#ccc;font-size:14px">拖拽信号到此处或点击"添加信号"</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DBC 详情面板 -->
+  <div class="tab-pane" id="pane-dbc">
+    <div class="dbc-container">
+      <div class="dbc-tree-panel">
+        <div class="header">&#128196; engine.dbc</div>
+        <div class="search"><input type="text" placeholder="搜索信号..."></div>
+        <div class="tree-body">
+          <div class="dbc-tree">
+            <div class="node">&#9660; 📁 engine.dbc</div>
+            <div class="indent">
+              <div class="node">&#9660; 🌐 Network: Engine</div>
+              <div class="indent">
+                <div class="node">&#9660; 🔩 Node: Engine</div>
+                <div class="indent">
+                  <div class="node">&#9660; 📨 Msg_0x123 (EngineStatus)</div>
+                  <div class="indent2">
+                    <div class="node" onclick="alert('选中信号: EngineRPM\n右键可添加到 Graphic')">● EngineRPM</div>
+                    <div class="node" onclick="alert('选中信号: ThrottlePos\n右键可添加到 Graphic')">● ThrottlePos</div>
+                    <div class="node" onclick="alert('选中信号: CoolantTemp\n右键可添加到 Graphic')">● CoolantTemp</div>
+                    <div class="node">● OilPressure</div>
+                  </div>
+                  <div class="node">&#9654; 📨 Msg_0x456 (BrakeCtrl)</div>
+                </div>
+                <div class="node">&#9654; 🔩 Node: Brake</div>
+                <div class="node">&#9654; 🔩 Node: Steering</div>
+              </div>
+            </div>
+            <div class="node" onclick="switchPanel('trace');alert('请在侧边栏点击 DBC 文件切换')">&#9654; 📁 body.dbc</div>
+          </div>
+        </div>
+      </div>
+      <div class="dbc-detail-panel">
+        <div class="dbc-info-card">
+          <div class="title">📨 Message: EngineStatus (0x123)</div>
+          <div class="row"><span class="label">ID:</span><span class="value">0x123</span></div>
+          <div class="row"><span class="label">DLC:</span><span class="value">8</span></div>
+          <div class="row"><span class="label">周期:</span><span class="value">10 ms</span></div>
+          <div class="row"><span class="label">发送节点:</span><span class="value">Engine</span></div>
+          <div class="row"><span class="label">方向:</span><span class="value">Rx</span></div>
+        </div>
+        <div class="dbc-info-card">
+          <div class="title">📊 Signals (4)</div>
+          <table class="dbc-signal-table">
+            <thead><tr><th>Name</th><th>Start</th><th>Len</th><th>Factor</th><th>Offset</th><th>Min</th><th>Max</th><th>Unit</th></tr></thead>
+            <tbody>
+              <tr><td>EngineRPM</td><td>0</td><td>16</td><td>0.125</td><td>0</td><td>0</td><td>8000</td><td>rpm</td></tr>
+              <tr><td>ThrottlePos</td><td>16</td><td>8</td><td>0.4</td><td>0</td><td>0</td><td>100</td><td>%</td></tr>
+              <tr><td>CoolantTemp</td><td>24</td><td>8</td><td>1</td><td>-40</td><td>-40</td><td>215</td><td>C</td></tr>
+              <tr><td>OilPressure</td><td>32</td><td>8</td><td>0.1</td><td>0</td><td>0</td><td>25</td><td>bar</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="dbc-info-card">
+          <div class="title">🔍 Signal Detail: EngineRPM</div>
+          <div class="row"><span class="label">起始位:</span><span class="value">0</span></div>
+          <div class="row"><span class="label">长度:</span><span class="value">16 bit</span></div>
+          <div class="row"><span class="label">字节序:</span><span class="value">Little Endian (Intel)</span></div>
+          <div class="row"><span class="label">因子:</span><span class="value">0.125</span></div>
+          <div class="row"><span class="label">偏移:</span><span class="value">0</span></div>
+          <div class="row"><span class="label">范围:</span><span class="value">0 ~ 8000 rpm</span></div>
+          <div class="row"><span class="label">接收节点:</span><span class="value">Brake, Steering</span></div>
+          <div class="row"><span class="label">备注:</span><span class="value">发动机转速</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DBC: body.dbc 面板 -->
+  <div class="tab-pane" id="pane-dbc2">
+    <div class="dbc-container">
+      <div class="dbc-tree-panel">
+        <div class="header">&#128196; body.dbc</div>
+        <div class="search"><input type="text" placeholder="搜索信号..."></div>
+        <div class="tree-body">
+          <div class="dbc-tree">
+            <div class="node">&#9660; 📁 body.dbc</div>
+            <div class="indent">
+              <div class="node">&#9660; 🌐 Network: Body</div>
+              <div class="indent">
+                <div class="node">&#9660; 🔩 Node: BCM</div>
+                <div class="indent">
+                  <div class="node">&#9660; 📨 Msg_0x200 (DoorStatus)</div>
+                  <div class="indent2">
+                    <div class="node">● DoorFL_Status</div>
+                    <div class="node">● DoorFR_Status</div>
+                    <div class="node">● DoorRL_Status</div>
+                    <div class="node">● DoorRR_Status</div>
+                  </div>
+                  <div class="node">&#9654; 📨 Msg_0x201 (LightCtrl)</div>
+                </div>
+                <div class="node">&#9654; 🔩 Node: Lighting</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="dbc-detail-panel">
+        <div class="dbc-info-card">
+          <div class="title">📨 Message: DoorStatus (0x200)</div>
+          <div class="row"><span class="label">ID:</span><span class="value">0x200</span></div>
+          <div class="row"><span class="label">DLC:</span><span class="value">8</span></div>
+          <div class="row"><span class="label">周期:</span><span class="value">50 ms</span></div>
+          <div class="row"><span class="label">发送节点:</span><span class="value">BCM</span></div>
+          <div class="row"><span class="label">方向:</span><span class="value">Rx</span></div>
+        </div>
+        <div class="dbc-info-card">
+          <div class="title">📊 Signals (4)</div>
+          <table class="dbc-signal-table">
+            <thead><tr><th>Name</th><th>Start</th><th>Len</th><th>Factor</th><th>Offset</th><th>Min</th><th>Max</th><th>Unit</th></tr></thead>
+            <tbody>
+              <tr><td>DoorFL_Status</td><td>0</td><td>2</td><td>1</td><td>0</td><td>0</td><td>3</td><td></td></tr>
+              <tr><td>DoorFR_Status</td><td>2</td><td>2</td><td>1</td><td>0</td><td>0</td><td>3</td><td></td></tr>
+              <tr><td>DoorRL_Status</td><td>4</td><td>2</td><td>1</td><td>0</td><td>0</td><td>3</td><td></td></tr>
+              <tr><td>DoorRR_Status</td><td>6</td><td>2</td><td>1</td><td>0</td><td>0</td><td>3</td><td></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 信号发送面板 -->
+  <div class="tab-pane" id="pane-send">
+    <div class="control-page">
+      <div class="control-section">
+        <div class="title">工具栏</div>
+        <div class="control-row">
+          <span class="btn success" style="font-size:14px;padding:6px 16px" onclick="alert('全部发送')">&#9654; 全部发送</span>
+          <span class="btn danger" style="font-size:14px;padding:6px 16px" onclick="alert('全部停止')">&#9209; 全部停止</span>
+          <span class="btn" style="font-size:14px;padding:6px 16px" onclick="alert('从DBC导入')">+ 从DBC导入</span>
+          <span class="btn" style="font-size:14px;padding:6px 16px" onclick="alert('从文件回放')">&#128194; 从文件回放</span>
+          <span class="btn" style="font-size:14px;padding:6px 16px" onclick="alert('清空列表')">&#128465; 清空列表</span>
+        </div>
+      </div>
+      <div class="control-section">
+        <div class="title">发送列表</div>
+        <table class="trace-table" style="font-size:11px">
+          <thead><tr><th>#</th><th>ID</th><th>名称</th><th>DLC</th><th>数据 (Hex)</th><th>周期(ms)</th><th>次数</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr class="selected"><td>1</td><td>0x123</td><td>EngineStatus</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>100</td><td>&#8734;</td><td style="color:#0a0">发送中</td><td><span class="btn" style="font-size:10px;padding:2px 6px">&#9654;</span> <span class="btn" style="font-size:10px;padding:2px 6px">&#9209;</span></td></tr>
+            <tr><td>2</td><td>0x456</td><td>BrakeCtrl</td><td>8</td><td>11 22 33 44 55 66 77 88</td><td>50</td><td>10</td><td>停止</td><td><span class="btn" style="font-size:10px;padding:2px 6px">&#9654;</span> <span class="btn" style="font-size:10px;padding:2px 6px">&#9209;</span></td></tr>
+            <tr><td>3</td><td>0x200</td><td>DoorStatus</td><td>4</td><td>01 00 00 00</td><td>200</td><td>&#8734;</td><td>停止</td><td><span class="btn" style="font-size:10px;padding:2px 6px">&#9654;</span> <span class="btn" style="font-size:10px;padding:2px 6px">&#9209;</span></td></tr>
+          </tbody>
+        </table>
+        <div style="font-size:10px;color:#888;margin-top:4px">&#8593; 拖拽行可调整发送顺序</div>
+      </div>
+      <div class="control-section">
+        <div class="title">编辑区</div>
+        <div class="control-row"><span class="label">ID:</span><input type="text" class="input-field" value="0x" style="width:80px;font-family:Consolas"> <span class="label">DLC:</span><input type="text" class="input-field" value="8" style="width:40px;font-family:Consolas"></div>
+        <div class="control-row"><span class="label">数据:</span><input type="text" class="input-field" value="00 00 00 00 00 00 00 00" style="width:240px;font-family:Consolas"></div>
+        <div class="control-row"><span class="label">周期:</span><input type="text" class="input-field" value="100" style="width:60px;font-family:Consolas">ms <span class="label">次数:</span><input type="text" class="input-field" value="0" style="width:60px;font-family:Consolas">(0=无限)</div>
+        <div class="control-row"><span class="label">从DBC:</span><select class="combo"><option>选择报文...</option><option>0x123 EngineStatus</option><option>0x456 BrakeCtrl</option></select> <select class="combo"><option>选择信号...</option><option>EngineRPM</option><option>ThrottlePos</option></select> <span class="btn">自动填充</span></div>
+        <div class="control-row"><span class="label"></span><span class="btn primary" onclick="alert('添加到列表')">+ 添加到列表</span> <span class="btn success" onclick="alert('发送单帧')">发送单帧</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 录制控制面板 -->
+  <div class="tab-pane" id="pane-record">
+    <div class="control-page">
+      <div class="control-section">
+        <div class="title">录制控制</div>
+        <div class="control-row">
+          <span class="btn danger" style="font-size:14px;padding:6px 16px" onclick="alert('开始录制')">&#9679; 开始录制</span>
+          <span class="btn" style="font-size:14px;padding:6px 16px" onclick="alert('暂停录制')">&#9208; 暂停</span>
+          <span class="btn" style="font-size:14px;padding:6px 16px" onclick="alert('停止录制')">&#9209; 停止</span>
+        </div>
+        <div class="control-row"><span class="label">状态:</span><span style="color:#c00">未录制</span></div>
+      </div>
+      <div class="control-section">
+        <div class="title">文件设置</div>
+        <div class="control-row"><span class="label">文件目录:</span><input class="input-field" type="text" value="D:/recordings" style="flex:1"><span class="btn" onclick="alert('浏览...')">浏览...</span></div>
+        <div class="control-row"><span class="label">文件名前缀:</span><input class="input-field" type="text" value="rec_" style="flex:1"></div>
+        <div class="control-row"><span class="label">文件格式:</span><select class="combo"><option>.sin (原生格式)</option><option>.asc (ASCII)</option><option>.blf (Binary Log)</option></select></div>
+      </div>
+      <div class="control-section">
+        <div class="title">文件分割</div>
+        <div class="control-row"><label class="chk"><input type="checkbox" checked> 按大小分割</label><span>每</span><input class="input-field" type="text" value="100" style="width:60px"><span>MB 切换文件</span></div>
+        <div class="control-row"><label class="chk"><input type="checkbox"> 按时间分割</label><span>每</span><input class="input-field" type="text" value="60" style="width:60px"><span>秒切换文件</span></div>
+      </div>
+      <div class="control-section">
+        <div class="title">缓冲与过滤</div>
+        <div class="control-row"><span class="label">缓冲区大小:</span><select class="combo"><option>10000 帧</option><option>50000 帧</option><option>100000 帧</option><option>无限制</option></select></div>
+        <div class="control-row"><span class="label">录制范围:</span><label class="chk"><input type="checkbox" checked> 全部</label><label class="chk"><input type="checkbox"> 仅 Rx</label><label class="chk"><input type="checkbox"> 仅 Tx</label><label class="chk"><input type="checkbox"> 仅 CAN FD</label></div>
+        <div class="control-row"><span class="label">ID 过滤:</span><input class="input-field" type="text" placeholder="逗号分隔, 例: 0x123,0x456" style="flex:1"></div>
+      </div>
+    </div>
+  </div>
+
+</div>

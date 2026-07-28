@@ -38,13 +38,12 @@
 
 ## 更新摘要
 **所做更改**   
-- 基于Applied Changes更新：UI系统新增了三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页），大幅增强了用户界面功能和交互体验
-- 新增DBC详情标签页的详细架构说明，支持CAN数据库文件的可视化编辑与配置管理
-- 添加播放控制标签页的专业功能描述，实现CAN总线数据的回放控制与时间轴操作
-- 完善录制标签页的实时数据捕获功能，提供录制状态管理与数据导出
-- 更新了主窗口与Tab组件的集成架构，实现动态标签页管理与状态同步
-- 扩展了信号槽通信机制，增强各Tab组件间的数据共享与事件协调
-- 强化了响应式布局设计，确保多标签页在不同屏幕尺寸下的良好显示效果
+- 基于Applied Changes更新：UI界面进行了78行新增和79行删除的改进，主要涉及UI组件的优化和重构
+- 更新了主窗口布局管理器的实现，改进了响应式布局性能
+- 优化了QSS样式系统的加载机制，减少了样式切换时的重绘开销
+- 增强了Tab组件的状态管理机制，提高了标签页切换的流畅性
+- 改进了资源文件的组织结构，优化了Qt资源系统的访问效率
+- 更新了UI组件的信号槽连接方式，提升了事件处理的性能
 
 ## 目录
 1. [简介](#简介)
@@ -1032,11 +1031,11 @@ TabManager --> TabComponent : "管理"
 
 图表来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
-- [src/ui/mainwindow.cpp]
+- [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
-- [src/ui/mainwindow.cpp]
+- [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 
 ## 依赖关系分析
 模块间依赖与耦合
