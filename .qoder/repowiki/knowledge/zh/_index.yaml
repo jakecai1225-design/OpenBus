@@ -3,40 +3,17 @@ schema_version: 1
 locale: zh-CN
 branch: master
 nodes_managed: true
-exported_at: "2026-07-28T02:00:48Z"
+exported_at: "2026-07-28T05:05:52Z"
 modules:
     "":
-        dir_name: Sin 报文分析工具顶层工程
-        title: Sin 报文分析工具顶层工程
+        dir_name: sin 项目根目录与构建配置
+        title: sin 项目根目录与构建配置
         scope:
+            - README.md
             - README.en.md
             - .gitignore
             - CMakeLists.txt
-            - LICENSE
-            - README.md
         source_files: []
-        children:
-            - application_source
-            - scripts
+        children: []
         depends_on: []
         related_to: []
-    application_source:
-        dir_name: Sin 报文分析工具 Qt 桌面应用源码
-        title: Sin 报文分析工具 Qt 桌面应用源码
-        scope:
-            - src/
-        source_files: []
-        children: []
-        depends_on: []
-        related_to:
-            - path: scripts
-    scripts:
-        dir_name: sin 项目构建脚本
-        title: sin 项目构建脚本
-        scope:
-            - scripts/
-        source_files: []
-        children: []
-        depends_on: []
-        related_to:
-            - path: application_source

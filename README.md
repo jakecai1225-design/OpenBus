@@ -173,16 +173,18 @@ D:/Qt/6.8.3/mingw_64/bin/windeployqt.exe build/bin/sin.exe
 
 ## 作者
 
-**Jake.cai**
+**蔡可杰 (Jake.cai)**
 
 - GitHub: [https://github.com/JakeCai](https://github.com/JakeCai)
 - 项目地址: [https://github.com/JakeCai/sin](https://github.com/JakeCai/sin)
+- 邮箱: 929168503@qq.com
 
 ## 商业合作
 
 如需商业授权、定制开发、技术支持或业务合作，请通过以下方式联系：
 
-- **邮箱**: jakecai@example.com
+- **邮箱**: 929168503@qq.com
+- **微信**: 13368295840
 - **GitHub Issues**: [https://github.com/JakeCai/sin/issues](https://github.com/JakeCai/sin/issues)
 
 ## 开源协议

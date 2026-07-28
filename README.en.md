@@ -173,16 +173,18 @@ windeployqt build/bin/sin.exe
 
 ## Author
 
-**Jake.cai**
+**Cai Kejie (Jake.cai)**
 
 - GitHub: [https://github.com/JakeCai](https://github.com/JakeCai)
 - Project: [https://github.com/JakeCai/sin](https://github.com/JakeCai/sin)
+- Email: 929168503@qq.com
 
 ## Business Cooperation
 
 For commercial licensing, custom development, technical support, or business partnerships, please contact:
 
-- **Email**: jakecai@example.com
+- **Email**: 929168503@qq.com
+- **WeChat**: 13368295840
 - **GitHub Issues**: [https://github.com/JakeCai/sin/issues](https://github.com/JakeCai/sin/issues)
 
 ## License

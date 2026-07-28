@@ -1,9 +1,0 @@
-schema_version: 1
-module_path: application_source
-title: Sin 报文分析工具 Qt 桌面应用源码
-scope:
-    - src/
-source_files: []
-depends_on: []
-related_to:
-    - path: scripts

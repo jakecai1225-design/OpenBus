@@ -18,16 +18,27 @@
 - [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
 - [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
 - [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
+- [src/ui/activitybar.h](file://src/ui/activitybar.h)
+- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
+- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
+- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
+- [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
+- [src/ui/rightpanel.cpp](file://src/ui/rightpanel.cpp)
+- [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
+- [src/ui/spliteditorarea.cpp](file://src/ui/spliteditorarea.cpp)
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- 新增了过滤器栏组件的详细架构说明
-- 添加了图形视图组件的专业功能描述
-- 完善了跟踪视图的数据展示机制
-- 扩展了信号配置对话框的交互设计
+- 新增了活动栏组件的详细架构说明
+- 添加了底部面板组件的专业功能描述
+- 完善了右侧面板的布局管理机制
+- 扩展了分割编辑器区域的多视图支持
+- 增强了侧边栏面板系统的动态管理功能
 - 更新了UI组件层次结构与依赖关系图
-- 增强了专业组件的开发规范与最佳实践
+- 新增了响应式布局和可拖拽调整的设计模式
 
 ## 目录
 1. [简介](#简介)
@@ -36,16 +47,17 @@
 4. [架构总览](#架构总览)
 5. [详细组件分析](#详细组件分析)
 6. [新增专业组件](#新增专业组件)
-7. [依赖关系分析](#依赖关系分析)
-8. [性能考虑](#性能考虑)
-9. [故障排查指南](#故障排查指南)
-10. [结论](#结论)
-11. [附录](#附录)
+7. [增强面板系统](#增强面板系统)
+8. [依赖关系分析](#依赖关系分析)
+9. [性能考虑](#性能考虑)
+10. [故障排查指南](#故障排查指南)
+11. [结论](#结论)
+12. [附录](#附录)
 
 ## 简介
 本文件面向基于Qt Widgets的UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
 
-**更新** 本文档现已重点说明Qt Designer XML布局系统与手写C++代码的混合架构模式，强调可视化设计与代码实现的分离与协作，并新增了多个专业UI组件的详细架构说明。
+**更新** 本文档现已重点说明Qt Designer XML布局系统与手写C++代码的混合架构模式，强调可视化设计与代码实现的分离与协作，并新增了多个专业UI组件的详细架构说明，包括活动栏、底部面板、右侧面板和分割编辑器区域等核心组件。
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式：
@@ -58,12 +70,17 @@ graph TB
 A["顶层 CMakeLists.txt"] --> B["src/CMakeLists.txt"]
 B --> C["src/main.cpp"]
 B --> D["src/ui/mainwindow.h/.cpp"]
-B --> E["src/ui/filterbar.h/.cpp"]
-B --> F["src/ui/graphicview.h/.cpp"]
-B --> G["src/ui/traceview.h/.cpp"]
-B --> H["src/ui/signalconfigdialog.h/.cpp"]
-A --> I["resources/resources.qrc"]
-I --> J["resources/styles/default.qss"]
+B --> E["src/ui/activitybar.h/.cpp"]
+B --> F["src/ui/bottompanel.h/.cpp"]
+B --> G["src/ui/rightpanel.h/.cpp"]
+B --> H["src/ui/spliteditorarea.h/.cpp"]
+B --> I["src/ui/panels/sidebarpanels.h/.cpp"]
+B --> J["src/ui/filterbar.h/.cpp"]
+B --> K["src/ui/graphicview.h/.cpp"]
+B --> L["src/ui/traceview.h/.cpp"]
+B --> M["src/ui/signalconfigdialog.h/.cpp"]
+A --> N["resources/resources.qrc"]
+N --> O["resources/styles/default.qss"]
 ```
 
 图表来源
@@ -72,6 +89,16 @@ I --> J["resources/styles/default.qss"]
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [src/ui/activitybar.h](file://src/ui/activitybar.h)
+- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
+- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
+- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
+- [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
+- [src/ui/rightpanel.cpp](file://src/ui/rightpanel.cpp)
+- [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
+- [src/ui/spliteditorarea.cpp](file://src/ui/spliteditorarea.cpp)
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
 - [src/ui/filterbar.h](file://src/ui/filterbar.h)
 - [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
 - [src/ui/graphicview.h](file://src/ui/graphicview.h)
@@ -93,7 +120,7 @@ I --> J["resources/styles/default.qss"]
 - QSS样式 default.qss: 集中式样式表，统一外观与主题基础
 - Qt资源 resources.qrc: 将样式与图标等资源打包进应用，便于分发与加载
 
-**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成清晰的混合开发模式，并新增了多个专业UI组件。
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成清晰的混合开发模式，并新增了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等核心UI组件。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -109,13 +136,22 @@ I --> J["resources/styles/default.qss"]
 - 样式通过QSS集中管理，支持运行时切换
 - 资源通过qrc统一打包，避免路径问题
 
-**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，实现了可视化设计与程序逻辑的有效分离，并集成了多个专业UI组件。
+**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。
 
 ```mermaid
 graph TB
 subgraph "应用层"
 M["main.cpp<br/>应用入口"]
 MW["MainWindow<br/>主窗口"]
+end
+subgraph "导航组件层"
+AB["ActivityBar<br/>活动栏"]
+BP["BottomPanel<br/>底部面板"]
+RP["RightPanel<br/>右侧面板"]
+end
+subgraph "编辑区域层"
+SEA["SplitEditorArea<br/>分割编辑器区域"]
+SBP["SidebarPanels<br/>侧边栏面板"]
 end
 subgraph "专业组件层"
 FB["FilterBar<br/>过滤器栏"]
@@ -130,9 +166,14 @@ subgraph "资源层"
 QRC["resources.qrc<br/>资源清单"]
 end
 M --> MW
-MW --> FB
-MW --> GV
-MW --> TV
+MW --> AB
+MW --> BP
+MW --> RP
+MW --> SEA
+MW --> SBP
+SEA --> FB
+SEA --> GV
+SEA --> TV
 MW --> SCD
 MW --> QSS
 QRC --> QSS
@@ -142,6 +183,16 @@ QRC --> QSS
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [src/ui/activitybar.h](file://src/ui/activitybar.h)
+- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
+- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
+- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
+- [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
+- [src/ui/rightpanel.cpp](file://src/ui/rightpanel.cpp)
+- [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
+- [src/ui/spliteditorarea.cpp](file://src/ui/spliteditorarea.cpp)
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
 - [src/ui/filterbar.h](file://src/ui/filterbar.h)
 - [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
 - [src/ui/graphicview.h](file://src/ui/graphicview.h)
@@ -199,7 +250,7 @@ App->>App : 进入事件循环
 - 持有样式管理器与主题配置
 - 通过信号槽机制与子控件通信
 
-**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了多个专业UI组件。
+**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。
 
 ```mermaid
 classDiagram
@@ -212,23 +263,48 @@ class MainWindow {
 -initConnections()
 -updateStyles()
 }
-class StyleSheet {
-+load(path) bool
-+applyTo(app) void
-+clear() void
+class ActivityBar {
++addActivityItem(item)
++removeActivityItem(id)
++onActivityChanged(id)
 }
-class ThemeManager {
-+register(name, path) void
-+current() string
-+set(name) void
+class BottomPanel {
++showMessage(message)
++setProgress(value)
++toggleVisibility(visible)
 }
-MainWindow --> StyleSheet : "使用"
-MainWindow --> ThemeManager : "依赖"
+class RightPanel {
++setContent(widget)
++resizePanel(width)
++updateContent(data)
+}
+class SplitEditorArea {
++addEditor(editor)
++removeEditor(index)
++splitEditor(direction)
++getActiveEditor()
+}
+class SidebarPanels {
++registerPanel(panel)
++showPanel(name)
++hidePanel(name)
++updatePanelData(name, data)
+}
+MainWindow --> ActivityBar : "包含"
+MainWindow --> BottomPanel : "包含"
+MainWindow --> RightPanel : "包含"
+MainWindow --> SplitEditorArea : "包含"
+MainWindow --> SidebarPanels : "管理"
 ```
 
 图表来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [src/ui/activitybar.h](file://src/ui/activitybar.h)
+- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
+- [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
+- [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
@@ -288,6 +364,165 @@ Refresh --> End
 - [README.en.md](file://README.en.md)
 
 ## 新增专业组件
+
+### 活动栏（ActivityBar）
+功能特性
+- 提供主要功能模块的快速导航
+- 支持图标按钮与状态指示
+- 动态添加与移除活动项
+- 响应式布局适配不同屏幕尺寸
+
+架构设计
+- 继承自QWidget，提供垂直布局的活动项列表
+- 通过信号槽机制与主窗口通信
+- 支持自定义活动项类型与行为
+
+```mermaid
+classDiagram
+class ActivityBar {
++ActivityBar(parent)
++addActivityItem(item)
++removeActivityItem(id)
++clearAllItems()
++onActivityChanged(id)
++setActiveItem(id)
+}
+class ActivityItem {
++icon QIcon
++label QString
++id string
++enabled bool
++tooltip QString
+}
+ActivityBar --> ActivityItem : "管理"
+```
+
+图表来源
+- [src/ui/activitybar.h](file://src/ui/activitybar.h)
+- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
+
+章节来源
+- [src/ui/activitybar.h](file://src/ui/activitybar.h)
+- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
+
+### 底部面板（BottomPanel）
+功能特性
+- 显示状态信息、日志消息和进度指示
+- 支持消息分类与颜色编码
+- 可折叠/展开的动态布局
+- 实时日志输出与搜索功能
+
+技术实现
+- 基于QTextEdit或QPlainTextEdit的消息显示
+- 支持富文本格式与语法高亮
+- 异步消息更新避免界面卡顿
+
+```mermaid
+classDiagram
+class BottomPanel {
++BottomPanel(parent)
++showMessage(message, level)
++setProgress(value, text)
++toggleVisibility(visible)
++clearMessages()
++searchMessage(keyword)
+}
+class MessageLevel {
++INFO "info"
++WARNING "warning"
++ERROR "error"
++DEBUG "debug"
+}
+BottomPanel --> MessageLevel : "使用"
+```
+
+图表来源
+- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
+- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
+
+章节来源
+- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
+- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
+
+### 右侧面板（RightPanel）
+功能特性
+- 提供上下文相关的属性编辑与配置界面
+- 支持动态内容替换与实时更新
+- 可调整宽度的响应式布局
+- 与主编辑区域的同步更新
+
+布局管理
+- 基于QSplitter的可调整分割布局
+- 支持最小/最大宽度限制
+- 面板状态的持久化保存
+
+```mermaid
+classDiagram
+class RightPanel {
++RightPanel(parent)
++setContent(widget)
++resizePanel(width)
++updateContent(data)
++saveState()
++restoreState()
+}
+class PanelContent {
++type string
++data QVariantMap
++refresh() void
++validate() bool
+}
+RightPanel --> PanelContent : "管理"
+```
+
+图表来源
+- [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
+- [src/ui/rightpanel.cpp](file://src/ui/rightpanel.cpp)
+
+章节来源
+- [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
+- [src/ui/rightpanel.cpp](file://src/ui/rightpanel.cpp)
+
+### 分割编辑器区域（SplitEditorArea）
+功能特性
+- 支持多文档编辑器的分割显示
+- 动态添加与删除编辑器标签页
+- 水平与垂直分割布局
+- 编辑器间的同步滚动与操作
+
+编辑器管理
+- 基于QTabWidget的多标签页管理
+- 支持编辑器的拖拽重排序
+- 自动保存编辑器状态
+
+```mermaid
+classDiagram
+class SplitEditorArea {
++SplitEditorArea(parent)
++addEditor(editor)
++removeEditor(index)
++splitEditor(direction)
++getActiveEditor()
++closeAllEditors()
++saveAllEditors()
+}
+class EditorTab {
++title QString
++content QString
++modified bool
++filePath QString
++close() bool
+}
+SplitEditorArea --> EditorTab : "管理"
+```
+
+图表来源
+- [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
+- [src/ui/spliteditorarea.cpp](file://src/ui/spliteditorarea.cpp)
+
+章节来源
+- [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
+- [src/ui/spliteditorarea.cpp](file://src/ui/spliteditorarea.cpp)
 
 ### 过滤器栏（FilterBar）
 功能特性
@@ -476,42 +711,115 @@ Implementation --> Application["最终应用程序"]
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 
+## 增强面板系统
+
+### 侧边栏面板系统（SidebarPanels）
+功能特性
+- 动态注册与管理多个侧边栏面板
+- 支持面板的显示/隐藏切换
+- 面板间的数据共享与通信
+- 面板布局的自适应调整
+
+架构设计
+- 基于QStackedWidget的面板堆栈管理
+- 信号槽机制实现面板间通信
+- 支持面板配置的持久化存储
+
+```mermaid
+classDiagram
+class SidebarPanels {
++SidebarPanels(parent)
++registerPanel(name, panel)
++showPanel(name)
++hidePanel(name)
++updatePanelData(name, data)
++getAllPanels()
++removePanel(name)
+}
+class BasePanel {
++name string
++isVisible bool
++updateData(data)
++serialize() QVariantMap
++deserialize(map)
+}
+SidebarPanels --> BasePanel : "管理"
+```
+
+图表来源
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+
+章节来源
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+
+### 响应式布局设计
+布局策略
+- 基于QLayoutManager的自适应布局
+- 支持不同屏幕尺寸的动态调整
+- 面板宽度的智能分配与恢复
+- 拖拽调整面板大小的交互体验
+
+布局管理
+- 使用QSplitter实现可调整的分隔布局
+- 支持面板的最小/最大尺寸限制
+- 布局状态的保存与恢复机制
+
+```mermaid
+flowchart TD
+Resize["窗口大小变化"] --> Calculate["计算可用空间"]
+Calculate --> Distribute["分配面板宽度"]
+Distribute --> Update["更新布局"]
+Update --> Render["重新渲染界面"]
+Render --> End["完成"]
+```
+
+[无图表来源 - 概念性流程图]
+
 ## 依赖关系分析
 模块间依赖与耦合
 - main.cpp 依赖样式加载与主窗口
 - MainWindow 依赖样式与主题管理
 - 样式与资源通过qrc解耦，降低硬编码路径风险
 
-**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系。
+**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域和侧边栏面板系统。
 
 ```mermaid
 graph LR
 Main["main.cpp"] --> MW["MainWindow"]
 MW --> UI["Ui::MainWindow<br/>(生成代码)"]
-MW --> FB["FilterBar"]
-MW --> GV["GraphicView"]
-MW --> TV["TraceView"]
+MW --> AB["ActivityBar"]
+MW --> BP["BottomPanel"]
+MW --> RP["RightPanel"]
+MW --> SEA["SplitEditorArea"]
+MW --> SBP["SidebarPanels"]
+SEA --> FB["FilterBar"]
+SEA --> GV["GraphicView"]
+SEA --> TV["TraceView"]
 MW --> SCD["SignalConfigDialog"]
 MW --> QSS["QSS样式"]
 QSS --> QRC["resources.qrc"]
-FB --> DataModel["数据模型"]
-GV --> GraphicsScene["图形场景"]
-TV --> PacketBuffer["数据包缓冲"]
-SCD --> ConfigManager["配置管理器"]
+AB --> Navigation["导航管理"]
+BP --> Logging["日志管理"]
+RP --> Properties["属性管理"]
+SEA --> Editors["编辑器管理"]
+SBP --> Panels["面板管理"]
 ```
 
 图表来源
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [src/ui/activitybar.h](file://src/ui/activitybar.h)
+- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
+- [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
+- [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
 - [src/ui/filterbar.h](file://src/ui/filterbar.h)
-- [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
 - [src/ui/graphicview.h](file://src/ui/graphicview.h)
-- [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
 - [src/ui/traceview.h](file://src/ui/traceview.h)
-- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
 - [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
-- [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
 - [resources/resources.qrc](file://resources/resources.qrc)
 
 章节来源
@@ -540,6 +848,12 @@ SCD --> ConfigManager["配置管理器"]
   - 跟踪视图实现数据分页加载
   - 过滤器栏使用高效的匹配算法
   - 对话框采用延迟初始化策略
+- **新增组件性能考虑**
+  - 活动栏使用懒加载避免初始性能开销
+  - 底部面板的消息显示采用异步更新
+  - 右侧面板的内容切换使用虚拟化技术
+  - 分割编辑器区域实现编辑器的按需创建
+  - 侧边栏面板系统优化面板切换性能
 
 [本节为通用指导，无需特定文件引用]
 
@@ -566,13 +880,19 @@ SCD --> ConfigManager["配置管理器"]
   - 图形视图数据更新卡顿需要优化渲染
   - 跟踪视图内存占用过高需要清理缓冲
   - 信号配置对话框验证失败需要检查参数格式
+- **新增组件问题**
+  - 活动栏图标加载失败需要检查资源路径
+  - 底部面板消息显示异常需要检查文本编码
+  - 右侧面板内容切换卡顿需要优化数据绑定
+  - 分割编辑器区域布局错乱需要检查约束设置
+  - 侧边栏面板系统面板注册失败需要检查命名冲突
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
 
 ## 结论
-本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括过滤器栏、图形视图、跟踪视图和信号配置对话框，为CAN总线数据分析提供了完整的解决方案。遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
+本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统，为CAN总线数据分析提供了完整的解决方案。遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -600,6 +920,12 @@ SCD --> ConfigManager["配置管理器"]
   - 图形视图需实现高性能的实时更新
   - 跟踪视图应具备大数据处理能力
   - 配置对话框需提供完善的验证机制
+- **新增组件规范**
+  - 活动栏应支持动态添加与移除活动项
+  - 底部面板需实现异步消息更新机制
+  - 右侧面板应具备可调整的宽度与状态持久化
+  - 分割编辑器区域需支持多文档编辑与同步操作
+  - 侧边栏面板系统应提供灵活的注册与管理接口
 
 ### 样式定制指南
 - 主题设计
@@ -631,6 +957,12 @@ SCD --> ConfigManager["配置管理器"]
   - 图形视图需实现平滑的缩放与平移操作
   - 跟踪视图应采用内存池管理大数据集
   - 配置对话框需提供撤销/重做功能
+- **新增组件最佳实践**
+  - 活动栏应支持图标与文本的动态更新
+  - 底部面板需实现消息级别的样式区分
+  - 右侧面板应提供内容切换的动画效果
+  - 分割编辑器区域需支持编辑器的拖拽重排
+  - 侧边栏面板系统应实现面板状态的自动保存
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -643,6 +975,8 @@ SCD --> ConfigManager["配置管理器"]
 6. **迭代完善**：返回Designer调整界面，重复上述流程
 7. **专业组件集成**：将专业组件嵌入到主界面中
 8. **性能调优**：针对大数据量场景进行性能优化
+9. **响应式适配**：测试不同屏幕尺寸下的布局表现
+10. **主题验证**：验证样式在不同主题下的显示效果
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)

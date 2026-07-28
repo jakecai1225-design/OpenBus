@@ -1,12 +1,11 @@
 schema_version: 1
 module_path: ""
-title: Sin 报文分析工具顶层工程
+title: sin 项目根目录与构建配置
 scope:
+    - README.md
     - README.en.md
     - .gitignore
     - CMakeLists.txt
-    - LICENSE
-    - README.md
 source_files: []
 depends_on: []
 related_to: []
