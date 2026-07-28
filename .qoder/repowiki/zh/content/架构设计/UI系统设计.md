@@ -8,17 +8,26 @@
 - [src/CMakeLists.txt](file://src/CMakeLists.txt)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
-- [src/ui/mainwindow.ui](file://src/ui/mainwindow.ui)
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
+- [src/ui/filterbar.h](file://src/ui/filterbar.h)
+- [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
+- [src/ui/graphicview.h](file://src/ui/graphicview.h)
+- [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
+- [src/ui/traceview.h](file://src/ui/traceview.h)
+- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
+- [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
+- [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- 更新了Qt Designer XML布局系统与手写C++代码混合架构的详细说明
-- 增强了mainwindow.ui文件的职责与最佳实践描述
-- 完善了UI描述文件与C++代码的协作模式
-- 补充了Qt Designer工作流程与代码生成机制
+- 新增了过滤器栏组件的详细架构说明
+- 添加了图形视图组件的专业功能描述
+- 完善了跟踪视图的数据展示机制
+- 扩展了信号配置对话框的交互设计
+- 更新了UI组件层次结构与依赖关系图
+- 增强了专业组件的开发规范与最佳实践
 
 ## 目录
 1. [简介](#简介)
@@ -26,16 +35,17 @@
 3. [核心组件](#核心组件)
 4. [架构总览](#架构总览)
 5. [详细组件分析](#详细组件分析)
-6. [依赖关系分析](#依赖关系分析)
-7. [性能考虑](#性能考虑)
-8. [故障排查指南](#故障排查指南)
-9. [结论](#结论)
-10. [附录](#附录)
+6. [新增专业组件](#新增专业组件)
+7. [依赖关系分析](#依赖关系分析)
+8. [性能考虑](#性能考虑)
+9. [故障排查指南](#故障排查指南)
+10. [结论](#结论)
+11. [附录](#附录)
 
 ## 简介
 本文件面向基于Qt Widgets的UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
 
-**更新** 本文档现已重点说明Qt Designer XML布局系统与手写C++代码的混合架构模式，强调可视化设计与代码实现的分离与协作。
+**更新** 本文档现已重点说明Qt Designer XML布局系统与手写C++代码的混合架构模式，强调可视化设计与代码实现的分离与协作，并新增了多个专业UI组件的详细架构说明。
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式：
@@ -47,9 +57,13 @@
 graph TB
 A["顶层 CMakeLists.txt"] --> B["src/CMakeLists.txt"]
 B --> C["src/main.cpp"]
-B --> D["src/ui/mainwindow.h/.cpp/.ui"]
-A --> E["resources/resources.qrc"]
-E --> F["resources/styles/default.qss"]
+B --> D["src/ui/mainwindow.h/.cpp"]
+B --> E["src/ui/filterbar.h/.cpp"]
+B --> F["src/ui/graphicview.h/.cpp"]
+B --> G["src/ui/traceview.h/.cpp"]
+B --> H["src/ui/signalconfigdialog.h/.cpp"]
+A --> I["resources/resources.qrc"]
+I --> J["resources/styles/default.qss"]
 ```
 
 图表来源
@@ -58,7 +72,14 @@ E --> F["resources/styles/default.qss"]
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
-- [src/ui/mainwindow.ui](file://src/ui/mainwindow.ui)
+- [src/ui/filterbar.h](file://src/ui/filterbar.h)
+- [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
+- [src/ui/graphicview.h](file://src/ui/graphicview.h)
+- [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
+- [src/ui/traceview.h](file://src/ui/traceview.h)
+- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
+- [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
+- [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
 - [resources/resources.qrc](file://resources/resources.qrc)
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 
@@ -69,17 +90,15 @@ E --> F["resources/styles/default.qss"]
 ## 核心组件
 - 应用入口 main.cpp: 初始化Qt应用实例、设置全局样式、创建并显示主窗口
 - 主窗口 MainWindow: 承载UI树、管理布局与交互逻辑、加载QSS与主题切换
-- UI描述 mainwindow.ui: 使用Qt Designer定义的界面结构与控件层次
 - QSS样式 default.qss: 集中式样式表，统一外观与主题基础
 - Qt资源 resources.qrc: 将样式与图标等资源打包进应用，便于分发与加载
 
-**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成清晰的混合开发模式。
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成清晰的混合开发模式，并新增了多个专业UI组件。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
-- [src/ui/mainwindow.ui](file://src/ui/mainwindow.ui)
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
 
@@ -90,7 +109,7 @@ E --> F["resources/styles/default.qss"]
 - 样式通过QSS集中管理，支持运行时切换
 - 资源通过qrc统一打包，避免路径问题
 
-**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，实现了可视化设计与程序逻辑的有效分离。
+**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，实现了可视化设计与程序逻辑的有效分离，并集成了多个专业UI组件。
 
 ```mermaid
 graph TB
@@ -98,15 +117,23 @@ subgraph "应用层"
 M["main.cpp<br/>应用入口"]
 MW["MainWindow<br/>主窗口"]
 end
+subgraph "专业组件层"
+FB["FilterBar<br/>过滤器栏"]
+GV["GraphicView<br/>图形视图"]
+TV["TraceView<br/>跟踪视图"]
+SCD["SignalConfigDialog<br/>信号配置对话框"]
+end
 subgraph "视图层"
-UI["mainwindow.ui<br/>界面描述"]
 QSS["default.qss<br/>样式表"]
 end
 subgraph "资源层"
 QRC["resources.qrc<br/>资源清单"]
 end
 M --> MW
-MW --> UI
+MW --> FB
+MW --> GV
+MW --> TV
+MW --> SCD
 MW --> QSS
 QRC --> QSS
 ```
@@ -115,7 +142,14 @@ QRC --> QSS
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
-- [src/ui/mainwindow.ui](file://src/ui/mainwindow.ui)
+- [src/ui/filterbar.h](file://src/ui/filterbar.h)
+- [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
+- [src/ui/graphicview.h](file://src/ui/graphicview.h)
+- [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
+- [src/ui/traceview.h](file://src/ui/traceview.h)
+- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
+- [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
+- [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
 
@@ -165,7 +199,7 @@ App->>App : 进入事件循环
 - 持有样式管理器与主题配置
 - 通过信号槽机制与子控件通信
 
-**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理。
+**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了多个专业UI组件。
 
 ```mermaid
 classDiagram
@@ -199,27 +233,6 @@ MainWindow --> ThemeManager : "依赖"
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
-
-### UI描述（mainwindow.ui）
-作用与约定
-- 使用Qt Designer可视化编辑控件层次、属性与布局
-- 生成对应的头文件供C++代码引用
-- 推荐将复杂布局与交互逻辑从.ui中解耦到C++
-
-**更新** Qt Designer XML布局系统的核心优势：
-- **可视化设计**：拖拽式界面搭建，实时预览效果
-- **XML格式**：结构化存储界面定义，便于版本控制
-- **自动生成**：编译时生成C++代码，减少手动编码错误
-- **工具链集成**：与Qt Creator深度集成，提升开发效率
-
-最佳实践
-- 命名规范：控件名语义化，便于样式选择器定位
-- 布局优先：尽量使用布局管理器而非绝对坐标
-- 事件委托：将业务逻辑放在C++层，保持.ui简洁
-- **混合开发模式**：UI设计师专注于界面布局，开发者专注于逻辑实现
-
-章节来源
-- [src/ui/mainwindow.ui](file://src/ui/mainwindow.ui)
 
 ### 样式系统（QSS与主题管理）
 设计理念
@@ -274,8 +287,168 @@ Refresh --> End
 章节来源
 - [README.en.md](file://README.en.md)
 
+## 新增专业组件
+
+### 过滤器栏（FilterBar）
+功能特性
+- 提供CAN总线数据的实时过滤功能
+- 支持多种过滤条件组合
+- 动态更新过滤规则
+- 与数据模型无缝集成
+
+架构设计
+- 继承自QWidget，提供独立的过滤界面
+- 通过信号槽机制与主窗口通信
+- 支持自定义过滤算法扩展
+
+```mermaid
+classDiagram
+class FilterBar {
++FilterBar(parent)
++setFilterRules(rules)
++getActiveFilters()
++clearFilters()
++filterChanged()
+}
+class FilterRule {
++type string
++value string
++operator string
++isValid() bool
+}
+FilterBar --> FilterRule : "管理"
+```
+
+图表来源
+- [src/ui/filterbar.h](file://src/ui/filterbar.h)
+- [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
+
+章节来源
+- [src/ui/filterbar.h](file://src/ui/filterbar.h)
+- [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
+
+### 图形视图（GraphicView）
+功能特性
+- 提供CAN信号的可视化图形显示
+- 支持实时波形绘制与缩放
+- 多通道信号对比显示
+- 交互式数据点标注
+
+技术实现
+- 基于QGraphicsView框架
+- 自定义QGraphicsItem实现信号绘制
+- 高性能的实时更新机制
+
+```mermaid
+classDiagram
+class GraphicView {
++GraphicView(parent)
++addSignalChannel(channel)
++updateData(data)
++zoomIn()
++zoomOut()
++resetView()
+}
+class SignalChannel {
++name string
++color QColor
++data QVector
++draw(graphicsScene)
+}
+GraphicView --> SignalChannel : "管理"
+```
+
+图表来源
+- [src/ui/graphicview.h](file://src/ui/graphicview.h)
+- [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
+
+章节来源
+- [src/ui/graphicview.h](file://src/ui/graphicview.h)
+- [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
+
+### 跟踪视图（TraceView）
+功能特性
+- 显示CAN总线数据包的详细跟踪信息
+- 支持时间轴滚动查看
+- 数据包颜色编码与状态标识
+- 搜索与筛选功能
+
+数据管理
+- 高效的数据存储与检索
+- 内存优化的大数据集处理
+- 异步数据加载与显示
+
+```mermaid
+classDiagram
+class TraceView {
++TraceView(parent)
++appendPacket(packet)
++clearTrace()
++search(keyword)
++exportData(format)
+}
+class CANPacket {
++id uint32_t
++data QByteArray
++timestamp double
++direction string
++toString() string
+}
+TraceView --> CANPacket : "显示"
+```
+
+图表来源
+- [src/ui/traceview.h](file://src/ui/traceview.h)
+- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
+
+章节来源
+- [src/ui/traceview.h](file://src/ui/traceview.h)
+- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
+
+### 信号配置对话框（SignalConfigDialog）
+功能特性
+- 提供CAN信号参数的配置界面
+- 支持信号格式定义与验证
+- 批量导入导出配置
+- 配置模板管理
+
+交互设计
+- 表单驱动的配置文件编辑
+- 实时验证与错误提示
+- 撤销/重做操作支持
+
+```mermaid
+classDiagram
+class SignalConfigDialog {
++SignalConfigDialog(parent)
++loadConfig(configPath)
++saveConfig(configPath)
++validateSignal(signal)
++importTemplate(template)
++exportTemplate(template)
+}
+class SignalDefinition {
++name string
++format string
++byteOrder string
++unit string
++minValue double
++maxValue double
++isValid() bool
+}
+SignalConfigDialog --> SignalDefinition : "管理"
+```
+
+图表来源
+- [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
+- [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
+
+章节来源
+- [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
+- [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
+
 ### Qt Designer与C++混合开发模式
-**新增** 混合架构的核心优势与实践：
+**更新** 混合架构的核心优势与实践：
 
 #### 职责分离
 - **Qt Designer (.ui)**: 负责界面结构、控件布局、属性设置
@@ -296,12 +469,10 @@ Implementation --> Application["最终应用程序"]
 ```
 
 图表来源
-- [src/ui/mainwindow.ui](file://src/ui/mainwindow.ui)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 
 章节来源
-- [src/ui/mainwindow.ui](file://src/ui/mainwindow.ui)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 
@@ -311,21 +482,36 @@ Implementation --> Application["最终应用程序"]
 - MainWindow 依赖样式与主题管理
 - 样式与资源通过qrc解耦，降低硬编码路径风险
 
-**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系。
+**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系。
 
 ```mermaid
 graph LR
 Main["main.cpp"] --> MW["MainWindow"]
 MW --> UI["Ui::MainWindow<br/>(生成代码)"]
+MW --> FB["FilterBar"]
+MW --> GV["GraphicView"]
+MW --> TV["TraceView"]
+MW --> SCD["SignalConfigDialog"]
 MW --> QSS["QSS样式"]
 QSS --> QRC["resources.qrc"]
+FB --> DataModel["数据模型"]
+GV --> GraphicsScene["图形场景"]
+TV --> PacketBuffer["数据包缓冲"]
+SCD --> ConfigManager["配置管理器"]
 ```
 
 图表来源
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
-- [src/ui/mainwindow.ui](file://src/ui/mainwindow.ui)
+- [src/ui/filterbar.h](file://src/ui/filterbar.h)
+- [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
+- [src/ui/graphicview.h](file://src/ui/graphicview.h)
+- [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
+- [src/ui/traceview.h](file://src/ui/traceview.h)
+- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
+- [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
+- [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
 - [resources/resources.qrc](file://resources/resources.qrc)
 
 章节来源
@@ -349,6 +535,11 @@ QSS --> QRC["resources.qrc"]
   - 避免在.ui文件中定义复杂的动画或过渡效果
   - 合理使用布局嵌套层级，避免过深的控件树
   - 利用Qt Creator的性能分析工具识别瓶颈
+- **专业组件性能优化**
+  - 图形视图使用双缓冲技术减少闪烁
+  - 跟踪视图实现数据分页加载
+  - 过滤器栏使用高效的匹配算法
+  - 对话框采用延迟初始化策略
 
 [本节为通用指导，无需特定文件引用]
 
@@ -370,13 +561,18 @@ QSS --> QRC["resources.qrc"]
   - 检查.ui文件格式是否正确，XML语法是否有误
   - 确认生成的头文件未被意外修改
   - 验证控件名称与C++代码中的引用一致
+- **专业组件问题**
+  - 过滤器规则语法错误导致匹配失败
+  - 图形视图数据更新卡顿需要优化渲染
+  - 跟踪视图内存占用过高需要清理缓冲
+  - 信号配置对话框验证失败需要检查参数格式
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
 
 ## 结论
-本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
+本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括过滤器栏、图形视图、跟踪视图和信号配置对话框，为CAN总线数据分析提供了完整的解决方案。遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -399,6 +595,11 @@ QSS --> QRC["resources.qrc"]
   - 合理组织控件层次结构，避免过深嵌套
   - 使用有意义的对象名称，便于样式和脚本访问
   - 充分利用布局管理器的自适应特性
+- **专业组件规范**
+  - 过滤器组件应支持链式过滤规则
+  - 图形视图需实现高性能的实时更新
+  - 跟踪视图应具备大数据处理能力
+  - 配置对话框需提供完善的验证机制
 
 ### 样式定制指南
 - 主题设计
@@ -425,9 +626,14 @@ QSS --> QRC["resources.qrc"]
   - 在C++代码中通过setupUi()访问生成的UI元素
   - 使用信号槽机制连接UI事件与业务处理方法
   - 定期同步UI设计师与开发者的工作成果
+- **专业组件最佳实践**
+  - 过滤器组件应支持动态规则添加与删除
+  - 图形视图需实现平滑的缩放与平移操作
+  - 跟踪视图应采用内存池管理大数据集
+  - 配置对话框需提供撤销/重做功能
 
 ### Qt Designer工作流程
-**新增** 推荐的Qt Designer使用流程：
+**更新** 推荐的Qt Designer使用流程：
 
 1. **界面原型设计**：使用拖拽工具快速搭建界面框架
 2. **布局优化**：调整控件位置和布局参数
@@ -435,8 +641,9 @@ QSS --> QRC["resources.qrc"]
 4. **代码生成**：编译项目生成C++头文件
 5. **逻辑实现**：在手写的C++代码中添加业务逻辑
 6. **迭代完善**：返回Designer调整界面，重复上述流程
+7. **专业组件集成**：将专业组件嵌入到主界面中
+8. **性能调优**：针对大数据量场景进行性能优化
 
 章节来源
-- [src/ui/mainwindow.ui](file://src/ui/mainwindow.ui)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)

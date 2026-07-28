@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: ""
-title: Sin 桌面应用顶层工程
+title: Sin 报文分析工具顶层工程
 scope:
     - README.en.md
     - .gitignore
