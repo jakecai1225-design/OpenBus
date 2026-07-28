@@ -484,13 +484,19 @@ QSpinBox {
     font-size: 12px;
 }
 
-/* ---- 文本编辑 ---- */
+/* ---- 文本编辑 (内容区用浅色主题) ---- */
 QPlainTextEdit {
-    background-color: #1e1e1e;
-    color: #d4d4d4;
+    background-color: #f8f8f8;
+    color: #333333;
     border: none;
     font-family: Consolas, "Courier New", monospace;
     font-size: 12px;
+}
+
+/* 终端面板保持深色主题 */
+#TerminalOutput {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
 }
 
 /* ---- 表格（Problems/Properties/Statistics） ---- */

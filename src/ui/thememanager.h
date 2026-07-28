@@ -1,0 +1,99 @@
+#ifndef THEMEMANAGER_H
+#define THEMEMANAGER_H
+
+#include <QObject>
+#include <QStringList>
+
+struct Theme
+{
+    QString name;
+
+    // Core backgrounds
+    QString windowBg;    // Main window / dialog background
+    QString contentBg;   // Editor / table / content area
+    QString sidebarBg;   // Sidebar list / tree background
+    QString panelBg;     // Panel title / toolbar / tab bar background
+
+    // Menu & Activity bar (often darker even in light themes)
+    QString barBg;       // Menu bar + Activity bar background
+    QString barFg;       // Menu bar + Activity bar text
+    QString barHover;    // Menu / Activity bar hover
+    QString barBorder;   // Menu border
+
+    // Text
+    QString text;
+    QString textDim;
+
+    // Accent
+    QString accent;
+    QString accentHover;
+    QString accentBorder;
+
+    // Borders
+    QString border;
+    QString borderDim;
+
+    // Selection & hover
+    QString selectionBg;
+    QString hoverBg;
+
+    // Buttons
+    QString buttonBg;
+    QString buttonHover;
+    QString buttonPress;
+    QString buttonDisabledBg;
+    QString buttonDisabledText;
+
+    // Status bar
+    QString statusBg;
+    QString statusFg;
+
+    // Terminal
+    QString terminalBg;
+    QString terminalFg;
+
+    // Tabs
+    QString tabBg;
+    QString tabActiveBg;
+    QString tabHoverBg;
+
+    // Scrollbar
+    QString scrollBg;
+    QString scrollHandle;
+    QString scrollHandleHover;
+
+    // Close button
+    QString closeBtnHover;
+    QString closeBtnPress;
+
+    // Table header
+    QString headerBg;
+    QString headerHover;
+
+    // Alternate row
+    QString altRowBg;
+};
+
+class ThemeManager : public QObject
+{
+    Q_OBJECT
+
+public:
+    static ThemeManager *instance();
+
+    QStringList themeNames() const;
+    QString currentThemeName() const { return m_currentName; }
+    void applyTheme(const QString &name);
+
+    QString generateQss(const Theme &t) const;
+
+private:
+    ThemeManager(QObject *parent = nullptr);
+
+    QList<QPair<QString, Theme>> m_themes;
+    QString m_currentName;
+
+    void initThemes();
+};
+
+#endif // THEMEMANAGER_H

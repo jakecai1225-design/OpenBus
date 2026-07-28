@@ -26,6 +26,7 @@ BottomPanel::BottomPanel(QWidget *parent)
     termLayout->setSpacing(0);
 
     m_terminal = new QPlainTextEdit(termWidget);
+    m_terminal->setObjectName("TerminalOutput");
     m_terminal->setReadOnly(true);
     m_terminal->setFont(mono);
     m_terminal->appendPlainText("sin 终端 v1.0.0");
@@ -35,7 +36,7 @@ BottomPanel::BottomPanel(QWidget *parent)
     auto *inputBar = new QHBoxLayout;
     inputBar->setContentsMargins(4, 2, 4, 2);
     auto *promptLabel = new QLabel(">", termWidget);
-    promptLabel->setStyleSheet("font-family: monospace; font-weight: bold; color: #4a90d9;");
+    promptLabel->setObjectName("TerminalPrompt");
     m_cmdInput = new QLineEdit(termWidget);
     m_cmdInput->setFont(mono);
     m_cmdInput->setPlaceholderText("输入命令后按 Enter 执行 (help 查看帮助)...");
@@ -47,6 +48,7 @@ BottomPanel::BottomPanel(QWidget *parent)
 
     // ---- 输出标签页 ----
     m_output = new QPlainTextEdit(this);
+    m_output->setObjectName("TerminalOutput");
     m_output->setReadOnly(true);
     m_output->setFont(mono);
     addTab(m_output, "输出");

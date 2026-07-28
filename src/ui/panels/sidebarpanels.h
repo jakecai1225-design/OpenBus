@@ -102,7 +102,7 @@ private:
 };
 
 // ============================================================
-//  Trace 面板 — 仅入口
+//  Trace 面板 — Trace 标签页列表 + 新建按钮
 // ============================================================
 class TracePanel : public SidePanel
 {
@@ -110,11 +110,18 @@ class TracePanel : public SidePanel
 public:
     explicit TracePanel(QWidget *parent = nullptr);
 
+    void refreshList(const QStringList &names);
+
 signals:
     void openTraceRequested();
+    void tracePageSelected(int row);
 
 private slots:
     void onTraceClicked();
+    void onPageSelected(int row);
+
+private:
+    QListWidget *m_traceList;
 };
 
 // ============================================================
@@ -127,6 +134,7 @@ public:
     explicit GraphicConfigPanel(QWidget *parent = nullptr);
 
     void setGraphicView(GraphicView *view);
+    void refreshList(const QStringList &names);
 
 signals:
     void graphicPageSelected(int index);
@@ -139,7 +147,6 @@ private slots:
 private:
     QListWidget *m_pageList;
     GraphicView *m_graphicView = nullptr;
-    void refreshList();
 };
 
 // ============================================================
@@ -173,18 +180,20 @@ private:
 };
 
 // ============================================================
-//  回放面板 — 仅入口
+//  发送面板 — 仅入口
 // ============================================================
-class PlaybackPanel : public SidePanel
+class SendPanel : public SidePanel
 {
     Q_OBJECT
 public:
-    explicit PlaybackPanel(QWidget *parent = nullptr);
+    explicit SendPanel(QWidget *parent = nullptr);
 
 signals:
+    void openSendRequested();
     void openPlaybackRequested();
 
 private slots:
+    void onSendClicked();
     void onPlaybackClicked();
 };
 
@@ -215,12 +224,15 @@ public:
 
 signals:
     void settingsRequested(const QString &section);
+    void themeChanged(const QString &themeName);
 
 private slots:
     void onItemClicked(QListWidgetItem *item);
+    void onThemeItemClicked(QListWidgetItem *item);
 
 private:
     QListWidget *m_list;
+    QListWidget *m_themeList;
 };
 
 // ============================================================
@@ -237,7 +249,7 @@ public:
     TracePanel *tracePanel() const { return m_trace; }
     GraphicConfigPanel *graphicConfigPanel() const { return m_graphicConfig; }
     DbcPanel *dbcPanel() const { return m_dbc; }
-    PlaybackPanel *playbackPanel() const { return m_playback; }
+    SendPanel *sendPanel() const { return m_send; }
     RecordPanel *recordPanel() const { return m_record; }
     DevicePanel *devicePanel() const { return m_device; }
     SettingsPanel *settingsPanel() const { return m_settings; }
@@ -250,7 +262,7 @@ private:
     TracePanel *m_trace;
     GraphicConfigPanel *m_graphicConfig;
     DbcPanel *m_dbc;
-    PlaybackPanel *m_playback;
+    SendPanel *m_send;
     RecordPanel *m_record;
     DevicePanel *m_device;
     SettingsPanel *m_settings;

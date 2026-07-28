@@ -52,12 +52,16 @@ set(SRC_UI
     ui/panels/sidebarpanels.cpp
     ui/spliteditorarea.h
     ui/spliteditorarea.cpp
+    ui/signalsendtab.h
+    ui/signalsendtab.cpp
     ui/playbacktab.h
     ui/playbacktab.cpp
     ui/recordtab.h
     ui/recordtab.cpp
     ui/dbcdetailtab.h
     ui/dbcdetailtab.cpp
+    ui/thememanager.h
+    ui/thememanager.cpp
 )
 
 # ============================================================
@@ -77,6 +81,7 @@ qt_add_executable(sin
 # ============================================================
 target_link_libraries(sin PRIVATE
     Qt6::Widgets
+    Qt6::Charts
 )
 
 # ============================================================

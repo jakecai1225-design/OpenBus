@@ -28,6 +28,7 @@ signals:
     void currentChanged(int index);
     void tabCloseRequested(int index);
     void tabContextMenuRequested(int index, const QPoint &pos);
+    void tabListChanged();
 
 private slots:
     void onTabBarContextMenu(int index, const QPoint &pos);

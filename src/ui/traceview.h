@@ -103,12 +103,15 @@ private:
  * @brief Wireshark 风格 Trace 页面 — 整体三栏
  *
  *   ┌────────────────────────────────┐
- *   │ FilterBar                       │
+ *   │ FilterBar (Start/Stop + Filter) │
  *   ├────────────────────────────────┤
  *   │ TraceView (报文列表)            │
  *   ├──────────────┬─────────────────┤
  *   │ 帧结构        │ 信号解析         │
  *   └──────────────┴─────────────────┘
+ *
+ * 每个 TraceTab 拥有独立的 CanTraceModel + CanFilterProxyModel，
+ * 通过 Start/Stop 按钮控制是否接收帧数据。
  */
 class TraceTab : public QWidget
 {
@@ -123,7 +126,15 @@ public:
     SignalDecodeWidget *signalDecode() const { return m_signalDecode; }
 
     void setDbcManager(DbcManager *mgr);
-    void setProxyModel(CanFilterProxyModel *proxy);
+
+    bool isRunning() const { return m_running; }
+    void setRunning(bool running);
+
+    void appendFrame(const CanFrame &frame);
+    void clearTrace();
+    int frameCount() const;
+    bool setFilterExpression(const QString &expr);
+    void clearFilter();
 
 private slots:
     void onSelectionChanged();
@@ -135,6 +146,10 @@ private:
     QSplitter *m_hSplitter = nullptr;
     FrameInfoWidget *m_frameInfo = nullptr;
     SignalDecodeWidget *m_signalDecode = nullptr;
+
+    CanTraceModel *m_traceModel = nullptr;
+    CanFilterProxyModel *m_proxyModel = nullptr;
+    bool m_running = false;
 };
 
 #endif // TRACEVIEW_H

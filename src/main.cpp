@@ -1,7 +1,7 @@
 #include <QApplication>
-#include <QFile>
 
 #include "ui/mainwindow.h"
+#include "ui/thememanager.h"
 #include "core/canframe.h"
 
 int main(int argc, char *argv[])
@@ -14,12 +14,8 @@ int main(int argc, char *argv[])
     app.setOrganizationName("sin");
     app.setApplicationVersion("0.1.0");
 
-    // 加载样式表
-    QFile qss(":/styles/default.qss");
-    if (qss.open(QFile::ReadOnly)) {
-        app.setStyleSheet(QString::fromUtf8(qss.readAll()));
-        qss.close();
-    }
+    // 应用主题
+    ThemeManager::instance()->applyTheme("Light");
 
     MainWindow window;
     window.show();

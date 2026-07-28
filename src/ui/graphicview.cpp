@@ -1,37 +1,178 @@
 #include "graphicview.h"
 #include "signalconfigdialog.h"
 
-#include <QPainter>
-#include <QPainterPath>
+#include <QSplitter>
+#include <QListWidget>
+#include <QListWidgetItem>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QToolBar>
+#include <QToolButton>
+#include <QPushButton>
 #include <QMenu>
 #include <QAction>
-#include <QPaintEvent>
-#include <QFontDatabase>
-#include <QDateTime>
+#include <QContextMenuEvent>
 #include <cmath>
 #include <algorithm>
+
+#include <QChart>
+#include <QChartView>
+#include <QLineSeries>
+#include <QValueAxis>
 
 GraphicView::GraphicView(QWidget *parent)
     : QWidget(parent)
 {
-    setMinimumSize(300, 150);
-    setContextMenuPolicy(Qt::DefaultContextMenu);
-    setAttribute(Qt::WA_OpaquePaintEvent, false);
+    setupUi();
 }
 
 QColor GraphicView::autoColor(int index)
 {
     static const QColor colors[] = {
-        QColor(0x21, 0x96, 0xF3), // 蓝
-        QColor(0xF4, 0x43, 0x36), // 红
-        QColor(0x4C, 0xAF, 0x50), // 绿
-        QColor(0xFF, 0x98, 0x00), // 橙
-        QColor(0x9C, 0x27, 0xB0), // 紫
-        QColor(0x00, 0xBC, 0xD4), // 青
-        QColor(0xFF, 0xEB, 0x3B), // 黄
-        QColor(0x79, 0x55, 0x48), // 棕
+        QColor(0x21, 0x96, 0xF3), // blue
+        QColor(0xF4, 0x43, 0x36), // red
+        QColor(0x4C, 0xAF, 0x50), // green
+        QColor(0xFF, 0x98, 0x00), // orange
+        QColor(0x9C, 0x27, 0xB0), // purple
+        QColor(0x00, 0xBC, 0xD4), // cyan
+        QColor(0xFF, 0xEB, 0x3B), // yellow
+        QColor(0x79, 0x55, 0x48), // brown
     };
     return colors[index % 8];
+}
+
+void GraphicView::setupUi()
+{
+    auto *mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
+
+    // ---- Toolbar (zoom / fit / measure) ----
+    m_toolbar = new QToolBar(this);
+    m_toolbar->setMovable(false);
+    m_toolbar->setIconSize(QSize(16, 16));
+
+    auto *zoomInBtn = new QToolButton(this);
+    zoomInBtn->setText("🔍+");
+    zoomInBtn->setToolTip("放大");
+    auto *zoomOutBtn = new QToolButton(this);
+    zoomOutBtn->setText("🔍-");
+    zoomOutBtn->setToolTip("缩小");
+    auto *fitBtn = new QToolButton(this);
+    fitBtn->setText("⤢");
+    fitBtn->setToolTip("适应窗口");
+    auto *measureBtn = new QToolButton(this);
+    measureBtn->setText("📏");
+    measureBtn->setToolTip("测量 (待实现)");
+    measureBtn->setEnabled(false);
+
+    m_toolbar->addWidget(zoomInBtn);
+    m_toolbar->addWidget(zoomOutBtn);
+    m_toolbar->addWidget(fitBtn);
+    m_toolbar->addSeparator();
+    m_toolbar->addWidget(measureBtn);
+    mainLayout->addWidget(m_toolbar);
+
+    // ---- Splitter: signal list | chart view ----
+    m_splitter = new QSplitter(Qt::Horizontal, this);
+
+    // Left panel: signal list
+    auto *leftWidget = new QWidget(this);
+    auto *leftLayout = new QVBoxLayout(leftWidget);
+    leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->setSpacing(0);
+
+    m_signalList = new QListWidget(leftWidget);
+    m_signalList->setMinimumWidth(180);
+    leftLayout->addWidget(m_signalList, 1);
+
+    auto *btnBar = new QHBoxLayout;
+    btnBar->setContentsMargins(4, 4, 4, 4);
+    auto *addBtn = new QPushButton("+ 添加信号", leftWidget);
+    auto *removeBtn = new QPushButton("- 删除信号", leftWidget);
+    btnBar->addWidget(addBtn);
+    btnBar->addWidget(removeBtn);
+    leftLayout->addLayout(btnBar);
+
+    // Right panel: chart view
+    m_chart = new QChart();
+    m_chart->setTitle("信号波形");
+    m_chart->setTheme(QChart::ChartThemeLight);
+    m_chart->legend()->setAlignment(Qt::AlignBottom);
+    m_chart->setMargins(QMargins(2, 2, 2, 2));
+
+    m_timeAxis = new QValueAxis();
+    m_timeAxis->setTitleText("时间 (s)");
+    m_timeAxis->setLabelFormat("%.1f");
+    m_timeAxis->setRange(0, m_timeWindow);
+    m_chart->addAxis(m_timeAxis, Qt::AlignBottom);
+
+    m_chartView = new QChartView(m_chart, this);
+    m_chartView->setRenderHint(QPainter::Antialiasing);
+    m_chartView->setRubberBand(QChartView::RectangleRubberBand);
+
+    m_splitter->addWidget(leftWidget);
+    m_splitter->addWidget(m_chartView);
+    m_splitter->setStretchFactor(0, 0);
+    m_splitter->setStretchFactor(1, 1);
+    m_splitter->setSizes({180, 500});
+
+    mainLayout->addWidget(m_splitter, 1);
+
+    // ---- Connections ----
+    connect(addBtn, &QPushButton::clicked, this, [this]() {
+        SignalConfigDialog dlg(this);
+        if (dlg.exec() == QDialog::Accepted) {
+            Signal sig;
+            sig.name = dlg.signalName();
+            sig.canId = dlg.canId();
+            sig.extended = dlg.isExtended();
+            sig.byteOffset = dlg.byteOffset();
+            sig.bitLength = dlg.bitLength();
+            sig.bigEndian = dlg.isBigEndian();
+            addSignal(sig);
+        }
+    });
+
+    connect(removeBtn, &QPushButton::clicked, this, [this]() {
+        int row = m_signalList->currentRow();
+        if (row >= 0 && row < m_signals.size())
+            removeSignal(row);
+    });
+
+    connect(zoomInBtn, &QToolButton::clicked, this, [this]() {
+        m_chart->zoomIn();
+    });
+    connect(zoomOutBtn, &QToolButton::clicked, this, [this]() {
+        m_chart->zoomOut();
+    });
+    connect(fitBtn, &QToolButton::clicked, this, [this]() {
+        m_chart->zoomReset();
+        refreshTimeAxis();
+    });
+
+    // Signal list checkbox → show/hide signal
+    connect(m_signalList, &QListWidget::itemChanged, this, [this](QListWidgetItem *item) {
+        int row = m_signalList->row(item);
+        if (row >= 0 && row < m_signals.size()) {
+            bool visible = (item->checkState() == Qt::Checked);
+            m_signals[row].series->setVisible(visible);
+            m_signals[row].yAxis->setVisible(visible);
+        }
+    });
+
+    // Context menu on signal list
+    m_signalList->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_signalList, &QListWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
+        auto *item = m_signalList->itemAt(pos);
+        if (!item) return;
+        int row = m_signalList->row(item);
+        QMenu menu(this);
+        auto *rmAction = menu.addAction("删除信号");
+        auto *sel = menu.exec(m_signalList->mapToGlobal(pos));
+        if (sel == rmAction)
+            removeSignal(row);
+    });
 }
 
 void GraphicView::addSignal(const Signal &sig)
@@ -40,22 +181,63 @@ void GraphicView::addSignal(const Signal &sig)
     sd.config = sig;
     if (!sd.config.color.isValid())
         sd.config.color = autoColor(m_signals.size());
+
+    // Create line series
+    sd.series = new QLineSeries();
+    sd.series->setName(sig.name);
+    sd.series->setColor(sd.config.color);
+    m_chart->addSeries(sd.series);
+
+    // Create Y axis (alternating left/right)
+    sd.yAxis = new QValueAxis();
+    sd.yAxis->setLabelFormat("%.0f");
+    sd.yAxis->setTitleText(sig.name);
+    // Default range based on bit length
+    double yMax = (sig.bitLength >= 32) ? 0xFFFFFFFF : static_cast<double>((1ULL << sig.bitLength) - 1);
+    sd.yAxis->setRange(0, yMax);
+
+    Qt::Alignment align = (m_signals.size() % 2 == 0) ? Qt::AlignLeft : Qt::AlignRight;
+    m_chart->addAxis(sd.yAxis, align);
+    sd.series->attachAxis(m_timeAxis);
+    sd.series->attachAxis(sd.yAxis);
+
     m_signals.append(sd);
-    update();
+    updateSignalList();
 }
 
 void GraphicView::removeSignal(int index)
 {
-    if (index >= 0 && index < m_signals.size()) {
-        m_signals.removeAt(index);
-        update();
+    if (index < 0 || index >= m_signals.size())
+        return;
+
+    auto &sd = m_signals[index];
+    if (sd.series) {
+        m_chart->removeSeries(sd.series);
+        sd.series->deleteLater();
     }
+    if (sd.yAxis) {
+        m_chart->removeAxis(sd.yAxis);
+        sd.yAxis->deleteLater();
+    }
+
+    m_signals.removeAt(index);
+    updateSignalList();
 }
 
 void GraphicView::clearSignals()
 {
+    for (auto &sd : m_signals) {
+        if (sd.series) {
+            m_chart->removeSeries(sd.series);
+            sd.series->deleteLater();
+        }
+        if (sd.yAxis) {
+            m_chart->removeAxis(sd.yAxis);
+            sd.yAxis->deleteLater();
+        }
+    }
     m_signals.clear();
-    update();
+    updateSignalList();
 }
 
 QVector<GraphicView::Signal> GraphicView::signalConfigs() const
@@ -68,10 +250,12 @@ QVector<GraphicView::Signal> GraphicView::signalConfigs() const
 
 void GraphicView::clearData()
 {
-    for (auto &sd : m_signals)
-        sd.points.clear();
+    for (auto &sd : m_signals) {
+        if (sd.series)
+            sd.series->clear();
+    }
     m_currentTime = 0.0;
-    update();
+    refreshTimeAxis();
 }
 
 void GraphicView::onFrame(const CanFrame &frame)
@@ -83,16 +267,36 @@ void GraphicView::onFrame(const CanFrame &frame)
             frame.extended == sd.config.extended) {
             double val = extractValue(frame, sd.config);
             if (!std::isnan(val)) {
-                sd.points.append({frame.timestamp, val});
-                // 丢弃窗口外的旧点
+                sd.series->append(frame.timestamp, val);
+
+                // Trim old points outside the time window
                 double cutoff = frame.timestamp - m_timeWindow;
-                while (!sd.points.isEmpty() && sd.points.first().time < cutoff)
-                    sd.points.removeFirst();
+                int removeCount = 0;
+                while (removeCount < sd.series->count() &&
+                       sd.series->at(removeCount).x() < cutoff) {
+                    ++removeCount;
+                }
+                if (removeCount > 0)
+                    sd.series->removePoints(0, removeCount);
+
+                // Auto-range Y axis (lightweight: check new value only)
+                if (sd.series->count() > 0) {
+                    double curMin = sd.yAxis->min();
+                    double curMax = sd.yAxis->max();
+                    bool needUpdate = false;
+                    if (val < curMin) { curMin = val; needUpdate = true; }
+                    if (val > curMax) { curMax = val; needUpdate = true; }
+                    if (needUpdate) {
+                        double range = curMax - curMin;
+                        if (range < 1) { curMin -= 1; curMax += 1; }
+                        sd.yAxis->setRange(curMin, curMax);
+                    }
+                }
             }
         }
     }
 
-    update();
+    refreshTimeAxis();
 }
 
 double GraphicView::extractValue(const CanFrame &frame, const Signal &sig) const
@@ -116,224 +320,30 @@ double GraphicView::extractValue(const CanFrame &frame, const Signal &sig) const
     }
 }
 
-void GraphicView::paintEvent(QPaintEvent *)
+void GraphicView::updateSignalList()
 {
-    QPainter p(this);
-    p.setRenderHint(QPainter::Antialiasing, true);
-
-    QRectF rect = this->rect().adjusted(0, 0, -1, -1);
-
-    // 背景
-    p.fillRect(rect, QColor(0xFA, 0xFA, 0xFA));
-
-    // 绘图区域留白
-    qreal marginLeft = 50;
-    qreal marginRight = 10;
-    qreal marginTop = 10;
-    qreal marginBottom = 25;
-    QRectF plotArea(rect.left() + marginLeft, rect.top() + marginTop,
-                    rect.width() - marginLeft - marginRight,
-                    rect.height() - marginTop - marginBottom);
-
-    // 计算 Y 范围
-    double minVal = 0.0, maxVal = 255.0;
-    bool hasData = false;
-    for (const auto &sd : m_signals) {
-        for (const auto &pt : sd.points) {
-            if (!hasData) {
-                minVal = maxVal = pt.value;
-                hasData = true;
-            } else {
-                minVal = std::min(minVal, pt.value);
-                maxVal = std::max(maxVal, pt.value);
-            }
-        }
-    }
-    if (hasData && minVal == maxVal) {
-        minVal -= 1;
-        maxVal += 1;
-    }
-    // 留 10% 边距
-    double range = maxVal - minVal;
-    minVal -= range * 0.1;
-    maxVal += range * 0.1;
-
-    drawGrid(p, plotArea);
-
-    // 时间范围
-    double tEnd = m_currentTime;
-    double tStart = tEnd - m_timeWindow;
-
-    // 绘制每个信号
-    for (const auto &sd : m_signals) {
-        if (sd.points.isEmpty())
-            continue;
-
-        p.setPen(QPen(sd.config.color, 1.5));
-        QPainterPath path;
-        bool first = true;
-        for (const auto &pt : sd.points) {
-            double x = plotArea.left() + (pt.time - tStart) / m_timeWindow * plotArea.width();
-            double y = plotArea.bottom() - (pt.value - minVal) / (maxVal - minVal) * plotArea.height();
-
-            if (x < plotArea.left()) {
-                first = true;
-                continue;
-            }
-            if (x > plotArea.right())
-                break;
-
-            if (first) {
-                path.moveTo(x, y);
-                first = false;
-            } else {
-                path.lineTo(x, y);
-            }
-        }
-        p.drawPath(path);
-
-        // 在最右侧绘制当前值
-        if (!sd.points.isEmpty()) {
-            const auto &last = sd.points.last();
-            double x = plotArea.left() + (last.time - tStart) / m_timeWindow * plotArea.width();
-            double y = plotArea.bottom() - (last.value - minVal) / (maxVal - minVal) * plotArea.height();
-            if (x >= plotArea.left() && x <= plotArea.right()) {
-                p.setBrush(sd.config.color);
-                p.setPen(Qt::NoPen);
-                p.drawEllipse(QPointF(x, y), 3, 3);
-            }
-        }
-    }
-
-    // Y 轴标签
-    QFont mono = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-    mono.setPointSize(9);
-    p.setFont(mono);
-    p.setPen(QColor(0x66, 0x66, 0x66));
-    for (int i = 0; i <= 5; ++i) {
-        double val = minVal + (maxVal - minVal) * i / 5.0;
-        double y = plotArea.bottom() - plotArea.height() * i / 5.0;
-        p.drawText(QRectF(rect.left(), y - 10, marginLeft - 5, 20),
-                   Qt::AlignRight | Qt::AlignVCenter,
-                   QString::number(val, 'f', 0));
-    }
-
-    // X 轴标签
-    for (int i = 0; i <= 5; ++i) {
-        double t = tStart + m_timeWindow * i / 5.0;
-        double x = plotArea.left() + plotArea.width() * i / 5.0;
-        p.drawText(QRectF(x - 40, plotArea.bottom() + 3, 80, 20),
-                   Qt::AlignCenter,
-                   QString::number(t, 'f', 2) + "s");
-    }
-
-    // 图例
-    drawLegend(p);
-
-    // 无信号提示
-    if (m_signals.isEmpty()) {
-        p.setPen(QColor(0xAA, 0xAA, 0xAA));
-        QFont f = font();
-        f.setPointSize(12);
-        p.setFont(f);
-        p.drawText(rect, Qt::AlignCenter,
-                   "右键添加信号 | 选择 CAN ID + 字节偏移来绘制信号曲线");
-    }
-}
-
-void GraphicView::drawGrid(QPainter &p, const QRectF &plotArea)
-{
-    p.setPen(QPen(QColor(0xE0, 0xE0, 0xE0), 1, Qt::DotLine));
-
-    // 水平网格
-    for (int i = 0; i <= 5; ++i) {
-        double y = plotArea.top() + plotArea.height() * i / 5.0;
-        p.drawLine(QPointF(plotArea.left(), y), QPointF(plotArea.right(), y));
-    }
-
-    // 垂直网格
-    for (int i = 0; i <= 5; ++i) {
-        double x = plotArea.left() + plotArea.width() * i / 5.0;
-        p.drawLine(QPointF(x, plotArea.top()), QPointF(x, plotArea.bottom()));
-    }
-
-    // 边框
-    p.setPen(QPen(QColor(0xCC, 0xCC, 0xCC), 1));
-    p.drawRect(plotArea);
-}
-
-void GraphicView::drawLegend(QPainter &p)
-{
-    if (m_signals.isEmpty())
-        return;
-
-    QFont f = font();
-    f.setPointSize(9);
-    p.setFont(f);
-
-    int legendW = 0;
-    int legendH = m_signals.size() * 18 + 8;
-    for (const auto &sd : m_signals) {
-        int w = p.fontMetrics().horizontalAdvance(sd.config.name + "  ");
-        legendW = std::max(legendW, w + 30);
-    }
-
-    QRectF legendRect(width() - legendW - 10, 10, legendW, legendH);
-    p.setBrush(QColor(255, 255, 255, 200));
-    p.setPen(QPen(QColor(0xCC, 0xCC, 0xCC), 1));
-    p.drawRoundedRect(legendRect, 4, 4);
+    m_signalList->blockSignals(true);
+    m_signalList->clear();
 
     for (int i = 0; i < m_signals.size(); ++i) {
-        qreal y = legendRect.top() + 4 + i * 18 + 9;
-        p.setPen(Qt::NoPen);
-        p.setBrush(m_signals[i].config.color);
-        p.drawRect(QRectF(legendRect.left() + 6, y - 5, 12, 10));
-        p.setPen(QColor(0x33, 0x33, 0x33));
-        p.drawText(QRectF(legendRect.left() + 22, y - 9, legendW - 28, 18),
-                   Qt::AlignLeft | Qt::AlignVCenter,
-                   m_signals[i].config.name);
+        const auto &sd = m_signals[i];
+        QString text = QString("● %1  (0x%2)")
+            .arg(sd.config.name)
+            .arg(sd.config.canId, 0, 16).toUpper();
+
+        auto *item = new QListWidgetItem(text);
+        item->setCheckState(Qt::Checked);
+        // Set color for the bullet
+        QColor c = sd.config.color;
+        item->setForeground(c);
+        m_signalList->addItem(item);
     }
+    m_signalList->blockSignals(false);
 }
 
-void GraphicView::contextMenuEvent(QContextMenuEvent *event)
+void GraphicView::refreshTimeAxis()
 {
-    QMenu menu(this);
-
-    QAction addAction("添加信号...", this);
-    QAction clearAction("清除所有信号", this);
-    menu.addAction(&addAction);
-    menu.addSeparator();
-    menu.addAction(&clearAction);
-
-    // 已有信号列表
-    if (!m_signals.isEmpty()) {
-        menu.addSeparator();
-        for (int i = 0; i < m_signals.size(); ++i) {
-            QAction *rmAction = menu.addAction("删除: " + m_signals[i].config.name);
-            rmAction->setData(i);
-        }
-    }
-
-    QAction *sel = menu.exec(event->globalPos());
-    if (!sel)
-        return;
-
-    if (sel == &addAction) {
-        SignalConfigDialog dlg(this);
-        if (dlg.exec() == QDialog::Accepted) {
-            Signal sig;
-            sig.name = dlg.signalName();
-            sig.canId = dlg.canId();
-            sig.extended = dlg.isExtended();
-            sig.byteOffset = dlg.byteOffset();
-            sig.bitLength = dlg.bitLength();
-            sig.bigEndian = dlg.isBigEndian();
-            addSignal(sig);
-        }
-    } else if (sel == &clearAction) {
-        clearSignals();
-    } else if (sel->data().isValid()) {
-        removeSignal(sel->data().toInt());
-    }
+    double tEnd = m_currentTime;
+    double tStart = std::max(0.0, tEnd - m_timeWindow);
+    m_timeAxis->setRange(tStart, tEnd);
 }
-

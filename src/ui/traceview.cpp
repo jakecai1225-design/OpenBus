@@ -460,11 +460,16 @@ void SignalDecodeWidget::clear()
 TraceTab::TraceTab(QWidget *parent)
     : QWidget(parent)
 {
+    // 每个标签页拥有独立的数据模型
+    m_traceModel = new CanTraceModel(this);
+    m_proxyModel = new CanFilterProxyModel(this);
+    m_proxyModel->setSourceModel(m_traceModel);
+
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    // 过滤栏
+    // 过滤栏（含 Start/Stop 按钮）
     m_filterBar = new FilterBar(this);
     layout->addWidget(m_filterBar);
 
@@ -472,8 +477,9 @@ TraceTab::TraceTab(QWidget *parent)
     m_vSplitter = new QSplitter(Qt::Vertical, this);
     m_vSplitter->setHandleWidth(2);
 
-    // TraceView
+    // TraceView — 使用自己的代理模型
     m_traceView = new TraceView(this);
+    m_traceView->setModel(m_proxyModel);
     m_vSplitter->addWidget(m_traceView);
 
     // 水平分割: 帧结构 (左) | 信号解析 (右)
@@ -493,6 +499,10 @@ TraceTab::TraceTab(QWidget *parent)
     m_vSplitter->setStretchFactor(1, 1);
 
     layout->addWidget(m_vSplitter, 1);
+
+    // 选中行变化 → 更新底部面板
+    connect(m_traceView->selectionModel(), &QItemSelectionModel::selectionChanged,
+            this, &TraceTab::onSelectionChanged);
 }
 
 void TraceTab::setDbcManager(DbcManager *mgr)
@@ -500,13 +510,35 @@ void TraceTab::setDbcManager(DbcManager *mgr)
     m_signalDecode->setDbcManager(mgr);
 }
 
-void TraceTab::setProxyModel(CanFilterProxyModel *proxy)
+void TraceTab::setRunning(bool running)
 {
-    m_traceView->setModel(proxy);
+    m_running = running;
+    m_filterBar->setRunning(running);
+}
 
-    // 选中行变化时更新底部面板
-    connect(m_traceView->selectionModel(), &QItemSelectionModel::selectionChanged,
-            this, &TraceTab::onSelectionChanged);
+void TraceTab::appendFrame(const CanFrame &frame)
+{
+    m_traceModel->appendFrame(frame);
+}
+
+void TraceTab::clearTrace()
+{
+    m_traceModel->clear();
+}
+
+int TraceTab::frameCount() const
+{
+    return m_traceModel->frameCount();
+}
+
+bool TraceTab::setFilterExpression(const QString &expr)
+{
+    return m_proxyModel->setFilterExpression(expr);
+}
+
+void TraceTab::clearFilter()
+{
+    m_proxyModel->clearFilter();
 }
 
 void TraceTab::onSelectionChanged()

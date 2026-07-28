@@ -2,14 +2,13 @@
 
 #include <QToolButton>
 #include <QVBoxLayout>
-#include <QPaintEvent>
-#include <QPainter>
 
 ActivityBar::ActivityBar(QWidget *parent)
     : QWidget(parent)
 {
     setFixedWidth(48);
     setObjectName("ActivityBar");
+    setAttribute(Qt::WA_StyledBackground, true);
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -28,13 +27,13 @@ ActivityBar::ActivityBar(QWidget *parent)
     m_buttons.append({createButton("\xF0\x9F\x93\x84", "DBC", Dbc), Dbc, "DBC", "DBC 数据库"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xE2\x96\xB6", "回放", Playback), Playback, "回放", "回放控制"});
+    m_buttons.append({createButton("\xF0\x9F\x93\xA1", "发送", Send), Send, "发送", "发送"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xE2\x97\x8F", "录制", Record), Record, "录制", "录制控制"});
+    m_buttons.append({createButton("\xE2\x97\x8F", "录制", Record), Record, "录制", "录制"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xF0\x9F\x94\xA7", "设备", Device), Device, "设备", "设备连接"});
+    m_buttons.append({createButton("\xF0\x9F\x94\xA7", "硬件", Device), Device, "硬件", "硬件"});
     layout->addWidget(m_buttons.last().btn);
 
     layout->addStretch();
@@ -84,10 +83,4 @@ void ActivityBar::onButtonClicked()
         m_current = clicked;
         emit activityChanged(static_cast<int>(clicked));
     }
-}
-
-void ActivityBar::paintEvent(QPaintEvent *)
-{
-    QPainter p(this);
-    p.fillRect(rect(), QColor(0x2D, 0x2D, 0x2D));
 }

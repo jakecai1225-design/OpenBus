@@ -124,6 +124,9 @@ struct DbcSignal
     // 从原始数据中解码物理值
     double decode(const QByteArray &data) const;
 
+    // 从物理值编码到数据（修改 data 中对应位）
+    void encode(QByteArray &data, double physValue) const;
+
     /// 查找值描述
     QString lookupValueDesc(int rawValue) const
     {

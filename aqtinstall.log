@@ -1,0 +1,142 @@
+2026-07-28 20:39:24,109 - aqt.main - INFO - installer 16264 aqtinstall(aqt) v3.1.18 on Python 3.8.5 [CPython MSC v.1924 64 bit (AMD64)]
+2026-07-28 20:39:24,111 - aqt.main - WARNING - installer 16264 Specified Qt version "6.8.3" did not exist when this version of aqtinstall was released. This may not install properly, but we will try our best.
+2026-07-28 20:39:24,113 - aqt.helper - DEBUG - helper 16264 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/Updates.xml.sha256
+2026-07-28 20:39:28,198 - aqt.helper - DEBUG - helper 9760 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtbase-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z.sha256
+2026-07-28 20:39:28,201 - aqt.helper - DEBUG - helper 14320 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtsvg-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z.sha256
+2026-07-28 20:39:28,224 - aqt.helper - DEBUG - helper 12260 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtdeclarative-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z.sha256
+2026-07-28 20:39:28,325 - aqt.helper - DEBUG - helper 3256 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qttools-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z.sha256
+2026-07-28 20:39:29,184 - aqt.helper - INFO - helper 14320 Downloading qtsvg...
+2026-07-28 20:39:29,184 - aqt.installer - DEBUG - installer 14320 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtsvg-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 20:39:29,337 - aqt.helper - INFO - helper 3256 Downloading qttools...
+2026-07-28 20:39:29,338 - aqt.installer - DEBUG - installer 3256 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qttools-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 20:39:29,356 - aqt.helper - INFO - helper 9760 Downloading qtbase...
+2026-07-28 20:39:29,356 - aqt.installer - DEBUG - installer 9760 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtbase-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 20:39:29,627 - aqt.helper - INFO - helper 12260 Downloading qtdeclarative...
+2026-07-28 20:39:29,627 - aqt.installer - DEBUG - installer 12260 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtdeclarative-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 20:39:30,333 - aqt.helper - DEBUG - helper 3256 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qttools-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 20:39:30,333 - aqt.helper - INFO - helper 3256 Redirected: mirrors.sau.edu.cn
+2026-07-28 20:39:30,373 - aqt.helper - DEBUG - helper 14320 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtsvg-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 20:39:30,373 - aqt.helper - INFO - helper 14320 Redirected: mirrors.sau.edu.cn
+2026-07-28 20:39:30,414 - aqt.helper - DEBUG - helper 9760 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtbase-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 20:39:30,414 - aqt.helper - INFO - helper 9760 Redirected: mirrors.sau.edu.cn
+2026-07-28 20:39:30,499 - aqt.helper - DEBUG - helper 12260 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtdeclarative-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 20:39:30,499 - aqt.helper - INFO - helper 12260 Redirected: mirrors.sau.edu.cn
+2026-07-28 20:39:34,625 - aqt.installer - INFO - installer 14320 Finished installation of qtsvg-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z in 6.43268010
+2026-07-28 20:39:34,667 - aqt.helper - DEBUG - helper 14320 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qttranslations-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z.sha256
+2026-07-28 20:39:35,760 - aqt.helper - INFO - helper 14320 Downloading qttranslations...
+2026-07-28 20:39:35,760 - aqt.installer - DEBUG - installer 14320 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qttranslations-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 20:39:36,673 - aqt.helper - DEBUG - helper 14320 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qttranslations-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 20:39:36,674 - aqt.helper - INFO - helper 14320 Redirected: mirrors.sau.edu.cn
+2026-07-28 20:39:44,566 - aqt.installer - INFO - installer 14320 Finished installation of qttranslations-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z in 9.90941110
+2026-07-28 20:39:44,598 - aqt.helper - DEBUG - helper 14320 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308MinGW-w64-x86_64-13.1.0-release-posix-seh-msvcrt-rt_v11-rev1-runtime.7z.sha256
+2026-07-28 20:39:45,504 - aqt.helper - INFO - helper 14320 Downloading MinGW...
+2026-07-28 20:39:45,504 - aqt.installer - DEBUG - installer 14320 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308MinGW-w64-x86_64-13.1.0-release-posix-seh-msvcrt-rt_v11-rev1-runtime.7z
+2026-07-28 20:39:46,459 - aqt.helper - DEBUG - helper 14320 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308MinGW-w64-x86_64-13.1.0-release-posix-seh-msvcrt-rt_v11-rev1-runtime.7z
+2026-07-28 20:39:46,459 - aqt.helper - INFO - helper 14320 Redirected: mirrors.sau.edu.cn
+2026-07-28 20:39:51,553 - aqt.installer - INFO - installer 14320 Finished installation of MinGW-w64-x86_64-13.1.0-release-posix-seh-msvcrt-rt_v11-rev1-runtime.7z in 6.96361640
+2026-07-28 20:39:51,580 - aqt.helper - DEBUG - helper 14320 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308d3dcompiler_47-x64.7z.sha256
+2026-07-28 20:39:52,554 - aqt.helper - INFO - helper 14320 Downloading d3dcompiler_47...
+2026-07-28 20:39:52,555 - aqt.installer - DEBUG - installer 14320 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308d3dcompiler_47-x64.7z
+2026-07-28 20:39:53,556 - aqt.helper - DEBUG - helper 14320 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308d3dcompiler_47-x64.7z
+2026-07-28 20:39:53,557 - aqt.helper - INFO - helper 14320 Redirected: mirrors.sau.edu.cn
+2026-07-28 20:39:59,979 - aqt.installer - INFO - installer 14320 Finished installation of d3dcompiler_47-x64.7z in 8.40616190
+2026-07-28 20:40:01,112 - aqt.helper - DEBUG - helper 16804 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308opengl32sw-64-mesa_11_2_2-signed_sha256.7z.sha256
+2026-07-28 20:40:01,983 - aqt.helper - INFO - helper 16804 Downloading opengl32sw...
+2026-07-28 20:40:01,984 - aqt.installer - DEBUG - installer 16804 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308opengl32sw-64-mesa_11_2_2-signed_sha256.7z
+2026-07-28 20:40:02,812 - aqt.helper - DEBUG - helper 16804 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308opengl32sw-64-mesa_11_2_2-signed_sha256.7z
+2026-07-28 20:40:02,812 - aqt.helper - INFO - helper 16804 Redirected: mirrors.sau.edu.cn
+2026-07-28 20:40:16,331 - aqt.installer - INFO - installer 16804 Finished installation of opengl32sw-64-mesa_11_2_2-signed_sha256.7z in 15.22714710
+2026-07-28 20:40:23,206 - aqt.installer - INFO - installer 3256 Finished installation of qttools-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z in 54.88484800
+2026-07-28 20:40:24,266 - aqt.installer - INFO - installer 9760 Finished installation of qtbase-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z in 56.07566390
+2026-07-28 20:42:34,636 - aqt.installer - INFO - installer 12260 Finished installation of qtdeclarative-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z in 186.41869530
+2026-07-28 20:42:35,128 - aqt.main - ERROR - installer 16264 Updater caused an IO error: [Errno 2] No such file or directory: 'C:\\Qt\\6.8.3\\mingw_64\\mkspecs\\qconfig.pri'
+2026-07-28 20:42:54,643 - aqt.main - INFO - installer 9520 aqtinstall(aqt) v3.1.18 on Python 3.8.5 [CPython MSC v.1924 64 bit (AMD64)]
+2026-07-28 20:42:54,644 - aqt.helper - DEBUG - helper 9520 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_mingw1310_64/Updates.xml.sha256
+2026-07-28 20:42:55,668 - aqt.helper - DEBUG - helper 9520 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_mingw1310_64/Updates.xml.sha256
+2026-07-28 20:42:56,646 - aqt.helper - DEBUG - helper 9520 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_mingw1310_64/Updates.xml.sha256
+2026-07-28 20:42:57,580 - aqt.helper - DEBUG - helper 9520 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_mingw1310_64/Updates.xml.sha256
+2026-07-28 20:42:58,532 - aqt.helper - DEBUG - helper 9520 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_mingw1310_64/Updates.xml.sha256
+2026-07-28 20:42:59,617 - aqt.main - ERROR - installer 9520 Failed to locate XML data for the tool 'tools_mingw1310_64'.
+==============================Suggested follow-up:==============================
+* Please use 'aqt list-tool windows desktop' to check what tools are available.
+2026-07-28 20:44:10,588 - aqt.main - INFO - installer 12652 aqtinstall(aqt) v3.1.18 on Python 3.8.5 [CPython MSC v.1924 64 bit (AMD64)]
+2026-07-28 20:44:10,589 - aqt.helper - DEBUG - helper 12652 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_mingw1310/Updates.xml.sha256
+2026-07-28 20:44:13,175 - aqt.helper - DEBUG - helper 12652 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_mingw1310/Updates.xml.sha256
+2026-07-28 20:44:16,661 - aqt.helper - DEBUG - helper 1620 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_mingw1310/qt.tools.win64_mingw1310/13.1.0-202407240918mingw1310.7z.sha256
+2026-07-28 20:44:17,543 - aqt.helper - INFO - helper 1620 Downloading qt.tools.win64_mingw1310...
+2026-07-28 20:44:17,544 - aqt.installer - DEBUG - installer 1620 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_mingw1310/qt.tools.win64_mingw1310/13.1.0-202407240918mingw1310.7z
+2026-07-28 20:44:18,427 - aqt.helper - DEBUG - helper 1620 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/tools_mingw1310/qt.tools.win64_mingw1310/13.1.0-202407240918mingw1310.7z
+2026-07-28 20:44:18,428 - aqt.helper - INFO - helper 1620 Redirected: mirrors.sau.edu.cn
+2026-07-28 20:47:31,039 - aqt.installer - INFO - installer 1620 Finished installation of mingw1310.7z in 194.38445720
+2026-07-28 20:47:31,273 - aqt.main - INFO - installer 12652 Finished installation
+2026-07-28 20:47:31,274 - aqt.main - INFO - installer 12652 Time elapsed: 200.68550010 second
+2026-07-28 20:47:52,851 - aqt.main - INFO - installer 9420 aqtinstall(aqt) v3.1.18 on Python 3.8.5 [CPython MSC v.1924 64 bit (AMD64)]
+2026-07-28 20:47:52,852 - aqt.helper - DEBUG - helper 9420 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_cmake/Updates.xml.sha256
+2026-07-28 20:47:55,227 - aqt.helper - DEBUG - helper 9420 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_cmake/Updates.xml.sha256
+2026-07-28 20:47:58,668 - aqt.helper - DEBUG - helper 7016 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_cmake/qt.tools.cmake/3.30.5-202502251255windows64_x64_cmake_tools.7z.sha256
+2026-07-28 20:47:59,690 - aqt.helper - INFO - helper 7016 Downloading qt.tools.cmake...
+2026-07-28 20:47:59,691 - aqt.installer - DEBUG - installer 7016 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/tools_cmake/qt.tools.cmake/3.30.5-202502251255windows64_x64_cmake_tools.7z
+2026-07-28 20:48:00,878 - aqt.helper - DEBUG - helper 7016 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/tools_cmake/qt.tools.cmake/3.30.5-202502251255windows64_x64_cmake_tools.7z
+2026-07-28 20:48:00,878 - aqt.helper - INFO - helper 7016 Redirected: mirrors.sau.edu.cn
+2026-07-28 20:48:53,131 - aqt.installer - INFO - installer 7016 Finished installation of windows64_x64_cmake_tools.7z in 54.47169540
+2026-07-28 20:48:53,409 - aqt.main - INFO - installer 9420 Finished installation
+2026-07-28 20:48:53,410 - aqt.main - INFO - installer 9420 Time elapsed: 60.55795020 second
+2026-07-28 21:13:36,156 - aqt.main - INFO - installer 6364 aqtinstall(aqt) v3.1.18 on Python 3.8.5 [CPython MSC v.1924 64 bit (AMD64)]
+2026-07-28 21:13:36,157 - aqt.main - WARNING - installer 6364 Specified Qt version "6.8.3" did not exist when this version of aqtinstall was released. This may not install properly, but we will try our best.
+2026-07-28 21:13:36,158 - aqt.main - WARNING - installer 6364 Specified modules ['qtcharts'] did not exist when this version of aqtinstall was released. This may not install properly, but we will try our best.
+2026-07-28 21:13:36,158 - aqt.helper - DEBUG - helper 6364 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/Updates.xml.sha256
+2026-07-28 21:13:40,617 - aqt.helper - DEBUG - helper 8784 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.addons.qtcharts.win64_mingw/6.8.3-0-202503201308qtcharts-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z.sha256
+2026-07-28 21:13:40,732 - aqt.helper - DEBUG - helper 12768 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtbase-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z.sha256
+2026-07-28 21:13:40,896 - aqt.helper - DEBUG - helper 3620 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtsvg-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z.sha256
+2026-07-28 21:13:40,938 - aqt.helper - DEBUG - helper 5124 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtdeclarative-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z.sha256
+2026-07-28 21:13:41,603 - aqt.helper - INFO - helper 8784 Downloading qtcharts...
+2026-07-28 21:13:41,604 - aqt.installer - DEBUG - installer 8784 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.addons.qtcharts.win64_mingw/6.8.3-0-202503201308qtcharts-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 21:13:41,789 - aqt.helper - INFO - helper 12768 Downloading qtbase...
+2026-07-28 21:13:41,789 - aqt.installer - DEBUG - installer 12768 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtbase-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 21:13:41,821 - aqt.helper - INFO - helper 3620 Downloading qtsvg...
+2026-07-28 21:13:41,821 - aqt.installer - DEBUG - installer 3620 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtsvg-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 21:13:41,912 - aqt.helper - INFO - helper 5124 Downloading qtdeclarative...
+2026-07-28 21:13:41,912 - aqt.installer - DEBUG - installer 5124 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtdeclarative-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 21:13:42,538 - aqt.helper - DEBUG - helper 8784 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.addons.qtcharts.win64_mingw/6.8.3-0-202503201308qtcharts-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 21:13:42,539 - aqt.helper - INFO - helper 8784 Redirected: mirrors.sau.edu.cn
+2026-07-28 21:13:42,639 - aqt.helper - DEBUG - helper 12768 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtbase-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 21:13:42,639 - aqt.helper - INFO - helper 12768 Redirected: mirrors.sau.edu.cn
+2026-07-28 21:13:42,747 - aqt.helper - DEBUG - helper 3620 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtsvg-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 21:13:42,747 - aqt.helper - INFO - helper 3620 Redirected: mirrors.sau.edu.cn
+2026-07-28 21:13:42,855 - aqt.helper - DEBUG - helper 5124 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qtdeclarative-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 21:13:42,856 - aqt.helper - INFO - helper 5124 Redirected: mirrors.sau.edu.cn
+2026-07-28 21:13:47,046 - aqt.installer - INFO - installer 3620 Finished installation of qtsvg-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z in 6.15633020
+2026-07-28 21:13:47,077 - aqt.helper - DEBUG - helper 3620 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qttools-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z.sha256
+2026-07-28 21:13:47,978 - aqt.helper - INFO - helper 3620 Downloading qttools...
+2026-07-28 21:13:47,978 - aqt.installer - DEBUG - installer 3620 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qttools-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 21:13:48,292 - aqt.installer - INFO - installer 8784 Finished installation of qtcharts-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z in 7.68114850
+2026-07-28 21:13:48,321 - aqt.helper - DEBUG - helper 8784 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qttranslations-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z.sha256
+2026-07-28 21:13:48,955 - aqt.helper - DEBUG - helper 3620 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qttools-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 21:13:48,957 - aqt.helper - INFO - helper 3620 Redirected: mirrors.sau.edu.cn
+2026-07-28 21:13:49,389 - aqt.helper - INFO - helper 8784 Downloading qttranslations...
+2026-07-28 21:13:49,389 - aqt.installer - DEBUG - installer 8784 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qttranslations-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 21:13:50,540 - aqt.helper - DEBUG - helper 8784 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308qttranslations-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z
+2026-07-28 21:13:50,541 - aqt.helper - INFO - helper 8784 Redirected: mirrors.sau.edu.cn
+2026-07-28 21:14:00,294 - aqt.installer - INFO - installer 8784 Finished installation of qttranslations-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z in 11.97946330
+2026-07-28 21:14:00,339 - aqt.helper - DEBUG - helper 8784 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308MinGW-w64-x86_64-13.1.0-release-posix-seh-msvcrt-rt_v11-rev1-runtime.7z.sha256
+2026-07-28 21:14:01,427 - aqt.helper - INFO - helper 8784 Downloading MinGW...
+2026-07-28 21:14:01,427 - aqt.installer - DEBUG - installer 8784 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308MinGW-w64-x86_64-13.1.0-release-posix-seh-msvcrt-rt_v11-rev1-runtime.7z
+2026-07-28 21:14:02,508 - aqt.helper - DEBUG - helper 8784 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308MinGW-w64-x86_64-13.1.0-release-posix-seh-msvcrt-rt_v11-rev1-runtime.7z
+2026-07-28 21:14:02,508 - aqt.helper - INFO - helper 8784 Redirected: mirrors.sau.edu.cn
+2026-07-28 21:14:07,880 - aqt.installer - INFO - installer 8784 Finished installation of MinGW-w64-x86_64-13.1.0-release-posix-seh-msvcrt-rt_v11-rev1-runtime.7z in 7.55025240
+2026-07-28 21:14:07,965 - aqt.helper - DEBUG - helper 8784 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308d3dcompiler_47-x64.7z.sha256
+2026-07-28 21:14:08,891 - aqt.helper - INFO - helper 8784 Downloading d3dcompiler_47...
+2026-07-28 21:14:08,892 - aqt.installer - DEBUG - installer 8784 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308d3dcompiler_47-x64.7z
+2026-07-28 21:14:09,943 - aqt.helper - DEBUG - helper 8784 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308d3dcompiler_47-x64.7z
+2026-07-28 21:14:09,944 - aqt.helper - INFO - helper 8784 Redirected: mirrors.sau.edu.cn
+2026-07-28 21:14:16,495 - aqt.installer - INFO - installer 8784 Finished installation of d3dcompiler_47-x64.7z in 8.53599590
+2026-07-28 21:14:17,964 - aqt.helper - DEBUG - helper 12344 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308opengl32sw-64-mesa_11_2_2-signed_sha256.7z.sha256
+2026-07-28 21:14:19,015 - aqt.helper - INFO - helper 12344 Downloading opengl32sw...
+2026-07-28 21:14:19,016 - aqt.installer - DEBUG - installer 12344 Download URL: https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308opengl32sw-64-mesa_11_2_2-signed_sha256.7z
+2026-07-28 21:14:19,952 - aqt.helper - DEBUG - helper 12344 Asked to redirect(302) to: https://mirrors.sau.edu.cn/qt/online/qtsdkrepository/windows_x86/desktop/qt6_683/qt6_683/qt.qt6.683.win64_mingw/6.8.3-0-202503201308opengl32sw-64-mesa_11_2_2-signed_sha256.7z
+2026-07-28 21:14:19,952 - aqt.helper - INFO - helper 12344 Redirected: mirrors.sau.edu.cn
+2026-07-28 21:14:33,804 - aqt.installer - INFO - installer 3620 Finished installation of qttools-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z in 46.73770090
+2026-07-28 21:14:38,547 - aqt.installer - INFO - installer 12344 Finished installation of opengl32sw-64-mesa_11_2_2-signed_sha256.7z in 20.59081770
+2026-07-28 21:14:46,477 - aqt.installer - INFO - installer 12768 Finished installation of qtbase-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z in 65.75179720
+2026-07-28 21:16:29,047 - aqt.installer - INFO - installer 5124 Finished installation of qtdeclarative-Windows-Windows_10_22H2-Mingw-Windows-Windows_10_22H2-X86_64.7z in 168.11465450
+2026-07-28 21:16:29,252 - aqt.main - ERROR - installer 6364 Updater caused an IO error: [Errno 2] No such file or directory: 'C:\\Qt\\6.8.3\\mingw_64\\mkspecs\\qconfig.pri'

@@ -9,6 +9,7 @@
 #include <QMessageBox>
 #include <QStyle>
 #include <QEnterEvent>
+#include <QFrame>
 
 FilterBar::FilterBar(QWidget *parent)
     : QWidget(parent)
@@ -16,6 +17,22 @@ FilterBar::FilterBar(QWidget *parent)
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(4, 2, 4, 2);
     layout->setSpacing(4);
+
+    // Start / Stop 按钮（左侧）
+    m_startBtn = new QPushButton("▶ 开始", this);
+    m_startBtn->setStyleSheet("QPushButton { color: green; font-weight: bold; }");
+    m_stopBtn = new QPushButton("■ 停止", this);
+    m_stopBtn->setStyleSheet("QPushButton { color: red; font-weight: bold; }");
+    m_stopBtn->setEnabled(false);
+
+    layout->addWidget(m_startBtn);
+    layout->addWidget(m_stopBtn);
+
+    // 分隔线
+    auto *sep = new QFrame(this);
+    sep->setFrameShape(QFrame::VLine);
+    sep->setFrameShadow(QFrame::Sunken);
+    layout->addWidget(sep);
 
     m_statusIcon = new QLabel(this);
     m_statusIcon->setFixedSize(20, 20);
@@ -38,6 +55,8 @@ FilterBar::FilterBar(QWidget *parent)
     layout->addWidget(m_clearBtn);
     layout->addWidget(m_helpBtn);
 
+    connect(m_startBtn, &QPushButton::clicked, this, &FilterBar::onStart);
+    connect(m_stopBtn, &QPushButton::clicked, this, &FilterBar::onStop);
     connect(m_applyBtn, &QPushButton::clicked, this, &FilterBar::onApply);
     connect(m_clearBtn, &QPushButton::clicked, this, &FilterBar::onClear);
     connect(m_helpBtn, &QToolButton::clicked, this, &FilterBar::showHelp);
@@ -53,6 +72,24 @@ QString FilterBar::filterText() const
 bool FilterBar::filterActive() const
 {
     return !m_edit->text().trimmed().isEmpty();
+}
+
+void FilterBar::setRunning(bool running)
+{
+    m_startBtn->setEnabled(!running);
+    m_stopBtn->setEnabled(running);
+}
+
+void FilterBar::onStart()
+{
+    setRunning(true);
+    emit startRequested();
+}
+
+void FilterBar::onStop()
+{
+    setRunning(false);
+    emit stopRequested();
 }
 
 void FilterBar::onApply()

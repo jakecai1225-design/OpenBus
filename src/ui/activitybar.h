@@ -23,7 +23,7 @@ public:
         Trace,
         Graphic,
         Dbc,
-        Playback,
+        Send,
         Record,
         Device,
         Settings
@@ -36,9 +36,6 @@ public:
 signals:
     void activityChanged(int activity);
     void activityToggled(int activity); // 同一按钮再次点击
-
-protected:
-    void paintEvent(QPaintEvent *event) override;
 
 private slots:
     void onButtonClicked();

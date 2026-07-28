@@ -3,6 +3,42 @@
 #include <QAction>
 #include <QTabBar>
 #include <QVBoxLayout>
+#include <QMouseEvent>
+#include <QEvent>
+
+// 事件过滤器：鼠标悬停在标签页上时显示关闭按钮，离开时隐藏
+class TabBarHoverFilter : public QObject
+{
+public:
+    explicit TabBarHoverFilter(QTabWidget *tabs) : QObject(tabs), m_tabs(tabs) {}
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        auto *bar = qobject_cast<QTabBar *>(watched);
+        if (!bar) return QObject::eventFilter(watched, event);
+
+        if (event->type() == QEvent::MouseMove) {
+            const auto *me = static_cast<QMouseEvent *>(event);
+            int idx = bar->tabAt(me->pos());
+            updateButtons(idx);
+        } else if (event->type() == QEvent::Leave) {
+            updateButtons(-1);
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    void updateButtons(int visibleIdx)
+    {
+        for (int i = 0; i < m_tabs->tabBar()->count(); ++i) {
+            auto *btn = m_tabs->tabBar()->tabButton(i, QTabBar::RightSide);
+            if (btn) btn->setVisible(i == visibleIdx);
+        }
+    }
+
+    QTabWidget *m_tabs;
+};
 
 SplitEditorArea::SplitEditorArea(QWidget *parent)
     : QWidget(parent)
@@ -21,7 +57,7 @@ SplitEditorArea::SplitEditorArea(QWidget *parent)
 QTabWidget *SplitEditorArea::createTabWidget()
 {
     auto *tabs = new QTabWidget(this);
-    tabs->setTabsClosable(false);
+    tabs->setTabsClosable(true);
     tabs->setMovable(true);
     tabs->setDocumentMode(true);
 
@@ -33,6 +69,19 @@ QTabWidget *SplitEditorArea::createTabWidget()
         if (idx >= 0)
             onTabBarContextMenu(idx, pos);
     });
+
+    // 关闭标签页
+    connect(tabs, &QTabWidget::tabCloseRequested, this, [this, tabs](int index) {
+        QWidget *w = tabs->widget(index);
+        tabs->removeTab(index);
+        if (w) w->deleteLater();
+        removeEmptySplits();
+        emit tabListChanged();
+    });
+
+    // 鼠标悬停时显示关闭按钮，离开时隐藏
+    tabs->tabBar()->setMouseTracking(true);
+    tabs->tabBar()->installEventFilter(new TabBarHoverFilter(tabs));
 
     // 当前页变化时转发信号
     connect(tabs, &QTabWidget::currentChanged, this, [this](int idx) {
@@ -48,7 +97,12 @@ int SplitEditorArea::addTab(QWidget *widget, const QString &label)
     QTabWidget *target = activeTabWidget();
     if (!target)
         target = m_firstTabs;
-    return target->addTab(widget, label);
+    int idx = target->addTab(widget, label);
+    // 隐藏新标签页的关闭按钮（仅悬停时显示）
+    auto *btn = target->tabBar()->tabButton(idx, QTabBar::RightSide);
+    if (btn) btn->setVisible(false);
+    emit tabListChanged();
+    return idx;
 }
 
 QWidget *SplitEditorArea::currentWidget() const
@@ -117,6 +171,7 @@ void SplitEditorArea::onTabBarContextMenu(int index, const QPoint &pos)
             tabs->deleteLater();
             removeEmptySplits();
         }
+        emit tabListChanged();
     }
     menu->deleteLater();
 }

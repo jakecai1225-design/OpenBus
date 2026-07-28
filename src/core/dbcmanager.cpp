@@ -95,6 +95,77 @@ double DbcSignal::decode(const QByteArray &data) const
 }
 
 // ============================================================
+//  DbcSignal::encode — rawDecode 的逆操作
+//  将物理值转换为 raw 后写入 data 的对应位
+// ============================================================
+void DbcSignal::encode(QByteArray &data, double physValue) const
+{
+    if (bitLength <= 0)
+        return;
+
+    // 物理值 -> raw 值 (rawToPhys 的逆)
+    quint64 raw = 0;
+    if (extendedValueType == ExtendedValueType::Float && bitLength == 32) {
+        float f = static_cast<float>(physValue);
+        quint32 val;
+        memcpy(&val, &f, sizeof(f));
+        raw = val;
+    } else if (extendedValueType == ExtendedValueType::Double && bitLength == 64) {
+        memcpy(&raw, &physValue, sizeof(double));
+    } else {
+        double rawVal = (factor != 0.0) ? (physValue - offset) / factor : 0.0;
+        raw = static_cast<quint64>(std::llround(rawVal));
+    }
+
+    // 确保 data 足够长
+    int neededBytes = 0;
+    if (littleEndian) {
+        neededBytes = (startBit + bitLength + 7) / 8;
+    } else {
+        // Motorola: 遍历所有位求最大 byteIdx
+        int src = startBit;
+        for (int i = 0; i < bitLength; ++i) {
+            int byteIdx = src / 8;
+            if (byteIdx + 1 > neededBytes) neededBytes = byteIdx + 1;
+            if ((src % 8) == 0) src += 15; else src -= 1;
+        }
+    }
+    while (data.size() < neededBytes)
+        data.append(static_cast<char>(0));
+
+    // 写入位 (rawDecode 的逆操作)
+    char *p = data.data();
+    int dataSize = data.size();
+
+    if (littleEndian) {
+        for (int i = 0; i < bitLength; ++i) {
+            int bitPos = startBit + i;
+            int byteIdx = bitPos / 8;
+            int bitIdx = bitPos % 8;
+            if (byteIdx >= 0 && byteIdx < dataSize) {
+                if (raw & (1ULL << i))
+                    p[byteIdx] |= static_cast<char>(1u << bitIdx);
+                else
+                    p[byteIdx] &= static_cast<char>(~(1u << bitIdx));
+            }
+        }
+    } else {
+        int src = startBit;
+        for (int i = 0; i < bitLength; ++i) {
+            int byteIdx = src / 8;
+            int bitIdx = src % 8;
+            if (byteIdx >= 0 && byteIdx < dataSize) {
+                if (raw & (1ULL << (bitLength - 1 - i)))
+                    p[byteIdx] |= static_cast<char>(1u << bitIdx);
+                else
+                    p[byteIdx] &= static_cast<char>(~(1u << bitIdx));
+            }
+            if ((src % 8) == 0) src += 15; else src -= 1;
+        }
+    }
+}
+
+// ============================================================
 //  DbcManager
 // ============================================================
 

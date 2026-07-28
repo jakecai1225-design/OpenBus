@@ -14,6 +14,7 @@ class FilterBar;
 class FrameInfoWidget;
 class SignalDecodeWidget;
 class SplitEditorArea;
+class SignalSendTab;
 class PlaybackTab;
 class RecordTab;
 class DbcDetailTab;
@@ -68,10 +69,6 @@ private slots:
     void onFrameReceived(const CanFrame &frame);
     void onFramePlayed(const CanFrame &frame);
 
-    // 过滤
-    void onFilterApplied(const QString &filter);
-    void onFilterCleared();
-
     // Trace 选择
     void onTraceSelectionChanged();
     void onFrameDoubleClicked(const CanFrame &frame);
@@ -89,6 +86,9 @@ private slots:
 
     // 侧边栏入口
     void onOpenTraceTab();
+    void onTracePageSelected(int row);
+    void onGraphicPageSelected(int row);
+    void onOpenSendTab();
     void onOpenPlaybackTab();
     void onOpenRecordTab();
     void onNewGraphicRequested();
@@ -125,8 +125,10 @@ private:
     void createWindowButtons();
     void updateActions();
     void updateStatistics();
+    void setupTraceTab(TraceTab *tab);
     void processCommand(const QString &cmd);
     void openTab(QWidget *widget, const QString &label);
+    void refreshPanelLists();
 
     // ---- 布局 ----
     ActivityBar *m_activityBar = nullptr;
@@ -139,13 +141,12 @@ private:
     QDockWidget *m_bottomDock = nullptr;
 
     // ---- 数据 ----
-    CanTraceModel *m_traceModel = nullptr;
-    CanFilterProxyModel *m_proxyModel = nullptr;
     DbcManager *m_dbcManager = nullptr;
 
     // ---- UI (Main tabs) ----
     TraceTab *m_traceTab = nullptr;
     GraphicView *m_graphicView = nullptr;
+    SignalSendTab *m_sendTab = nullptr;
     PlaybackTab *m_playbackTab = nullptr;
     RecordTab *m_recordTab = nullptr;
 
@@ -178,6 +179,9 @@ private:
     bool m_autoScroll = true;
     bool m_recording = false;
     bool m_sideBarVisible = true;
+    int m_savedDockWidth = 300;
+    int m_traceCount = 1;
+    int m_graphicCount = 1;
 
     // ---- 窗口控制按钮 ----
     QToolButton *m_minBtn = nullptr;

@@ -2,6 +2,7 @@
 #include "core/dbcmanager.h"
 #include "core/cansimulator.h"
 #include "ui/graphicview.h"
+#include "ui/thememanager.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -266,7 +267,7 @@ void DbcPanel::onItemDoubleClicked(QTreeWidgetItem *item, int)
 }
 
 // ============================================================
-//  TracePanel — 仅入口
+//  TracePanel — Trace 标签页列表 + 新建按钮
 // ============================================================
 
 TracePanel::TracePanel(QWidget *parent)
@@ -274,17 +275,42 @@ TracePanel::TracePanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
-    auto *btn = new QPushButton("📋 Trace  →  点击打开 Trace 标签页", this);
-    btn->setStyleSheet("text-align: left; padding: 8px;");
-    cl->addWidget(btn);
-    cl->addStretch();
+    m_traceList = new QListWidget(this);
+    cl->addWidget(m_traceList, 1);
 
-    connect(btn, &QPushButton::clicked, this, &TracePanel::onTraceClicked);
+    auto *btnBar = new QHBoxLayout;
+    btnBar->setContentsMargins(4, 4, 4, 4);
+    auto *newBtn = new QPushButton("+ 新建 Trace", this);
+    btnBar->addWidget(newBtn);
+    btnBar->addStretch();
+    cl->addLayout(btnBar);
+
+    connect(newBtn, &QPushButton::clicked, this, &TracePanel::onTraceClicked);
+    connect(m_traceList, &QListWidget::currentRowChanged,
+            this, &TracePanel::onPageSelected);
+}
+
+void TracePanel::refreshList(const QStringList &names)
+{
+    m_traceList->blockSignals(true);
+    int prevRow = m_traceList->currentRow();
+    m_traceList->clear();
+    for (const auto &n : names)
+        m_traceList->addItem(n);
+    if (prevRow >= 0 && prevRow < m_traceList->count())
+        m_traceList->setCurrentRow(prevRow);
+    m_traceList->blockSignals(false);
 }
 
 void TracePanel::onTraceClicked()
 {
     emit openTraceRequested();
+}
+
+void TracePanel::onPageSelected(int row)
+{
+    if (row >= 0)
+        emit tracePageSelected(row);
 }
 
 // ============================================================
@@ -297,9 +323,6 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
     auto *cl = contentLayout();
 
     m_pageList = new QListWidget(this);
-    m_pageList->addItem("Graphic1  (3 个信号)");
-    m_pageList->addItem("Graphic2  (2 个信号)");
-    m_pageList->addItem("Graphic3  (空)");
     cl->addWidget(m_pageList, 1);
 
     auto *btnBar = new QHBoxLayout;
@@ -317,7 +340,6 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
 void GraphicConfigPanel::setGraphicView(GraphicView *view)
 {
     m_graphicView = view;
-    refreshList();
 }
 
 void GraphicConfigPanel::onNewGraphic()
@@ -331,9 +353,16 @@ void GraphicConfigPanel::onPageSelected(int row)
         emit graphicPageSelected(row);
 }
 
-void GraphicConfigPanel::refreshList()
+void GraphicConfigPanel::refreshList(const QStringList &names)
 {
-    // 未来根据 GraphicView 列表刷新
+    m_pageList->blockSignals(true);
+    int prevRow = m_pageList->currentRow();
+    m_pageList->clear();
+    for (const auto &n : names)
+        m_pageList->addItem(n);
+    if (prevRow >= 0 && prevRow < m_pageList->count())
+        m_pageList->setCurrentRow(prevRow);
+    m_pageList->blockSignals(false);
 }
 
 // ============================================================
@@ -341,7 +370,7 @@ void GraphicConfigPanel::refreshList()
 // ============================================================
 
 DevicePanel::DevicePanel(QWidget *parent)
-    : SidePanel("设备连接", parent)
+    : SidePanel("硬件", parent)
 {
     auto *cl = contentLayout();
 
@@ -451,23 +480,34 @@ void DevicePanel::onDisconnect()
 }
 
 // ============================================================
-//  PlaybackPanel — 仅入口
+//  SendPanel — 仅入口
 // ============================================================
 
-PlaybackPanel::PlaybackPanel(QWidget *parent)
-    : SidePanel("回放", parent)
+SendPanel::SendPanel(QWidget *parent)
+    : SidePanel("发送", parent)
 {
     auto *cl = contentLayout();
 
-    auto *btn = new QPushButton("▶ 回放控制  →  点击打开回放标签页", this);
-    btn->setStyleSheet("text-align: left; padding: 8px;");
-    cl->addWidget(btn);
+    auto *sendBtn = new QPushButton("📡 发送  →  点击打开发送标签页", this);
+    sendBtn->setStyleSheet("text-align: left; padding: 8px;");
+    cl->addWidget(sendBtn);
+
+    auto *playbackBtn = new QPushButton("▶ 回放  →  点击打开回放标签页", this);
+    playbackBtn->setStyleSheet("text-align: left; padding: 8px;");
+    cl->addWidget(playbackBtn);
+
     cl->addStretch();
 
-    connect(btn, &QPushButton::clicked, this, &PlaybackPanel::onPlaybackClicked);
+    connect(sendBtn, &QPushButton::clicked, this, &SendPanel::onSendClicked);
+    connect(playbackBtn, &QPushButton::clicked, this, &SendPanel::onPlaybackClicked);
 }
 
-void PlaybackPanel::onPlaybackClicked()
+void SendPanel::onSendClicked()
+{
+    emit openSendRequested();
+}
+
+void SendPanel::onPlaybackClicked()
 {
     emit openPlaybackRequested();
 }
@@ -481,7 +521,7 @@ RecordPanel::RecordPanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
-    auto *btn = new QPushButton("● 录制控制  →  点击打开录制标签页", this);
+    auto *btn = new QPushButton("● 录制  →  点击打开录制标签页", this);
     btn->setStyleSheet("text-align: left; padding: 8px;");
     cl->addWidget(btn);
     cl->addStretch();
@@ -505,12 +545,32 @@ SettingsPanel::SettingsPanel(QWidget *parent)
 
     m_list = new QListWidget(this);
     m_list->addItem("通用设置");
-    m_list->addItem("界面设置");
     m_list->addItem("快捷键");
     cl->addWidget(m_list);
 
+    // 颜色主题
+    auto *themeLabel = new QLabel("颜色主题", this);
+    themeLabel->setObjectName("SidePanelTitle");
+    themeLabel->setContentsMargins(8, 6, 8, 6);
+    cl->addWidget(themeLabel);
+
+    m_themeList = new QListWidget(this);
+    for (const auto &name : ThemeManager::instance()->themeNames())
+        m_themeList->addItem(name);
+    // 默认选中当前主题
+    QString cur = ThemeManager::instance()->currentThemeName();
+    for (int i = 0; i < m_themeList->count(); ++i) {
+        if (m_themeList->item(i)->text() == cur) {
+            m_themeList->setCurrentRow(i);
+            break;
+        }
+    }
+    cl->addWidget(m_themeList, 1);
+
     connect(m_list, &QListWidget::itemClicked,
             this, &SettingsPanel::onItemClicked);
+    connect(m_themeList, &QListWidget::itemClicked,
+            this, &SettingsPanel::onThemeItemClicked);
 }
 
 void SettingsPanel::onItemClicked(QListWidgetItem *item)
@@ -519,10 +579,16 @@ void SettingsPanel::onItemClicked(QListWidgetItem *item)
         emit settingsRequested(item->text());
 }
 
+void SettingsPanel::onThemeItemClicked(QListWidgetItem *item)
+{
+    if (item)
+        emit themeChanged(item->text());
+}
+
 // ============================================================
 //  SideBar — 8 个面板，索引与 ActivityBar 一致
 //  0=Project  1=Trace  2=Graphic  3=DBC
-//  4=Playback 5=Record 6=Device   7=Settings
+//  4=Send     5=Record 6=Device   7=Settings
 // ============================================================
 
 SideBar::SideBar(QWidget *parent)
@@ -532,7 +598,7 @@ SideBar::SideBar(QWidget *parent)
     m_trace        = new TracePanel(this);
     m_graphicConfig = new GraphicConfigPanel(this);
     m_dbc          = new DbcPanel(this);
-    m_playback     = new PlaybackPanel(this);
+    m_send         = new SendPanel(this);
     m_record       = new RecordPanel(this);
     m_device       = new DevicePanel(this);
     m_settings     = new SettingsPanel(this);
@@ -541,7 +607,7 @@ SideBar::SideBar(QWidget *parent)
     addWidget(m_trace);          // 1 = Trace
     addWidget(m_graphicConfig);  // 2 = Graphic
     addWidget(m_dbc);            // 3 = Dbc
-    addWidget(m_playback);       // 4 = Playback
+    addWidget(m_send);           // 4 = Send
     addWidget(m_record);         // 5 = Record
     addWidget(m_device);         // 6 = Device
     addWidget(m_settings);       // 7 = Settings
