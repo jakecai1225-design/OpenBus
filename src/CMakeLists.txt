@@ -2,7 +2,7 @@
 #  源文件列表
 # ============================================================
 
-# core 层 — 数据结构、录制、回放、模拟器
+# core 层 — 数据结构、录制、回放、模拟器、DBC
 set(SRC_CORE
     core/canframe.h
     core/recorder.h
@@ -11,6 +11,9 @@ set(SRC_CORE
     core/player.cpp
     core/cansimulator.h
     core/cansimulator.cpp
+    core/dbcdata.h
+    core/dbcmanager.h
+    core/dbcmanager.cpp
 )
 
 # models 层 — Qt 数据模型
@@ -39,6 +42,16 @@ set(SRC_UI
     ui/filterbar.cpp
     ui/signalconfigdialog.h
     ui/signalconfigdialog.cpp
+    ui/activitybar.h
+    ui/activitybar.cpp
+    ui/bottompanel.h
+    ui/bottompanel.cpp
+    ui/rightpanel.h
+    ui/rightpanel.cpp
+    ui/panels/sidebarpanels.h
+    ui/panels/sidebarpanels.cpp
+    ui/spliteditorarea.h
+    ui/spliteditorarea.cpp
 )
 
 # ============================================================

@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>sin UI 原型 — 全页面预览</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 12px; overflow: hidden; background: #1a1a1a; }
+
+/* ===== 页面切换器 ===== */
+.page-switcher { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; background: #1a1a2e; display: flex; align-items: center; padding: 0 8px; height: 36px; gap: 2px; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+.page-switcher .label { color: #4a90d9; font-weight: bold; font-size: 12px; margin-right: 8px; white-space: nowrap; }
+.page-switcher .pbtn { background: #2D2D3D; color: #aaa; border: 1px solid #3D3D4D; border-radius: 3px; padding: 4px 10px; cursor: pointer; font-size: 11px; white-space: nowrap; }
+.page-switcher .pbtn:hover { background: #3D3D5D; color: #fff; }
+.page-switcher .pbtn.active { background: #4a90d9; color: #fff; border-color: #4a90d9; }
+
+/* ===== 窗口容器 ===== */
+.window { width: 100%; height: 100%; display: flex; flex-direction: column; }
+
+/* ===== 菜单栏 ===== */
+.menubar { display: flex; align-items: center; background: #2D2D2D; color: #e0e0e0; height: 28px; flex-shrink: 0; user-select: none; }
+.menubar .menu-items { display: flex; flex: 1; }
+.menubar .menu-item { padding: 4px 12px; cursor: pointer; border-radius: 2px; }
+.menubar .menu-item:hover { background: #3D3D3D; }
+.win-btns { display: flex; }
+.win-btn { width: 46px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 13px; color: #e0e0e0; }
+.win-btn:hover { background: #3D3D3D; }
+.win-btn.close:hover { background: #e81123; color: #fff; }
+
+/* ===== 主体 ===== */
+.main-body { flex: 1; display: flex; overflow: hidden; }
+
+/* ===== 左侧栏 ===== */
+.left-dock { width: 300px; display: flex; flex-shrink: 0; }
+.activitybar { width: 48px; background: #2D2D2D; display: flex; flex-direction: column; align-items: center; padding-top: 4px; gap: 2px; }
+.activitybar .icon { width: 48px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; color: #b0b0b0; border-left: 2px solid transparent; }
+.activitybar .icon:hover { background: #3d3d3d; }
+.activitybar .icon.active { border-left: 2px solid #4a90d9; color: #fff; background: #252525; }
+
+.sidebar { flex: 1; background: #f5f5f5; overflow-y: auto; }
+.sidebar .section { border-bottom: 1px solid #c0c0c0; }
+.sidebar .section-title { background: #e0e0e0; color: #333; font-weight: bold; font-size: 11px; padding: 5px 8px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.sidebar .section-title:hover { background: #d0d0d0; }
+.sidebar .section-body { padding: 6px 8px; }
+.sidebar .btn-row { display: flex; gap: 4px; margin-top: 4px; }
+.sidebar .btn { background: #e0e0e0; border: 1px solid #b0b0b0; border-radius: 3px; padding: 2px 8px; cursor: pointer; font-size: 11px; }
+.sidebar .btn:hover { background: #d0d0d0; }
+.sidebar .btn.primary { background: #4a90d9; color: #fff; border-color: #3a7fc9; }
+.sidebar .btn.danger { background: #e81123; color: #fff; border-color: #c00; }
+.sidebar .tree { font-size: 11px; line-height: 1.8; padding-left: 4px; }
+.sidebar .tree .node { cursor: pointer; }
+.sidebar .tree .node:hover { background: #e0e0e0; }
+.sidebar .tree .indent { padding-left: 14px; }
+.sidebar .tree .indent2 { padding-left: 28px; color: #555; }
+.sidebar .checkbox-row { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; }
+.sidebar .slider-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.sidebar .slider { flex: 1; height: 4px; background: #c0c0c0; border-radius: 2px; position: relative; }
+.sidebar .slider::after { content: ''; position: absolute; left: 30%; top: -4px; width: 12px; height: 12px; background: #4a90d9; border-radius: 50%; }
+.sidebar .combo { background: #fff; border: 1px solid #b0b0b0; border-radius: 3px; padding: 2px 4px; font-size: 11px; }
+.sidebar .input-field { width: 100%; border: 1px solid #b0b0b0; border-radius: 3px; padding: 2px 4px; font-size: 11px; }
+.sidebar .label { font-size: 11px; color: #888; margin-bottom: 2px; }
+.sidebar .preset-btns { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* ===== 中央 ===== */
+.center { flex: 1; display: flex; flex-direction: column; background: #fff; overflow: hidden; }
+.center .tabs { display: flex; background: #e0e0e0; border-bottom: 1px solid #c0c0c0; flex-shrink: 0; }
+.center .tab { padding: 6px 14px; cursor: pointer; border-right: 1px solid #c0c0c0; font-size: 12px; color: #666; }
+.center .tab.active { background: #fff; color: #333; border-bottom: 2px solid #4a90d9; }
+.center .tab:hover:not(.active) { background: #d8d8d8; }
+.center .tab-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* FilterBar */
+.filterbar { display: flex; align-items: center; gap: 4px; padding: 4px 6px; background: #f0f0f0; border-bottom: 1px solid #c0c0c0; flex-shrink: 0; }
+.filterbar input { flex: 1; border: 1px solid #b0b0b0; border-radius: 3px; padding: 3px 6px; font-size: 12px; }
+.filterbar .btn { background: #e0e0e0; border: 1px solid #b0b0b0; border-radius: 3px; padding: 3px 10px; cursor: pointer; font-size: 12px; }
+
+/* Trace 表格 */
+.trace-table-wrap { flex: 3; overflow: auto; }
+.trace-table { width: 100%; border-collapse: collapse; font-family: Consolas, monospace; font-size: 12px; }
+.trace-table th { background: #d8d8d8; padding: 3px 6px; text-align: left; border-right: 1px solid #c0c0c0; border-bottom: 1px solid #c0c0c0; font-weight: bold; cursor: pointer; }
+.trace-table th:hover { background: #c8c8c8; }
+.trace-table td { padding: 1px 6px; border-right: 1px solid #e8e8e8; }
+.trace-table tr:nth-child(even) { background: #f7f7f7; }
+.trace-table tr:hover { background: #e8f0fe; }
+.trace-table tr.selected { background: #c5d9f1; }
+
+/* 底部分割区 */
+.bottom-split { flex: 1; display: flex; border-top: 2px solid #d0d0d0; min-height: 0; }
+.pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.pane-title { background: #e0e0e0; color: #555; font-weight: bold; font-size: 11px; padding: 4px 6px; border-bottom: 1px solid #c0c0c0; border-right: 1px solid #c0c0c0; }
+.pane:last-child .pane-title { border-right: none; }
+.pane-content { flex: 1; background: #1e1e1e; color: #d4d4d4; font-family: Consolas, monospace; font-size: 13px; padding: 6px 8px; overflow: auto; white-space: pre; line-height: 1.6; }
+
+/* Graphic 视图 */
+.graphic-view { flex: 1; background: #fafafa; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+.graphic-toolbar { padding: 4px 8px; background: #e0e0e0; border-bottom: 1px solid #c0c0c0; display: flex; gap: 6px; align-items: center; font-size: 11px; }
+.graphic-canvas { flex: 1; position: relative; background: #fff; }
+.graphic-canvas svg { width: 100%; height: 100%; }
+.graphic-legend { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.9); border: 1px solid #c0c0c0; border-radius: 4px; padding: 6px 10px; font-size: 11px; }
+.graphic-legend .item { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+.graphic-legend .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* ===== 右侧栏 ===== */
+.right-dock { width: 260px; background: #f8f8f8; border-left: 1px solid #c0c0c0; display: flex; flex-direction: column; flex-shrink: 0; }
+.right-dock .tabs { display: flex; background: #e0e0e0; border-bottom: 1px solid #c0c0c0; }
+.right-dock .tab { padding: 4px 10px; cursor: pointer; font-size: 11px; color: #666; }
+.right-dock .tab.active { background: #f8f8f8; color: #333; border-bottom: 2px solid #4a90d9; }
+.right-dock .content { flex: 1; padding: 8px; overflow-y: auto; font-size: 11px; }
+.right-dock .prop-row { display: flex; padding: 2px 0; border-bottom: 1px solid #eee; }
+.right-dock .prop-label { width: 70px; color: #888; }
+.right-dock .prop-value { flex: 1; font-family: Consolas, monospace; }
+.right-dock .stat-card { background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 8px; margin-bottom: 6px; }
+.right-dock .stat-card .title { color: #888; font-size: 10px; margin-bottom: 4px; }
+.right-dock .stat-card .value { font-size: 20px; font-weight: bold; color: #333; }
+.right-dock .stat-card .sub { font-size: 10px; color: #aaa; }
+.right-dock .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.right-dock .bar-chart { margin-top: 8px; }
+.right-dock .bar-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; font-size: 11px; }
+.right-dock .bar-label { width: 50px; color: #555; }
+.right-dock .bar-track { flex: 1; height: 14px; background: #e8e8e8; border-radius: 2px; overflow: hidden; }
+.right-dock .bar-fill { height: 100%; border-radius: 2px; }
+.right-dock .bar-value { width: 40px; text-align: right; font-family: Consolas, monospace; }
+
+/* ===== 底部 Dock ===== */
+.bottom-dock { height: 160px; background: #fff; border-top: 1px solid #c0c0c0; display: flex; flex-direction: column; flex-shrink: 0; }
+.bottom-dock .tabs { display: flex; background: #e0e0e0; border-bottom: 1px solid #c0c0c0; }
+.bottom-dock .tab { padding: 4px 12px; cursor: pointer; font-size: 11px; color: #666; }
+.bottom-dock .tab.active { background: #fff; color: #333; border-top: 2px solid #4a90d9; }
+.bottom-dock .content { flex: 1; padding: 6px 8px; overflow-y: auto; font-family: Consolas, monospace; font-size: 12px; line-height: 1.6; }
+.bottom-dock .content.dark { background: #1e1e1e; color: #d4d4d4; }
+.bottom-dock .terminal-input { color: #4a90d9; }
+.bottom-dock .output-line { color: #333; }
+.bottom-dock .output-line.success { color: #0a0; }
+.bottom-dock .output-line.warn { color: #c80; }
+.bottom-dock .problem-row { display: flex; gap: 8px; padding: 3px 4px; border-bottom: 1px solid #eee; font-size: 11px; align-items: center; }
+.bottom-dock .problem-sev { width: 20px; text-align: center; font-weight: bold; }
+.bottom-dock .problem-sev.err { color: #e81123; }
+.bottom-dock .problem-sev.warn { color: #f0ad4e; }
+.bottom-dock .problem-src { width: 80px; color: #888; }
+.bottom-dock .problem-msg { flex: 1; }
+
+/* ===== 状态栏 ===== */
+.statusbar { height: 24px; background: #4a90d9; color: #fff; display: flex; align-items: center; padding: 0 8px; font-size: 11px; flex-shrink: 0; }
+.statusbar .spacer { flex: 1; }
+
+/* ===== 页面切换 ===== */
+.page { display: none; }
+.page.active { display: flex; flex-direction: column; width: 100vw; height: calc(100vh - 36px); margin-top: 36px; }
+</style>
+</head>
+<body>
+
+<!-- ===== 页面切换器 ===== -->
+<div class="page-switcher">
+  <span class="label">sin UI 原型</span>
+  <button class="pbtn active" onclick="showPage('trace-dbc', this)">Trace + DBC面板</button>
+  <button class="pbtn" onclick="showPage('trace-project', this)">工程面板</button>
+  <button class="pbtn" onclick="showPage('trace-config', this)">Trace配置面板</button>
+  <button class="pbtn" onclick="showPage('trace-device', this)">设备面板</button>
+  <button class="pbtn" onclick="showPage('graphic', this)">Graphic页面</button>
+  <button class="pbtn" onclick="showPage('statistics', this)">统计视图</button>
+  <button class="pbtn" onclick="showPage('terminal', this)">终端</button>
+  <button class="pbtn" onclick="showPage('output', this)">输出</button>
+  <button class="pbtn" onclick="showPage('problems', this)">问题</button>
+</div>
+
+<!-- ================================================================ -->
+<!-- 页面 1: Trace + DBC 面板                                          -->
+<!-- ================================================================ -->
+<div class="page active" id="page-trace-dbc">
+  <div class="window">
+  <div class="menubar">
+    <div class="menu-items">
+      <div class="menu-item">文件(F)</div><div class="menu-item">视图(V)</div>
+      <div class="menu-item">工具(T)</div><div class="menu-item">帮助(H)</div>
+    </div>
+    <div class="win-btns"><div class="win-btn">&#9472;</div><div class="win-btn">&#9633;</div><div class="win-btn close">&#10005;</div></div>
+  </div>
+  <div class="main-body">
+    <!-- 左侧栏 -->
+    <div class="left-dock">
+      <div class="activitybar">
+        <div class="icon" title="工程">&#128193;</div>
+        <div class="icon active" title="Trace">&#128203;</div>
+        <div class="icon" title="Graphic">&#128200;</div>
+        <div class="icon" title="设备">&#128295;</div>
+        <div class="icon" title="配置">&#9881;</div>
+      </div>
+      <div class="sidebar">
+        <div class="section">
+          <div class="section-title">&#9660; DBC 信号</div>
+          <div class="section-body">
+            <div class="tree">
+              <div class="node">&#9660; engine.dbc</div>
+              <div class="indent">
+                <div class="node">&#9660; Msg_0x123 (EngineStatus)</div>
+                <div class="indent2">
+                  <div class="node">EngineRPM</div>
+                  <div class="node">ThrottlePos</div>
+                  <div class="node">CoolantTemp</div>
+                </div>
+                <div class="node">&#9654; Msg_0x456 (BrakeCtrl)</div>
+                <div class="node">&#9654; Msg_0x789 (Steering)</div>
+              </div>
+              <div class="node">&#9654; body.dbc</div>
+            </div>
+          </div>
+        </div>
+        <div class="section"><div class="section-title">&#9654; 回放控制</div></div>
+        <div class="section"><div class="section-title">&#9654; 显示列</div></div>
+        <div class="section"><div class="section-title">&#9654; 过滤器预设</div></div>
+      </div>
+    </div>
+    <!-- 中央 -->
+    <div class="center">
+      <div class="tabs"><div class="tab active">📋 Trace</div><div class="tab">📈 Graphic</div></div>
+      <div class="tab-content">
+        <div class="filterbar"><input type="text" placeholder="输入过滤表达式... (例: id == 0x123)" value=""><span class="btn">清除</span></div>
+        <div class="trace-table-wrap">
+          <table class="trace-table">
+            <thead><tr><th style="width:100px">Time ↑</th><th style="width:40px">Ch</th><th style="width:40px">Dir</th><th style="width:120px">ID</th><th style="width:60px">DLC</th><th>Data</th><th style="width:80px">Flags</th></tr></thead>
+            <tbody>
+              <tr class="selected"><td>0.000123</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr>
+              <tr><td>0.000456</td><td>1</td><td>Rx</td><td>0x456</td><td>8</td><td>11 22 33 44 55 66 77 88</td><td>FD</td></tr>
+              <tr><td>0.000789</td><td>2</td><td>Tx</td><td>0x123</td><td>8</td><td>AA BB CC DD EE FF 00 11</td><td>---</td></tr>
+              <tr><td>0.001012</td><td>1</td><td>Rx</td><td>0x789</td><td>64</td><td>01 02 03 04 05 06 07 08 09 0A ...</td><td>FD BRS</td></tr>
+              <tr><td>0.001345</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr>
+              <tr><td>0.001678</td><td>2</td><td>Tx</td><td>0x456</td><td>8</td><td>11 22 33 44 55 66 77 88</td><td>---</td></tr>
+              <tr><td>0.002001</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="bottom-split">
+          <div class="pane">
+            <div class="pane-title">帧结构</div>
+            <div class="pane-content">Time:       0.000123
+Channel:    1
+Direction:  Rx
+ID:         0x123
+DLC:        8
+Data:       01 02 03 04 05 06 07 08
+Flags:      ---
+
+Hex:  01 02 03 04 05 06 07 08</div>
+          </div>
+          <div class="pane">
+            <div class="pane-title">信号解析</div>
+            <div class="pane-content">EngineStatus  (0x123)
+-----------------------------------
+
+EngineRPM:     1234.500 rpm
+ThrottlePos:    45.200 %
+CoolantTemp:    89.000 C
+OilPressure:     3.500 bar</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- 右侧栏 -->
+    <div class="right-dock">
+      <div class="tabs"><div class="tab active">属性</div><div class="tab">统计</div></div>
+      <div class="content">
+        <div class="prop-row"><span class="prop-label">Time</span><span class="prop-value">0.000123</span></div>
+        <div class="prop-row"><span class="prop-label">Channel</span><span class="prop-value">1</span></div>
+        <div class="prop-row"><span class="prop-label">Direction</span><span class="prop-value">Rx</span></div>
+        <div class="prop-row"><span class="prop-label">ID</span><span class="prop-value">0x123</span></div>
+        <div class="prop-row"><span class="prop-label">DLC</span><span class="prop-value">8</span></div>
+        <div class="prop-row"><span class="prop-label">Data</span><span class="prop-value">01 02 03 04 05 06 07 08</span></div>
+        <div class="prop-row"><span class="prop-label">Flags</span><span class="prop-value">---</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-dock">
+    <div class="tabs"><div class="tab">终端</div><div class="tab active">输出</div><div class="tab">问题</div></div>
+    <div class="content">
+      <div class="output-line success">DBC 已加载: engine.dbc</div>
+      <div class="output-line">已加载: test.sin (10234 帧, 12.35s)</div>
+      <div class="output-line">过滤已应用: id == 0x123</div>
+      <div class="output-line warn">录制文件未保存</div>
+    </div>
+  </div>
+  <div class="statusbar"><span>回放中...</span><span class="spacer"></span><span>10234 帧</span><span style="margin-left:8px">12.345s</span></div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 页面 2: 工程面板                                                   -->
+<!-- ================================================================ -->
+<div class="page" id="page-trace-project">
+  <div class="window">
+  <div class="menubar">
+    <div class="menu-items"><div class="menu-item">文件(F)</div><div class="menu-item">视图(V)</div><div class="menu-item">工具(T)</div><div class="menu-item">帮助(H)</div></div>
+    <div class="win-btns"><div class="win-btn">&#9472;</div><div class="win-btn">&#9633;</div><div class="win-btn close">&#10005;</div></div>
+  </div>
+  <div class="main-body">
+    <div class="left-dock">
+      <div class="activitybar">
+        <div class="icon active" title="工程">&#128193;</div>
+        <div class="icon" title="Trace">&#128203;</div>
+        <div class="icon" title="Graphic">&#128200;</div>
+        <div class="icon" title="设备">&#128295;</div>
+        <div class="icon" title="配置">&#9881;</div>
+      </div>
+      <div class="sidebar">
+        <div class="section">
+          <div class="section-title">&#9660; 工程列表</div>
+          <div class="section-body">
+            <div class="tree">
+              <div class="node" style="background:#c5d9f1;padding:3px 6px;border-radius:2px;">&#128193; EngineAnalysis <span style="color:#888;font-size:10px">(当前)</span></div>
+              <div class="node" style="padding:3px 6px">&#128193; BodyControl</div>
+              <div class="node" style="padding:3px 6px">&#128193; DebugSession</div>
+            </div>
+            <div class="btn-row" style="margin-top:6px">
+              <span class="btn primary">+ 新建</span>
+              <span class="btn">💾 保存</span>
+              <span class="btn danger">🗑 删除</span>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-title">&#9660; EngineAnalysis 详情</div>
+          <div class="section-body">
+            <div class="label">DBC 文件:</div>
+            <div style="font-size:11px;padding:2px 6px;color:#555">engine.dbc, body.dbc</div>
+            <div class="label" style="margin-top:6px">录制文件:</div>
+            <div style="font-size:11px;padding:2px 6px;color:#555">test.sin, highway.sin</div>
+            <div class="label" style="margin-top:6px">布局配置:</div>
+            <div style="font-size:11px;padding:2px 6px;color:#555">Trace + Graphic 拆分</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="center">
+      <div class="tabs"><div class="tab active">📋 Trace</div><div class="tab">📈 Graphic</div></div>
+      <div class="tab-content">
+        <div class="filterbar"><input type="text" placeholder="输入过滤表达式..."><span class="btn">清除</span></div>
+        <div class="trace-table-wrap">
+          <table class="trace-table">
+            <thead><tr><th style="width:100px">Time ↑</th><th style="width:40px">Ch</th><th style="width:40px">Dir</th><th style="width:120px">ID</th><th style="width:60px">DLC</th><th>Data</th><th style="width:80px">Flags</th></tr></thead>
+            <tbody>
+              <tr><td>0.000123</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr>
+              <tr><td>0.000456</td><td>1</td><td>Rx</td><td>0x456</td><td>8</td><td>11 22 33 44 55 66 77 88</td><td>FD</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="bottom-split">
+          <div class="pane"><div class="pane-title">帧结构</div><div class="pane-content">Time:       0.000123
+Channel:    1
+Direction:  Rx
+ID:         0x123
+DLC:        8
+Data:       01 02 03 04 05 06 07 08
+Flags:      ---
+
+Hex:  01 02 03 04 05 06 07 08</div></div>
+          <div class="pane"><div class="pane-title">信号解析</div><div class="pane-content">(选中报文查看信号解析...)</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="right-dock">
+      <div class="tabs"><div class="tab active">属性</div><div class="tab">统计</div></div>
+      <div class="content" style="color:#aaa;text-align:center;padding-top:20px">选中报文查看属性</div>
+    </div>
+  </div>
+  <div class="bottom-dock">
+    <div class="tabs"><div class="tab">终端</div><div class="tab active">输出</div><div class="tab">问题</div></div>
+    <div class="content"><div class="output-line">已切换到工程: EngineAnalysis</div></div>
+  </div>
+  <div class="statusbar"><span>就绪</span><span class="spacer"></span><span>10234 帧</span><span style="margin-left:8px">12.345s</span></div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 页面 3: Trace 配置面板                                              -->
+<!-- ================================================================ -->
+<div class="page" id="page-trace-config">
+  <div class="window">
+  <div class="menubar">
+    <div class="menu-items"><div class="menu-item">文件(F)</div><div class="menu-item">视图(V)</div><div class="menu-item">工具(T)</div><div class="menu-item">帮助(H)</div></div>
+    <div class="win-btns"><div class="win-btn">&#9472;</div><div class="win-btn">&#9633;</div><div class="win-btn close">&#10005;</div></div>
+  </div>
+  <div class="main-body">
+    <div class="left-dock">
+      <div class="activitybar">
+        <div class="icon" title="工程">&#128193;</div>
+        <div class="icon active" title="Trace">&#128203;</div>
+        <div class="icon" title="Graphic">&#128200;</div>
+        <div class="icon" title="设备">&#128295;</div>
+        <div class="icon" title="配置">&#9881;</div>
+      </div>
+      <div class="sidebar">
+        <div class="section">
+          <div class="section-title">&#9660; 回放控制</div>
+          <div class="section-body">
+            <div class="btn-row">
+              <span class="btn primary">▶ 播放</span>
+              <span class="btn">⏸ 暂停</span>
+              <span class="btn">⏹ 停止</span>
+            </div>
+            <div class="slider-row"><div class="slider"></div></div>
+            <div class="slider-row">
+              <span style="font-size:11px;color:#888">速度:</span>
+              <select class="combo"><option>0.1x</option><option>0.5x</option><option selected>1.0x</option><option>2.0x</option><option>5.0x</option><option>10.0x</option></select>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-title">&#9660; 显示列</div>
+          <div class="section-body">
+            <div class="checkbox-row">
+              <label>&#9745; Time</label><label>&#9745; Channel</label><label>&#9745; Direction</label>
+              <label>&#9745; ID</label><label>&#9745; DLC</label><label>&#9745; Data</label><label>&#9745; Flags</label>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-title">&#9660; 过滤器预设</div>
+          <div class="section-body">
+            <div class="preset-btns">
+              <span class="btn">仅 Rx</span><span class="btn">仅 Tx</span>
+              <span class="btn">CAN FD</span><span class="btn">错误帧</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="center">
+      <div class="tabs"><div class="tab active">📋 Trace</div><div class="tab">📈 Graphic</div></div>
+      <div class="tab-content">
+        <div class="filterbar"><input type="text" placeholder="输入过滤表达式..." value="id == 0x123"><span class="btn">清除</span></div>
+        <div class="trace-table-wrap">
+          <table class="trace-table">
+            <thead><tr><th style="width:100px">Time ↑</th><th style="width:40px">Ch</th><th style="width:40px">Dir</th><th style="width:120px">ID</th><th style="width:60px">DLC</th><th>Data</th><th style="width:80px">Flags</th></tr></thead>
+            <tbody>
+              <tr class="selected"><td>0.000123</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr>
+              <tr><td>0.001345</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr>
+              <tr><td>0.002001</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="bottom-split">
+          <div class="pane"><div class="pane-title">帧结构</div><div class="pane-content">Time:       0.000123
+Channel:    1
+Direction:  Rx
+ID:         0x123
+DLC:        8
+Data:       01 02 03 04 05 06 07 08
+Flags:      ---
+
+Hex:  01 02 03 04 05 06 07 08</div></div>
+          <div class="pane"><div class="pane-title">信号解析</div><div class="pane-content">EngineStatus  (0x123)
+-----------------------------------
+
+EngineRPM:     1234.500 rpm
+ThrottlePos:    45.200 %
+CoolantTemp:    89.000 C</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="right-dock">
+      <div class="tabs"><div class="tab active">属性</div><div class="tab">统计</div></div>
+      <div class="content">
+        <div class="prop-row"><span class="prop-label">Time</span><span class="prop-value">0.000123</span></div>
+        <div class="prop-row"><span class="prop-label">ID</span><span class="prop-value">0x123</span></div>
+        <div class="prop-row"><span class="prop-label">DLC</span><span class="prop-value">8</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-dock">
+    <div class="tabs"><div class="tab">终端</div><div class="tab active">输出</div><div class="tab">问题</div></div>
+    <div class="content"><div class="output-line">过滤已应用: id == 0x123</div></div>
+  </div>
+  <div class="statusbar"><span>回放中...</span><span class="spacer"></span><span>10234 帧</span><span style="margin-left:8px">12.345s</span></div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 页面 4: 设备面板                                                    -->
+<!-- ================================================================ -->
+<div class="page" id="page-trace-device">
+  <div class="window">
+  <div class="menubar">
+    <div class="menu-items"><div class="menu-item">文件(F)</div><div class="menu-item">视图(V)</div><div class="menu-item">工具(T)</div><div class="menu-item">帮助(H)</div></div>
+    <div class="win-btns"><div class="win-btn">&#9472;</div><div class="win-btn">&#9633;</div><div class="win-btn close">&#10005;</div></div>
+  </div>
+  <div class="main-body">
+    <div class="left-dock">
+      <div class="activitybar">
+        <div class="icon" title="工程">&#128193;</div>
+        <div class="icon" title="Trace">&#128203;</div>
+        <div class="icon" title="Graphic">&#128200;</div>
+        <div class="icon active" title="设备">&#128295;</div>
+        <div class="icon" title="配置">&#9881;</div>
+      </div>
+      <div class="sidebar">
+        <div class="section">
+          <div class="section-title">&#9660; 录制控制</div>
+          <div class="section-body">
+            <div class="btn-row"><span class="btn danger">● 录制中</span></div>
+            <div style="margin-top:6px"><label>&#9745; 自动滚动</label></div>
+            <div class="btn-row" style="margin-top:4px"><span class="btn">🗑 清空 Trace</span></div>
+            <div style="margin-top:6px;font-size:11px;color:#888">已录制: 5678 帧</div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-title">&#9660; 设备连接</div>
+          <div class="section-body">
+            <div class="label">通道:</div>
+            <select class="combo" style="width:100%;margin-bottom:4px"><option>通道 1</option><option>通道 2</option></select>
+            <div class="label">波特率:</div>
+            <select class="combo" style="width:100%;margin-bottom:4px"><option>500000</option><option>250000</option><option>1000000</option></select>
+            <div class="label">FD 配置:</div>
+            <select class="combo" style="width:100%;margin-bottom:6px"><option>CAN 2.0</option><option>CAN FD</option></select>
+            <div class="btn-row"><span class="btn primary">🔗 连接</span><span class="btn">断开</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="center">
+      <div class="tabs"><div class="tab active">📋 Trace</div><div class="tab">📈 Graphic</div></div>
+      <div class="tab-content">
+        <div class="filterbar"><input type="text" placeholder="输入过滤表达式..."><span class="btn">清除</span></div>
+        <div class="trace-table-wrap">
+          <table class="trace-table">
+            <thead><tr><th style="width:100px">Time ↑</th><th style="width:40px">Ch</th><th style="width:40px">Dir</th><th style="width:120px">ID</th><th style="width:60px">DLC</th><th>Data</th><th style="width:80px">Flags</th></tr></thead>
+            <tbody>
+              <tr><td>0.056789</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr>
+              <tr><td>0.057123</td><td>1</td><td>Rx</td><td>0x456</td><td>8</td><td>11 22 33 44 55 66 77 88</td><td>FD</td></tr>
+              <tr><td>0.057456</td><td>2</td><td>Tx</td><td>0x123</td><td>8</td><td>AA BB CC DD EE FF 00 11</td><td>---</td></tr>
+              <tr><td>0.057789</td><td>1</td><td>Rx</td><td>0x789</td><td>8</td><td>DE AD BE EF 00 00 00 00</td><td>---</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="bottom-split">
+          <div class="pane"><div class="pane-title">帧结构</div><div class="pane-content">(选中报文查看帧结构...)</div></div>
+          <div class="pane"><div class="pane-title">信号解析</div><div class="pane-content">(选中报文查看信号解析...)</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="right-dock">
+      <div class="tabs"><div class="tab active">属性</div><div class="tab">统计</div></div>
+      <div class="content" style="color:#aaa;text-align:center;padding-top:20px">选中报文查看属性</div>
+    </div>
+  </div>
+  <div class="bottom-dock">
+    <div class="tabs"><div class="tab">终端</div><div class="tab active">输出</div><div class="tab">问题</div></div>
+    <div class="content">
+      <div class="output-line warn">录制开始: 2026-07-27_14-30-00.sin</div>
+      <div class="output-line">设备通道 1 已连接 (500000 bps)</div>
+    </div>
+  </div>
+  <div class="statusbar"><span>录制中...</span><span class="spacer"></span><span>5678 帧</span><span style="margin-left:8px">5.678s</span></div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 页面 5: Graphic 页面                                               -->
+<!-- ================================================================ -->
+<div class="page" id="page-graphic">
+  <div class="window">
+  <div class="menubar">
+    <div class="menu-items"><div class="menu-item">文件(F)</div><div class="menu-item">视图(V)</div><div class="menu-item">工具(T)</div><div class="menu-item">帮助(H)</div></div>
+    <div class="win-btns"><div class="win-btn">&#9472;</div><div class="win-btn">&#9633;</div><div class="win-btn close">&#10005;</div></div>
+  </div>
+  <div class="main-body">
+    <div class="left-dock">
+      <div class="activitybar">
+        <div class="icon" title="工程">&#128193;</div>
+        <div class="icon" title="Trace">&#128203;</div>
+        <div class="icon active" title="Graphic">&#128200;</div>
+        <div class="icon" title="设备">&#128295;</div>
+        <div class="icon" title="配置">&#9881;</div>
+      </div>
+      <div class="sidebar">
+        <div class="section">
+          <div class="section-title">&#9660; 信号配置</div>
+          <div class="section-body">
+            <div class="tree">
+              <div class="node">&#9745; <span style="color:#e81123">●</span> EngineRPM (0x123)</div>
+              <div class="node">&#9745; <span style="color:#4a90d9">●</span> ThrottlePos (0x123)</div>
+              <div class="node">&#9745; <span style="color:#0a0">●</span> CoolantTemp (0x123)</div>
+              <div class="node">&#9744; OilPressure (0x123)</div>
+            </div>
+            <div class="btn-row" style="margin-top:6px"><span class="btn">+ 添加信号</span><span class="btn">⚙ 配置</span></div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-title">&#9660; 视图设置</div>
+          <div class="section-body">
+            <div class="label">X 轴范围:</div>
+            <select class="combo" style="width:100%;margin-bottom:4px"><option>全部</option><option>最近 10s</option><option>最近 1s</option></select>
+            <div class="label">Y 轴缩放:</div>
+            <select class="combo" style="width:100%"><option>自动</option><option>手动</option></select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="center">
+      <div class="tabs"><div class="tab">📋 Trace</div><div class="tab active">📈 Graphic</div></div>
+      <div class="tab-content">
+        <div class="graphic-view">
+          <div class="graphic-toolbar">
+            <span class="btn">⊞ 缩放</span><span class="btn">⤢ 适应</span><span class="btn">📐 测量</span>
+            <span style="color:#888;margin-left:8px">时间: 0.000s ~ 12.345s</span>
+          </div>
+          <div class="graphic-canvas">
+            <svg viewBox="0 0 800 300" preserveAspectRatio="none">
+              <!-- 网格 -->
+              <defs>
+                <pattern id="grid" width="80" height="50" patternUnits="userSpaceOnUse">
+                  <path d="M 80 0 L 0 0 0 50" fill="none" stroke="#e8e8e8" stroke-width="1"/>
+                </pattern>
+              </defs>
+              <rect width="800" height="300" fill="url(#grid)"/>
+              <!-- 轴标签 -->
+              <text x="10" y="295" font-size="10" fill="#aaa">0s</text>
+              <text x="380" y="295" font-size="10" fill="#aaa">6s</text>
+              <text x="750" y="295" font-size="10" fill="#aaa">12s</text>
+              <text x="5" y="20" font-size="10" fill="#aaa">5000</text>
+              <text x="5" y="155" font-size="10" fill="#aaa">2500</text>
+              <text x="5" y="290" font-size="10" fill="#aaa">0</text>
+              <!-- 波形: EngineRPM (红色) -->
+              <polyline fill="none" stroke="#e81123" stroke-width="1.5" points="40,250 120,200 200,150 280,100 360,120 440,80 520,60 600,100 680,150 760,180"/>
+              <!-- 波形: ThrottlePos (蓝色) -->
+              <polyline fill="none" stroke="#4a90d9" stroke-width="1.5" points="40,220 120,180 200,190 280,150 360,140 440,170 520,200 600,160 680,130 760,110"/>
+              <!-- 波形: CoolantTemp (绿色) -->
+              <polyline fill="none" stroke="#0a0" stroke-width="1.5" stroke-dasharray="4,2" points="40,260 120,255 200,250 280,245 360,240 440,235 520,230 600,228 680,225 760,222"/>
+            </svg>
+            <div class="graphic-legend">
+              <div class="item"><div class="dot" style="background:#e81123"></div>EngineRPM</div>
+              <div class="item"><div class="dot" style="background:#4a90d9"></div>ThrottlePos</div>
+              <div class="item"><div class="dot" style="background:#0a0"></div>CoolantTemp</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="right-dock">
+      <div class="tabs"><div class="tab active">属性</div><div class="tab">统计</div></div>
+      <div class="content">
+        <div class="prop-row"><span class="prop-label">信号</span><span class="prop-value">EngineRPM</span></div>
+        <div class="prop-row"><span class="prop-label">当前值</span><span class="prop-value">1234.5 rpm</span></div>
+        <div class="prop-row"><span class="prop-label">最小值</span><span class="prop-value">800.0</span></div>
+        <div class="prop-row"><span class="prop-label">最大值</span><span class="prop-value">3500.0</span></div>
+        <div class="prop-row"><span class="prop-label">平均值</span><span class="prop-value">2100.3</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-dock">
+    <div class="tabs"><div class="tab">终端</div><div class="tab active">输出</div><div class="tab">问题</div></div>
+    <div class="content"><div class="output-line">已添加信号: EngineRPM (ID=0x123)</div></div>
+  </div>
+  <div class="statusbar"><span>就绪</span><span class="spacer"></span><span>10234 帧</span><span style="margin-left:8px">12.345s</span></div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 页面 6: 统计视图                                                    -->
+<!-- ================================================================ -->
+<div class="page" id="page-statistics">
+  <div class="window">
+  <div class="menubar">
+    <div class="menu-items"><div class="menu-item">文件(F)</div><div class="menu-item">视图(V)</div><div class="menu-item">工具(T)</div><div class="menu-item">帮助(H)</div></div>
+    <div class="win-btns"><div class="win-btn">&#9472;</div><div class="win-btn">&#9633;</div><div class="win-btn close">&#10005;</div></div>
+  </div>
+  <div class="main-body">
+    <div class="left-dock">
+      <div class="activitybar">
+        <div class="icon" title="工程">&#128193;</div>
+        <div class="icon active" title="Trace">&#128203;</div>
+        <div class="icon" title="Graphic">&#128200;</div>
+        <div class="icon" title="设备">&#128295;</div>
+        <div class="icon" title="配置">&#9881;</div>
+      </div>
+      <div class="sidebar">
+        <div class="section"><div class="section-title">&#9654; DBC 信号</div></div>
+        <div class="section"><div class="section-title">&#9654; 回放控制</div></div>
+      </div>
+    </div>
+    <div class="center">
+      <div class="tabs"><div class="tab active">📋 Trace</div><div class="tab">📈 Graphic</div></div>
+      <div class="tab-content">
+        <div class="filterbar"><input type="text" placeholder="输入过滤表达式..."><span class="btn">清除</span></div>
+        <div class="trace-table-wrap">
+          <table class="trace-table">
+            <thead><tr><th style="width:100px">Time ↑</th><th style="width:40px">Ch</th><th style="width:40px">Dir</th><th style="width:120px">ID</th><th style="width:60px">DLC</th><th>Data</th><th style="width:80px">Flags</th></tr></thead>
+            <tbody><tr><td>0.000123</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr></tbody>
+          </table>
+        </div>
+        <div class="bottom-split">
+          <div class="pane"><div class="pane-title">帧结构</div><div class="pane-content">(选中报文查看...)</div></div>
+          <div class="pane"><div class="pane-title">信号解析</div><div class="pane-content">(选中报文查看...)</div></div>
+        </div>
+      </div>
+    </div>
+    <!-- 右侧栏: 统计 tab 激活 -->
+    <div class="right-dock">
+      <div class="tabs"><div class="tab">属性</div><div class="tab active">统计</div></div>
+      <div class="content">
+        <div class="stat-grid">
+          <div class="stat-card"><div class="title">总帧数</div><div class="value">10,234</div><div class="sub">frames</div></div>
+          <div class="stat-card"><div class="title">时长</div><div class="value">12.35s</div><div class="sub">seconds</div></div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:#888;font-weight:bold">方向分布</div>
+        <div class="bar-chart">
+          <div class="bar-row"><span class="bar-label">Rx</span><div class="bar-track"><div class="bar-fill" style="width:72%;background:#4a90d9"></div></div><span class="bar-value">7368</span></div>
+          <div class="bar-row"><span class="bar-label">Tx</span><div class="bar-track"><div class="bar-fill" style="width:28%;background:#e81123"></div></div><span class="bar-value">2866</span></div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:#888;font-weight:bold">帧类型</div>
+        <div class="bar-chart">
+          <div class="bar-row"><span class="bar-label">CAN 2.0</span><div class="bar-track"><div class="bar-fill" style="width:85%;background:#0a0"></div></div><span class="bar-value">8699</span></div>
+          <div class="bar-row"><span class="bar-label">CAN FD</span><div class="bar-track"><div class="bar-fill" style="width:15%;background:#f0ad4e"></div></div><span class="bar-value">1535</span></div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:#888;font-weight:bold">ID 频率 Top 5</div>
+        <div class="bar-chart">
+          <div class="bar-row"><span class="bar-label">0x123</span><div class="bar-track"><div class="bar-fill" style="width:100%;background:#4a90d9"></div></div><span class="bar-value">3456</span></div>
+          <div class="bar-row"><span class="bar-label">0x456</span><div class="bar-track"><div class="bar-fill" style="width:62%;background:#4a90d9"></div></div><span class="bar-value">2143</span></div>
+          <div class="bar-row"><span class="bar-label">0x789</span><div class="bar-track"><div class="bar-fill" style="width:45%;background:#4a90d9"></div></div><span class="bar-value">1567</span></div>
+          <div class="bar-row"><span class="bar-label">0xABC</span><div class="bar-track"><div class="bar-fill" style="width:28%;background:#4a90d9"></div></div><span class="bar-value">987</span></div>
+          <div class="bar-row"><span class="bar-label">0x0FF</span><div class="bar-track"><div class="bar-fill" style="width:15%;background:#4a90d9"></div></div><span class="bar-value">521</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-dock">
+    <div class="tabs"><div class="tab">终端</div><div class="tab active">输出</div><div class="tab">问题</div></div>
+    <div class="content"><div class="output-line">统计已更新</div></div>
+  </div>
+  <div class="statusbar"><span>就绪</span><span class="spacer"></span><span>10234 帧</span><span style="margin-left:8px">12.345s</span></div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 页面 7: 终端                                                       -->
+<!-- ================================================================ -->
+<div class="page" id="page-terminal">
+  <div class="window">
+  <div class="menubar">
+    <div class="menu-items"><div class="menu-item">文件(F)</div><div class="menu-item">视图(V)</div><div class="menu-item">工具(T)</div><div class="menu-item">帮助(H)</div></div>
+    <div class="win-btns"><div class="win-btn">&#9472;</div><div class="win-btn">&#9633;</div><div class="win-btn close">&#10005;</div></div>
+  </div>
+  <div class="main-body">
+    <div class="left-dock">
+      <div class="activitybar">
+        <div class="icon" title="工程">&#128193;</div>
+        <div class="icon active" title="Trace">&#128203;</div>
+        <div class="icon" title="Graphic">&#128200;</div>
+        <div class="icon" title="设备">&#128295;</div>
+        <div class="icon" title="配置">&#9881;</div>
+      </div>
+      <div class="sidebar"><div class="section"><div class="section-title">&#9654; DBC 信号</div></div></div>
+    </div>
+    <div class="center">
+      <div class="tabs"><div class="tab active">📋 Trace</div><div class="tab">📈 Graphic</div></div>
+      <div class="tab-content">
+        <div class="filterbar"><input type="text" placeholder="输入过滤表达式..."><span class="btn">清除</span></div>
+        <div class="trace-table-wrap">
+          <table class="trace-table">
+            <thead><tr><th style="width:100px">Time ↑</th><th style="width:40px">Ch</th><th style="width:40px">Dir</th><th style="width:120px">ID</th><th style="width:60px">DLC</th><th>Data</th><th style="width:80px">Flags</th></tr></thead>
+            <tbody><tr><td>0.000123</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr></tbody>
+          </table>
+        </div>
+        <div class="bottom-split">
+          <div class="pane"><div class="pane-title">帧结构</div><div class="pane-content">(选中报文查看...)</div></div>
+          <div class="pane"><div class="pane-title">信号解析</div><div class="pane-content">(选中报文查看...)</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="right-dock">
+      <div class="tabs"><div class="tab active">属性</div><div class="tab">统计</div></div>
+      <div class="content" style="color:#aaa;text-align:center;padding-top:20px">选中报文查看属性</div>
+    </div>
+  </div>
+  <!-- 底部: 终端 tab 激活 -->
+  <div class="bottom-dock">
+    <div class="tabs"><div class="tab active">终端</div><div class="tab">输出</div><div class="tab">问题</div></div>
+    <div class="content dark">
+      <div style="color:#888;font-size:11px;margin-bottom:4px">sin 终端 — 输入 help 查看可用命令</div>
+      <div class="terminal-input">&gt; help</div>
+      <div style="color:#d4d4d4">可用命令:</div>
+      <div style="color:#aaa;padding-left:12px">help        - 显示帮助</div>
+      <div style="color:#aaa;padding-left:12px">clear       - 清空 Trace</div>
+      <div style="color:#aaa;padding-left:12px">sim on      - 启动模拟器</div>
+      <div style="color:#aaa;padding-left:12px">sim off     - 停止模拟器</div>
+      <div style="color:#aaa;padding-left:12px">record &lt;file&gt; - 开始录制</div>
+      <div style="color:#aaa;padding-left:12px">stop        - 停止录制/回放</div>
+      <div style="color:#aaa;padding-left:12px">play        - 播放</div>
+      <div style="color:#aaa;padding-left:12px">filter &lt;expr&gt; - 设置过滤器</div>
+      <div style="color:#aaa;padding-left:12px">stats       - 显示统计</div>
+      <div style="color:#aaa;padding-left:12px">load &lt;file&gt; - 加载 DBC/录制文件</div>
+      <div class="terminal-input" style="margin-top:4px">&gt; sim on</div>
+      <div style="color:#d4d4d4">模拟器已启动</div>
+      <div class="terminal-input">&gt; filter id == 0x123</div>
+      <div style="color:#d4d4d4">过滤: id == 0x123</div>
+      <div class="terminal-input">&gt; stats</div>
+      <div style="color:#d4d4d4">总帧数: 10234</div>
+      <div class="terminal-input">&gt; <span style="opacity:0.5">|</span></div>
+    </div>
+  </div>
+  <div class="statusbar"><span>就绪</span><span class="spacer"></span><span>10234 帧</span><span style="margin-left:8px">12.345s</span></div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 页面 8: 输出                                                       -->
+<!-- ================================================================ -->
+<div class="page" id="page-output">
+  <div class="window">
+  <div class="menubar">
+    <div class="menu-items"><div class="menu-item">文件(F)</div><div class="menu-item">视图(V)</div><div class="menu-item">工具(T)</div><div class="menu-item">帮助(H)</div></div>
+    <div class="win-btns"><div class="win-btn">&#9472;</div><div class="win-btn">&#9633;</div><div class="win-btn close">&#10005;</div></div>
+  </div>
+  <div class="main-body">
+    <div class="left-dock">
+      <div class="activitybar">
+        <div class="icon" title="工程">&#128193;</div>
+        <div class="icon active" title="Trace">&#128203;</div>
+        <div class="icon" title="Graphic">&#128200;</div>
+        <div class="icon" title="设备">&#128295;</div>
+        <div class="icon" title="配置">&#9881;</div>
+      </div>
+      <div class="sidebar"><div class="section"><div class="section-title">&#9654; DBC 信号</div></div></div>
+    </div>
+    <div class="center">
+      <div class="tabs"><div class="tab active">📋 Trace</div><div class="tab">📈 Graphic</div></div>
+      <div class="tab-content">
+        <div class="filterbar"><input type="text" placeholder="输入过滤表达式..."><span class="btn">清除</span></div>
+        <div class="trace-table-wrap">
+          <table class="trace-table">
+            <thead><tr><th style="width:100px">Time ↑</th><th style="width:40px">Ch</th><th style="width:40px">Dir</th><th style="width:120px">ID</th><th style="width:60px">DLC</th><th>Data</th><th style="width:80px">Flags</th></tr></thead>
+            <tbody><tr><td>0.000123</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr></tbody>
+          </table>
+        </div>
+        <div class="bottom-split">
+          <div class="pane"><div class="pane-title">帧结构</div><div class="pane-content">(选中报文查看...)</div></div>
+          <div class="pane"><div class="pane-title">信号解析</div><div class="pane-content">(选中报文查看...)</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="right-dock">
+      <div class="tabs"><div class="tab active">属性</div><div class="tab">统计</div></div>
+      <div class="content" style="color:#aaa;text-align:center;padding-top:20px">选中报文查看属性</div>
+    </div>
+  </div>
+  <!-- 底部: 输出 tab 激活 -->
+  <div class="bottom-dock" style="height:220px">
+    <div class="tabs"><div class="tab">终端</div><div class="tab active">输出</div><div class="tab">问题</div></div>
+    <div class="content" style="background:#1e1e1e;color:#d4d4d4">
+      <div style="color:#0a0">[14:30:01] sin 启动完成</div>
+      <div style="color:#d4d4d4">[14:30:03] DBC 已加载: engine.dbc</div>
+      <div style="color:#d4d4d4">[14:30:05] 已加载: test.sin (10234 帧, 12.35s)</div>
+      <div style="color:#d4d4d4">[14:30:06] 过滤已应用: id == 0x123</div>
+      <div style="color:#d4d4d4">[14:30:08] 回放开始 (速度: 1.0x)</div>
+      <div style="color:#f0ad4e">[14:30:10] 警告: 录制文件未保存</div>
+      <div style="color:#d4d4d4">[14:30:12] 已添加信号: EngineRPM (ID=0x123)</div>
+      <div style="color:#d4d4d4">[14:30:12] 已添加信号: ThrottlePos (ID=0x123)</div>
+      <div style="color:#d4d4d4">[14:30:13] 已添加信号: CoolantTemp (ID=0x123)</div>
+      <div style="color:#d4d4d4">[14:30:15] 回放完成</div>
+      <div style="color:#d4d4d4">[14:30:16] 已切换到工程: EngineAnalysis</div>
+      <div style="color:#d4d4d4">[14:30:18] 模拟器已启动</div>
+    </div>
+  </div>
+  <div class="statusbar"><span>就绪</span><span class="spacer"></span><span>10234 帧</span><span style="margin-left:8px">12.345s</span></div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 页面 9: 问题                                                       -->
+<!-- ================================================================ -->
+<div class="page" id="page-problems">
+  <div class="window">
+  <div class="menubar">
+    <div class="menu-items"><div class="menu-item">文件(F)</div><div class="menu-item">视图(V)</div><div class="menu-item">工具(T)</div><div class="menu-item">帮助(H)</div></div>
+    <div class="win-btns"><div class="win-btn">&#9472;</div><div class="win-btn">&#9633;</div><div class="win-btn close">&#10005;</div></div>
+  </div>
+  <div class="main-body">
+    <div class="left-dock">
+      <div class="activitybar">
+        <div class="icon" title="工程">&#128193;</div>
+        <div class="icon active" title="Trace">&#128203;</div>
+        <div class="icon" title="Graphic">&#128200;</div>
+        <div class="icon" title="设备">&#128295;</div>
+        <div class="icon" title="配置">&#9881;</div>
+      </div>
+      <div class="sidebar"><div class="section"><div class="section-title">&#9654; DBC 信号</div></div></div>
+    </div>
+    <div class="center">
+      <div class="tabs"><div class="tab active">📋 Trace</div><div class="tab">📈 Graphic</div></div>
+      <div class="tab-content">
+        <div class="filterbar"><input type="text" placeholder="输入过滤表达式..."><span class="btn">清除</span></div>
+        <div class="trace-table-wrap">
+          <table class="trace-table">
+            <thead><tr><th style="width:100px">Time ↑</th><th style="width:40px">Ch</th><th style="width:40px">Dir</th><th style="width:120px">ID</th><th style="width:60px">DLC</th><th>Data</th><th style="width:80px">Flags</th></tr></thead>
+            <tbody><tr><td>0.000123</td><td>1</td><td>Rx</td><td>0x123</td><td>8</td><td>01 02 03 04 05 06 07 08</td><td>---</td></tr></tbody>
+          </table>
+        </div>
+        <div class="bottom-split">
+          <div class="pane"><div class="pane-title">帧结构</div><div class="pane-content">(选中报文查看...)</div></div>
+          <div class="pane"><div class="pane-title">信号解析</div><div class="pane-content">(选中报文查看...)</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="right-dock">
+      <div class="tabs"><div class="tab active">属性</div><div class="tab">统计</div></div>
+      <div class="content" style="color:#aaa;text-align:center;padding-top:20px">选中报文查看属性</div>
+    </div>
+  </div>
+  <!-- 底部: 问题 tab 激活 -->
+  <div class="bottom-dock" style="height:220px">
+    <div class="tabs"><div class="tab">终端</div><div class="tab">输出</div><div class="tab active">问题</div></div>
+    <div class="content">
+      <div class="problem-row"><span class="problem-sev err">!</span><span class="problem-src">Recorder</span><span class="problem-msg">无法创建录制文件: D:/test.sin (权限拒绝)</span></div>
+      <div class="problem-row"><span class="problem-sev err">!</span><span class="problem-src">Player</span><span class="problem-msg">无法加载: corrupt.sin (文件格式错误)</span></div>
+      <div class="problem-row"><span class="problem-sev warn">⚠</span><span class="problem-src">DBC</span><span class="problem-msg">加载失败: missing.dbc (文件不存在)</span></div>
+      <div class="problem-row"><span class="problem-sev warn">⚠</span><span class="problem-src">Filter</span><span class="problem-msg">语法错误: id === 0x123 (多余的等号)</span></div>
+      <div class="problem-row"><span class="problem-sev warn">⚠</span><span class="problem-src">Recorder</span><span class="problem-msg">录制文件未保存</span></div>
+    </div>
+  </div>
+  <div class="statusbar"><span>就绪 — 5 个问题</span><span class="spacer"></span><span>10234 帧</span><span style="margin-left:8px">12.345s</span></div>
+  </div>
+</div>
+
+<script>
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.pbtn').forEach(b => b.classList.remove('active'));
+  const page = document.getElementById('page-' + name);
+  if (page) page.classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+</script>
+
+</body>
+</html>

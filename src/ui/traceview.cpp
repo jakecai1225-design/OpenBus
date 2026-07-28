@@ -1,6 +1,10 @@
 #include "traceview.h"
+#include "filterbar.h"
 #include "models/cantracemodel.h"
 #include "models/canfilterproxymodel.h"
+#include "core/dbcmanager.h"
+#include "core/dbcdata.h"
+#include "utils/canutils.h"
 
 #include <QMenu>
 #include <QAction>
@@ -10,6 +14,19 @@
 #include <QFontDatabase>
 #include <QMouseEvent>
 #include <QMessageBox>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QSplitter>
+#include <QLabel>
+#include <QPlainTextEdit>
+#include <QInputDialog>
+#include <QLineEdit>
+#include <QSet>
+#include <algorithm>
+
+// ============================================================
+//  TraceView
+// ============================================================
 
 TraceView::TraceView(QWidget *parent)
     : QTableView(parent)
@@ -19,27 +36,26 @@ TraceView::TraceView(QWidget *parent)
 
 void TraceView::setupAppearance()
 {
-    // 等宽字体
     QFont mono = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     mono.setPointSize(10);
     setFont(mono);
 
-    // 基本外观
     setAlternatingRowColors(true);
     setSelectionBehavior(QAbstractItemView::SelectRows);
     setSelectionMode(QAbstractItemView::ContiguousSelection);
     setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    setSortingEnabled(false);
+    setSortingEnabled(true);
     setShowGrid(false);
 
-    // 表头
     horizontalHeader()->setStretchLastSection(false);
     horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    horizontalHeader()->setSectionsClickable(true);
+    horizontalHeader()->setSectionsMovable(true);
+    horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
     verticalHeader()->setDefaultSectionSize(22);
     verticalHeader()->setVisible(false);
 
-    // 初始列宽
     setColumnWidth(CanTraceModel::ColTime, 100);
     setColumnWidth(CanTraceModel::ColChannel, 40);
     setColumnWidth(CanTraceModel::ColDirection, 40);
@@ -47,6 +63,15 @@ void TraceView::setupAppearance()
     setColumnWidth(CanTraceModel::ColDlc, 60);
     setColumnWidth(CanTraceModel::ColData, 300);
     setColumnWidth(CanTraceModel::ColFlags, 80);
+
+    // 默认按时间升序排序
+    sortByColumn(CanTraceModel::ColTime, Qt::AscendingOrder);
+
+    // 表头信号
+    connect(horizontalHeader(), &QHeaderView::sectionClicked,
+            this, &TraceView::onHeaderClicked);
+    connect(horizontalHeader(), &QHeaderView::customContextMenuRequested,
+            this, &TraceView::onHeaderContextMenu);
 }
 
 void TraceView::scrollToBottom()
@@ -119,7 +144,7 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
     } else if (selected == &filterIdAction) {
         const CanFrame *frame = selectedFrame();
         if (frame)
-            emit frameDoubleClicked(*frame); // 复用此信号传递选中帧给 MainWindow 做过滤
+            emit frameDoubleClicked(*frame);
     } else if (selected == &clearAction) {
         auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
         auto *source = qobject_cast<CanTraceModel *>(
@@ -138,4 +163,358 @@ void TraceView::mouseDoubleClickEvent(QMouseEvent *event)
             emit frameDoubleClicked(*frame);
     }
     QTableView::mouseDoubleClickEvent(event);
+}
+
+// ============================================================
+//  表头排序 + 筛选菜单
+// ============================================================
+
+void TraceView::onHeaderClicked(int column)
+{
+    // 点击表头自动切换升/降序（QTableView 内置已处理，这里仅做额外逻辑）
+    Q_UNUSED(column);
+}
+
+void TraceView::onHeaderContextMenu(const QPoint &pos)
+{
+    int column = horizontalHeader()->logicalIndexAt(pos);
+    if (column < 0) return;
+    showHeaderMenu(column, horizontalHeader()->viewport()->mapToGlobal(pos));
+}
+
+QString TraceView::columnFilterHint(int column) const
+{
+    switch (column) {
+    case CanTraceModel::ColTime:      return "例如: >0.5  或  <1.0  或  0.123";
+    case CanTraceModel::ColChannel:   return "例如: 1  或  2";
+    case CanTraceModel::ColDirection: return "rx  或  tx";
+    case CanTraceModel::ColId:        return "例如: 0x123  或  >0x100  或  !=0x200";
+    case CanTraceModel::ColDlc:       return "例如: 8  或  >4";
+    case CanTraceModel::ColData:      return "例如: 01 02  或  FF";
+    case CanTraceModel::ColFlags:     return "例如: FD  或  BRS";
+    }
+    return {};
+}
+
+void TraceView::showHeaderMenu(int column, const QPoint &pos)
+{
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    if (!proxy) return;
+
+    QMenu menu(this);
+
+    // 排序选项
+    QAction sortAsc("↑ 升序排序", this);
+    QAction sortDesc("↓ 降序排序", this);
+    menu.addAction(&sortAsc);
+    menu.addAction(&sortDesc);
+
+    menu.addSeparator();
+
+    // 列筛选
+    QString colName = model()->headerData(column, Qt::Horizontal).toString();
+    QAction filterAction(QString("筛选 %1...").arg(colName), this);
+    menu.addAction(&filterAction);
+
+    // 快捷筛选（根据列类型）
+    if (column == CanTraceModel::ColDirection) {
+        menu.addSeparator();
+        QAction rxOnly("仅 Rx", this);
+        QAction txOnly("仅 Tx", this);
+        menu.addAction(&rxOnly);
+        menu.addAction(&txOnly);
+        connect(&rxOnly, &QAction::triggered, this, [this, column]() {
+            auto *p = qobject_cast<CanFilterProxyModel *>(model());
+            if (p) p->setColumnFilter(column, "rx");
+        });
+        connect(&txOnly, &QAction::triggered, this, [this, column]() {
+            auto *p = qobject_cast<CanFilterProxyModel *>(model());
+            if (p) p->setColumnFilter(column, "tx");
+        });
+    }
+
+    if (column == CanTraceModel::ColId) {
+        menu.addSeparator();
+        // 收集唯一 ID
+        auto *src = qobject_cast<CanTraceModel *>(proxy->sourceModel());
+        if (src) {
+            QSet<quint32> ids;
+            for (const auto &f : src->frames())
+                ids.insert(f.id);
+            // 只显示前 20 个，避免菜单过长
+            QList<quint32> sortedIds = ids.values();
+            std::sort(sortedIds.begin(), sortedIds.end());
+            int shown = 0;
+            for (quint32 id : sortedIds) {
+                if (shown++ >= 20) {
+                    menu.addAction(QString("... 共 %1 个 ID").arg(ids.size()))->setEnabled(false);
+                    break;
+                }
+                QString idStr = CanUtils::formatId(id, id > 0x7FF);
+                auto *act = menu.addAction(idStr);
+                connect(act, &QAction::triggered, this, [this, column, idStr]() {
+                    auto *p = qobject_cast<CanFilterProxyModel *>(model());
+                    if (p) p->setColumnFilter(column, idStr);
+                });
+            }
+        }
+    }
+
+    // 清除列筛选
+    if (proxy->hasColumnFilter(column)) {
+        menu.addSeparator();
+        QAction clearColAct("✕ 清除本列筛选", this);
+        menu.addAction(&clearColAct);
+        connect(&clearColAct, &QAction::triggered, this, [this, column]() {
+            onClearColumnFilter(column);
+        });
+    }
+
+    // 清除所有筛选
+    menu.addSeparator();
+    QAction clearAllAct("清除所有筛选", this);
+    menu.addAction(&clearAllAct);
+    connect(&clearAllAct, &QAction::triggered, this, &TraceView::onClearAllFilters);
+
+    // 排序连接
+    connect(&sortAsc, &QAction::triggered, this, [this, column]() {
+        sortByColumn(column, Qt::AscendingOrder);
+    });
+    connect(&sortDesc, &QAction::triggered, this, [this, column]() {
+        sortByColumn(column, Qt::DescendingOrder);
+    });
+
+    // 列筛选对话框
+    connect(&filterAction, &QAction::triggered, this, [this, column]() {
+        onColumnFilter(column);
+    });
+
+    menu.exec(pos);
+}
+
+void TraceView::onColumnFilter(int column)
+{
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    if (!proxy) return;
+
+    QString colName = model()->headerData(column, Qt::Horizontal).toString();
+    QString current = proxy->columnFilter(column);
+    QString hint = columnFilterHint(column);
+
+    bool ok = false;
+    QString text = QInputDialog::getText(
+        this, QString("筛选 %1").arg(colName),
+        QString("输入筛选条件:\n  %1").arg(hint),
+        QLineEdit::Normal, current, &ok);
+
+    if (ok) {
+        if (text.trimmed().isEmpty())
+            proxy->clearColumnFilter(column);
+        else
+            proxy->setColumnFilter(column, text);
+    }
+}
+
+void TraceView::onClearColumnFilter(int column)
+{
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    if (proxy)
+        proxy->clearColumnFilter(column);
+}
+
+void TraceView::onClearAllFilters()
+{
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    if (proxy)
+        proxy->clearAllColumnFilters();
+}
+
+// ============================================================
+//  FrameInfoWidget — 紧凑文本帧结构
+// ============================================================
+
+FrameInfoWidget::FrameInfoWidget(QWidget *parent)
+    : QWidget(parent)
+{
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    auto *title = new QLabel("帧结构", this);
+    title->setObjectName("DockPanelTitle");
+    title->setContentsMargins(6, 3, 6, 3);
+    layout->addWidget(title);
+
+    m_edit = new QPlainTextEdit(this);
+    m_edit->setReadOnly(true);
+    QFont mono = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    mono.setPointSize(10);
+    m_edit->setFont(mono);
+    m_edit->setPlaceholderText("选中报文查看帧结构...");
+    layout->addWidget(m_edit, 1);
+}
+
+void FrameInfoWidget::setFrame(const CanFrame &frame)
+{
+    // 紧凑对齐文本 — 字段名宽度固定，值紧随其后
+    auto fmt = [](const char *field, const QString &val) {
+        return QString("%1:  %2").arg(field, 10).arg(val);
+    };
+
+    QString text;
+    text += fmt("Time",      CanUtils::formatTime(frame.timestamp))        + "\n";
+    text += fmt("Channel",   QString::number(frame.channel))               + "\n";
+    text += fmt("Direction", frame.direction == CanFrame::Rx ? "Rx" : "Tx") + "\n";
+    text += fmt("ID",        CanUtils::formatId(frame.id, frame.extended)) + "\n";
+    text += fmt("DLC",       CanUtils::formatDlc(frame.dlc, frame.fd))     + "\n";
+    text += fmt("Data",      CanUtils::formatData(frame.data))             + "\n";
+    text += fmt("Flags",     CanUtils::formatFlags(frame))                 + "\n";
+
+    // Hex dump (紧凑单行)
+    text += "\nHex:  ";
+    const auto &data = frame.data;
+    for (int i = 0; i < data.size() && i < 64; ++i)
+        text += QString("%1 ").arg(static_cast<quint8>(data[i]), 2, 16, QChar('0')).toUpper();
+    if (data.size() > 64)
+        text += "...";
+
+    m_edit->setPlainText(text);
+}
+
+void FrameInfoWidget::clear()
+{
+    m_edit->clear();
+}
+
+// ============================================================
+//  SignalDecodeWidget — 紧凑文本信号解析
+// ============================================================
+
+SignalDecodeWidget::SignalDecodeWidget(QWidget *parent)
+    : QWidget(parent)
+{
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    auto *title = new QLabel("信号解析", this);
+    title->setObjectName("DockPanelTitle");
+    title->setContentsMargins(6, 3, 6, 3);
+    layout->addWidget(title);
+
+    m_edit = new QPlainTextEdit(this);
+    m_edit->setReadOnly(true);
+    QFont mono = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    mono.setPointSize(10);
+    m_edit->setFont(mono);
+    m_edit->setPlaceholderText("选中报文查看信号解析...");
+    layout->addWidget(m_edit, 1);
+}
+
+void SignalDecodeWidget::setFrame(const CanFrame &frame)
+{
+    if (!m_dbcMgr) {
+        m_edit->setPlainText("(未加载 DBC 文件)");
+        return;
+    }
+
+    const DbcMessage *msg = m_dbcMgr->findMessage(frame.id);
+    if (!msg) {
+        m_edit->setPlainText(QString("ID %1 未在 DBC 中定义")
+            .arg(CanUtils::formatId(frame.id, frame.extended)));
+        return;
+    }
+
+    // 报文名称
+    QString text = QString("%1  (0x%2)\n")
+        .arg(msg->name)
+        .arg(msg->id, 0, 16).toUpper();
+    text += "-----------------------------------\n\n";
+
+    // 逐信号解码 — 名称对齐 + 值 + 单位
+    int maxName = 0;
+    for (const auto &sig : msg->signalList)
+        maxName = qMax(maxName, sig.name.length());
+    maxName = qMin(maxName + 2, 24);
+
+    for (const auto &sig : msg->signalList) {
+        double val = sig.decode(frame.data);
+        QString valStr = QString::number(val, 'f', 3);
+        if (!sig.unit.isEmpty())
+            valStr += " " + sig.unit;
+        text += QString("%1  %2\n").arg(sig.name, -maxName).arg(valStr);
+    }
+
+    m_edit->setPlainText(text);
+}
+
+void SignalDecodeWidget::clear()
+{
+    m_edit->clear();
+}
+
+// ============================================================
+//  TraceTab — Wireshark 风格整体三栏
+// ============================================================
+
+TraceTab::TraceTab(QWidget *parent)
+    : QWidget(parent)
+{
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    // 过滤栏
+    m_filterBar = new FilterBar(this);
+    layout->addWidget(m_filterBar);
+
+    // 垂直分割: TraceView (上) | 底部信息 (下)
+    m_vSplitter = new QSplitter(Qt::Vertical, this);
+    m_vSplitter->setHandleWidth(2);
+
+    // TraceView
+    m_traceView = new TraceView(this);
+    m_vSplitter->addWidget(m_traceView);
+
+    // 水平分割: 帧结构 (左) | 信号解析 (右)
+    m_hSplitter = new QSplitter(Qt::Horizontal, this);
+    m_hSplitter->setHandleWidth(2);
+
+    m_frameInfo = new FrameInfoWidget(this);
+    m_signalDecode = new SignalDecodeWidget(this);
+
+    m_hSplitter->addWidget(m_frameInfo);
+    m_hSplitter->addWidget(m_signalDecode);
+    m_hSplitter->setSizes({400, 400});
+
+    m_vSplitter->addWidget(m_hSplitter);
+    m_vSplitter->setSizes({500, 200});
+    m_vSplitter->setStretchFactor(0, 3);
+    m_vSplitter->setStretchFactor(1, 1);
+
+    layout->addWidget(m_vSplitter, 1);
+}
+
+void TraceTab::setDbcManager(DbcManager *mgr)
+{
+    m_signalDecode->setDbcManager(mgr);
+}
+
+void TraceTab::setProxyModel(CanFilterProxyModel *proxy)
+{
+    m_traceView->setModel(proxy);
+
+    // 选中行变化时更新底部面板
+    connect(m_traceView->selectionModel(), &QItemSelectionModel::selectionChanged,
+            this, &TraceTab::onSelectionChanged);
+}
+
+void TraceTab::onSelectionChanged()
+{
+    const CanFrame *frame = m_traceView->selectedFrame();
+    if (frame) {
+        m_frameInfo->setFrame(*frame);
+        m_signalDecode->setFrame(*frame);
+        emit m_traceView->frameSelected(*frame);
+    }
 }
