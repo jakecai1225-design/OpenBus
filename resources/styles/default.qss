@@ -433,9 +433,42 @@ QCheckBox {
     spacing: 6px;
 }
 
+/* ---- GroupBox ---- */
+QGroupBox {
+    border: 1px solid #c0c0c0;
+    border-radius: 4px;
+    margin-top: 10px;
+    padding-top: 6px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 8px;
+    padding: 0 4px;
+}
+
+/* ---- DbcDetailTab 标题 ---- */
+#DbcDetailTitle {
+    background-color: #e0e0e0;
+    color: #333;
+    font-weight: bold;
+    font-size: 12px;
+    padding: 6px 8px;
+    border-bottom: 1px solid #c0c0c0;
+}
+
 /* ---- 对话框 ---- */
 QDialog {
     background-color: #f0f0f0;
+}
+
+QTextBrowser {
+    background-color: #ffffff;
+    color: #333;
+    border: 1px solid #c0c0c0;
+    font-size: 12px;
 }
 
 QDialogButtonBox QPushButton {

@@ -2,7 +2,6 @@
 #include "core/dbcmanager.h"
 #include "core/cansimulator.h"
 #include "ui/graphicview.h"
-#include "ui/signalconfigdialog.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -11,89 +10,15 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QComboBox>
-#include <QSpinBox>
-#include <QCheckBox>
 #include <QPushButton>
-#include <QSlider>
 #include <QFileDialog>
 #include <QFileInfo>
-#include <QDir>
 #include <QHeaderView>
-#include <QCollator>
-#include <QDateTime>
+#include <QStyle>
 #include <QInputDialog>
 #include <QMessageBox>
-#include <QFrame>
-#include <QMouseEvent>
-#include <QFontDatabase>
 #include <QFile>
 #include <QTextStream>
-#include <QEvent>
-
-// ============================================================
-//  CollapsibleSection
-// ============================================================
-
-CollapsibleSection::CollapsibleSection(const QString &title, QWidget *parent)
-    : QWidget(parent), m_expanded(true)
-{
-    auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
-
-    m_toggleBtn = new QLabel(title, this);
-    m_toggleBtn->setObjectName("CollapsibleTitle");
-    m_toggleBtn->setContentsMargins(8, 4, 8, 4);
-    m_toggleBtn->setCursor(Qt::PointingHandCursor);
-    m_toggleBtn->setText((m_expanded ? "▼ " : "▶ ") + title);
-    layout->addWidget(m_toggleBtn);
-
-    m_content = new QWidget(this);
-    m_content->setObjectName("CollapsibleContent");
-    auto *contentLayout = new QVBoxLayout(m_content);
-    contentLayout->setContentsMargins(0, 0, 0, 0);
-    contentLayout->setSpacing(0);
-    layout->addWidget(m_content);
-
-    m_toggleBtn->installEventFilter(this);
-}
-
-void CollapsibleSection::setContent(QWidget *widget)
-{
-    auto *cl = qobject_cast<QVBoxLayout *>(m_content->layout());
-    if (cl) {
-        // remove old widget if any
-        QLayoutItem *item;
-        while ((item = cl->takeAt(0)) != nullptr) {
-            delete item;
-        }
-        cl->addWidget(widget);
-    }
-}
-
-void CollapsibleSection::setExpanded(bool expanded)
-{
-    m_expanded = expanded;
-    m_content->setVisible(expanded);
-    // update title text
-    QString title = m_toggleBtn->text();
-    title.remove(0, 2); // remove prefix
-    m_toggleBtn->setText((m_expanded ? "▼ " : "▶ ") + title);
-}
-
-void CollapsibleSection::onToggle()
-{
-    setExpanded(!m_expanded);
-}
-
-bool CollapsibleSection::eventFilter(QObject *obj, QEvent *event)
-{
-    if (obj == m_toggleBtn && event->type() == QEvent::MouseButtonPress) {
-        onToggle();
-        return true;
-    }
-    return QWidget::eventFilter(obj, event);
-}
 
 // ============================================================
 //  SidePanel 基类
@@ -116,7 +41,6 @@ void SidePanel::setupTitle(const QString &title)
     titleBar->setContentsMargins(8, 6, 8, 6);
     layout->addWidget(titleBar);
 
-    // 内容容器
     auto *contentWidget = new QWidget(this);
     m_contentLayout = new QVBoxLayout(contentWidget);
     m_contentLayout->setContentsMargins(0, 0, 0, 0);
@@ -125,20 +49,18 @@ void SidePanel::setupTitle(const QString &title)
 }
 
 // ============================================================
-//  ProjectPanel — 项目上下文管理器
+//  ProjectPanel
 // ============================================================
 
 ProjectPanel::ProjectPanel(QWidget *parent)
-    : SidePanel("工程管理", parent)
+    : SidePanel("工程列表", parent)
 {
     auto *cl = contentLayout();
 
-    // 项目列表
     m_projectList = new QListWidget(this);
     m_projectList->setObjectName("ProjectList");
     cl->addWidget(m_projectList, 1);
 
-    // 按钮栏
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(4, 4, 4, 4);
     auto *newBtn = new QPushButton("新建", this);
@@ -149,10 +71,12 @@ ProjectPanel::ProjectPanel(QWidget *parent)
     btnBar->addWidget(delBtn);
     cl->addLayout(btnBar);
 
-    // 默认创建一个项目
     ProjectContext defaultProj;
-    defaultProj.name = "默认工程";
+    defaultProj.name = "EngineAnalysis";
     m_projects.append(defaultProj);
+    ProjectContext proj2;
+    proj2.name = "BodyControl";
+    m_projects.append(proj2);
     m_currentIndex = 0;
     refreshList();
 
@@ -161,8 +85,6 @@ ProjectPanel::ProjectPanel(QWidget *parent)
     connect(delBtn, &QPushButton::clicked, this, &ProjectPanel::onDeleteProject);
     connect(m_projectList, &QListWidget::currentRowChanged,
             this, &ProjectPanel::onProjectSelected);
-    connect(m_projectList, &QListWidget::itemDoubleClicked,
-            this, &ProjectPanel::onItemDoubleClicked);
 }
 
 void ProjectPanel::refreshList()
@@ -170,9 +92,9 @@ void ProjectPanel::refreshList()
     m_projectList->clear();
     for (int i = 0; i < m_projects.size(); ++i) {
         auto *item = new QListWidgetItem(m_projects[i].name);
-        item->setData(Qt::UserRole, i);
-        if (i == m_currentIndex)
-            item->setSelected(true);
+        if (i == m_currentIndex) {
+            item->setText(m_projects[i].name + "  (当前)");
+        }
         m_projectList->addItem(item);
     }
     if (m_currentIndex >= 0 && m_currentIndex < m_projectList->count())
@@ -205,7 +127,6 @@ void ProjectPanel::onSaveProject()
         "sin 工程文件 (*.sinproj);;所有文件 (*.*)");
     if (path.isEmpty()) return;
 
-    // 简单文本格式保存
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QMessageBox::warning(this, "保存工程", "无法创建文件: " + path);
@@ -220,8 +141,6 @@ void ProjectPanel::onSaveProject()
     out << "[record]\n";
     for (const auto &f : p.recordFiles)
         out << f << "\n";
-    out << "[layout]\n";
-    out << p.layoutConfig << "\n";
     file.close();
 }
 
@@ -250,19 +169,12 @@ void ProjectPanel::onProjectSelected(int row)
     emit projectSwitched(m_currentIndex);
 }
 
-void ProjectPanel::onItemDoubleClicked(QListWidgetItem *item)
-{
-    // 双击项目项可触发打开关联文件
-    Q_UNUSED(item);
-    // 未来可扩展
-}
-
 // ============================================================
 //  DbcPanel
 // ============================================================
 
 DbcPanel::DbcPanel(QWidget *parent)
-    : SidePanel("DBC 数据库", parent)
+    : SidePanel("DBC 文件列表", parent)
 {
     m_tree = new QTreeWidget(this);
     m_tree->setHeaderHidden(true);
@@ -274,7 +186,7 @@ DbcPanel::DbcPanel(QWidget *parent)
 
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(4, 4, 4, 4);
-    auto *importBtn = new QPushButton("导入 DBC", this);
+    auto *importBtn = new QPushButton("+ 加载 DBC", this);
     btnBar->addWidget(importBtn);
     btnBar->addStretch();
     cl->addLayout(btnBar);
@@ -282,8 +194,10 @@ DbcPanel::DbcPanel(QWidget *parent)
     connect(importBtn, &QPushButton::clicked, this, &DbcPanel::onImportDbc);
     connect(m_tree, &QTreeWidget::itemDoubleClicked,
             this, &DbcPanel::onItemDoubleClicked);
+    connect(m_tree, &QTreeWidget::itemClicked,
+            this, &DbcPanel::onItemClicked);
 
-    auto *hint = new QTreeWidgetItem(m_tree, {"（点击导入 DBC 文件）"});
+    auto *hint = new QTreeWidgetItem(m_tree, {"（点击加载 DBC 文件）"});
     hint->setFlags(Qt::NoItemFlags);
 }
 
@@ -318,27 +232,27 @@ void DbcPanel::refreshTree()
         fileItem->setIcon(0, style()->standardIcon(QStyle::SP_FileDialogListView));
 
         for (const auto &msg : file.messages) {
-            QString msgText = QString("0x%1  %2  (%3 bytes)")
+            QString msgText = QString("Msg_0x%1 (%2)")
                 .arg(msg.id, 0, 16).toUpper()
-                .arg(msg.name)
-                .arg(msg.dlc);
+                .arg(msg.name);
             auto *msgItem = new QTreeWidgetItem(fileItem, {msgText});
             msgItem->setIcon(0, style()->standardIcon(QStyle::SP_ArrowRight));
             msgItem->setData(0, Qt::UserRole, msg.id);
 
             for (const auto &sig : msg.signalList) {
-                QString sigText = QString("%1  [%2:%3]  (%4,%5) %6")
-                    .arg(sig.name)
-                    .arg(sig.startBit)
-                    .arg(sig.bitLength)
-                    .arg(sig.factor)
-                    .arg(sig.offset)
-                    .arg(sig.unit);
-                auto *sigItem = new QTreeWidgetItem(msgItem, {sigText});
+                auto *sigItem = new QTreeWidgetItem(msgItem, {sig.name});
                 sigItem->setData(0, Qt::UserRole + 0, msg.id);
                 sigItem->setData(0, Qt::UserRole + 1, sig.name);
             }
         }
+    }
+}
+
+void DbcPanel::onItemClicked(QTreeWidgetItem *item, int)
+{
+    // 点击文件级节点 → 发出 dbcFileClicked 信号
+    if (item && !item->parent()) {
+        emit dbcFileClicked(item->text(0));
     }
 }
 
@@ -352,156 +266,52 @@ void DbcPanel::onItemDoubleClicked(QTreeWidgetItem *item, int)
 }
 
 // ============================================================
-//  TraceConfigPanel（含回放控制折叠区）
+//  TracePanel — 仅入口
 // ============================================================
 
-TraceConfigPanel::TraceConfigPanel(QWidget *parent)
-    : SidePanel("Trace 配置", parent)
+TracePanel::TracePanel(QWidget *parent)
+    : SidePanel("Trace", parent)
 {
     auto *cl = contentLayout();
 
-    // ---- 回放控制折叠区 ----
-    auto *playbackSection = new CollapsibleSection("回放控制", this);
+    auto *btn = new QPushButton("📋 Trace  →  点击打开 Trace 标签页", this);
+    btn->setStyleSheet("text-align: left; padding: 8px;");
+    cl->addWidget(btn);
+    cl->addStretch();
 
-    auto *playbackWidget = new QWidget(this);
-    auto *pbLayout = new QVBoxLayout(playbackWidget);
-    pbLayout->setContentsMargins(4, 4, 4, 4);
-    pbLayout->setSpacing(4);
-
-    // 播放按钮行
-    auto *btnRow = new QHBoxLayout;
-    m_playBtn = new QPushButton("▶ 播放", this);
-    m_pauseBtn = new QPushButton("⏸ 暂停", this);
-    m_stopBtn = new QPushButton("⏹ 停止", this);
-    m_playBtn->setEnabled(false);
-    m_pauseBtn->setEnabled(false);
-    m_stopBtn->setEnabled(false);
-    btnRow->addWidget(m_playBtn);
-    btnRow->addWidget(m_pauseBtn);
-    btnRow->addWidget(m_stopBtn);
-    pbLayout->addLayout(btnRow);
-
-    // 进度滑块
-    auto *seekRow = new QHBoxLayout;
-    seekRow->addWidget(new QLabel("位置:", this));
-    m_seekSlider = new QSlider(Qt::Horizontal, this);
-    m_seekSlider->setMinimum(0);
-    m_seekSlider->setMaximum(1000);
-    seekRow->addWidget(m_seekSlider, 1);
-    pbLayout->addLayout(seekRow);
-
-    // 速度
-    auto *speedRow = new QHBoxLayout;
-    speedRow->addWidget(new QLabel("速度:", this));
-    m_speedCombo = new QComboBox(this);
-    m_speedCombo->addItem("0.25x", 0.25);
-    m_speedCombo->addItem("0.5x", 0.5);
-    m_speedCombo->addItem("1x", 1.0);
-    m_speedCombo->addItem("2x", 2.0);
-    m_speedCombo->addItem("4x", 4.0);
-    m_speedCombo->addItem("8x", 8.0);
-    m_speedCombo->setCurrentIndex(2);
-    speedRow->addWidget(m_speedCombo, 1);
-    pbLayout->addLayout(speedRow);
-
-    playbackSection->setContent(playbackWidget);
-    cl->addWidget(playbackSection);
-
-    // ---- 列显示折叠区 ----
-    auto *colSection = new CollapsibleSection("显示列", this);
-
-    auto *colWidget = new QWidget(this);
-    auto *colLayout = new QVBoxLayout(colWidget);
-    colLayout->setContentsMargins(8, 4, 8, 4);
-    colLayout->setSpacing(2);
-
-    m_chkTime  = new QCheckBox("Time", colWidget);     m_chkTime->setChecked(true);
-    m_chkCh    = new QCheckBox("Channel", colWidget);   m_chkCh->setChecked(true);
-    m_chkDir   = new QCheckBox("Direction", colWidget); m_chkDir->setChecked(true);
-    m_chkId    = new QCheckBox("ID", colWidget);        m_chkId->setChecked(true);
-    m_chkDlc   = new QCheckBox("DLC", colWidget);       m_chkDlc->setChecked(true);
-    m_chkData  = new QCheckBox("Data", colWidget);      m_chkData->setChecked(true);
-    m_chkFlags = new QCheckBox("Flags", colWidget);     m_chkFlags->setChecked(true);
-
-    for (auto *cb : {m_chkTime, m_chkCh, m_chkDir, m_chkId, m_chkDlc, m_chkData, m_chkFlags}) {
-        colLayout->addWidget(cb);
-        connect(cb, &QCheckBox::toggled, this, &TraceConfigPanel::columnsChanged);
-    }
-
-    colSection->setContent(colWidget);
-    cl->addWidget(colSection);
-
-    // ---- 过滤器预设折叠区 ----
-    auto *presetSection = new CollapsibleSection("过滤器预设", this);
-
-    m_presets = new QListWidget(this);
-    m_presets->addItem("全部报文");
-    m_presets->addItem("CAN FD 帧 (fd)");
-    m_presets->addItem("扩展帧 (ext)");
-    m_presets->addItem("仅接收 (rx)");
-    m_presets->addItem("DLC > 8");
-    m_presets->addItem("ID 0x100");
-    m_presets->addItem("ID 0x200");
-
-    presetSection->setContent(m_presets);
-    cl->addWidget(presetSection, 1);
-
-    // ---- 信号连接 ----
-    connect(m_playBtn, &QPushButton::clicked, this, &TraceConfigPanel::playRequested);
-    connect(m_pauseBtn, &QPushButton::clicked, this, &TraceConfigPanel::pauseRequested);
-    connect(m_stopBtn, &QPushButton::clicked, this, &TraceConfigPanel::stopRequested);
-
-    connect(m_speedCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-        [this](int idx) {
-        emit speedChanged(m_speedCombo->itemData(idx).toDouble());
-    });
-
-    connect(m_seekSlider, &QSlider::sliderMoved, this, [this](int value) {
-        emit seekChanged(value / 1000.0);
-    });
-
-    connect(m_presets, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item) {
-        static const QStringList filters = {
-            "", "fd", "ext", "rx", "dlc > 8", "id == 0x100", "id == 0x200"
-        };
-        int row = m_presets->row(item);
-        if (row >= 0 && row < filters.size())
-            emit filterPresetApplied(filters[row]);
-    });
+    connect(btn, &QPushButton::clicked, this, &TracePanel::onTraceClicked);
 }
 
-void TraceConfigPanel::setPlayerLoaded(bool loaded, bool playing)
+void TracePanel::onTraceClicked()
 {
-    m_playBtn->setEnabled(loaded && !playing);
-    m_pauseBtn->setEnabled(playing);
-    m_stopBtn->setEnabled(loaded);
+    emit openTraceRequested();
 }
 
 // ============================================================
-//  GraphicConfigPanel
+//  GraphicConfigPanel — Graphic 页面列表
 // ============================================================
 
 GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
-    : SidePanel("Graphic 配置", parent)
+    : SidePanel("Graphic 页面列表", parent)
 {
     auto *cl = contentLayout();
 
-    m_signalList = new QListWidget(this);
-    cl->addWidget(m_signalList, 1);
+    m_pageList = new QListWidget(this);
+    m_pageList->addItem("Graphic1  (3 个信号)");
+    m_pageList->addItem("Graphic2  (2 个信号)");
+    m_pageList->addItem("Graphic3  (空)");
+    cl->addWidget(m_pageList, 1);
 
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(4, 4, 4, 4);
-    auto *addBtn = new QPushButton("添加", this);
-    auto *rmBtn = new QPushButton("删除", this);
-    auto *clrBtn = new QPushButton("清空", this);
-    btnBar->addWidget(addBtn);
-    btnBar->addWidget(rmBtn);
-    btnBar->addWidget(clrBtn);
+    auto *newBtn = new QPushButton("+ 新建 Graphic", this);
+    btnBar->addWidget(newBtn);
+    btnBar->addStretch();
     cl->addLayout(btnBar);
 
-    connect(addBtn, &QPushButton::clicked, this, &GraphicConfigPanel::onAddSignal);
-    connect(rmBtn, &QPushButton::clicked, this, &GraphicConfigPanel::onRemoveSignal);
-    connect(clrBtn, &QPushButton::clicked, this, &GraphicConfigPanel::onClearSignals);
+    connect(newBtn, &QPushButton::clicked, this, &GraphicConfigPanel::onNewGraphic);
+    connect(m_pageList, &QListWidget::currentRowChanged,
+            this, &GraphicConfigPanel::onPageSelected);
 }
 
 void GraphicConfigPanel::setGraphicView(GraphicView *view)
@@ -510,57 +320,24 @@ void GraphicConfigPanel::setGraphicView(GraphicView *view)
     refreshList();
 }
 
-void GraphicConfigPanel::onAddSignal()
+void GraphicConfigPanel::onNewGraphic()
 {
-    if (!m_graphicView) return;
-    SignalConfigDialog dlg(this);
-    if (dlg.exec() == QDialog::Accepted) {
-        GraphicView::Signal sig;
-        sig.name = dlg.signalName();
-        sig.canId = dlg.canId();
-        sig.extended = dlg.isExtended();
-        sig.byteOffset = dlg.byteOffset();
-        sig.bitLength = dlg.bitLength();
-        sig.bigEndian = dlg.isBigEndian();
-        m_graphicView->addSignal(sig);
-        refreshList();
-    }
+    emit newGraphicRequested();
 }
 
-void GraphicConfigPanel::onRemoveSignal()
+void GraphicConfigPanel::onPageSelected(int row)
 {
-    if (!m_graphicView) return;
-    int row = m_signalList->currentRow();
-    if (row >= 0) {
-        m_graphicView->removeSignal(row);
-        refreshList();
-    }
-}
-
-void GraphicConfigPanel::onClearSignals()
-{
-    if (!m_graphicView) return;
-    m_graphicView->clearSignals();
-    refreshList();
+    if (row >= 0)
+        emit graphicPageSelected(row);
 }
 
 void GraphicConfigPanel::refreshList()
 {
-    m_signalList->clear();
-    if (!m_graphicView) return;
-    for (const auto &sig : m_graphicView->signalConfigs()) {
-        QString text = QString("%1  [0x%2:%3]")
-            .arg(sig.name)
-            .arg(sig.canId, 0, 16).toUpper()
-            .arg(sig.byteOffset);
-        auto *item = new QListWidgetItem(text);
-        item->setForeground(sig.color);
-        m_signalList->addItem(item);
-    }
+    // 未来根据 GraphicView 列表刷新
 }
 
 // ============================================================
-//  DevicePanel（含录制控制折叠区）
+//  DevicePanel — 仅设备连接
 // ============================================================
 
 DevicePanel::DevicePanel(QWidget *parent)
@@ -568,90 +345,71 @@ DevicePanel::DevicePanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
-    // ---- 录制控制折叠区 ----
-    auto *recordSection = new CollapsibleSection("录制控制", this);
+    auto *formWidget = new QWidget(this);
+    auto *formLayout = new QVBoxLayout(formWidget);
+    formLayout->setContentsMargins(8, 8, 8, 8);
+    formLayout->setSpacing(6);
 
-    auto *recordWidget = new QWidget(this);
-    auto *recLayout = new QVBoxLayout(recordWidget);
-    recLayout->setContentsMargins(4, 4, 4, 4);
-    recLayout->setSpacing(4);
+    // 通道
+    auto *chLayout = new QHBoxLayout;
+    chLayout->addWidget(new QLabel("通道:", formWidget));
+    m_channelCombo = new QComboBox(formWidget);
+    m_channelCombo->addItem("1");
+    m_channelCombo->addItem("2");
+    chLayout->addWidget(m_channelCombo, 1);
+    formLayout->addLayout(chLayout);
 
-    m_recordBtn = new QPushButton("● 开始录制", recordWidget);
-    m_recordBtn->setCheckable(true);
-    recLayout->addWidget(m_recordBtn);
+    // 波特率
+    auto *brLayout = new QHBoxLayout;
+    brLayout->addWidget(new QLabel("波特率:", formWidget));
+    m_baudCombo = new QComboBox(formWidget);
+    m_baudCombo->addItem("500000");
+    m_baudCombo->addItem("250000");
+    m_baudCombo->addItem("1000000");
+    m_baudCombo->addItem("125000");
+    m_baudCombo->addItem("800000");
+    brLayout->addWidget(m_baudCombo, 1);
+    formLayout->addLayout(brLayout);
 
-    m_autoScrollChk = new QCheckBox("自动滚动", recordWidget);
-    m_autoScrollChk->setChecked(true);
-    recLayout->addWidget(m_autoScrollChk);
-
-    auto *clearBtn = new QPushButton("清空 Trace", recordWidget);
-    recLayout->addWidget(clearBtn);
-
-    recordSection->setContent(recordWidget);
-    cl->addWidget(recordSection);
-
-    // ---- 设备连接折叠区 ----
-    auto *connSection = new CollapsibleSection("设备连接", this);
-
-    auto *connWidget = new QWidget(this);
-    auto *connLayout = new QVBoxLayout(connWidget);
-    connLayout->setContentsMargins(4, 4, 4, 4);
-    connLayout->setSpacing(4);
+    // FD 配置
+    auto *fdLayout = new QHBoxLayout;
+    fdLayout->addWidget(new QLabel("FD 配置:", formWidget));
+    m_fdCombo = new QComboBox(formWidget);
+    m_fdCombo->addItem("CAN 2.0");
+    m_fdCombo->addItem("CAN FD");
+    fdLayout->addWidget(m_fdCombo, 1);
+    formLayout->addLayout(fdLayout);
 
     // 设备类型
     auto *devLayout = new QHBoxLayout;
-    devLayout->addWidget(new QLabel("设备:", connWidget));
-    m_deviceCombo = new QComboBox(connWidget);
+    devLayout->addWidget(new QLabel("设备:", formWidget));
+    m_deviceCombo = new QComboBox(formWidget);
     m_deviceCombo->addItem("模拟器 (内置)");
     m_deviceCombo->addItem("PCAN-USB");
     m_deviceCombo->addItem("Kvaser");
     m_deviceCombo->addItem("Vector VN1630");
     m_deviceCombo->addItem("SocketCAN");
     devLayout->addWidget(m_deviceCombo, 1);
-    connLayout->addLayout(devLayout);
+    formLayout->addLayout(devLayout);
 
-    // 通道
-    auto *chLayout = new QHBoxLayout;
-    chLayout->addWidget(new QLabel("通道:", connWidget));
-    m_channelCombo = new QComboBox(connWidget);
-    m_channelCombo->addItem("1");
-    m_channelCombo->addItem("2");
-    chLayout->addWidget(m_channelCombo, 1);
-    connLayout->addLayout(chLayout);
-
-    // 波特率
-    auto *brLayout = new QHBoxLayout;
-    brLayout->addWidget(new QLabel("波特率:", connWidget));
-    m_baudCombo = new QComboBox(connWidget);
-    m_baudCombo->addItem("500 Kbps", 500000);
-    m_baudCombo->addItem("250 Kbps", 250000);
-    m_baudCombo->addItem("1 Mbps", 1000000);
-    m_baudCombo->addItem("125 Kbps", 125000);
-    m_baudCombo->addItem("800 Kbps", 800000);
-    brLayout->addWidget(m_baudCombo, 1);
-    connLayout->addLayout(brLayout);
-
+    // 按钮
     auto *btnBar = new QHBoxLayout;
-    m_connectBtn = new QPushButton("连接", connWidget);
-    m_disconnectBtn = new QPushButton("断开", connWidget);
+    m_connectBtn = new QPushButton("连接", formWidget);
+    m_disconnectBtn = new QPushButton("断开", formWidget);
     m_disconnectBtn->setEnabled(false);
     btnBar->addWidget(m_connectBtn);
     btnBar->addWidget(m_disconnectBtn);
-    connLayout->addLayout(btnBar);
+    formLayout->addLayout(btnBar);
 
-    m_statusLabel = new QLabel("● 未连接", connWidget);
+    m_statusLabel = new QLabel("● 未连接", formWidget);
     m_statusLabel->setContentsMargins(4, 0, 4, 4);
-    connLayout->addWidget(m_statusLabel);
+    formLayout->addWidget(m_statusLabel);
 
-    connSection->setContent(connWidget);
-    cl->addWidget(connSection, 1);
+    formLayout->addStretch();
+    cl->addWidget(formWidget);
 
-    // ---- 信号连接 ----
     connect(m_connectBtn, &QPushButton::clicked, this, &DevicePanel::onConnect);
     connect(m_disconnectBtn, &QPushButton::clicked, this, &DevicePanel::onDisconnect);
-    connect(m_recordBtn, &QPushButton::toggled, this, &DevicePanel::onRecord);
-    connect(clearBtn, &QPushButton::clicked, this, &DevicePanel::onClear);
-    connect(m_autoScrollChk, &QCheckBox::stateChanged, this, &DevicePanel::onAutoScroll);
 }
 
 void DevicePanel::setSimulator(CanSimulator *sim)
@@ -659,18 +417,10 @@ void DevicePanel::setSimulator(CanSimulator *sim)
     m_simulator = sim;
 }
 
-void DevicePanel::setRecording(bool recording)
-{
-    m_recordBtn->blockSignals(true);
-    m_recordBtn->setChecked(recording);
-    m_recordBtn->setText(recording ? "■ 停止录制" : "● 开始录制");
-    m_recordBtn->blockSignals(false);
-}
-
 void DevicePanel::onConnect()
 {
     QString device = m_deviceCombo->currentText();
-    int baudrate = m_baudCombo->currentData().toInt();
+    int baudrate = m_baudCombo->currentText().toInt();
     int channel = m_channelCombo->currentText().toInt();
 
     if (m_deviceCombo->currentIndex() == 0 && m_simulator) {
@@ -680,8 +430,8 @@ void DevicePanel::onConnect()
 
     m_connectBtn->setEnabled(false);
     m_disconnectBtn->setEnabled(true);
-    m_statusLabel->setText(QString("● 已连接: %1 (Ch%2, %3 Kbps)")
-        .arg(device).arg(channel).arg(baudrate / 1000));
+    m_statusLabel->setText(QString("● 已连接: %1 (Ch%2, %3)")
+        .arg(device).arg(channel).arg(baudrate));
     m_statusLabel->setStyleSheet("color: green;");
 
     emit deviceConnectRequested(device, baudrate);
@@ -700,41 +450,101 @@ void DevicePanel::onDisconnect()
     emit deviceDisconnectRequested();
 }
 
-void DevicePanel::onRecord()
+// ============================================================
+//  PlaybackPanel — 仅入口
+// ============================================================
+
+PlaybackPanel::PlaybackPanel(QWidget *parent)
+    : SidePanel("回放", parent)
 {
-    bool on = m_recordBtn->isChecked();
-    m_recordBtn->setText(on ? "■ 停止录制" : "● 开始录制");
-    emit recordToggled(on);
+    auto *cl = contentLayout();
+
+    auto *btn = new QPushButton("▶ 回放控制  →  点击打开回放标签页", this);
+    btn->setStyleSheet("text-align: left; padding: 8px;");
+    cl->addWidget(btn);
+    cl->addStretch();
+
+    connect(btn, &QPushButton::clicked, this, &PlaybackPanel::onPlaybackClicked);
 }
 
-void DevicePanel::onClear()
+void PlaybackPanel::onPlaybackClicked()
 {
-    emit clearRequested();
-}
-
-void DevicePanel::onAutoScroll(int state)
-{
-    emit autoScrollToggled(state == Qt::Checked);
+    emit openPlaybackRequested();
 }
 
 // ============================================================
-//  SideBar
+//  RecordPanel — 仅入口
+// ============================================================
+
+RecordPanel::RecordPanel(QWidget *parent)
+    : SidePanel("录制", parent)
+{
+    auto *cl = contentLayout();
+
+    auto *btn = new QPushButton("● 录制控制  →  点击打开录制标签页", this);
+    btn->setStyleSheet("text-align: left; padding: 8px;");
+    cl->addWidget(btn);
+    cl->addStretch();
+
+    connect(btn, &QPushButton::clicked, this, &RecordPanel::onRecordClicked);
+}
+
+void RecordPanel::onRecordClicked()
+{
+    emit openRecordRequested();
+}
+
+// ============================================================
+//  SettingsPanel — 设置入口
+// ============================================================
+
+SettingsPanel::SettingsPanel(QWidget *parent)
+    : SidePanel("设置", parent)
+{
+    auto *cl = contentLayout();
+
+    m_list = new QListWidget(this);
+    m_list->addItem("通用设置");
+    m_list->addItem("界面设置");
+    m_list->addItem("快捷键");
+    cl->addWidget(m_list);
+
+    connect(m_list, &QListWidget::itemClicked,
+            this, &SettingsPanel::onItemClicked);
+}
+
+void SettingsPanel::onItemClicked(QListWidgetItem *item)
+{
+    if (item)
+        emit settingsRequested(item->text());
+}
+
+// ============================================================
+//  SideBar — 8 个面板，索引与 ActivityBar 一致
+//  0=Project  1=Trace  2=Graphic  3=DBC
+//  4=Playback 5=Record 6=Device   7=Settings
 // ============================================================
 
 SideBar::SideBar(QWidget *parent)
     : QStackedWidget(parent)
 {
-    m_project = new ProjectPanel(this);
-    m_dbc = new DbcPanel(this);
-    m_traceConfig = new TraceConfigPanel(this);
+    m_project      = new ProjectPanel(this);
+    m_trace        = new TracePanel(this);
     m_graphicConfig = new GraphicConfigPanel(this);
-    m_device = new DevicePanel(this);
+    m_dbc          = new DbcPanel(this);
+    m_playback     = new PlaybackPanel(this);
+    m_record       = new RecordPanel(this);
+    m_device       = new DevicePanel(this);
+    m_settings     = new SettingsPanel(this);
 
-    addWidget(m_project);       // index 0 = Project
-    addWidget(m_dbc);           // index 1 = Dbc
-    addWidget(m_traceConfig);   // index 2 = Trace
-    addWidget(m_graphicConfig); // index 3 = Graphic
-    addWidget(m_device);        // index 4 = Device
+    addWidget(m_project);        // 0 = Project
+    addWidget(m_trace);          // 1 = Trace
+    addWidget(m_graphicConfig);  // 2 = Graphic
+    addWidget(m_dbc);            // 3 = Dbc
+    addWidget(m_playback);       // 4 = Playback
+    addWidget(m_record);         // 5 = Record
+    addWidget(m_device);         // 6 = Device
+    addWidget(m_settings);       // 7 = Settings
 
     setCurrentIndex(0);
     setMinimumWidth(220);

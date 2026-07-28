@@ -16,7 +16,42 @@ BottomPanel::BottomPanel(QWidget *parent)
 {
     setObjectName("BottomPanel");
 
-    // ---- Problems 标签页 ----
+    QFont mono = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    mono.setPointSize(10);
+
+    // ---- 终端标签页 (集成命令行) ----
+    auto *termWidget = new QWidget(this);
+    auto *termLayout = new QVBoxLayout(termWidget);
+    termLayout->setContentsMargins(0, 0, 0, 0);
+    termLayout->setSpacing(0);
+
+    m_terminal = new QPlainTextEdit(termWidget);
+    m_terminal->setReadOnly(true);
+    m_terminal->setFont(mono);
+    m_terminal->appendPlainText("sin 终端 v1.0.0");
+    m_terminal->appendPlainText("输入命令后按 Enter 执行 (输入 help 查看帮助)");
+    termLayout->addWidget(m_terminal, 1);
+
+    auto *inputBar = new QHBoxLayout;
+    inputBar->setContentsMargins(4, 2, 4, 2);
+    auto *promptLabel = new QLabel(">", termWidget);
+    promptLabel->setStyleSheet("font-family: monospace; font-weight: bold; color: #4a90d9;");
+    m_cmdInput = new QLineEdit(termWidget);
+    m_cmdInput->setFont(mono);
+    m_cmdInput->setPlaceholderText("输入命令后按 Enter 执行 (help 查看帮助)...");
+    inputBar->addWidget(promptLabel);
+    inputBar->addWidget(m_cmdInput);
+    termLayout->addLayout(inputBar);
+
+    addTab(termWidget, "终端");
+
+    // ---- 输出标签页 ----
+    m_output = new QPlainTextEdit(this);
+    m_output->setReadOnly(true);
+    m_output->setFont(mono);
+    addTab(m_output, "输出");
+
+    // ---- 问题标签页 ----
     auto *problemsWidget = new QWidget(this);
     auto *problemsLayout = new QVBoxLayout(problemsWidget);
     problemsLayout->setContentsMargins(0, 0, 0, 0);
@@ -35,51 +70,10 @@ BottomPanel::BottomPanel(QWidget *parent)
     m_problemCount->setContentsMargins(8, 2, 8, 2);
     problemsLayout->addWidget(m_problemCount);
 
-    addTab(problemsWidget, "Problems");
-
-    // ---- Terminal 标签页 ----
-    m_terminal = new QPlainTextEdit(this);
-    m_terminal->setReadOnly(true);
-    QFont mono = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-    mono.setPointSize(10);
-    m_terminal->setFont(mono);
-    m_terminal->appendPlainText("sin 终端 v0.1.0");
-    m_terminal->appendPlainText("输入命令在 Command 标签页中执行");
-    addTab(m_terminal, "Terminal");
-
-    // ---- Output 标签页 ----
-    m_output = new QPlainTextEdit(this);
-    m_output->setReadOnly(true);
-    m_output->setFont(mono);
-    addTab(m_output, "Output");
-
-    // ---- Command 标签页 ----
-    auto *cmdWidget = new QWidget(this);
-    auto *cmdLayout = new QVBoxLayout(cmdWidget);
-    cmdLayout->setContentsMargins(0, 0, 0, 0);
-    cmdLayout->setSpacing(0);
-
-    m_cmdOutput = new QPlainTextEdit(cmdWidget);
-    m_cmdOutput->setReadOnly(true);
-    m_cmdOutput->setFont(mono);
-    cmdLayout->addWidget(m_cmdOutput);
-
-    auto *inputBar = new QHBoxLayout;
-    inputBar->setContentsMargins(4, 2, 4, 2);
-    auto *promptLabel = new QLabel(">", cmdWidget);
-    promptLabel->setStyleSheet("font-family: monospace; font-weight: bold; color: #4a90d9;");
-    m_cmdInput = new QLineEdit(cmdWidget);
-    m_cmdInput->setFont(mono);
-    m_cmdInput->setPlaceholderText("输入命令后按 Enter 执行 (help 查看帮助)...");
-    inputBar->addWidget(promptLabel);
-    inputBar->addWidget(m_cmdInput);
-    cmdLayout->addLayout(inputBar);
-
-    addTab(cmdWidget, "Command");
+    addTab(problemsWidget, "问题");
 
     connect(m_cmdInput, &QLineEdit::returnPressed, this, &BottomPanel::onCommandReturnPressed);
 
-    // 默认高度
     setMinimumHeight(120);
 }
 
@@ -130,7 +124,7 @@ void BottomPanel::onCommandReturnPressed()
     m_cmdInput->clear();
 
     QString ts = QDateTime::currentDateTime().toString("HH:mm:ss");
-    m_cmdOutput->appendPlainText(QString("[%1] > %2").arg(ts, cmd));
+    m_terminal->appendPlainText(QString("[%1] > %2").arg(ts, cmd));
 
     emit commandEntered(cmd);
 }

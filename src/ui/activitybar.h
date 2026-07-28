@@ -20,9 +20,11 @@ public:
     enum Activity {
         None = -1,
         Project = 0,
-        Dbc,
         Trace,
         Graphic,
+        Dbc,
+        Playback,
+        Record,
         Device,
         Settings
     };

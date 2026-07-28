@@ -15,6 +15,9 @@
 #include "ui/bottompanel.h"
 #include "ui/rightpanel.h"
 #include "ui/spliteditorarea.h"
+#include "ui/playbacktab.h"
+#include "ui/recordtab.h"
+#include "ui/dbcdetailtab.h"
 #include "utils/canutils.h"
 
 #include <QMenuBar>
@@ -31,12 +34,15 @@
 #include <QStatusBar>
 #include <QApplication>
 #include <QFileInfo>
-#include <QCheckBox>
-#include <QLineEdit>
-#include <QInputDialog>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QTextBrowser>
 #include <QToolButton>
 #include <QMouseEvent>
 #include <QWindow>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QLineEdit>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -48,8 +54,6 @@ MainWindow::MainWindow(QWidget *parent)
 {
     setWindowTitle("sin - CAN/CAN FD 报文分析工具");
     resize(1400, 900);
-
-    // 无边框窗口 — 保留原生调整大小和 Aero Snap
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
 
     // ---- 数据层 ----
@@ -69,7 +73,6 @@ MainWindow::MainWindow(QWidget *parent)
     createLayout();
     createStatusBar();
 
-    // 菜单栏安装事件过滤器 — 用于窗口拖拽
     menuBar()->installEventFilter(this);
 
     // ---- 信号连接 ----
@@ -94,13 +97,13 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_recorder, &Recorder::recordingStarted, this, [this](const QString &) {
         m_recording = true;
         m_bottomPanel->appendOutput("录制开始");
-        m_sideBar->devicePanel()->setRecording(true);
+        if (m_recordTab) m_recordTab->setRecording(true);
         updateActions();
     });
     connect(m_recorder, &Recorder::recordingStopped, this, [this](const QString &path, int count) {
         m_recording = false;
         m_bottomPanel->appendOutput(QString("录制结束: %1 (%2 帧)").arg(path).arg(count));
-        m_sideBar->devicePanel()->setRecording(false);
+        if (m_recordTab) m_recordTab->setRecording(false);
         updateActions();
     });
 
@@ -116,28 +119,27 @@ MainWindow::MainWindow(QWidget *parent)
     connect(traceView, &TraceView::frameSelected,
             this, &MainWindow::onTraceSelectionChanged);
 
-    // 回放控制 (来自 TraceConfigPanel)
-    auto *tcp = m_sideBar->traceConfigPanel();
-    connect(tcp, &TraceConfigPanel::playRequested, this, &MainWindow::onPlay);
-    connect(tcp, &TraceConfigPanel::pauseRequested, this, &MainWindow::onPause);
-    connect(tcp, &TraceConfigPanel::stopRequested, this, &MainWindow::onStop);
-    connect(tcp, &TraceConfigPanel::speedChanged, this, &MainWindow::onSpeedChanged);
-    connect(tcp, &TraceConfigPanel::seekChanged, this, &MainWindow::onSeekChanged);
+    // PlaybackTab
+    connect(m_playbackTab, &PlaybackTab::playRequested, this, &MainWindow::onPlay);
+    connect(m_playbackTab, &PlaybackTab::pauseRequested, this, &MainWindow::onPause);
+    connect(m_playbackTab, &PlaybackTab::stopRequested, this, &MainWindow::onStop);
+    connect(m_playbackTab, &PlaybackTab::speedChanged, this, &MainWindow::onSpeedChanged);
+    connect(m_playbackTab, &PlaybackTab::seekChanged, this, &MainWindow::onSeekChanged);
+    connect(m_playbackTab, &PlaybackTab::changeFileRequested, this, &MainWindow::onOpenFile);
 
-    // 录制控制 (来自 DevicePanel)
-    auto *dp = m_sideBar->devicePanel();
-    connect(dp, &DevicePanel::recordToggled, this, [this](bool on) {
+    // RecordTab
+    connect(m_recordTab, &RecordTab::recordToggled, this, [this](bool on) {
         if (on) {
             QString defaultName = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + ".sin";
             QString path = QFileDialog::getSaveFileName(
                 this, "录制文件", defaultName, "sin 录制文件 (*.sin)");
             if (path.isEmpty()) {
-                m_sideBar->devicePanel()->setRecording(false);
+                m_recordTab->setRecording(false);
                 return;
             }
             if (!m_recorder->start(path)) {
                 QMessageBox::warning(this, "录制", "无法创建文件: " + path);
-                m_sideBar->devicePanel()->setRecording(false);
+                m_recordTab->setRecording(false);
                 m_bottomPanel->addProblem(1, "Recorder", "无法创建录制文件: " + path);
                 return;
             }
@@ -145,20 +147,44 @@ MainWindow::MainWindow(QWidget *parent)
             m_recorder->stop();
         }
     });
-    connect(dp, &DevicePanel::clearRequested, this, &MainWindow::onClear);
-    connect(dp, &DevicePanel::autoScrollToggled, this, &MainWindow::onAutoScrollToggled);
 
-    // SideBar 面板
+    // 侧边栏面板
     connect(m_sideBar->dbcPanel(), &DbcPanel::signalDoubleClicked,
             this, &MainWindow::onSignalDoubleClicked);
-    connect(m_sideBar->projectPanel(), &ProjectPanel::projectSwitched,
-            this, &MainWindow::onProjectSwitched);
-    connect(m_sideBar->traceConfigPanel(), &TraceConfigPanel::filterPresetApplied,
-            this, &MainWindow::onFilterPresetApplied);
-    connect(m_sideBar->traceConfigPanel(), &TraceConfigPanel::columnsChanged,
-            this, &MainWindow::onColumnsChanged);
+    connect(m_sideBar->dbcPanel(), &DbcPanel::dbcFileClicked,
+            this, &MainWindow::onDbcFileClicked);
+    connect(m_sideBar->tracePanel(), &TracePanel::openTraceRequested,
+            this, &MainWindow::onOpenTraceTab);
+    connect(m_sideBar->playbackPanel(), &PlaybackPanel::openPlaybackRequested,
+            this, &MainWindow::onOpenPlaybackTab);
+    connect(m_sideBar->recordPanel(), &RecordPanel::openRecordRequested,
+            this, &MainWindow::onOpenRecordTab);
+    connect(m_sideBar->graphicConfigPanel(), &GraphicConfigPanel::newGraphicRequested,
+            this, &MainWindow::onNewGraphicRequested);
+    connect(m_sideBar->settingsPanel(), &SettingsPanel::settingsRequested,
+            this, &MainWindow::onSettingsRequested);
+    connect(m_sideBar->devicePanel(), &DevicePanel::deviceConnectRequested,
+            this, [this](const QString &, int) {
+        m_connLabel->setText("🔗 已连接");
+    });
+    connect(m_sideBar->devicePanel(), &DevicePanel::deviceDisconnectRequested,
+            this, [this]() {
+        m_connLabel->setText("🔗 未连接");
+    });
 
-    // 设置面板关联
+    // 右侧面板快捷按钮
+    connect(m_rightPanel, &RightPanel::recordRequested, this, &MainWindow::onQuickRecord);
+    connect(m_rightPanel, &RightPanel::stopRecordRequested, this, &MainWindow::onQuickStopRecord);
+    connect(m_rightPanel, &RightPanel::playRequested, this, &MainWindow::onPlay);
+    connect(m_rightPanel, &RightPanel::pauseRequested, this, &MainWindow::onPause);
+    connect(m_rightPanel, &RightPanel::stopRequested, this, &MainWindow::onStop);
+    connect(m_rightPanel, &RightPanel::clearTraceRequested, this, &MainWindow::onClear);
+    connect(m_rightPanel, &RightPanel::autoScrollToggled, this, &MainWindow::onAutoScrollToggled);
+    connect(m_rightPanel, &RightPanel::connectRequested, this, &MainWindow::onQuickConnect);
+    connect(m_rightPanel, &RightPanel::disconnectRequested, this, &MainWindow::onQuickDisconnect);
+    connect(m_rightPanel, &RightPanel::aiMessageSent, this, &MainWindow::onAiMessageSent);
+
+    // 关联
     m_sideBar->dbcPanel()->setDbcManager(m_dbcManager);
     m_sideBar->graphicConfigPanel()->setGraphicView(m_graphicView);
     m_sideBar->devicePanel()->setSimulator(m_simulator);
@@ -189,12 +215,17 @@ void MainWindow::createMenuBar()
     auto *fileMenu = menuBar()->addMenu("文件(&F)");
 
     m_openAction = new QAction("打开文件...", this);
+    m_openAction->setShortcut(QKeySequence::Open);
     m_openAction->setToolTip("打开录制文件 (.sin) 或 DBC 文件");
     fileMenu->addAction(m_openAction);
     connect(m_openAction, &QAction::triggered, this, &MainWindow::onOpenFile);
 
+    auto *openProj = new QAction("打开工程...", this);
+    openProj->setShortcut(QKeySequence("Ctrl+Shift+O"));
+    fileMenu->addAction(openProj);
+
     fileMenu->addSeparator();
-    fileMenu->addAction("退出(&Q)", this, &QApplication::quit);
+    fileMenu->addAction("退出(&Q)", QKeySequence("Alt+F4"), this, &QApplication::quit);
 
     // ---- 视图 ----
     auto *viewMenu = menuBar()->addMenu("视图(&V)");
@@ -225,12 +256,14 @@ void MainWindow::createMenuBar()
 
     m_recordAction = new QAction("● 录制", this);
     m_recordAction->setCheckable(true);
+    m_recordAction->setShortcut(QKeySequence("Ctrl+R"));
     toolsMenu->addAction(m_recordAction);
     connect(m_recordAction, &QAction::triggered, this, &MainWindow::onRecord);
 
     toolsMenu->addSeparator();
 
     m_playAction = new QAction("▶ 播放", this);
+    m_playAction->setShortcut(QKeySequence(Qt::Key_Space));
     toolsMenu->addAction(m_playAction);
     connect(m_playAction, &QAction::triggered, this, &MainWindow::onPlay);
 
@@ -266,16 +299,33 @@ void MainWindow::createMenuBar()
 
     // ---- 帮助 ----
     auto *helpMenu = menuBar()->addMenu("帮助(&H)");
-    helpMenu->addAction("关于 sin", this, [this]() {
-        QMessageBox::about(this, "关于 sin",
-            "<b>sin</b> - CAN/CAN FD 报文分析工具<br>"
-            "版本 0.1.0<br><br>"
-            "支持报文录制、回放、DBC 解析、Trace 追踪、Graphic 图形等功能。");
+
+    helpMenu->addAction("关于 sin", this, &MainWindow::showAboutDialog);
+    helpMenu->addSeparator();
+    helpMenu->addAction("文档", this, []() {
+        QDesktopServices::openUrl(QUrl("https://github.com/JakeCai/sin/wiki"));
     });
+    helpMenu->addAction("官方网站", this, []() {
+        QDesktopServices::openUrl(QUrl("https://github.com/JakeCai/sin"));
+    });
+    helpMenu->addAction("GitHub 仓库", this, []() {
+        QDesktopServices::openUrl(QUrl("https://github.com/JakeCai/sin"));
+    });
+    helpMenu->addSeparator();
+    helpMenu->addAction("报告问题", this, []() {
+        QDesktopServices::openUrl(QUrl("https://github.com/JakeCai/sin/issues"));
+    });
+    helpMenu->addAction("检查更新", this, &MainWindow::showCheckUpdate);
+    helpMenu->addAction("发版记录", this, &MainWindow::showReleaseNotes);
+    helpMenu->addSeparator();
+    helpMenu->addAction("快捷键", this, &MainWindow::showShortcuts);
+    helpMenu->addAction("许可证", this, &MainWindow::showLicenseDialog);
+    helpMenu->addSeparator();
+    helpMenu->addAction("商业合作", this, &MainWindow::showBusinessCoop);
 }
 
 // ============================================================
-//  窗口控制按钮 (最小化 / 最大化 / 关闭)
+//  窗口控制按钮
 // ============================================================
 
 void MainWindow::createWindowButtons()
@@ -289,21 +339,21 @@ void MainWindow::createWindowButtons()
 
     m_minBtn = new QToolButton(container);
     m_minBtn->setObjectName("WinMinBtn");
-    m_minBtn->setText("\u2500");  // ─
+    m_minBtn->setText("\u2500");
     m_minBtn->setFixedSize(46, 28);
     m_minBtn->setAutoRaise(true);
     m_minBtn->setToolTip("最小化");
 
     m_maxBtn = new QToolButton(container);
     m_maxBtn->setObjectName("WinMaxBtn");
-    m_maxBtn->setText("\u25a1");  // □
+    m_maxBtn->setText("\u25a1");
     m_maxBtn->setFixedSize(46, 28);
     m_maxBtn->setAutoRaise(true);
     m_maxBtn->setToolTip("最大化");
 
     m_closeBtn = new QToolButton(container);
     m_closeBtn->setObjectName("WinCloseBtn");
-    m_closeBtn->setText("\u2715");  // ✕
+    m_closeBtn->setText("\u2715");
     m_closeBtn->setFixedSize(46, 28);
     m_closeBtn->setAutoRaise(true);
     m_closeBtn->setToolTip("关闭");
@@ -312,15 +362,12 @@ void MainWindow::createWindowButtons()
     layout->addWidget(m_maxBtn);
     layout->addWidget(m_closeBtn);
 
-    // 放到菜单栏右上角
     menuBar()->setCornerWidget(container, Qt::TopRightCorner);
 
     connect(m_minBtn, &QToolButton::clicked, this, &QWidget::showMinimized);
     connect(m_maxBtn, &QToolButton::clicked, this, [this]() {
-        if (isMaximized())
-            showNormal();
-        else
-            showMaximized();
+        if (isMaximized()) showNormal();
+        else showMaximized();
     });
     connect(m_closeBtn, &QToolButton::clicked, this, &QWidget::close);
 }
@@ -331,7 +378,7 @@ void MainWindow::createWindowButtons()
 
 void MainWindow::createLayout()
 {
-    // ---- 左侧 Dock: ActivityBar + SideBar ----
+    // ---- 左侧 Dock ----
     auto *leftContainer = new QWidget(this);
     auto *leftLayout = new QHBoxLayout(leftContainer);
     leftLayout->setContentsMargins(0, 0, 0, 0);
@@ -350,7 +397,7 @@ void MainWindow::createLayout()
                             QDockWidget::DockWidgetClosable |
                             QDockWidget::DockWidgetFloatable);
     m_leftDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    m_leftDock->setTitleBarWidget(new QWidget()); // 隐藏标题栏
+    m_leftDock->setTitleBarWidget(new QWidget());
     addDockWidget(Qt::LeftDockWidgetArea, m_leftDock);
 
     // ---- 中央: 可拆分编辑器区域 ----
@@ -363,13 +410,21 @@ void MainWindow::createLayout()
 
     // Graphic 标签页
     m_graphicView = new GraphicView(this);
-    m_editorArea->addTab(m_graphicView, "📈 Graphic");
+    m_editorArea->addTab(m_graphicView, "📈 Graphic1");
+
+    // 回放控制标签页
+    m_playbackTab = new PlaybackTab(this);
+    m_editorArea->addTab(m_playbackTab, "▶ 回放控制");
+
+    // 录制控制标签页
+    m_recordTab = new RecordTab(this);
+    m_editorArea->addTab(m_recordTab, "● 录制控制");
 
     setCentralWidget(m_editorArea);
 
     // ---- 右侧 Dock ----
     m_rightPanel = new RightPanel(this);
-    m_rightDock = new QDockWidget("属性", this);
+    m_rightDock = new QDockWidget("右侧栏", this);
     m_rightDock->setObjectName("RightDock");
     m_rightDock->setWidget(m_rightPanel);
     m_rightDock->setFeatures(QDockWidget::DockWidgetMovable |
@@ -389,7 +444,6 @@ void MainWindow::createLayout()
     m_bottomDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
     addDockWidget(Qt::BottomDockWidgetArea, m_bottomDock);
 
-    // 设置初始 Dock 尺寸
     resizeDocks({m_leftDock}, {300}, Qt::Horizontal);
     resizeDocks({m_rightDock}, {260}, Qt::Horizontal);
     resizeDocks({m_bottomDock}, {180}, Qt::Vertical);
@@ -402,10 +456,22 @@ void MainWindow::createLayout()
 void MainWindow::createStatusBar()
 {
     m_statusLabel = new QLabel("就绪", this);
+    m_connLabel = new QLabel("🔗 未连接", this);
+    m_errorLabel = new QLabel("", this);
+    m_tabLabel = new QLabel("Trace", this);
+    m_rowCountLabel = new QLabel("0行", this);
+    m_selectedLabel = new QLabel("选中0行", this);
+    m_filterLabel = new QLabel("过滤0/0", this);
     m_frameCountLabel = new QLabel("0 帧", this);
     m_timeLabel = new QLabel("0.000s", this);
 
     statusBar()->addWidget(m_statusLabel, 1);
+    statusBar()->addWidget(m_connLabel);
+    statusBar()->addWidget(m_errorLabel);
+    statusBar()->addPermanentWidget(m_tabLabel);
+    statusBar()->addPermanentWidget(m_rowCountLabel);
+    statusBar()->addPermanentWidget(m_selectedLabel);
+    statusBar()->addPermanentWidget(m_filterLabel);
     statusBar()->addPermanentWidget(m_frameCountLabel);
     statusBar()->addPermanentWidget(m_timeLabel);
 }
@@ -418,42 +484,39 @@ void MainWindow::onActivityChanged(int activity)
 {
     m_sideBar->showPanel(activity);
     if (!m_sideBarVisible) {
-        m_leftDock->setVisible(true);
+        m_sideBar->setVisible(true);
         m_sideBarVisible = true;
     }
 
     // 联动主标签页
+    auto *tabs = m_editorArea->activeTabWidget();
+    if (!tabs) return;
+
     if (activity == ActivityBar::Trace) {
-        auto *tabs = m_editorArea->activeTabWidget();
-        if (tabs) {
-            for (int i = 0; i < tabs->count(); ++i) {
-                if (tabs->tabText(i).contains("Trace")) {
-                    tabs->setCurrentIndex(i);
-                    break;
-                }
-            }
-        }
+        onOpenTraceTab();
     } else if (activity == ActivityBar::Graphic) {
-        auto *tabs = m_editorArea->activeTabWidget();
-        if (tabs) {
-            for (int i = 0; i < tabs->count(); ++i) {
-                if (tabs->tabText(i).contains("Graphic")) {
-                    tabs->setCurrentIndex(i);
-                    break;
-                }
+        for (int i = 0; i < tabs->count(); ++i) {
+            if (tabs->tabText(i).contains("Graphic")) {
+                tabs->setCurrentIndex(i);
+                break;
             }
         }
+    } else if (activity == ActivityBar::Playback) {
+        onOpenPlaybackTab();
+    } else if (activity == ActivityBar::Record) {
+        onOpenRecordTab();
     }
 }
 
 void MainWindow::onActivityToggled(int)
 {
     m_sideBarVisible = !m_sideBarVisible;
-    m_leftDock->setVisible(m_sideBarVisible);
+    m_sideBar->setVisible(m_sideBarVisible);
+    // ActivityBar 始终可见，不隐藏
 }
 
 // ============================================================
-//  录制 / 回放槽函数
+//  录制 / 回放
 // ============================================================
 
 void MainWindow::onRecord()
@@ -493,7 +556,6 @@ void MainWindow::onClear()
 {
     m_traceModel->clear();
     m_graphicView->clearData();
-    m_rightPanel->clearAll();
     m_traceTab->frameInfo()->clear();
     m_traceTab->signalDecode()->clear();
     updateStatistics();
@@ -521,6 +583,7 @@ void MainWindow::onOpenFile()
         m_bottomPanel->appendOutput(QString("已加载: %1 (%2 帧, %3s)")
             .arg(fi.fileName()).arg(m_player->totalFrames())
             .arg(m_player->totalTime(), 0, 'f', 2));
+        m_playbackTab->setFileInfo(fi.fileName(), m_player->totalFrames(), m_player->totalTime());
     }
     updateActions();
 }
@@ -544,6 +607,7 @@ void MainWindow::onFrameReceived(const CanFrame &frame)
     if (m_autoScroll)
         m_traceTab->traceView()->scrollToBottom();
     m_frameCountLabel->setText(QString::number(m_traceModel->frameCount()) + " 帧");
+    m_rowCountLabel->setText(QString::number(m_traceModel->frameCount()) + "行");
 }
 
 void MainWindow::onFramePlayed(const CanFrame &frame)
@@ -561,41 +625,30 @@ void MainWindow::onFilterApplied(const QString &filter)
         m_bottomPanel->addProblem(0, "Filter", "语法错误: " + filter);
     else
         m_bottomPanel->appendOutput("过滤已应用: " + filter);
+    int total = m_traceModel->frameCount();
+    int filtered = m_proxyModel->rowCount();
+    m_filterLabel->setText(QString("过滤%1/%2").arg(filtered).arg(total));
 }
 
 void MainWindow::onFilterCleared()
 {
     m_proxyModel->clearFilter();
-}
-
-void MainWindow::onFilterPresetApplied(const QString &filter)
-{
-    auto *edit = m_traceTab->filterBar()->findChild<QLineEdit *>();
-    if (edit) edit->setText(filter);
-    if (filter.isEmpty())
-        onFilterCleared();
-    else
-        onFilterApplied(filter);
+    int total = m_traceModel->frameCount();
+    m_filterLabel->setText(QString("过滤%1/%2").arg(total).arg(total));
 }
 
 // ============================================================
-//  Trace 选择 → 更新右侧属性
+//  Trace 选择
 // ============================================================
 
 void MainWindow::onTraceSelectionChanged()
 {
     const CanFrame *frame = m_traceTab->traceView()->selectedFrame();
-    if (!frame) return;
-
-    // TraceTab 内部已更新帧结构和信号解析，这里只需更新右侧属性
-    m_rightPanel->setFrameProperties(
-        CanUtils::formatTime(frame->timestamp),
-        QString::number(frame->channel),
-        frame->direction == CanFrame::Rx ? "Rx" : "Tx",
-        CanUtils::formatId(frame->id, frame->extended),
-        CanUtils::formatDlc(frame->dlc, frame->fd),
-        CanUtils::formatData(frame->data),
-        CanUtils::formatFlags(*frame));
+    if (!frame) {
+        m_selectedLabel->setText("选中0行");
+        return;
+    }
+    m_selectedLabel->setText("选中1行");
 }
 
 void MainWindow::onFrameDoubleClicked(const CanFrame &frame)
@@ -612,9 +665,7 @@ void MainWindow::onFrameDoubleClicked(const CanFrame &frame)
     sig.byteOffset = 0;
     sig.bitLength = 8;
     m_graphicView->addSignal(sig);
-    m_sideBar->graphicConfigPanel()->setGraphicView(m_graphicView);
 
-    // 跳转到 Graphic 标签页
     auto *tabs = m_editorArea->activeTabWidget();
     if (tabs) {
         for (int i = 0; i < tabs->count(); ++i) {
@@ -632,7 +683,7 @@ void MainWindow::onFrameDoubleClicked(const CanFrame &frame)
 
 void MainWindow::onPlayerProgress(int cur, int total, double curTime, double totalTime)
 {
-    Q_UNUSED(cur); Q_UNUSED(total);
+    m_playbackTab->setProgress(cur, total, curTime, totalTime);
     if (totalTime > 0)
         m_timeLabel->setText(QString::number(curTime, 'f', 3) + "s / " +
                               QString::number(totalTime, 'f', 3) + "s");
@@ -643,6 +694,8 @@ void MainWindow::onPlayerProgress(int cur, int total, double curTime, double tot
 void MainWindow::onPlayerStateChanged(bool playing)
 {
     updateActions();
+    bool hasFile = m_player->isLoaded();
+    m_playbackTab->setPlayerLoaded(hasFile, playing);
     m_statusLabel->setText(playing ? "回放中..." : "已暂停");
 }
 
@@ -650,6 +703,7 @@ void MainWindow::onPlayerFinished()
 {
     m_statusLabel->setText("回放完成");
     updateActions();
+    m_playbackTab->setPlayerLoaded(m_player->isLoaded(), false);
 }
 
 void MainWindow::onSpeedChanged(double speed)
@@ -664,7 +718,7 @@ void MainWindow::onSeekChanged(double ratio)
 }
 
 // ============================================================
-//  DBC 信号双击 → 添加到 Graphic
+//  DBC
 // ============================================================
 
 void MainWindow::onSignalDoubleClicked(quint32 canId, const QString &signalName)
@@ -682,19 +736,131 @@ void MainWindow::onSignalDoubleClicked(quint32 canId, const QString &signalName)
     gsig.bigEndian = !sig->littleEndian;
     m_graphicView->addSignal(gsig);
 
-    m_sideBar->graphicConfigPanel()->setGraphicView(m_graphicView);
     m_bottomPanel->appendOutput(QString("已添加信号: %1 (ID=0x%2)")
         .arg(signalName).arg(canId, 0, 16).toUpper());
 }
 
+void MainWindow::onDbcFileClicked(const QString &fileName)
+{
+    // 打开 DBC 详情标签页
+    auto *dbcTab = new DbcDetailTab(fileName, m_dbcManager, this);
+    connect(dbcTab, &DbcDetailTab::signalDoubleClicked,
+            this, &MainWindow::onSignalDoubleClicked);
+    openTab(dbcTab, "📄 DBC: " + fileName);
+}
+
 // ============================================================
-//  工程切换
+//  侧边栏入口
 // ============================================================
 
-void MainWindow::onProjectSwitched(int index)
+void MainWindow::openTab(QWidget *widget, const QString &label)
 {
-    m_bottomPanel->appendOutput(QString("已切换到工程: %1")
-        .arg(m_sideBar->projectPanel()->projects().at(index).name));
+    auto *tabs = m_editorArea->activeTabWidget();
+    if (tabs) {
+        // 检查是否已存在同名标签
+        for (int i = 0; i < tabs->count(); ++i) {
+            if (tabs->tabText(i) == label) {
+                tabs->setCurrentIndex(i);
+                return;
+            }
+        }
+        tabs->addTab(widget, label);
+        tabs->setCurrentIndex(tabs->count() - 1);
+    }
+    m_tabLabel->setText(label);
+}
+
+void MainWindow::onOpenTraceTab()
+{
+    auto *tabs = m_editorArea->activeTabWidget();
+    if (tabs) {
+        for (int i = 0; i < tabs->count(); ++i) {
+            if (tabs->tabText(i).contains("Trace")) {
+                tabs->setCurrentIndex(i);
+                m_tabLabel->setText(tabs->tabText(i));
+                return;
+            }
+        }
+    }
+}
+
+void MainWindow::onOpenPlaybackTab()
+{
+    auto *tabs = m_editorArea->activeTabWidget();
+    if (tabs) {
+        for (int i = 0; i < tabs->count(); ++i) {
+            if (tabs->tabText(i).contains("回放")) {
+                tabs->setCurrentIndex(i);
+                m_tabLabel->setText(tabs->tabText(i));
+                return;
+            }
+        }
+    }
+}
+
+void MainWindow::onOpenRecordTab()
+{
+    auto *tabs = m_editorArea->activeTabWidget();
+    if (tabs) {
+        for (int i = 0; i < tabs->count(); ++i) {
+            if (tabs->tabText(i).contains("录制")) {
+                tabs->setCurrentIndex(i);
+                m_tabLabel->setText(tabs->tabText(i));
+                return;
+            }
+        }
+    }
+}
+
+void MainWindow::onNewGraphicRequested()
+{
+    static int graphicCount = 2;
+    auto *gv = new GraphicView(this);
+    openTab(gv, QString("📈 Graphic%1").arg(graphicCount++));
+}
+
+void MainWindow::onSettingsRequested(const QString &section)
+{
+    QMessageBox::information(this, "设置", "设置: " + section + "\n(待实现)");
+}
+
+// ============================================================
+//  右侧面板快捷按钮
+// ============================================================
+
+void MainWindow::onQuickRecord()
+{
+    if (!m_recording)
+        onRecord();
+}
+
+void MainWindow::onQuickStopRecord()
+{
+    if (m_recording)
+        m_recorder->stop();
+}
+
+void MainWindow::onQuickConnect()
+{
+    // 通过模拟器连接
+    if (!m_simulator->isRunning()) {
+        m_simulator->start();
+        m_connLabel->setText("🔗 已连接");
+        m_bottomPanel->appendOutput("设备已连接 (模拟器)");
+    }
+}
+
+void MainWindow::onQuickDisconnect()
+{
+    m_simulator->stop();
+    m_connLabel->setText("🔗 未连接");
+    m_bottomPanel->appendOutput("设备已断开");
+}
+
+void MainWindow::onAiMessageSent(const QString &text)
+{
+    // 简单 AI 回复
+    m_rightPanel->appendAiMessage("AI", "收到: " + text + "\n(AI 分析功能待实现)");
 }
 
 // ============================================================
@@ -745,7 +911,7 @@ void MainWindow::processCommand(const QString &cmd)
         out->appendTerminal("开始播放");
     } else if (cmd.startsWith("filter ")) {
         QString expr = cmd.mid(7).trimmed();
-        onFilterPresetApplied(expr);
+        onFilterApplied(expr);
         out->appendTerminal("过滤: " + expr);
     } else if (cmd == "stats") {
         updateStatistics();
@@ -768,48 +934,15 @@ void MainWindow::processCommand(const QString &cmd)
 }
 
 // ============================================================
-//  Trace 配置 — 列显示
-// ============================================================
-
-void MainWindow::onColumnsChanged()
-{
-    applyColumnVisibility();
-}
-
-void MainWindow::applyColumnVisibility()
-{
-    auto *panel = m_sideBar->traceConfigPanel();
-    auto checkboxes = panel->findChildren<QCheckBox *>();
-    for (auto *cb : checkboxes) {
-        QString text = cb->text();
-        int col = -1;
-        if (text == "Time") col = CanTraceModel::ColTime;
-        else if (text == "Channel") col = CanTraceModel::ColChannel;
-        else if (text == "Direction") col = CanTraceModel::ColDirection;
-        else if (text == "ID") col = CanTraceModel::ColId;
-        else if (text == "DLC") col = CanTraceModel::ColDlc;
-        else if (text == "Data") col = CanTraceModel::ColData;
-        else if (text == "Flags") col = CanTraceModel::ColFlags;
-        if (col >= 0)
-            m_traceTab->traceView()->setColumnHidden(col, !cb->isChecked());
-    }
-}
-
-// ============================================================
 //  统计 & 状态
 // ============================================================
 
 void MainWindow::updateStatistics()
 {
     int total = m_traceModel->frameCount();
-    int rx = 0, tx = 0, fd = 0, ext = 0;
-    for (const auto &f : m_traceModel->frames()) {
-        if (f.direction == CanFrame::Rx) rx++; else tx++;
-        if (f.fd) fd++;
-        if (f.extended) ext++;
-    }
-    m_rightPanel->updateStatistics(total, rx, tx, fd, ext, 0.0);
     m_frameCountLabel->setText(QString::number(total) + " 帧");
+    m_rowCountLabel->setText(QString::number(total) + "行");
+    m_filterLabel->setText(QString("过滤%1/%2").arg(total).arg(total));
 }
 
 void MainWindow::updateActions()
@@ -820,13 +953,11 @@ void MainWindow::updateActions()
     m_pauseAction->setEnabled(playing);
     m_stopAction->setEnabled(hasFile);
     m_recordAction->setChecked(m_recording);
-
-    // 更新侧边栏回放按钮状态
-    m_sideBar->traceConfigPanel()->setPlayerLoaded(hasFile, playing);
+    m_playbackTab->setPlayerLoaded(hasFile, playing);
 }
 
 // ============================================================
-//  视图菜单 — Dock 开关
+//  视图菜单
 // ============================================================
 
 void MainWindow::toggleLeftDock()
@@ -844,13 +975,6 @@ void MainWindow::toggleBottomDock()
     m_bottomDock->setVisible(!m_bottomDock->isVisible());
 }
 
-void MainWindow::onTabContextMenu(int index, const QPoint &pos)
-{
-    Q_UNUSED(index);
-    Q_UNUSED(pos);
-    // SplitEditorArea 已内置右键菜单，此处留空
-}
-
 void MainWindow::resetLayout()
 {
     m_leftDock->setVisible(true);
@@ -862,7 +986,178 @@ void MainWindow::resetLayout()
 }
 
 // ============================================================
-//  事件过滤器 — 菜单栏拖拽窗口 + 双击最大化
+//  帮助菜单对话框
+// ============================================================
+
+void MainWindow::showAboutDialog()
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle("关于 sin");
+    dlg.setFixedWidth(380);
+    auto *layout = new QVBoxLayout(&dlg);
+
+    auto *title = new QLabel("<b style='font-size:24px;color:#4a90d9'>sin</b>", &dlg);
+    auto *desc = new QLabel("CAN/CAN FD 报文分析工具", &dlg);
+    auto *ver = new QLabel("版本: 1.0.0", &dlg);
+    auto *author = new QLabel("作者: 蔡可杰 (Jake.cai)", &dlg);
+    auto *github = new QLabel("GitHub: <a href='https://github.com/JakeCai/sin'>https://github.com/JakeCai/sin</a>", &dlg);
+    github->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    github->setOpenExternalLinks(true);
+    auto *email = new QLabel("邮箱: 929168503@qq.com", &dlg);
+    auto *wechat = new QLabel("微信: 13368295840", &dlg);
+    auto *biz = new QLabel("商业合作: 929168503@qq.com / 微信 13368295840", &dlg);
+    biz->setStyleSheet("font-size: 11px; color: gray;");
+    auto *copyright = new QLabel("基于 Qt6 构建 © 2026", &dlg);
+    copyright->setStyleSheet("font-size: 11px; color: gray;");
+
+    for (auto *l : {title, desc, ver, author, github, email, wechat, biz, copyright}) {
+        layout->addWidget(l);
+    }
+    layout->addStretch();
+
+    auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok, &dlg);
+    connect(btns, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    layout->addWidget(btns);
+
+    dlg.exec();
+}
+
+void MainWindow::showLicenseDialog()
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle("许可证");
+    dlg.resize(500, 400);
+    auto *layout = new QVBoxLayout(&dlg);
+
+    auto *browser = new QTextBrowser(&dlg);
+    browser->setPlainText(
+        "MIT License\n\n"
+        "Copyright (c) 2026 蔡可杰 (Jake.cai)\n\n"
+        "Permission is hereby granted, free of charge, to any person obtaining a copy "
+        "of this software and associated documentation files (the \"Software\"), to deal "
+        "in the Software without restriction, including without limitation the rights "
+        "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell "
+        "copies of the Software, and to permit persons to whom the Software is "
+        "furnished to do so, subject to the following conditions:\n\n"
+        "The above copyright notice and this permission notice shall be included in all "
+        "copies or substantial portions of the Software.\n\n"
+        "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR "
+        "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, "
+        "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE "
+        "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER "
+        "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, "
+        "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE "
+        "SOFTWARE.");
+    layout->addWidget(browser);
+
+    auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok, &dlg);
+    connect(btns, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    layout->addWidget(btns);
+
+    dlg.exec();
+}
+
+void MainWindow::showReleaseNotes()
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle("发版记录");
+    dlg.resize(500, 400);
+    auto *layout = new QVBoxLayout(&dlg);
+
+    auto *browser = new QTextBrowser(&dlg);
+    browser->setPlainText(
+        "v1.0.0 (2026-07-27)\n"
+        "  首个正式版本\n"
+        "  - CAN/CAN FD 报文实时采集与离线回放\n"
+        "  - DBC 文件加载与信号级解析\n"
+        "  - Wireshark 风格三栏 Trace 视图\n"
+        "  - 多 Graphic 信号波形图（多纵轴）\n"
+        "  - VS Code 风格可拆分标签页布局\n"
+        "  - AI 对话助手集成\n\n"
+        "v0.9.0 (2026-07-20)\n"
+        "  Beta 预览版\n"
+        "  - 无边框窗口 + 菜单栏拖拽\n"
+        "  - ActivityBar + SideBar 多面板\n"
+        "  - 基础报文录制与回放\n");
+    layout->addWidget(browser);
+
+    auto *btns = new QDialogButtonBox(QDialogButtonBox::Close, &dlg);
+    connect(btns, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    layout->addWidget(btns);
+
+    dlg.exec();
+}
+
+void MainWindow::showShortcuts()
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle("快捷键");
+    dlg.resize(400, 350);
+    auto *layout = new QVBoxLayout(&dlg);
+
+    auto *browser = new QTextBrowser(&dlg);
+    browser->setPlainText(
+        "播放 / 暂停      Space\n"
+        "停止             Ctrl+S\n"
+        "录制             Ctrl+R\n"
+        "打开文件         Ctrl+O\n"
+        "打开工程         Ctrl+Shift+O\n"
+        "清空 Trace       Ctrl+L\n"
+        "切换左侧栏       Ctrl+B\n"
+        "切换底部栏       Ctrl+J\n"
+        "向右拆分         Ctrl+\\\n"
+        "关闭拆分组       Ctrl+W\n");
+    browser->setStyleSheet("font-family: Consolas, monospace; font-size: 12px;");
+    layout->addWidget(browser);
+
+    auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok, &dlg);
+    connect(btns, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    layout->addWidget(btns);
+
+    dlg.exec();
+}
+
+void MainWindow::showCheckUpdate()
+{
+    QMessageBox::information(this, "检查更新",
+        "当前版本: 1.0.0\n"
+        "最新版本: 1.0.0 (已是最新)\n\n"
+        "如有更新，请前往 GitHub Releases 页面下载最新版本。");
+}
+
+void MainWindow::showBusinessCoop()
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle("商业合作");
+    dlg.setFixedWidth(380);
+    auto *layout = new QVBoxLayout(&dlg);
+
+    auto *title = new QLabel("<b style='color:#4a90d9'>如需商业授权、定制开发、技术支持或业务合作</b>", &dlg);
+    title->setWordWrap(true);
+    auto *author = new QLabel("作者: 蔡可杰 (Jake.cai)", &dlg);
+    auto *email = new QLabel("邮箱: 929168503@qq.com", &dlg);
+    auto *wechat = new QLabel("微信: 13368295840", &dlg);
+    auto *github = new QLabel("GitHub: <a href='https://github.com/JakeCai/sin'>https://github.com/JakeCai/sin</a>", &dlg);
+    github->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    github->setOpenExternalLinks(true);
+    auto *note = new QLabel("本项目基于 MIT License 开源，商业使用请联系作者获取授权。", &dlg);
+    note->setStyleSheet("font-size: 11px; color: gray;");
+    note->setWordWrap(true);
+
+    for (auto *l : {title, author, email, wechat, github, note}) {
+        layout->addWidget(l);
+    }
+    layout->addStretch();
+
+    auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok, &dlg);
+    connect(btns, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    layout->addWidget(btns);
+
+    dlg.exec();
+}
+
+// ============================================================
+//  事件过滤器
 // ============================================================
 
 bool MainWindow::eventFilter(QObject *obj, QEvent *event)
@@ -871,10 +1166,8 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
         if (event->type() == QEvent::MouseButtonPress) {
             auto *me = static_cast<QMouseEvent *>(event);
             if (me->button() == Qt::LeftButton) {
-                // 检查是否点在菜单项上 — 如果不在菜单项上才拖拽
                 QAction *act = menuBar()->actionAt(me->pos());
                 if (!act) {
-                    // 调用系统级移动 — 保留 Aero Snap
                     if (windowHandle())
                         windowHandle()->startSystemMove();
                 }
@@ -895,7 +1188,7 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
 }
 
 // ============================================================
-//  Windows 原生事件 — 无边框窗口调整大小 + Aero Snap
+//  Windows 原生事件
 // ============================================================
 
 #ifdef Q_OS_WIN

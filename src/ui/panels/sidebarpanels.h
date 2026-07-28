@@ -11,39 +11,12 @@ class QTreeWidgetItem;
 class QListWidget;
 class QListWidgetItem;
 class QComboBox;
-class QSpinBox;
 class QCheckBox;
 class QLabel;
 class QPushButton;
-class QSlider;
 class DbcManager;
 class GraphicView;
 class CanSimulator;
-
-// ============================================================
-//  CollapsibleSection — 可折叠的分组容器
-// ============================================================
-class CollapsibleSection : public QWidget
-{
-    Q_OBJECT
-public:
-    explicit CollapsibleSection(const QString &title, QWidget *parent = nullptr);
-
-    void setContent(QWidget *widget);
-    void setExpanded(bool expanded);
-    bool isExpanded() const { return m_expanded; }
-
-private slots:
-    void onToggle();
-
-protected:
-    bool eventFilter(QObject *obj, QEvent *event) override;
-
-private:
-    QLabel *m_toggleBtn;
-    QWidget *m_content;
-    bool m_expanded = true;
-};
 
 // ============================================================
 //  基类 — 所有侧边面板共用的标题栏样式
@@ -74,7 +47,7 @@ struct ProjectContext
 };
 
 // ============================================================
-//  工程面板 — 项目上下文管理器
+//  工程面板 — 项目列表入口
 // ============================================================
 class ProjectPanel : public SidePanel
 {
@@ -88,14 +61,12 @@ public:
 signals:
     void projectSwitched(int index);
     void projectCreated(const QString &name);
-    void fileOpenRequested(const QString &filePath);
 
 private slots:
     void onNewProject();
     void onSaveProject();
     void onDeleteProject();
     void onProjectSelected(int row);
-    void onItemDoubleClicked(QListWidgetItem *item);
 
 private:
     QListWidget *m_projectList;
@@ -105,7 +76,7 @@ private:
 };
 
 // ============================================================
-//  DBC 面板 — DBC 文件 + 信号树
+//  DBC 面板 — DBC 文件列表 + 信号树
 // ============================================================
 class DbcPanel : public SidePanel
 {
@@ -117,10 +88,12 @@ public:
 
 signals:
     void signalDoubleClicked(quint32 canId, const QString &signalName);
+    void dbcFileClicked(const QString &fileName);
 
 private slots:
     void onImportDbc();
     void onItemDoubleClicked(QTreeWidgetItem *item, int column);
+    void onItemClicked(QTreeWidgetItem *item, int column);
 
 private:
     QTreeWidget *m_tree;
@@ -129,36 +102,23 @@ private:
 };
 
 // ============================================================
-//  Trace 配置面板（含回放控制折叠区）
+//  Trace 面板 — 仅入口
 // ============================================================
-class TraceConfigPanel : public SidePanel
+class TracePanel : public SidePanel
 {
     Q_OBJECT
 public:
-    explicit TraceConfigPanel(QWidget *parent = nullptr);
-
-    void setPlayerLoaded(bool loaded, bool playing);
+    explicit TracePanel(QWidget *parent = nullptr);
 
 signals:
-    void columnsChanged();
-    void filterPresetApplied(const QString &filter);
-    void autoScrollChanged(bool enabled);
-    void playRequested();
-    void pauseRequested();
-    void stopRequested();
-    void speedChanged(double speed);
-    void seekChanged(double ratio);   // 0.0 ~ 1.0
+    void openTraceRequested();
 
-private:
-    QCheckBox *m_chkTime, *m_chkCh, *m_chkDir, *m_chkId, *m_chkDlc, *m_chkData, *m_chkFlags;
-    QListWidget *m_presets;
-    QPushButton *m_playBtn, *m_pauseBtn, *m_stopBtn;
-    QSlider *m_seekSlider;
-    QComboBox *m_speedCombo;
+private slots:
+    void onTraceClicked();
 };
 
 // ============================================================
-//  Graphic 配置面板
+//  Graphic 配置面板 — Graphic 页面列表
 // ============================================================
 class GraphicConfigPanel : public SidePanel
 {
@@ -168,19 +128,22 @@ public:
 
     void setGraphicView(GraphicView *view);
 
+signals:
+    void graphicPageSelected(int index);
+    void newGraphicRequested();
+
 private slots:
-    void onAddSignal();
-    void onRemoveSignal();
-    void onClearSignals();
+    void onNewGraphic();
+    void onPageSelected(int row);
 
 private:
+    QListWidget *m_pageList;
     GraphicView *m_graphicView = nullptr;
-    QListWidget *m_signalList;
     void refreshList();
 };
 
 // ============================================================
-//  设备连接面板（含录制控制折叠区）
+//  设备面板 — 仅设备连接
 // ============================================================
 class DevicePanel : public SidePanel
 {
@@ -189,38 +152,80 @@ public:
     explicit DevicePanel(QWidget *parent = nullptr);
 
     void setSimulator(CanSimulator *sim);
-    void setRecording(bool recording);
 
 signals:
     void deviceConnectRequested(const QString &device, int baudrate);
     void deviceDisconnectRequested();
-    void recordToggled(bool on);
-    void clearRequested();
-    void autoScrollToggled(bool on);
 
 private slots:
     void onConnect();
     void onDisconnect();
-    void onRecord();
-    void onClear();
-    void onAutoScroll(int state);
 
 private:
     QComboBox *m_deviceCombo;
     QComboBox *m_baudCombo;
     QComboBox *m_channelCombo;
+    QComboBox *m_fdCombo;
     QPushButton *m_connectBtn;
     QPushButton *m_disconnectBtn;
     QLabel *m_statusLabel;
     CanSimulator *m_simulator = nullptr;
+};
 
-    // 录制控制
-    QPushButton *m_recordBtn;
-    QCheckBox *m_autoScrollChk;
+// ============================================================
+//  回放面板 — 仅入口
+// ============================================================
+class PlaybackPanel : public SidePanel
+{
+    Q_OBJECT
+public:
+    explicit PlaybackPanel(QWidget *parent = nullptr);
+
+signals:
+    void openPlaybackRequested();
+
+private slots:
+    void onPlaybackClicked();
+};
+
+// ============================================================
+//  录制面板 — 仅入口
+// ============================================================
+class RecordPanel : public SidePanel
+{
+    Q_OBJECT
+public:
+    explicit RecordPanel(QWidget *parent = nullptr);
+
+signals:
+    void openRecordRequested();
+
+private slots:
+    void onRecordClicked();
+};
+
+// ============================================================
+//  配置面板 — 设置入口
+// ============================================================
+class SettingsPanel : public SidePanel
+{
+    Q_OBJECT
+public:
+    explicit SettingsPanel(QWidget *parent = nullptr);
+
+signals:
+    void settingsRequested(const QString &section);
+
+private slots:
+    void onItemClicked(QListWidgetItem *item);
+
+private:
+    QListWidget *m_list;
 };
 
 // ============================================================
 //  SideBar — 侧边栏容器（QStackedWidget 切换面板）
+//  索引必须与 ActivityBar::Activity 枚举一致
 // ============================================================
 class SideBar : public QStackedWidget
 {
@@ -229,20 +234,26 @@ public:
     explicit SideBar(QWidget *parent = nullptr);
 
     ProjectPanel *projectPanel() const { return m_project; }
-    DbcPanel *dbcPanel() const { return m_dbc; }
-    TraceConfigPanel *traceConfigPanel() const { return m_traceConfig; }
+    TracePanel *tracePanel() const { return m_trace; }
     GraphicConfigPanel *graphicConfigPanel() const { return m_graphicConfig; }
+    DbcPanel *dbcPanel() const { return m_dbc; }
+    PlaybackPanel *playbackPanel() const { return m_playback; }
+    RecordPanel *recordPanel() const { return m_record; }
     DevicePanel *devicePanel() const { return m_device; }
+    SettingsPanel *settingsPanel() const { return m_settings; }
 
     void showPanel(int index);
     void togglePanel(int index);
 
 private:
     ProjectPanel *m_project;
-    DbcPanel *m_dbc;
-    TraceConfigPanel *m_traceConfig;
+    TracePanel *m_trace;
     GraphicConfigPanel *m_graphicConfig;
+    DbcPanel *m_dbc;
+    PlaybackPanel *m_playback;
+    RecordPanel *m_record;
     DevicePanel *m_device;
+    SettingsPanel *m_settings;
     int m_lastIndex = 0;
 };
 

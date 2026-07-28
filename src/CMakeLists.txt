@@ -52,6 +52,12 @@ set(SRC_UI
     ui/panels/sidebarpanels.cpp
     ui/spliteditorarea.h
     ui/spliteditorarea.cpp
+    ui/playbacktab.h
+    ui/playbacktab.cpp
+    ui/recordtab.h
+    ui/recordtab.cpp
+    ui/dbcdetailtab.h
+    ui/dbcdetailtab.cpp
 )
 
 # ============================================================

@@ -14,6 +14,9 @@ class FilterBar;
 class FrameInfoWidget;
 class SignalDecodeWidget;
 class SplitEditorArea;
+class PlaybackTab;
+class RecordTab;
+class DbcDetailTab;
 class Recorder;
 class Player;
 class CanSimulator;
@@ -68,7 +71,6 @@ private slots:
     // 过滤
     void onFilterApplied(const QString &filter);
     void onFilterCleared();
-    void onFilterPresetApplied(const QString &filter);
 
     // Trace 选择
     void onTraceSelectionChanged();
@@ -81,17 +83,26 @@ private slots:
     void onSpeedChanged(double speed);
     void onSeekChanged(double ratio);
 
-    // DBC 信号双击
+    // DBC
     void onSignalDoubleClicked(quint32 canId, const QString &signalName);
+    void onDbcFileClicked(const QString &fileName);
 
-    // 工程切换
-    void onProjectSwitched(int index);
+    // 侧边栏入口
+    void onOpenTraceTab();
+    void onOpenPlaybackTab();
+    void onOpenRecordTab();
+    void onNewGraphicRequested();
+    void onSettingsRequested(const QString &section);
+
+    // 右侧面板快捷按钮
+    void onQuickRecord();
+    void onQuickStopRecord();
+    void onQuickConnect();
+    void onQuickDisconnect();
+    void onAiMessageSent(const QString &text);
 
     // 命令行
     void onCommandEntered(const QString &cmd);
-
-    // Trace 配置变更
-    void onColumnsChanged();
 
     // 视图菜单
     void toggleLeftDock();
@@ -99,8 +110,13 @@ private slots:
     void toggleBottomDock();
     void resetLayout();
 
-    // 标签页拆分
-    void onTabContextMenu(int index, const QPoint &pos);
+    // 帮助菜单对话框
+    void showAboutDialog();
+    void showLicenseDialog();
+    void showReleaseNotes();
+    void showShortcuts();
+    void showCheckUpdate();
+    void showBusinessCoop();
 
 private:
     void createMenuBar();
@@ -110,7 +126,7 @@ private:
     void updateActions();
     void updateStatistics();
     void processCommand(const QString &cmd);
-    void applyColumnVisibility();
+    void openTab(QWidget *widget, const QString &label);
 
     // ---- 布局 ----
     ActivityBar *m_activityBar = nullptr;
@@ -130,6 +146,8 @@ private:
     // ---- UI (Main tabs) ----
     TraceTab *m_traceTab = nullptr;
     GraphicView *m_graphicView = nullptr;
+    PlaybackTab *m_playbackTab = nullptr;
+    RecordTab *m_recordTab = nullptr;
 
     // ---- 核心引擎 ----
     Recorder *m_recorder = nullptr;
@@ -148,6 +166,12 @@ private:
 
     // ---- 状态栏 ----
     QLabel *m_statusLabel = nullptr;
+    QLabel *m_connLabel = nullptr;
+    QLabel *m_errorLabel = nullptr;
+    QLabel *m_tabLabel = nullptr;
+    QLabel *m_rowCountLabel = nullptr;
+    QLabel *m_selectedLabel = nullptr;
+    QLabel *m_filterLabel = nullptr;
     QLabel *m_frameCountLabel = nullptr;
     QLabel *m_timeLabel = nullptr;
 

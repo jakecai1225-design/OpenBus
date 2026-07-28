@@ -3,14 +3,13 @@
 
 #include <QTabWidget>
 
-class QTableWidget;
 class QPlainTextEdit;
+class QLineEdit;
+class QPushButton;
 class QLabel;
 
 /**
- * @brief 右侧辅助面板
- *
- * 标签页：Properties（属性）/ Statistics（统计）/ Bookmarks（书签）
+ * @brief 右侧面板 — AI 对话 + 快捷按钮
  */
 class RightPanel : public QTabWidget
 {
@@ -20,23 +19,35 @@ public:
     explicit RightPanel(QWidget *parent = nullptr);
 
 public slots:
-    /// 设置选中帧的属性
-    void setFrameProperties(const QString &time, const QString &channel,
-                            const QString &direction, const QString &id,
-                            const QString &dlc, const QString &data,
-                            const QString &flags);
+    void appendAiMessage(const QString &role, const QString &text);
 
-    /// 更新统计信息
-    void updateStatistics(int totalFrames, int rxCount, int txCount,
-                          int canFdCount, int extCount, double busLoad);
-
-    /// 清除所有
-    void clearAll();
+signals:
+    void aiMessageSent(const QString &text);
+    void recordRequested();
+    void stopRecordRequested();
+    void playRequested();
+    void pauseRequested();
+    void stopRequested();
+    void clearTraceRequested();
+    void autoScrollToggled(bool on);
+    void connectRequested();
+    void disconnectRequested();
 
 private:
-    QTableWidget *m_propTable;
-    QTableWidget *m_statTable;
-    QPlainTextEdit *m_bookmarks;
+    // AI 对话
+    QPlainTextEdit *m_chatMessages;
+    QLineEdit *m_chatInput;
+
+    // 快捷按钮
+    QPushButton *m_recordBtn;
+    QPushButton *m_stopRecBtn;
+    QPushButton *m_playBtn;
+    QPushButton *m_pauseBtn;
+    QPushButton *m_stopBtn;
+    QPushButton *m_clearTraceBtn;
+    QPushButton *m_autoScrollBtn;
+    QPushButton *m_connectBtn;
+    QPushButton *m_disconnectBtn;
 };
 
 #endif // RIGHTPANEL_H

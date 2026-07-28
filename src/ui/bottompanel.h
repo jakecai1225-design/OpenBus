@@ -9,9 +9,9 @@ class QLineEdit;
 class QLabel;
 
 /**
- * @brief VS Code 风格底部面板
+ * @brief 底部面板 — 终端 / 输出 / 问题
  *
- * 标签页：Problems（错误列表）/ Terminal（终端）/ Output（日志）/ Command（命令行）
+ * 终端标签页集成命令行输入，支持 help/clear/sim/record/play/filter 等命令
  */
 class BottomPanel : public QTabWidget
 {
@@ -21,10 +21,9 @@ public:
     explicit BottomPanel(QWidget *parent = nullptr);
 
     enum TabIndex {
-        TabProblems = 0,
-        TabTerminal = 1,
-        TabOutput = 2,
-        TabCommand = 3
+        TabTerminal = 0,
+        TabOutput = 1,
+        TabProblems = 2
     };
 
 public slots:
@@ -40,11 +39,10 @@ private slots:
     void onCommandReturnPressed();
 
 private:
-    QTableWidget *m_problemsTable;
     QPlainTextEdit *m_terminal;
     QPlainTextEdit *m_output;
+    QTableWidget *m_problemsTable;
     QLineEdit *m_cmdInput;
-    QPlainTextEdit *m_cmdOutput;
     QLabel *m_problemCount;
 };
 

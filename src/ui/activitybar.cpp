@@ -15,26 +15,32 @@ ActivityBar::ActivityBar(QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    // 顶部按钮
-    m_buttons.append({createButton("📁", "工程管理", Project), Project, "工程管理", "工程管理"});
+    // 顶部按钮 — 按设计顺序: 工程 / Trace / Graphic / DBC / 回放 / 录制 / 设备
+    m_buttons.append({createButton("\xF0\x9F\x93\x81", "工程管理", Project), Project, "工程管理", "工程管理"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("📐", "DBC 数据库", Dbc), Dbc, "DBC 数据库", "DBC 数据库"});
+    m_buttons.append({createButton("\xF0\x9F\x93\x8B", "Trace", Trace), Trace, "Trace", "Trace"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("📋", "Trace 配置", Trace), Trace, "Trace 配置", "Trace 配置"});
+    m_buttons.append({createButton("\xF0\x9F\x93\x88", "Graphic", Graphic), Graphic, "Graphic", "Graphic"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("📈", "Graphic 配置", Graphic), Graphic, "Graphic 配置", "Graphic 配置"});
+    m_buttons.append({createButton("\xF0\x9F\x93\x84", "DBC", Dbc), Dbc, "DBC", "DBC 数据库"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("🔌", "设备连接", Device), Device, "设备连接", "设备连接"});
+    m_buttons.append({createButton("\xE2\x96\xB6", "回放", Playback), Playback, "回放", "回放控制"});
+    layout->addWidget(m_buttons.last().btn);
+
+    m_buttons.append({createButton("\xE2\x97\x8F", "录制", Record), Record, "录制", "录制控制"});
+    layout->addWidget(m_buttons.last().btn);
+
+    m_buttons.append({createButton("\xF0\x9F\x94\xA7", "设备", Device), Device, "设备", "设备连接"});
     layout->addWidget(m_buttons.last().btn);
 
     layout->addStretch();
 
     // 底部按钮
-    auto *settingsBtn = createButton("⚙", "设置", Settings, true);
+    auto *settingsBtn = createButton("\xE2\x9A\x99", "配置", Settings, true);
     layout->addWidget(settingsBtn);
 
     // 默认选中工程
