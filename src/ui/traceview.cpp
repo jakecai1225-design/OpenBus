@@ -418,31 +418,35 @@ void SignalDecodeWidget::setFrame(const CanFrame &frame)
         return;
     }
 
-    const DbcMessage *msg = m_dbcMgr->findMessage(frame.id);
-    if (!msg) {
+    // 使用批量解码 API（O(1) 哈希查找 + 批量解码）
+    auto decoded = m_dbcMgr->decodeFrame(frame.id, frame.data);
+    if (decoded.isEmpty()) {
         m_edit->setPlainText(QString("ID %1 未在 DBC 中定义")
             .arg(CanUtils::formatId(frame.id, frame.extended)));
         return;
     }
 
-    // 报文名称
+    // 报文名称（从索引查找）
+    const DbcMessage *msg = m_dbcMgr->findMessage(frame.id);
     QString text = QString("%1  (0x%2)\n")
-        .arg(msg->name)
-        .arg(msg->id, 0, 16).toUpper();
+        .arg(msg ? msg->name : "?")
+        .arg(frame.id, 0, 16).toUpper();
     text += "-----------------------------------\n\n";
 
-    // 逐信号解码 — 名称对齐 + 值 + 单位
+    // 计算信号名最大宽度
     int maxName = 0;
-    for (const auto &sig : msg->signalList)
-        maxName = qMax(maxName, sig.name.length());
+    for (const auto &ds : decoded)
+        maxName = qMax(maxName, ds.name.length());
     maxName = qMin(maxName + 2, 24);
 
-    for (const auto &sig : msg->signalList) {
-        double val = sig.decode(frame.data);
-        QString valStr = QString::number(val, 'f', 3);
-        if (!sig.unit.isEmpty())
-            valStr += " " + sig.unit;
-        text += QString("%1  %2\n").arg(sig.name, -maxName).arg(valStr);
+    for (const auto &ds : decoded) {
+        QString valStr = QString::number(ds.physValue, 'f', 3);
+        if (!ds.unit.isEmpty())
+            valStr += " " + ds.unit;
+        // 值表描述（如有）
+        if (!ds.valueDesc.isEmpty())
+            valStr += QString("  [%1]").arg(ds.valueDesc);
+        text += QString("%1  %2\n").arg(ds.name, -maxName).arg(valStr);
     }
 
     m_edit->setPlainText(text);

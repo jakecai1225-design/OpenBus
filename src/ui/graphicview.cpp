@@ -127,9 +127,13 @@ void GraphicView::setupUi()
             sig.name = dlg.signalName();
             sig.canId = dlg.canId();
             sig.extended = dlg.isExtended();
-            sig.byteOffset = dlg.byteOffset();
-            sig.bitLength = dlg.bitLength();
-            sig.bigEndian = dlg.isBigEndian();
+            // 构造 DbcSignal 定义
+            sig.dbcSig.name = sig.name;
+            sig.dbcSig.startBit = dlg.byteOffset() * 8;
+            sig.dbcSig.bitLength = dlg.bitLength();
+            sig.dbcSig.littleEndian = !dlg.isBigEndian();
+            sig.dbcSig.factor = 1.0;
+            sig.dbcSig.offset = 0.0;
             addSignal(sig);
         }
     });
@@ -190,11 +194,13 @@ void GraphicView::addSignal(const Signal &sig)
 
     // Create Y axis (alternating left/right)
     sd.yAxis = new QValueAxis();
-    sd.yAxis->setLabelFormat("%.0f");
+    sd.yAxis->setLabelFormat("%.3g");
     sd.yAxis->setTitleText(sig.name);
-    // Default range based on bit length
-    double yMax = (sig.bitLength >= 32) ? 0xFFFFFFFF : static_cast<double>((1ULL << sig.bitLength) - 1);
-    sd.yAxis->setRange(0, yMax);
+    // Default range based on DBC signal min/max
+    double yMin = sig.dbcSig.minimum;
+    double yMax = sig.dbcSig.maximum;
+    if (yMax <= yMin) yMax = yMin + 1.0;
+    sd.yAxis->setRange(yMin, yMax);
 
     Qt::Alignment align = (m_signals.size() % 2 == 0) ? Qt::AlignLeft : Qt::AlignRight;
     m_chart->addAxis(sd.yAxis, align);
@@ -301,23 +307,8 @@ void GraphicView::onFrame(const CanFrame &frame)
 
 double GraphicView::extractValue(const CanFrame &frame, const Signal &sig) const
 {
-    int needed = sig.bitLength / 8;
-    if (sig.byteOffset + needed > frame.data.size())
-        return std::numeric_limits<double>::quiet_NaN();
-
-    const auto *p = reinterpret_cast<const unsigned char *>(frame.data.constData()) + sig.byteOffset;
-
-    if (sig.bigEndian) {
-        quint64 val = 0;
-        for (int i = 0; i < needed; ++i)
-            val = (val << 8) | p[i];
-        return static_cast<double>(val);
-    } else {
-        quint64 val = 0;
-        for (int i = 0; i < needed; ++i)
-            val |= static_cast<quint64>(p[i]) << (8 * i);
-        return static_cast<double>(val);
-    }
+    // 使用 DBC 信号定义进行精确解码（支持任意位起始/长度/factor/offset/signed/float）
+    return sig.dbcSig.decode(frame.data);
 }
 
 void GraphicView::updateSignalList()

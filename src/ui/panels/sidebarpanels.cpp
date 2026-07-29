@@ -179,8 +179,9 @@ DbcPanel::DbcPanel(QWidget *parent)
 {
     m_tree = new QTreeWidget(this);
     m_tree->setHeaderHidden(true);
-    m_tree->setIndentation(16);
+    m_tree->setIndentation(0);          // 扁平列表，无缩进
     m_tree->setColumnCount(1);
+    m_tree->setRootIsDecorated(false);  // 不显示展开箭头
 
     auto *cl = contentLayout();
     cl->addWidget(m_tree);
@@ -193,8 +194,6 @@ DbcPanel::DbcPanel(QWidget *parent)
     cl->addLayout(btnBar);
 
     connect(importBtn, &QPushButton::clicked, this, &DbcPanel::onImportDbc);
-    connect(m_tree, &QTreeWidget::itemDoubleClicked,
-            this, &DbcPanel::onItemDoubleClicked);
     connect(m_tree, &QTreeWidget::itemClicked,
             this, &DbcPanel::onItemClicked);
 
@@ -228,42 +227,23 @@ void DbcPanel::refreshTree()
     m_tree->clear();
     if (!m_dbcMgr) return;
 
+    // 仅显示 DBC 文件名，不展开内部结构
     for (const auto &file : m_dbcMgr->files()) {
         auto *fileItem = new QTreeWidgetItem(m_tree, {file.fileName});
         fileItem->setIcon(0, style()->standardIcon(QStyle::SP_FileDialogListView));
+    }
 
-        for (const auto &msg : file.messages) {
-            QString msgText = QString("Msg_0x%1 (%2)")
-                .arg(msg.id, 0, 16).toUpper()
-                .arg(msg.name);
-            auto *msgItem = new QTreeWidgetItem(fileItem, {msgText});
-            msgItem->setIcon(0, style()->standardIcon(QStyle::SP_ArrowRight));
-            msgItem->setData(0, Qt::UserRole, msg.id);
-
-            for (const auto &sig : msg.signalList) {
-                auto *sigItem = new QTreeWidgetItem(msgItem, {sig.name});
-                sigItem->setData(0, Qt::UserRole + 0, msg.id);
-                sigItem->setData(0, Qt::UserRole + 1, sig.name);
-            }
-        }
+    if (m_tree->topLevelItemCount() == 0) {
+        auto *hint = new QTreeWidgetItem(m_tree, {"（点击加载 DBC 文件）"});
+        hint->setFlags(Qt::NoItemFlags);
     }
 }
 
 void DbcPanel::onItemClicked(QTreeWidgetItem *item, int)
 {
-    // 点击文件级节点 → 发出 dbcFileClicked 信号
-    if (item && !item->parent()) {
+    // 点击文件项 → 发出 dbcFileClicked 信号，在右侧标签页展开
+    if (item && (item->flags() != Qt::NoItemFlags))
         emit dbcFileClicked(item->text(0));
-    }
-}
-
-void DbcPanel::onItemDoubleClicked(QTreeWidgetItem *item, int)
-{
-    QString sigName = item->data(0, Qt::UserRole + 1).toString();
-    if (!sigName.isEmpty()) {
-        quint32 canId = item->data(0, Qt::UserRole + 0).toUInt();
-        emit signalDoubleClicked(canId, sigName);
-    }
 }
 
 // ============================================================

@@ -76,7 +76,7 @@ private:
 };
 
 // ============================================================
-//  DBC 面板 — DBC 文件列表 + 信号树
+// DBC 面板 — DBC 文件列表（点击在右侧标签页展开详情）
 // ============================================================
 class DbcPanel : public SidePanel
 {
@@ -87,12 +87,10 @@ public:
     void setDbcManager(DbcManager *mgr);
 
 signals:
-    void signalDoubleClicked(quint32 canId, const QString &signalName);
     void dbcFileClicked(const QString &fileName);
 
 private slots:
     void onImportDbc();
-    void onItemDoubleClicked(QTreeWidgetItem *item, int column);
     void onItemClicked(QTreeWidgetItem *item, int column);
 
 private:

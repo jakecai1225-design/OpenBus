@@ -34,16 +34,20 @@
 - [src/ui/playbacktab.cpp](file://src/ui/playbacktab.cpp)
 - [src/ui/recordtab.h](file://src/ui/recordtab.h)
 - [src/ui/recordtab.cpp](file://src/ui/recordtab.cpp)
+- [UI/ui-prototype.html](file://UI/ui-prototype.html)
+- [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
+- [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
+- [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- 基于Applied Changes更新：UI界面进行了78行新增和79行删除的改进，主要涉及UI组件的优化和重构
-- 更新了主窗口布局管理器的实现，改进了响应式布局性能
-- 优化了QSS样式系统的加载机制，减少了样式切换时的重绘开销
-- 增强了Tab组件的状态管理机制，提高了标签页切换的流畅性
-- 改进了资源文件的组织结构，优化了Qt资源系统的访问效率
-- 更新了UI组件的信号槽连接方式，提升了事件处理的性能
+- 基于Applied Changes更新：UI架构已从单体单文件结构完全重构为模块化组件系统，采用分离的HTML部分文件、JavaScript模块和CSS组织方式
+- 新增了Web前端原型系统，包含主界面HTML、加载器模块、核心逻辑模块和样式文件
+- 实现了组件化的HTML模板系统，支持动态内容加载和模块化开发
+- 建立了独立的JavaScript模块架构，实现功能解耦和代码复用
+- 优化了CSS样式管理，提供统一的样式规范和主题支持
+- 增强了响应式设计能力，支持多设备适配和动态布局调整
 
 ## 目录
 1. [简介](#简介)
@@ -60,13 +64,14 @@
 12. [附录](#附录)
 
 ## 简介
-本文件面向基于Qt Widgets的UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
+本文件面向基于Qt Widgets和现代Web技术的混合UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
 
-**更新** 本文档现已重点说明Qt Designer XML布局系统与手写C++代码的混合架构模式，强调可视化设计与代码实现的分离与协作，并新增了多个专业UI组件的详细架构说明，包括活动栏、底部面板、右侧面板和分割编辑器区域等核心组件。**特别重要的是，新增了三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页），为CAN总线数据分析提供了完整的解决方案。**基于最新的UI原型文件重构，进一步增强了组件间的交互模式和响应式设计能力。
+**更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，新的UI架构支持动态组件加载、模块化开发和响应式设计，为复杂的企业级应用提供了现代化的用户界面解决方案。**
 
 ## 项目结构
-本项目采用分层与按功能划分的组织方式：
-- src: 源代码目录，包含应用入口、主窗口实现与UI描述文件
+本项目采用分层与按功能划分的组织方式，结合了传统Qt Widgets架构和现代Web前端技术：
+- src: Qt C++源代码目录，包含应用入口、主窗口实现与UI描述文件
+- UI: Web前端原型目录，包含HTML模板、JavaScript模块和CSS样式
 - resources: 静态资源目录，包含QSS样式与Qt资源清单
 - CMakeLists.txt: 顶层构建配置，定义目标、链接库与资源集成
 
@@ -89,6 +94,13 @@ B --> O["src/ui/playbacktab.h/.cpp"]
 B --> P["src/ui/recordtab.h/.cpp"]
 A --> Q["resources/resources.qrc"]
 Q --> R["resources/styles/default.qss"]
+A --> S["UI/ui-prototype.html"]
+S --> T["UI/js/ui-loader.js"]
+S --> U["UI/js/ui-prototype.js"]
+S --> V["UI/css/ui-prototype.css"]
+T --> W["UI/partials/*.html"]
+U --> X["UI/partials/*.html"]
+V --> Y["UI/partials/*.html"]
 ```
 
 图表来源
@@ -97,32 +109,10 @@ Q --> R["resources/styles/default.qss"]
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
-- [src/ui/activitybar.h](file://src/ui/activitybar.h)
-- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
-- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
-- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
-- [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
-- [src/ui/rightpanel.cpp](file://src/ui/rightpanel.cpp)
-- [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
-- [src/ui/spliteditorarea.cpp](file://src/ui/spliteditorarea.cpp)
-- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
-- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
-- [src/ui/filterbar.h](file://src/ui/filterbar.h)
-- [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
-- [src/ui/graphicview.h](file://src/ui/graphicview.h)
-- [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
-- [src/ui/traceview.h](file://src/ui/traceview.h)
-- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
-- [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
-- [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
-- [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
-- [src/ui/dbcdetailtab.cpp](file://src/ui/dbcdetailtab.cpp)
-- [src/ui/playbacktab.h](file://src/ui/playbacktab.h)
-- [src/ui/playbacktab.cpp](file://src/ui/playbacktab.cpp)
-- [src/ui/recordtab.h](file://src/ui/recordtab.h)
-- [src/ui/recordtab.cpp](file://src/ui/recordtab.cpp)
-- [resources/resources.qrc](file://resources/resources.qrc)
-- [resources/styles/default.qss](file://resources/styles/default.qss)
+- [UI/ui-prototype.html](file://UI/ui-prototype.html)
+- [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
+- [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
+- [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 
 章节来源
 - [CMakeLists.txt](file://CMakeLists.txt)
@@ -133,8 +123,11 @@ Q --> R["resources/styles/default.qss"]
 - 主窗口 MainWindow: 承载UI树、管理布局与交互逻辑、加载QSS与主题切换
 - QSS样式 default.qss: 集中式样式表，统一外观与主题基础
 - Qt资源 resources.qrc: 将样式与图标等资源打包进应用，便于分发与加载
+- Web前端原型 ui-prototype.html: 基于HTML的现代化界面原型，支持动态内容加载
+- JavaScript模块系统: 包含ui-loader.js和ui-prototype.js，实现模块化功能组织
+- CSS样式系统: 提供统一的样式规范和响应式设计支持
 
-**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成清晰的混合开发模式，并新增了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等核心UI组件。**特别重要的是，新增了三个专用Tab组件：DBC详情标签页用于CAN数据库文件的可视化编辑，播放控制标签页实现CAN总线数据的回放控制，录制标签页提供实时数据捕获功能。**这些组件通过信号槽机制实现松耦合通信，支持动态加载和响应式布局。
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并新增了基于Web技术的现代化UI原型系统。**特别重要的是，新的模块化架构支持HTML部分文件、JavaScript模块和CSS样式的分离管理，实现了真正的组件化开发和热重载能力。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -142,21 +135,32 @@ Q --> R["resources/styles/default.qss"]
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
+- [UI/ui-prototype.html](file://UI/ui-prototype.html)
+- [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
+- [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
+- [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 
 ## 架构总览
-整体采用"入口初始化 + 主窗口容器 + 样式/资源分离"的架构模式：
+整体采用"入口初始化 + 主窗口容器 + 样式/资源分离 + Web前端集成"的混合架构模式：
 - 入口负责生命周期与全局样式注入
 - 主窗口作为UI根节点，组织子控件与布局
 - 样式通过QSS集中管理，支持运行时切换
 - 资源通过qrc统一打包，避免路径问题
+- Web前端提供现代化界面原型和动态内容加载能力
 
-**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。**新增了三个专用Tab组件系统，通过统一的标签页管理器进行协调，实现了模块间的松耦合和高内聚。**各组件间通过信号槽机制进行通信，确保模块间的松耦合和高内聚。
+**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。**新增了三个专用Tab组件系统，通过统一的标签页管理器进行协调，实现了模块间的松耦合和高内聚。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
 
 ```mermaid
 graph TB
 subgraph "应用层"
 M["main.cpp<br/>应用入口"]
 MW["MainWindow<br/>主窗口"]
+end
+subgraph "Web前端层"
+WPH["ui-prototype.html<br/>主界面"]
+WL["ui-loader.js<br/>加载器"]
+WP["ui-prototype.js<br/>核心逻辑"]
+WC["ui-prototype.css<br/>样式"]
 end
 subgraph "导航组件层"
 AB["ActivityBar<br/>活动栏"]
@@ -185,6 +189,10 @@ subgraph "资源层"
 QRC["resources.qrc<br/>资源清单"]
 end
 M --> MW
+M --> WPH
+WPH --> WL
+WPH --> WP
+WPH --> WC
 MW --> AB
 MW --> BP
 MW --> RP
@@ -205,32 +213,10 @@ QRC --> QSS
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
-- [src/ui/activitybar.h](file://src/ui/activitybar.h)
-- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
-- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
-- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
-- [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
-- [src/ui/rightpanel.cpp](file://src/ui/rightpanel.cpp)
-- [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
-- [src/ui/spliteditorarea.cpp](file://src/ui/spliteditorarea.cpp)
-- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
-- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
-- [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
-- [src/ui/dbcdetailtab.cpp](file://src/ui/dbcdetailtab.cpp)
-- [src/ui/playbacktab.h](file://src/ui/playbacktab.h)
-- [src/ui/playbacktab.cpp](file://src/ui/playbacktab.cpp)
-- [src/ui/recordtab.h](file://src/ui/recordtab.h)
-- [src/ui/recordtab.cpp](file://src/ui/recordtab.cpp)
-- [src/ui/filterbar.h](file://src/ui/filterbar.h)
-- [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
-- [src/ui/graphicview.h](file://src/ui/graphicview.h)
-- [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
-- [src/ui/traceview.h](file://src/ui/traceview.h)
-- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
-- [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
-- [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
-- [resources/styles/default.qss](file://resources/styles/default.qss)
-- [resources/resources.qrc](file://resources/resources.qrc)
+- [UI/ui-prototype.html](file://UI/ui-prototype.html)
+- [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
+- [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
+- [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 
 ## 详细组件分析
 
@@ -245,6 +231,7 @@ QRC --> QSS
 关键要点
 - 样式加载应在主窗口显示前完成，确保首次渲染即应用主题
 - 高DPI与字体设置影响后续所有控件的绘制与度量
+- 支持Web前端原型的集成和通信
 
 ```mermaid
 sequenceDiagram
@@ -252,10 +239,12 @@ participant App as "QApplication"
 participant Main as "main.cpp"
 participant Style as "QSS加载器"
 participant Win as "MainWindow"
+participant Web as "Web前端"
 Main->>App : 创建实例
 Main->>Style : 加载默认样式
 Style-->>Main : 样式就绪
 Main->>Win : 构造主窗口
+Main->>Web : 初始化Web前端
 Main->>Win : 显示窗口
 App->>App : 进入事件循环
 ```
@@ -272,13 +261,15 @@ App->>App : 进入事件循环
 - 处理用户输入与业务事件转发
 - 管理主题切换与样式动态更新
 - 与资源系统协作加载图标、图片等
+- 集成Web前端原型和JavaScript通信
 
 类关系与数据流
 - 继承自 QWidget/QMainWindow（由 .ui 生成基类）
 - 持有样式管理器与主题配置
 - 通过信号槽机制与子控件通信
+- 支持Web前端的原型验证和交互测试
 
-**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。**特别重要的是，新增了三个专用Tab组件的管理功能，包括DBC详情标签页、播放控制标签页和录制标签页的动态创建、切换和状态同步。**主窗口作为协调者，统一管理各组件的生命周期和数据流。
+**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。**特别重要的是，新增了三个专用Tab组件的管理功能，包括DBC详情标签页、播放控制标签页和录制标签页的动态创建、切换和状态同步。**主窗口作为协调者，统一管理各组件的生命周期和数据流，并支持与Web前端原型的无缝集成。
 
 ```mermaid
 classDiagram
@@ -293,6 +284,8 @@ class MainWindow {
 +addTabComponent(component)
 +removeTabComponent(id)
 +switchToTab(tabId)
++initWebPrototype()
++communicateWithWeb(message)
 }
 class ActivityBar {
 +addActivityItem(item)
@@ -370,13 +363,17 @@ MainWindow --> RecordTab : "管理"
 - 集中式样式表：通过单一QSS文件管理全局外观
 - 主题机制：以主题为单位切换样式集，支持运行时热更新
 - 动态更新：不重建控件的前提下刷新样式
+- Web前端样式集成：支持CSS样式与QSS样式的统一管理
 
 样式加载与切换流程
 ```mermaid
 flowchart TD
 Start(["开始"]) --> LoadDefault["加载默认样式"]
 LoadDefault --> Apply["应用到应用程序"]
-Apply --> UserAction{"用户切换主题？"}
+Apply --> CheckWeb{"检查Web前端？"}
+CheckWeb --> |是| LoadCSS["加载CSS样式"]
+CheckWeb --> |否| UserAction{"用户切换主题？"}
+LoadCSS --> UserAction
 UserAction --> |否| End(["结束"])
 UserAction --> |是| SelectTheme["选择新主题路径"]
 SelectTheme --> LoadNew["读取新QSS"]
@@ -384,26 +381,31 @@ LoadNew --> Validate{"样式有效？"}
 Validate --> |否| Error["记录错误并回退"]
 Validate --> |是| ApplyNew["应用新样式"]
 ApplyNew --> Refresh["触发重绘"]
-Refresh --> End
+Refresh --> UpdateWeb["更新Web前端样式"]
+UpdateWeb --> End
 ```
 
 图表来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
+- [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
+- [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 
 ### 资源系统（resources.qrc）
 组织原则
 - 将样式、图标、字体等静态资源纳入qrc清单
 - 通过:/前缀在代码中引用，避免平台路径差异
 - 便于打包与版本化管理
+- 支持Web前端资源的统一管理
 
 常用用法
 - 在样式表中引用资源：url(:/styles/default.qss)
 - 在代码中加载资源：QFile(":/...")
+- Web前端资源通过HTTP服务器访问
 
 章节来源
 - [resources/resources.qrc](file://resources/resources.qrc)
@@ -414,6 +416,7 @@ Refresh --> End
 - 通过tr()/translate()包裹用户可见文本
 - 运行时根据locale切换语言包
 - 与主题系统解耦，避免样式与文案耦合
+- Web前端支持国际化资源文件
 
 章节来源
 - [README.en.md](file://README.en.md)
@@ -743,6 +746,7 @@ SignalConfigDialog --> SignalDefinition : "管理"
 #### 职责分离
 - **Qt Designer (.ui)**: 负责界面结构、控件布局、属性设置
 - **C++代码**: 负责业务逻辑、事件处理、数据绑定
+- **Web前端**: 负责原型验证、动态内容展示和用户交互测试
 
 #### 代码生成机制
 - 编译时uic工具将.ui文件转换为C++头文件
@@ -756,11 +760,18 @@ Designer["Qt Designer<br/>界面设计"] --> UIC["uic工具<br/>代码生成"]
 UIC --> Header["生成的头文件<br/>Ui::MainWindow"]
 Header --> Implementation["手写C++实现<br/>MainWindow类"]
 Implementation --> Application["最终应用程序"]
+WebDesign["Web原型设计"] --> HTML["HTML模板"]
+JS["JavaScript模块"] --> Prototype["原型验证"]
+CSS["CSS样式"] --> Theme["主题管理"]
 ```
 
 图表来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [UI/ui-prototype.html](file://UI/ui-prototype.html)
+- [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
+- [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
+- [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
@@ -1043,7 +1054,7 @@ TabManager --> TabComponent : "管理"
 - MainWindow 依赖样式与主题管理
 - 样式与资源通过qrc解耦，降低硬编码路径风险
 
-**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。
+**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**新增了Web前端原型系统的依赖关系，包括HTML模板、JavaScript模块和CSS样式的模块化组织。**
 
 ```mermaid
 graph LR
@@ -1071,25 +1082,20 @@ SBP --> Panels["面板管理"]
 DBCT --> DBC["DBC管理"]
 PB --> Player["播放器"]
 RT --> Recorder["录制器"]
+MW --> Web["Web前端原型"]
+Web --> HTML["HTML模板"]
+Web --> JS["JavaScript模块"]
+Web --> CSS["CSS样式"]
 ```
 
 图表来源
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
-- [src/ui/activitybar.h](file://src/ui/activitybar.h)
-- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
-- [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
-- [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
-- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
-- [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
-- [src/ui/playbacktab.h](file://src/ui/playbacktab.h)
-- [src/ui/recordtab.h](file://src/ui/recordtab.h)
-- [src/ui/filterbar.h](file://src/ui/filterbar.h)
-- [src/ui/graphicview.h](file://src/ui/graphicview.h)
-- [src/ui/traceview.h](file://src/ui/traceview.h)
-- [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
-- [resources/resources.qrc](file://resources/resources.qrc)
+- [UI/ui-prototype.html](file://UI/ui-prototype.html)
+- [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
+- [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
+- [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 
 章节来源
 - [src/CMakeLists.txt](file://src/CMakeLists.txt)
@@ -1129,6 +1135,11 @@ RT --> Recorder["录制器"]
   - 录制标签页采用异步数据写入避免阻塞
   - Tab组件管理系统优化组件切换性能
   - 实现Tab组件的懒加载与销毁机制
+- **Web前端性能优化**
+  - HTML模板使用惰性加载技术
+  - JavaScript模块按需加载和缓存
+  - CSS样式使用CSS Modules提高性能
+  - 资源文件压缩和优化加载
 
 [本节为通用指导，无需特定文件引用]
 
@@ -1167,13 +1178,24 @@ RT --> Recorder["录制器"]
   - 录制标签页数据丢失需要检查缓冲区大小与写入频率
   - Tab组件切换卡顿需要优化组件初始化过程
   - 标签页状态同步失败需要检查信号槽连接
+- **Web前端问题**
+  - HTML模板加载失败需要检查文件路径
+  - JavaScript模块依赖错误需要检查模块导入
+  - CSS样式冲突需要检查选择器优先级
+  - Web前端与Qt通信失败需要检查桥接接口
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
+- [UI/ui-prototype.html](file://UI/ui-prototype.html)
+- [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
+- [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
+- [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 
 ## 结论
-本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统，**特别是新增的三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页），为CAN总线数据分析提供了完整的解决方案。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
+本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统，**特别是新增的三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页），为CAN总线数据分析提供了完整的解决方案。**
+
+**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -1213,6 +1235,11 @@ RT --> Recorder["录制器"]
   - 录制标签页应具备异步数据写入机制
   - Tab组件管理系统需提供统一的接口规范
   - 各Tab组件应实现状态同步与持久化
+- **Web前端规范**
+  - HTML模板使用语义化标签和合理的DOM结构
+  - JavaScript模块采用ES6模块语法和模块化组织
+  - CSS样式使用BEM命名规范和CSS变量
+  - 响应式设计支持移动端和桌面端适配
 
 ### 样式定制指南
 - 主题设计
@@ -1224,6 +1251,10 @@ RT --> Recorder["录制器"]
 - 资源引用
   - 通过qrc统一引用图标与字体
   - 避免在样式中使用绝对路径
+- **Web前端样式管理**
+  - 使用CSS Modules进行样式隔离
+  - 实现主题变量的统一管理
+  - 支持动态样式切换和热重载
 
 ### 设计模式与最佳实践
 - 观察者模式
@@ -1256,6 +1287,11 @@ RT --> Recorder["录制器"]
   - 录制标签页应具备容错机制与数据备份
   - Tab组件管理系统应优化组件生命周期管理
   - 各Tab组件应实现独立的状态管理机制
+- **Web前端最佳实践**
+  - 使用组件化架构和模块化开发
+  - 实现响应式设计和跨平台兼容
+  - 采用懒加载和性能优化技术
+  - 建立统一的样式规范和主题系统
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -1272,7 +1308,13 @@ RT --> Recorder["录制器"]
 10. **响应式适配**：测试不同屏幕尺寸下的布局表现
 11. **主题验证**：验证样式在不同主题下的显示效果
 12. **Tab组件测试**：确保标签页切换流畅且状态同步正常
+13. **Web前端集成**：集成Web前端原型进行交互验证
+14. **模块化重构**：将单体结构重构为模块化组件系统
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [UI/ui-prototype.html](file://UI/ui-prototype.html)
+- [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
+- [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
+- [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)

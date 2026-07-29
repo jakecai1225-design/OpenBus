@@ -5,6 +5,8 @@
 #include <QHash>
 #include "core/dbcdata.h"
 
+class QMenu;
+
 class QTreeWidget;
 class QTreeWidgetItem;
 class QTableWidget;
@@ -29,11 +31,14 @@ public:
 
 signals:
     void signalDoubleClicked(quint32 canId, const QString &signalName);
+    void signalAddToGraphic(quint32 canId, const QString &signalName);
+    void signalAddToTrace(quint32 canId, const QString &signalName);
 
 private slots:
     void onSearchChanged(const QString &text);
     void onTreeItemClicked(QTreeWidgetItem *item, int column);
     void onTreeItemDoubleClicked(QTreeWidgetItem *item, int column);
+    void onTreeContextMenu(const QPoint &pos);
 
 private:
     // 树节点类型

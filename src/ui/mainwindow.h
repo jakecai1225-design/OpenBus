@@ -83,6 +83,7 @@ private slots:
     // DBC
     void onSignalDoubleClicked(quint32 canId, const QString &signalName);
     void onDbcFileClicked(const QString &fileName);
+    void onSignalAddToTrace(quint32 canId, const QString &signalName);
 
     // 侧边栏入口
     void onOpenTraceTab();

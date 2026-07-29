@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: src
+title: CAN 报文分析工具 sin（Qt GUI 应用）
+scope:
+    - src/
+source_files: []
+depends_on: []
+related_to: []

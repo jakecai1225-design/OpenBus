@@ -5,6 +5,7 @@
 #include <QVector>
 #include <QColor>
 #include "core/canframe.h"
+#include "core/dbcdata.h"
 
 class QSplitter;
 class QListWidget;
@@ -27,15 +28,14 @@ class GraphicView : public QWidget
     Q_OBJECT
 
 public:
-    /// 信号配置
+    /// 信号配置 — 内嵌完整 DBC 信号定义，支持精确解码
     struct Signal {
         QString name;
         quint32 canId = 0;
         bool extended = false;
-        int byteOffset = 0;    ///< 数据字节偏移 (0-based)
-        int bitLength = 8;     ///< 8, 16, 32
-        bool bigEndian = false;
         QColor color;
+        // DBC 信号定义（用于精确解码）
+        DbcSignal dbcSig;   ///< 包含 startBit/bitLength/endian/signed/factor/offset 等
     };
 
     explicit GraphicView(QWidget *parent = nullptr);

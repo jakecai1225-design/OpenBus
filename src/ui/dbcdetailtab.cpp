@@ -14,6 +14,9 @@
 #include <QGroupBox>
 #include <QStackedWidget>
 #include <QScrollArea>
+#include <QMenu>
+#include <QAction>
+#include <QDebug>
 
 // 树节点 UserRole
 static const int RoleNodeType = Qt::UserRole;       // int -> NodeType
@@ -48,6 +51,8 @@ DbcDetailTab::DbcDetailTab(const QString &dbcFileName, DbcManager *mgr, QWidget 
     connect(m_searchEdit, &QLineEdit::textChanged, this, &DbcDetailTab::onSearchChanged);
     connect(m_tree, &QTreeWidget::itemClicked, this, &DbcDetailTab::onTreeItemClicked);
     connect(m_tree, &QTreeWidget::itemDoubleClicked, this, &DbcDetailTab::onTreeItemDoubleClicked);
+    m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_tree, &QTreeWidget::customContextMenuRequested, this, &DbcDetailTab::onTreeContextMenu);
 
     refreshTree();
     showPlaceholder();
@@ -276,7 +281,14 @@ void DbcDetailTab::refreshTree()
 {
     m_tree->clear();
     const DbcFile *file = currentDbcFile();
-    if (!file) return;
+    if (!file) {
+        qDebug() << "[DbcDetailTab] currentDbcFile() returned nullptr for" << m_dbcFileName;
+        return;
+    }
+    qDebug() << "[DbcDetailTab] refreshTree:" << file->fileName
+             << "messages:" << file->messages.size()
+             << "nodes:" << file->nodes.size()
+             << "valueTables:" << file->valueTables.size();
 
     // 顶层: 网络
     auto *netItem = new QTreeWidgetItem(m_tree, {file->fileName});
@@ -291,6 +303,58 @@ void DbcDetailTab::refreshTree()
         auto *nodeItem = new QTreeWidgetItem(catNodes, {node.name});
         nodeItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Node));
         nodeItem->setData(0, RoleName, node.name);
+
+        // TX 子分类
+        if (!node.txMessageIds.isEmpty()) {
+            auto *txCat = new QTreeWidgetItem(nodeItem, {QString("TX (%1)").arg(node.txMessageIds.size())});
+            for (quint32 txId : node.txMessageIds) {
+                const DbcMessage *msg = file->findMessage(txId);
+                QString text = QString("0x%1  %2")
+                    .arg(txId, 0, 16).toUpper()
+                    .arg(msg ? msg->name : "?");
+                auto *txItem = new QTreeWidgetItem(txCat, {text});
+                txItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Message));
+                txItem->setData(0, RoleCanId, txId);
+                // 信号子项
+                if (msg) {
+                    for (const auto &sig : msg->signalList) {
+                        auto *sigItem = new QTreeWidgetItem(txItem, {sig.name});
+                        sigItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Signal));
+                        sigItem->setData(0, RoleCanId, txId);
+                        sigItem->setData(0, RoleName, sig.name);
+                    }
+                }
+            }
+        }
+
+        // RX 子分类 — 按报文分组（与 TX 层级一致：RX → Message → Signal）
+        if (!node.rxSignals.isEmpty()) {
+            // 按 CAN ID 分组
+            QHash<quint32, QStringList> rxById;
+            for (const auto &rx : node.rxSignals)
+                rxById[rx.first].append(rx.second);
+
+            auto *rxCat = new QTreeWidgetItem(nodeItem, {QString("RX (%1)").arg(rxById.size())});
+            for (auto it = rxById.constBegin(); it != rxById.constEnd(); ++it) {
+                quint32 rxId = it.key();
+                const DbcMessage *msg = file->findMessage(rxId);
+                QString text = QString("0x%1  %2")
+                    .arg(rxId, 0, 16).toUpper()
+                    .arg(msg ? msg->name : "?");
+                auto *rxMsgItem = new QTreeWidgetItem(rxCat, {text});
+                rxMsgItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Message));
+                rxMsgItem->setData(0, RoleCanId, rxId);
+                // 信号子项
+                if (msg) {
+                    for (const auto &sig : msg->signalList) {
+                        auto *sigItem = new QTreeWidgetItem(rxMsgItem, {sig.name});
+                        sigItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Signal));
+                        sigItem->setData(0, RoleCanId, rxId);
+                        sigItem->setData(0, RoleName, sig.name);
+                    }
+                }
+            }
+        }
     }
 
     // ---- Category: Messages ----
@@ -335,28 +399,29 @@ void DbcDetailTab::refreshTree()
 //  搜索过滤
 // ============================================================
 
+static bool filterTreeItem(QTreeWidgetItem *item, const QString &text)
+{
+    if (text.isEmpty()) {
+        item->setHidden(false);
+        for (int i = 0; i < item->childCount(); ++i)
+            filterTreeItem(item->child(i), text);
+        return true;
+    }
+
+    bool selfMatch = item->text(0).contains(text, Qt::CaseInsensitive);
+    bool anyChildMatch = false;
+    for (int i = 0; i < item->childCount(); ++i) {
+        if (filterTreeItem(item->child(i), text))
+            anyChildMatch = true;
+    }
+    item->setHidden(!selfMatch && !anyChildMatch);
+    return selfMatch || anyChildMatch;
+}
+
 void DbcDetailTab::onSearchChanged(const QString &text)
 {
-    for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
-        auto *net = m_tree->topLevelItem(i);
-        for (int j = 0; j < net->childCount(); ++j) {
-            auto *cat = net->child(j);
-            for (int k = 0; k < cat->childCount(); ++k) {
-                auto *item = cat->child(k);
-                bool itemMatch = item->text(0).contains(text, Qt::CaseInsensitive);
-
-                // 对于 Message，检查子 Signal
-                bool childMatch = false;
-                for (int m = 0; m < item->childCount(); ++m) {
-                    auto *sig = item->child(m);
-                    bool sigMatch = sig->text(0).contains(text, Qt::CaseInsensitive);
-                    sig->setHidden(!text.isEmpty() && !sigMatch && !itemMatch);
-                    if (sigMatch) childMatch = true;
-                }
-                item->setHidden(!text.isEmpty() && !itemMatch && !childMatch);
-            }
-        }
-    }
+    for (int i = 0; i < m_tree->topLevelItemCount(); ++i)
+        filterTreeItem(m_tree->topLevelItem(i), text);
 }
 
 // ============================================================
@@ -412,6 +477,67 @@ void DbcDetailTab::onTreeItemDoubleClicked(QTreeWidgetItem *item, int)
         QString sigName = item->data(0, RoleName).toString();
         emit signalDoubleClicked(canId, sigName);
     }
+}
+
+void DbcDetailTab::onTreeContextMenu(const QPoint &pos)
+{
+    QTreeWidgetItem *item = m_tree->itemAt(pos);
+    if (!item) return;
+
+    auto typeVal = item->data(0, RoleNodeType);
+    if (!typeVal.isValid()) return;
+    NodeType type = static_cast<NodeType>(typeVal.toInt());
+
+    // 信号节点和报文节点都可以提供“添加”菜单
+    bool isSignal = (type == NodeType::Signal);
+    bool isMessage = (type == NodeType::Message);
+    if (!isSignal && !isMessage) return;
+
+    quint32 canId = item->data(0, RoleCanId).toUInt();
+    QString sigName = item->data(0, RoleName).toString();
+
+    auto *menu = new QMenu(this);
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+
+    if (isSignal) {
+        auto *actGraphic = menu->addAction(QStringLiteral("📈 添加到 Graphic"));
+        auto *actTrace = menu->addAction(QStringLiteral("📋 添加到 Trace"));
+        menu->addSeparator();
+        auto *actDetail = menu->addAction(QStringLiteral("查看信号详情"));
+
+        connect(actGraphic, &QAction::triggered, this, [this, canId, sigName]() {
+            emit signalAddToGraphic(canId, sigName);
+        });
+        connect(actTrace, &QAction::triggered, this, [this, canId, sigName]() {
+            emit signalAddToTrace(canId, sigName);
+        });
+        connect(actDetail, &QAction::triggered, this, [this, canId, sigName]() {
+            showSignalDetail(canId, sigName);
+        });
+    } else {
+        // Message: 添加该报文下所有信号
+        auto *actGraphic = menu->addAction(QStringLiteral("📈 添加全部信号到 Graphic"));
+        auto *actTrace = menu->addAction(QStringLiteral("📋 添加全部信号到 Trace"));
+
+        connect(actGraphic, &QAction::triggered, this, [this, canId]() {
+            const DbcFile *file = currentDbcFile();
+            if (!file) return;
+            const DbcMessage *msg = file->findMessage(canId);
+            if (!msg) return;
+            for (const auto &sig : msg->signalList)
+                emit signalAddToGraphic(canId, sig.name);
+        });
+        connect(actTrace, &QAction::triggered, this, [this, canId]() {
+            const DbcFile *file = currentDbcFile();
+            if (!file) return;
+            const DbcMessage *msg = file->findMessage(canId);
+            if (!msg) return;
+            for (const auto &sig : msg->signalList)
+                emit signalAddToTrace(canId, sig.name);
+        });
+    }
+
+    menu->popup(m_tree->viewport()->mapToGlobal(pos));
 }
 
 // ============================================================

@@ -182,6 +182,7 @@ bool DbcManager::loadDbc(const QString &filePath)
 
     postProcess(file);
     m_files.append(file);
+    rebuildIndex();
     emit dbcLoaded(file.fileName);
     return true;
 }
@@ -192,19 +193,25 @@ void DbcManager::unloadDbc(const QString &filePath)
         if (m_files[i].filePath == filePath) {
             QString name = m_files[i].fileName;
             m_files.removeAt(i);
+            rebuildIndex();
             emit dbcUnloaded(name);
             return;
         }
     }
 }
 
+void DbcManager::rebuildIndex()
+{
+    m_msgIndex.clear();
+    for (const auto &f : m_files)
+        for (const auto &m : f.messages)
+            m_msgIndex.insert(m.id, &m);
+}
+
 const DbcMessage *DbcManager::findMessage(quint32 id) const
 {
-    for (const auto &f : m_files) {
-        const DbcMessage *m = f.findMessage(id);
-        if (m) return m;
-    }
-    return nullptr;
+    auto it = m_msgIndex.constFind(id);
+    return (it != m_msgIndex.constEnd()) ? it.value() : nullptr;
 }
 
 const DbcSignal *DbcManager::findSignal(quint32 id, const QString &signalName) const
@@ -228,6 +235,42 @@ const DbcFile *DbcManager::findFile(const QString &fileName) const
     for (const auto &f : m_files)
         if (f.fileName == fileName) return &f;
     return nullptr;
+}
+
+// ============================================================
+//  批量信号解码 — 供 Trace / Graphic 实时调用
+// ============================================================
+
+QVector<DbcManager::DecodedSignal> DbcManager::decodeFrame(quint32 canId, const QByteArray &data) const
+{
+    QVector<DecodedSignal> result;
+    const DbcMessage *msg = findMessage(canId);
+    if (!msg)
+        return result;
+
+    result.reserve(msg->signalList.size());
+    for (const auto &sig : msg->signalList) {
+        DecodedSignal ds;
+        ds.name = sig.name;
+        ds.physValue = sig.decode(data);
+        ds.unit = sig.unit;
+        ds.comment = sig.comment;
+        // 值表描述
+        int rawInt = static_cast<int>(sig.rawDecode(data));
+        ds.valueDesc = sig.lookupValueDesc(rawInt);
+        result.append(ds);
+    }
+    return result;
+}
+
+bool DbcManager::decodeSignal(quint32 canId, const QString &sigName,
+                              const QByteArray &data, double &outValue) const
+{
+    const DbcSignal *sig = findSignal(canId, sigName);
+    if (!sig)
+        return false;
+    outValue = sig->decode(data);
+    return true;
 }
 
 // ============================================================
@@ -415,9 +458,16 @@ bool DbcManager::parseDbc(const QString &filePath, DbcFile &out)
 
         // 检查是否需要合并: 引号数量为奇数或不以 ; 结尾
         // 仅对可能跨行的段 (CM_, BA_, VAL_, VAL_TABLE_, BA_DEF_)
+        // 注意: NS_ 段中也有 CM_/BA_/VAL_/BA_DEF_ 等关键字名，必须排除
+        //       判断依据：真正的段行在关键字后有空格/Tab/引号，而 NS_ 关键字名是裸关键字
+        auto isSectionStart = [](const QString &s, const char *prefix) -> bool {
+            int len = int(strlen(prefix));
+            return s.startsWith(prefix) && s.size() > len &&
+                   (s[len] == ' ' || s[len] == '\t' || s[len] == '"');
+        };
         bool needsMerge = false;
-        if (line.startsWith("CM_") || line.startsWith("BA_") ||
-            line.startsWith("VAL_") || line.startsWith("BA_DEF_")) {
+        if (isSectionStart(line, "CM_") || isSectionStart(line, "BA_DEF_") ||
+            isSectionStart(line, "VAL_") || isSectionStart(line, "BA_")) {
             // 引号为奇数说明跨行
             int quoteCount = line.count('"');
             if (quoteCount % 2 != 0 || !line.endsWith(';'))

@@ -180,8 +180,6 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     // 侧边栏面板
-    connect(m_sideBar->dbcPanel(), &DbcPanel::signalDoubleClicked,
-            this, &MainWindow::onSignalDoubleClicked);
     connect(m_sideBar->dbcPanel(), &DbcPanel::dbcFileClicked,
             this, &MainWindow::onDbcFileClicked);
     connect(m_sideBar->tracePanel(), &TracePanel::openTraceRequested,
@@ -786,8 +784,12 @@ void MainWindow::onFrameDoubleClicked(const CanFrame &frame)
     sig.name = QString("ID_%1[0]").arg(frame.id, 0, 16).toUpper();
     sig.canId = frame.id & 0x1FFFFFFF;
     sig.extended = frame.extended;
-    sig.byteOffset = 0;
-    sig.bitLength = 8;
+    sig.dbcSig.name = sig.name;
+    sig.dbcSig.startBit = 0;
+    sig.dbcSig.bitLength = 8;
+    sig.dbcSig.littleEndian = true;
+    sig.dbcSig.factor = 1.0;
+    sig.dbcSig.offset = 0.0;
     targetGv->addSignal(sig);
 
     // 切换到 Graphic 标签页
@@ -853,9 +855,7 @@ void MainWindow::onSignalDoubleClicked(quint32 canId, const QString &signalName)
     gsig.name = signalName;
     gsig.canId = canId;
     gsig.extended = msg && (msg->id > 0x7FF);
-    gsig.byteOffset = sig->startBit / 8;
-    gsig.bitLength = qMax(8, sig->bitLength / 8 * 8);
-    gsig.bigEndian = !sig->littleEndian;
+    gsig.dbcSig = *sig;   // 完整复制 DBC 信号定义（startBit/bitLength/factor/offset/signed 等）
 
     // 添加到当前或最后的 Graphic 视图
     GraphicView *targetGv = nullptr;
@@ -885,7 +885,55 @@ void MainWindow::onDbcFileClicked(const QString &fileName)
     auto *dbcTab = new DbcDetailTab(fileName, m_dbcManager, this);
     connect(dbcTab, &DbcDetailTab::signalDoubleClicked,
             this, &MainWindow::onSignalDoubleClicked);
+    connect(dbcTab, &DbcDetailTab::signalAddToGraphic,
+            this, &MainWindow::onSignalDoubleClicked);
+    connect(dbcTab, &DbcDetailTab::signalAddToTrace,
+            this, &MainWindow::onSignalAddToTrace);
     openTab(dbcTab, "📄 DBC: " + fileName);
+}
+
+void MainWindow::onSignalAddToTrace(quint32 canId, const QString &signalName)
+{
+    // 查找现有 TraceTab，没有则新建
+    TraceTab *targetTrace = nullptr;
+    auto *tabs = m_editorArea->activeTabWidget();
+    if (tabs) {
+        targetTrace = qobject_cast<TraceTab *>(tabs->currentWidget());
+        if (!targetTrace) {
+            const auto allTabs = m_editorArea->allTabWidgets();
+            for (auto *tw : allTabs) {
+                for (int i = tw->count() - 1; i >= 0; --i) {
+                    auto *tt = qobject_cast<TraceTab *>(tw->widget(i));
+                    if (tt) { targetTrace = tt; break; }
+                }
+                if (targetTrace) break;
+            }
+        }
+    }
+    if (!targetTrace) {
+        targetTrace = new TraceTab(this);
+        setupTraceTab(targetTrace);
+        openTab(targetTrace, QString("📋 Trace%1").arg(++m_traceCount));
+    } else {
+        // 切换到已有 TraceTab
+        if (tabs) {
+            for (int i = 0; i < tabs->count(); ++i) {
+                if (tabs->widget(i) == targetTrace) {
+                    tabs->setCurrentIndex(i);
+                    m_tabLabel->setText(tabs->tabText(i));
+                    break;
+                }
+            }
+        }
+    }
+
+    // 设置过滤器：只显示该 CAN ID 的帧
+    QString filter = QString("id == 0x%1").arg(canId, 0, 16).toUpper();
+    if (!targetTrace->setFilterExpression(filter))
+        m_bottomPanel->addProblem(0, "Filter", "语法错误: " + filter);
+
+    m_bottomPanel->appendOutput(QString("已添加信号到 Trace: %1 (ID=0x%2)")
+        .arg(signalName).arg(canId, 0, 16).toUpper());
 }
 
 // ============================================================
