@@ -26,6 +26,7 @@ public:
         Send,
         Record,
         Device,
+        Protocol,
         Settings
     };
 

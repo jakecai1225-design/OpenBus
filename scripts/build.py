@@ -59,11 +59,12 @@ if sys.platform == "win32":
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BUILD_DIR = PROJECT_ROOT / "build"
 EXECUTABLE = BUILD_DIR / "bin" / "sin.exe"
+TOOLS_DIR = PROJECT_ROOT / "tools"
 
 # 默认工具路径 (可通过环境变量或 --qt-dir / --mingw-dir / --cmake-dir 覆盖)
-DEFAULT_QT_DIR = Path(os.environ.get("SIN_QT_DIR", "D:/Qt/6.8.3/mingw_64"))
-DEFAULT_MINGW_DIR = Path(os.environ.get("SIN_MINGW_DIR", "D:/Qt/Tools/mingw1310_64"))
-DEFAULT_CMAKE_DIR = Path(os.environ.get("SIN_CMAKE_DIR", "C:/Program Files/CMake"))
+DEFAULT_QT_DIR = Path(os.environ.get("SIN_QT_DIR", "C:/Qt/6.8.3/mingw_64"))
+DEFAULT_MINGW_DIR = Path(os.environ.get("SIN_MINGW_DIR", "C:/Qt/Tools/mingw1310_64"))
+DEFAULT_CMAKE_DIR = Path(os.environ.get("SIN_CMAKE_DIR", "C:/tools/cmake-3.30.3-windows-x86_64"))
 
 BUILD_TYPES = ["Debug", "Release", "RelWithDebInfo", "MinSizeRel"]
 
@@ -128,10 +129,40 @@ class Environment:
         self.gdb = self.mingw_bin / "gdb.exe"
         self.windeployqt = self.qt_bin / "windeployqt.exe"
 
+        # ---- 加速工具 (项目本地 tools/ 目录，自动检测) ----
+        self.ninja = TOOLS_DIR / "ninja" / "ninja.exe"
+        self.ccache = TOOLS_DIR / "ccache" / "ccache.exe"
+        self.ld_lld = TOOLS_DIR / "lld" / "ld.lld.exe"
+
+        self.use_ninja = self.ninja.exists()
+        self.use_ccache = self.ccache.exists()
+        self.use_lld = self.ld_lld.exists()
+
     def setup_path(self):
         """将工具路径加入 PATH"""
         prepend = [str(self.cmake_bin), str(self.mingw_bin), str(self.qt_bin)]
+        # 加速工具优先加入 PATH，确保 GCC 能找到 ld.lld
+        if self.use_lld:
+            prepend.insert(0, str(self.ld_lld.parent))
+        if self.use_ccache:
+            prepend.insert(0, str(self.ccache.parent))
+        if self.use_ninja:
+            prepend.insert(0, str(self.ninja.parent))
         os.environ["PATH"] = os.pathsep.join(prepend) + os.pathsep + os.environ.get("PATH", "")
+
+    def print_accel_info(self):
+        """打印加速工具状态"""
+        accel = []
+        if self.use_ninja:
+            accel.append(f"Ninja")
+        if self.use_ccache:
+            accel.append(f"ccache")
+        if self.use_lld:
+            accel.append(f"lld")
+        if accel:
+            ok(f"加速工具: {', '.join(accel)}")
+        else:
+            warn("未检测到加速工具 (Ninja/ccache/lld)，使用基础构建")
 
     def _check(self, path, name, required=True):
         exists = path.exists()
@@ -177,6 +208,8 @@ def cmd_configure(env, args):
     if not env.verify():
         sys.exit(1)
 
+    env.print_accel_info()
+
     if getattr(args, "clean", False) and BUILD_DIR.exists():
         info("清理旧构建目录...")
         shutil.rmtree(BUILD_DIR)
@@ -188,12 +221,31 @@ def cmd_configure(env, args):
         str(env.cmake),
         "-B", str(BUILD_DIR),
         "-S", str(PROJECT_ROOT),
-        "-G", "MinGW Makefiles",
+    ]
+
+    # 生成器: 优先 Ninja，回退 MinGW Makefiles
+    if env.use_ninja:
+        cmd.extend(["-G", "Ninja"])
+        info("使用 Ninja 生成器")
+    else:
+        cmd.extend(["-G", "MinGW Makefiles"])
+        info("使用 MinGW Makefiles 生成器")
+
+    cmd.extend([
         f"-DCMAKE_PREFIX_PATH={env.qt_dir.as_posix()}",
         f"-DCMAKE_CXX_COMPILER={env.cxx.as_posix()}",
         f"-DCMAKE_C_COMPILER={env.cc.as_posix()}",
         f"-DCMAKE_BUILD_TYPE={build_type}",
-    ]
+    ])
+
+    # ccache: 设置为编译器启动器
+    if env.use_ccache:
+        cmd.extend([
+            f"-DCMAKE_CXX_COMPILER_LAUNCHER={env.ccache.as_posix()}",
+            f"-DCMAKE_C_COMPILER_LAUNCHER={env.ccache.as_posix()}",
+        ])
+        info("启用 ccache 编译缓存")
+
     run_cmd(cmd)
     ok("CMake 配置完成")
 
@@ -211,6 +263,7 @@ def cmd_build(env, args):
         cmd.extend(["--target", args.target])
 
     jobs = args.jobs or os.cpu_count() or 4
+    # Ninja 和 MinGW Makefiles 都支持 -j 参数
     cmd.extend(["--", f"-j{jobs}"])
 
     run_cmd(cmd)
@@ -267,6 +320,11 @@ def cmd_rebuild(env, args):
     header("重新构建")
     cmd_clean(env, args)
     args.clean = False
+    # rebuild 子命令没有 --target / --jobs 参数，补齐默认值供 cmd_build 使用
+    if not hasattr(args, "target"):
+        args.target = None
+    if not hasattr(args, "jobs"):
+        args.jobs = None
     cmd_configure(env, args)
     cmd_build(env, args)
     ok("重新构建完成")
@@ -301,6 +359,7 @@ def cmd_status(env, args):
     print()
 
     env.verify()
+    env.print_accel_info()
 
     # 读取构建类型
     cache = BUILD_DIR / "CMakeCache.txt"
@@ -333,7 +392,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 常用命令:
-  python scripts/build.py configure                      配置 (Debug)
+  python scripts/build.py configure                      配置 (Debug, 自动检测 Ninja/ccache/lld)
   python scripts/build.py configure --build-type Release  配置 (Release)
   python scripts/build.py build -j8                       增量编译 (8 线程)
   python scripts/build.py run                             运行
@@ -344,6 +403,11 @@ def main():
   python scripts/build.py all                             完整流程
   python scripts/build.py status                          环境状态
   python scripts/build.py open                            打开输出目录
+
+加速工具 (放在 tools/ 目录自动检测):
+  tools/ninja/ninja.exe    Ninja 构建系统 (编译调度快 2-3x)
+  tools/ccache/ccache.exe  编译缓存 (命中时秒级返回)
+  tools/lld/ld.lld.exe     LLD 链接器 (链接快 3-5x)
         """,
     )
 

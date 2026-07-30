@@ -36,6 +36,9 @@ ActivityBar::ActivityBar(QWidget *parent)
     m_buttons.append({createButton("\xF0\x9F\x94\xA7", "硬件", Device), Device, "硬件", "硬件"});
     layout->addWidget(m_buttons.last().btn);
 
+    m_buttons.append({createButton("\xF0\x9F\x93\xA6", "协议", Protocol), Protocol, "协议", "上层协议分析"});
+    layout->addWidget(m_buttons.last().btn);
+
     layout->addStretch();
 
     // 底部按钮

@@ -20,6 +20,8 @@ set(SRC_CORE
     core/dbc/dbc_adapter.cpp
     core/filter_engine.h
     core/filter_engine.cpp
+    core/appconfig.h
+    core/appconfig.cpp
 )
 
 # models 层 — Qt 数据模型
@@ -51,6 +53,8 @@ set(SRC_UI
     ui/signalconfigdialog.cpp
     ui/dbcimportdialog.h
     ui/dbcimportdialog.cpp
+    ui/settingsdialog.h
+    ui/settingsdialog.cpp
     ui/activitybar.h
     ui/activitybar.cpp
     ui/bottompanel.h
@@ -69,6 +73,10 @@ set(SRC_UI
     ui/recordtab.cpp
     ui/dbcdetailtab.h
     ui/dbcdetailtab.cpp
+    ui/udsview.h
+    ui/udsview.cpp
+    ui/canopenview.h
+    ui/canopenview.cpp
     ui/thememanager.h
     ui/thememanager.cpp
 )
@@ -90,7 +98,7 @@ qt_add_executable(sin
 # ============================================================
 target_link_libraries(sin PRIVATE
     Qt6::Widgets
-    Qt6::Charts
+    qcustomplot
 )
 
 # spdlog 头文件路径（直接添加，不通过 IMPORTED target）
@@ -99,18 +107,13 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/spdlog/include")
 endif()
 
 # nlohmann/json 头文件路径
-if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/nlohmann_json/json.hpp")
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/nlohmann_json/nlohmann/json.hpp")
     target_include_directories(sin PRIVATE ${CMAKE_SOURCE_DIR}/third_party/nlohmann_json)
 endif()
 
 # moodycamel::ConcurrentQueue 头文件路径
 if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/concurrentqueue/concurrentqueue.h")
     target_include_directories(sin PRIVATE ${CMAKE_SOURCE_DIR}/third_party/concurrentqueue)
-endif()
-
-# qcustomplot 头文件路径
-if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/qcustomplot/qcustomplot.h")
-    target_include_directories(sin PRIVATE ${CMAKE_SOURCE_DIR}/third_party/qcustomplot)
 endif()
 
 # # 将来引入的库（已下载但暂未使用）
@@ -123,6 +126,52 @@ endif()
 # ============================================================
 target_include_directories(sin PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# ============================================================
+#  预编译头（PCH）— 显著加速编译（避免每个 .cpp 重复解析 Qt 头文件）
+# ============================================================
+target_precompile_headers(sin PRIVATE
+    <QWidget>
+    <QMainWindow>
+    <QVBoxLayout>
+    <QHBoxLayout>
+    <QSplitter>
+    <QToolBar>
+    <QAction>
+    <QMenu>
+    <QMenuBar>
+    <QStatusBar>
+    <QLabel>
+    <QPushButton>
+    <QToolButton>
+    <QTreeWidget>
+    <QTableWidget>
+    <QListWidget>
+    <QComboBox>
+    <QLineEdit>
+    <QCheckBox>
+    <QHeaderView>
+    <QDockWidget>
+    <QTabWidget>
+    <QFileDialog>
+    <QMessageBox>
+    <QCloseEvent>
+    <QMouseEvent>
+    <QApplication>
+    <QSettings>
+    <QJsonDocument>
+    <QJsonObject>
+    <QJsonArray>
+    <QDateTime>
+    <QTimer>
+    <QThread>
+    <QFileInfo>
+    <QDebug>
+    <vector>
+    <string>
+    <memory>
+    <functional>
 )
 
 # ============================================================

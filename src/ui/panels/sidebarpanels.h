@@ -234,6 +234,25 @@ private:
 };
 
 // ============================================================
+//  协议面板 — 上层协议列表（UDS/CANopen/J1939/ISO-TP 等）
+// ============================================================
+class ProtocolPanel : public SidePanel
+{
+    Q_OBJECT
+public:
+    explicit ProtocolPanel(QWidget *parent = nullptr);
+
+signals:
+    void protocolOpened(const QString &protocolName);
+
+private slots:
+    void onItemClicked(QListWidgetItem *item);
+
+private:
+    QListWidget *m_list;
+};
+
+// ============================================================
 //  SideBar — 侧边栏容器（QStackedWidget 切换面板）
 //  索引必须与 ActivityBar::Activity 枚举一致
 // ============================================================
@@ -250,6 +269,7 @@ public:
     SendPanel *sendPanel() const { return m_send; }
     RecordPanel *recordPanel() const { return m_record; }
     DevicePanel *devicePanel() const { return m_device; }
+    ProtocolPanel *protocolPanel() const { return m_protocol; }
     SettingsPanel *settingsPanel() const { return m_settings; }
 
     void showPanel(int index);
@@ -263,6 +283,7 @@ private:
     SendPanel *m_send;
     RecordPanel *m_record;
     DevicePanel *m_device;
+    ProtocolPanel *m_protocol;
     SettingsPanel *m_settings;
     int m_lastIndex = 0;
 };

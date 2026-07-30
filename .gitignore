@@ -45,3 +45,6 @@ CMakeSettings.json
 Thumbs.db
 .DS_Store
 desktop.ini
+
+# ---- 构建加速工具 (本地下载，不入库) ----
+tools/

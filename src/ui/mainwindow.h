@@ -18,6 +18,8 @@ class SignalSendTab;
 class PlaybackTab;
 class RecordTab;
 class DbcDetailTab;
+class UdsView;
+class CanOpenView;
 class Recorder;
 class Player;
 class CanSimulator;
@@ -94,6 +96,7 @@ private slots:
     void onOpenRecordTab();
     void onNewGraphicRequested();
     void onSettingsRequested(const QString &section);
+    void onProtocolOpened(const QString &protocolName);
 
     // 右侧面板快捷按钮
     void onQuickRecord();

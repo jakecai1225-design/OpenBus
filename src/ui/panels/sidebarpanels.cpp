@@ -566,9 +566,9 @@ void SettingsPanel::onThemeItemClicked(QListWidgetItem *item)
 }
 
 // ============================================================
-//  SideBar — 8 个面板，索引与 ActivityBar 一致
+//  SideBar — 9 个面板，索引与 ActivityBar 一致
 //  0=Project  1=Trace  2=Graphic  3=DBC
-//  4=Send     5=Record 6=Device   7=Settings
+//  4=Send     5=Record 6=Device   7=Protocol  8=Settings
 // ============================================================
 
 SideBar::SideBar(QWidget *parent)
@@ -581,6 +581,7 @@ SideBar::SideBar(QWidget *parent)
     m_send         = new SendPanel(this);
     m_record       = new RecordPanel(this);
     m_device       = new DevicePanel(this);
+    m_protocol     = new ProtocolPanel(this);
     m_settings     = new SettingsPanel(this);
 
     addWidget(m_project);        // 0 = Project
@@ -590,7 +591,8 @@ SideBar::SideBar(QWidget *parent)
     addWidget(m_send);           // 4 = Send
     addWidget(m_record);         // 5 = Record
     addWidget(m_device);         // 6 = Device
-    addWidget(m_settings);       // 7 = Settings
+    addWidget(m_protocol);       // 7 = Protocol
+    addWidget(m_settings);       // 8 = Settings
 
     setCurrentIndex(0);
     setMinimumWidth(220);
@@ -606,4 +608,79 @@ void SideBar::showPanel(int index)
 void SideBar::togglePanel(int index)
 {
     Q_UNUSED(index);
+}
+
+// ============================================================
+//  协议面板
+// ============================================================
+
+ProtocolPanel::ProtocolPanel(QWidget *parent)
+    : SidePanel("协议", parent)
+{
+    auto *layout = contentLayout();
+
+    m_list = new QListWidget(this);
+    m_list->setObjectName("ProtocolList");
+
+    // 已实现的协议（可点击打开标签页）
+    auto *udsItem = new QListWidgetItem("\xF0\x9F\x9A\x97 UDS 诊断 (ISO 14229)", m_list);
+    udsItem->setData(Qt::UserRole, "UDS");
+    udsItem->setToolTip("Unified Diagnostic Services — ECU 诊断服务交互");
+
+    auto *canopenItem = new QListWidgetItem("\xF0\x9F\x94\x84 CANopen (CiA 301)", m_list);
+    canopenItem->setData(Qt::UserRole, "CANopen");
+    canopenItem->setToolTip("CANopen 协议 — NMT/SDO/PDO/Emergency/Heartbeat");
+
+    // 未实现的协议（灰色显示）
+    auto *j1939Item = new QListWidgetItem("\xF0\x9F\x9A\x9B J1939", m_list);
+    j1939Item->setData(Qt::UserRole, "J1939");
+    j1939Item->setToolTip("SAE J1939 — 商用车/工程机械协议（敬请期待）");
+
+    auto *isotpItem = new QListWidgetItem("\xF0\x9F\x93\xA6 ISO-TP (ISO 15765-2)", m_list);
+    isotpItem->setData(Qt::UserRole, "ISO-TP");
+    isotpItem->setToolTip("CAN 传输层协议 — 多帧拆包/组包（敬请期待）");
+
+    auto *obdItem = new QListWidgetItem("\xF0\x9F\x9A\x97 OBD-II", m_list);
+    obdItem->setData(Qt::UserRole, "OBD-II");
+    obdItem->setToolTip("车载诊断 — 故障码读取/排放监测（敬请期待）");
+
+    auto *xcpItem = new QListWidgetItem("\xF0\x9F\x93\x8A XCP (CCP/Universal)", m_list);
+    xcpItem->setData(Qt::UserRole, "XCP");
+    xcpItem->setToolTip("通用标定测量协议 — ECU 标定/数据采集（敬请期待）");
+
+    auto *nmeaItem = new QListWidgetItem("\xF0\x9F\x9A\xA2 NMEA 2000", m_list);
+    nmeaItem->setData(Qt::UserRole, "NMEA2000");
+    nmeaItem->setToolTip("船舶电子设备互联协议（敬请期待）");
+
+    // 灰色标记未实现
+    for (int i = 2; i < m_list->count(); ++i) {
+        auto *item = m_list->item(i);
+        item->setForeground(QColor(0x80, 0x80, 0x80));
+        QFont f = item->font();
+        f.setItalic(true);
+        item->setFont(f);
+    }
+
+    layout->addWidget(m_list);
+
+    // 信息提示
+    auto *infoLabel = new QLabel("点击协议名称打开对应标签页\n灰色项暂未实现", this);
+    infoLabel->setStyleSheet("color: #888; font-size: 11px; padding: 4px;");
+    infoLabel->setAlignment(Qt::AlignCenter);
+    layout->addWidget(infoLabel);
+
+    connect(m_list, &QListWidget::itemClicked, this, &ProtocolPanel::onItemClicked);
+}
+
+void ProtocolPanel::onItemClicked(QListWidgetItem *item)
+{
+    if (!item) return;
+    QString protocol = item->data(Qt::UserRole).toString();
+    if (protocol.isEmpty()) return;
+
+    // 灰色项（未实现）不响应
+    if (item->foreground() == QColor(0x80, 0x80, 0x80))
+        return;
+
+    emit protocolOpened(protocol);
 }
