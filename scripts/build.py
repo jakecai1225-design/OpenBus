@@ -177,11 +177,11 @@ def cmd_configure(env, args):
     if not env.verify():
         sys.exit(1)
 
-    if args.clean and BUILD_DIR.exists():
+    if getattr(args, "clean", False) and BUILD_DIR.exists():
         info("清理旧构建目录...")
         shutil.rmtree(BUILD_DIR)
 
-    build_type = args.build_type
+    build_type = getattr(args, "build_type", "Debug")
     info(f"构建类型: {build_type}")
 
     cmd = [

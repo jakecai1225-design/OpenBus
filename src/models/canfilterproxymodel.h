@@ -2,15 +2,14 @@
 #define CANFILTERPROXYMODEL_H
 
 #include <QSortFilterProxyModel>
-#include <optional>
 #include <QHash>
-#include <QSet>
-#include "utils/canutils.h"
+#include <memory>
+#include "core/filter_engine.h"
 
 /**
  * @brief CAN 报文过滤代理模型
  *
- * 使用 CanUtils::FilterPredicate 对 CanTraceModel 进行行级过滤。
+ * 使用 FilterEngine（exprtk）对 CanTraceModel 进行行级过滤。
  * 支持主过滤表达式 + 按列子过滤器。
  */
 class CanFilterProxyModel : public QSortFilterProxyModel
@@ -27,7 +26,7 @@ public:
     QString filterExpression() const { return m_expr; }
 
     /// 主过滤是否生效
-    bool filterActive() const { return m_predicate.has_value(); }
+    bool filterActive() const { return m_filterEngine && m_filterEngine->isValid() && !m_filterEngine->isEmpty(); }
 
     /// 清除主过滤
     void clearFilter();
@@ -55,7 +54,7 @@ protected:
 
 private:
     QString m_expr;
-    std::optional<CanUtils::FilterPredicate> m_predicate;
+    std::unique_ptr<FilterEngine> m_filterEngine;
 
     QHash<int, QString> m_columnFilters;  // column -> filter text
 

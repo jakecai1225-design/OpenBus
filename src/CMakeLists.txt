@@ -5,6 +5,8 @@
 # core 层 — 数据结构、录制、回放、模拟器、DBC
 set(SRC_CORE
     core/canframe.h
+    core/logging.h
+    core/logging.cpp
     core/recorder.h
     core/recorder.cpp
     core/player.h
@@ -14,6 +16,10 @@ set(SRC_CORE
     core/dbcdata.h
     core/dbcmanager.h
     core/dbcmanager.cpp
+    core/dbc/dbc_adapter.h
+    core/dbc/dbc_adapter.cpp
+    core/filter_engine.h
+    core/filter_engine.cpp
 )
 
 # models 层 — Qt 数据模型
@@ -77,11 +83,23 @@ qt_add_executable(sin
 )
 
 # ============================================================
+#  exprtk 头文件极大，MinGW 需启用 big-obj 避免节区溢出
+# ============================================================
+if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # exprtk.hpp 是 ~1.7MB 纯头文件，模板实例化产生巨型目标文件
+    # 需关闭调试信息并优化以避免 COFF 节区/字符串表溢出
+    set_source_files_properties(core/filter_engine.cpp PROPERTIES
+        COMPILE_OPTIONS "-Wa,-mbig-obj;-g0;-O2")
+endif()
+
+# ============================================================
 #  链接库
 # ============================================================
 target_link_libraries(sin PRIVATE
     Qt6::Widgets
-    Qt6::Charts
+    spdlog::spdlog
+    exprtk
+    qcustomplot
 )
 
 # ============================================================

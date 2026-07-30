@@ -67,12 +67,6 @@ private:
 
     /// 重建索引（loadDbc / unloadDbc 后调用）
     void rebuildIndex();
-
-    /// 完整 DBC 文件解析（支持 BU_/CM_/BA_/VAL_/VAL_TABLE_ 等全部段）
-    bool parseDbc(const QString &filePath, DbcFile &out);
-
-    /// 解析后处理：关联节点收发关系、应用属性值
-    void postProcess(DbcFile &file);
 };
 
 #endif // DBCMANAGER_H

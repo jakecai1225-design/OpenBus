@@ -1,6 +1,7 @@
 #include "canfilterproxymodel.h"
 #include "cantracemodel.h"
 #include "core/canframe.h"
+#include "core/filter_engine.h"
 #include "utils/canutils.h"
 
 CanFilterProxyModel::CanFilterProxyModel(QObject *parent)
@@ -12,16 +13,17 @@ bool CanFilterProxyModel::setFilterExpression(const QString &expr)
 {
     m_expr = expr;
     if (expr.trimmed().isEmpty()) {
-        m_predicate.reset();
+        m_filterEngine.reset();
         invalidateFilter();
         return true;
     }
-    if (!CanUtils::isFilterValid(expr)) {
-        m_predicate.reset();
+    auto engine = std::make_unique<FilterEngine>();
+    if (!engine->compile(expr)) {
+        m_filterEngine.reset();
         invalidateFilter();
         return false;
     }
-    m_predicate = CanUtils::parseFilter(expr);
+    m_filterEngine = std::move(engine);
     invalidateFilter();
     return true;
 }
@@ -29,7 +31,7 @@ bool CanFilterProxyModel::setFilterExpression(const QString &expr)
 void CanFilterProxyModel::clearFilter()
 {
     m_expr.clear();
-    m_predicate.reset();
+    m_filterEngine.reset();
     invalidateFilter();
 }
 
@@ -124,11 +126,11 @@ bool CanFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sou
     Q_UNUSED(sourceParent);
 
     // 主过滤表达式
-    if (m_predicate.has_value()) {
+    if (m_filterEngine && m_filterEngine->isValid() && !m_filterEngine->isEmpty()) {
         auto *model = qobject_cast<CanTraceModel *>(sourceModel());
         if (!model) return true;
         const CanFrame &frame = model->frameAt(sourceRow);
-        if (!(*m_predicate)(frame))
+        if (!m_filterEngine->evaluate(frame))
             return false;
     }
 

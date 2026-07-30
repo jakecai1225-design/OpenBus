@@ -1,5 +1,6 @@
 #include "dbcdetailtab.h"
 #include "core/dbcmanager.h"
+#include "core/logging.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -282,13 +283,13 @@ void DbcDetailTab::refreshTree()
     m_tree->clear();
     const DbcFile *file = currentDbcFile();
     if (!file) {
-        qDebug() << "[DbcDetailTab] currentDbcFile() returned nullptr for" << m_dbcFileName;
+        SIN_LOG_WARN("DbcDetailTab", "currentDbcFile() returned nullptr for {}",
+                     m_dbcFileName.toStdString());
         return;
     }
-    qDebug() << "[DbcDetailTab] refreshTree:" << file->fileName
-             << "messages:" << file->messages.size()
-             << "nodes:" << file->nodes.size()
-             << "valueTables:" << file->valueTables.size();
+    SIN_LOG_DEBUG("DbcDetailTab", "refreshTree: {} messages: {} nodes: {} valueTables: {}",
+                  file->fileName.toStdString(), file->messages.size(),
+                  file->nodes.size(), file->valueTables.size());
 
     // 顶层: 网络
     auto *netItem = new QTreeWidgetItem(m_tree, {file->fileName});

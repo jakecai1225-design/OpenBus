@@ -1,9 +1,11 @@
 #include "canutils.h"
 #include "core/canframe.h"
+#include "core/filter_engine.h"
 
 #include <QRegularExpression>
 #include <QStringList>
 #include <algorithm>
+#include <memory>
 
 namespace CanUtils {
 
@@ -69,328 +71,19 @@ quint32 parseHex(const QString &s)
 }
 
 // ============================================================
-//  过滤器解析 — 递归下降
-// ============================================================
-
-namespace {
-
-/// 单个 token
-struct Token {
-    enum Type {
-        TokEnd, TokIdent, TokHex, TokDec, TokComma,
-        TokEq, TokNe, TokGt, TokLt, TokLParen, TokRParen
-    } type;
-    QString text;
-};
-
-/// 词法分析器
-class Lexer {
-public:
-    explicit Lexer(const QString &src) : m_src(src), m_pos(0) {}
-
-    Token next()
-    {
-        skipSpace();
-        if (m_pos >= m_src.size())
-            return {Token::TokEnd, ""};
-
-        QChar c = m_src[m_pos];
-
-        if (c == '(') { m_pos++; return {Token::TokLParen, "("}; }
-        if (c == ')') { m_pos++; return {Token::TokRParen, ")"}; }
-        if (c == ',') { m_pos++; return {Token::TokComma, ","}; }
-        if (c == '=') { m_pos++; if (peek() == '=') { m_pos++; } return {Token::TokEq, "=="}; }
-        if (c == '!') {
-            m_pos++;
-            if (peek() == '=') { m_pos++; return {Token::TokNe, "!="}; }
-            m_pos--; // 处理 !fd 等
-        }
-        if (c == '>') { m_pos++; return {Token::TokGt, ">"}; }
-        if (c == '<') { m_pos++; return {Token::TokLt, "<"}; }
-
-        // 十六进制数字
-        if (c == '0' && (m_pos + 1 < m_src.size()) && (m_src[m_pos + 1] == 'x' || m_src[m_pos + 1] == 'X')) {
-            m_pos += 2;
-            return lexNumber(/*hex=*/true);
-        }
-        if (c.isDigit()) {
-            return lexNumber(/*hex=*/false);
-        }
-
-        // 标识符
-        if (c.isLetter()) {
-            int start = m_pos;
-            while (m_pos < m_src.size() && (m_src[m_pos].isLetterOrNumber() || m_src[m_pos] == '_'))
-                m_pos++;
-            return {Token::TokIdent, m_src.mid(start, m_pos - start).toLower()};
-        }
-
-        // 未知字符
-        m_pos++;
-        return {Token::TokEnd, ""};
-    }
-
-private:
-    const QString &m_src;
-    int m_pos;
-
-    QChar peek() const { return m_pos < m_src.size() ? m_src[m_pos] : QChar(); }
-
-    void skipSpace()
-    {
-        while (m_pos < m_src.size() && m_src[m_pos].isSpace())
-            m_pos++;
-    }
-
-    Token lexNumber(bool hex)
-    {
-        int start = m_pos;
-        while (m_pos < m_src.size()) {
-            QChar c = m_src[m_pos];
-            if (hex) {
-                if (c.isDigit() || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))
-                    m_pos++;
-                else
-                    break;
-            } else {
-                if (c.isDigit())
-                    m_pos++;
-                else
-                    break;
-            }
-        }
-        QString num = m_src.mid(start, m_pos - start);
-        return {hex ? Token::TokHex : Token::TokDec, num};
-    }
-};
-
-/// 递归下降解析器
-class Parser {
-public:
-    explicit Parser(const QString &expr) : m_lex(expr), m_ok(true)
-    {
-        m_cur = m_lex.next();
-    }
-
-    CanUtils::FilterPredicate parse()
-    {
-        auto p = parseOr();
-        if (m_cur.type != Token::TokEnd)
-            m_ok = false;
-        return m_ok ? p : CanUtils::FilterPredicate{};
-    }
-
-    bool ok() const { return m_ok; }
-
-private:
-    Lexer m_lex;
-    Token m_cur;
-    bool m_ok;
-
-    void advance() { m_cur = m_lex.next(); }
-
-    // or := and ('or' and)*
-    CanUtils::FilterPredicate parseOr()
-    {
-        auto left = parseAnd();
-        while (m_ok && m_cur.type == Token::TokIdent && m_cur.text == "or") {
-            advance();
-            auto right = parseAnd();
-            auto l = std::move(left);
-            left = [l, r = std::move(right)](const CanFrame &f) { return l(f) || r(f); };
-        }
-        return left;
-    }
-
-    // and := not ('and' not)*
-    CanUtils::FilterPredicate parseAnd()
-    {
-        auto left = parseNot();
-        while (m_ok && m_cur.type == Token::TokIdent && m_cur.text == "and") {
-            advance();
-            auto right = parseNot();
-            auto l = std::move(left);
-            left = [l, r = std::move(right)](const CanFrame &f) { return l(f) && r(f); };
-        }
-        return left;
-    }
-
-    // not := 'not' not | atom
-    CanUtils::FilterPredicate parseNot()
-    {
-        if (m_ok && m_cur.type == Token::TokIdent && m_cur.text == "not") {
-            advance();
-            auto inner = parseNot();
-            return [i = std::move(inner)](const CanFrame &f) { return !i(f); };
-        }
-        return parseAtom();
-    }
-
-    // atom := '(' or ')' | simple
-    CanUtils::FilterPredicate parseAtom()
-    {
-        if (m_cur.type == Token::TokLParen) {
-            advance();
-            auto p = parseOr();
-            if (m_cur.type != Token::TokRParen) { m_ok = false; return {}; }
-            advance();
-            return p;
-        }
-        return parseSimple();
-    }
-
-    // simple := ident op? value?
-    CanUtils::FilterPredicate parseSimple()
-    {
-        if (m_cur.type == Token::TokHex) {
-            // 裸 hex -> 按 ID 匹配
-            quint32 id = parseHex("0x" + m_cur.text);
-            advance();
-            return [id](const CanFrame &f) { return (f.id & 0x1FFFFFFF) == id; };
-        }
-        if (m_cur.type != Token::TokIdent) { m_ok = false; return {}; }
-
-        QString kw = m_cur.text;
-        advance();
-
-        // 关键字标志
-        if (kw == "fd")
-            return [](const CanFrame &f) { return f.fd; };
-        if (kw == "ext")
-            return [](const CanFrame &f) { return f.extended; };
-        if (kw == "std")
-            return [](const CanFrame &f) { return !f.extended; };
-        if (kw == "rx")
-            return [](const CanFrame &f) { return f.direction == CanFrame::Rx; };
-        if (kw == "tx")
-            return [](const CanFrame &f) { return f.direction == CanFrame::Tx; };
-
-        // id / dlc / ch / data
-        if (kw == "id") {
-            if (m_cur.type == Token::TokEq) {
-                advance();
-                quint32 id = expectHex();
-                return [id](const CanFrame &f) { return (f.id & 0x1FFFFFFF) == id; };
-            }
-            if (m_cur.type == Token::TokNe) {
-                advance();
-                quint32 id = expectHex();
-                return [id](const CanFrame &f) { return (f.id & 0x1FFFFFFF) != id; };
-            }
-            if (m_cur.type == Token::TokIdent && m_cur.text == "in") {
-                advance();
-                QVector<quint32> ids;
-                if (m_cur.type != Token::TokHex && m_cur.type != Token::TokDec) { m_ok = false; return {}; }
-                ids << expectHex();
-                while (m_cur.type == Token::TokComma) {
-                    advance();
-                    ids << expectHex();
-                }
-                return [ids](const CanFrame &f) {
-                    return ids.contains(f.id & 0x1FFFFFFF);
-                };
-            }
-            m_ok = false;
-            return {};
-        }
-
-        if (kw == "dlc") {
-            auto op = m_cur.type;
-            advance();
-            int val = expectDec();
-            if (op == Token::TokEq) return [val](const CanFrame &f) { return f.dlc == val; };
-            if (op == Token::TokNe) return [val](const CanFrame &f) { return f.dlc != val; };
-            if (op == Token::TokGt) return [val](const CanFrame &f) { return f.dlc > val; };
-            if (op == Token::TokLt) return [val](const CanFrame &f) { return f.dlc < val; };
-            m_ok = false;
-            return {};
-        }
-
-        if (kw == "ch") {
-            if (m_cur.type == Token::TokEq) {
-                advance();
-                int val = expectDec();
-                return [val](const CanFrame &f) { return f.channel == val; };
-            }
-            m_ok = false;
-            return {};
-        }
-
-        if (kw == "data") {
-            if (m_cur.type == Token::TokIdent && m_cur.text == "contains") {
-                advance();
-                // 收集十六进制字节
-                QByteArray pattern;
-                while (m_cur.type == Token::TokHex || m_cur.type == Token::TokDec) {
-                    QString s = m_cur.text;
-                    advance();
-                    // 逐字节解析
-                    if (s.length() % 2 != 0) s.prepend('0');
-                    for (int i = 0; i < s.length(); i += 2)
-                        pattern.append(static_cast<char>(s.mid(i, 2).toUInt(nullptr, 16)));
-                }
-                if (pattern.isEmpty()) { m_ok = false; return {}; }
-                return [pattern](const CanFrame &f) { return f.data.contains(pattern); };
-            }
-            m_ok = false;
-            return {};
-        }
-
-        // !fd 处理
-        if (kw.startsWith("!")) {
-            QString neg = kw.mid(1);
-            if (neg == "fd")
-                return [](const CanFrame &f) { return !f.fd; };
-            if (neg == "ext")
-                return [](const CanFrame &f) { return !f.extended; };
-        }
-
-        m_ok = false;
-        return {};
-    }
-
-    quint32 expectHex()
-    {
-        if (m_cur.type == Token::TokHex) {
-            quint32 v = parseHex("0x" + m_cur.text);
-            advance();
-            return v;
-        }
-        if (m_cur.type == Token::TokDec) {
-            quint32 v = parseHex("0x" + m_cur.text);
-            advance();
-            return v;
-        }
-        m_ok = false;
-        return 0;
-    }
-
-    int expectDec()
-    {
-        if (m_cur.type == Token::TokDec || m_cur.type == Token::TokHex) {
-            int v = m_cur.text.toInt();
-            advance();
-            return v;
-        }
-        m_ok = false;
-        return 0;
-    }
-};
-
-} // anonymous namespace
-
-// ============================================================
-//  公共接口
+//  过滤器接口（基于 exprtk 引擎）
 // ============================================================
 
 FilterPredicate parseFilter(const QString &expr)
 {
     QString trimmed = expr.trimmed();
     if (trimmed.isEmpty())
-        return [](const CanFrame &) { return true; }; // 无过滤
+        return [](const CanFrame &) { return true; };
 
-    Parser parser(trimmed);
-    return parser.parse();
+    auto engine = std::make_shared<FilterEngine>();
+    if (!engine->compile(trimmed))
+        return {};
+    return [engine](const CanFrame &f) { return engine->evaluate(f); };
 }
 
 bool isFilterValid(const QString &expr)
@@ -398,32 +91,45 @@ bool isFilterValid(const QString &expr)
     QString trimmed = expr.trimmed();
     if (trimmed.isEmpty())
         return true;
-    Parser parser(trimmed);
-    parser.parse();
-    return parser.ok();
+    FilterEngine engine;
+    return engine.compile(trimmed);
 }
 
 QString filterHelp()
 {
     return QStringLiteral(
-        "过滤器语法:\n"
-        "  0x123            匹配 ID 为 0x123 的帧\n"
-        "  id == 0x123      匹配指定 ID\n"
-        "  id != 0x123      排除指定 ID\n"
-        "  id in 0x100,0x200  匹配多个 ID\n"
-        "  dlc > 8          DLC 大于 8 (CAN FD)\n"
-        "  dlc == 8         DLC 等于 8\n"
-        "  fd               仅 CAN FD 帧\n"
-        "  ext              仅扩展帧\n"
-        "  std              仅标准帧\n"
-        "  rx               仅接收帧\n"
-        "  tx               仅发送帧\n"
-        "  ch == 1          匹配通道 1\n"
-        "  data contains 01 02  数据包含字节序列\n"
-        "  and / or / not   逻辑组合\n"
-        "  示例: id == 0x123 and dlc > 8\n"
-        "        fd and ext\n"
-        "        not (id == 0x100 or id == 0x200)"
+        "过滤器语法 (exprtk 引擎):\n"
+        "\n"
+        "  变量:\n"
+        "    id    CAN ID (整数)\n"
+        "    dlc   数据长度码\n"
+        "    ch    通道号\n"
+        "    time  时间戳 (秒)\n"
+        "    fd    CAN FD 标志 (1/0)\n"
+        "    ext   扩展帧标志 (1/0)\n"
+        "    std   标准帧标志 (= !ext)\n"
+        "    rx    接收方向 (1/0)\n"
+        "    tx    发送方向 (= !rx)\n"
+        "\n"
+        "  运算符:\n"
+        "    ==  !=  >  <  >=  <=  比较\n"
+        "    and / &&    逻辑与\n"
+        "    or  / ||    逻辑或\n"
+        "    not / !     逻辑非\n"
+        "\n"
+        "  语法糖:\n"
+        "    0x123                  等价于 id == 0x123\n"
+        "    id in 0x100,0x200      匹配多个 ID\n"
+        "    data contains 01 02    数据包含字节序列\n"
+        "\n"
+        "  示例:\n"
+        "    id == 0x123 and dlc > 8\n"
+        "    fd and ext\n"
+        "    0x100 or 0x200\n"
+        "    not (id == 0x100 or id == 0x200)\n"
+        "    data contains 01 02 and ch == 1\n"
+        "    dlc >= 8 and (fd or ext)\n"
+        "    time > 1.5 and id != 0x7DF"
     );
 }
 

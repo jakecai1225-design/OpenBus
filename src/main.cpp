@@ -3,6 +3,7 @@
 #include "ui/mainwindow.h"
 #include "ui/thememanager.h"
 #include "core/canframe.h"
+#include "core/logging.h"
 
 int main(int argc, char *argv[])
 {
@@ -14,11 +15,16 @@ int main(int argc, char *argv[])
     app.setOrganizationName("sin");
     app.setApplicationVersion("0.1.0");
 
+    // 初始化日志系统（需在 QApplication 设置名称之后）
+    logging::init();
+
     // 应用主题
     ThemeManager::instance()->applyTheme("Light");
 
     MainWindow window;
     window.show();
 
-    return app.exec();
+    int ret = app.exec();
+    logging::shutdown();
+    return ret;
 }

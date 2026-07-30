@@ -28,10 +28,15 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # ============================================================
 #  查找 Qt6
 # ============================================================
-find_package(Qt6 REQUIRED COMPONENTS Widgets Charts)
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 # 启用 Qt 标准项目设置
 qt_standard_project_setup()
+
+# ============================================================
+#  第三方依赖
+# ============================================================
+include(${CMAKE_SOURCE_DIR}/third_party/Dependencies.cmake)
 
 # ============================================================
 #  子目录

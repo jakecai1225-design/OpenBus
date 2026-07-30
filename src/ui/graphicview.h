@@ -10,16 +10,15 @@
 class QSplitter;
 class QListWidget;
 class QListWidgetItem;
-class QChart;
-class QChartView;
-class QLineSeries;
-class QValueAxis;
+class QCustomPlot;
+class QCPGraph;
+class QCPAxis;
 class QToolBar;
 
 /**
- * @brief CANoe 风格 Graphic 信号图形视图 — 基于 Qt Charts
+ * @brief CANoe 风格 Graphic 信号图形视图 — 基于 QCustomPlot
  *
- * 左侧信号列表 (勾选/颜色/名称) + 右侧 QChartView 波形区。
+ * 左侧信号列表 (勾选/颜色/名称) + 右侧 QCustomPlot 波形区。
  * 支持添加多个信号 (指定 CAN ID + 字节偏移 + 位长)。
  * 工具栏支持缩放/适应/测量。
  */
@@ -58,15 +57,13 @@ public slots:
 private:
     struct SignalData {
         Signal config;
-        QLineSeries *series = nullptr;
-        QValueAxis *yAxis = nullptr;
+        QCPGraph *graph = nullptr;
+        QCPAxis *yAxis = nullptr;
     };
 
     QSplitter *m_splitter = nullptr;
     QListWidget *m_signalList = nullptr;
-    QChart *m_chart = nullptr;
-    QChartView *m_chartView = nullptr;
-    QValueAxis *m_timeAxis = nullptr;
+    QCustomPlot *m_plot = nullptr;
     QToolBar *m_toolbar = nullptr;
 
     QVector<SignalData> m_signals;

@@ -190,3 +190,31 @@ D:/Qt/6.8.3/mingw_64/bin/windeployqt.exe build/bin/sin.exe
 ## 开源协议
 
 本项目基于 [MIT License](LICENSE) 开源，商业使用请联系作者获取授权。
+
+引入这些开源组件，能去重构或者重写原来的一些模块，最小稳定技术栈（Qt6 + 商用无风险协议）
+DBC 解析：dbcppp（MIT）
+CAN 硬件：libsocketcan (Linux) + Kvaser/PEAK 官方 SDK (Windows)
+BLF 日志：libblf
+绘图波形：QCustomPlot
+多窗口布局：Qt Advanced Docking System
+线程队列：moodycamel ConcurrentQueue
+表达式过滤：exprtk
+脚本扩展：sol2 + Lua（可选）
+XML/JSON：pugixml + nlohmann/json
+日志打印：spdlog
+
+FastTable / QtAdvancedTableView（高性能表格）
+
+3. Qt TreeView 增强：QTreeWidgetEx
+DBC 信号树（信号分组、报文列表），支持折叠、筛选、搜索信号，对标 Canoe 信号浏览器
+
+【窗口 / 布局 / 多视图管理组件】多波形窗口、分屏、停靠面板（对标 Canoe 多视图）
+1. QDockWidget 增强：Qt Advanced Docking System（QtADS，必装！）
+绝对刚需，你的上位机离不开
+原生 QDockWidget 缺陷：拖拽分屏、浮动窗口、标签分组、保存布局非常难写。
+QtADS 开源 MIT，完美解决：
+窗口自由拖拽拆分、左右 / 上下分屏、多波形独立子窗口；
+面板标签化堆叠（波形面板 + 报文表格 + 信号树同区域切换）；
+一键保存 / 加载界面布局（用户自定义视图布局重启不丢失）；
+浮动独立窗口、最小化面板、锁定布局；
+兼容 QCustomPlot 绘图面板嵌入 dock。
