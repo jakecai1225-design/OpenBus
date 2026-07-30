@@ -71,7 +71,7 @@ quint32 parseHex(const QString &s)
 }
 
 // ============================================================
-//  过滤器接口（基于 exprtk 引擎）
+//  过滤器接口（基于轻量递归下降解析器）
 // ============================================================
 
 FilterPredicate parseFilter(const QString &expr)
@@ -98,7 +98,7 @@ bool isFilterValid(const QString &expr)
 QString filterHelp()
 {
     return QStringLiteral(
-        "过滤器语法 (exprtk 引擎):\n"
+        "过滤器语法:\n"
         "\n"
         "  变量:\n"
         "    id    CAN ID (整数)\n"

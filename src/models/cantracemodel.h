@@ -3,6 +3,7 @@
 
 #include <QAbstractTableModel>
 #include <QVector>
+#include <QHash>
 #include "core/canframe.h"
 
 /**
@@ -24,6 +25,7 @@ public:
         ColDlc,
         ColData,
         ColFlags,
+        ColFrameCount,   ///< 每个 CAN ID 的帧计数
         ColCount
     };
 
@@ -65,9 +67,22 @@ public:
     /// 获取所有帧（const 引用，用于 GraphicView 等）
     const QVector<CanFrame> &frames() const { return m_frames; }
 
+    // ---- 覆盖模式 ----
+
+    /// 设置覆盖模式：同 CAN ID 的帧只保留一行，刷新数据和帧数
+    void setOverwriteMode(bool mode);
+    bool isOverwriteMode() const { return m_overwriteMode; }
+
+    /// 获取指定 CAN ID 的累计帧数
+    int frameCountForId(quint32 id) const { return m_idCount.value(id, 0); }
+
 private:
     QVector<CanFrame> m_frames;
     int m_maxFrames = 100000; ///< 默认最多保留 10 万帧
+
+    bool m_overwriteMode = false;                 ///< 覆盖模式开关
+    QHash<quint32, int> m_idToRow;                ///< CAN ID → 源模型行号（覆盖模式）
+    QHash<quint32, int> m_idCount;                ///< CAN ID → 累计帧数
 };
 
 #endif // CANTRACEMODEL_H

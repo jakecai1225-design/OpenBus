@@ -63,6 +63,7 @@ void TraceView::setupAppearance()
     setColumnWidth(CanTraceModel::ColDlc, 60);
     setColumnWidth(CanTraceModel::ColData, 300);
     setColumnWidth(CanTraceModel::ColFlags, 80);
+    setColumnWidth(CanTraceModel::ColFrameCount, 70);
 
     // 默认按时间升序排序
     sortByColumn(CanTraceModel::ColTime, Qt::AscendingOrder);
@@ -191,7 +192,8 @@ QString TraceView::columnFilterHint(int column) const
     case CanTraceModel::ColId:        return "例如: 0x123  或  >0x100  或  !=0x200";
     case CanTraceModel::ColDlc:       return "例如: 8  或  >4";
     case CanTraceModel::ColData:      return "例如: 01 02  或  FF";
-    case CanTraceModel::ColFlags:     return "例如: FD  或  BRS";
+    case CanTraceModel::ColFlags:     return QStringLiteral("例如: FD  或  BRS");
+    case CanTraceModel::ColFrameCount: return QStringLiteral("例如: >10 或 50");
     }
     return {};
 }
@@ -507,6 +509,10 @@ TraceTab::TraceTab(QWidget *parent)
     // 选中行变化 → 更新底部面板
     connect(m_traceView->selectionModel(), &QItemSelectionModel::selectionChanged,
             this, &TraceTab::onSelectionChanged);
+
+    // 覆盖模式切换 → 同步到数据模型
+    connect(m_filterBar, &FilterBar::overwriteModeToggled,
+            m_traceModel, &CanTraceModel::setOverwriteMode);
 }
 
 void TraceTab::setDbcManager(DbcManager *mgr)
@@ -518,6 +524,11 @@ void TraceTab::setRunning(bool running)
 {
     m_running = running;
     m_filterBar->setRunning(running);
+}
+
+bool TraceTab::isOverwriteMode() const
+{
+    return m_traceModel->isOverwriteMode();
 }
 
 void TraceTab::appendFrame(const CanFrame &frame)

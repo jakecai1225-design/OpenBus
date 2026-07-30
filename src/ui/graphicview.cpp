@@ -1,4 +1,4 @@
-#include "graphicview.h"
+﻿#include "graphicview.h"
 #include "signalconfigdialog.h"
 
 #include <QSplitter>
@@ -15,7 +15,10 @@
 #include <cmath>
 #include <algorithm>
 
-#include <qcustomplot.h>
+#include <QChart>
+#include <QChartView>
+#include <QLineSeries>
+#include <QValueAxis>
 
 GraphicView::GraphicView(QWidget *parent)
     : QWidget(parent)
@@ -56,7 +59,7 @@ void GraphicView::setupUi()
     zoomOutBtn->setText("🔍-");
     zoomOutBtn->setToolTip("缩小");
     auto *fitBtn = new QToolButton(this);
-    fitBtn->setText("⤢");
+    fitBtn->setText("📐");
     fitBtn->setToolTip("适应窗口");
     auto *measureBtn = new QToolButton(this);
     measureBtn->setText("📏");
@@ -70,7 +73,7 @@ void GraphicView::setupUi()
     m_toolbar->addWidget(measureBtn);
     mainLayout->addWidget(m_toolbar);
 
-    // ---- Splitter: signal list | plot ----
+    // ---- Splitter: signal list | chart view ----
     m_splitter = new QSplitter(Qt::Horizontal, this);
 
     // Left panel: signal list
@@ -91,30 +94,25 @@ void GraphicView::setupUi()
     btnBar->addWidget(removeBtn);
     leftLayout->addLayout(btnBar);
 
-    // Right panel: QCustomPlot
-    m_plot = new QCustomPlot(this);
-    m_plot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom);
-    m_plot->setSelectionRectMode(QCP::srmZoom);
+    // Right panel: chart view
+    m_chart = new QChart();
+    m_chart->setTitle("信号波形");
+    m_chart->setTheme(QChart::ChartThemeLight);
+    m_chart->legend()->setAlignment(Qt::AlignBottom);
+    m_chart->setMargins(QMargins(2, 2, 2, 2));
 
-    // Configure X axis (time)
-    m_plot->xAxis->setLabel("时间 (s)");
-    m_plot->xAxis->setNumberFormat("f");
-    m_plot->xAxis->setNumberPrecision(1);
-    m_plot->xAxis->setRange(0, m_timeWindow);
+    m_timeAxis = new QValueAxis();
+    m_timeAxis->setTitleText("时间 (s)");
+    m_timeAxis->setLabelFormat("%.1f");
+    m_timeAxis->setRange(0, m_timeWindow);
+    m_chart->addAxis(m_timeAxis, Qt::AlignBottom);
 
-    // Default Y axis (will be hidden when signals have their own)
-    m_plot->yAxis->setLabel("值");
-    m_plot->yAxis->setRange(0, 1);
-
-    // Legend at bottom
-    m_plot->legend->setVisible(true);
-    m_plot->axisRect()->insetLayout()->setInsetAlignment(0, Qt::AlignBottom | Qt::AlignHCenter);
-
-    // Antialiasing
-    m_plot->setAntialiasedElements(QCP::aeAll);
+    m_chartView = new QChartView(m_chart, this);
+    m_chartView->setRenderHint(QPainter::Antialiasing);
+    m_chartView->setRubberBand(QChartView::RectangleRubberBand);
 
     m_splitter->addWidget(leftWidget);
-    m_splitter->addWidget(m_plot);
+    m_splitter->addWidget(m_chartView);
     m_splitter->setStretchFactor(0, 0);
     m_splitter->setStretchFactor(1, 1);
     m_splitter->setSizes({180, 500});
@@ -129,13 +127,11 @@ void GraphicView::setupUi()
             sig.name = dlg.signalName();
             sig.canId = dlg.canId();
             sig.extended = dlg.isExtended();
-            // 构造 DbcSignal 定义
+            // 构造 DbcSignal（从对话框获取基本参数）
             sig.dbcSig.name = sig.name;
-            sig.dbcSig.startBit = dlg.byteOffset() * 8;
+            sig.dbcSig.startBit = dlg.byteOffset() * 8;  // 字节偏移转位偏移
             sig.dbcSig.bitLength = dlg.bitLength();
             sig.dbcSig.littleEndian = !dlg.isBigEndian();
-            sig.dbcSig.factor = 1.0;
-            sig.dbcSig.offset = 0.0;
             addSignal(sig);
         }
     });
@@ -147,29 +143,23 @@ void GraphicView::setupUi()
     });
 
     connect(zoomInBtn, &QToolButton::clicked, this, [this]() {
-        m_plot->xAxis->scaleRange(0.5, m_plot->xAxis->range().center());
-        m_plot->yAxis->scaleRange(0.5, m_plot->yAxis->range().center());
-        m_plot->replot();
+        m_chart->zoomIn();
     });
     connect(zoomOutBtn, &QToolButton::clicked, this, [this]() {
-        m_plot->xAxis->scaleRange(2.0, m_plot->xAxis->range().center());
-        m_plot->yAxis->scaleRange(2.0, m_plot->yAxis->range().center());
-        m_plot->replot();
+        m_chart->zoomOut();
     });
     connect(fitBtn, &QToolButton::clicked, this, [this]() {
-        m_plot->rescaleAxes(true);
+        m_chart->zoomReset();
         refreshTimeAxis();
-        m_plot->replot(QCustomPlot::rpQueuedReplot);
     });
 
-    // Signal list checkbox → show/hide signal
+    // Signal list checkbox 鈫?show/hide signal
     connect(m_signalList, &QListWidget::itemChanged, this, [this](QListWidgetItem *item) {
         int row = m_signalList->row(item);
         if (row >= 0 && row < m_signals.size()) {
             bool visible = (item->checkState() == Qt::Checked);
-            m_signals[row].graph->setVisible(visible);
+            m_signals[row].series->setVisible(visible);
             m_signals[row].yAxis->setVisible(visible);
-            m_plot->replot(QCustomPlot::rpQueuedReplot);
         }
     });
 
@@ -194,36 +184,29 @@ void GraphicView::addSignal(const Signal &sig)
     if (!sd.config.color.isValid())
         sd.config.color = autoColor(m_signals.size());
 
-    // Create graph
-    sd.graph = m_plot->addGraph();
-    sd.graph->setName(sig.name);
-    sd.graph->setPen(QPen(sd.config.color));
-    sd.graph->setKeyAxis(m_plot->xAxis);
+    // Create line series
+    sd.series = new QLineSeries();
+    sd.series->setName(sig.name);
+    sd.series->setColor(sd.config.color);
+    m_chart->addSeries(sd.series);
 
     // Create Y axis (alternating left/right)
-    QCPAxis::AxisType axisType = (m_signals.size() % 2 == 0)
-        ? QCPAxis::atLeft : QCPAxis::atRight;
-    sd.yAxis = m_plot->axisRect()->addAxis(axisType);
-    sd.yAxis->setLabel(sig.name);
-    sd.yAxis->setNumberFormat("g");
-    sd.yAxis->setNumberPrecision(3);
-
-    // Default range based on DBC signal min/max
+    sd.yAxis = new QValueAxis();
+    sd.yAxis->setLabelFormat("%.0f");
+    sd.yAxis->setTitleText(sig.name);
+    // Default range based on DBC min/max
     double yMin = sig.dbcSig.minimum;
     double yMax = sig.dbcSig.maximum;
     if (yMax <= yMin) yMax = yMin + 1.0;
     sd.yAxis->setRange(yMin, yMax);
 
-    sd.graph->setValueAxis(sd.yAxis);
+    Qt::Alignment align = (m_signals.size() % 2 == 0) ? Qt::AlignLeft : Qt::AlignRight;
+    m_chart->addAxis(sd.yAxis, align);
+    sd.series->attachAxis(m_timeAxis);
+    sd.series->attachAxis(sd.yAxis);
 
     m_signals.append(sd);
     updateSignalList();
-
-    // Hide the default Y axis if we have custom ones
-    if (m_signals.size() == 1)
-        m_plot->yAxis->setVisible(false);
-
-    m_plot->replot(QCustomPlot::rpQueuedReplot);
 }
 
 void GraphicView::removeSignal(int index)
@@ -232,34 +215,33 @@ void GraphicView::removeSignal(int index)
         return;
 
     auto &sd = m_signals[index];
-    if (sd.graph)
-        m_plot->removeGraph(sd.graph);
-    if (sd.yAxis)
-        m_plot->axisRect()->removeAxis(sd.yAxis);
+    if (sd.series) {
+        m_chart->removeSeries(sd.series);
+        sd.series->deleteLater();
+    }
+    if (sd.yAxis) {
+        m_chart->removeAxis(sd.yAxis);
+        sd.yAxis->deleteLater();
+    }
 
     m_signals.removeAt(index);
-
-    // Show default Y axis if no signals remain
-    if (m_signals.isEmpty())
-        m_plot->yAxis->setVisible(true);
-
     updateSignalList();
-    m_plot->replot(QCustomPlot::rpQueuedReplot);
 }
 
 void GraphicView::clearSignals()
 {
     for (auto &sd : m_signals) {
-        if (sd.graph)
-            m_plot->removeGraph(sd.graph);
-        if (sd.yAxis)
-            m_plot->axisRect()->removeAxis(sd.yAxis);
+        if (sd.series) {
+            m_chart->removeSeries(sd.series);
+            sd.series->deleteLater();
+        }
+        if (sd.yAxis) {
+            m_chart->removeAxis(sd.yAxis);
+            sd.yAxis->deleteLater();
+        }
     }
     m_signals.clear();
-
-    m_plot->yAxis->setVisible(true);
     updateSignalList();
-    m_plot->replot(QCustomPlot::rpQueuedReplot);
 }
 
 QVector<GraphicView::Signal> GraphicView::signalConfigs() const
@@ -273,12 +255,11 @@ QVector<GraphicView::Signal> GraphicView::signalConfigs() const
 void GraphicView::clearData()
 {
     for (auto &sd : m_signals) {
-        if (sd.graph)
-            sd.graph->data()->clear();
+        if (sd.series)
+            sd.series->clear();
     }
     m_currentTime = 0.0;
     refreshTimeAxis();
-    m_plot->replot(QCustomPlot::rpQueuedReplot);
 }
 
 void GraphicView::onFrame(const CanFrame &frame)
@@ -290,35 +271,40 @@ void GraphicView::onFrame(const CanFrame &frame)
             frame.extended == sd.config.extended) {
             double val = extractValue(frame, sd.config);
             if (!std::isnan(val)) {
-                sd.graph->addData(frame.timestamp, val);
+                sd.series->append(frame.timestamp, val);
 
                 // Trim old points outside the time window
                 double cutoff = frame.timestamp - m_timeWindow;
-                sd.graph->data()->removeBefore(cutoff);
+                int removeCount = 0;
+                while (removeCount < sd.series->count() &&
+                       sd.series->at(removeCount).x() < cutoff) {
+                    ++removeCount;
+                }
+                if (removeCount > 0)
+                    sd.series->removePoints(0, removeCount);
 
                 // Auto-range Y axis (lightweight: check new value only)
-                QCPRange range = sd.yAxis->range();
-                double curMin = range.lower;
-                double curMax = range.upper;
-                bool needUpdate = false;
-                if (val < curMin) { curMin = val; needUpdate = true; }
-                if (val > curMax) { curMax = val; needUpdate = true; }
-                if (needUpdate) {
-                    double rangeSpan = curMax - curMin;
-                    if (rangeSpan < 1) { curMin -= 1; curMax += 1; }
-                    sd.yAxis->setRange(curMin, curMax);
+                if (sd.series->count() > 0) {
+                    double curMin = sd.yAxis->min();
+                    double curMax = sd.yAxis->max();
+                    bool needUpdate = false;
+                    if (val < curMin) { curMin = val; needUpdate = true; }
+                    if (val > curMax) { curMax = val; needUpdate = true; }
+                    if (needUpdate) {
+                        double range = curMax - curMin;
+                        if (range < 1) { curMin -= 1; curMax += 1; }
+                        sd.yAxis->setRange(curMin, curMax);
+                    }
                 }
             }
         }
     }
 
     refreshTimeAxis();
-    m_plot->replot(QCustomPlot::rpQueuedReplot);
 }
 
 double GraphicView::extractValue(const CanFrame &frame, const Signal &sig) const
 {
-    // 使用 DBC 信号定义进行精确解码（支持任意位起始/长度/factor/offset/signed/float）
     return sig.dbcSig.decode(frame.data);
 }
 
@@ -329,7 +315,7 @@ void GraphicView::updateSignalList()
 
     for (int i = 0; i < m_signals.size(); ++i) {
         const auto &sd = m_signals[i];
-        QString text = QString("● %1  (0x%2)")
+        QString text = QString("鈼?%1  (0x%2)")
             .arg(sd.config.name)
             .arg(sd.config.canId, 0, 16).toUpper();
 
@@ -347,5 +333,5 @@ void GraphicView::refreshTimeAxis()
 {
     double tEnd = m_currentTime;
     double tStart = std::max(0.0, tEnd - m_timeWindow);
-    m_plot->xAxis->setRange(tStart, tEnd);
+    m_timeAxis->setRange(tStart, tEnd);
 }

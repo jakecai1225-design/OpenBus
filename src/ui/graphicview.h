@@ -1,4 +1,4 @@
-#ifndef GRAPHICVIEW_H
+﻿#ifndef GRAPHICVIEW_H
 #define GRAPHICVIEW_H
 
 #include <QWidget>
@@ -10,18 +10,16 @@
 class QSplitter;
 class QListWidget;
 class QListWidgetItem;
-class QCustomPlot;
-class QCPGraph;
-class QCPAxis;
+class QChart;
+class QChartView;
+class QLineSeries;
+class QValueAxis;
 class QToolBar;
 
 /**
- * @brief CANoe 风格 Graphic 信号图形视图 — 基于 QCustomPlot
+ * @brief CANoe 椋庢牸 Graphic 淇″彿鍥惧舰瑙嗗浘 鈥?鍩轰簬 Qt Charts
  *
- * 左侧信号列表 (勾选/颜色/名称) + 右侧 QCustomPlot 波形区。
- * 支持添加多个信号 (指定 CAN ID + 字节偏移 + 位长)。
- * 工具栏支持缩放/适应/测量。
- */
+ * 宸︿晶淇″彿鍒楄〃 (鍕鹃€?棰滆壊/鍚嶇О) + 鍙充晶 QChartView 娉㈠舰鍖恒€? * 鏀寔娣诲姞澶氫釜淇″彿 (鎸囧畾 CAN ID + 瀛楄妭鍋忕Щ + 浣嶉暱)銆? * 宸ュ叿鏍忔敮鎸佺缉鏀?閫傚簲/娴嬮噺銆? */
 class GraphicView : public QWidget
 {
     Q_OBJECT
@@ -57,13 +55,15 @@ public slots:
 private:
     struct SignalData {
         Signal config;
-        QCPGraph *graph = nullptr;
-        QCPAxis *yAxis = nullptr;
+        QLineSeries *series = nullptr;
+        QValueAxis *yAxis = nullptr;
     };
 
     QSplitter *m_splitter = nullptr;
     QListWidget *m_signalList = nullptr;
-    QCustomPlot *m_plot = nullptr;
+    QChart *m_chart = nullptr;
+    QChartView *m_chartView = nullptr;
+    QValueAxis *m_timeAxis = nullptr;
     QToolBar *m_toolbar = nullptr;
 
     QVector<SignalData> m_signals;

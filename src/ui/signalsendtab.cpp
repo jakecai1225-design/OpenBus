@@ -1,4 +1,5 @@
 #include "signalsendtab.h"
+#include "dbcimportdialog.h"
 #include "core/dbcdata.h"
 #include "core/dbcmanager.h"
 
@@ -63,24 +64,22 @@ SignalSendTab::SignalSendTab(QWidget *parent)
     mainLayout->setContentsMargins(4, 4, 4, 4);
     mainLayout->setSpacing(6);
 
-    // ---- Toolbar ----
+    // ---- 顶部工具栏 ----
     auto *toolbarLayout = new QHBoxLayout;
     toolbarLayout->setSpacing(4);
-    m_sendAllBtn = new QPushButton("全部发送", this);
-    m_stopAllBtn = new QPushButton("全部停止", this);
-    m_importDbcBtn = new QPushButton("从DBC导入", this);
+    m_sendAllBtn = new QPushButton("列表发送", this);
+    m_stopAllBtn = new QPushButton("列表停止", this);
     m_clearListBtn = new QPushButton("清空列表", this);
     toolbarLayout->addWidget(m_sendAllBtn);
     toolbarLayout->addWidget(m_stopAllBtn);
     toolbarLayout->addStretch();
-    toolbarLayout->addWidget(m_importDbcBtn);
     toolbarLayout->addWidget(m_clearListBtn);
     mainLayout->addLayout(toolbarLayout);
 
-    // ---- Splitter: table (top) + edit area (bottom, taller) ----
+    // ---- Splitter: table (top) + edit area (bottom) ----
     auto *splitter = new QSplitter(Qt::Vertical, this);
 
-    // -- Send list table --
+    // -- 发送列表表格 --
     m_sendTable = new QTableWidget(0, 10, splitter);
     m_sendTable->setHorizontalHeaderLabels(
         {"✓", "#", "ID", "名称", "DLC", "数据(Hex)", "周期(ms)", "次数", "状态", "操作"});
@@ -95,16 +94,20 @@ SignalSendTab::SignalSendTab(QWidget *parent)
     m_sendTable->horizontalHeader()->setSectionResizeMode(9, QHeaderView::ResizeToContents);
     m_sendTable->verticalHeader()->setVisible(false);
     m_sendTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_sendTable->setSelectionMode(QAbstractItemView::SingleSelection);
 
-    // -- Edit area (QGroupBox) --
+    // -- 底部编辑区 --
     auto *editGroup = new QGroupBox("编辑发送帧", splitter);
     auto *editLayout = new QVBoxLayout(editGroup);
     editLayout->setContentsMargins(8, 8, 8, 8);
     editLayout->setSpacing(6);
 
-    // Row 1: ID, DLC, 数据(Hex)
+    // Row 1: 从DBC导入, ID, DLC, 数据(Hex)
     auto *row1 = new QHBoxLayout;
     row1->setSpacing(6);
+    m_importDbcBtn = new QPushButton("从DBC导入", editGroup);
+    row1->addWidget(m_importDbcBtn);
+
     row1->addWidget(new QLabel("ID:"));
     m_idEdit = new QLineEdit(editGroup);
     m_idEdit->setPlaceholderText("0x123");
@@ -124,7 +127,7 @@ SignalSendTab::SignalSendTab(QWidget *parent)
     row1->addWidget(m_dataEdit, 1);
     editLayout->addLayout(row1);
 
-    // Row 2: 周期, 次数, DBC消息, 按钮
+    // Row 2: 周期, 次数, 按钮
     auto *row2 = new QHBoxLayout;
     row2->setSpacing(6);
     row2->addWidget(new QLabel("周期(ms):"));
@@ -142,20 +145,15 @@ SignalSendTab::SignalSendTab(QWidget *parent)
     m_countSpin->setMaximumWidth(60);
     row2->addWidget(m_countSpin);
 
-    row2->addWidget(new QLabel("DBC消息:"));
-    m_dbcMsgCombo = new QComboBox(editGroup);
-    m_dbcMsgCombo->setMinimumWidth(160);
-    m_dbcMsgCombo->setPlaceholderText("(可选)");
-    row2->addWidget(m_dbcMsgCombo, 1);
-
+    row2->addStretch();
     m_addToListBtn = new QPushButton("添加到列表", editGroup);
     m_sendSingleBtn = new QPushButton("发送单帧", editGroup);
     row2->addWidget(m_addToListBtn);
     row2->addWidget(m_sendSingleBtn);
     editLayout->addLayout(row2);
 
-    // Signal-level editing area
-    m_signalHintLabel = new QLabel("输入 CAN ID 后，若 DBC 中有匹配消息，将自动生成信号编辑器", editGroup);
+    // 信号级编辑区域
+    m_signalHintLabel = new QLabel("输入 CAN ID 或从发送列表选择一行，自动显示信号编辑器", editGroup);
     m_signalHintLabel->setStyleSheet("color: gray; font-style: italic;");
     editLayout->addWidget(m_signalHintLabel);
 
@@ -174,10 +172,10 @@ SignalSendTab::SignalSendTab(QWidget *parent)
     splitter->addWidget(editGroup);
     splitter->setStretchFactor(0, 1);
     splitter->setStretchFactor(1, 1);
-    splitter->setSizes({300, 400});
+    splitter->setSizes({250, 400});
     mainLayout->addWidget(splitter, 1);
 
-    // ---- Connections ----
+    // ---- 连接 ----
     connect(m_sendAllBtn, &QPushButton::clicked, this, &SignalSendTab::onSendAll);
     connect(m_stopAllBtn, &QPushButton::clicked, this, &SignalSendTab::onStopAll);
     connect(m_clearListBtn, &QPushButton::clicked, this, &SignalSendTab::onClearList);
@@ -186,8 +184,8 @@ SignalSendTab::SignalSendTab(QWidget *parent)
     connect(m_sendSingleBtn, &QPushButton::clicked, this, &SignalSendTab::onSendSingle);
     connect(m_idEdit, &QLineEdit::editingFinished, this, &SignalSendTab::onIdEditingFinished);
     connect(m_dataEdit, &QLineEdit::editingFinished, this, &SignalSendTab::onDataEditFinished);
-    connect(m_dbcMsgCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &SignalSendTab::onDbcMsgSelected);
+    connect(m_sendTable, &QTableWidget::itemSelectionChanged,
+            this, &SignalSendTab::onSendTableRowChanged);
 }
 
 // ============================================================
@@ -197,22 +195,46 @@ SignalSendTab::SignalSendTab(QWidget *parent)
 void SignalSendTab::setDbcManager(DbcManager *mgr)
 {
     m_dbcManager = mgr;
-    refreshDbcMessages();
 }
 
-void SignalSendTab::refreshDbcMessages()
+// ============================================================
+//  Table row selection → sync bottom editor
+// ============================================================
+
+void SignalSendTab::onSendTableRowChanged()
 {
-    m_dbcMsgCombo->blockSignals(true);
-    m_dbcMsgCombo->clear();
-    m_dbcMsgCombo->addItem("(无)", 0);
-    if (m_dbcManager) {
-        const auto messages = m_dbcManager->allMessages();
-        for (const auto *msg : messages) {
-            QString label = QString("0x%1 - %2").arg(msg->id, 0, 16).toUpper().arg(msg->name);
-            m_dbcMsgCombo->addItem(label, msg->id);
-        }
+    int row = m_sendTable->currentRow();
+    if (row < 0 || row >= m_sendTable->rowCount()) {
+        m_selectedRow = -1;
+        return;
     }
-    m_dbcMsgCombo->blockSignals(false);
+    m_selectedRow = row;
+    loadRowToEditor(row);
+}
+
+void SignalSendTab::loadRowToEditor(int row)
+{
+    if (row < 0 || row >= m_sendTable->rowCount())
+        return;
+
+    // 读取行数据填入编辑器
+    QString idStr = m_sendTable->item(row, 2)->text();
+    m_idEdit->setText(idStr);
+
+    QString dlcStr = m_sendTable->item(row, 4)->text();
+    m_dlcSpin->setValue(dlcStr.toInt());
+
+    QString dataHex = m_sendTable->item(row, 5)->text();
+    m_dataEdit->setText(dataHex);
+
+    QString periodStr = m_sendTable->item(row, 6)->text();
+    m_periodSpin->setValue(periodStr.isEmpty() ? 0 : periodStr.toInt());
+
+    QString countStr = m_sendTable->item(row, 7)->text();
+    m_countSpin->setValue(countStr == "∞" ? 0 : countStr.toInt());
+
+    // 触发信号编辑器重建
+    onIdEditingFinished();
 }
 
 // ============================================================
@@ -230,7 +252,6 @@ void SignalSendTab::onIdEditingFinished()
 
     quint32 id = idText.toUInt(nullptr, 16);
     if (id == 0 && !idText.startsWith("0x", Qt::CaseInsensitive)) {
-        // Might be decimal
         id = idText.toUInt();
     }
 
@@ -244,22 +265,15 @@ void SignalSendTab::onIdEditingFinished()
             m_dlcSpin->setValue(msg->dlc);
         }
         rebuildSignalEditors();
+    } else if (msg) {
+        // 同一消息，但数据可能变了，更新信号编辑器
+        updateSignalsFromData();
     }
-}
-
-void SignalSendTab::onDbcMsgSelected(int index)
-{
-    if (index <= 0) return;
-    quint32 id = m_dbcMsgCombo->itemData(index).toUInt();
-    if (id == 0) return;
-
-    m_idEdit->setText(formatIdHex(id));
-    onIdEditingFinished();
 }
 
 void SignalSendTab::rebuildSignalEditors()
 {
-    // Clear existing editors
+    // 清除现有编辑器
     QLayoutItem *item;
     while ((item = m_signalLayout->takeAt(0)) != nullptr) {
         if (item->widget())
@@ -267,10 +281,10 @@ void SignalSendTab::rebuildSignalEditors()
         delete item;
     }
     m_signalLayout->addStretch();
-    m_signalSpinBoxes.clear();
+    m_signalWidgets.clear();
 
     if (!m_dbcManager || !m_currentDbcMsg) {
-        m_signalHintLabel->setText("输入 CAN ID 后，若 DBC 中有匹配消息，将自动生成信号编辑器");
+        m_signalHintLabel->setText("输入 CAN ID 或从发送列表选择一行，自动显示信号编辑器");
         return;
     }
 
@@ -279,7 +293,7 @@ void SignalSendTab::rebuildSignalEditors()
         .arg(formatIdHex(m_currentDbcMsg->id))
         .arg(m_currentDbcMsg->signalList.size()));
 
-    // Remove the stretch
+    // 移除 stretch
     m_signalLayout->takeAt(m_signalLayout->count() - 1);
 
     QByteArray data = parseHexData(m_dataEdit->text());
@@ -297,23 +311,53 @@ void SignalSendTab::rebuildSignalEditors()
         nameLabel->setStyleSheet("font-weight: bold;");
         rowLayout->addWidget(nameLabel);
 
-        auto *spin = new QDoubleSpinBox();
-        spin->setRange(sig.minimum, sig.maximum);
-        spin->setSingleStep(sig.factor > 0 ? sig.factor : 1.0);
-        spin->setMinimumWidth(120);
+        if (!sig.valueTable.isEmpty()) {
+            // 枚举信号 → QComboBox
+            auto *combo = new QComboBox();
+            combo->setMinimumWidth(200);
+            for (const auto &vd : sig.valueTable) {
+                QString itemText = QString("%1 = %2").arg(vd.value).arg(vd.description);
+                combo->addItem(itemText, vd.value);
+            }
+            // 设置当前值
+            double physVal = sig.decode(data);
+            quint64 rawVal = sig.rawDecode(data);
+            int bestIdx = 0;
+            for (int i = 0; i < combo->count(); ++i) {
+                if (combo->itemData(i).toInt() == static_cast<int>(rawVal)) {
+                    bestIdx = i;
+                    break;
+                }
+            }
+            combo->setCurrentIndex(bestIdx);
+            rowLayout->addWidget(combo);
+            m_signalWidgets.append(combo);
 
-        // Calculate decimals from factor
-        int decimals = 0;
-        double f = sig.factor;
-        while (f < 1.0 && decimals < 6) {
-            f *= 10;
-            decimals++;
+            connect(combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                    this, &SignalSendTab::onSignalValueChanged);
+        } else {
+            // 数值信号 → QDoubleSpinBox
+            auto *spin = new QDoubleSpinBox();
+            spin->setRange(sig.minimum, sig.maximum);
+            spin->setSingleStep(sig.factor > 0 ? sig.factor : 1.0);
+            spin->setMinimumWidth(120);
+
+            int decimals = 0;
+            double f = sig.factor;
+            while (f < 1.0 && decimals < 6) {
+                f *= 10;
+                decimals++;
+            }
+            spin->setDecimals(decimals);
+
+            double val = sig.decode(data);
+            spin->setValue(val);
+            rowLayout->addWidget(spin);
+            m_signalWidgets.append(spin);
+
+            connect(spin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                    this, &SignalSendTab::onSignalValueChanged);
         }
-        spin->setDecimals(decimals);
-
-        double val = sig.decode(data);
-        spin->setValue(val);
-        rowLayout->addWidget(spin);
 
         auto *unitLabel = new QLabel(sig.unit.isEmpty() ? "" : sig.unit);
         unitLabel->setMinimumWidth(40);
@@ -326,10 +370,6 @@ void SignalSendTab::rebuildSignalEditors()
         rowLayout->addStretch();
 
         m_signalLayout->addWidget(rowWidget);
-        m_signalSpinBoxes.append(spin);
-
-        connect(spin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-                this, &SignalSendTab::onSignalValueChanged);
     }
     m_signalLayout->addStretch();
 }
@@ -343,18 +383,36 @@ void SignalSendTab::onSignalValueChanged()
 
 void SignalSendTab::updateDataFromSignals()
 {
-    if (!m_currentDbcMsg || m_signalSpinBoxes.isEmpty())
+    if (!m_currentDbcMsg || m_signalWidgets.isEmpty())
         return;
 
     QByteArray data = parseHexData(m_dataEdit->text());
     while (data.size() < m_currentDbcMsg->dlc)
         data.append(static_cast<char>(0));
 
-    for (int i = 0; i < m_signalSpinBoxes.size() && i < m_currentDbcMsg->signalList.size(); ++i) {
-        m_currentDbcMsg->signalList[i].encode(data, m_signalSpinBoxes[i]->value());
+    for (int i = 0; i < m_signalWidgets.size() && i < m_currentDbcMsg->signalList.size(); ++i) {
+        const auto &sig = m_currentDbcMsg->signalList[i];
+
+        if (auto *combo = qobject_cast<QComboBox *>(m_signalWidgets[i])) {
+            // 枚举信号：取 rawValue，转为物理值后编码
+            int rawVal = combo->currentData().toInt();
+            double physVal = sig.rawToPhys(static_cast<quint64>(rawVal));
+            sig.encode(data, physVal);
+        } else if (auto *spin = qobject_cast<QDoubleSpinBox *>(m_signalWidgets[i])) {
+            sig.encode(data, spin->value());
+        }
     }
 
+    // 更新数据 Hex 显示（不触发 editingFinished）
+    QSignalBlocker blocker(m_dataEdit);
     m_dataEdit->setText(formatDataHex(data));
+
+    // 如果选中了发送列表的某行，同步更新该行数据
+    if (m_selectedRow >= 0 && m_selectedRow < m_sendTable->rowCount()) {
+        auto *dataItem = m_sendTable->item(m_selectedRow, 5);
+        if (dataItem)
+            dataItem->setText(formatDataHex(data));
+    }
 }
 
 void SignalSendTab::onDataEditFinished()
@@ -364,7 +422,7 @@ void SignalSendTab::onDataEditFinished()
 
 void SignalSendTab::updateSignalsFromData()
 {
-    if (!m_currentDbcMsg || m_signalSpinBoxes.isEmpty())
+    if (!m_currentDbcMsg || m_signalWidgets.isEmpty())
         return;
 
     QByteArray data = parseHexData(m_dataEdit->text());
@@ -372,10 +430,29 @@ void SignalSendTab::updateSignalsFromData()
         data.append(static_cast<char>(0));
 
     m_updatingSignals = true;
-    for (int i = 0; i < m_signalSpinBoxes.size() && i < m_currentDbcMsg->signalList.size(); ++i) {
-        QSignalBlocker blocker(m_signalSpinBoxes[i]);
-        double val = m_currentDbcMsg->signalList[i].decode(data);
-        m_signalSpinBoxes[i]->setValue(val);
+    for (int i = 0; i < m_signalWidgets.size() && i < m_currentDbcMsg->signalList.size(); ++i) {
+        const auto &sig = m_currentDbcMsg->signalList[i];
+
+        if (auto *combo = qobject_cast<QComboBox *>(m_signalWidgets[i])) {
+            quint64 rawVal = sig.rawDecode(data);
+            bool found = false;
+            for (int j = 0; j < combo->count(); ++j) {
+                if (combo->itemData(j).toInt() == static_cast<int>(rawVal)) {
+                    QSignalBlocker blocker(combo);
+                    combo->setCurrentIndex(j);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                QSignalBlocker blocker(combo);
+                combo->setCurrentIndex(-1);
+            }
+        } else if (auto *spin = qobject_cast<QDoubleSpinBox *>(m_signalWidgets[i])) {
+            QSignalBlocker blocker(spin);
+            double val = sig.decode(data);
+            spin->setValue(val);
+        }
     }
     m_updatingSignals = false;
 }
@@ -464,7 +541,7 @@ void SignalSendTab::onAddToList()
     int period = m_periodSpin->value();
     int count = m_countSpin->value();
 
-    // Look up DBC message name
+    // 查找 DBC 消息名称
     QString name;
     if (m_dbcManager && id != 0) {
         auto *msg = m_dbcManager->findMessage(id);
@@ -472,10 +549,26 @@ void SignalSendTab::onAddToList()
             name = msg->name;
     }
 
+    // 如果有选中行且 CAN ID 相同，更新该行
+    if (m_selectedRow >= 0 && m_selectedRow < m_sendTable->rowCount()) {
+        QString existingId = m_sendTable->item(m_selectedRow, 2)->text();
+        QString existingIdClean = existingId;
+        existingIdClean.remove("0x", Qt::CaseInsensitive);
+        quint32 existingIdVal = existingIdClean.trimmed().toUInt(nullptr, 16);
+        if (existingIdVal == id) {
+            // 更新现有行
+            m_sendTable->item(m_selectedRow, 4)->setText(QString::number(dlc));
+            m_sendTable->item(m_selectedRow, 5)->setText(dataHex);
+            m_sendTable->item(m_selectedRow, 6)->setText(QString::number(period));
+            m_sendTable->item(m_selectedRow, 7)->setText(count == 0 ? "∞" : QString::number(count));
+            return;
+        }
+    }
+
+    // 添加新行
     int row = m_sendTable->rowCount();
     m_sendTable->insertRow(row);
 
-    // Checkbox (checked by default)
     auto *checkItem = new QTableWidgetItem;
     checkItem->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled);
     checkItem->setCheckState(Qt::Checked);
@@ -491,6 +584,7 @@ void SignalSendTab::onAddToList()
     m_sendTable->setItem(row, 8, new QTableWidgetItem("就绪"));
 
     m_sendTable->setCellWidget(row, 9, createOpWidget());
+    m_sendTable->selectRow(row);
 }
 
 void SignalSendTab::onSendSingle()
@@ -525,15 +619,26 @@ void SignalSendTab::onStopAll()
 void SignalSendTab::onClearList()
 {
     m_sendTable->setRowCount(0);
+    m_selectedRow = -1;
 }
 
 void SignalSendTab::onImportFromDbc()
 {
-    if (!m_dbcManager)
+    if (!m_dbcManager) {
+        m_signalHintLabel->setText("未设置 DBC 管理器");
+        return;
+    }
+
+    DbcImportDialog dlg(m_dbcManager, this);
+    if (dlg.exec() != QDialog::Accepted)
         return;
 
-    const auto messages = m_dbcManager->allMessages();
-    for (const auto *msg : messages) {
+    const auto ids = dlg.selectedCanIds();
+    for (quint32 id : ids) {
+        const DbcMessage *msg = m_dbcManager->findMessage(id);
+        if (!msg)
+            continue;
+
         int row = m_sendTable->rowCount();
         m_sendTable->insertRow(row);
 
@@ -557,6 +662,10 @@ void SignalSendTab::onImportFromDbc()
 
         m_sendTable->setCellWidget(row, 9, createOpWidget());
     }
+
+    // 选中第一行新增的条目
+    if (m_sendTable->rowCount() > 0)
+        m_sendTable->selectRow(0);
 }
 
 // ============================================================
@@ -601,6 +710,8 @@ void SignalSendTab::onRowDelete(int row)
 
     m_sendTable->removeRow(row);
     renumberRows();
+    if (m_selectedRow == row)
+        m_selectedRow = -1;
 }
 
 void SignalSendTab::onRowMoveUp(int row)
@@ -608,7 +719,6 @@ void SignalSendTab::onRowMoveUp(int row)
     if (row <= 0)
         return;
 
-    // Swap all cell items except # (column 1, renumbered later)
     for (int col = 0; col <= 8; ++col) {
         if (col == 1)
             continue;

@@ -25,12 +25,14 @@ public:
     bool filterActive() const;
 
     void setRunning(bool running);
+    void setOverwriteMode(bool enabled);
 
 signals:
     void filterApplied(const QString &filter);
     void filterCleared();
     void startRequested();
     void stopRequested();
+    void overwriteModeToggled(bool enabled);
 
 private slots:
     void onApply();
@@ -48,6 +50,7 @@ private:
     QLabel *m_statusIcon;
     QPushButton *m_startBtn;
     QPushButton *m_stopBtn;
+    QPushButton *m_overwriteBtn;
 };
 
 #endif // FILTERBAR_H

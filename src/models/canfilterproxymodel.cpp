@@ -113,6 +113,15 @@ bool CanFilterProxyModel::matchColumnFilter(int sourceRow, int column) const
         return CanUtils::formatData(frame.data).toLower().contains(filter);
     case CanTraceModel::ColFlags:
         return CanUtils::formatFlags(frame).toLower().contains(filter);
+    case CanTraceModel::ColFrameCount: {
+        auto *traceModel = qobject_cast<CanTraceModel *>(sourceModel());
+        int count = traceModel ? traceModel->frameCountForId(frame.id) : 0;
+        if (filter.startsWith(">"))
+            return count > filter.mid(1).trimmed().toInt();
+        if (filter.startsWith("<"))
+            return count < filter.mid(1).trimmed().toInt();
+        return QString::number(count).contains(filter);
+    }
     }
     return true;
 }
@@ -171,6 +180,8 @@ bool CanFilterProxyModel::lessThan(const QModelIndex &left, const QModelIndex &r
         return fl.data < fr.data;
     case CanTraceModel::ColFlags:
         return CanUtils::formatFlags(fl) < CanUtils::formatFlags(fr);
+    case CanTraceModel::ColFrameCount:
+        return model->frameCountForId(fl.id) < model->frameCountForId(fr.id);
     }
 
     return QSortFilterProxyModel::lessThan(left, right);

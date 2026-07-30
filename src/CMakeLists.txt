@@ -34,6 +34,7 @@ set(SRC_MODELS
 set(SRC_UTILS
     utils/canutils.h
     utils/canutils.cpp
+    utils/message_queue.h
 )
 
 # ui 层 — 界面组件
@@ -48,6 +49,8 @@ set(SRC_UI
     ui/filterbar.cpp
     ui/signalconfigdialog.h
     ui/signalconfigdialog.cpp
+    ui/dbcimportdialog.h
+    ui/dbcimportdialog.cpp
     ui/activitybar.h
     ui/activitybar.cpp
     ui/bottompanel.h
@@ -83,24 +86,37 @@ qt_add_executable(sin
 )
 
 # ============================================================
-#  exprtk 头文件极大，MinGW 需启用 big-obj 避免节区溢出
-# ============================================================
-if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    # exprtk.hpp 是 ~1.7MB 纯头文件，模板实例化产生巨型目标文件
-    # 需关闭调试信息并优化以避免 COFF 节区/字符串表溢出
-    set_source_files_properties(core/filter_engine.cpp PROPERTIES
-        COMPILE_OPTIONS "-Wa,-mbig-obj;-g0;-O2")
-endif()
-
-# ============================================================
 #  链接库
 # ============================================================
 target_link_libraries(sin PRIVATE
     Qt6::Widgets
-    spdlog::spdlog
-    exprtk
-    qcustomplot
+    Qt6::Charts
 )
+
+# spdlog 头文件路径（直接添加，不通过 IMPORTED target）
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/spdlog/include")
+    target_include_directories(sin PRIVATE ${CMAKE_SOURCE_DIR}/third_party/spdlog/include)
+endif()
+
+# nlohmann/json 头文件路径
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/nlohmann_json/json.hpp")
+    target_include_directories(sin PRIVATE ${CMAKE_SOURCE_DIR}/third_party/nlohmann_json)
+endif()
+
+# moodycamel::ConcurrentQueue 头文件路径
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/concurrentqueue/concurrentqueue.h")
+    target_include_directories(sin PRIVATE ${CMAKE_SOURCE_DIR}/third_party/concurrentqueue)
+endif()
+
+# qcustomplot 头文件路径
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/qcustomplot/qcustomplot.h")
+    target_include_directories(sin PRIVATE ${CMAKE_SOURCE_DIR}/third_party/qcustomplot)
+endif()
+
+# # 将来引入的库（已下载但暂未使用）
+# - moodycamel::ConcurrentQueue (高性能无锁队列)
+
+# qcustomplot 已下载到 third_party/qcustomplot/
 
 # ============================================================
 #  头文件搜索路径

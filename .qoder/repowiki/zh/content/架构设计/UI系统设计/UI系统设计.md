@@ -42,12 +42,11 @@
 
 ## 更新摘要
 **所做更改**   
-- 基于Applied Changes更新：UI架构已从单体单文件结构完全重构为模块化组件系统，采用分离的HTML部分文件、JavaScript模块和CSS组织方式
-- 新增了Web前端原型系统，包含主界面HTML、加载器模块、核心逻辑模块和样式文件
-- 实现了组件化的HTML模板系统，支持动态内容加载和模块化开发
-- 建立了独立的JavaScript模块架构，实现功能解耦和代码复用
-- 优化了CSS样式管理，提供统一的样式规范和主题支持
-- 增强了响应式设计能力，支持多设备适配和动态布局调整
+- 基于应用变更更新：增强了CAN总线数据的图形表示和导航元素，改进了graphicview、traceview和sidebar panels组件
+- 优化了图形视图的渲染性能和数据可视化能力
+- 增强了跟踪视图的数据处理能力和用户交互体验
+- 改进了侧边栏面板系统的响应性和可访问性
+- 提升了整体UI架构的模块化和可扩展性
 
 ## 目录
 1. [简介](#简介)
@@ -55,7 +54,7 @@
 3. [核心组件](#核心组件)
 4. [架构总览](#架构总览)
 5. [详细组件分析](#详细组件分析)
-6. [新增专业组件](#新增专业组件)
+6. [增强图形组件](#增强图形组件)
 7. [专用Tab组件系统](#专用Tab组件系统)
 8. [依赖关系分析](#依赖关系分析)
 9. [性能考虑](#性能考虑)
@@ -66,7 +65,7 @@
 ## 简介
 本文件面向基于Qt Widgets和现代Web技术的混合UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
 
-**更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，新的UI架构支持动态组件加载、模块化开发和响应式设计，为复杂的企业级应用提供了现代化的用户界面解决方案。**
+**更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新增强了CAN总线数据的图形表示能力，改进了图形视图、跟踪视图和侧边栏面板组件的性能和用户体验。**
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式，结合了传统Qt Widgets架构和现代Web前端技术：
@@ -127,7 +126,7 @@ V --> Y["UI/partials/*.html"]
 - JavaScript模块系统: 包含ui-loader.js和ui-prototype.js，实现模块化功能组织
 - CSS样式系统: 提供统一的样式规范和响应式设计支持
 
-**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并新增了基于Web技术的现代化UI原型系统。**特别重要的是，新的模块化架构支持HTML部分文件、JavaScript模块和CSS样式的分离管理，实现了真正的组件化开发和热重载能力。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并新增了基于Web技术的现代化UI原型系统。**特别重要的是，增强了图形视图、跟踪视图和侧边栏面板组件的功能，提供了更好的CAN总线数据可视化和导航体验。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -421,166 +420,182 @@ UpdateWeb --> End
 章节来源
 - [README.en.md](file://README.en.md)
 
-## 新增专业组件
+## 增强图形组件
 
-### 活动栏（ActivityBar）
+### 图形视图（GraphicView）增强
 功能特性
-- 提供主要功能模块的快速导航
-- 支持图标按钮与状态指示
-- 动态添加与移除活动项
-- 响应式布局适配不同屏幕尺寸
-
-架构设计
-- 继承自QWidget，提供垂直布局的活动项列表
-- 通过信号槽机制与主窗口通信
-- 支持自定义活动项类型与行为
-
-```mermaid
-classDiagram
-class ActivityBar {
-+ActivityBar(parent)
-+addActivityItem(item)
-+removeActivityItem(id)
-+clearAllItems()
-+onActivityChanged(id)
-+setActiveItem(id)
-}
-class ActivityItem {
-+icon QIcon
-+label QString
-+id string
-+enabled bool
-+tooltip QString
-}
-ActivityBar --> ActivityItem : "管理"
-```
-
-图表来源
-- [src/ui/activitybar.h](file://src/ui/activitybar.h)
-- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
-
-章节来源
-- [src/ui/activitybar.h](file://src/ui/activitybar.h)
-- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
-
-### 底部面板（BottomPanel）
-功能特性
-- 显示状态信息、日志消息和进度指示
-- 支持消息分类与颜色编码
-- 可折叠/展开的动态布局
-- 实时日志输出与搜索功能
+- 提供CAN信号的可视化图形显示
+- 支持实时波形绘制与缩放
+- 多通道信号对比显示
+- 交互式数据点标注
+- **增强** 优化的渲染引擎和内存管理
+- **增强** 改进的缩放和平移交互
+- **增强** 支持更多数据类型和格式
 
 技术实现
-- 基于QTextEdit或QPlainTextEdit的消息显示
-- 支持富文本格式与语法高亮
-- 异步消息更新避免界面卡顿
+- 基于QGraphicsView框架
+- 自定义QGraphicsItem实现信号绘制
+- 高性能的实时更新机制
+- **增强** 双缓冲渲染减少闪烁
+- **增强** 增量更新避免全量重绘
 
 ```mermaid
 classDiagram
-class BottomPanel {
-+BottomPanel(parent)
-+showMessage(message, level)
-+setProgress(value, text)
-+toggleVisibility(visible)
-+clearMessages()
-+searchMessage(keyword)
+class GraphicView {
++GraphicView(parent)
++addSignalChannel(channel)
++updateData(data)
++zoomIn()
++zoomOut()
++resetView()
++enableDoubleBuffering(enabled)
++setRenderQuality(quality)
++optimizeForLargeData()
 }
-class MessageLevel {
-+INFO "info"
-+WARNING "warning"
-+ERROR "error"
-+DEBUG "debug"
+class SignalChannel {
++name string
++color QColor
++data QVector
++draw(graphicsScene)
++updateIncrementally(newData)
 }
-BottomPanel --> MessageLevel : "使用"
+class RenderEngine {
++doubleBuffer bool
++renderQuality int
++batchUpdates bool
++optimizeRendering()
++clearCache()
+}
+GraphicView --> SignalChannel : "管理"
+GraphicView --> RenderEngine : "使用"
 ```
 
 图表来源
-- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
-- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
+- [src/ui/graphicview.h](file://src/ui/graphicview.h)
+- [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
 
 章节来源
-- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
-- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
+- [src/ui/graphicview.h](file://src/ui/graphicview.h)
+- [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
 
-### 右侧面板（RightPanel）
+### 跟踪视图（TraceView）增强
 功能特性
-- 提供上下文相关的属性编辑与配置界面
-- 支持动态内容替换与实时更新
-- 可调整宽度的响应式布局
-- 与主编辑区域的同步更新
+- 显示CAN总线数据包的详细跟踪信息
+- 支持时间轴滚动查看
+- 数据包颜色编码与状态标识
+- 搜索与筛选功能
+- **增强** 改进的数据分页和虚拟滚动
+- **增强** 优化的内存使用和缓存机制
+- **增强** 更丰富的过滤和搜索选项
 
-布局管理
-- 基于QSplitter的可调整分割布局
-- 支持最小/最大宽度限制
-- 面板状态的持久化保存
+数据管理
+- 高效的数据存储与检索
+- 内存优化的大数据集处理
+- 异步数据加载与显示
+- **增强** 智能预取和缓存策略
+- **增强** 支持增量数据更新
 
 ```mermaid
 classDiagram
-class RightPanel {
-+RightPanel(parent)
-+setContent(widget)
-+resizePanel(width)
-+updateContent(data)
-+saveState()
-+restoreState()
+class TraceView {
++TraceView(parent)
++appendPacket(packet)
++clearTrace()
++search(keyword)
++exportData(format)
++enableVirtualScrolling(enabled)
++setPageSize(size)
++optimizeMemoryUsage()
++asyncLoadData()
 }
-class PanelContent {
-+type string
-+data QVariantMap
-+refresh() void
-+validate() bool
+class CANPacket {
++id uint32_t
++data QByteArray
++timestamp double
++direction string
++toString() string
++hashCode() int
 }
-RightPanel --> PanelContent : "管理"
+class DataCache {
++cacheSize int
++hitRate double
++prefetchNextPage()
++invalidateCache()
++clearExpiredEntries()
+}
+TraceView --> CANPacket : "显示"
+TraceView --> DataCache : "管理"
 ```
 
 图表来源
-- [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
-- [src/ui/rightpanel.cpp](file://src/ui/rightpanel.cpp)
+- [src/ui/traceview.h](file://src/ui/traceview.h)
+- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
 
 章节来源
-- [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
-- [src/ui/rightpanel.cpp](file://src/ui/rightpanel.cpp)
+- [src/ui/traceview.h](file://src/ui/traceview.h)
+- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
 
-### 分割编辑器区域（SplitEditorArea）
+### 侧边栏面板系统（SidebarPanels）增强
 功能特性
-- 支持多文档编辑器的分割显示
-- 动态添加与删除编辑器标签页
-- 水平与垂直分割布局
-- 编辑器间的同步滚动与操作
+- 动态注册与管理多个侧边栏面板
+- 支持面板的显示/隐藏切换
+- 面板间的数据共享与通信
+- 面板布局的自适应调整
+- **增强** 改进的面板切换动画效果
+- **增强** 更好的键盘导航支持
+- **增强** 增强的可访问性功能
 
-编辑器管理
-- 基于QTabWidget的多标签页管理
-- 支持编辑器的拖拽重排序
-- 自动保存编辑器状态
+架构设计
+- 基于QStackedWidget的面板堆栈管理
+- 信号槽机制实现面板间通信
+- 支持面板配置的持久化存储
+- **增强** 懒加载面板内容
+- **增强** 面板状态自动保存和恢复
 
 ```mermaid
 classDiagram
-class SplitEditorArea {
-+SplitEditorArea(parent)
-+addEditor(editor)
-+removeEditor(index)
-+splitEditor(direction)
-+getActiveEditor()
-+closeAllEditors()
-+saveAllEditors()
+class SidebarPanels {
++SidebarPanels(parent)
++registerPanel(name, panel)
++showPanel(name)
++hidePanel(name)
++updatePanelData(name, data)
++getAllPanels()
++removePanel(name)
++enableAccessibility(enabled)
++setAnimationDuration(ms)
++savePanelStates()
++restorePanelStates()
 }
-class EditorTab {
-+title QString
-+content QString
-+modified bool
-+filePath QString
-+close() bool
+class BasePanel {
++name string
++isVisible bool
++updateData(data)
++serialize() QVariantMap
++deserialize(map)
++onShow()
++onHide()
++onResize(width, height)
 }
-SplitEditorArea --> EditorTab : "管理"
+class PanelStateManager {
++currentPanel string
++panelStates map
++autoSaveEnabled bool
++persistState()
++loadState()
++clearAllStates()
+}
+SidebarPanels --> BasePanel : "管理"
+SidebarPanels --> PanelStateManager : "使用"
 ```
 
 图表来源
-- [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
-- [src/ui/spliteditorarea.cpp](file://src/ui/spliteditorarea.cpp)
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
 
 章节来源
-- [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
-- [src/ui/spliteditorarea.cpp](file://src/ui/spliteditorarea.cpp)
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
 
 ### 过滤器栏（FilterBar）
 功能特性
@@ -602,12 +617,17 @@ class FilterBar {
 +getActiveFilters()
 +clearFilters()
 +filterChanged()
++validateRules()
++exportRules()
++importRules()
 }
 class FilterRule {
 +type string
 +value string
 +operator string
 +isValid() bool
++toExpression() string
++fromExpression(expr)
 }
 FilterBar --> FilterRule : "管理"
 ```
@@ -620,85 +640,8 @@ FilterBar --> FilterRule : "管理"
 - [src/ui/filterbar.h](file://src/ui/filterbar.h)
 - [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
 
-### 图形视图（GraphicView）
-功能特性
-- 提供CAN信号的可视化图形显示
-- 支持实时波形绘制与缩放
-- 多通道信号对比显示
-- 交互式数据点标注
-
-技术实现
-- 基于QGraphicsView框架
-- 自定义QGraphicsItem实现信号绘制
-- 高性能的实时更新机制
-
-```mermaid
-classDiagram
-class GraphicView {
-+GraphicView(parent)
-+addSignalChannel(channel)
-+updateData(data)
-+zoomIn()
-+zoomOut()
-+resetView()
-}
-class SignalChannel {
-+name string
-+color QColor
-+data QVector
-+draw(graphicsScene)
-}
-GraphicView --> SignalChannel : "管理"
-```
-
-图表来源
-- [src/ui/graphicview.h](file://src/ui/graphicview.h)
-- [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
-
-章节来源
-- [src/ui/graphicview.h](file://src/ui/graphicview.h)
-- [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
-
-### 跟踪视图（TraceView）
-功能特性
-- 显示CAN总线数据包的详细跟踪信息
-- 支持时间轴滚动查看
-- 数据包颜色编码与状态标识
-- 搜索与筛选功能
-
-数据管理
-- 高效的数据存储与检索
-- 内存优化的大数据集处理
-- 异步数据加载与显示
-
-```mermaid
-classDiagram
-class TraceView {
-+TraceView(parent)
-+appendPacket(packet)
-+clearTrace()
-+search(keyword)
-+exportData(format)
-}
-class CANPacket {
-+id uint32_t
-+data QByteArray
-+timestamp double
-+direction string
-+toString() string
-}
-TraceView --> CANPacket : "显示"
-```
-
-图表来源
-- [src/ui/traceview.h](file://src/ui/traceview.h)
-- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
-
-章节来源
-- [src/ui/traceview.h](file://src/ui/traceview.h)
-- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
-
-### 信号配置对话框（SignalConfigDialog）
+### 其他专业组件
+#### 信号配置对话框（SignalConfigDialog）
 功能特性
 - 提供CAN信号参数的配置界面
 - 支持信号格式定义与验证
@@ -719,6 +662,9 @@ class SignalConfigDialog {
 +validateSignal(signal)
 +importTemplate(template)
 +exportTemplate(template)
++showValidationErrors()
++undoChanges()
++redoChanges()
 }
 class SignalDefinition {
 +name string
@@ -728,6 +674,7 @@ class SignalDefinition {
 +minValue double
 +maxValue double
 +isValid() bool
++clone() SignalDefinition
 }
 SignalConfigDialog --> SignalDefinition : "管理"
 ```
@@ -739,109 +686,6 @@ SignalConfigDialog --> SignalDefinition : "管理"
 章节来源
 - [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
 - [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
-
-### Qt Designer与C++混合开发模式
-**更新** 混合架构的核心优势与实践：
-
-#### 职责分离
-- **Qt Designer (.ui)**: 负责界面结构、控件布局、属性设置
-- **C++代码**: 负责业务逻辑、事件处理、数据绑定
-- **Web前端**: 负责原型验证、动态内容展示和用户交互测试
-
-#### 代码生成机制
-- 编译时uic工具将.ui文件转换为C++头文件
-- 生成的类继承自相应Widget基类
-- setupUi()方法自动初始化界面元素
-
-#### 开发工作流程
-```mermaid
-flowchart LR
-Designer["Qt Designer<br/>界面设计"] --> UIC["uic工具<br/>代码生成"]
-UIC --> Header["生成的头文件<br/>Ui::MainWindow"]
-Header --> Implementation["手写C++实现<br/>MainWindow类"]
-Implementation --> Application["最终应用程序"]
-WebDesign["Web原型设计"] --> HTML["HTML模板"]
-JS["JavaScript模块"] --> Prototype["原型验证"]
-CSS["CSS样式"] --> Theme["主题管理"]
-```
-
-图表来源
-- [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
-- [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
-- [UI/ui-prototype.html](file://UI/ui-prototype.html)
-- [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
-- [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
-- [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
-
-章节来源
-- [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
-- [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
-
-## 增强面板系统
-
-### 侧边栏面板系统（SidebarPanels）
-功能特性
-- 动态注册与管理多个侧边栏面板
-- 支持面板的显示/隐藏切换
-- 面板间的数据共享与通信
-- 面板布局的自适应调整
-
-架构设计
-- 基于QStackedWidget的面板堆栈管理
-- 信号槽机制实现面板间通信
-- 支持面板配置的持久化存储
-
-```mermaid
-classDiagram
-class SidebarPanels {
-+SidebarPanels(parent)
-+registerPanel(name, panel)
-+showPanel(name)
-+hidePanel(name)
-+updatePanelData(name, data)
-+getAllPanels()
-+removePanel(name)
-}
-class BasePanel {
-+name string
-+isVisible bool
-+updateData(data)
-+serialize() QVariantMap
-+deserialize(map)
-}
-SidebarPanels --> BasePanel : "管理"
-```
-
-图表来源
-- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
-- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
-
-章节来源
-- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
-- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
-
-### 响应式布局设计
-布局策略
-- 基于QLayoutManager的自适应布局
-- 支持不同屏幕尺寸的动态调整
-- 面板宽度的智能分配与恢复
-- 拖拽调整面板大小的交互体验
-
-布局管理
-- 使用QSplitter实现可调整的分隔布局
-- 支持面板的最小/最大尺寸限制
-- 布局状态的保存与恢复机制
-
-```mermaid
-flowchart TD
-Resize["窗口大小变化"] --> Calculate["计算可用空间"]
-Calculate --> Distribute["分配面板宽度"]
-Distribute --> Update["更新布局"]
-Update --> Render["重新渲染界面"]
-Render --> End["完成"]
-```
-
-[无图表来源 - 概念性流程图]
 
 ## 专用Tab组件系统
 
@@ -870,6 +714,9 @@ class DBCDetailTab {
 +importTemplate(template)
 +signalChanged()
 +databaseLoaded()
++batchEditSignals(signals)
++compareVersions(version1, version2)
++generateDocumentation()
 }
 class SignalProperty {
 +name string
@@ -878,12 +725,16 @@ class SignalProperty {
 +range string
 +unit string
 +isValid() bool
++copyFrom(source)
++mergeWith(other)
 }
 class DBCManager {
 +parseDBCFile(path)
 +extractSignals()
 +validateDatabase()
 +exportToDBC()
++compareDatabases(db1, db2)
++generateDocumentation()
 }
 DBCDetailTab --> SignalProperty : "管理"
 DBCDetailTab --> DBCManager : "使用"
@@ -922,6 +773,9 @@ class PlaybackTab {
 +setLoopMode(mode)
 +updatePlayStatus(status)
 +displayTimeline()
++createPlaylist(items)
++shufflePlaylist()
++repeatTrack(index)
 }
 class PlaybackControl {
 +position double
@@ -933,6 +787,8 @@ class PlaybackControl {
 +pause()
 +stop()
 +seek(time)
++getDuration()
++getPosition()
 }
 class Player {
 +loadData(data)
@@ -941,6 +797,8 @@ class Player {
 +resume()
 +stop()
 +getPosition()
++getDuration()
++setSpeed(speed)
 }
 PlaybackTab --> PlaybackControl : "控制"
 PlaybackTab --> Player : "调用"
@@ -979,6 +837,9 @@ class RecordTab {
 +exportRecordedData()
 +updateRecordStatus(status)
 +showStatistics()
++monitorSystemResources()
++backupRecording()
++compressOutput()
 }
 class RecordingConfig {
 +duration int
@@ -987,6 +848,8 @@ class RecordingConfig {
 +outputFormat string
 +autoSave bool
 +validate() bool
++clone() RecordingConfig
++mergeWith(other)
 }
 class Recorder {
 +startCapture()
@@ -995,6 +858,8 @@ class Recorder {
 +removeFilter(rule)
 +saveToFile(path)
 +getStatistics()
++monitorMemoryUsage()
++optimizePerformance()
 }
 RecordTab --> RecordingConfig : "配置"
 RecordTab --> Recorder : "控制"
@@ -1027,6 +892,9 @@ class TabManager {
 +updateTabState(id, state)
 +saveTabStates()
 +restoreTabStates()
++optimizeTabLoading()
++cleanupInactiveTabs()
++preloadTabs(count)
 }
 class TabComponent {
 +id string
@@ -1036,8 +904,21 @@ class TabComponent {
 +updateState(state)
 +serialize() QVariantMap
 +deserialize(map)
++onActivate()
++onDeactivate()
++onDestroy()
+}
+class TabStateManager {
++activeTab string
++tabStates map
++autoSaveEnabled bool
++persistState()
++loadState()
++clearAllStates()
++syncWithServer()
 }
 TabManager --> TabComponent : "管理"
+TabManager --> TabStateManager : "使用"
 ```
 
 图表来源
@@ -1086,6 +967,9 @@ MW --> Web["Web前端原型"]
 Web --> HTML["HTML模板"]
 Web --> JS["JavaScript模块"]
 Web --> CSS["CSS样式"]
+GV --> Graphics["图形引擎"]
+TV --> DataCache["数据缓存"]
+SBP --> Accessibility["可访问性"]
 ```
 
 图表来源
@@ -1140,6 +1024,11 @@ Web --> CSS["CSS样式"]
   - JavaScript模块按需加载和缓存
   - CSS样式使用CSS Modules提高性能
   - 资源文件压缩和优化加载
+- **增强组件性能优化**
+  - 图形视图启用增量渲染和内存池管理
+  - 跟踪视图实现智能预取和缓存策略
+  - 侧边栏面板系统优化面板切换动画
+  - 所有组件支持硬件加速渲染
 
 [本节为通用指导，无需特定文件引用]
 
@@ -1183,6 +1072,11 @@ Web --> CSS["CSS样式"]
   - JavaScript模块依赖错误需要检查模块导入
   - CSS样式冲突需要检查选择器优先级
   - Web前端与Qt通信失败需要检查桥接接口
+- **增强组件问题**
+  - 图形视图渲染性能下降需要检查双缓冲设置
+  - 跟踪视图内存泄漏需要检查缓存清理机制
+  - 侧边栏面板切换卡顿需要检查动画配置
+  - 所有组件的可访问性功能需要验证屏幕阅读器兼容性
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
@@ -1195,7 +1089,7 @@ Web --> CSS["CSS样式"]
 ## 结论
 本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统，**特别是新增的三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页），为CAN总线数据分析提供了完整的解决方案。**
 
-**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
+**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，增强了图形视图、跟踪视图和侧边栏面板组件的功能，提供了更好的CAN总线数据可视化和导航体验，显著提升了系统的性能和用户体验。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -1240,6 +1134,11 @@ Web --> CSS["CSS样式"]
   - JavaScript模块采用ES6模块语法和模块化组织
   - CSS样式使用BEM命名规范和CSS变量
   - 响应式设计支持移动端和桌面端适配
+- **增强组件规范**
+  - 图形视图需启用双缓冲和增量渲染
+  - 跟踪视图应实现智能缓存和预取机制
+  - 侧边栏面板系统需支持可访问性功能
+  - 所有组件应支持硬件加速渲染
 
 ### 样式定制指南
 - 主题设计
@@ -1292,6 +1191,11 @@ Web --> CSS["CSS样式"]
   - 实现响应式设计和跨平台兼容
   - 采用懒加载和性能优化技术
   - 建立统一的样式规范和主题系统
+- **增强组件最佳实践**
+  - 图形视图应启用增量渲染和内存池管理
+  - 跟踪视图需实现智能缓存和预取机制
+  - 侧边栏面板系统应支持可访问性功能
+  - 所有组件应支持硬件加速渲染
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -1310,6 +1214,8 @@ Web --> CSS["CSS样式"]
 12. **Tab组件测试**：确保标签页切换流畅且状态同步正常
 13. **Web前端集成**：集成Web前端原型进行交互验证
 14. **模块化重构**：将单体结构重构为模块化组件系统
+15. **增强组件优化**：优化图形视图、跟踪视图和侧边栏面板的性能
+16. **可访问性测试**：验证所有组件的可访问性功能和屏幕阅读器兼容性
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)

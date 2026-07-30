@@ -130,6 +130,8 @@ public:
     bool isRunning() const { return m_running; }
     void setRunning(bool running);
 
+    bool isOverwriteMode() const;
+
     void appendFrame(const CanFrame &frame);
     void clearTrace();
     int frameCount() const;

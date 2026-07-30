@@ -9,7 +9,7 @@
 /**
  * @brief CAN 报文过滤代理模型
  *
- * 使用 FilterEngine（exprtk）对 CanTraceModel 进行行级过滤。
+ * 使用 FilterEngine 对 CanTraceModel 进行行级过滤。
  * 支持主过滤表达式 + 按列子过滤器。
  */
 class CanFilterProxyModel : public QSortFilterProxyModel

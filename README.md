@@ -191,30 +191,234 @@ D:/Qt/6.8.3/mingw_64/bin/windeployqt.exe build/bin/sin.exe
 
 本项目基于 [MIT License](LICENSE) 开源，商业使用请联系作者获取授权。
 
-引入这些开源组件，能去重构或者重写原来的一些模块，最小稳定技术栈（Qt6 + 商用无风险协议）
-DBC 解析：dbcppp（MIT）
-CAN 硬件：libsocketcan (Linux) + Kvaser/PEAK 官方 SDK (Windows)
-BLF 日志：libblf
-绘图波形：QCustomPlot
-多窗口布局：Qt Advanced Docking System
-线程队列：moodycamel ConcurrentQueue
-表达式过滤：exprtk
-脚本扩展：sol2 + Lua（可选）
-XML/JSON：pugixml + nlohmann/json
-日志打印：spdlog
+---
 
-FastTable / QtAdvancedTableView（高性能表格）
+## 技术栈演进路线（逐步引入）
 
-3. Qt TreeView 增强：QTreeWidgetEx
-DBC 信号树（信号分组、报文列表），支持折叠、筛选、搜索信号，对标 Canoe 信号浏览器
+**原则**：每引入一个组件都要保证构建成功、功能正常后再引入下一个，避免大规模重构导致系统不稳定。
 
-【窗口 / 布局 / 多视图管理组件】多波形窗口、分屏、停靠面板（对标 Canoe 多视图）
-1. QDockWidget 增强：Qt Advanced Docking System（QtADS，必装！）
-绝对刚需，你的上位机离不开
-原生 QDockWidget 缺陷：拖拽分屏、浮动窗口、标签分组、保存布局非常难写。
-QtADS 开源 MIT，完美解决：
-窗口自由拖拽拆分、左右 / 上下分屏、多波形独立子窗口；
-面板标签化堆叠（波形面板 + 报文表格 + 信号树同区域切换）；
-一键保存 / 加载界面布局（用户自定义视图布局重启不丢失）；
-浮动独立窗口、最小化面板、锁定布局；
-兼容 QCustomPlot 绘图面板嵌入 dock。
+### ✅ 第一阶段：已实现的核心依赖（v1.0-当前版本）
+
+| 功能模块 | 组件 | 协议 | 集成状态 | 说明 |
+|---------|------|------|---------|------|
+| **DBC 解析** | [dbcppp](https://github.com/eclipse/dbcppp) | MIT | ✅ 已内嵌源码集成 | 已集成到 `src/core/dbcpppp_includes/`，在 CMakeLists.txt 中直接编译 |
+| **图形绘制** | Qt6 Charts | LGPL-3.0 | ✅ 已安装并配置 | 使用标准模块，无需额外依赖 |
+| **日志输出** | qDebug | - | ✅ 默认可用 | Qt 内置调试输出 |
+
+---
+
+### 🔄 第二批引入：日志系统与数据结构增强
+
+#### 1. spdlog（高性能 C++ 日志库）
+
+**协议**: MIT  
+**GitHub**: https://github.com/gabime/spdlog  
+**用途**: 替换 qDebug，提供更强大的日志分级、异步写入、文件轮转、彩色终端支持。
+
+**集成计划**:
+- [x] 源码引入 spdlog v1.14.1（header-only 模式）→ `third_party/spdlog/`
+- [x] 创建 `src/core/logging.h/cpp` 封装 spdlog API
+- [x] 定义宏 `SIN_LOG_DEBUG/INFO/WARN/ERROR`
+- [ ] 迁移关键模块（DBC 解析、Trace 过滤、回放引擎）
+- [ ] 移除调试代码中的 `qDebug()`
+
+**预期收益**:
+- 更细粒度的日志级别控制（DEBUG/INFO/WARN/ERROR/FATAL）
+- 日志自动保存到 `logs/sin_YYYYMMDD.log`
+- 跨线程安全，避免 UI 阻塞
+- 支持日志筛选和动态调整级别
+
+---
+
+#### 2. nlohmann/json（JSON 解析库）
+
+**协议**: MIT  
+**GitHub**: https://github.com/nlohmann/json  
+**用途**: 项目配置文件、工程文件 (.sinproj)、UI 布局配置保存与加载。
+
+**集成计划**:
+- [ ] 单头文件引入（无需编译）
+- [ ] 创建 `src/utils/config.cpp` 序列化/反序列化 API
+- [ ] 实现 `.sinproj` 工程文件 JSON 格式转换（原纯文本解析 → JSON）
+- [ ] UI 布局配置 JSON 化（Tab 位置、大小、Dock 窗口状态）
+
+**预期收益**:
+- 配置文件可读性提升
+- 类型安全的序列化/反序列化
+- 更容易扩展新字段（向后兼容）
+
+---
+
+### 📋 第三批引入：数据流与表达式处理
+
+#### 3. moodycamel::ConcurrentQueue（无锁队列）
+
+**协议**: BSD-2-Clause  
+**GitHub**: https://github.com/cameron314/concurrentqueue  
+**用途**: Trace 接收、回放、模拟三端数据流传递，替代 `QQueue` + `QMutex`。
+
+**集成计划**:
+- [x] 单头文件引入 → `third_party/concurrentqueue/`（concurrentqueue.h + blockingconcurrentqueue.h）
+- [x] 创建 `src/utils/message_queue.h` 封装 `FrameQueue` 类
+- [x] CanSimulator 改为后台线程生成帧 → 无锁队列 → 主线程批量消费
+- [ ] 测试高负载下无丢包、零等待时间
+
+**预期收益**:
+- 无锁设计，性能比 `QMutex+QQueue` 高 3-5 倍
+- 生产者 - 消费者模型天然适合 CAN 报文流
+- CPU 占用更低，适合高频报文场景（10k+ Hz）
+
+---
+
+#### 4. 自写过滤表达式引擎（替代 exprtk）
+
+**协议**: MIT（项目自有代码，零外部依赖）
+**用途**: Trace 页面「过滤器」输入 `id == 0x50 && dlc > 8` 实时求值。
+
+**实现方案**:
+- [x] 自写递归下降解析器（Tokenizer → Parser → AST → Evaluator）
+- [x] 支持变量: `id, dlc, ch, time, fd, ext, rx, tx, std`
+- [x] 支持运算符: `== != > < >= <= && || !`
+- [x] 支持语法糖: 裸十六进制 (`0x123` → `id==0x123`)、`id in`、`data contains`
+- [x] 集成到 `FilterEngine`（pimpl 模式封装）
+
+**收益**:
+- 零外部依赖，编译极快（exprtk 头文件 ~1MB 导致链接超时）
+- 完全掌控语法和错误提示
+- 无协议风险（exprtk 为 LGPL/GPL，商用受限）
+
+---
+
+### 🎨 第四批引入：绘图与可视化增强
+
+#### 5. QCustomPlot（Qt 图表库）
+
+**协议**: GPL-2.0 / Commercial  ⚠️ **注意商用协议**
+**官方站点**: https://www.qcustomplot.com/  
+**用途**: 替代 Qt6Charts，提供更高的可定制性和丰富的图表面板（波形图、频谱图、示波器等）。
+
+**集成计划**:
+- [ ] 下载源码 `qcustomplot.h/cpp`
+- [ ] 集成到 `src/ui/charts/qcustomplot/`
+- [ ] 评估 GPL 协议：如用于商业软件需购买许可证（~€300）
+- [ ] 如不想付费：可继续使用 Qt6Charts，或改用 Apache-2.0 协议的 `ScottPlot.Cpp`（新兴）
+- [ ] 创建 `GraphicViewV2` 继承 `QCustomPlot`，保留现有 `Signal` 接口兼容
+
+**预期收益**:
+- 更美观的波形渲染效果
+- 支持缩放、平移、多 Y 轴、光标读数等高级交互
+- 可轻松添加网格线、图例、轴标签
+
+**⚠️ 风险提示**: 若不想购买 GPL 商业许可，请跳过 QCustomPlot，改用以下免费选项：
+- **替代 1**: 自定义 `QWidget` 绘制（推荐长期维护）
+- **替代 2**: `ScottPlot.Cpp`（Apache-2.0，新兴库）
+
+---
+
+#### 6. FastTable / QtAdvancedTableView（高性能表格）
+
+**协议**: LGPL / Commercial  
+**GitHub**: https://github.com/fastfloat/fast-table  
+**用途**: Trace 页面大量报文数据的快速展示（万行级流畅滚动）。
+
+**集成计划**:
+- [ ] 评估 FastTable 是否满足需求（主要是性能和可扩展性）
+- [ ] 当前 `QTableWidget` 在 1 万行以下表现良好，暂不急进
+- [ ] 如后续发现性能瓶颈，再考虑替换
+
+---
+
+### 🌳 第五批引入：树形控件增强
+
+#### 7. QTreeWidgetEx（树形控件增强）
+
+**协议**: LGPL-2.1  
+**GitHub**: https://github.com/JoseMaQue/QTreeWidgetEx  
+**用途**: DBC 详情标签页的信号浏览器，支持分组、折叠、筛选、搜索信号。
+
+**集成计划**:
+- [ ] 下载源码并集成
+- [ ] 替换 `DbcDetailTab` 内部左侧的 `QTreeWidget` 为 `QTreeWidgetEx`
+- [ ] 增加「按报文 ID 分组」「按收发节点分类」「关键字高亮」等功能
+
+---
+
+### 🪟 第六批引入：高级窗口管理
+
+#### 8. Qt Advanced Docking System (QtADS)
+
+**协议**: MIT  
+**GitHub**: https://github.com/aqtads/qtads  
+**用途**: 拖拽拆分、浮动子窗口、标签化面板、一键保存/加载界面布局。
+
+**集成计划**:
+- [ ] 评估 QtADS 是否能稳定工作（文档有限）
+- [ ] 创建 `MainWindow::saveLayout()` / `loadLayout()` 基于 QtADS
+- [ ] 支持用户自定义 Tab 布局（如：左侧 DBC 详情 + 右侧 Trace + 上部波形图）
+- [ ] 退出时自动保存布局，下次启动恢复
+
+**预期收益**:
+- VS Code 级别的自由布局体验
+- 用户可以分屏同时看 Trace、Graphic、DBC 详情
+- 支持多显示器拖动独立窗口
+
+---
+
+### 🧩 可选扩展：脚本语言嵌入
+
+#### 9. sol2 + Lua / pybind11 + Python（二选一）
+
+**用途**: 允许用户使用脚本编写自动化测试用例、自定义数据处理逻辑。
+
+**集成计划**:
+- [ ] Lua（轻量）: sol2 + lua.hpp（单头文件）
+- [ ] Python（强大但重量）: pybind11 + 独立 Python 解释器 DLL
+- [ ] 创建 `src/utils/script_engine.h` 提供统一的脚本执行接口
+- [ ] 示例功能：
+  ```lua
+  -- 自动触发条件
+  if signal("DoorLock") == "Locked" then
+     send(0x123, "ButtonPress", 1)
+  end
+  ```
+
+**优先级**: 低，适合后期扩展
+
+---
+
+### 📦 其他硬件相关库
+
+| 功能 | 推荐方案 | 备注 |
+|------|---------|------|
+| **SocketCAN (Linux)** | libsocketcan (MIT) | Linux 原生支持，`can-utils` 已打包 |
+| **Kvaser USB 设备** | Kvaser C API SDK (商用) | 需购买授权，Windows/Linux/macOS |
+| **PEAK-Systems PCAN** | PEAK SDK (商用) | 需购买授权，仅 Windows/Linux |
+| **BLF 日志播放** | libblf (LGPL) | 梅赛德斯 - 奔驰开源，需解决 Qt 适配 |
+| **ASC/PCAP 日志** | 自研解析 | 先不做，后续按需扩展 |
+
+**集成顺序建议**:
+1. 先用内置模拟器完成所有逻辑开发
+2. 优先集成 **Kvaser**（中国市场占有率最高）
+3. 再根据用户需求补充 SocketCAN / PEAK
+
+---
+
+## 总结：渐进式演进策略
+
+✅ **已完成**: DBC 解析（dbcppp）、图形绘制（Qt6Charts）  
+🔄 **近期目标** (1-2 周):
+   - 引入 spdlog（日志系统）
+   - 引入 nlohmann/json（配置管理）
+   
+📅 **中期目标** (1-2 月):
+   - 引入 moodycamel::ConcurrentQueue（高性能消息队列）
+   - 引入 exprtk/re2（表达式过滤）
+   - 评估 QCustomPlot（替换或升级绘图库）
+   - 引入 QtADS（高级窗口管理）
+
+🚀 **长期规划**:
+   - 引入 Lua/Python（脚本扩展）
+   - 支持真实 CAN 硬件（Kvaser/PEAK/SocketCAN）
+   - BLF 日志播放
+
+💡 **核心原则**：每次只改一个模块，确保构建通过、功能正确、回归测试无误，再继续下一步。

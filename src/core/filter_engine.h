@@ -7,11 +7,11 @@
 struct CanFrame;
 
 /**
- * @brief 基于 exprtk 的 CAN 帧过滤引擎
+ * @brief 轻量级 CAN 帧过滤引擎
  *
- * 使用 pimpl 模式封装 exprtk（~1MB 头文件），避免在头文件中引入重依赖。
+ * 使用自写递归下降解析器（零外部依赖），通过 pimpl 模式封装。
  *
- * 支持的表达式语法（兼容旧版关键字）：
+ * 支持的表达式语法：
  *   - 变量: id, dlc, ch, time, fd, ext, rx, tx, std
  *   - 逻辑: and/&&, or/||, not/!
  *   - 比较: ==, !=, >, <, >=, <=

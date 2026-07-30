@@ -28,6 +28,13 @@ FilterBar::FilterBar(QWidget *parent)
     layout->addWidget(m_startBtn);
     layout->addWidget(m_stopBtn);
 
+    // 覆盖模式按钮（checkable）
+    m_overwriteBtn = new QPushButton("覆盖模式", this);
+    m_overwriteBtn->setCheckable(true);
+    m_overwriteBtn->setToolTip("开启后每个 CAN ID 固定一行，新帧刷新行数据和帧数\n"
+                               "关闭后为滚动模式，每帧新增一行");
+    layout->addWidget(m_overwriteBtn);
+
     // 分隔线
     auto *sep = new QFrame(this);
     sep->setFrameShape(QFrame::VLine);
@@ -57,6 +64,7 @@ FilterBar::FilterBar(QWidget *parent)
 
     connect(m_startBtn, &QPushButton::clicked, this, &FilterBar::onStart);
     connect(m_stopBtn, &QPushButton::clicked, this, &FilterBar::onStop);
+    connect(m_overwriteBtn, &QPushButton::toggled, this, &FilterBar::overwriteModeToggled);
     connect(m_applyBtn, &QPushButton::clicked, this, &FilterBar::onApply);
     connect(m_clearBtn, &QPushButton::clicked, this, &FilterBar::onClear);
     connect(m_helpBtn, &QToolButton::clicked, this, &FilterBar::showHelp);
@@ -78,6 +86,11 @@ void FilterBar::setRunning(bool running)
 {
     m_startBtn->setEnabled(!running);
     m_stopBtn->setEnabled(running);
+}
+
+void FilterBar::setOverwriteMode(bool enabled)
+{
+    m_overwriteBtn->setChecked(enabled);
 }
 
 void FilterBar::onStart()

@@ -715,7 +715,8 @@ void MainWindow::onFrameReceived(const CanFrame &frame)
             auto *tt = qobject_cast<TraceTab *>(tw->widget(i));
             if (tt && tt->isRunning()) {
                 tt->appendFrame(frame);
-                if (m_autoScroll) tt->traceView()->scrollToBottom();
+                if (m_autoScroll && !tt->isOverwriteMode())
+                    tt->traceView()->scrollToBottom();
             }
         }
     }

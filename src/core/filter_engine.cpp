@@ -2,8 +2,6 @@
 #include "canframe.h"
 #include "logging.h"
 
-#include <exprtk.hpp>
-
 #include <QRegularExpression>
 #include <QString>
 #include <QStringList>
@@ -12,17 +10,87 @@
 #include <array>
 #include <string>
 #include <vector>
+#include <memory>
+#include <cmath>
 
 namespace {
 
-/// 最多支持的 "data contains" 子句数
+// ============================================================
+//  AST 节点 — 轻量递归下降解析器（替代 exprtk）
+// ============================================================
+
+enum class NodeKind {
+    Number,         // 数值字面量
+    Variable,       // 变量: id, dlc, ch, time, fd, ext, rx, tx, std
+    Compare,        // 比较: ==, !=, >, <, >=, <=
+    Logical,        // 逻辑: &&, ||
+    Not,            // 逻辑非
+    DataContains,   // data contains <hex bytes>
+    IdIn,           // id in {v1, v2, ...}
+};
+
+struct ASTNode {
+    NodeKind kind;
+    double number = 0;
+    int varIdx = -1;              // 变量索引 (0-8)
+    int op = 0;                   // 运算符
+    std::unique_ptr<ASTNode> left;
+    std::unique_ptr<ASTNode> right;
+    QByteArray dataPattern;
+
+    static std::unique_ptr<ASTNode> makeNum(double v) {
+        auto n = std::make_unique<ASTNode>();
+        n->kind = NodeKind::Number; n->number = v; return n;
+    }
+    static std::unique_ptr<ASTNode> makeVar(int idx) {
+        auto n = std::make_unique<ASTNode>();
+        n->kind = NodeKind::Variable; n->varIdx = idx; return n;
+    }
+    static std::unique_ptr<ASTNode> makeCmp(int op,
+            std::unique_ptr<ASTNode> l, std::unique_ptr<ASTNode> r) {
+        auto n = std::make_unique<ASTNode>();
+        n->kind = NodeKind::Compare; n->op = op;
+        n->left = std::move(l); n->right = std::move(r); return n;
+    }
+    static std::unique_ptr<ASTNode> makeLog(int op,
+            std::unique_ptr<ASTNode> l, std::unique_ptr<ASTNode> r) {
+        auto n = std::make_unique<ASTNode>();
+        n->kind = NodeKind::Logical; n->op = op;
+        n->left = std::move(l); n->right = std::move(r); return n;
+    }
+    static std::unique_ptr<ASTNode> makeNot(std::unique_ptr<ASTNode> child) {
+        auto n = std::make_unique<ASTNode>();
+        n->kind = NodeKind::Not; n->left = std::move(child); return n;
+    }
+    static std::unique_ptr<ASTNode> makeDataContains(QByteArray pat) {
+        auto n = std::make_unique<ASTNode>();
+        n->kind = NodeKind::DataContains; n->dataPattern = pat; return n;
+    }
+    static std::unique_ptr<ASTNode> makeIdIn(std::vector<double> vals) {
+        auto n = std::make_unique<ASTNode>();
+        n->kind = NodeKind::IdIn; n->number = static_cast<double>(vals.size());
+        // 将值列表存储在 left 链中（简单起见用 Number 节点链）
+        if (!vals.empty()) {
+            n->left = makeNum(vals[0]);
+            auto *cur = n->left.get();
+            for (size_t i = 1; i < vals.size(); ++i) {
+                cur->right = makeNum(vals[i]);
+                cur = cur->right.get();
+            }
+        }
+        return n;
+    }
+};
+
+// ============================================================
+//  预处理器 — 语法糖转换（与原逻辑兼容）
+// ============================================================
+
 constexpr size_t kMaxDataMatches = 16;
 
-/// 将用户友好的过滤表达式预处理为 exprtk 可编译的 C 风格表达式
 class Preprocessor
 {
 public:
-    /// 运行预处理，结果写入 m_output
     QString run(const QString &input)
     {
         m_output = input;
@@ -43,10 +111,7 @@ private:
     size_t m_numData = 0;
     std::array<QByteArray, kMaxDataMatches> m_dataPatterns{};
 
-    // --------------------------------------------------------
-    //  1. 提取 "data contains <hex bytes>" 子句
-    //    替换为 __data_N__ 变量，字节模式保存到 m_dataPatterns
-    // --------------------------------------------------------
+    // 1. 提取 "data contains <hex bytes>" → __data_N__
     void extractDataContains()
     {
         QRegularExpression rx(
@@ -62,7 +127,6 @@ private:
             auto m = it.next();
             result += m_output.mid(lastEnd, m.capturedStart() - lastEnd);
 
-            // 解析十六进制字节序列
             QString bytesStr = m.captured(1);
             QStringList tokens = bytesStr.split(
                 QRegularExpression("\\s+"), Qt::SkipEmptyParts);
@@ -90,9 +154,7 @@ private:
         m_output = result;
     }
 
-    // --------------------------------------------------------
-    //  2. 转换 "id in 0x100,0x200,..." → "(id==0x100||id==0x200||...)"
-    // --------------------------------------------------------
+    // 2. "id in 0x100,0x200" → "(id==0x100||id==0x200)"
     void convertIdIn()
     {
         QRegularExpression rx(
@@ -120,9 +182,7 @@ private:
         m_output = result;
     }
 
-    // --------------------------------------------------------
-    //  3. 替换逻辑关键字: and→&&, or→||, not→!
-    // --------------------------------------------------------
+    // 3. and→&&, or→||, not→!
     void replaceLogicalKeywords()
     {
         m_output.replace(
@@ -139,10 +199,7 @@ private:
             "!");
     }
 
-    // --------------------------------------------------------
-    //  4. 包装裸十六进制/十进制数字为 (id==NUMBER)
-    //     仅处理不紧跟在比较运算符之后的数字
-    // --------------------------------------------------------
+    // 4. 裸十六进制/十进制 → (id==NUMBER)
     void wrapBareHex()
     {
         QString result;
@@ -150,12 +207,9 @@ private:
         int i = 0;
         int len = m_output.size();
         while (i < len) {
-            // 检测数字起始
             bool isHex = (i + 1 < len && m_output[i] == '0' &&
                           (m_output[i + 1] == 'x' || m_output[i + 1] == 'X'));
             bool isDec = m_output[i].isDigit() && !isHex;
-
-            // 前一字符不能是字母/数字/下划线（否则是标识符的一部分，如 __data_0__）
             bool prevIsIdent = (i > 0 && (m_output[i - 1].isLetterOrNumber() ||
                                           m_output[i - 1] == '_'));
 
@@ -167,31 +221,26 @@ private:
                                    (m_output[i] >= 'A' && m_output[i] <= 'F'))) {
                     ++i;
                 }
-                // 后一字符不能是字母/下划线（标识符）
                 if (i < len && (m_output[i].isLetter() || m_output[i] == '_')) {
                     result += m_output.mid(start, i - start);
                     continue;
                 }
 
                 QString num = m_output.mid(start, i - start);
-
-                // 向前跳过空白，检查前一非空白字符
                 int j = start - 1;
                 while (j >= 0 && m_output[j].isSpace()) --j;
 
-                // 若前一字符是逻辑运算符或表达式起始，则为裸 ID，需包装
-                // 注意: != 是"不等于"运算符，不是逻辑非
                 bool isBare;
                 if (j < 0)
                     isBare = true;
                 else if (m_output[j] == '!' && j > 0 && m_output[j - 1] == '=')
-                    isBare = false;  // != 运算符
-                else if (m_output[j] == '!' )
-                    isBare = true;   // 逻辑非
+                    isBare = false;
+                else if (m_output[j] == '!')
+                    isBare = true;
                 else if (m_output[j] == '(' || m_output[j] == '&' || m_output[j] == '|')
                     isBare = true;
                 else
-                    isBare = false;  // =, >, < 等比较运算符
+                    isBare = false;
 
                 if (isBare)
                     result += "(id==" + num + ")";
@@ -205,10 +254,7 @@ private:
         m_output = result;
     }
 
-    // --------------------------------------------------------
-    //  5. 将所有 0xNNN 十六进制字面量转换为十进制
-    //     exprtk 不支持 0x 前缀，必须转为纯数字
-    // --------------------------------------------------------
+    // 5. 0xNNN → 十进制
     void convertHexToDecimal()
     {
         QRegularExpression rx("0[xX][0-9a-fA-F]+");
@@ -218,7 +264,7 @@ private:
         while (it.hasNext()) {
             auto m = it.next();
             result += m_output.mid(lastEnd, m.capturedStart() - lastEnd);
-            QString hexStr = m.captured(0).mid(2); // 去掉 0x
+            QString hexStr = m.captured(0).mid(2);
             bool ok = false;
             quint32 val = hexStr.toUInt(&ok, 16);
             result += ok ? QString::number(val) : m.captured(0);
@@ -229,61 +275,453 @@ private:
     }
 };
 
-} // anonymous namespace
-
 // ============================================================
-//  Impl
+//  Tokenizer
 // ============================================================
 
-struct FilterEngine::Impl
-{
-    exprtk::symbol_table<double> symbols;
-    exprtk::expression<double> expression;
-    exprtk::parser<double> parser;
+enum TokenType {
+    TOK_NUMBER, TOK_IDENT,
+    TOK_EQ, TOK_NE, TOK_GT, TOK_LT, TOK_GE, TOK_LE,
+    TOK_AND, TOK_OR, TOK_NOT,
+    TOK_LPAREN, TOK_RPAREN, TOK_COMMA,
+    TOK_EOF, TOK_ERROR
+};
 
-    // 帧字段变量（evaluate 时更新）
-    double var_id  = 0;
-    double var_dlc = 0;
-    double var_ch  = 0;
-    double var_time = 0;
-    double var_fd  = 0;
-    double var_ext = 0;
-    double var_rx  = 0;
-    double var_tx  = 0;
-    double var_std = 0;
+struct Token {
+    TokenType type = TOK_EOF;
+    double numVal = 0;
+    QString strVal;
+};
 
-    // data contains 求值结果变量
-    std::array<double, kMaxDataMatches> dataVars{};
-    std::array<QByteArray, kMaxDataMatches> dataPatterns;
-    size_t numData = 0;
+class Tokenizer {
+public:
+    explicit Tokenizer(const QString &input) : m_input(input), m_pos(0) {}
 
-    bool compiled = false;
-    bool empty = false;
-    std::string errorMsg;
-
-    Impl()
+    Token next()
     {
-        symbols.add_variable("id",   var_id);
-        symbols.add_variable("dlc",  var_dlc);
-        symbols.add_variable("ch",   var_ch);
-        symbols.add_variable("time", var_time);
-        symbols.add_variable("fd",   var_fd);
-        symbols.add_variable("ext",  var_ext);
-        symbols.add_variable("rx",   var_rx);
-        symbols.add_variable("tx",   var_tx);
-        symbols.add_variable("std",  var_std);
-        for (size_t i = 0; i < kMaxDataMatches; ++i) {
-            symbols.add_variable(
-                "__data_" + std::to_string(i) + "__", dataVars[i]);
-        }
-        symbols.add_constants();
+        skipSpaces();
+        if (m_pos >= m_input.size())
+            return {TOK_EOF, 0, {}};
 
-        expression.register_symbol_table(symbols);
+        QChar c = m_input[m_pos];
+
+        // 双字符运算符
+        if (m_pos + 1 < m_input.size()) {
+            QString two = m_input.mid(m_pos, 2);
+            if (two == "==") { m_pos += 2; return {TOK_EQ, 0, {}}; }
+            if (two == "!=") { m_pos += 2; return {TOK_NE, 0, {}}; }
+            if (two == ">=") { m_pos += 2; return {TOK_GE, 0, {}}; }
+            if (two == "<=") { m_pos += 2; return {TOK_LE, 0, {}}; }
+            if (two == "&&") { m_pos += 2; return {TOK_AND, 0, {}}; }
+            if (two == "||") { m_pos += 2; return {TOK_OR,  0, {}}; }
+        }
+
+        // 单字符运算符
+        if (c == '>') { ++m_pos; return {TOK_GT, 0, {}}; }
+        if (c == '<') { ++m_pos; return {TOK_LT, 0, {}}; }
+        if (c == '!') { ++m_pos; return {TOK_NOT, 0, {}}; }
+        if (c == '(') { ++m_pos; return {TOK_LPAREN, 0, {}}; }
+        if (c == ')') { ++m_pos; return {TOK_RPAREN, 0, {}}; }
+        if (c == ',') { ++m_pos; return {TOK_COMMA, 0, {}}; }
+
+        // 数字（十进制 / 十六进制）
+        if (c.isDigit() || (c == '0' && m_pos + 1 < m_input.size() &&
+                            (m_input[m_pos + 1] == 'x' || m_input[m_pos + 1] == 'X'))) {
+            return readNumber();
+        }
+
+        // 标识符 / 关键字
+        if (c.isLetter() || c == '_') {
+            return readIdent();
+        }
+
+        return {TOK_ERROR, 0, QString("意外字符: '%1'").arg(c)};
+    }
+
+    Token peek()
+    {
+        int saved = m_pos;
+        auto tok = next();
+        m_pos = saved;
+        return tok;
+    }
+
+private:
+    QString m_input;
+    int m_pos;
+
+    void skipSpaces()
+    {
+        while (m_pos < m_input.size() && m_input[m_pos].isSpace())
+            ++m_pos;
+    }
+
+    Token readNumber()
+    {
+        int start = m_pos;
+        if (m_input[m_pos] == '0' && m_pos + 1 < m_input.size() &&
+            (m_input[m_pos + 1] == 'x' || m_input[m_pos + 1] == 'X')) {
+            m_pos += 2;
+            while (m_pos < m_input.size() &&
+                   (m_input[m_pos].isDigit() ||
+                    (m_input[m_pos] >= 'a' && m_input[m_pos] <= 'f') ||
+                    (m_input[m_pos] >= 'A' && m_input[m_pos] <= 'F')))
+                ++m_pos;
+            bool ok = false;
+            double val = m_input.mid(start + 2, m_pos - start - 2)
+                             .toUInt(&ok, 16);
+            return {TOK_NUMBER, ok ? val : 0, {}};
+        }
+        while (m_pos < m_input.size() &&
+               (m_input[m_pos].isDigit() || m_input[m_pos] == '.'))
+            ++m_pos;
+        return {TOK_NUMBER, m_input.mid(start, m_pos - start).toDouble(), {}};
+    }
+
+    Token readIdent()
+    {
+        int start = m_pos;
+        while (m_pos < m_input.size() &&
+               (m_input[m_pos].isLetterOrNumber() || m_input[m_pos] == '_'))
+            ++m_pos;
+        QString word = m_input.mid(start, m_pos - start);
+        QString lower = word.toLower();
+        if (lower == "and") return {TOK_AND,  0, {}};
+        if (lower == "or")  return {TOK_OR,   0, {}};
+        if (lower == "not") return {TOK_NOT,  0, {}};
+        return {TOK_IDENT, 0, word};
     }
 };
 
 // ============================================================
-//  FilterEngine
+//  Parser — 递归下降
+//
+//  文法:
+//    expr     → orExpr
+//    orExpr   → andExpr ('||' andExpr)*
+//    andExpr  → notExpr ('&&' notExpr)*
+//    notExpr  → '!' notExpr | comparison
+//    comparison → primary [compOp primary]
+//    primary  → '(' expr ')'
+//             | 'data' 'contains' hexByte+     (仅当 __data_N__ 未匹配时)
+//             | 'id' 'in' number (',' number)*
+//             | IDENT                          (变量，truthy 求值)
+//             | NUMBER                         (裸数字 → id == N)
+// ============================================================
+
+class Parser {
+public:
+    explicit Parser(const QString &input, size_t numData = 0)
+        : m_tok(input), m_numData(numData) {}
+
+    std::unique_ptr<ASTNode> parse()
+    {
+        advance();
+        auto ast = parseOr();
+        if (!m_error.isEmpty())
+            return nullptr;
+        if (m_cur.type != TOK_EOF) {
+            m_error = QString("意外的标记: '%1'").arg(
+                m_cur.type == TOK_IDENT ? m_cur.strVal : tokenStr());
+            return nullptr;
+        }
+        return ast;
+    }
+
+    QString error() const { return m_error; }
+
+private:
+    Tokenizer m_tok;
+    Token m_cur;
+    QString m_error;
+    size_t m_numData;
+
+    void advance() { m_cur = m_tok.next(); }
+    Token peek()   { return m_tok.peek(); }
+
+    QString tokenStr() const
+    {
+        switch (m_cur.type) {
+        case TOK_NUMBER: return QString::number(m_cur.numVal);
+        case TOK_IDENT:  return m_cur.strVal;
+        case TOK_EQ:     return "==";
+        case TOK_NE:     return "!=";
+        case TOK_GT:     return ">";
+        case TOK_LT:     return "<";
+        case TOK_GE:     return ">=";
+        case TOK_LE:     return "<=";
+        case TOK_AND:    return "&&";
+        case TOK_OR:     return "||";
+        case TOK_NOT:    return "!";
+        case TOK_LPAREN: return "(";
+        case TOK_RPAREN: return ")";
+        case TOK_COMMA:  return ",";
+        default:         return "?";
+        }
+    }
+
+    int varIndex(const QString &name)
+    {
+        QString n = name.toLower();
+        if (n == "id")   return 0;
+        if (n == "dlc")  return 1;
+        if (n == "ch")   return 2;
+        if (n == "time") return 3;
+        if (n == "fd")   return 4;
+        if (n == "ext")  return 5;
+        if (n == "rx")   return 6;
+        if (n == "tx")   return 7;
+        if (n == "std")  return 8;
+        return -1;
+    }
+
+    bool isCompOp() const
+    {
+        return m_cur.type == TOK_EQ || m_cur.type == TOK_NE ||
+               m_cur.type == TOK_GT || m_cur.type == TOK_LT ||
+               m_cur.type == TOK_GE || m_cur.type == TOK_LE;
+    }
+
+    // ---- 文法规则 ----
+
+    std::unique_ptr<ASTNode> parseOr()
+    {
+        auto left = parseAnd();
+        if (!left || m_error.size()) return left;
+        while (m_cur.type == TOK_OR) {
+            advance();
+            auto right = parseAnd();
+            if (!right) return nullptr;
+            left = ASTNode::makeLog('|', std::move(left), std::move(right));
+        }
+        return left;
+    }
+
+    std::unique_ptr<ASTNode> parseAnd()
+    {
+        auto left = parseNot();
+        if (!left || m_error.size()) return left;
+        while (m_cur.type == TOK_AND) {
+            advance();
+            auto right = parseNot();
+            if (!right) return nullptr;
+            left = ASTNode::makeLog('&', std::move(left), std::move(right));
+        }
+        return left;
+    }
+
+    std::unique_ptr<ASTNode> parseNot()
+    {
+        if (m_cur.type == TOK_NOT) {
+            advance();
+            auto operand = parseNot();
+            if (!operand) return nullptr;
+            return ASTNode::makeNot(std::move(operand));
+        }
+        return parseComparison();
+    }
+
+    std::unique_ptr<ASTNode> parseComparison()
+    {
+        // ---- 括号子表达式 ----
+        if (m_cur.type == TOK_LPAREN) {
+            advance();
+            auto expr = parseOr();
+            if (!expr) return nullptr;
+            if (m_cur.type != TOK_RPAREN) {
+                m_error = "缺少右括号 ')'"; return nullptr;
+            }
+            advance();
+            return expr;  // 已在 or 层处理，无需再包装
+        }
+
+        // ---- data contains <hex bytes> ----
+        if (m_cur.type == TOK_IDENT && m_cur.strVal.toLower() == "data") {
+            auto next = peek();
+            if (next.type == TOK_IDENT &&
+                next.strVal.toLower() == "contains") {
+                advance(); // skip 'data'
+                advance(); // skip 'contains'
+                QByteArray pattern;
+                while (m_cur.type == TOK_NUMBER) {
+                    pattern.append(static_cast<char>(
+                        static_cast<int>(m_cur.numVal) & 0xFF));
+                    advance();
+                }
+                if (pattern.isEmpty()) {
+                    m_error = "'data contains' 后需要至少一个字节值";
+                    return nullptr;
+                }
+                return ASTNode::makeDataContains(pattern);
+            }
+            // 不是 "data contains"，作为普通变量处理
+        }
+
+        // ---- 标识符（变量 / id in / 比较左侧） ----
+        if (m_cur.type == TOK_IDENT) {
+            QString name = m_cur.strVal;
+            int vidx = varIndex(name);
+            if (vidx < 0) {
+                // __data_N__ 变量（预处理器已提取，不应出现在此）
+                if (name.startsWith("__data_") && name.endsWith("__")) {
+                    // 作为 truthy 变量处理
+                    advance();
+                    return ASTNode::makeVar(9); // 占位，实际值由预处理器设置
+                }
+                m_error = QString("未知变量: '%1'").arg(name);
+                return nullptr;
+            }
+            advance();
+
+            // id in v1, v2, ...
+            if (vidx == 0 && m_cur.type == TOK_IDENT &&
+                m_cur.strVal.toLower() == "in") {
+                advance(); // skip 'in'
+                std::vector<double> vals;
+                while (true) {
+                    if (m_cur.type != TOK_NUMBER) {
+                        m_error = "'in' 后需要数值"; return nullptr;
+                    }
+                    vals.push_back(m_cur.numVal);
+                    advance();
+                    if (m_cur.type != TOK_COMMA) break;
+                    advance();
+                }
+                return ASTNode::makeIdIn(vals);
+            }
+
+            // 比较运算: var op value
+            if (isCompOp()) {
+                int op = m_cur.type;
+                advance();
+                std::unique_ptr<ASTNode> rhs;
+                if (m_cur.type == TOK_IDENT) {
+                    int rvidx = varIndex(m_cur.strVal);
+                    if (rvidx < 0) {
+                        m_error = QString("未知变量: '%1'").arg(m_cur.strVal);
+                        return nullptr;
+                    }
+                    advance();
+                    rhs = ASTNode::makeVar(rvidx);
+                } else if (m_cur.type == TOK_NUMBER) {
+                    rhs = ASTNode::makeNum(m_cur.numVal);
+                    advance();
+                } else {
+                    m_error = "比较运算符后需要变量或数值";
+                    return nullptr;
+                }
+                return ASTNode::makeCmp(op, ASTNode::makeVar(vidx),
+                                        std::move(rhs));
+            }
+
+            // 单独变量 → truthy 求值 (var != 0)
+            return ASTNode::makeCmp(TOK_NE, ASTNode::makeVar(vidx),
+                                    ASTNode::makeNum(0));
+        }
+
+        // ---- 裸数字 → id == N ----
+        if (m_cur.type == TOK_NUMBER) {
+            double val = m_cur.numVal;
+            advance();
+            return ASTNode::makeCmp(TOK_EQ, ASTNode::makeVar(0),
+                                    ASTNode::makeNum(val));
+        }
+
+        // ---- NOT 结果（!expr 作为 truthy 求值） ----
+        // 此处不应到达（parseNot 已处理），但保险起见
+        m_error = QString("意外的标记: '%1'").arg(tokenStr());
+        return nullptr;
+    }
+};
+
+// ============================================================
+//  AST 求值器
+// ============================================================
+
+struct EvalContext {
+    double vars[9] = {};  // 0:id 1:dlc 2:ch 3:time 4:fd 5:ext 6:rx 7:tx 8:std
+    const QByteArray *data = nullptr;
+    const std::array<QByteArray, kMaxDataMatches> *dataPatterns = nullptr;
+    size_t numData = 0;
+};
+
+double evalAST(const ASTNode *node, const EvalContext &ctx)
+{
+    if (!node) return 0;
+
+    switch (node->kind) {
+    case NodeKind::Number:
+        return node->number;
+
+    case NodeKind::Variable:
+        if (node->varIdx >= 0 && node->varIdx < 9)
+            return ctx.vars[node->varIdx];
+        return 0;
+
+    case NodeKind::Compare: {
+        double l = evalAST(node->left.get(), ctx);
+        double r = evalAST(node->right.get(), ctx);
+        switch (node->op) {
+        case TOK_EQ: return (l == r) ? 1.0 : 0.0;
+        case TOK_NE: return (l != r) ? 1.0 : 0.0;
+        case TOK_GT: return (l >  r) ? 1.0 : 0.0;
+        case TOK_LT: return (l <  r) ? 1.0 : 0.0;
+        case TOK_GE: return (l >= r) ? 1.0 : 0.0;
+        case TOK_LE: return (l <= r) ? 1.0 : 0.0;
+        default: return 0;
+        }
+    }
+
+    case NodeKind::Logical: {
+        double l = evalAST(node->left.get(), ctx);
+        if (node->op == '&')
+            return (l != 0.0) ?
+                   ((evalAST(node->right.get(), ctx) != 0.0) ? 1.0 : 0.0)
+                   : 0.0;  // 短路
+        else
+            return (l != 0.0) ? 1.0 :
+                   ((evalAST(node->right.get(), ctx) != 0.0) ? 1.0 : 0.0);
+    }
+
+    case NodeKind::Not:
+        return (evalAST(node->left.get(), ctx) == 0.0) ? 1.0 : 0.0;
+
+    case NodeKind::DataContains: {
+        if (!ctx.data) return 0;
+        return ctx.data->contains(node->dataPattern) ? 1.0 : 0.0;
+    }
+
+    case NodeKind::IdIn: {
+        double idVal = ctx.vars[0]; // id
+        auto *cur = node->left.get();
+        while (cur) {
+            if (idVal == cur->number) return 1.0;
+            cur = cur->right.get();
+        }
+        return 0.0;
+    }
+    }
+    return 0;
+}
+
+} // anonymous namespace
+
+// ============================================================
+//  FilterEngine::Impl
+// ============================================================
+
+struct FilterEngine::Impl
+{
+    std::unique_ptr<ASTNode> ast;
+    std::array<QByteArray, kMaxDataMatches> dataPatterns;
+    size_t numData = 0;
+    bool compiled = false;
+    bool empty = false;
+    QString errorMsg;
+};
+
+// ============================================================
+//  FilterEngine 公共接口
 // ============================================================
 
 FilterEngine::FilterEngine()
@@ -298,6 +736,7 @@ bool FilterEngine::compile(const QString &expr)
     m_impl->compiled = false;
     m_impl->errorMsg.clear();
     m_impl->numData = 0;
+    m_impl->ast.reset();
 
     if (expr.trimmed().isEmpty()) {
         m_impl->empty = true;
@@ -306,59 +745,56 @@ bool FilterEngine::compile(const QString &expr)
     }
     m_impl->empty = false;
 
+    // 预处理（语法糖转换）
     Preprocessor pp;
     QString processed = pp.run(expr);
     m_impl->numData = pp.numData();
     for (size_t i = 0; i < pp.numData(); ++i)
         m_impl->dataPatterns[i] = pp.dataPattern(i);
 
-    std::string exprStr = processed.toStdString();
+    // 解析为 AST
+    Parser parser(processed, pp.numData());
+    m_impl->ast = parser.parse();
 
-    // 重置 expression（清除上次编译状态）
-    m_impl->expression.release();
-
-    if (m_impl->parser.compile(exprStr, m_impl->expression)) {
-        m_impl->compiled = true;
-        SIN_LOG_DEBUG("FilterEngine", "compiled: {}", processed.toStdString());
-        return true;
+    if (!m_impl->ast) {
+        m_impl->errorMsg = parser.error();
+        SIN_LOG_WARN("FilterEngine", "compile failed: '{}' -> '{}', error: {}",
+                     expr.toStdString(), processed.toStdString(),
+                     parser.error().toStdString());
+        return false;
     }
 
-    m_impl->errorMsg = m_impl->parser.error();
-    SIN_LOG_WARN("FilterEngine", "compile failed: '{}' → '{}', error: {}",
-                 expr.toStdString(), processed.toStdString(), m_impl->errorMsg);
-    return false;
+    m_impl->compiled = true;
+    SIN_LOG_DEBUG("FilterEngine", "compiled: {}", processed.toStdString());
+    return true;
 }
 
 bool FilterEngine::evaluate(const CanFrame &frame) const
 {
-    if (m_impl->empty)  return true;
+    if (m_impl->empty)     return true;
     if (!m_impl->compiled) return true;
 
-    // 更新变量
-    m_impl->var_id   = static_cast<double>(frame.id & 0x1FFFFFFF);
-    m_impl->var_dlc  = static_cast<double>(frame.dlc);
-    m_impl->var_ch   = static_cast<double>(frame.channel);
-    m_impl->var_time = frame.timestamp;
-    m_impl->var_fd   = frame.fd ? 1.0 : 0.0;
-    m_impl->var_ext  = frame.extended ? 1.0 : 0.0;
-    m_impl->var_rx   = (frame.direction == CanFrame::Rx) ? 1.0 : 0.0;
-    m_impl->var_tx   = (frame.direction == CanFrame::Tx) ? 1.0 : 0.0;
-    m_impl->var_std  = frame.extended ? 0.0 : 1.0;
+    EvalContext ctx;
+    ctx.vars[0] = static_cast<double>(frame.id & 0x1FFFFFFF);  // id
+    ctx.vars[1] = static_cast<double>(frame.dlc);               // dlc
+    ctx.vars[2] = static_cast<double>(frame.channel);            // ch
+    ctx.vars[3] = frame.timestamp;                               // time
+    ctx.vars[4] = frame.fd ? 1.0 : 0.0;                         // fd
+    ctx.vars[5] = frame.extended ? 1.0 : 0.0;                   // ext
+    ctx.vars[6] = (frame.direction == CanFrame::Rx) ? 1.0 : 0.0; // rx
+    ctx.vars[7] = (frame.direction == CanFrame::Tx) ? 1.0 : 0.0; // tx
+    ctx.vars[8] = frame.extended ? 0.0 : 1.0;                    // std
+    ctx.data = &frame.data;
+    ctx.dataPatterns = &m_impl->dataPatterns;
+    ctx.numData = m_impl->numData;
 
-    // 求值 data contains 子句
-    for (size_t i = 0; i < m_impl->numData; ++i) {
-        m_impl->dataVars[i] =
-            frame.data.contains(m_impl->dataPatterns[i]) ? 1.0 : 0.0;
-    }
-
-    double result = m_impl->expression.value();
-    return result != 0.0;
+    return evalAST(m_impl->ast.get(), ctx) != 0.0;
 }
 
-bool FilterEngine::isValid() const { return m_impl->compiled; }
-bool FilterEngine::isEmpty() const { return m_impl->empty; }
+bool FilterEngine::isValid() const  { return m_impl->compiled; }
+bool FilterEngine::isEmpty() const  { return m_impl->empty; }
 
 QString FilterEngine::errorString() const
 {
-    return QString::fromStdString(m_impl->errorMsg);
+    return m_impl->errorMsg;
 }
