@@ -25,7 +25,6 @@
 #include "utils/canutils.h"
 #include "core/appconfig.h"
 #include "ui/settingsdialog.h"
-#include <spdlog/spdlog.h>
 
 #include <QMenuBar>
 #include <QMenu>
@@ -66,25 +65,16 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
 
     // ---- 数据层 ----
-    spdlog::info("[Startup] new DbcManager...");
     m_dbcManager = new DbcManager(this);
-    spdlog::info("[Startup] new Recorder...");
     m_recorder  = new Recorder(this);
-    spdlog::info("[Startup] new Player...");
     m_player    = new Player(this);
-    spdlog::info("[Startup] new CanSimulator...");
     m_simulator = new CanSimulator(this);
 
     // ---- UI 构建 ----
-    spdlog::info("[Startup] createMenuBar...");
     createMenuBar();
-    spdlog::info("[Startup] createWindowButtons...");
     createWindowButtons();
-    spdlog::info("[Startup] createLayout...");
     createLayout();
-    spdlog::info("[Startup] createStatusBar...");
     createStatusBar();
-    spdlog::info("[Startup] UI 构建完成");
 
     menuBar()->installEventFilter(this);
 
@@ -451,9 +441,7 @@ void MainWindow::createLayout()
     leftLayout->setContentsMargins(0, 0, 0, 0);
     leftLayout->setSpacing(0);
 
-    spdlog::info("[Startup] createLayout: ActivityBar...");
     m_activityBar = new ActivityBar(this);
-    spdlog::info("[Startup] createLayout: SideBar...");
     m_sideBar = new SideBar(this);
 
     leftLayout->addWidget(m_activityBar);
@@ -469,32 +457,26 @@ void MainWindow::createLayout()
     m_leftDock->setTitleBarWidget(new QWidget());
     addDockWidget(Qt::LeftDockWidgetArea, m_leftDock);
 
-    spdlog::info("[Startup] createLayout: SplitEditorArea...");
     // ---- 中央: 可拆分编辑器区域 ----
     m_editorArea = new SplitEditorArea(this);
 
-    spdlog::info("[Startup] createLayout: TraceTab...");
     // Trace 标签页
     m_traceTab = new TraceTab(this);
     setupTraceTab(m_traceTab);
     m_editorArea->addTab(m_traceTab, "📋 Trace1");
 
-    spdlog::info("[Startup] createLayout: GraphicView...");
     // Graphic 标签页
     m_graphicView = new GraphicView(this);
     m_editorArea->addTab(m_graphicView, "📈 Graphic1");
 
-    spdlog::info("[Startup] createLayout: SignalSendTab...");
     // 发送标签页
     m_sendTab = new SignalSendTab(this);
     m_editorArea->addTab(m_sendTab, "📡 发送");
 
-    spdlog::info("[Startup] createLayout: PlaybackTab...");
     // 回放标签页
     m_playbackTab = new PlaybackTab(this);
     m_editorArea->addTab(m_playbackTab, "▶ 回放");
 
-    spdlog::info("[Startup] createLayout: RecordTab...");
     // 录制标签页
     m_recordTab = new RecordTab(this);
     m_editorArea->addTab(m_recordTab, "● 录制");

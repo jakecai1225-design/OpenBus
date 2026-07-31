@@ -37,6 +37,7 @@ set(SRC_UTILS
     utils/canutils.h
     utils/canutils.cpp
     utils/message_queue.h
+    utils/logging.h
 )
 
 # ui 层 — 界面组件
@@ -82,56 +83,90 @@ set(SRC_UI
 )
 
 # ============================================================
-#  可执行目标
+#  sin_core — 核心静态库 (数据结构、录制、回放、DBC、过滤引擎)
+#  拆分为静态库后，改 UI 代码不会触发 core 重编译
 # ============================================================
-qt_add_executable(sin
-    main.cpp
+add_library(sin_core STATIC
     ${SRC_CORE}
     ${SRC_MODELS}
     ${SRC_UTILS}
-    ${SRC_UI}
-    ../resources/resources.qrc
 )
 
-# ============================================================
-#  链接库
-# ============================================================
-target_link_libraries(sin PRIVATE
-    Qt6::Widgets
-    qcustomplot
-)
-
-# spdlog 头文件路径（直接添加，不通过 IMPORTED target）
-if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/spdlog/include")
-    target_include_directories(sin PRIVATE ${CMAKE_SOURCE_DIR}/third_party/spdlog/include)
-endif()
-
-# nlohmann/json 头文件路径
-if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/nlohmann_json/nlohmann/json.hpp")
-    target_include_directories(sin PRIVATE ${CMAKE_SOURCE_DIR}/third_party/nlohmann_json)
-endif()
-
-# moodycamel::ConcurrentQueue 头文件路径
-if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/concurrentqueue/concurrentqueue.h")
-    target_include_directories(sin PRIVATE ${CMAKE_SOURCE_DIR}/third_party/concurrentqueue)
-endif()
-
-# # 将来引入的库（已下载但暂未使用）
-# - moodycamel::ConcurrentQueue (高性能无锁队列)
-
-# qcustomplot 已下载到 third_party/qcustomplot/
-
-# ============================================================
-#  头文件搜索路径
-# ============================================================
-target_include_directories(sin PRIVATE
+# PUBLIC: UI 层通过链接 sin_core 获得这些头文件路径
+#   - spdlog: core/logging.h (公共头) 包含 <spdlog/spdlog.h>
+#   - nlohmann_json: core/appconfig.h (公共头) 包含 <nlohmann/json.hpp>
+#   - concurrentqueue: core/cansimulator.h (公共头) → utils/message_queue.h → <concurrentqueue.h>
+target_include_directories(sin_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/spdlog/include")
+    target_include_directories(sin_core PUBLIC ${CMAKE_SOURCE_DIR}/third_party/spdlog/include)
+endif()
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/nlohmann_json/nlohmann/json.hpp")
+    target_include_directories(sin_core PUBLIC ${CMAKE_SOURCE_DIR}/third_party/nlohmann_json)
+endif()
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/concurrentqueue/concurrentqueue.h")
+    target_include_directories(sin_core PUBLIC ${CMAKE_SOURCE_DIR}/third_party/concurrentqueue)
+endif()
+
+target_link_libraries(sin_core PUBLIC Qt6::Widgets)
+
+# PCH — 核心层使用精简的 Qt 头（无 Widget），编译更快
+target_precompile_headers(sin_core PRIVATE
+    <QObject>
+    <QString>
+    <QStringList>
+    <QVariant>
+    <QList>
+    <QHash>
+    <QVector>
+    <QPair>
+    <QMetaType>
+    <QByteArray>
+    <QTimer>
+    <QThread>
+    <QFile>
+    <QDataStream>
+    <QDir>
+    <QFileInfo>
+    <QRegularExpression>
+    <QStandardPaths>
+    <QTextStream>
+    <QColor>
+    <QRandomGenerator>
+    <QStringConverter>
+    <QAbstractTableModel>
+    <QSortFilterProxyModel>
+    <vector>
+    <string>
+    <memory>
+    <functional>
+)
+
 # ============================================================
-#  预编译头（PCH）— 显著加速编译（避免每个 .cpp 重复解析 Qt 头文件）
+#  sin_ui — UI 静态库 (所有界面组件)
+#  改 UI 代码时只需重编译此库 + 最终链接，不影响 core
 # ============================================================
-target_precompile_headers(sin PRIVATE
+add_library(sin_ui STATIC
+    ${SRC_UI}
+)
+
+# PUBLIC: 可执行文件通过链接 sin_ui 获得 sin_core 的头文件路径
+target_link_libraries(sin_ui PUBLIC
+    sin_core
+    Qt6::Widgets
+)
+
+# qcustomplot: 仅 graphicview.cpp 使用，graphicview.h 用前向声明 → PRIVATE
+target_link_libraries(sin_ui PRIVATE
+    qcustomplot
+)
+
+# PCH — UI 层使用完整的 Qt Widget 头列表
+target_precompile_headers(sin_ui PRIVATE
     <QWidget>
     <QMainWindow>
     <QVBoxLayout>
@@ -172,6 +207,18 @@ target_precompile_headers(sin PRIVATE
     <string>
     <memory>
     <functional>
+)
+
+# ============================================================
+#  sin — 可执行目标
+# ============================================================
+qt_add_executable(sin
+    main.cpp
+    ../resources/resources.qrc
+)
+
+target_link_libraries(sin PRIVATE
+    sin_ui
 )
 
 # ============================================================

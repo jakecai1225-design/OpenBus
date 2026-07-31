@@ -19,7 +19,6 @@
 #include <functional>
 
 #include "qcustomplot.h"
-#include <spdlog/spdlog.h>
 
 // ============================================================
 //  辅助：QCustomPlot 子类 — 支持卡尺拖动
@@ -62,9 +61,7 @@ protected:
 GraphicView::GraphicView(QWidget *parent)
     : QWidget(parent)
 {
-    spdlog::info("[GV] constructor begin");
     setupUi();
-    spdlog::info("[GV] constructor end");
 }
 
 QColor GraphicView::autoColor(int index)
@@ -160,21 +157,17 @@ void GraphicView::setupUi()
     leftLayout->addLayout(btnBar);
 
     // 右侧: QCustomPlot (多轴堆叠)
-    spdlog::info("[GV] setupUi: creating CursorPlot...");
     auto *cursorPlot = new CursorPlot(m_splitter);
     m_plot = cursorPlot;
-    spdlog::info("[GV] setupUi: CursorPlot created, setting interactions...");
     m_plot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom);
     m_plot->setSelectionRectMode(QCP::srmZoom);
     m_plot->setAntialiasedElements(QCP::aeAll);
-    spdlog::info("[GV] setupUi: removing default axisRect...");
     // 清除默认 axisRect，后面按信号数量动态创建
     // 使用 clear() 而非 while+takeAt：takeAt 只置空 cell 不缩小 grid，
     // elementCount() 返回 rowCount*columnCount 仍 > 0，会导致死循环。
     // clear() 会检查 elementAt(i) 非空才移除，并调用 simplify() 收缩 grid。
     m_plot->plotLayout()->clear();
 
-    spdlog::info("[GV] setupUi: default axisRect removed, adding to splitter...");
     m_splitter->addWidget(leftWidget);
     m_splitter->addWidget(m_plot);
     m_splitter->setStretchFactor(0, 0);
@@ -183,7 +176,6 @@ void GraphicView::setupUi()
 
     mainLayout->addWidget(m_splitter, 1);
 
-    spdlog::info("[GV] setupUi: connecting signals...");
     connect(addBtn, &QPushButton::clicked, this, [this]() {
         SignalConfigDialog dlg(this);
         if (dlg.exec() == QDialog::Accepted) {
@@ -349,7 +341,6 @@ void GraphicView::setupUi()
         event->accept();
     };
 
-    spdlog::info("[GV] setupUi done");
 }
 
 // ============================================================
