@@ -338,6 +338,17 @@ def cmd_deploy(env, args):
         cmd_build(env, args)
 
     run_cmd([str(env.windeployqt), str(EXECUTABLE)])
+
+    # windeployqt 无法检测静态库 (qcustomplot) 对 Qt6PrintSupport 的传递依赖，
+    # 需手动复制 Qt6PrintSupport.dll 到输出目录
+    printsupport = env.qt_bin / "Qt6PrintSupport.dll"
+    dest = EXECUTABLE.parent / "Qt6PrintSupport.dll"
+    if printsupport.exists() and not dest.exists():
+        shutil.copy2(str(printsupport), str(dest))
+        ok(f"手动补充复制 Qt6PrintSupport.dll（qcustomplot 静态库传递依赖）")
+    elif not printsupport.exists():
+        warn(f"Qt6PrintSupport.dll 在 Qt 安装目录中未找到: {printsupport}")
+
     ok("部署完成")
 
 

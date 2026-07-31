@@ -6,6 +6,8 @@
 #include <QGraphicsView>
 #include <QMap>
 #include <QString>
+#include <QMenu>
+#include <QAction>
 
 class QGraphicsRectItem;
 class QGraphicsTextItem;
@@ -36,6 +38,11 @@ public:
     QSize sizeHint() const override { return {900, 600}; }
     Source currentSource() const { return m_source; }
 
+    /// 设置当前已加载的 DBC 文件列表（用于右键菜单显示）
+    void setDbcFiles(const QStringList &files) { m_dbcFiles = files; }
+    /// 设置最近打开的文件列表
+    void setRecentFiles(const QStringList &files) { m_recentFiles = files; }
+
 public slots:
     void setSource(Source src);
     void setFilePath(const QString &path);
@@ -48,6 +55,10 @@ signals:
     void moduleToggled(const QString &moduleName, bool enabled);
     /// 请求打开对应模块的标签页
     void moduleOpened(const QString &moduleName);
+    /// 请求选择 DBC 文件（由 MainWindow 弹出选择对话框）
+    void dbcSelectRequested();
+    /// 请求配置通道过滤条件
+    void channelFilterRequested(const QString &channelId);
 
 private:
     // ---- UI ----
@@ -68,7 +79,13 @@ private:
     bool m_running = false;
     QString m_filePath;
 
+    // ---- 记录文件列表 & REAL 设备 ----
+    QStringList m_recentFiles;           ///< 最近打开的文件
+    QStringList m_dbcFiles;              ///< 已加载的 DBC 文件名列表
+    quint8 m_channel = 1;                ///< CAN 通道
+
     // ---- 画布块 ----
+public:
     struct BlockItem {
         QString id;             ///< 唯一标识
         QString title;          ///< 显示标题
@@ -80,6 +97,7 @@ private:
         QGraphicsRectItem *gfxItem = nullptr;
         QGraphicsTextItem *textItem = nullptr;
     };
+private:
     QMap<QString, BlockItem> m_blocks;
 
     // ---- 连线 ----
@@ -110,6 +128,16 @@ private:
     // 画布事件
     void onSceneClicked(const QPointF &scenePos);
     void onSceneDoubleClicked(const QPointF &scenePos);
+    void onSceneRightClicked(const QPointF &scenePos);
+
+    // ---- 右键菜单 ----
+    QMenu *m_rightMenu = nullptr;
+    void buildContextMenu(BlockItem *block, const QPointF &scenePos);
+
+    // ---- 右键弹窗对话框 ----
+    void showSourceConfigDialog();
+    void showChannelFilterDialog(const QString &channelId);
+    void showDbcSelectDialog();
 };
 
 #endif // MEASUREMENTSETUPVIEW_H

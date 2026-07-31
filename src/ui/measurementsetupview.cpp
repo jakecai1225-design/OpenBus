@@ -1,5 +1,4 @@
 #include "measurementsetupview.h"
-
 #include <QToolBar>
 #include <QAction>
 #include <QToolButton>
@@ -19,6 +18,20 @@
 #include <QScrollBar>
 #include <QFont>
 #include <cmath>
+#include <QFileDialog>
+#include <QListWidget>
+#include <QDialog>
+#include <QPushButton>
+#include <QInputDialog>
+#include <QMessageBox>
+#include <QFormLayout>
+#include <QCheckBox>
+#include <QSpinBox>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QHeaderView>
+#include <QGroupBox>
+#include <QRadioButton>
 
 // ============================================================
 //  自定义图元 — 可绘制带圆角渐变和文字的块
@@ -124,12 +137,15 @@ public:
 signals:
     void sceneClicked(const QPointF &pos);
     void sceneDoubleClicked(const QPointF &pos);
+    void sceneRightClicked(const QPointF &pos);
 
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override
     {
         if (event->button() == Qt::LeftButton)
             emit sceneClicked(event->scenePos());
+        else if (event->button() == Qt::RightButton)
+            emit sceneRightClicked(event->scenePos());
         QGraphicsScene::mousePressEvent(event);
     }
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override
@@ -152,6 +168,9 @@ MeasurementSetupView::MeasurementSetupView(QWidget *parent)
     setupUi();
     buildTopology();
     rebuildScene();
+
+    m_recentFiles.clear();
+    m_channel = 1;
 }
 
 void MeasurementSetupView::setupUi()
@@ -238,6 +257,7 @@ void MeasurementSetupView::setupUi()
 
     connect(scene, &SetupScene::sceneClicked, this, &MeasurementSetupView::onSceneClicked);
     connect(scene, &SetupScene::sceneDoubleClicked, this, &MeasurementSetupView::onSceneDoubleClicked);
+    connect(scene, &SetupScene::sceneRightClicked, this, &MeasurementSetupView::onSceneRightClicked);
 }
 
 void MeasurementSetupView::buildTopology()
@@ -502,19 +522,19 @@ void MeasurementSetupView::onSceneClicked(const QPointF &scenePos)
 void MeasurementSetupView::onSceneDoubleClicked(const QPointF &scenePos)
 {
     auto *b = blockAt(scenePos);
-    if (b) {
-        if (b->category == "module")
-            emit moduleOpened(b->id);
-        else if (b->category == "source") {
-            // 双击数据源切换
-            if (m_source == Source::Hardware) {
-                setSource(Source::File);
-                emit sourceChanged(static_cast<int>(Source::File));
-            } else {
-                setSource(Source::Hardware);
-                emit sourceChanged(static_cast<int>(Source::Hardware));
-            }
-        }
+    if (!b) return;
+
+    if (b->category == "module") {
+        emit moduleOpened(b->id);
+    } else if (b->category == "source") {
+        // 双击数据源 → 弹出配置对话框
+        showSourceConfigDialog();
+    } else if (b->category == "channel") {
+        // 双击通道 → 配置过滤条件
+        showChannelFilterDialog(b->id);
+    } else if (b->category == "database") {
+        // 双击数据库 → 选择 DBC 文件
+        showDbcSelectDialog();
     }
 }
 
@@ -567,3 +587,365 @@ void MeasurementSetupView::onBrowseClicked()
 {
     emit fileBrowseRequested();
 }
+
+// ============================================================
+//  右键菜单实现
+// ============================================================
+
+void MeasurementSetupView::onSceneRightClicked(const QPointF &scenePos)
+{
+    auto *b = blockAt(scenePos);
+    if (!b) return;
+
+    buildContextMenu(b, scenePos);
+    // 将场景坐标→视图坐标→全局屏幕坐标
+    QPoint globalPos = m_view->mapToGlobal(m_view->mapFromScene(scenePos));
+    m_rightMenu->exec(globalPos);
+}
+
+void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
+{
+    if (!block) return;
+
+    if (!m_rightMenu)
+        m_rightMenu = new QMenu(this);
+    else
+        m_rightMenu->clear();
+
+    // -- 标题动作（不可点）--
+    auto *titleAct = m_rightMenu->addAction(QString("【 %1 】").arg(block->title));
+    titleAct->setEnabled(false);
+    QFont titleFont = titleAct->font();
+    titleFont.setBold(true);
+    titleAct->setFont(titleFont);
+    m_rightMenu->addSeparator();
+
+    // ---- 数据源块 ----
+    if (block->category == "source") {
+        auto *actFile = m_rightMenu->addAction("📁 从文件注入数据");
+        actFile->setStatusTip("选择 .sin 录制文件进行回放分析");
+        connect(actFile, &QAction::triggered, this, [this]() {
+            showSourceConfigDialog();
+        });
+
+        auto *actHw = m_rightMenu->addAction("🔧 从 REAL 设备注入数据");
+        actHw->setStatusTip("切换到硬件实时采集模式");
+        connect(actHw, &QAction::triggered, this, [this]() {
+            setSource(Source::Hardware);
+            emit sourceChanged(static_cast<int>(Source::Hardware));
+        });
+
+        m_rightMenu->addSeparator();
+        auto *actFileBrowse = m_rightMenu->addAction("📂 浏览文件...");
+        connect(actFileBrowse, &QAction::triggered, this, [this]() {
+            emit fileBrowseRequested();
+        });
+    }
+
+    // ---- 通道块 ----
+    else if (block->category == "channel") {
+        auto *actFilter = m_rightMenu->addAction("⚙️ 配置过滤条件...");
+        actFilter->setStatusTip("设置 CAN ID 范围、扩展帧、CAN FD 等过滤参数");
+        connect(actFilter, &QAction::triggered, this, [this, block]() {
+            showChannelFilterDialog(block->id);
+        });
+
+        m_rightMenu->addSeparator();
+
+        auto *actToggle = m_rightMenu->addAction(block->enabled ? "⛔ 禁用通道" : "✅ 启用通道");
+        connect(actToggle, &QAction::triggered, this, [this, block]() {
+            toggleBlock(block->id);
+        });
+    }
+
+    // ---- 数据库块 ----
+    else if (block->category == "database") {
+        auto *actDbc = m_rightMenu->addAction("📄 选择 DBC 文件...");
+        actDbc->setStatusTip("在当前工程已加载的 DBC 文件中选择");
+        connect(actDbc, &QAction::triggered, this, [this]() {
+            showDbcSelectDialog();
+        });
+
+        m_rightMenu->addSeparator();
+
+        // 显示已加载的 DBC 文件列表
+        if (!m_dbcFiles.isEmpty()) {
+            auto *dbcListAct = m_rightMenu->addAction(QString("已加载 DBC: %1 个").arg(m_dbcFiles.size()));
+            dbcListAct->setEnabled(false);
+            for (const auto &name : m_dbcFiles) {
+                auto *act = m_rightMenu->addAction("  ““ ”” " + name);
+                act->setEnabled(false);
+            }
+        } else {
+            auto *noDbc = m_rightMenu->addAction("  （未加载任何 DBC 文件）");
+            noDbc->setEnabled(false);
+        }
+    }
+
+    // ---- 模块块 ----
+    else if (block->category == "module") {
+        // 模块类型对应的添加动作
+        if (block->id == "trace") {
+            auto *actAdd = m_rightMenu->addAction("➕ 添加 Trace 视图");
+            actAdd->setStatusTip("新建一个 Trace 报文列表标签页");
+            connect(actAdd, &QAction::triggered, this, [this]() {
+                emit moduleOpened("trace");
+            });
+        } else if (block->id == "graphic") {
+            auto *actAdd = m_rightMenu->addAction("📈 添加 Graphic 波形");
+            actAdd->setStatusTip("新建一个 Graphic 波形图标签页");
+            connect(actAdd, &QAction::triggered, this, [this]() {
+                emit moduleOpened("graphic");
+            });
+        } else if (block->id == "data") {
+            auto *actCfg = m_rightMenu->addAction("⚙️ 配置统计参数...");
+            actCfg->setStatusTip("配置总线负载率、报文频率等统计项");
+            connect(actCfg, &QAction::triggered, this, []() {
+                // 占位：实际实现需要 Data 模块视图
+            });
+        } else if (block->id == "record") {
+            auto *actCfg = m_rightMenu->addAction("● 配置录制参数...");
+            actCfg->setStatusTip("设置录制文件路径和格式");
+            connect(actCfg, &QAction::triggered, this, [this]() {
+                emit moduleOpened("record");
+            });
+        }
+
+        m_rightMenu->addSeparator();
+
+        auto *actOpen = m_rightMenu->addAction("🔗 跳转到对应标签页");
+        actOpen->setStatusTip("在中心区域打开/切换到该模块的标签页");
+        connect(actOpen, &QAction::triggered, this, [this, block]() {
+            emit moduleOpened(block->id);
+        });
+
+        m_rightMenu->addSeparator();
+
+        auto *actToggle = m_rightMenu->addAction(block->enabled ? "⛔ 禁用模块" : "✅ 启用模块");
+        connect(actToggle, &QAction::triggered, this, [this, block]() {
+            toggleBlock(block->id);
+        });
+    }
+}
+
+// ============================================================
+//  数据源配置对话框
+// ============================================================
+void MeasurementSetupView::showSourceConfigDialog()
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle("配置数据源");
+    dlg.setMinimumWidth(420);
+    auto *lay = new QVBoxLayout(&dlg);
+
+    auto *grp = new QGroupBox("选择数据源类型", &dlg);
+    auto *grpLay = new QVBoxLayout(grp);
+    auto *rbFile = new QRadioButton("📁 从文件注入数据（回放 .sin 录制文件）", grp);
+    auto *rbHw   = new QRadioButton("🔧 从 REAL 设备注入数据（硬件实时采集）", grp);
+    rbHw->setChecked(true);
+    grpLay->addWidget(rbFile);
+    grpLay->addWidget(rbHw);
+    lay->addWidget(grp);
+
+    // 文件列表区域
+    auto *fileWidget = new QWidget(&dlg);
+    auto *fileLay = new QVBoxLayout(fileWidget);
+    fileLay->setContentsMargins(0, 0, 0, 0);
+    auto *fileHint = new QLabel("最近文件:", fileWidget);
+    fileLay->addWidget(fileHint);
+    auto *fileList = new QListWidget(fileWidget);
+    fileList->setMinimumHeight(120);
+    fileList->setMaximumHeight(180);
+    for (const auto &f : m_recentFiles)
+        fileList->addItem(f);
+    if (m_recentFiles.isEmpty())
+        fileList->addItem("（暂无最近文件，请点击“浏览...”选择）");
+    fileLay->addWidget(fileList);
+
+    auto *browseBtn = new QPushButton("📂 浏览其他文件...", fileWidget);
+    fileLay->addWidget(browseBtn);
+
+    lay->addWidget(fileWidget);
+    fileWidget->setVisible(false); // 默认隐藏，选中文件模式时显示
+
+    // 切换显示
+    connect(rbFile, &QRadioButton::toggled, this, [fileWidget](bool on) {
+        fileWidget->setVisible(on);
+    });
+
+    // 浏览文件
+    QObject::connect(browseBtn, &QPushButton::clicked, this, [this, &dlg]() {
+        emit fileBrowseRequested();
+        dlg.accept();
+    });
+
+    // 双击文件列表
+    QObject::connect(fileList, &QListWidget::itemDoubleClicked, this, [this, fileList](QListWidgetItem *) {
+        int row = fileList->currentRow();
+        if (row >= 0 && row < m_recentFiles.size()) {
+            setFilePath(m_recentFiles[row]);
+            setSource(Source::File);
+            emit sourceChanged(static_cast<int>(Source::File));
+            emit fileBrowseRequested();
+        }
+    });
+
+    // 按钮组
+    auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    lay->addWidget(btns);
+    connect(btns, &QDialogButtonBox::accepted, this, [this, rbFile, fileList, &dlg]() {
+        if (rbFile->isChecked()) {
+            setSource(Source::File);
+            emit sourceChanged(static_cast<int>(Source::File));
+            int row = fileList->currentRow();
+            if (row >= 0 && row < m_recentFiles.size())
+                setFilePath(m_recentFiles[row]);
+            emit fileBrowseRequested();
+        } else {
+            setSource(Source::Hardware);
+            emit sourceChanged(static_cast<int>(Source::Hardware));
+        }
+        dlg.accept();
+    });
+    connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    dlg.exec();
+}
+
+// ============================================================
+//  通道过滤条件配置对话框
+// ============================================================
+void MeasurementSetupView::showChannelFilterDialog(const QString &channelId)
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle(QString("配置 %1 过滤条件").arg(channelId));
+    dlg.setMinimumWidth(380);
+    auto *form = new QFormLayout(&dlg);
+
+    // CAN ID 范围
+    auto *idMin = new QSpinBox(&dlg);
+    idMin->setRange(0, 0x7FF);
+    idMin->setDisplayIntegerBase(16);
+    idMin->setPrefix("0x");
+    idMin->setValue(0);
+
+    auto *idMax = new QSpinBox(&dlg);
+    idMax->setRange(0, 0x7FF);
+    idMax->setDisplayIntegerBase(16);
+    idMax->setPrefix("0x");
+    idMax->setValue(0x7FF);
+
+    auto *idRangeWidget = new QWidget(&dlg);
+    auto *idRangeLay = new QHBoxLayout(idRangeWidget);
+    idRangeLay->setContentsMargins(0, 0, 0, 0);
+    idRangeLay->addWidget(idMin);
+    idRangeLay->addWidget(new QLabel("~", idRangeWidget));
+    idRangeLay->addWidget(idMax);
+    form->addRow("ID 范围:", idRangeWidget);
+
+    // 帧类型选项
+    auto *chkStd   = new QCheckBox("标准帧 (11-bit ID)", &dlg);
+    auto *chkExt   = new QCheckBox("扩展帧 (29-bit ID)", &dlg);
+    auto *chkFD    = new QCheckBox("CAN FD 帧", &dlg);
+    auto *chkRTR   = new QCheckBox("RTR 远程帧", &dlg);
+    chkStd->setChecked(true);
+    chkExt->setChecked(true);
+
+    auto *frameTypes = new QGroupBox("帧类型过滤", &dlg);
+    auto *ftLay = new QVBoxLayout(frameTypes);
+    ftLay->addWidget(chkStd);
+    ftLay->addWidget(chkExt);
+    ftLay->addWidget(chkFD);
+    ftLay->addWidget(chkRTR);
+    form->addRow(frameTypes);
+
+    // 方向过滤
+    auto *comboDir = new QComboBox(&dlg);
+    comboDir->addItems({"全部", "仅 Tx (发送)", "仅 Rx (接收)"});
+    form->addRow("方向:", comboDir);
+
+    // 按钮
+    auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    form->addRow(btns);
+
+    connect(btns, &QDialogButtonBox::accepted, this, [this, channelId, idMin, idMax, chkStd, chkExt, chkFD, chkRTR, comboDir, &dlg]() {
+        // 将过滤配置信息输出到底部输出栏
+        QStringList filterDesc;
+        filterDesc << QString("%1: ID 0x%2~0x%3")
+                      .arg(channelId)
+                      .arg(idMin->value(), 0, 16)
+                      .arg(idMax->value(), 0, 16);
+        QStringList types;
+        if (chkStd->isChecked()) types << "Std";
+        if (chkExt->isChecked()) types << "Ext";
+        if (chkFD->isChecked())  types << "FD";
+        if (chkRTR->isChecked()) types << "RTR";
+        filterDesc << QString("帧类型: %1").arg(types.join(", "));
+        filterDesc << QString("方向: %1").arg(comboDir->currentText());
+        qDebug() << "Channel filter configured:" << filterDesc;
+        // 通知 MainWindow
+        emit channelFilterRequested(channelId);
+        dlg.accept();
+    });
+    connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    dlg.exec();
+}
+
+// ============================================================
+//  DBC 文件选择对话框
+// ============================================================
+void MeasurementSetupView::showDbcSelectDialog()
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle("选择 DBC 文件");
+    dlg.setMinimumWidth(420);
+    auto *lay = new QVBoxLayout(&dlg);
+
+    auto *hint = new QLabel("当前工程已加载的 DBC 文件:", &dlg);
+    lay->addWidget(hint);
+
+    auto *list = new QListWidget(&dlg);
+    list->setAlternatingRowColors(true);
+    list->setMinimumHeight(150);
+    for (const auto &name : m_dbcFiles)
+        list->addItem(name);
+    if (m_dbcFiles.isEmpty())
+        list->addItem("（未加载任何 DBC 文件，请先通过侧边栏导入）");
+    lay->addWidget(list);
+
+    // 导入新文件按钮
+    auto *importBtn = new QPushButton("📁 导入新 DBC 文件...", &dlg);
+    lay->addWidget(importBtn);
+
+    auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    lay->addWidget(btns);
+
+    // 双击选择
+    connect(list, &QListWidget::itemDoubleClicked, this, [this, list, &dlg](QListWidgetItem *) {
+        int row = list->currentRow();
+        if (row >= 0 && row < m_dbcFiles.size()) {
+            qDebug() << "Selected DBC:" << m_dbcFiles[row];
+            emit dbcSelectRequested();
+            dlg.accept();
+        }
+    });
+
+    connect(importBtn, &QPushButton::clicked, this, [this, &dlg]() {
+        emit dbcSelectRequested();
+        dlg.accept();
+    });
+
+    connect(btns, &QDialogButtonBox::accepted, this, [this, list, &dlg]() {
+        int row = list->currentRow();
+        if (row >= 0 && row < m_dbcFiles.size()) {
+            qDebug() << "Selected DBC:" << m_dbcFiles[row];
+        }
+        emit dbcSelectRequested();
+        dlg.accept();
+    });
+    connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    dlg.exec();
+}
+

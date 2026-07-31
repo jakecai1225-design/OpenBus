@@ -33,6 +33,7 @@
 #include <QDockWidget>
 #include <QTabWidget>
 #include <QVBoxLayout>
+#include <QSpinBox>
 #include <QHBoxLayout>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -1146,6 +1147,26 @@ void MainWindow::onOpenMeasurementSetup()
     // 创建新的测量配置标签页
     auto *view = new MeasurementSetupView(this);
 
+    // 设置已加载的 DBC 文件列表
+    QStringList dbcFiles;
+    for (const auto &f : m_dbcManager->files())
+        dbcFiles << f.fileName;
+    view->setDbcFiles(dbcFiles);
+
+    // DBC 文件加载时同步更新视图中的列表
+    connect(m_dbcManager, &DbcManager::dbcLoaded, view, [view, this](const QString &) {
+        QStringList files;
+        for (const auto &f : m_dbcManager->files())
+            files << f.fileName;
+        view->setDbcFiles(files);
+    });
+    connect(m_dbcManager, &DbcManager::dbcUnloaded, view, [view, this](const QString &) {
+        QStringList files;
+        for (const auto &f : m_dbcManager->files())
+            files << f.fileName;
+        view->setDbcFiles(files);
+    });
+
     // 连接信号
     connect(view, &MeasurementSetupView::sourceChanged,
             this, [this](int src) {
@@ -1165,7 +1186,7 @@ void MainWindow::onOpenMeasurementSetup()
         if (!path.isEmpty()) {
             view->setFilePath(path);
             m_player->load(path);
-            m_bottomPanel->appendOutput("已加载分析文件: " + QFileInfo(path).fileName());
+            m_bottomPanel->appendOutput("已加载分析文件：" + QFileInfo(path).fileName());
         }
     });
     connect(view, &MeasurementSetupView::measurementToggled,
@@ -1200,6 +1221,25 @@ void MainWindow::onOpenMeasurementSetup()
             onOpenRecordTab();
         else if (moduleId == "data")
             m_bottomPanel->appendOutput("Data 统计模块（待实现）");
+    });
+
+    // DBC 选择请求 → 打开 DBC 导入对话框
+    connect(view, &MeasurementSetupView::dbcSelectRequested,
+            this, [this]() {
+        QString path = QFileDialog::getOpenFileName(
+            this, "导入 DBC 文件", {}, "DBC 文件 (*.dbc);;所有文件 (*.*)");
+        if (!path.isEmpty()) {
+            if (m_dbcManager->loadDbc(path))
+                m_bottomPanel->appendOutput("已加载 DBC: " + QFileInfo(path).fileName());
+            else
+                m_bottomPanel->addProblem(1, "DBC", "加载失败: " + path);
+        }
+    });
+
+    // 通道过滤请求 → 输出到底部面板
+    connect(view, &MeasurementSetupView::channelFilterRequested,
+            this, [this](const QString &channelId) {
+        m_bottomPanel->appendOutput(QString("通道 %1 过滤条件已配置").arg(channelId));
     });
 
     openTab(view, "📊 测量配置");
