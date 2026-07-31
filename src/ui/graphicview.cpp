@@ -351,15 +351,15 @@ void GraphicView::layoutAxisRects()
 {
     auto *layout = m_plot->plotLayout();
 
-    // 收集当前布局中所有非空元素，然后 clear
-    // 注意：不能用 while+takeAt(0)，因为 elementCount() 返回 rowCount*columnCount，
-    // takeAt 置空 cell 后 grid 大小不变，会导致死循环。
+    // 用 takeAt 逐个取出元素（不删除），切勿用 clear() ——
+    // clear() 内部调用 removeAt → takeAt + delete，会删除所有元素，
+    // 导致 m_signals 中的 axisRect 指针悬空（use-after-free）。
     QList<QCPLayoutElement*> taken;
     for (int i = layout->elementCount() - 1; i >= 0; --i) {
-        if (auto *el = layout->elementAt(i))
+        if (auto *el = layout->takeAt(i))
             taken.prepend(el);
     }
-    layout->clear();  // clear 会检查 elementAt 非空才移除，并调用 simplify()
+    layout->simplify();  // 收缩空行空列
 
     // 重新添加可见信号的 axisRect
     int visibleCount = 0;
@@ -471,10 +471,13 @@ void GraphicView::clearSignals()
     for (auto &sd : m_signals) {
         if (sd.graph)
             m_plot->removeGraph(sd.graph);
-        // axisRect 会在 layoutAxisRects 中被安全移除
     }
-    // 使用 clear() 而非 while+takeAt(0)：避免 elementCount() 死循环
-    m_plot->plotLayout()->clear();
+    // 用 takeAt 逐个取出并删除 axisRect（clear() 也能删除，但这里显式做更安全）
+    auto *layout = m_plot->plotLayout();
+    for (int i = layout->elementCount() - 1; i >= 0; --i) {
+        if (auto *el = layout->takeAt(i))
+            delete el;
+    }
     m_signals.clear();
     layoutAxisRects();
     updateSignalList();

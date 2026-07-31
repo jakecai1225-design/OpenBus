@@ -3,7 +3,7 @@ schema_version: 1
 locale: zh-CN
 branch: master
 nodes_managed: true
-exported_at: "2026-07-31T00:51:49Z"
+exported_at: "2026-07-31T01:47:51Z"
 modules:
     "":
         dir_name: sin CAN 报文分析工具（Qt6 桌面应用）
