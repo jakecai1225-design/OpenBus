@@ -27,6 +27,7 @@ public:
         Record,
         Device,
         Protocol,
+        Analysis,
         Settings
     };
 

@@ -5,6 +5,8 @@
 #include <QStackedWidget>
 #include <QList>
 #include <QVBoxLayout>
+#include <QColor>
+#include <QRectF>
 
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -253,6 +255,26 @@ private:
 };
 
 // ============================================================
+//  分析配置面板 — 侧边栏入口（点击打开测量配置标签页）
+// ============================================================
+class MeasurementSetupPanel : public SidePanel
+{
+    Q_OBJECT
+public:
+    explicit MeasurementSetupPanel(QWidget *parent = nullptr);
+
+signals:
+    /// 请求打开测量配置标签页
+    void openMeasurementSetupRequested();
+
+private slots:
+    void onItemClicked(QListWidgetItem *item);
+
+private:
+    QListWidget *m_list;
+};
+
+// ============================================================
 //  SideBar — 侧边栏容器（QStackedWidget 切换面板）
 //  索引必须与 ActivityBar::Activity 枚举一致
 // ============================================================
@@ -270,6 +292,7 @@ public:
     RecordPanel *recordPanel() const { return m_record; }
     DevicePanel *devicePanel() const { return m_device; }
     ProtocolPanel *protocolPanel() const { return m_protocol; }
+    MeasurementSetupPanel *analysisPanel() const { return m_analysis; }
     SettingsPanel *settingsPanel() const { return m_settings; }
 
     void showPanel(int index);
@@ -284,6 +307,7 @@ private:
     RecordPanel *m_record;
     DevicePanel *m_device;
     ProtocolPanel *m_protocol;
+    MeasurementSetupPanel *m_analysis;
     SettingsPanel *m_settings;
     int m_lastIndex = 0;
 };

@@ -80,6 +80,8 @@ set(SRC_UI
     ui/canopenview.cpp
     ui/thememanager.h
     ui/thememanager.cpp
+    ui/measurementsetupview.h
+    ui/measurementsetupview.cpp
 )
 
 # ============================================================

@@ -22,6 +22,7 @@
 #include "ui/dbcdetailtab.h"
 #include "ui/udsview.h"
 #include "ui/canopenview.h"
+#include "ui/measurementsetupview.h"
 #include "utils/canutils.h"
 #include "core/appconfig.h"
 #include "ui/settingsdialog.h"
@@ -110,76 +111,15 @@ MainWindow::MainWindow(QWidget *parent)
         updateActions();
     });
 
-    // SignalSendTab
-    connect(m_sendTab, &SignalSendTab::sendAllRequested, this, [this]() {
-        m_bottomPanel->appendOutput("全部发送 (待实现)");
-    });
-    connect(m_sendTab, &SignalSendTab::stopAllRequested, this, [this]() {
-        m_bottomPanel->appendOutput("全部停止 (待实现)");
-    });
-    connect(m_sendTab, &SignalSendTab::sendSingleRequested, this, [this](quint32 id, const QByteArray &data) {
-        m_bottomPanel->appendOutput(QString("发送单帧: ID=0x%1, DLC=%2")
-            .arg(id, 0, 16).toUpper().arg(data.size()));
-    });
-    connect(m_sendTab, &SignalSendTab::sendRowRequested, this,
-        [this](int row, quint32 id, const QByteArray &data, int period, int count) {
-        m_bottomPanel->appendOutput(QString("发送行%1: ID=0x%2, DLC=%3, 周期=%4ms")
-            .arg(row + 1).arg(id, 0, 16).toUpper().arg(data.size()).arg(period));
-    });
-    connect(m_sendTab, &SignalSendTab::stopRowRequested, this, [this](int row) {
-        m_bottomPanel->appendOutput(QString("停止行%1").arg(row + 1));
-    });
+    // SignalSendTab / PlaybackTab / RecordTab 信号连接
+    setupSendTab(m_sendTab);
+    setupPlaybackTab(m_playbackTab);
+    setupRecordTab(m_recordTab);
 
-    // PlaybackTab
-    connect(m_playbackTab, &PlaybackTab::playRequested, this, &MainWindow::onPlay);
-    connect(m_playbackTab, &PlaybackTab::pauseRequested, this, &MainWindow::onPause);
-    connect(m_playbackTab, &PlaybackTab::stopRequested, this, &MainWindow::onStop);
-    connect(m_playbackTab, &PlaybackTab::speedChanged, this, &MainWindow::onSpeedChanged);
-    connect(m_playbackTab, &PlaybackTab::seekChanged, this, &MainWindow::onSeekChanged);
-    connect(m_playbackTab, &PlaybackTab::fileLoaded, this, [this](const QString &path) {
-        QFileInfo fi(path);
-        if (!m_player->load(path)) {
-            QMessageBox::warning(this, "回放", "无法加载: " + path);
-            m_bottomPanel->addProblem(1, "Player", "无法加载: " + path);
-            return;
-        }
-        // 清除所有 Trace 和 Graphic 视图
-        const auto allTabs = m_editorArea->allTabWidgets();
-        for (auto *tw : allTabs) {
-            for (int i = 0; i < tw->count(); ++i) {
-                auto *gv = qobject_cast<GraphicView *>(tw->widget(i));
-                if (gv) gv->clearData();
-                auto *tt = qobject_cast<TraceTab *>(tw->widget(i));
-                if (tt) tt->clearTrace();
-            }
-        }
-        m_bottomPanel->appendOutput(QString("已加载: %1 (%2 帧, %3s)")
-            .arg(fi.fileName()).arg(m_player->totalFrames())
-            .arg(m_player->totalTime(), 0, 'f', 2));
-        m_playbackTab->setFileInfo(fi.fileName(), m_player->totalFrames(), m_player->totalTime());
-        updateActions();
-    });
-
-    // RecordTab
-    connect(m_recordTab, &RecordTab::recordToggled, this, [this](bool on) {
-        if (on) {
-            QString defaultName = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + ".sin";
-            QString path = QFileDialog::getSaveFileName(
-                this, "录制文件", defaultName, "sin 录制文件 (*.sin)");
-            if (path.isEmpty()) {
-                m_recordTab->setRecording(false);
-                return;
-            }
-            if (!m_recorder->start(path)) {
-                QMessageBox::warning(this, "录制", "无法创建文件: " + path);
-                m_recordTab->setRecording(false);
-                m_bottomPanel->addProblem(1, "Recorder", "无法创建录制文件: " + path);
-                return;
-            }
-        } else {
-            m_recorder->stop();
-        }
-    });
+    // 标签页关闭后置空指针，避免悬空
+    connect(m_sendTab, &QObject::destroyed, this, [this]() { m_sendTab = nullptr; });
+    connect(m_playbackTab, &QObject::destroyed, this, [this]() { m_playbackTab = nullptr; });
+    connect(m_recordTab, &QObject::destroyed, this, [this]() { m_recordTab = nullptr; });
 
     // 侧边栏面板
     connect(m_sideBar->dbcPanel(), &DbcPanel::dbcFileClicked,
@@ -214,6 +154,10 @@ MainWindow::MainWindow(QWidget *parent)
             this, [this]() {
         m_connLabel->setText("🔗 未连接");
     });
+
+    // 分析配置面板 — 点击打开测量配置标签页
+    connect(m_sideBar->analysisPanel(), &MeasurementSetupPanel::openMeasurementSetupRequested,
+            this, [this]() { onOpenMeasurementSetup(); });
 
     // 右侧面板快捷按钮
     connect(m_rightPanel, &RightPanel::recordRequested, this, &MainWindow::onQuickRecord);
@@ -556,31 +500,46 @@ void MainWindow::onActivityChanged(int activity)
     }
 
     // 联动主标签页
-    auto *tabs = m_editorArea->activeTabWidget();
-    if (!tabs) return;
-
     if (activity == ActivityBar::Trace) {
-        // 找到最后一个 Trace 标签页
-        for (int i = tabs->count() - 1; i >= 0; --i) {
-            if (tabs->tabText(i).contains("Trace")) {
-                tabs->setCurrentIndex(i);
-                m_tabLabel->setText(tabs->tabText(i));
-                break;
+        // 在所有拆分组中查找 Trace 标签页
+        const auto allTabs = m_editorArea->allTabWidgets();
+        bool found = false;
+        for (auto *tw : allTabs) {
+            for (int i = tw->count() - 1; i >= 0; --i) {
+                if (tw->tabText(i).contains("Trace")) {
+                    tw->setCurrentIndex(i);
+                    m_tabLabel->setText(tw->tabText(i));
+                    found = true;
+                    break;
+                }
             }
+            if (found) break;
         }
+        if (!found)
+            onOpenTraceTab();
     } else if (activity == ActivityBar::Graphic) {
-        // 找到最后一个 Graphic 标签页
-        for (int i = tabs->count() - 1; i >= 0; --i) {
-            if (tabs->tabText(i).contains("Graphic")) {
-                tabs->setCurrentIndex(i);
-                m_tabLabel->setText(tabs->tabText(i));
-                break;
+        // 在所有拆分组中查找 Graphic 标签页
+        const auto allTabs = m_editorArea->allTabWidgets();
+        bool found = false;
+        for (auto *tw : allTabs) {
+            for (int i = tw->count() - 1; i >= 0; --i) {
+                if (tw->tabText(i).contains("Graphic")) {
+                    tw->setCurrentIndex(i);
+                    m_tabLabel->setText(tw->tabText(i));
+                    found = true;
+                    break;
+                }
             }
+            if (found) break;
         }
+        if (!found)
+            onNewGraphicRequested();
     } else if (activity == ActivityBar::Send) {
         onOpenSendTab();
     } else if (activity == ActivityBar::Record) {
         onOpenRecordTab();
+    } else if (activity == ActivityBar::Analysis) {
+        onOpenMeasurementSetup();
     }
 }
 
@@ -722,6 +681,8 @@ void MainWindow::onFrameReceived(const CanFrame &frame)
                 if (m_autoScroll && !tt->isOverwriteMode())
                     tt->traceView()->scrollToBottom();
             }
+            auto *msv = qobject_cast<MeasurementSetupView *>(tw->widget(i));
+            if (msv) msv->onFrame(frame);
         }
     }
     if (m_recording)
@@ -1024,50 +985,224 @@ void MainWindow::onTracePageSelected(int row)
 
 void MainWindow::onOpenSendTab()
 {
-    auto *tabs = m_editorArea->activeTabWidget();
-    if (tabs) {
-        for (int i = 0; i < tabs->count(); ++i) {
-            if (tabs->tabText(i).contains("发送")) {
-                tabs->setCurrentIndex(i);
-                m_tabLabel->setText(tabs->tabText(i));
+    // 在所有拆分组中查找已有的发送标签页
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains("发送")) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
                 return;
             }
         }
     }
+    // 未找到则创建新的
+    m_sendTab = new SignalSendTab(this);
+    m_sendTab->setDbcManager(m_dbcManager);
+    setupSendTab(m_sendTab);
+    connect(m_sendTab, &QObject::destroyed, this, [this]() { m_sendTab = nullptr; });
+    openTab(m_sendTab, "📡 发送");
 }
 
 void MainWindow::onOpenPlaybackTab()
 {
-    auto *tabs = m_editorArea->activeTabWidget();
-    if (tabs) {
-        for (int i = 0; i < tabs->count(); ++i) {
-            if (tabs->tabText(i).contains("回放")) {
-                tabs->setCurrentIndex(i);
-                m_tabLabel->setText(tabs->tabText(i));
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains("回放")) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
                 return;
             }
         }
     }
+    // 未找到则创建新的
+    m_playbackTab = new PlaybackTab(this);
+    setupPlaybackTab(m_playbackTab);
+    connect(m_playbackTab, &QObject::destroyed, this, [this]() { m_playbackTab = nullptr; });
+    openTab(m_playbackTab, "▶ 回放");
 }
 
 void MainWindow::onOpenRecordTab()
 {
-    auto *tabs = m_editorArea->activeTabWidget();
-    if (tabs) {
-        for (int i = 0; i < tabs->count(); ++i) {
-            if (tabs->tabText(i).contains("录制")) {
-                tabs->setCurrentIndex(i);
-                m_tabLabel->setText(tabs->tabText(i));
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains("录制")) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
                 return;
             }
         }
     }
+    // 未找到则创建新的
+    m_recordTab = new RecordTab(this);
+    setupRecordTab(m_recordTab);
+    connect(m_recordTab, &QObject::destroyed, this, [this]() { m_recordTab = nullptr; });
+    openTab(m_recordTab, "● 录制");
+}
+
+// ============================================================
+//  标签页 setup 方法 — 提取自构造函数，支持关闭后重建
+// ============================================================
+
+void MainWindow::setupSendTab(SignalSendTab *tab)
+{
+    connect(tab, &SignalSendTab::sendAllRequested, this, [this]() {
+        m_bottomPanel->appendOutput("全部发送 (待实现)");
+    });
+    connect(tab, &SignalSendTab::stopAllRequested, this, [this]() {
+        m_bottomPanel->appendOutput("全部停止 (待实现)");
+    });
+    connect(tab, &SignalSendTab::sendSingleRequested, this, [this](quint32 id, const QByteArray &data) {
+        m_bottomPanel->appendOutput(QString("发送单帧: ID=0x%1, DLC=%2")
+            .arg(id, 0, 16).toUpper().arg(data.size()));
+    });
+    connect(tab, &SignalSendTab::sendRowRequested, this,
+        [this](int row, quint32 id, const QByteArray &data, int period, int count) {
+        m_bottomPanel->appendOutput(QString("发送行%1: ID=0x%2, DLC=%3, 周期=%4ms")
+            .arg(row + 1).arg(id, 0, 16).toUpper().arg(data.size()).arg(period));
+    });
+    connect(tab, &SignalSendTab::stopRowRequested, this, [this](int row) {
+        m_bottomPanel->appendOutput(QString("停止行%1").arg(row + 1));
+    });
+}
+
+void MainWindow::setupPlaybackTab(PlaybackTab *tab)
+{
+    connect(tab, &PlaybackTab::playRequested, this, &MainWindow::onPlay);
+    connect(tab, &PlaybackTab::pauseRequested, this, &MainWindow::onPause);
+    connect(tab, &PlaybackTab::stopRequested, this, &MainWindow::onStop);
+    connect(tab, &PlaybackTab::speedChanged, this, &MainWindow::onSpeedChanged);
+    connect(tab, &PlaybackTab::seekChanged, this, &MainWindow::onSeekChanged);
+    connect(tab, &PlaybackTab::fileLoaded, this, [this, tab](const QString &path) {
+        QFileInfo fi(path);
+        if (!m_player->load(path)) {
+            QMessageBox::warning(this, "回放", "无法加载: " + path);
+            m_bottomPanel->addProblem(1, "Player", "无法加载: " + path);
+            return;
+        }
+        // 清除所有 Trace 和 Graphic 视图
+        const auto allTabs = m_editorArea->allTabWidgets();
+        for (auto *tw : allTabs) {
+            for (int i = 0; i < tw->count(); ++i) {
+                auto *gv = qobject_cast<GraphicView *>(tw->widget(i));
+                if (gv) gv->clearData();
+                auto *tt = qobject_cast<TraceTab *>(tw->widget(i));
+                if (tt) tt->clearTrace();
+            }
+        }
+        m_bottomPanel->appendOutput(QString("已加载: %1 (%2 帧, %3s)")
+            .arg(fi.fileName()).arg(m_player->totalFrames())
+            .arg(m_player->totalTime(), 0, 'f', 2));
+        tab->setFileInfo(fi.fileName(), m_player->totalFrames(), m_player->totalTime());
+        updateActions();
+    });
+}
+
+void MainWindow::setupRecordTab(RecordTab *tab)
+{
+    connect(tab, &RecordTab::recordToggled, this, [this, tab](bool on) {
+        if (on) {
+            QString defaultName = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + ".sin";
+            QString path = QFileDialog::getSaveFileName(
+                this, "录制文件", defaultName, "sin 录制文件 (*.sin)");
+            if (path.isEmpty()) {
+                tab->setRecording(false);
+                return;
+            }
+            if (!m_recorder->start(path)) {
+                QMessageBox::warning(this, "录制", "无法创建文件: " + path);
+                tab->setRecording(false);
+                m_bottomPanel->addProblem(1, "Recorder", "无法创建录制文件: " + path);
+                return;
+            }
+        } else {
+            m_recorder->stop();
+        }
+    });
 }
 
 void MainWindow::onNewGraphicRequested()
 {
     auto *gv = new GraphicView(this);
     openTab(gv, QString("📈 Graphic%1").arg(++m_graphicCount));
+}
+
+void MainWindow::onOpenMeasurementSetup()
+{
+    // 查找已有的测量配置标签页
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains("测量配置")) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
+                return;
+            }
+        }
+    }
+
+    // 创建新的测量配置标签页
+    auto *view = new MeasurementSetupView(this);
+
+    // 连接信号
+    connect(view, &MeasurementSetupView::sourceChanged,
+            this, [this](int src) {
+        if (src == static_cast<int>(MeasurementSetupView::Source::File)) {
+            m_simulator->stop();
+            m_bottomPanel->appendOutput("数据源切换：文件回放");
+        } else {
+            m_player->stop();
+            m_bottomPanel->appendOutput("数据源切换：硬件实时");
+        }
+    });
+    connect(view, &MeasurementSetupView::fileBrowseRequested,
+            this, [this, view]() {
+        QString path = QFileDialog::getOpenFileName(
+            this, "选择待分析的报文文件", {},
+            "sin 录制文件 (*.sin);;所有文件 (*.*)");
+        if (!path.isEmpty()) {
+            view->setFilePath(path);
+            m_player->load(path);
+            m_bottomPanel->appendOutput("已加载分析文件: " + QFileInfo(path).fileName());
+        }
+    });
+    connect(view, &MeasurementSetupView::measurementToggled,
+            this, [this, view](bool running) {
+        if (running) {
+            m_bottomPanel->appendOutput("▶ 测量开始");
+            if (view->currentSource() == MeasurementSetupView::Source::Hardware) {
+                m_simulator->start();
+            } else {
+                if (!m_player->isLoaded())
+                    onOpenFile();
+                m_player->play();
+            }
+        } else {
+            m_bottomPanel->appendOutput("■ 测量停止");
+            m_simulator->stop();
+            m_player->stop();
+        }
+    });
+    connect(view, &MeasurementSetupView::moduleToggled,
+            this, [this](const QString &name, bool enabled) {
+        m_bottomPanel->appendOutput(QString("模块 %1 %2")
+                                    .arg(name).arg(enabled ? "已启用" : "已禁用"));
+    });
+    connect(view, &MeasurementSetupView::moduleOpened,
+            this, [this](const QString &moduleId) {
+        if (moduleId == "trace")
+            onOpenTraceTab();
+        else if (moduleId == "graphic")
+            onNewGraphicRequested();
+        else if (moduleId == "record")
+            onOpenRecordTab();
+        else if (moduleId == "data")
+            m_bottomPanel->appendOutput("Data 统计模块（待实现）");
+    });
+
+    openTab(view, "📊 测量配置");
 }
 
 void MainWindow::onProtocolOpened(const QString &protocolName)

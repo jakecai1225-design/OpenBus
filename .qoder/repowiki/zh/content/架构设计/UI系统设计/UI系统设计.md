@@ -42,11 +42,11 @@
 
 ## 更新摘要
 **所做更改**   
-- 基于应用变更更新：增强了CAN总线数据的图形表示和导航元素，改进了graphicview、traceview和sidebar panels组件
-- 优化了图形视图的渲染性能和数据可视化能力
-- 增强了跟踪视图的数据处理能力和用户交互体验
-- 改进了侧边栏面板系统的响应性和可访问性
-- 提升了整体UI架构的模块化和可扩展性
+- 基于应用变更更新：graphicview.cpp进行了改进，修复了崩溃问题并优化了图形界面组件以支持新的测试数据集
+- 增强了图形视图的稳定性，解决了内存管理和渲染过程中的崩溃问题
+- 优化了图形组件对大数据集的支持能力，提升了渲染性能和内存使用效率
+- 改进了图形视图的错误处理和异常恢复机制
+- 增强了图形组件与测试数据集的兼容性
 
 ## 目录
 1. [简介](#简介)
@@ -65,7 +65,7 @@
 ## 简介
 本文件面向基于Qt Widgets和现代Web技术的混合UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
 
-**更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新增强了CAN总线数据的图形表示能力，改进了图形视图、跟踪视图和侧边栏面板组件的性能和用户体验。**
+**更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新针对graphicview.cpp进行了重大改进，修复了崩溃问题并优化了图形界面组件以支持新的测试数据集，显著提升了系统的稳定性和性能。**
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式，结合了传统Qt Widgets架构和现代Web前端技术：
@@ -126,7 +126,7 @@ V --> Y["UI/partials/*.html"]
 - JavaScript模块系统: 包含ui-loader.js和ui-prototype.js，实现模块化功能组织
 - CSS样式系统: 提供统一的样式规范和响应式设计支持
 
-**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并新增了基于Web技术的现代化UI原型系统。**特别重要的是，增强了图形视图、跟踪视图和侧边栏面板组件的功能，提供了更好的CAN总线数据可视化和导航体验。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并新增了基于Web技术的现代化UI原型系统。**特别重要的是，graphicview.cpp经过重大改进后，图形视图组件的稳定性得到显著提升，崩溃问题已修复，并且优化了对新测试数据集的支持能力。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -431,6 +431,8 @@ UpdateWeb --> End
 - **增强** 优化的渲染引擎和内存管理
 - **增强** 改进的缩放和平移交互
 - **增强** 支持更多数据类型和格式
+- **最新改进** 修复了崩溃问题，提升了稳定性
+- **最新改进** 优化了对新测试数据集的支持能力
 
 技术实现
 - 基于QGraphicsView框架
@@ -438,6 +440,8 @@ UpdateWeb --> End
 - 高性能的实时更新机制
 - **增强** 双缓冲渲染减少闪烁
 - **增强** 增量更新避免全量重绘
+- **最新改进** 增强的错误处理和异常恢复机制
+- **最新改进** 优化的内存管理和资源清理
 
 ```mermaid
 classDiagram
@@ -451,6 +455,9 @@ class GraphicView {
 +enableDoubleBuffering(enabled)
 +setRenderQuality(quality)
 +optimizeForLargeData()
++handleCrashRecovery()
++validateTestDataDataset(dataset)
++enhanceStability()
 }
 class SignalChannel {
 +name string
@@ -458,6 +465,7 @@ class SignalChannel {
 +data QVector
 +draw(graphicsScene)
 +updateIncrementally(newData)
++checkDataIntegrity()
 }
 class RenderEngine {
 +doubleBuffer bool
@@ -465,9 +473,20 @@ class RenderEngine {
 +batchUpdates bool
 +optimizeRendering()
 +clearCache()
++handleExceptions()
++manageMemory()
+}
+class TestDataSupport {
++datasetType string
++validationRules list
++compatibilityMode bool
++processNewFormat()
++adaptToDataset()
++ensureStability()
 }
 GraphicView --> SignalChannel : "管理"
 GraphicView --> RenderEngine : "使用"
+GraphicView --> TestDataSupport : "支持"
 ```
 
 图表来源
@@ -507,6 +526,8 @@ class TraceView {
 +setPageSize(size)
 +optimizeMemoryUsage()
 +asyncLoadData()
++handleLargeDatasets()
++improvePerformance()
 }
 class CANPacket {
 +id uint32_t
@@ -515,6 +536,7 @@ class CANPacket {
 +direction string
 +toString() string
 +hashCode() int
++validate() bool
 }
 class DataCache {
 +cacheSize int
@@ -522,6 +544,7 @@ class DataCache {
 +prefetchNextPage()
 +invalidateCache()
 +clearExpiredEntries()
++optimizeStorage()
 }
 TraceView --> CANPacket : "显示"
 TraceView --> DataCache : "管理"
@@ -566,6 +589,8 @@ class SidebarPanels {
 +setAnimationDuration(ms)
 +savePanelStates()
 +restorePanelStates()
++optimizePanelSwitching()
++handlePanelErrors()
 }
 class BasePanel {
 +name string
@@ -576,6 +601,7 @@ class BasePanel {
 +onShow()
 +onHide()
 +onResize(width, height)
++validateState()
 }
 class PanelStateManager {
 +currentPanel string
@@ -584,6 +610,7 @@ class PanelStateManager {
 +persistState()
 +loadState()
 +clearAllStates()
++syncPanelStates()
 }
 SidebarPanels --> BasePanel : "管理"
 SidebarPanels --> PanelStateManager : "使用"
@@ -620,6 +647,8 @@ class FilterBar {
 +validateRules()
 +exportRules()
 +importRules()
++optimizeFilterPerformance()
++handleInvalidRules()
 }
 class FilterRule {
 +type string
@@ -628,6 +657,7 @@ class FilterRule {
 +isValid() bool
 +toExpression() string
 +fromExpression(expr)
++compileRule()
 }
 FilterBar --> FilterRule : "管理"
 ```
@@ -665,6 +695,8 @@ class SignalConfigDialog {
 +showValidationErrors()
 +undoChanges()
 +redoChanges()
++handleConfigErrors()
++backupConfiguration()
 }
 class SignalDefinition {
 +name string
@@ -675,6 +707,7 @@ class SignalDefinition {
 +maxValue double
 +isValid() bool
 +clone() SignalDefinition
++mergeWith(other)
 }
 SignalConfigDialog --> SignalDefinition : "管理"
 ```
@@ -717,6 +750,8 @@ class DBCDetailTab {
 +batchEditSignals(signals)
 +compareVersions(version1, version2)
 +generateDocumentation()
++handleDBCErrors()
++optimizeLargeFileLoading()
 }
 class SignalProperty {
 +name string
@@ -727,6 +762,7 @@ class SignalProperty {
 +isValid() bool
 +copyFrom(source)
 +mergeWith(other)
++validateProperty()
 }
 class DBCManager {
 +parseDBCFile(path)
@@ -735,6 +771,8 @@ class DBCManager {
 +exportToDBC()
 +compareDatabases(db1, db2)
 +generateDocumentation()
++handleParsingErrors()
++optimizeMemoryUsage()
 }
 DBCDetailTab --> SignalProperty : "管理"
 DBCDetailTab --> DBCManager : "使用"
@@ -776,6 +814,8 @@ class PlaybackTab {
 +createPlaylist(items)
 +shufflePlaylist()
 +repeatTrack(index)
++handlePlaybackErrors()
++optimizePlaybackPerformance()
 }
 class PlaybackControl {
 +position double
@@ -789,6 +829,7 @@ class PlaybackControl {
 +seek(time)
 +getDuration()
 +getPosition()
++validateTimeRange()
 }
 class Player {
 +loadData(data)
@@ -799,6 +840,8 @@ class Player {
 +getPosition()
 +getDuration()
 +setSpeed(speed)
++handleDataErrors()
++bufferManagement()
 }
 PlaybackTab --> PlaybackControl : "控制"
 PlaybackTab --> Player : "调用"
@@ -840,6 +883,8 @@ class RecordTab {
 +monitorSystemResources()
 +backupRecording()
 +compressOutput()
++handleRecordingErrors()
++optimizeRecordingPerformance()
 }
 class RecordingConfig {
 +duration int
@@ -850,6 +895,7 @@ class RecordingConfig {
 +validate() bool
 +clone() RecordingConfig
 +mergeWith(other)
++adjustBufferSize()
 }
 class Recorder {
 +startCapture()
@@ -860,6 +906,8 @@ class Recorder {
 +getStatistics()
 +monitorMemoryUsage()
 +optimizePerformance()
++handleWriteErrors()
++manageBuffers()
 }
 RecordTab --> RecordingConfig : "配置"
 RecordTab --> Recorder : "控制"
@@ -895,6 +943,8 @@ class TabManager {
 +optimizeTabLoading()
 +cleanupInactiveTabs()
 +preloadTabs(count)
++handleTabErrors()
++manageTabLifecycle()
 }
 class TabComponent {
 +id string
@@ -907,6 +957,8 @@ class TabComponent {
 +onActivate()
 +onDeactivate()
 +onDestroy()
++validateComponent()
++handleInitializationErrors()
 }
 class TabStateManager {
 +activeTab string
@@ -916,6 +968,8 @@ class TabStateManager {
 +loadState()
 +clearAllStates()
 +syncWithServer()
++handleStateCorruption()
++backupStates()
 }
 TabManager --> TabComponent : "管理"
 TabManager --> TabStateManager : "使用"
@@ -935,7 +989,7 @@ TabManager --> TabStateManager : "使用"
 - MainWindow 依赖样式与主题管理
 - 样式与资源通过qrc解耦，降低硬编码路径风险
 
-**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**新增了Web前端原型系统的依赖关系，包括HTML模板、JavaScript模块和CSS样式的模块化组织。**
+**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**新增了Web前端原型系统的依赖关系，包括HTML模板、JavaScript模块和CSS样式的模块化组织。**特别重要的是，graphicview.cpp的改进增强了图形组件与其他模块的稳定性依赖关系。
 
 ```mermaid
 graph LR
@@ -968,8 +1022,10 @@ Web --> HTML["HTML模板"]
 Web --> JS["JavaScript模块"]
 Web --> CSS["CSS样式"]
 GV --> Graphics["图形引擎"]
+GV --> TestData["测试数据集支持"]
 TV --> DataCache["数据缓存"]
 SBP --> Accessibility["可访问性"]
+GV --> Stability["稳定性增强"]
 ```
 
 图表来源
@@ -1029,6 +1085,11 @@ SBP --> Accessibility["可访问性"]
   - 跟踪视图实现智能预取和缓存策略
   - 侧边栏面板系统优化面板切换动画
   - 所有组件支持硬件加速渲染
+- **最新性能改进**
+  - graphicview.cpp的崩溃问题修复减少了异常处理开销
+  - 优化的内存管理降低了内存占用峰值
+  - 改进的错误处理机制避免了不必要的重试
+  - 增强的测试数据集支持提高了数据处理效率
 
 [本节为通用指导，无需特定文件引用]
 
@@ -1077,6 +1138,11 @@ SBP --> Accessibility["可访问性"]
   - 跟踪视图内存泄漏需要检查缓存清理机制
   - 侧边栏面板切换卡顿需要检查动画配置
   - 所有组件的可访问性功能需要验证屏幕阅读器兼容性
+- **最新问题修复**
+  - graphicview.cpp崩溃问题已通过增强的错误处理机制解决
+  - 测试数据集兼容性问题已通过数据验证和适配层修复
+  - 内存管理问题已通过优化的资源清理机制改善
+  - 图形渲染稳定性已通过双缓冲和增量更新技术提升
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
@@ -1089,7 +1155,7 @@ SBP --> Accessibility["可访问性"]
 ## 结论
 本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统，**特别是新增的三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页），为CAN总线数据分析提供了完整的解决方案。**
 
-**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，增强了图形视图、跟踪视图和侧边栏面板组件的功能，提供了更好的CAN总线数据可视化和导航体验，显著提升了系统的性能和用户体验。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
+**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，graphicview.cpp的重大改进显著提升了系统的稳定性和可靠性，修复了崩溃问题并优化了对新测试数据集的支持能力，为整个UI系统奠定了更加坚实的基础。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -1139,6 +1205,11 @@ SBP --> Accessibility["可访问性"]
   - 跟踪视图应实现智能缓存和预取机制
   - 侧边栏面板系统需支持可访问性功能
   - 所有组件应支持硬件加速渲染
+- **最新规范要求**
+  - 图形组件必须包含完善的错误处理和异常恢复机制
+  - 所有组件需支持测试数据集的兼容性验证
+  - 内存管理需遵循RAII原则和资源自动清理
+  - 性能监控需集成到组件的生命周期管理中
 
 ### 样式定制指南
 - 主题设计
@@ -1196,6 +1267,11 @@ SBP --> Accessibility["可访问性"]
   - 跟踪视图需实现智能缓存和预取机制
   - 侧边栏面板系统应支持可访问性功能
   - 所有组件应支持硬件加速渲染
+- **最新最佳实践**
+  - 图形组件必须实现健壮的异常处理和崩溃恢复
+  - 所有数据处理组件需包含数据验证和完整性检查
+  - 内存密集型操作需使用异步处理和背压机制
+  - 性能监控和诊断工具应集成到开发流程中
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -1216,6 +1292,8 @@ SBP --> Accessibility["可访问性"]
 14. **模块化重构**：将单体结构重构为模块化组件系统
 15. **增强组件优化**：优化图形视图、跟踪视图和侧边栏面板的性能
 16. **可访问性测试**：验证所有组件的可访问性功能和屏幕阅读器兼容性
+17. **稳定性测试**：验证graphicview.cpp改进后的崩溃恢复机制
+18. **数据集兼容性测试**：确保组件对新测试数据集的支持能力
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)

@@ -5,8 +5,46 @@
 #include <QVBoxLayout>
 #include <QMouseEvent>
 #include <QEvent>
+#include <QApplication>
+#include <QScreen>
+#include <QGuiApplication>
+#include <QCloseEvent>
+#include <QCursor>
 
-// 事件过滤器：鼠标悬停在标签页上时显示关闭按钮，离开时隐藏
+// ============================================================
+//  DetachedTabWindow — 分离标签页的独立窗口
+// ============================================================
+
+DetachedTabWindow::DetachedTabWindow(QWidget *widget, const QString &label, QWidget *parent)
+    : QMainWindow(parent), m_widget(widget), m_label(label)
+{
+    setWindowTitle(label);
+    setWindowFlags(Qt::Window);
+    setAttribute(Qt::WA_DeleteOnClose);
+    resize(800, 600);
+
+    if (widget) {
+        // setCentralWidget 会自动 reparent，无需先 setParent(nullptr)
+        setCentralWidget(widget);
+        widget->setVisible(true);  // removeTab 后 widget 可能被隐藏
+    }
+}
+
+void DetachedTabWindow::closeEvent(QCloseEvent *event)
+{
+    // 取出 widget，避免被删除
+    if (m_widget) {
+        takeCentralWidget();
+        m_widget->setParent(nullptr);
+        emit reattachRequested(m_widget, m_label);
+    }
+    event->accept();
+}
+
+// ============================================================
+//  TabBarHoverFilter — 鼠标悬停显示关闭按钮
+// ============================================================
+
 class TabBarHoverFilter : public QObject
 {
 public:
@@ -39,6 +77,77 @@ private:
 
     QTabWidget *m_tabs;
 };
+
+// ============================================================
+//  TabDragOutFilter — 检测标签页拖出 tab bar 区域，触发分离
+// ============================================================
+
+class TabDragOutFilter : public QObject
+{
+public:
+    explicit TabDragOutFilter(QTabWidget *tabs, SplitEditorArea *area)
+        : QObject(tabs), m_tabs(tabs), m_area(area) {}
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        auto *bar = qobject_cast<QTabBar *>(watched);
+        if (!bar) return QObject::eventFilter(watched, event);
+
+        if (event->type() == QEvent::MouseButtonPress) {
+            const auto *me = static_cast<QMouseEvent *>(event);
+            if (me->button() == Qt::LeftButton) {
+                m_pressIndex = bar->tabAt(me->pos());
+                m_pressGlobalPos = me->globalPosition().toPoint();
+                m_dragging = (m_pressIndex >= 0);
+            }
+        } else if (event->type() == QEvent::MouseMove && m_dragging) {
+            const auto *me = static_cast<QMouseEvent *>(event);
+            // 检测鼠标是否拖出 tab bar 边界
+            QPoint globalPos = me->globalPosition().toPoint();
+            QRect barRect = bar->rect();
+            // 转为全局坐标
+            barRect.moveTopLeft(bar->mapToGlobal(QPoint(0, 0)));
+
+            // 需要拖出一定距离才触发（避免误触）
+            const int threshold = 30;
+            bool outside = !barRect.contains(globalPos) &&
+                           (globalPos.y() < barRect.top() - threshold ||
+                            globalPos.y() > barRect.bottom() + threshold ||
+                            globalPos.x() < barRect.left() - threshold ||
+                            globalPos.x() > barRect.right() + threshold);
+
+            if (outside && m_pressIndex >= 0 && m_pressIndex < m_tabs->count()) {
+                // 发送假的 mouseRelease 给 tab bar，停止内部拖拽
+                QMouseEvent releaseEvent(QEvent::MouseButtonRelease, me->pos(),
+                                         me->globalPosition().toPoint(),
+                                         Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                QApplication::sendEvent(bar, &releaseEvent);
+
+                // 触发分离
+                m_area->detachTab(m_tabs, m_pressIndex);
+                m_dragging = false;
+                m_pressIndex = -1;
+                return true; // 事件已处理
+            }
+        } else if (event->type() == QEvent::MouseButtonRelease) {
+            m_dragging = false;
+            m_pressIndex = -1;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    QTabWidget *m_tabs;
+    SplitEditorArea *m_area;
+    bool m_dragging = false;
+    int m_pressIndex = -1;
+    QPoint m_pressGlobalPos;
+};
+
+// ============================================================
+//  SplitEditorArea 实现
+// ============================================================
 
 SplitEditorArea::SplitEditorArea(QWidget *parent)
     : QWidget(parent)
@@ -83,12 +192,20 @@ QTabWidget *SplitEditorArea::createTabWidget()
     tabs->tabBar()->setMouseTracking(true);
     tabs->tabBar()->installEventFilter(new TabBarHoverFilter(tabs));
 
+    // 拖拽分离检测
+    installDragOutFilter(tabs);
+
     // 当前页变化时转发信号
     connect(tabs, &QTabWidget::currentChanged, this, [this](int idx) {
         emit currentChanged(idx);
     });
 
     return tabs;
+}
+
+void SplitEditorArea::installDragOutFilter(QTabWidget *tabs)
+{
+    tabs->tabBar()->installEventFilter(new TabDragOutFilter(tabs, this));
 }
 
 int SplitEditorArea::addTab(QWidget *widget, const QString &label)
@@ -132,6 +249,58 @@ QList<QTabWidget *> SplitEditorArea::allTabWidgets() const
     return m_rootSplitter->findChildren<QTabWidget *>();
 }
 
+void SplitEditorArea::detachTab(QTabWidget *tabs, int index)
+{
+    if (!tabs || index < 0 || index >= tabs->count())
+        return;
+
+    QWidget *widget = tabs->widget(index);
+    QString label = tabs->tabText(index);
+    tabs->removeTab(index);
+
+    auto *win = new DetachedTabWindow(widget, label, nullptr);
+    m_detachedWindows.append(win);
+
+    // 窗口关闭时重新放回标签页
+    connect(win, &DetachedTabWindow::reattachRequested,
+            this, [this](QWidget *w, const QString &lbl) {
+        reattachTab(w, lbl);
+    });
+    // 窗口销毁时从列表移除
+    connect(win, &QObject::destroyed, this, [this, win](QObject *) {
+        m_detachedWindows.removeAll(win);
+    });
+
+    // 在鼠标当前位置附近显示窗口
+    QPoint cursorPos = QCursor::pos();
+    win->move(cursorPos - QPoint(win->width() / 2, 30));
+    win->show();
+    win->raise();
+    win->activateWindow();
+
+    removeEmptySplits();
+    emit tabListChanged();
+}
+
+void SplitEditorArea::reattachTab(QWidget *widget, const QString &label)
+{
+    if (!widget)
+        return;
+
+    // 从分离窗口列表中移除
+    // (DetachedTabWindow 已设置 WA_DeleteOnClose，会自动删除)
+
+    // 添加回活跃的 TabWidget
+    int idx = addTab(widget, label);
+
+    // 激活该标签页
+    auto *tabs = activeTabWidget();
+    if (tabs)
+        tabs->setCurrentIndex(idx);
+
+    emit tabListChanged();
+}
+
 void SplitEditorArea::onTabBarContextMenu(int index, const QPoint &pos)
 {
     // 找到发出请求的 QTabWidget
@@ -146,6 +315,7 @@ void SplitEditorArea::onTabBarContextMenu(int index, const QPoint &pos)
 
     auto *splitRight = menu->addAction("向右拆分");
     auto *splitDown = menu->addAction("向下拆分");
+    auto *detach = menu->addAction("分离到新窗口");
 
     menu->addSeparator();
     auto *closeSplit = menu->addAction("关闭此拆分组");
@@ -156,6 +326,8 @@ void SplitEditorArea::onTabBarContextMenu(int index, const QPoint &pos)
         splitTab(tabs, index, Qt::Horizontal);
     } else if (chosen == splitDown) {
         splitTab(tabs, index, Qt::Vertical);
+    } else if (chosen == detach) {
+        detachTab(tabs, index);
     } else if (chosen == closeSplit) {
         // 移走所有标签页到第一个 TabWidget
         while (tabs->count() > 0) {

@@ -95,6 +95,7 @@ private slots:
     void onOpenPlaybackTab();
     void onOpenRecordTab();
     void onNewGraphicRequested();
+    void onOpenMeasurementSetup();
     void onSettingsRequested(const QString &section);
     void onProtocolOpened(const QString &protocolName);
 
@@ -130,6 +131,9 @@ private:
     void updateActions();
     void updateStatistics();
     void setupTraceTab(TraceTab *tab);
+    void setupSendTab(SignalSendTab *tab);
+    void setupPlaybackTab(PlaybackTab *tab);
+    void setupRecordTab(RecordTab *tab);
     void processCommand(const QString &cmd);
     void openTab(QWidget *widget, const QString &label);
     void refreshPanelLists();

@@ -39,6 +39,9 @@ ActivityBar::ActivityBar(QWidget *parent)
     m_buttons.append({createButton("\xF0\x9F\x93\xA6", "协议", Protocol), Protocol, "协议", "上层协议分析"});
     layout->addWidget(m_buttons.last().btn);
 
+    m_buttons.append({createButton("\xF0\x9F\x93\x8A", "分析配置", Analysis), Analysis, "分析配置", "测量配置 — CANoe Measurement Setup 风格"});
+    layout->addWidget(m_buttons.last().btn);
+
     layout->addStretch();
 
     // 底部按钮

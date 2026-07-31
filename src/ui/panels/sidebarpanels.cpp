@@ -18,6 +18,10 @@
 #include <QStyle>
 #include <QInputDialog>
 #include <QMessageBox>
+#include <QPainter>
+#include <QPainterPath>
+#include <QMouseEvent>
+#include <QLinearGradient>
 #include <QFile>
 #include <QTextStream>
 
@@ -566,9 +570,46 @@ void SettingsPanel::onThemeItemClicked(QListWidgetItem *item)
 }
 
 // ============================================================
-//  SideBar — 9 个面板，索引与 ActivityBar 一致
+//  MeasurementSetupPanel — 侧边栏入口面板
+// ============================================================
+
+MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
+    : SidePanel("分析配置", parent)
+{
+    auto *cl = contentLayout();
+
+    m_list = new QListWidget(this);
+    m_list->addItem(new QListWidgetItem("\xF0\x9F\x93\x8A 测量配置拓扑"));
+    m_list->addItem(new QListWidgetItem("\xF0\x9F\x94\xA7 硬件实时模式"));
+    m_list->addItem(new QListWidgetItem("\xF0\x9F\x93\x81 文件回放模式"));
+    m_list->addItem(new QListWidgetItem("\xE2\x84\xB9 测量说明"));
+    cl->addWidget(m_list);
+
+    auto *hint = new QLabel("\n"
+                           "\xE2\x80\xA2 点击“测量配置拓扑”打开画布\n"
+                           "\xE2\x80\xA2 画布中可切换数据源\n"
+                           "\xE2\x80\xA2 点击模块块可启用/禁用\n"
+                           "\xE2\x80\xA2 双击模块块可打开对应标签页", this);
+    hint->setWordWrap(true);
+    hint->setStyleSheet("padding: 8px; color: #888; font-size: 11px;");
+    cl->addWidget(hint);
+
+    connect(m_list, &QListWidget::itemClicked,
+            this, &MeasurementSetupPanel::onItemClicked);
+}
+
+void MeasurementSetupPanel::onItemClicked(QListWidgetItem *item)
+{
+    if (!item) return;
+    QString text = item->text();
+    if (text.contains("测量配置拓扑") || text.contains("硬件") || text.contains("文件") || text.contains("说明"))
+        emit openMeasurementSetupRequested();
+}
+
+// ============================================================
+//  SideBar — 10 个面板，索引与 ActivityBar 一致
 //  0=Project  1=Trace  2=Graphic  3=DBC
-//  4=Send     5=Record 6=Device   7=Protocol  8=Settings
+//  4=Send     5=Record 6=Device   7=Protocol  8=Analysis  9=Settings
 // ============================================================
 
 SideBar::SideBar(QWidget *parent)
@@ -582,6 +623,7 @@ SideBar::SideBar(QWidget *parent)
     m_record       = new RecordPanel(this);
     m_device       = new DevicePanel(this);
     m_protocol     = new ProtocolPanel(this);
+    m_analysis     = new MeasurementSetupPanel(this);
     m_settings     = new SettingsPanel(this);
 
     addWidget(m_project);        // 0 = Project
@@ -592,7 +634,8 @@ SideBar::SideBar(QWidget *parent)
     addWidget(m_record);         // 5 = Record
     addWidget(m_device);         // 6 = Device
     addWidget(m_protocol);       // 7 = Protocol
-    addWidget(m_settings);       // 8 = Settings
+    addWidget(m_analysis);       // 8 = Analysis
+    addWidget(m_settings);       // 9 = Settings
 
     setCurrentIndex(0);
     setMinimumWidth(220);
