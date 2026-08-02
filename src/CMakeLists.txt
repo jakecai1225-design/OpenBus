@@ -30,6 +30,8 @@ set(SRC_CORE
     core/file_import/csv_importer.cpp
     core/file_import/blf_importer.h
     core/file_import/blf_importer.cpp
+    core/projectmanager.h
+    core/projectmanager.cpp
 )
 
 # models 层 — Qt 数据模型

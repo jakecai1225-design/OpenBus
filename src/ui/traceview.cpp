@@ -561,6 +561,11 @@ void TraceTab::clearFilter()
     m_proxyModel->clearFilter();
 }
 
+QString TraceTab::filterExpression() const
+{
+    return m_proxyModel->filterExpression();
+}
+
 void TraceTab::onSelectionChanged()
 {
     const CanFrame *frame = m_traceView->selectedFrame();

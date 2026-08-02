@@ -26,7 +26,11 @@ public:
     ~CanSimulator();
 
     bool isRunning() const { return m_running; }
+    quint8 channel() const { return m_channel; }
     void setChannel(quint8 ch) { m_channel = ch; }
+    int baudrate() const { return m_baudrate; }
+    void setBaudrate(int b) { m_baudrate = b; }
+    int intervalMs() const { return m_intervalMs; }
     void setIntervalMs(int ms);
 
     /// 队列中待消费帧数（近似值，用于监控）
@@ -47,6 +51,7 @@ private:
     QTimer m_drainTimer;          ///< 主线程定时器，批量消费队列
     QThread *m_workerThread = nullptr;
     quint8 m_channel = 1;
+    int m_baudrate = 500000;      ///< 波特率（工程配置用）
     int m_intervalMs = 5;         ///< 帧生成间隔（毫秒）
 
     FrameQueue m_queue;           ///< 无锁队列：worker → main

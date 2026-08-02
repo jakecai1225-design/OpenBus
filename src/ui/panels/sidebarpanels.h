@@ -43,6 +43,7 @@ private:
 struct ProjectContext
 {
     QString name;
+    QString filePath;     ///< 工程文件路径
     QStringList dbcFiles;
     QStringList recordFiles;
     QString layoutConfig;
@@ -63,18 +64,24 @@ public:
 signals:
     void projectSwitched(int index);
     void projectCreated(const QString &name);
+    void openProjectRequested(const QString &filePath);
+    void saveProjectRequested(const QString &filePath);
 
 private slots:
     void onNewProject();
     void onSaveProject();
     void onDeleteProject();
     void onProjectSelected(int row);
+    void onOpenProject();
+    void onOpenRecent();
 
 private:
     QListWidget *m_projectList;
+    QListWidget *m_recentList = nullptr;
     QList<ProjectContext> m_projects;
     int m_currentIndex = -1;
     void refreshList();
+    void refreshRecentList();
 };
 
 // ============================================================

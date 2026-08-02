@@ -138,6 +138,7 @@ public:
     int frameCount() const;
     bool setFilterExpression(const QString &expr);
     void clearFilter();
+    QString filterExpression() const;
 
 private slots:
     void onSelectionChanged();

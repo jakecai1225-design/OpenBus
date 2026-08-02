@@ -384,42 +384,31 @@ void MeasurementSetupView::buildTopology()
     m_blocks["database"] = dbc;
     y += bh + gapY;
 
-    // ---- 第 4 行: 分析模块（3列: Graphic / Data / Record）----
-    struct ModDef { QString id; QString icon; QString title; QColor color; };
+    // ---- 第 4 行: 分析模块（4列: Trace1 / Graphic / Data / Record，平行排列）----
+    struct ModDef { QString id; QString icon; QString title; QColor color; QString moduleName; };
     ModDef mods[] = {
-        {"graphic",  "\xF0\x9F\x93\x88", "Graphic 波形",     QColor(0xF4, 0x43, 0x36)},
-        {"data",     "\xF0\x9F\x93\x8A", "Data 统计",        QColor(0x4C, 0xAF, 0x50)},
-        {"record",   "\xE2\x97\x8F",     "录制 Record",      QColor(0xFF, 0x98, 0x00)},
+        {"trace1",   "\xF0\x9F\x93\x8B", "Trace1",          QColor(0x21, 0x96, 0xF3), "trace"},
+        {"graphic",  "\xF0\x9F\x93\x88", "Graphic 波形",     QColor(0xF4, 0x43, 0x36), ""},
+        {"data",     "\xF0\x9F\x93\x8A", "Data 统计",        QColor(0x4C, 0xAF, 0x50), ""},
+        {"record",   "\xE2\x97\x8F",     "录制 Record",      QColor(0xFF, 0x98, 0x00), ""},
     };
-    int modW = 160;
-    int modGap = 20;
-    int totalW = 3 * modW + 2 * modGap;
+    int modW = 140;
+    int modGap = 16;
+    int totalW = 4 * modW + 3 * modGap;
     int modStartX = startX + 100 + (bw - totalW) / 2;
     if (modStartX < 20) modStartX = 20;
 
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 4; ++i) {
         BlockItem b;
         b.id = mods[i].id;
         b.title = mods[i].title;
         b.icon = mods[i].icon;
         b.category = "module";
+        b.moduleName = mods[i].moduleName;
         b.rect = QRectF(modStartX + i * (modW + modGap), y, modW, bh);
         b.color = mods[i].color;
         m_blocks[mods[i].id] = b;
     }
-    y += bh + gapY;
-
-    // ---- 第 5 行: Trace 模块（每个实例独占一个块，水平排列）----
-    // 默认创建 trace1 块
-    BlockItem trace1;
-    trace1.id = "trace1";
-    trace1.title = "Trace1";
-    trace1.icon = "\xF0\x9F\x93\x8B";
-    trace1.category = "module";
-    trace1.moduleName = "trace";
-    trace1.color = QColor(0x21, 0x96, 0xF3);
-    trace1.rect = QRectF(modStartX, y, modW, bh);
-    m_blocks["trace1"] = trace1;
     y += bh + gapY;
 
     // ---- 连线定义 ----
@@ -662,9 +651,9 @@ void MeasurementSetupView::addModuleInstance(const QString &moduleName, const QS
         return;  // 已存在
 
     if (moduleName == "trace") {
-        // Trace: 每个实例独占一个块，水平排列在最底行
+        // Trace: 每个实例独占一个块，水平排列在同一行
         // 找到最右边的 trace 块
-        qreal traceY = 0, traceH = 60, traceW = 160;
+        qreal traceY = 0, traceH = 60, traceW = 140;
         qreal maxX = 0;
         for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
             if (it.value().moduleName == "trace") {

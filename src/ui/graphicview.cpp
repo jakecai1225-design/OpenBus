@@ -492,6 +492,13 @@ QVector<GraphicView::Signal> GraphicView::signalConfigs() const
     return result;
 }
 
+void GraphicView::loadSignalConfigs(const QVector<Signal> &configs)
+{
+    clearSignals();
+    for (const auto &sig : configs)
+        addSignal(sig);
+}
+
 // ============================================================
 //  数据更新
 // ============================================================

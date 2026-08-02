@@ -101,6 +101,14 @@ private slots:
     void onSettingsRequested(const QString &section);
     void onProtocolOpened(const QString &protocolName);
 
+    // 工程
+    void onOpenProject();
+    void onSaveProject();
+    void onProjectSwitched(int index);
+    void onProjectCreated(const QString &name);
+    void captureProjectState();
+    void applyProjectState();
+
     // 右侧面板快捷按钮
     void onQuickRecord();
     void onQuickStopRecord();

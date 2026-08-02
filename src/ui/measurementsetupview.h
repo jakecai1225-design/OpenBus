@@ -40,6 +40,7 @@ public:
 
     QSize sizeHint() const override { return {900, 600}; }
     Source currentSource() const { return m_source; }
+    QString filePath() const { return m_filePath; }
 
     /// 设置当前已加载的 DBC 文件列表（用于右键菜单显示）
     void setDbcFiles(const QStringList &files) { m_dbcFiles = files; }
@@ -116,6 +117,8 @@ public:
         QGraphicsTextItem *textItem = nullptr;
         QList<InstanceItem> instances;  ///< 模块块内的实例列表（仅 module 类别）
     };
+
+    void rebuildScene();
 private:
     QMap<QString, BlockItem> m_blocks;
     int m_nextChannelNum = 3;   ///< 下一个通道块的编号
@@ -134,7 +137,6 @@ private:
     // ---- 方法 ----
     void setupUi();
     void buildTopology();
-    void rebuildScene();
     void updateBlockVisual(const QString &id);
     void updateConnections();
     BlockItem *blockAt(const QPointF &scenePos);
