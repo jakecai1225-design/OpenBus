@@ -52,6 +52,8 @@ public:
 
     void setActive(bool a) { m_active = a; update(); }
     void setTitle(const QString &t) { m_title = t; update(); }
+    void setInstances(const QStringList &list) { m_instances = list; update(); }
+    void setHorizontalLayout(bool h) { m_horizontalLayout = h; update(); }
 
 protected:
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *) override
@@ -78,33 +80,43 @@ protected:
         painter->setPen(QPen(m_active ? m_color.darker(140) : QColor(0xb8, 0xb8, 0xb8), 1.2));
         painter->drawPath(path);
 
+        // ---- 头部区域 (固定高度 60) ----
+        QRectF headerRect(r.left(), r.top(), r.width(), 60);
+
         // 图标
         QFont iconFont("Segoe UI Emoji", m_isSource ? 18 : 15);
         painter->setFont(iconFont);
         painter->setPen(m_active ? Qt::white : QColor(0x88, 0x88, 0x88));
-        painter->drawText(QRectF(r.left() + 8, r.top(), 34, r.height()),
+        painter->drawText(QRectF(headerRect.left() + 8, headerRect.top(), 34, headerRect.height()),
                           Qt::AlignVCenter | Qt::AlignLeft, m_icon);
 
         // 标题
         QFont titleFont("Microsoft YaHei UI", m_isSource ? 10 : 9, QFont::Bold);
         painter->setFont(titleFont);
         painter->setPen(m_active ? Qt::white : QColor(0x55, 0x55, 0x55));
-        painter->drawText(QRectF(r.left() + 42, r.top() + 4, r.width() - 50, r.height() / 2),
+        painter->drawText(QRectF(headerRect.left() + 42, headerRect.top() + 4,
+                                 headerRect.width() - 50, headerRect.height() / 2),
                           Qt::AlignVCenter | Qt::AlignLeft, m_title);
 
         // 副标题 / 状态
         QFont subFont("Microsoft YaHei UI", 8);
         painter->setFont(subFont);
         painter->setPen(m_active ? QColor(255, 255, 255, 200) : QColor(0x99, 0x99, 0x99));
-        QString sub = m_active ? (m_isSource ? "已激活" : "ON") : (m_isSource ? "" : "OFF");
-        painter->drawText(QRectF(r.left() + 42, r.top() + r.height() / 2,
-                                 r.width() - 50, r.height() / 2 - 4),
+        QString sub;
+        if (m_isSource)
+            sub = m_active ? "已激活" : "";
+        else if (!m_instances.isEmpty())
+            sub = QStringLiteral("%1 个实例").arg(m_instances.size());
+        else
+            sub = m_active ? "ON" : "OFF";
+        painter->drawText(QRectF(headerRect.left() + 42, headerRect.top() + headerRect.height() / 2,
+                                 headerRect.width() - 50, headerRect.height() / 2 - 4),
                           Qt::AlignVCenter | Qt::AlignLeft, sub);
 
         // 状态指示灯
         if (!m_isSource) {
-            qreal cx = r.right() - 12;
-            qreal cy = r.center().y();
+            qreal cx = headerRect.right() - 12;
+            qreal cy = headerRect.center().y();
             QColor dot = m_active ? QColor(0x00, 0xE6, 0x76) : QColor(0xc0, 0xc0, 0xc0);
             painter->setBrush(dot);
             painter->setPen(Qt::NoPen);
@@ -115,6 +127,61 @@ protected:
                 painter->drawEllipse(QPointF(cx, cy), 7, 7);
             }
         }
+
+        // ---- 实例列表区域 (模块块) ----
+        if (!m_isSource && !m_instances.isEmpty()) {
+            qreal rowH = 22;
+            QFont instFont("Microsoft YaHei UI", 8);
+
+            if (m_horizontalLayout) {
+                // 水平平铺布局 (Trace 模块): 实例作为水平标签
+                qreal tabW = 90;
+                qreal tabH = rowH;
+                qreal tabY = headerRect.bottom();
+                painter->setFont(instFont);
+                for (int i = 0; i < m_instances.size(); ++i) {
+                    QRectF tabRect(r.left() + 4 + i * tabW, tabY, tabW - 4, tabH);
+                    // 标签背景
+                    QColor bg = m_active ? QColor(255, 255, 255, 50) : QColor(0, 0, 0, 15);
+                    painter->fillRect(tabRect, bg);
+                    // 标签边框
+                    painter->setPen(QPen(m_active ? QColor(255, 255, 255, 80) : QColor(0xb0, 0xb0, 0xb0), 0.8));
+                    painter->drawRoundedRect(tabRect, 3, 3);
+                    // 标签文字
+                    painter->setPen(m_active ? QColor(255, 255, 255, 230) : QColor(0x66, 0x66, 0x66));
+                    painter->drawText(tabRect, Qt::AlignVCenter | Qt::AlignCenter, m_instances[i]);
+                }
+            } else {
+                // 垂直列表布局 (其他模块)
+                for (int i = 0; i < m_instances.size(); ++i) {
+                    QRectF rowRect(r.left() + 2, headerRect.bottom() + i * rowH,
+                                   r.width() - 4, rowH);
+
+                    // 实例行背景 (交替色)
+                    if (i % 2 == 0)
+                        painter->fillRect(rowRect, QColor(255, 255, 255, 30));
+                    else
+                        painter->fillRect(rowRect, QColor(0, 0, 0, 10));
+
+                    // 实例标题
+                    painter->setFont(instFont);
+                    painter->setPen(m_active ? QColor(255, 255, 255, 220) : QColor(0x66, 0x66, 0x66));
+                    painter->drawText(QRectF(rowRect.left() + 8, rowRect.top(),
+                                             rowRect.width() - 16, rowRect.height()),
+                                      Qt::AlignVCenter | Qt::AlignLeft,
+                                      QStringLiteral("\xE2\x96\xB6 %1").arg(m_instances[i]));
+                }
+            }
+        } else if (!m_isSource && m_instances.isEmpty() && m_active) {
+            // 无实例提示
+            QFont hintFont("Microsoft YaHei UI", 8);
+            painter->setFont(hintFont);
+            painter->setPen(QColor(255, 255, 255, 150));
+            painter->drawText(QRectF(r.left() + 42, headerRect.bottom(),
+                                     r.width() - 50, 20),
+                              Qt::AlignVCenter | Qt::AlignLeft,
+                              "双击或右键添加实例");
+        }
     }
 
 private:
@@ -122,6 +189,8 @@ private:
     QColor m_color;
     bool m_active;
     bool m_isSource;
+    bool m_horizontalLayout = false;
+    QStringList m_instances;
 };
 
 // ============================================================
@@ -207,7 +276,7 @@ void MeasurementSetupView::setupUi()
 
     m_toolbar->addSeparator();
 
-    m_browseAct = m_toolbar->addAction("📂 选择文件");
+    m_browseAct = m_toolbar->addAction(QStringLiteral("📂 选择回放文件"));
     m_browseAct->setVisible(false);
 
     m_toolbar->addSeparator();
@@ -315,21 +384,20 @@ void MeasurementSetupView::buildTopology()
     m_blocks["database"] = dbc;
     y += bh + gapY;
 
-    // ---- 第 4 行: 分析模块（4列）----
+    // ---- 第 4 行: 分析模块（3列: Graphic / Data / Record）----
     struct ModDef { QString id; QString icon; QString title; QColor color; };
     ModDef mods[] = {
-        {"trace",    "\xF0\x9F\x93\x8B", "Trace 报文列表",   QColor(0x21, 0x96, 0xF3)},
         {"graphic",  "\xF0\x9F\x93\x88", "Graphic 波形",     QColor(0xF4, 0x43, 0x36)},
         {"data",     "\xF0\x9F\x93\x8A", "Data 统计",        QColor(0x4C, 0xAF, 0x50)},
         {"record",   "\xE2\x97\x8F",     "录制 Record",      QColor(0xFF, 0x98, 0x00)},
     };
     int modW = 160;
     int modGap = 20;
-    int totalW = 4 * modW + 3 * modGap;
+    int totalW = 3 * modW + 2 * modGap;
     int modStartX = startX + 100 + (bw - totalW) / 2;
     if (modStartX < 20) modStartX = 20;
 
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 3; ++i) {
         BlockItem b;
         b.id = mods[i].id;
         b.title = mods[i].title;
@@ -339,6 +407,19 @@ void MeasurementSetupView::buildTopology()
         b.color = mods[i].color;
         m_blocks[mods[i].id] = b;
     }
+    y += bh + gapY;
+
+    // ---- 第 5 行: Trace 模块（每个实例独占一个块，水平排列）----
+    // 默认创建 trace1 块
+    BlockItem trace1;
+    trace1.id = "trace1";
+    trace1.title = "Trace1";
+    trace1.icon = "\xF0\x9F\x93\x8B";
+    trace1.category = "module";
+    trace1.moduleName = "trace";
+    trace1.color = QColor(0x21, 0x96, 0xF3);
+    trace1.rect = QRectF(modStartX, y, modW, bh);
+    m_blocks["trace1"] = trace1;
     y += bh + gapY;
 
     // ---- 连线定义 ----
@@ -357,10 +438,10 @@ void MeasurementSetupView::buildTopology()
     addConn("channel1", "database");
     addConn("channel2", "database");
     // DBC → 各模块
-    addConn("database", "trace");
     addConn("database", "graphic");
     addConn("database", "data");
     addConn("database", "record");
+    addConn("database", "trace1");
 
     // 设置场景大小
     m_scene->setSceneRect(0, 0, modStartX + totalW + 30, y + 20);
@@ -370,6 +451,28 @@ void MeasurementSetupView::rebuildScene()
 {
     m_scene->clear();
 
+    // 更新模块块高度 (根据实例数量动态调整)
+    const qreal baseH = 60;
+    const qreal rowH = 22;
+    for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
+        auto &b = it.value();
+        if (b.category == "module") {
+            // Trace 块独占一行，无子实例；其他模块根据实例数量动态调整高度
+            if (b.moduleName != "trace") {
+                qreal h = baseH;
+                if (!b.instances.isEmpty())
+                    h = baseH + b.instances.size() * rowH;
+                b.rect.setHeight(h);
+
+                for (int i = 0; i < b.instances.size(); ++i) {
+                    b.instances[i].subRect = QRectF(
+                        b.rect.left() + 2, b.rect.top() + baseH + i * rowH,
+                        b.rect.width() - 4, rowH);
+                }
+            }
+        }
+    }
+
     // 绘制连线
     updateConnections();
 
@@ -377,22 +480,40 @@ void MeasurementSetupView::rebuildScene()
     for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
         auto &b = it.value();
         bool active = b.enabled;
-        if (b.category == "channel" && m_source == Source::File) {
-            // 文件模式下通道块显示为禁用
-            active = false;
-        }
+        // 通道块始终启用 — 逻辑通道概念，不区分硬件/文件数据源
         if (b.category == "source") {
-            b.title = (m_source == Source::Hardware) ? "硬件实时采集" : "文件回放分析";
-            b.icon = (m_source == Source::Hardware) ? "\xF0\x9F\x94\xA7" : "\xF0\x9F\x93\x81";
-            b.color = (m_source == Source::Hardware) ? QColor(0x4a, 0x90, 0xd9) : QColor(0x4C, 0xAF, 0x50);
+            if (m_source == Source::Hardware) {
+                b.title = "硬件实时采集";
+                b.icon = "\xF0\x9F\x94\xA7";
+                b.color = QColor(0x4a, 0x90, 0xd9);
+            } else {
+                b.title = m_filePath.isEmpty() ? QStringLiteral("文件回放分析")
+                                               : QFileInfo(m_filePath).fileName();
+                b.icon = "\xF0\x9F\x93\x81";
+                b.color = QColor(0x4C, 0xAF, 0x50);
+            }
             active = true;
         }
 
         auto *item = new SetupBlockGfx(b.rect, b.icon, b.title, b.color, active,
                                         b.category == "source");
+        // 传递实例列表给渲染图元
+        if (b.category == "module" && b.moduleName != "trace") {
+            QStringList instTitles;
+            for (const auto &inst : b.instances)
+                instTitles << inst.title;
+            item->setInstances(instTitles);
+        }
         m_scene->addItem(item);
         b.gfxItem = item;
     }
+
+    // 更新场景矩形以适应所有块
+    QRectF sceneRect;
+    for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it)
+        sceneRect = sceneRect.united(it.value().rect);
+    if (!sceneRect.isNull())
+        m_scene->setSceneRect(sceneRect.adjusted(-20, -20, 40, 20));
 }
 
 void MeasurementSetupView::updateConnections()
@@ -439,7 +560,7 @@ void MeasurementSetupView::updateConnections()
         bool fromActive = fromIt->enabled;
         bool toActive = toIt->enabled;
         if (fromIt->category == "source") fromActive = true;
-        if (toIt->category == "channel" && m_source == Source::File) toActive = false;
+        // 通道块始终启用 — 逻辑通道概念
 
         if (!fromActive || !toActive) {
             pathItem->setPen(QPen(QColor(0xd0, 0xd0, 0xd0), 1.5, Qt::DashLine));
@@ -479,10 +600,14 @@ void MeasurementSetupView::updateBlockVisual(const QString &id)
         auto *gfx = dynamic_cast<SetupBlockGfx*>(b.gfxItem);
         if (gfx) {
             bool active = b.enabled;
-            if (b.category == "channel" && m_source == Source::File)
-                active = false;
+            // 通道块始终启用
             if (b.category == "source") {
-                gfx->setTitle((m_source == Source::Hardware) ? "硬件实时采集" : "文件回放分析");
+                if (m_source == Source::Hardware) {
+                    gfx->setTitle(QStringLiteral("硬件实时采集"));
+                } else {
+                    gfx->setTitle(m_filePath.isEmpty() ? QStringLiteral("文件回放分析")
+                                                       : QFileInfo(m_filePath).fileName());
+                }
                 active = true;
             }
             gfx->setActive(active);
@@ -499,6 +624,22 @@ MeasurementSetupView::BlockItem *MeasurementSetupView::blockAt(const QPointF &sc
     return nullptr;
 }
 
+bool MeasurementSetupView::instanceAt(const QPointF &scenePos, QString &moduleId, QString &instanceId)
+{
+    for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
+        auto &b = it.value();
+        if (b.category != "module") continue;
+        for (const auto &inst : b.instances) {
+            if (inst.subRect.contains(scenePos)) {
+                moduleId = b.id;
+                instanceId = inst.id;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 void MeasurementSetupView::toggleBlock(const QString &id)
 {
     auto it = m_blocks.find(id);
@@ -511,11 +652,184 @@ void MeasurementSetupView::toggleBlock(const QString &id)
     emit moduleToggled(b.title, b.enabled);
 }
 
+// ============================================================
+//  动态增删方法
+// ============================================================
+
+void MeasurementSetupView::addModuleInstance(const QString &moduleName, const QString &instanceId, const QString &title)
+{
+    if (m_blocks.contains(instanceId))
+        return;  // 已存在
+
+    if (moduleName == "trace") {
+        // Trace: 每个实例独占一个块，水平排列在最底行
+        // 找到最右边的 trace 块
+        qreal traceY = 0, traceH = 60, traceW = 160;
+        qreal maxX = 0;
+        for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
+            if (it.value().moduleName == "trace") {
+                traceY = it.value().rect.top();
+                traceH = it.value().rect.height();
+                traceW = it.value().rect.width();
+                maxX = qMax(maxX, it.value().rect.right());
+            }
+        }
+        if (traceY == 0) {
+            // 没有已存在的 trace 块，放到画布底部
+            for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
+                traceY = qMax(traceY, it.value().rect.bottom() + 20);
+            }
+            maxX = 50;
+        }
+
+        BlockItem b;
+        b.id = instanceId;
+        b.title = title;
+        b.icon = "\xF0\x9F\x93\x8B";
+        b.category = "module";
+        b.moduleName = "trace";
+        b.color = QColor(0x21, 0x96, 0xF3);
+        b.rect = QRectF(maxX + 20, traceY, traceW, traceH);
+        m_blocks[instanceId] = b;
+
+        // 添加 DBC → trace 块的连线
+        Connection c;
+        c.fromId = "database";
+        c.toId = instanceId;
+        c.pathItem = nullptr;
+        m_connections.append(c);
+
+        rebuildScene();
+    } else {
+        // 其他模块: 在现有块内添加实例
+        auto it = m_blocks.find(moduleName);
+        if (it == m_blocks.end()) return;
+        auto &b = it.value();
+        for (const auto &inst : b.instances) {
+            if (inst.id == instanceId) return;  // 已存在
+        }
+        InstanceItem item;
+        item.id = instanceId;
+        item.title = title;
+        b.instances.append(item);
+        rebuildScene();
+    }
+}
+
+void MeasurementSetupView::removeModuleInstance(const QString &moduleName, const QString &instanceId)
+{
+    if (moduleName == "trace") {
+        // Trace: 删除整个块
+        if (!m_blocks.contains(instanceId)) return;
+        m_blocks.remove(instanceId);
+        for (int i = m_connections.size() - 1; i >= 0; --i) {
+            if (m_connections[i].fromId == instanceId || m_connections[i].toId == instanceId)
+                m_connections.removeAt(i);
+        }
+        rebuildScene();
+    } else {
+        // 其他模块: 从块内删除实例
+        auto it = m_blocks.find(moduleName);
+        if (it == m_blocks.end()) return;
+        auto &b = it.value();
+        for (int i = 0; i < b.instances.size(); ++i) {
+            if (b.instances[i].id == instanceId) {
+                b.instances.removeAt(i);
+                rebuildScene();
+                return;
+            }
+        }
+    }
+}
+
+void MeasurementSetupView::addChannelBlock()
+{
+    QString id = QString("channel%1").arg(m_nextChannelNum++);
+    int chNum = m_nextChannelNum - 1;
+
+    auto refIt = m_blocks.find("channel1");
+    qreal chY = refIt != m_blocks.end() ? refIt->rect.top() : 85;
+    qreal chH = refIt != m_blocks.end() ? refIt->rect.height() : 60;
+    qreal chW = refIt != m_blocks.end() ? refIt->rect.width() : 190;
+    qreal gapX = 40;
+
+    qreal maxX = 0;
+    for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
+        if (it.value().category == "channel")
+            maxX = qMax(maxX, it.value().rect.right());
+    }
+
+    BlockItem ch;
+    ch.id = id;
+    ch.title = QString("CAN 通道 %1").arg(chNum);
+    ch.icon = "\xF0\x9F\x93\xA1";
+    ch.category = "channel";
+    ch.color = QColor(0x00, 0x79, 0x8C);
+    ch.rect = QRectF(maxX + gapX, chY, chW, chH);
+    m_blocks[id] = ch;
+
+    Connection c1;
+    c1.fromId = "source";
+    c1.toId = id;
+    c1.pathItem = nullptr;
+    m_connections.append(c1);
+
+    Connection c2;
+    c2.fromId = id;
+    c2.toId = "database";
+    c2.pathItem = nullptr;
+    m_connections.append(c2);
+
+    rebuildScene();
+}
+
+void MeasurementSetupView::removeChannelBlock(const QString &blockId)
+{
+    int channelCount = 0;
+    for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
+        if (it.value().category == "channel")
+            channelCount++;
+    }
+    if (channelCount <= 1) return;
+
+    m_blocks.remove(blockId);
+
+    for (int i = m_connections.size() - 1; i >= 0; --i) {
+        if (m_connections[i].fromId == blockId || m_connections[i].toId == blockId)
+            m_connections.removeAt(i);
+    }
+
+    rebuildScene();
+}
+
+void MeasurementSetupView::removeModuleBlock(const QString &blockId)
+{
+    m_blocks.remove(blockId);
+
+    for (int i = m_connections.size() - 1; i >= 0; --i) {
+        if (m_connections[i].fromId == blockId || m_connections[i].toId == blockId)
+            m_connections.removeAt(i);
+    }
+
+    rebuildScene();
+}
+
 void MeasurementSetupView::onSceneClicked(const QPointF &scenePos)
 {
+    QString moduleId, instanceId;
+    if (instanceAt(scenePos, moduleId, instanceId)) {
+        emit moduleOpened(moduleId, instanceId);
+        return;
+    }
+
     auto *b = blockAt(scenePos);
     if (b && b->category != "source") {
-        toggleBlock(b->id);
+        if (b->moduleName == "trace") {
+            // Trace 块: 点击跳转到对应的 Trace 标签页
+            emit moduleOpened("trace", b->id);
+        } else {
+            toggleBlock(b->id);
+        }
     }
 }
 
@@ -525,7 +839,12 @@ void MeasurementSetupView::onSceneDoubleClicked(const QPointF &scenePos)
     if (!b) return;
 
     if (b->category == "module") {
-        emit moduleOpened(b->id);
+        if (b->moduleName == "trace") {
+            // Trace 块: 跳转到对应的 Trace 标签页
+            emit moduleOpened("trace", b->id);
+        } else {
+            emit moduleOpened(b->id, "");
+        }
     } else if (b->category == "source") {
         // 双击数据源 → 弹出配置对话框
         showSourceConfigDialog();
@@ -594,10 +913,39 @@ void MeasurementSetupView::onBrowseClicked()
 
 void MeasurementSetupView::onSceneRightClicked(const QPointF &scenePos)
 {
-    auto *b = blockAt(scenePos);
-    if (!b) return;
+    // 检查是否右键了实例子项
+    QString instModuleId, instInstanceId;
+    if (instanceAt(scenePos, instModuleId, instInstanceId)) {
+        if (!m_rightMenu)
+            m_rightMenu = new QMenu(this);
+        else
+            m_rightMenu->clear();
 
-    buildContextMenu(b, scenePos);
+        auto *titleAct = m_rightMenu->addAction(QString::fromUtf8("【 %1 】").arg(instInstanceId));
+        titleAct->setEnabled(false);
+        QFont titleFont = titleAct->font();
+        titleFont.setBold(true);
+        titleAct->setFont(titleFont);
+        m_rightMenu->addSeparator();
+
+        auto *actJump = m_rightMenu->addAction("🔗 跳转到此标签页");
+        connect(actJump, &QAction::triggered, this, [this, instModuleId, instInstanceId]() {
+            emit moduleOpened(instModuleId, instInstanceId);
+        });
+
+        auto *actClose = m_rightMenu->addAction("❌ 删除此实例");
+        connect(actClose, &QAction::triggered, this, [this, instModuleId, instInstanceId]() {
+            emit moduleInstanceClosed(instModuleId, instInstanceId);
+        });
+    } else {
+        auto *b = blockAt(scenePos);
+        if (b) {
+            buildContextMenu(b, scenePos);
+        } else {
+            buildEmptyAreaMenu(scenePos);
+        }
+    }
+
     // 将场景坐标→视图坐标→全局屏幕坐标
     QPoint globalPos = m_view->mapToGlobal(m_view->mapFromScene(scenePos));
     m_rightMenu->exec(globalPos);
@@ -622,21 +970,22 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
     // ---- 数据源块 ----
     if (block->category == "source") {
-        auto *actFile = m_rightMenu->addAction("📁 从文件注入数据");
-        actFile->setStatusTip("选择 .sin 录制文件进行回放分析");
+        auto *actFile = m_rightMenu->addAction(QStringLiteral("📁 从文件回放"));
+        actFile->setStatusTip(QStringLiteral("选择 ASC/BLF/CSV 文件进行回放分析"));
         connect(actFile, &QAction::triggered, this, [this]() {
             showSourceConfigDialog();
         });
 
-        auto *actHw = m_rightMenu->addAction("🔧 从 REAL 设备注入数据");
-        actHw->setStatusTip("切换到硬件实时采集模式");
+        auto *actHw = m_rightMenu->addAction(QStringLiteral("🔧 从硬件设备采集"));
+        actHw->setStatusTip(QStringLiteral("切换到硬件实时采集模式"));
         connect(actHw, &QAction::triggered, this, [this]() {
             setSource(Source::Hardware);
             emit sourceChanged(static_cast<int>(Source::Hardware));
         });
 
         m_rightMenu->addSeparator();
-        auto *actFileBrowse = m_rightMenu->addAction("📂 浏览文件...");
+        auto *actFileBrowse = m_rightMenu->addAction(QStringLiteral("📂 选择回放文件..."));
+        actFileBrowse->setStatusTip(QStringLiteral("ASC / BLF / CSV"));
         connect(actFileBrowse, &QAction::triggered, this, [this]() {
             emit fileBrowseRequested();
         });
@@ -655,6 +1004,23 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
         auto *actToggle = m_rightMenu->addAction(block->enabled ? "⛔ 禁用通道" : "✅ 启用通道");
         connect(actToggle, &QAction::triggered, this, [this, block]() {
             toggleBlock(block->id);
+        });
+
+        m_rightMenu->addSeparator();
+
+        auto *actAddCh = m_rightMenu->addAction("➕ 添加通道");
+        connect(actAddCh, &QAction::triggered, this, [this]() {
+            addChannelBlock();
+        });
+
+        auto *actDelCh = m_rightMenu->addAction("🗑 删除此通道");
+        int channelCount = 0;
+        for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
+            if (it.value().category == "channel") channelCount++;
+        }
+        actDelCh->setEnabled(channelCount > 1);
+        connect(actDelCh, &QAction::triggered, this, [this, block]() {
+            removeChannelBlock(block->id);
         });
     }
 
@@ -684,18 +1050,19 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
     // ---- 模块块 ----
     else if (block->category == "module") {
-        // 模块类型对应的添加动作
-        if (block->id == "trace") {
+        // 模块类型对应的添加实例动作
+        if (block->moduleName == "trace") {
+            // Trace 独立块: 跳转 + 删除（不提供添加，添加在空白区菜单）
             auto *actAdd = m_rightMenu->addAction("➕ 添加 Trace 视图");
-            actAdd->setStatusTip("新建一个 Trace 报文列表标签页");
+            actAdd->setStatusTip("新建一个 Trace 报文列表块");
             connect(actAdd, &QAction::triggered, this, [this]() {
-                emit moduleOpened("trace");
+                emit moduleOpened("trace", "");
             });
         } else if (block->id == "graphic") {
             auto *actAdd = m_rightMenu->addAction("📈 添加 Graphic 波形");
             actAdd->setStatusTip("新建一个 Graphic 波形图标签页");
             connect(actAdd, &QAction::triggered, this, [this]() {
-                emit moduleOpened("graphic");
+                emit moduleOpened("graphic", "");
             });
         } else if (block->id == "data") {
             auto *actCfg = m_rightMenu->addAction("⚙️ 配置统计参数...");
@@ -707,16 +1074,20 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
             auto *actCfg = m_rightMenu->addAction("● 配置录制参数...");
             actCfg->setStatusTip("设置录制文件路径和格式");
             connect(actCfg, &QAction::triggered, this, [this]() {
-                emit moduleOpened("record");
+                emit moduleOpened("record", "");
             });
         }
 
         m_rightMenu->addSeparator();
 
+        // Trace 块: 跳转到对应标签页; 其他模块: 跳转（新建）
         auto *actOpen = m_rightMenu->addAction("🔗 跳转到对应标签页");
         actOpen->setStatusTip("在中心区域打开/切换到该模块的标签页");
         connect(actOpen, &QAction::triggered, this, [this, block]() {
-            emit moduleOpened(block->id);
+            if (block->moduleName == "trace")
+                emit moduleOpened("trace", block->id);
+            else
+                emit moduleOpened(block->id, "");
         });
 
         m_rightMenu->addSeparator();
@@ -725,6 +1096,93 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
         connect(actToggle, &QAction::triggered, this, [this, block]() {
             toggleBlock(block->id);
         });
+
+        m_rightMenu->addSeparator();
+
+        // Trace 块: 删除实例; 其他模块: 删除块
+        auto *actDelMod = m_rightMenu->addAction(block->moduleName == "trace"
+            ? "🗑 删除此 Trace" : "🗑 删除此模块块");
+        connect(actDelMod, &QAction::triggered, this, [this, block]() {
+            if (block->moduleName == "trace")
+                emit moduleInstanceClosed("trace", block->id);
+            else
+                removeModuleBlock(block->id);
+        });
+    }
+}
+
+void MeasurementSetupView::buildEmptyAreaMenu(const QPointF &)
+{
+    if (!m_rightMenu)
+        m_rightMenu = new QMenu(this);
+    else
+        m_rightMenu->clear();
+
+    auto *titleAct = m_rightMenu->addAction(QString::fromUtf8("【 添加配置块 】"));
+    titleAct->setEnabled(false);
+    QFont titleFont = titleAct->font();
+    titleFont.setBold(true);
+    titleAct->setFont(titleFont);
+    m_rightMenu->addSeparator();
+
+    auto *actAddCh = m_rightMenu->addAction("📡 添加 CAN 通道");
+    connect(actAddCh, &QAction::triggered, this, [this]() {
+        addChannelBlock();
+    });
+
+    // Trace: 总是可以添加新块
+    auto *actAddTrace = m_rightMenu->addAction(QString::fromUtf8("\xF0\x9F\x93\x8B 添加 Trace 视图"));
+    connect(actAddTrace, &QAction::triggered, this, [this]() {
+        emit moduleOpened("trace", "");
+    });
+
+    // 仅在画布上不存在该类型模块时显示添加选项
+    struct ModDef { QString id; QString icon; QString title; QColor color; };
+    ModDef stdMods[] = {
+        {"graphic",  "\xF0\x9F\x93\x88", "Graphic 波形",     QColor(0xF4, 0x43, 0x36)},
+        {"data",     "\xF0\x9F\x93\x8A", "Data 统计",        QColor(0x4C, 0xAF, 0x50)},
+        {"record",   "\xE2\x97\x8F",     "录制 Record",      QColor(0xFF, 0x98, 0x00)},
+    };
+
+    for (const auto &mod : stdMods) {
+        if (!m_blocks.contains(mod.id)) {
+            auto *actAdd = m_rightMenu->addAction(QString::fromUtf8("%1 添加 %2").arg(mod.icon, mod.title));
+            connect(actAdd, &QAction::triggered, this, [this, mod]() {
+                qreal modY = 0, modH = 60;
+                qreal modW = 160, modGap = 20;
+                for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
+                    if (it.value().category == "module") {
+                        modY = it.value().rect.top();
+                        modH = it.value().rect.height();
+                        break;
+                    }
+                }
+                if (modY == 0) modY = 300;
+
+                qreal maxX = 0;
+                for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
+                    if (it.value().category == "module")
+                        maxX = qMax(maxX, it.value().rect.right());
+                }
+
+                BlockItem b;
+                b.id = mod.id;
+                b.title = mod.title;
+                b.icon = mod.icon;
+                b.category = "module";
+                b.color = mod.color;
+                b.rect = QRectF(maxX > 0 ? maxX + modGap : 20, modY, modW, modH);
+                m_blocks[mod.id] = b;
+
+                Connection c;
+                c.fromId = "database";
+                c.toId = mod.id;
+                c.pathItem = nullptr;
+                m_connections.append(c);
+
+                rebuildScene();
+            });
+        }
     }
 }
 
@@ -740,8 +1198,8 @@ void MeasurementSetupView::showSourceConfigDialog()
 
     auto *grp = new QGroupBox("选择数据源类型", &dlg);
     auto *grpLay = new QVBoxLayout(grp);
-    auto *rbFile = new QRadioButton("📁 从文件注入数据（回放 .sin 录制文件）", grp);
-    auto *rbHw   = new QRadioButton("🔧 从 REAL 设备注入数据（硬件实时采集）", grp);
+    auto *rbFile = new QRadioButton(QStringLiteral("📁 从文件回放（ASC / BLF / CSV）"), grp);
+    auto *rbHw   = new QRadioButton(QStringLiteral("🔧 从硬件设备采集（实时 CAN 通道）"), grp);
     rbHw->setChecked(true);
     grpLay->addWidget(rbFile);
     grpLay->addWidget(rbHw);

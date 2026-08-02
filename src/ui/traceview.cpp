@@ -536,6 +536,11 @@ void TraceTab::appendFrame(const CanFrame &frame)
     m_traceModel->appendFrame(frame);
 }
 
+void TraceTab::appendFrames(const QVector<CanFrame> &frames)
+{
+    m_traceModel->appendFrames(frames);
+}
+
 void TraceTab::clearTrace()
 {
     m_traceModel->clear();

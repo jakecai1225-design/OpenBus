@@ -22,6 +22,14 @@ set(SRC_CORE
     core/filter_engine.cpp
     core/appconfig.h
     core/appconfig.cpp
+    core/file_import/file_importer.h
+    core/file_import/file_importer.cpp
+    core/file_import/asc_importer.h
+    core/file_import/asc_importer.cpp
+    core/file_import/csv_importer.h
+    core/file_import/csv_importer.cpp
+    core/file_import/blf_importer.h
+    core/file_import/blf_importer.cpp
 )
 
 # models 层 — Qt 数据模型

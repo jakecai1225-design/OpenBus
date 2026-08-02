@@ -6,6 +6,7 @@
 #include <QGraphicsView>
 #include <QMap>
 #include <QString>
+#include <QList>
 #include <QMenu>
 #include <QAction>
 
@@ -25,6 +26,8 @@ class QLabel;
  *   - 大画布：QGraphicsScene 绘制流程拓扑
  *     数据源 → 通道 → DBC数据库 → [Trace, Graphic, Data, 录制]
  *   - 每个块可点击切换启用/禁用，双击可配置
+ *   - 模块块内展示已打开的实例列表，单击实例跳转对应标签页
+ *   - 右键菜单支持增删通道块和模块实例
  */
 class MeasurementSetupView : public QWidget
 {
@@ -43,6 +46,11 @@ public:
     /// 设置最近打开的文件列表
     void setRecentFiles(const QStringList &files) { m_recentFiles = files; }
 
+    /// 添加模块实例（由 MainWindow 在创建新标签页后调用）
+    void addModuleInstance(const QString &moduleName, const QString &instanceId, const QString &title);
+    /// 移除模块实例（由 MainWindow 在关闭标签页后调用）
+    void removeModuleInstance(const QString &moduleName, const QString &instanceId);
+
 public slots:
     void setSource(Source src);
     void setFilePath(const QString &path);
@@ -53,8 +61,10 @@ signals:
     void fileBrowseRequested();
     void measurementToggled(bool running);
     void moduleToggled(const QString &moduleName, bool enabled);
-    /// 请求打开对应模块的标签页
-    void moduleOpened(const QString &moduleName);
+    /// 请求打开/跳转模块实例（instanceId 为空表示新建）
+    void moduleOpened(const QString &moduleName, const QString &instanceId);
+    /// 请求关闭指定模块实例
+    void moduleInstanceClosed(const QString &moduleName, const QString &instanceId);
     /// 请求选择 DBC 文件（由 MainWindow 弹出选择对话框）
     void dbcSelectRequested();
     /// 请求配置通道过滤条件
@@ -86,19 +96,29 @@ private:
 
     // ---- 画布块 ----
 public:
+    /// 模块实例子项（模块块内的一个标签页对应项）
+    struct InstanceItem {
+        QString id;       ///< "trace1", "trace2", "graphic1"
+        QString title;    ///< "Trace1", "Trace2"
+        QRectF subRect;   ///< 在父块内的子区域（scene 坐标）
+    };
+
     struct BlockItem {
         QString id;             ///< 唯一标识
         QString title;          ///< 显示标题
         QString icon;           ///< emoji 图标
         QString category;       ///< "source" | "channel" | "database" | "module"
+        QString moduleName;     ///< 模块类型名（如 "trace"），用于区分独立块
         QRectF rect;            ///< 位置和大小
         bool enabled = true;    ///< 是否启用
         QColor color;           ///< 主题色
         QGraphicsRectItem *gfxItem = nullptr;
         QGraphicsTextItem *textItem = nullptr;
+        QList<InstanceItem> instances;  ///< 模块块内的实例列表（仅 module 类别）
     };
 private:
     QMap<QString, BlockItem> m_blocks;
+    int m_nextChannelNum = 3;   ///< 下一个通道块的编号
 
     // ---- 连线 ----
     struct Connection {
@@ -120,6 +140,18 @@ private:
     BlockItem *blockAt(const QPointF &scenePos);
     void toggleBlock(const QString &id);
 
+    /// 查找点击位置所在的实例
+    /// @param scenePos 场景坐标
+    /// @param moduleId 输出：所属模块块 ID
+    /// @param instanceId 输出：实例 ID
+    /// @return true 如果点击了某个实例
+    bool instanceAt(const QPointF &scenePos, QString &moduleId, QString &instanceId);
+
+    // ---- 动态增删 ----
+    void addChannelBlock();
+    void removeChannelBlock(const QString &blockId);
+    void removeModuleBlock(const QString &blockId);
+
     // 工具栏
     void onStartClicked();
     void onStopClicked();
@@ -133,6 +165,7 @@ private:
     // ---- 右键菜单 ----
     QMenu *m_rightMenu = nullptr;
     void buildContextMenu(BlockItem *block, const QPointF &scenePos);
+    void buildEmptyAreaMenu(const QPointF &scenePos);
 
     // ---- 右键弹窗对话框 ----
     void showSourceConfigDialog();
