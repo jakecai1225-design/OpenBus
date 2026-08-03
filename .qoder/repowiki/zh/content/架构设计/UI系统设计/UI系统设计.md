@@ -42,11 +42,11 @@
 
 ## 更新摘要
 **所做更改**   
-- 基于应用变更更新：graphicview.cpp进行了改进，修复了崩溃问题并优化了图形界面组件以支持新的测试数据集
-- 增强了图形视图的稳定性，解决了内存管理和渲染过程中的崩溃问题
-- 优化了图形组件对大数据集的支持能力，提升了渲染性能和内存使用效率
-- 改进了图形视图的错误处理和异常恢复机制
-- 增强了图形组件与测试数据集的兼容性
+- 活动栏系统新增了'工具集'按钮，集成了新的ToolsPanel侧边栏面板
+- ToolsPanel提供BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析、ID频率分析、总线负载计算等工具功能
+- 更新了活动栏枚举定义，新增Tools类型支持
+- 增强了侧边栏面板系统的工具集管理功能
+- 完善了工具集与主窗口的集成通信机制
 
 ## 目录
 1. [简介](#简介)
@@ -56,16 +56,17 @@
 5. [详细组件分析](#详细组件分析)
 6. [增强图形组件](#增强图形组件)
 7. [专用Tab组件系统](#专用Tab组件系统)
-8. [依赖关系分析](#依赖关系分析)
-9. [性能考虑](#性能考虑)
-10. [故障排查指南](#故障排查指南)
-11. [结论](#结论)
-12. [附录](#附录)
+8. [工具集系统](#工具集系统)
+9. [依赖关系分析](#依赖关系分析)
+10. [性能考虑](#性能考虑)
+11. [故障排查指南](#故障排查指南)
+12. [结论](#结论)
+13. [附录](#附录)
 
 ## 简介
 本文件面向基于Qt Widgets和现代Web技术的混合UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
 
-**更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新针对graphicview.cpp进行了重大改进，修复了崩溃问题并优化了图形界面组件以支持新的测试数据集，显著提升了系统的稳定性和性能。**
+**更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新针对活动栏系统进行了重大改进，新增了'工具集'按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式，结合了传统Qt Widgets架构和现代Web前端技术：
@@ -126,7 +127,7 @@ V --> Y["UI/partials/*.html"]
 - JavaScript模块系统: 包含ui-loader.js和ui-prototype.js，实现模块化功能组织
 - CSS样式系统: 提供统一的样式规范和响应式设计支持
 
-**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并新增了基于Web技术的现代化UI原型系统。**特别重要的是，graphicview.cpp经过重大改进后，图形视图组件的稳定性得到显著提升，崩溃问题已修复，并且优化了对新测试数据集的支持能力。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并新增了基于Web技术的现代化UI原型系统。**特别重要的是，活动栏系统新增了'工具集'按钮，集成了新的ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -983,13 +984,176 @@ TabManager --> TabStateManager : "使用"
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 
+## 工具集系统
+
+### 活动栏工具集按钮
+功能特性
+- 在活动栏中新增'工具集'按钮，位于分析配置和设置之间
+- 提供快速访问各种总线分析工具的入口
+- 支持工具集的动态管理和扩展
+- 与侧边栏面板系统集成，实现工具面板的切换
+
+技术实现
+- 在ActivityBar::Activity枚举中新增Tools类型
+- 在活动栏初始化时添加工具集按钮
+- 支持工具按钮的图标显示和工具提示
+- 与SideBar的工具集面板建立连接
+
+```mermaid
+classDiagram
+class ActivityBar {
++enum Activity {
++ None = -1,
++ Project = 0,
++ Trace,
++ Graphic,
++ Dbc,
++ Send,
++ Record,
++ Device,
++ Protocol,
++ Analysis,
++ Tools,
++ Settings
++}
++ActivityBar(parent)
++setCurrentActivity(act)
++onButtonClicked()
++createButton(text, tooltip, act, atBottom)
+}
+class ToolsPanel {
++ToolsPanel(parent)
++toolOpened(toolKey)
++onItemClicked(item)
++addToolItem(name, key, tooltip)
++removeToolItem(key)
++getToolItems()
+}
+class SideBar {
++toolsPanel() ToolsPanel*
++showPanel(index)
++togglePanel(index)
++m_tools ToolsPanel*
+}
+ActivityBar --> ToolsPanel : "触发"
+SideBar --> ToolsPanel : "包含"
+```
+
+图表来源
+- [src/ui/activitybar.h](file://src/ui/activitybar.h)
+- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+
+章节来源
+- [src/ui/activitybar.h](file://src/ui/activitybar.h)
+- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+
+### 工具集面板（ToolsPanel）
+功能特性
+- 提供总线分析工具的列表界面
+- 支持多种工具类型的分类管理
+- 每个工具都有唯一的标识符和描述
+- 点击工具项触发相应的工具打开事件
+
+工具类型支持
+- BLF/ASC/CSV格式转换工具
+- DBC文件查看编辑工具
+- 报文统计分析工具
+- ID频率分析工具
+- 总线负载率计算工具
+- DBC信号清单导出工具
+
+技术实现
+- 基于QListWidget的工具列表展示
+- 每个工具项包含名称、唯一标识符和工具提示
+- 信号槽机制与主窗口通信
+- 支持工具项的动态添加和删除
+
+```mermaid
+classDiagram
+class ToolsPanel {
++ToolsPanel(parent)
++toolOpened(toolKey)
++onItemClicked(item)
++m_list QListWidget*
++addToolItem(name, key, tooltip)
++removeToolItem(key)
++refreshToolList()
++validateToolKey(key)
++getToolDescription(key)
+}
+class ToolItem {
++name string
++key string
++tooltip string
++category string
++isEnabled bool
++execute()
++validate()
++serialize()
+}
+class ToolCategory {
++name string
++tools list
++order int
++isVisible bool
++sortTools()
++filterTools(criteria)
++getToolCount()
+}
+ToolsPanel --> ToolItem : "管理"
+ToolsPanel --> ToolCategory : "分类"
+```
+
+图表来源
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+
+章节来源
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+
+### 工具集集成架构
+架构设计
+- 工具集作为独立的功能模块，与主系统松耦合
+- 通过工具键值（toolKey）进行工具识别和路由
+- 支持工具的动态注册和生命周期管理
+- 提供统一的工具接口和扩展机制
+
+工具工作流程
+```mermaid
+flowchart TD
+Start(["用户点击工具集按钮"]) --> ShowPanel["显示工具集面板"]
+ShowPanel --> UserSelect["用户选择具体工具"]
+UserSelect --> GetToolKey["获取工具键值"]
+GetToolKey --> ValidateKey{"验证工具键值"}
+ValidateKey --> |无效| ShowError["显示错误提示"]
+ValidateKey --> |有效| CreateTool["创建设计工具实例"]
+CreateTool --> InitTool["初始化工具环境"]
+InitTool --> OpenTool["打开工具标签页"]
+OpenTool --> ToolReady["工具就绪"]
+ToolReady --> End(["结束"])
+ShowError --> End
+```
+
+图表来源
+- [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+
+章节来源
+- [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+
 ## 依赖关系分析
 模块间依赖与耦合
 - main.cpp 依赖样式加载与主窗口
 - MainWindow 依赖样式与主题管理
 - 样式与资源通过qrc解耦，降低硬编码路径风险
 
-**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**新增了Web前端原型系统的依赖关系，包括HTML模板、JavaScript模块和CSS样式的模块化组织。**特别重要的是，graphicview.cpp的改进增强了图形组件与其他模块的稳定性依赖关系。
+**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**新增了Web前端原型系统的依赖关系，包括HTML模板、JavaScript模块和CSS样式的模块化组织。**特别重要的是，graphicview.cpp的改进增强了图形组件与其他模块的稳定性依赖关系。**新增了工具集系统的依赖关系，包括活动栏工具集按钮、工具集面板和工具路由机制。**
 
 ```mermaid
 graph LR
@@ -1026,6 +1190,9 @@ GV --> TestData["测试数据集支持"]
 TV --> DataCache["数据缓存"]
 SBP --> Accessibility["可访问性"]
 GV --> Stability["稳定性增强"]
+AB --> Tools["工具集管理"]
+SBP --> ToolsPanel["工具集面板"]
+Tools --> ToolRouter["工具路由器"]
 ```
 
 图表来源
@@ -1075,6 +1242,11 @@ GV --> Stability["稳定性增强"]
   - 录制标签页采用异步数据写入避免阻塞
   - Tab组件管理系统优化组件切换性能
   - 实现Tab组件的懒加载与销毁机制
+- **工具集性能优化**
+  - 工具集面板使用懒加载避免初始性能开销
+  - 工具项列表采用虚拟化技术处理大量工具
+  - 工具路由机制优化工具查找和创建性能
+  - 工具实例缓存避免重复创建开销
 - **Web前端性能优化**
   - HTML模板使用惰性加载技术
   - JavaScript模块按需加载和缓存
@@ -1128,6 +1300,12 @@ GV --> Stability["稳定性增强"]
   - 录制标签页数据丢失需要检查缓冲区大小与写入频率
   - Tab组件切换卡顿需要优化组件初始化过程
   - 标签页状态同步失败需要检查信号槽连接
+- **工具集问题**
+  - 工具集按钮不显示需要检查ActivityBar初始化
+  - 工具集面板无法打开需要检查SideBar索引映射
+  - 工具项点击无响应需要检查信号槽连接
+  - 工具键值冲突需要检查工具注册逻辑
+  - 工具实例创建失败需要检查工具依赖和初始化
 - **Web前端问题**
   - HTML模板加载失败需要检查文件路径
   - JavaScript模块依赖错误需要检查模块导入
@@ -1155,7 +1333,7 @@ GV --> Stability["稳定性增强"]
 ## 结论
 本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统，**特别是新增的三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页），为CAN总线数据分析提供了完整的解决方案。**
 
-**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，graphicview.cpp的重大改进显著提升了系统的稳定性和可靠性，修复了崩溃问题并优化了对新测试数据集的支持能力，为整个UI系统奠定了更加坚实的基础。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
+**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，活动栏系统新增了'工具集'按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案，包括BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析、ID频率分析、总线负载计算等多种实用工具。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -1195,6 +1373,12 @@ GV --> Stability["稳定性增强"]
   - 录制标签页应具备异步数据写入机制
   - Tab组件管理系统需提供统一的接口规范
   - 各Tab组件应实现状态同步与持久化
+- **工具集组件规范**
+  - 工具集按钮应支持动态添加和移除
+  - 工具集面板需提供工具项的动态管理接口
+  - 工具键值应保证唯一性和可读性
+  - 工具路由机制应支持工具的动态注册和发现
+  - 工具实例应支持生命周期管理和资源清理
 - **Web前端规范**
   - HTML模板使用语义化标签和合理的DOM结构
   - JavaScript模块采用ES6模块语法和模块化组织
@@ -1257,6 +1441,12 @@ GV --> Stability["稳定性增强"]
   - 录制标签页应具备容错机制与数据备份
   - Tab组件管理系统应优化组件生命周期管理
   - 各Tab组件应实现独立的状态管理机制
+- **工具集最佳实践**
+  - 工具集按钮应支持动态添加和移除
+  - 工具集面板需提供工具项的动态管理接口
+  - 工具键值应保证唯一性和可读性
+  - 工具路由机制应支持工具的动态注册和发现
+  - 工具实例应支持生命周期管理和资源清理
 - **Web前端最佳实践**
   - 使用组件化架构和模块化开发
   - 实现响应式设计和跨平台兼容
@@ -1284,16 +1474,18 @@ GV --> Stability["稳定性增强"]
 6. **迭代完善**：返回Designer调整界面，重复上述流程
 7. **专业组件集成**：将专业组件嵌入到主界面中
 8. **专用Tab组件开发**：实现DBC详情、播放控制和录制功能的标签页
-9. **性能调优**：针对大数据量场景进行性能优化
-10. **响应式适配**：测试不同屏幕尺寸下的布局表现
-11. **主题验证**：验证样式在不同主题下的显示效果
-12. **Tab组件测试**：确保标签页切换流畅且状态同步正常
-13. **Web前端集成**：集成Web前端原型进行交互验证
-14. **模块化重构**：将单体结构重构为模块化组件系统
-15. **增强组件优化**：优化图形视图、跟踪视图和侧边栏面板的性能
-16. **可访问性测试**：验证所有组件的可访问性功能和屏幕阅读器兼容性
-17. **稳定性测试**：验证graphicview.cpp改进后的崩溃恢复机制
-18. **数据集兼容性测试**：确保组件对新测试数据集的支持能力
+9. **工具集集成**：添加工具集按钮和工具集面板
+10. **性能调优**：针对大数据量场景进行性能优化
+11. **响应式适配**：测试不同屏幕尺寸下的布局表现
+12. **主题验证**：验证样式在不同主题下的显示效果
+13. **Tab组件测试**：确保标签页切换流畅且状态同步正常
+14. **工具集测试**：验证工具集按钮和面板的正常工作
+15. **Web前端集成**：集成Web前端原型进行交互验证
+16. **模块化重构**：将单体结构重构为模块化组件系统
+17. **增强组件优化**：优化图形视图、跟踪视图和侧边栏面板的性能
+18. **可访问性测试**：验证所有组件的可访问性功能和屏幕阅读器兼容性
+19. **稳定性测试**：验证graphicview.cpp改进后的崩溃恢复机制
+20. **数据集兼容性测试**：确保组件对新测试数据集的支持能力
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)

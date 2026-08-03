@@ -1,6 +1,8 @@
 #include "cantracemodel.h"
 #include "utils/canutils.h"
 #include <QColor>
+#include <QList>
+#include <algorithm>
 
 CanTraceModel::CanTraceModel(QObject *parent)
     : QAbstractTableModel(parent)
@@ -33,7 +35,12 @@ QVariant CanTraceModel::data(const QModelIndex &index, int role) const
 
     if (role == Qt::DisplayRole) {
         switch (index.column()) {
+        case ColNo:         return index.row() + 1;
         case ColTime:       return CanUtils::formatTime(f.timestamp);
+        case ColDelta: {
+            double prev = (index.row() > 0) ? m_frames.at(index.row() - 1).timestamp : f.timestamp;
+            return CanUtils::formatTime(f.timestamp - prev);
+        }
         case ColChannel:    return QString::number(f.channel);
         case ColDirection:  return f.direction == CanFrame::Rx ? "Rx" : "Tx";
         case ColId:         return CanUtils::formatId(f.id, f.extended);
@@ -44,9 +51,14 @@ QVariant CanTraceModel::data(const QModelIndex &index, int role) const
         }
     }
 
+    if (role == MarkedRole)
+        return m_markedRows.contains(index.row());
+
     if (role == Qt::TextAlignmentRole) {
         switch (index.column()) {
+        case ColNo:
         case ColTime:
+        case ColDelta:
         case ColId:
         case ColDlc:
         case ColFrameCount:
@@ -68,6 +80,13 @@ QVariant CanTraceModel::data(const QModelIndex &index, int role) const
     }
 
     if (role == Qt::BackgroundRole) {
+        // 优先使用用户自定义行颜色
+        auto colorIt = m_rowColors.find(index.row());
+        if (colorIt != m_rowColors.end())
+            return colorIt.value();
+        // 标记行用浅黄色高亮
+        if (m_markedRows.contains(index.row()))
+            return QColor(0xFF, 0xF3, 0xB0);
         // CAN FD 帧浅绿底色
         if (f.fd)
             return QColor(0xE8, 0xF5, 0xE8);
@@ -82,7 +101,9 @@ QVariant CanTraceModel::headerData(int section, Qt::Orientation orientation, int
     if (role != Qt::DisplayRole || orientation != Qt::Horizontal)
         return {};
     switch (section) {
+    case ColNo:         return QStringLiteral("No.");
     case ColTime:       return QStringLiteral("Time");
+    case ColDelta:      return QStringLiteral("Delta");
     case ColChannel:    return QStringLiteral("Ch");
     case ColDirection:  return QStringLiteral("Dir");
     case ColId:         return QStringLiteral("ID");
@@ -163,12 +184,95 @@ void CanTraceModel::clear()
     m_frames.clear();
     m_idToRow.clear();
     m_idCount.clear();
+    m_markedRows.clear();
+    m_rowColors.clear();
+    m_seqCounter = 0;
     endResetModel();
 }
 
 const CanFrame &CanTraceModel::frameAt(int row) const
 {
     return m_frames.at(row);
+}
+
+// ============================================================
+//  行标记与着色
+// ============================================================
+
+void CanTraceModel::toggleMark(int row)
+{
+    if (row < 0 || row >= m_frames.size())
+        return;
+    if (m_markedRows.contains(row))
+        m_markedRows.remove(row);
+    else
+        m_markedRows.insert(row);
+    emit dataChanged(index(row, 0), index(row, ColCount - 1),
+                     {Qt::BackgroundRole, MarkedRole});
+}
+
+void CanTraceModel::setMarked(int row, bool marked)
+{
+    if (row < 0 || row >= m_frames.size())
+        return;
+    if (marked)
+        m_markedRows.insert(row);
+    else
+        m_markedRows.remove(row);
+    emit dataChanged(index(row, 0), index(row, ColCount - 1),
+                     {Qt::BackgroundRole, MarkedRole});
+}
+
+bool CanTraceModel::isMarked(int row) const
+{
+    return m_markedRows.contains(row);
+}
+
+void CanTraceModel::clearMarks()
+{
+    if (m_markedRows.isEmpty())
+        return;
+    // 通知所有行更新
+    auto rows = m_markedRows.values();
+    m_markedRows.clear();
+    for (int r : rows)
+        emit dataChanged(index(r, 0), index(r, ColCount - 1),
+                         {Qt::BackgroundRole, MarkedRole});
+}
+
+QList<int> CanTraceModel::markedRows() const
+{
+    auto result = m_markedRows.values();
+    std::sort(result.begin(), result.end());
+    return result;
+}
+
+void CanTraceModel::setRowColor(int row, const QColor &color)
+{
+    if (row < 0 || row >= m_frames.size())
+        return;
+    if (color.isValid())
+        m_rowColors[row] = color;
+    else
+        m_rowColors.remove(row);
+    emit dataChanged(index(row, 0), index(row, ColCount - 1),
+                     {Qt::BackgroundRole});
+}
+
+QColor CanTraceModel::rowColor(int row) const
+{
+    return m_rowColors.value(row);
+}
+
+void CanTraceModel::clearColors()
+{
+    if (m_rowColors.isEmpty())
+        return;
+    auto rows = m_rowColors.keys();
+    m_rowColors.clear();
+    for (int r : rows)
+        emit dataChanged(index(r, 0), index(r, ColCount - 1),
+                         {Qt::BackgroundRole});
 }
 
 void CanTraceModel::setOverwriteMode(bool mode)
@@ -181,5 +285,7 @@ void CanTraceModel::setOverwriteMode(bool mode)
     m_frames.clear();
     m_idToRow.clear();
     m_idCount.clear();
+    m_markedRows.clear();
+    m_rowColors.clear();
     endResetModel();
 }

@@ -8,38 +8,36 @@ source_files:
     - CMakeLists.txt
     - src/CMakeLists.txt
     - scripts/build.py
-    - resources/resources.qrc
+    - third_party/Dependencies.cmake
 ---
 
-本项目采用 CMake 作为核心构建系统，配合自研 Python 构建脚本 `scripts/build.py` 提供统一的开发工作流。整体架构如下：
+本项目采用 CMake 作为核心构建系统，配合 Python 脚本 scripts/build.py 提供统一的构建入口，面向 Windows + MinGW + Qt6 桌面应用（sin.exe）的编译、打包与部署。
 
-**1. 构建工具链与依赖**
-- 构建系统：CMake ≥ 3.21，使用 MinGW Makefiles 生成器
-- 编译器：MinGW (g++/gcc)，默认路径通过环境变量 `SIN_MINGW_DIR` 或 `--mingw-dir` 指定
-- Qt6 框架：仅链接 `Qt6::Widgets`，启用 AUTOMOC/AUTOUIC/AUTORCC 自动处理 Qt 元对象、UI 和资源文件
-- C++ 标准：强制 C++17，禁用扩展
-- 部署：通过 `windeployqt.exe` 打包 Qt 运行时依赖
+**1. 使用的系统与工具**
+- 构建系统：CMake 3.21+，生成器优先 Ninja，回退 MinGW Makefiles
+- 编译器：MinGW g++/gcc（默认路径 C:/Qt/Tools/mingw1310_64）
+- GUI 框架：Qt6（Widgets、PrintSupport），通过 qt_standard_project_setup() 启用 MOC/UIC/RCC 自动化
+- 链接器：LLD（本地 tools/lld/ld.lld.exe，未检测到则回退 ld.bfd）
+- 加速工具：Ninja（并行调度）、ccache（编译缓存）、LLD（多线程链接）
+- 部署：windeployqt 自动收集 Qt DLL，额外手动复制 Qt6PrintSupport.dll
 
-**2. 工程结构**
-- 顶层 `CMakeLists.txt`：定义项目名、版本 (0.1.0)、语言、Qt 自动化开关、输出目录 (`build/bin`)、子目录引入及安装规则
-- `src/CMakeLists.txt`：按模块组织源文件（core/models/utils/ui），通过 `qt_add_executable(sin ...)` 创建可执行目标，配置头文件搜索路径，Windows 下以 GUI 程序方式运行（不弹出控制台）
-- `resources/resources.qrc`：Qt 资源文件，由 RCC 自动处理
+**2. 关键文件与结构**
+- CMakeLists.txt（根）：项目元信息、C++17 标准、Qt 查找、第三方依赖引入、子目录挂载
+- src/CMakeLists.txt：源文件分组（core/models/utils/ui 四层）、静态库拆分（sin_core、sin_ui）、可执行目标 sin、PCH 预编译头配置
+- third_party/Dependencies.cmake：第三方库声明（spdlog 接口库、nlohmann_json 单头文件、qcustomplot 静态库、vector_blf 子目录）
+- scripts/build.py：Python 构建脚本，封装 configure/build/run/debug/clean/rebuild/deploy/all/status/open 等命令
 
-**3. Python 构建脚本 (`scripts/build.py`)**
-提供统一 CLI 接口，支持以下命令：
-- `configure`：CMake 配置，支持 `--build-type` (Debug/Release/RelWithDebInfo/MinSizeRel) 和 `--clean`
-- `build`：增量编译，自动检测是否需要先 configure，支持 `-j` 并行和 `--target` 指定目标
-- `run` / `debug`：运行程序或启动 GDB 调试，自动触发编译
-- `clean` / `rebuild`：清理构建目录或完整重建
-- `deploy`：调用 windeployqt 部署 Qt 依赖
-- `all`：一键完成配置+编译+部署+运行全流程
-- `status` / `open`：显示环境状态或打开输出目录
+**3. 架构与约定**
+- 分层静态库设计：sin_core（核心逻辑 + 模型 + 工具）→ sin_ui（界面组件）→ sin（可执行），修改 UI 不触发 core 重编译
+- PCH 优化：core 层仅预编译无 Widget 的 Qt 基础头，ui 层预编译完整 Widget 头列表，显著缩短增量编译时间
+- 调试优化：Windows + GCC Debug 模式使用 -g1 精简调试信息，减小二进制体积并提升链接速度
+- 依赖隔离：vector_blf、qcustomplot 等仅被个别源文件使用，通过 PRIVATE 链接避免污染公共接口
+- 资源管理：通过 resources/resources.qrc 嵌入样式与资源，由 AUTORCC 自动生成
 
-脚本内置环境验证，自动检查 CMake、g++、gcc、windeployqt、gdb 是否可用，并通过 `PATH` 注入工具路径。
-
-**4. 构建约定与约束**
-- 构建产物统一输出到 `build/bin/` 目录
-- Windows 平台下可执行文件名为 `sin.exe`，以 GUI 模式运行
-- 所有源文件在 `src/CMakeLists.txt` 中显式声明，无自动扫描机制
-- 安装规则将目标安装到 `bin` 目录
-- 构建类型通过 CMakeCache.txt 持久化，`status` 命令可读取当前配置
+**4. 约定与约束**
+- 构建类型：Debug / Release / RelWithDebInfo / MinSizeRel，默认 Debug
+- 输出目录：build/bin/sin.exe
+- 环境变量覆盖：SIN_QT_DIR、SIN_MINGW_DIR、SIN_CMAKE_DIR 可自定义工具链路径
+- 加速工具检测：tools/ninja/、tools/ccache/、tools/lld/ 目录存在即自动启用
+- 安装规则：install(TARGETS sin RUNTIME DESTINATION bin) 定义安装布局
+- 版本管理：CMake project 中声明 VERSION 0.1.0，随构建产物传播

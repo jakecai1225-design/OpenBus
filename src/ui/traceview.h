@@ -45,12 +45,21 @@ private slots:
     void onColumnFilter(int column);
     void onClearColumnFilter(int column);
     void onClearAllFilters();
+    void onFilterIconClicked(int column);
+    void onToggleMarkSelected();
+    void onColorSelected();
+    void onClearMarks();
+    void onClearColors();
 
 private:
     bool m_autoScroll = true;
     void setupAppearance();
     void showHeaderMenu(int column, const QPoint &pos);
     QString columnFilterHint(int column) const;
+    /// 将代理模型行号映射到源模型行号
+    int toSourceRow(const QModelIndex &proxyIndex) const;
+    /// 获取当前选中的源模型行号列表
+    QList<int> selectedSourceRows() const;
 };
 
 /**

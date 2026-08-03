@@ -75,6 +75,15 @@ bool CanFilterProxyModel::matchColumnFilter(int sourceRow, int column) const
     QString filter = m_columnFilters.value(column).toLower();
 
     switch (column) {
+    case CanTraceModel::ColNo: {
+        // 支持 ">10", "<50", "123" 等
+        int seq = sourceRow + 1;
+        if (filter.startsWith(">"))
+            return seq > filter.mid(1).trimmed().toInt();
+        if (filter.startsWith("<"))
+            return seq < filter.mid(1).trimmed().toInt();
+        return QString::number(seq).contains(filter);
+    }
     case CanTraceModel::ColTime: {
         // 支持 ">0.5", "<1.0", "0.3~0.8" 等范围
         QString val = CanUtils::formatTime(frame.timestamp);
@@ -82,6 +91,17 @@ bool CanFilterProxyModel::matchColumnFilter(int sourceRow, int column) const
             return frame.timestamp > filter.mid(1).trimmed().toDouble();
         if (filter.startsWith("<"))
             return frame.timestamp < filter.mid(1).trimmed().toDouble();
+        return val.contains(filter);
+    }
+    case CanTraceModel::ColDelta: {
+        // 计算与上一帧的时间增量
+        double prev = (sourceRow > 0) ? model->frameAt(sourceRow - 1).timestamp : frame.timestamp;
+        double delta = frame.timestamp - prev;
+        QString val = CanUtils::formatTime(delta);
+        if (filter.startsWith(">"))
+            return delta > filter.mid(1).trimmed().toDouble();
+        if (filter.startsWith("<"))
+            return delta < filter.mid(1).trimmed().toDouble();
         return val.contains(filter);
     }
     case CanTraceModel::ColChannel:
@@ -166,8 +186,15 @@ bool CanFilterProxyModel::lessThan(const QModelIndex &left, const QModelIndex &r
     const CanFrame &fr = model->frameAt(right.row());
 
     switch (left.column()) {
+    case CanTraceModel::ColNo:
+        return left.row() < right.row();
     case CanTraceModel::ColTime:
         return fl.timestamp < fr.timestamp;
+    case CanTraceModel::ColDelta: {
+        double dl = (left.row() > 0) ? fl.timestamp - model->frameAt(left.row() - 1).timestamp : 0.0;
+        double dr = (right.row() > 0) ? fr.timestamp - model->frameAt(right.row() - 1).timestamp : 0.0;
+        return dl < dr;
+    }
     case CanTraceModel::ColChannel:
         return fl.channel < fr.channel;
     case CanTraceModel::ColDirection:

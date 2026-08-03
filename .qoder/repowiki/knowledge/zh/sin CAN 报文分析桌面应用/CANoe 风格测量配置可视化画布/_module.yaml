@@ -1,9 +1,0 @@
-schema_version: 1
-module_path: src_ui_measurementsetupview
-title: CANoe 风格测量配置可视化画布
-scope:
-    - src/ui/measurementsetupview.h
-    - src/ui/measurementsetupview.cpp
-source_files: []
-depends_on: []
-related_to: []
