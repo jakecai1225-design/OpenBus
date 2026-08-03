@@ -1,5 +1,7 @@
 #include "playbacktab.h"
 
+#include "core/canfileio/canfileio.h"
+
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGroupBox>
@@ -149,7 +151,7 @@ void PlaybackTab::onAddFile()
 {
     QStringList paths = QFileDialog::getOpenFileNames(
         this, "添加回放文件", {},
-        "sin 录制文件 (*.sin);;所有文件 (*.*)");
+        CanFileIO::allFileFilters());
     if (paths.isEmpty()) return;
 
     for (const auto &path : paths) {

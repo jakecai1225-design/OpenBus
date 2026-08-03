@@ -55,9 +55,10 @@ RecordTab::RecordTab(QWidget *parent)
 
     fileLayout->addWidget(new QLabel("文件格式:", fileGroup), 2, 0);
     m_formatCombo = new QComboBox(fileGroup);
-    m_formatCombo->addItem(".sin");
-    m_formatCombo->addItem(".asc");
-    m_formatCombo->addItem(".blf");
+    m_formatCombo->addItem("BLF (.blf)", "blf");
+    m_formatCombo->addItem("ASC (.asc)", "asc");
+    m_formatCombo->addItem("CSV (.csv)", "csv");
+    m_formatCombo->setCurrentIndex(0);
     fileLayout->addWidget(m_formatCombo, 2, 1, 1, 2);
 
     mainLayout->addWidget(fileGroup);

@@ -5,6 +5,8 @@
 #include "core/cansimulator.h"
 #include "core/dbcmanager.h"
 #include "core/dbcdata.h"
+#include "core/canfileio/canfileio.h"
+#include "core/canfileio/canfileio_factory.h"
 #include "models/cantracemodel.h"
 #include "models/canfilterproxymodel.h"
 #include "ui/traceview.h"
@@ -216,7 +218,7 @@ void MainWindow::createMenuBar()
 
     m_openAction = new QAction("打开文件...", this);
     m_openAction->setShortcut(QKeySequence::Open);
-    m_openAction->setToolTip("打开录制文件 (.sin) 或 DBC 文件");
+    m_openAction->setToolTip("打开报文文件 (BLF/ASC/CSV/PCAP/TRC) 或 DBC 文件");
     fileMenu->addAction(m_openAction);
     connect(m_openAction, &QAction::triggered, this, &MainWindow::onOpenFile);
 
@@ -570,9 +572,9 @@ void MainWindow::onRecord()
     if (m_recording) {
         m_recorder->stop();
     } else {
-        QString defaultName = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + ".sin";
+        QString defaultName = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + ".blf";
         QString path = QFileDialog::getSaveFileName(
-            this, "录制文件", defaultName, "sin 录制文件 (*.sin)");
+            this, "录制文件", defaultName, CanFileIO::allFileFilters(false));
         if (path.isEmpty()) {
             m_recordAction->setChecked(false);
             return;
@@ -621,7 +623,7 @@ void MainWindow::onOpenFile()
 {
     QString path = QFileDialog::getOpenFileName(
         this, "打开文件", {},
-        "sin 录制文件 (*.sin);;DBC 文件 (*.dbc);;所有文件 (*.*)");
+        CanFileIO::allFileFilters(false) + ";;DBC 文件 (*.dbc);;所有文件 (*.*)");
     if (path.isEmpty()) return;
 
     QFileInfo fi(path);
@@ -1105,9 +1107,9 @@ void MainWindow::setupRecordTab(RecordTab *tab)
 {
     connect(tab, &RecordTab::recordToggled, this, [this, tab](bool on) {
         if (on) {
-            QString defaultName = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + ".sin";
+            QString defaultName = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + ".blf";
             QString path = QFileDialog::getSaveFileName(
-                this, "录制文件", defaultName, "sin 录制文件 (*.sin)");
+                this, "录制文件", defaultName, CanFileIO::allFileFilters(false));
             if (path.isEmpty()) {
                 tab->setRecording(false);
                 return;
@@ -1182,7 +1184,7 @@ void MainWindow::onOpenMeasurementSetup()
             this, [this, view]() {
         QString path = QFileDialog::getOpenFileName(
             this, "选择待分析的报文文件", {},
-            "sin 录制文件 (*.sin);;所有文件 (*.*)");
+            CanFileIO::allFileFilters());
         if (!path.isEmpty()) {
             view->setFilePath(path);
             m_player->load(path);
@@ -1400,7 +1402,7 @@ void MainWindow::processCommand(const QString &cmd)
         QFileInfo fi(path);
         if (fi.suffix().toLower() == "dbc") {
             m_dbcManager->loadDbc(path);
-        } else if (fi.suffix().toLower() == "sin") {
+        } else if (CanFileIOFactory::canRead(fi.suffix())) {
             if (m_player->load(path)) {
                 // 清除所有 Trace 数据
                 const auto allTabs = m_editorArea->allTabWidgets();
@@ -1410,9 +1412,13 @@ void MainWindow::processCommand(const QString &cmd)
                         if (tt) tt->clearTrace();
                     }
                 }
-                out->appendTerminal("已加载录制: " + fi.fileName());
+                out->appendTerminal("已加载报文文件: " + fi.fileName());
                 updateActions();
+            } else {
+                out->appendTerminal("加载失败: " + fi.fileName());
             }
+        } else {
+            out->appendTerminal("不支持的格式: ." + fi.suffix());
         }
     } else {
         out->appendTerminal("未知命令: " + cmd + " (输入 help 查看帮助)");

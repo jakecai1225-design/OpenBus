@@ -623,7 +623,7 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
     // ---- 数据源块 ----
     if (block->category == "source") {
         auto *actFile = m_rightMenu->addAction("📁 从文件注入数据");
-        actFile->setStatusTip("选择 .sin 录制文件进行回放分析");
+        actFile->setStatusTip("选择报文文件 (BLF/ASC/CSV/PCAP/TRC) 进行回放分析");
         connect(actFile, &QAction::triggered, this, [this]() {
             showSourceConfigDialog();
         });
@@ -740,7 +740,7 @@ void MeasurementSetupView::showSourceConfigDialog()
 
     auto *grp = new QGroupBox("选择数据源类型", &dlg);
     auto *grpLay = new QVBoxLayout(grp);
-    auto *rbFile = new QRadioButton("📁 从文件注入数据（回放 .sin 录制文件）", grp);
+    auto *rbFile = new QRadioButton("📁 从文件注入数据（回放 BLF/ASC/CSV 等报文文件）", grp);
     auto *rbHw   = new QRadioButton("🔧 从 REAL 设备注入数据（硬件实时采集）", grp);
     rbHw->setChecked(true);
     grpLay->addWidget(rbFile);

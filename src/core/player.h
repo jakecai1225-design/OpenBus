@@ -9,7 +9,7 @@
 /**
  * @brief 报文回放器
  *
- * 从 .sin 录制文件加载帧序列，按原始时间戳回放。
+ * 从 BLF/ASC/CSV/PCAP/TRC 文件加载帧序列，按原始时间戳回放。
  * 支持 play / pause / stop / seek / setSpeed。
  */
 class Player : public QObject
@@ -19,7 +19,7 @@ class Player : public QObject
 public:
     explicit Player(QObject *parent = nullptr);
 
-    /// 从文件加载帧序列
+    /// 从文件加载帧序列（自动识别格式）
     bool load(const QString &filePath);
 
     /// 清空已加载的帧

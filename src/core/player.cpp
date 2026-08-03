@@ -1,8 +1,6 @@
 #include "player.h"
-#include "recorder.h"
+#include "core/canfileio/canfileio_factory.h"
 
-#include <QFile>
-#include <QDataStream>
 #include <QDateTime>
 #include <algorithm>
 
@@ -18,31 +16,17 @@ bool Player::load(const QString &filePath)
 {
     stop();
 
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly))
-        return false;
-
-    QDataStream in(&file);
-    in.setVersion(QDataStream::Qt_6_0);
-    in.setByteOrder(QDataStream::LittleEndian);
-
-    quint32 magic;
-    quint16 version;
-    quint32 count;
-    in >> magic >> version >> count;
-
-    if (magic != Recorder::MAGIC || version != Recorder::VERSION)
+    // 根据扩展名创建读取器
+    auto reader = CanFileIOFactory::createReader(filePath);
+    if (!reader || !reader->open(filePath))
         return false;
 
     m_frames.clear();
-    m_frames.reserve(count);
-    for (quint32 i = 0; i < count; ++i) {
-        CanFrame frame;
-        in >> frame;
-        if (in.status() != QDataStream::Ok)
-            break;
-        m_frames.append(frame);
-    }
+    int count = reader->readAll(m_frames);
+    reader->close();
+
+    if (count < 0)
+        return false;
 
     m_currentIndex = 0;
     emitProgress();

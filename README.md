@@ -22,7 +22,7 @@
 
 ### 报文录制与回放
 - **实时录制** — 连接 CAN 设备实时捕获总线报文，支持 CAN 2.0A/B 与 CAN FD
-- **文件回放** — 加载 `.sin` 录制文件，按原始时间戳精准回放，支持变速控制（0.1x ~ 10x）
+- **文件回放** — 加载 BLF/ASC/CSV/PCAP/TRC 报文文件，按原始时间戳精准回放，支持变速控制（0.1x ~ 10x）
 - **进度拖拽** — 回放进度条可任意拖拽定位，快速跳转到关键时间点
 
 ### Trace 追踪
@@ -75,7 +75,14 @@ sin/
 │   │   ├── player              #   报文回放器
 │   │   ├── cansimulator        #   CAN 模拟器
 │   │   ├── dbcdata.h           #   DBC 数据结构
-│   │   └── dbcmanager          #   DBC 文件管理器
+│   │   ├── dbcmanager          #   DBC 文件管理器
+│   │   └── canfileio/          #   文件格式 I/O 层
+│   │       ├── canfileio       #   读写器接口 + 格式枚举
+│   │       ├── blf             #   BLF 格式读写 (Vector 二进制)
+│   │       ├── asc             #   ASC 格式读写 (Vector ASCII)
+│   │       ├── csv             #   CSV 格式读写 (通用文本)
+│   │       ├── pcap_reader     #   PCAP 格式读取 (libpcap 网络捕获)
+│   │       └── trc_reader      #   TRC 格式读取 (Vector 旧格式)
 │   ├── models/                 # 数据模型层
 │   │   ├── cantracemodel       #   Trace 表格模型
 │   │   └── canfilterproxymodel #   过滤代理模型（排序+筛选）
@@ -133,7 +140,7 @@ D:/Qt/6.8.3/mingw_64/bin/windeployqt.exe build/bin/sin.exe
 
 1. **启动程序** — 打开 sin，界面分为左侧边栏、中央编辑区、右侧属性面板、底部输出面板
 2. **加载 DBC** — 通过「文件 → 打开文件」加载 `.dbc` 信号定义文件
-3. **加载录制** — 打开 `.sin` 录制文件，报文自动填充到 Trace 列表
+3. **加载报文文件** — 打开 BLF/ASC/CSV/PCAP/TRC 等格式的报文文件，报文自动填充到 Trace 列表
 4. **回放分析** — 在左侧「回放控制」折叠栏点击播放，使用速度下拉框调节回放速率
 5. **筛选报文** — 在过滤栏输入表达式（如 `id == 0x123`），或右键列标题按列筛选
 6. **查看信号** — 选中 Trace 报文，底部帧信息面板自动显示解码后的信号值
@@ -393,8 +400,7 @@ D:/Qt/6.8.3/mingw_64/bin/windeployqt.exe build/bin/sin.exe
 | **SocketCAN (Linux)** | libsocketcan (MIT) | Linux 原生支持，`can-utils` 已打包 |
 | **Kvaser USB 设备** | Kvaser C API SDK (商用) | 需购买授权，Windows/Linux/macOS |
 | **PEAK-Systems PCAN** | PEAK SDK (商用) | 需购买授权，仅 Windows/Linux |
-| **BLF 日志播放** | libblf (LGPL) | 梅赛德斯 - 奔驰开源，需解决 Qt 适配 |
-| **ASC/PCAP 日志** | 自研解析 | 先不做，后续按需扩展 |
+| **BLF/ASC/CSV/PCAP/TRC 日志** | 自研解析 | ✅ 已实现，支持读写 BLF/ASC/CSV，读取 PCAP/TRC |
 
 **集成顺序建议**:
 1. 先用内置模拟器完成所有逻辑开发
@@ -419,6 +425,6 @@ D:/Qt/6.8.3/mingw_64/bin/windeployqt.exe build/bin/sin.exe
 🚀 **长期规划**:
    - 引入 Lua/Python（脚本扩展）
    - 支持真实 CAN 硬件（Kvaser/PEAK/SocketCAN）
-   - BLF 日志播放
+   - BLF/ASC/CSV/PCAP/TRC 报文文件分析（✅ 已实现）
 
 💡 **核心原则**：每次只改一个模块，确保构建通过、功能正确、回归测试无误，再继续下一步。

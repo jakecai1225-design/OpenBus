@@ -3,23 +3,23 @@
 
 #include <QObject>
 #include <QFile>
-#include <QDataStream>
+#include <memory>
 #include "core/canframe.h"
+#include "core/canfileio/canfileio.h"
+
+class CanFileWriter;
 
 /**
  * @brief 报文录制器
  *
- * 将接收到的 CanFrame 以二进制格式写入 .sin 文件。
- * 文件格式：magic(4B) + version(2B) + frameCount(4B) + frames...
+ * 将接收到的 CanFrame 流式写入文件，支持 BLF / ASC / CSV 格式。
+ * 根据文件扩展名自动选择写入器。
  */
 class Recorder : public QObject
 {
     Q_OBJECT
 
 public:
-    static constexpr quint32 MAGIC = 0x53494E31; // "SIN1"
-    static constexpr quint16 VERSION = 1;
-
     explicit Recorder(QObject *parent = nullptr);
     ~Recorder();
 
@@ -39,11 +39,9 @@ signals:
 
 private:
     bool m_recording = false;
-    QFile m_file;
-    QDataStream m_stream;
+    std::unique_ptr<CanFileWriter> m_writer;
     QString m_filePath;
     int m_frameCount = 0;
-    qint64 m_frameCountPos = 0; // 文件中帧计数字段的偏移
 };
 
 #endif // RECORDER_H
