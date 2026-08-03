@@ -129,40 +129,31 @@ class Environment:
         self.gdb = self.mingw_bin / "gdb.exe"
         self.windeployqt = self.qt_bin / "windeployqt.exe"
 
-        # ---- 加速工具 (项目本地 tools/ 目录，自动检测) ----
+        # ---- Ninja 构建系统 (项目本地 tools/ 目录，自动检测) ----
         self.ninja = TOOLS_DIR / "ninja" / "ninja.exe"
-        self.ccache = TOOLS_DIR / "ccache" / "ccache.exe"
-        self.ld_lld = TOOLS_DIR / "lld" / "ld.lld.exe"
-
         self.use_ninja = self.ninja.exists()
-        self.use_ccache = self.ccache.exists()
-        self.use_lld = self.ld_lld.exists()
+
+        # 注意: 不使用 ccache（与 MinGW g++ 13 的 PCH 不兼容，会静默崩溃）
+        # 注意: 不使用 LLD 链接器（在 Windows 上会导致文件锁问题）
 
     def setup_path(self):
-        """将工具路径加入 PATH"""
+        """将工具路径加入 PATH
+
+        关键: MinGW bin 必须在 PATH 中，否则 cc1plus.exe 找不到
+        libgcc_s_seh-1.dll / libstdc++-6.dll / libwinpthread-1.dll 等 DLL
+        会导致编译器静默崩溃（STATUS_DLL_NOT_FOUND, 退出码 -1073741515）
+        """
         prepend = [str(self.cmake_bin), str(self.mingw_bin), str(self.qt_bin)]
-        # 加速工具优先加入 PATH，确保 GCC 能找到 ld.lld
-        if self.use_lld:
-            prepend.insert(0, str(self.ld_lld.parent))
-        if self.use_ccache:
-            prepend.insert(0, str(self.ccache.parent))
         if self.use_ninja:
             prepend.insert(0, str(self.ninja.parent))
         os.environ["PATH"] = os.pathsep.join(prepend) + os.pathsep + os.environ.get("PATH", "")
 
     def print_accel_info(self):
-        """打印加速工具状态"""
-        accel = []
+        """打印构建工具状态"""
         if self.use_ninja:
-            accel.append(f"Ninja")
-        if self.use_ccache:
-            accel.append(f"ccache")
-        if self.use_lld:
-            accel.append(f"lld")
-        if accel:
-            ok(f"加速工具: {', '.join(accel)}")
+            ok("构建系统: Ninja")
         else:
-            warn("未检测到加速工具 (Ninja/ccache/lld)，使用基础构建")
+            warn("未检测到 Ninja，使用 MinGW Makefiles（较慢）")
 
     def _check(self, path, name, required=True):
         exists = path.exists()
@@ -237,14 +228,6 @@ def cmd_configure(env, args):
         f"-DCMAKE_C_COMPILER={env.cc.as_posix()}",
         f"-DCMAKE_BUILD_TYPE={build_type}",
     ])
-
-    # ccache: 设置为编译器启动器
-    if env.use_ccache:
-        cmd.extend([
-            f"-DCMAKE_CXX_COMPILER_LAUNCHER={env.ccache.as_posix()}",
-            f"-DCMAKE_C_COMPILER_LAUNCHER={env.ccache.as_posix()}",
-        ])
-        info("启用 ccache 编译缓存")
 
     run_cmd(cmd)
     ok("CMake 配置完成")
@@ -403,7 +386,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 常用命令:
-  python scripts/build.py configure                      配置 (Debug, 自动检测 Ninja/ccache/lld)
+  python scripts/build.py configure                      配置 (Debug, 自动检测 Ninja)
   python scripts/build.py configure --build-type Release  配置 (Release)
   python scripts/build.py build -j8                       增量编译 (8 线程)
   python scripts/build.py run                             运行
@@ -415,10 +398,10 @@ def main():
   python scripts/build.py status                          环境状态
   python scripts/build.py open                            打开输出目录
 
-加速工具 (放在 tools/ 目录自动检测):
+构建系统 (放在 tools/ 目录自动检测):
   tools/ninja/ninja.exe    Ninja 构建系统 (编译调度快 2-3x)
-  tools/ccache/ccache.exe  编译缓存 (命中时秒级返回)
-  tools/lld/ld.lld.exe     LLD 链接器 (链接快 3-5x)
+
+注意: 不使用 ccache (与 PCH 不兼容) 和 LLD (文件锁问题)
         """,
     )
 

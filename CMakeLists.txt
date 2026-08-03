@@ -21,30 +21,14 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
 # ============================================================
-#  构建优化：精简调试信息 + LLD 链接器
-#  -g1: 仅函数级调试信息（比默认 -g 小很多，链接速度提升 5x+）
-#  -fuse-ld=lld: 使用 LLD 链接器（多线程，比 ld.bfd 快 3-5x）
-#  注意:
-#   - gold 链接器不支持 --subsystem（Windows GUI 程序需要），不可用
-#   - --gc-sections 在 ld.bfd 上反而增加链接时间（需扫描所有 section），不使用
-#   - PCH (预编译头) 在 src/CMakeLists.txt 中配置
-#   - LLD 从项目 tools/lld/ 目录自动检测，不存在则回退 ld.bfd
+#  构建配置说明
+#  - PCH (预编译头) 在 src/CMakeLists.txt 中配置
+#  - 使用默认 ld.bfd 链接器（兼容性最好，无文件锁问题）
+#  - 不使用 ccache（与 MinGW g++ 13 的 PCH 不兼容，会静默崩溃）
+#  - 不使用 LLD 链接器（在 Windows 上会导致文件锁问题）
 # ============================================================
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_compile_options(-g1)
-        message(STATUS "Debug 构建使用 -g1（精简调试信息，加速编译和链接）")
-    endif()
-
-    # 检测 LLD 链接器（项目本地 tools/lld/ld.lld.exe）
-    set(_lld_path "${CMAKE_SOURCE_DIR}/tools/lld/ld.lld.exe")
-    if(EXISTS "${_lld_path}")
-        add_compile_options(-fuse-ld=lld)
-        add_link_options(-fuse-ld=lld)
-        message(STATUS "使用 LLD 链接器 (${_lld_path})")
-    else()
-        message(STATUS "未检测到 LLD，使用默认 ld.bfd 链接器")
-    endif()
+    message(STATUS "使用默认 ld.bfd 链接器")
 endif()
 
 # ============================================================

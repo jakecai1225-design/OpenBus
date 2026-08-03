@@ -40,6 +40,8 @@ public:
 private:
     struct Impl;
     std::unique_ptr<Impl> m_impl;
+
+    int parseUncompressedObjects(const QByteArray &data, QVector<CanFrame> &frames);
 };
 
 #endif // BLF_H

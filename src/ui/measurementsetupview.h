@@ -41,6 +41,7 @@ public:
     QSize sizeHint() const override { return {900, 600}; }
     Source currentSource() const { return m_source; }
     QString filePath() const { return m_filePath; }
+    QString activeSourceId() const;  ///< 返回当前活跃数据源块 ID ("source_real" 或 "source_file")
 
     /// 设置当前已加载的 DBC 文件列表（用于右键菜单显示）
     void setDbcFiles(const QStringList &files) { m_dbcFiles = files; }
@@ -51,6 +52,23 @@ public:
     void addModuleInstance(const QString &moduleName, const QString &instanceId, const QString &title);
     /// 移除模块实例（由 MainWindow 在关闭标签页后调用）
     void removeModuleInstance(const QString &moduleName, const QString &instanceId);
+
+    /// CAN 硬件配置参数（参考 CANoe 硬件参数配置）
+    struct CanHwConfig {
+        int channel = 1;
+        bool canFd = false;           // CAN FD 模式
+        int arbBaudrate = 500000;     // 仲裁段波特率
+        int dataBaudrate = 2000000;   // 数据段波特率（CAN FD）
+        int samplePoint = 75;        // 采样点 (%)
+        int sjw = 1;                  // 同步跳转宽度 (TQ)
+        int tseg1 = 12;              // 时间段 1 (TQ)
+        int tseg2 = 3;               // 时间段 2 (TQ)
+        int dataSamplePoint = 75;    // 数据段采样点 (%)
+        int dataSjw = 1;             // 数据段 SJW (TQ)
+        int dataTseg1 = 12;          // 数据段 TSEG1 (TQ)
+        int dataTseg2 = 3;           // 数据段 TSEG2 (TQ)
+        int intervalMs = 5;          // 帧生成间隔 (ms)
+    };
 
 public slots:
     void setSource(Source src);
@@ -70,6 +88,8 @@ signals:
     void dbcSelectRequested();
     /// 请求配置通道过滤条件
     void channelFilterRequested(const QString &channelId);
+    /// Real 硬件参数变更
+    void realConfigChanged(const MeasurementSetupView::CanHwConfig &config);
 
 private:
     // ---- UI ----
@@ -89,11 +109,13 @@ private:
     Source m_source = Source::Hardware;
     bool m_running = false;
     QString m_filePath;
+    QRectF m_switchRect;  ///< 数据源切换开关区域
 
     // ---- 记录文件列表 & REAL 设备 ----
     QStringList m_recentFiles;           ///< 最近打开的文件
     QStringList m_dbcFiles;              ///< 已加载的 DBC 文件名列表
-    quint8 m_channel = 1;                ///< CAN 通道
+    CanHwConfig m_hwConfig;              ///< 硬件参数
+    QStringList m_loadedFiles;           ///< 已加载的回放文件列表
 
     // ---- 画布块 ----
 public:
@@ -153,6 +175,8 @@ private:
     void addChannelBlock();
     void removeChannelBlock(const QString &blockId);
     void removeModuleBlock(const QString &blockId);
+    /// 重新排列所有模块块（Trace / Graphic / Data+Record 分行水平排列）
+    void relayoutModuleBlocks();
 
     // 工具栏
     void onStartClicked();
@@ -170,7 +194,8 @@ private:
     void buildEmptyAreaMenu(const QPointF &scenePos);
 
     // ---- 右键弹窗对话框 ----
-    void showSourceConfigDialog();
+    void showFileConfigDialog();
+    void showRealConfigDialog();
     void showChannelFilterDialog(const QString &channelId);
     void showDbcSelectDialog();
 };

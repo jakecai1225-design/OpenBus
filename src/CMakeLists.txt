@@ -154,9 +154,9 @@ endif()
 
 target_link_libraries(sin_core PUBLIC Qt6::Widgets)
 
-# vector_blf: 仅 canfileio/blf.cpp 使用 <Vector/BLF/File.h>，头文件用前向声明 → PRIVATE
+# zlib: blf.cpp 手动解析 BLF 文件需要 zlib 解压 (MinGW 自带 libz.a)
 target_link_libraries(sin_core PRIVATE
-    vector_blf
+    z
 )
 
 # PCH — 核心层使用精简的 Qt 头（无 Widget），编译更快

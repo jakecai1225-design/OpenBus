@@ -1,8 +1,0 @@
-# 直接添加 INCLUDE_DIRECTORIES 到 main CMakeLists.txt
-include(${CMAKE_SOURCE_DIR}/third_party/Dependencies.cmake)
-
-if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/spdlog/include")
-    target_include_directories(sin PRIVATE
-        ${CMAKE_SOURCE_DIR}/third_party/spdlog/include
-    )
-endif()

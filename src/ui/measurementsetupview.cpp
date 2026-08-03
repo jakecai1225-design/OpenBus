@@ -27,6 +27,7 @@
 #include <QFormLayout>
 #include <QCheckBox>
 #include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QHeaderView>
@@ -104,7 +105,7 @@ protected:
         painter->setPen(m_active ? QColor(255, 255, 255, 200) : QColor(0x99, 0x99, 0x99));
         QString sub;
         if (m_isSource)
-            sub = m_active ? "已激活" : "";
+            sub = m_active ? "已激活" : "未激活";
         else if (!m_instances.isEmpty())
             sub = QStringLiteral("%1 个实例").arg(m_instances.size());
         else
@@ -194,6 +195,76 @@ private:
 };
 
 // ============================================================
+//  自定义图元 — 数据源切换开关 (Real / File)
+// ============================================================
+
+class SourceSwitchGfx : public QGraphicsRectItem
+{
+public:
+    SourceSwitchGfx(const QRectF &rect, bool isReal)
+        : QGraphicsRectItem(rect), m_isReal(isReal)
+    {
+        setAcceptHoverEvents(true);
+    }
+
+    void setIsReal(bool isReal) { m_isReal = isReal; update(); }
+
+protected:
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *) override
+    {
+        painter->setRenderHint(QPainter::Antialiasing);
+        QRectF r = rect();
+
+        // 开关背景 (圆角矩形)
+        QPainterPath path;
+        path.addRoundedRect(r, r.height() / 2, r.height() / 2);
+        painter->fillPath(path, QBrush(QColor(0xe8, 0xe8, 0xe8)));
+        painter->setPen(QPen(QColor(0xc0, 0xc0, 0xc0), 1));
+        painter->drawPath(path);
+
+        // 文字标签
+        QFont labelFont("Microsoft YaHei UI", 7, QFont::Bold);
+        painter->setFont(labelFont);
+
+        qreal halfW = r.width() / 2;
+        qreal knobR = r.height() / 2 - 3;
+        QPointF knobCenter;
+
+        if (m_isReal) {
+            knobCenter = QPointF(r.left() + knobR + 3, r.center().y());
+            painter->setPen(QColor(0x4a, 0x90, 0xd9));
+            painter->drawText(QRectF(r.left(), r.top(), halfW, r.height()),
+                              Qt::AlignCenter, "Real");
+            painter->setPen(QColor(0xaa, 0xaa, 0xaa));
+            painter->drawText(QRectF(r.left() + halfW, r.top(), halfW, r.height()),
+                              Qt::AlignCenter, "File");
+        } else {
+            knobCenter = QPointF(r.right() - knobR - 3, r.center().y());
+            painter->setPen(QColor(0xaa, 0xaa, 0xaa));
+            painter->drawText(QRectF(r.left(), r.top(), halfW, r.height()),
+                              Qt::AlignCenter, "Real");
+            painter->setPen(QColor(0x4C, 0xAF, 0x50));
+            painter->drawText(QRectF(r.left() + halfW, r.top(), halfW, r.height()),
+                              Qt::AlignCenter, "File");
+        }
+
+        // 滑块 (knob)
+        QColor knobColor = m_isReal ? QColor(0x4a, 0x90, 0xd9) : QColor(0x4C, 0xAF, 0x50);
+        painter->setBrush(knobColor);
+        painter->setPen(Qt::NoPen);
+        painter->drawEllipse(knobCenter, knobR, knobR);
+
+        // 滑块高光
+        painter->setBrush(QColor(255, 255, 255, 60));
+        painter->drawEllipse(QPointF(knobCenter.x(), knobCenter.y() - knobR * 0.3),
+                            knobR * 0.55, knobR * 0.55);
+    }
+
+private:
+    bool m_isReal;
+};
+
+// ============================================================
 //  自定义场景 — 处理点击和双击
 // ============================================================
 
@@ -239,7 +310,6 @@ MeasurementSetupView::MeasurementSetupView(QWidget *parent)
     rebuildScene();
 
     m_recentFiles.clear();
-    m_channel = 1;
 }
 
 void MeasurementSetupView::setupUi()
@@ -292,6 +362,11 @@ void MeasurementSetupView::setupUi()
     connect(scene, &SetupScene::sceneRightClicked, this, &MeasurementSetupView::onSceneRightClicked);
 }
 
+QString MeasurementSetupView::activeSourceId() const
+{
+    return (m_source == Source::Hardware) ? "source_real" : "source_file";
+}
+
 void MeasurementSetupView::buildTopology()
 {
     m_blocks.clear();
@@ -304,17 +379,43 @@ void MeasurementSetupView::buildTopology()
     const qreal startX = 50;
     qreal y = 30;
 
-    // ---- 第 1 行: 数据源 ----
-    BlockItem src;
-    src.id = "source";
-    src.title = (m_source == Source::Hardware) ? "硬件实时采集" : "文件回放分析";
-    src.icon = (m_source == Source::Hardware) ? "\xF0\x9F\x94\xA7" : "\xF0\x9F\x93\x81";
-    src.category = "source";
-    src.rect = QRectF(startX + 100, y, bw, bh + 10);
-    src.color = (m_source == Source::Hardware) ? QColor(0x4a, 0x90, 0xd9) : QColor(0x4C, 0xAF, 0x50);
-    src.enabled = true;
-    m_blocks["source"] = src;
-    y += src.rect.height() + gapY;
+    // ---- 第 1 行: 数据源 (Real / File 两个块 + 切换开关) ----
+    qreal srcW = 160;
+    qreal srcH = bh + 10;
+    qreal switchW = 70;
+    qreal srcGap = switchW + 16;
+    qreal totalSrcW = 2 * srcW + srcGap;
+    qreal srcStartX = startX + 100 + (bw - totalSrcW) / 2;
+    if (srcStartX < 20) srcStartX = 20;
+
+    // Real (硬件实时)
+    BlockItem srcReal;
+    srcReal.id = "source_real";
+    srcReal.title = "Real 实时";
+    srcReal.icon = "\xF0\x9F\x94\xA7";
+    srcReal.category = "source";
+    srcReal.moduleName = "real";
+    srcReal.rect = QRectF(srcStartX, y, srcW, srcH);
+    srcReal.color = QColor(0x4a, 0x90, 0xd9);
+    srcReal.enabled = (m_source == Source::Hardware);
+    m_blocks["source_real"] = srcReal;
+
+    // File (文件回放)
+    BlockItem srcFile;
+    srcFile.id = "source_file";
+    srcFile.title = m_filePath.isEmpty() ? "File 回放" : QFileInfo(m_filePath).fileName();
+    srcFile.icon = "\xF0\x9F\x93\x81";
+    srcFile.category = "source";
+    srcFile.moduleName = "file";
+    srcFile.rect = QRectF(srcStartX + srcW + srcGap, y, srcW, srcH);
+    srcFile.color = QColor(0x4C, 0xAF, 0x50);
+    srcFile.enabled = (m_source == Source::File);
+    m_blocks["source_file"] = srcFile;
+
+    // 切换开关位置
+    m_switchRect = QRectF(srcStartX + srcW + 8, y + srcH / 2 - 16, switchW, 32);
+
+    y += srcH + gapY;
 
     // ---- 第 2 行: 通道 / 文件源 ----
     BlockItem ch1;
@@ -351,7 +452,7 @@ void MeasurementSetupView::buildTopology()
     struct ModDef { QString id; QString icon; QString title; QColor color; QString moduleName; };
     ModDef mods[] = {
         {"trace1",   "\xF0\x9F\x93\x8B", "Trace1",          QColor(0x21, 0x96, 0xF3), "trace"},
-        {"graphic",  "\xF0\x9F\x93\x88", "Graphic 波形",     QColor(0xF4, 0x43, 0x36), ""},
+        {"graphic1", "\xF0\x9F\x93\x88", "Graphic1",        QColor(0xF4, 0x43, 0x36), "graphic"},
         {"data",     "\xF0\x9F\x93\x8A", "Data 统计",        QColor(0x4C, 0xAF, 0x50), ""},
         {"record",   "\xE2\x97\x8F",     "录制 Record",      QColor(0xFF, 0x98, 0x00), ""},
     };
@@ -383,20 +484,20 @@ void MeasurementSetupView::buildTopology()
         c.pathItem = nullptr;
         m_connections.append(c);
     };
-    // 数据源 → 通道1, 通道2
-    addConn("source", "channel1");
-    addConn("source", "channel2");
+    // 数据源 → 通道1, 通道2 (仅活跃数据源)
+    addConn(activeSourceId(), "channel1");
+    addConn(activeSourceId(), "channel2");
     // 通道 → DBC
     addConn("channel1", "database");
     addConn("channel2", "database");
     // DBC → 各模块
-    addConn("database", "graphic");
+    addConn("database", "graphic1");
     addConn("database", "data");
     addConn("database", "record");
     addConn("database", "trace1");
 
-    // 设置场景大小
-    m_scene->setSceneRect(0, 0, modStartX + totalW + 30, y + 20);
+    // 模块块分行水平排列
+    relayoutModuleBlocks();
 }
 
 void MeasurementSetupView::rebuildScene()
@@ -409,8 +510,8 @@ void MeasurementSetupView::rebuildScene()
     for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
         auto &b = it.value();
         if (b.category == "module") {
-            // Trace 块独占一行，无子实例；其他模块根据实例数量动态调整高度
-            if (b.moduleName != "trace") {
+            // Trace / Graphic 块独占一行，无子实例；其他模块根据实例数量动态调整高度
+            if (b.moduleName != "trace" && b.moduleName != "graphic") {
                 qreal h = baseH;
                 if (!b.instances.isEmpty())
                     h = baseH + b.instances.size() * rowH;
@@ -434,23 +535,20 @@ void MeasurementSetupView::rebuildScene()
         bool active = b.enabled;
         // 通道块始终启用 — 逻辑通道概念，不区分硬件/文件数据源
         if (b.category == "source") {
-            if (m_source == Source::Hardware) {
-                b.title = "硬件实时采集";
-                b.icon = "\xF0\x9F\x94\xA7";
-                b.color = QColor(0x4a, 0x90, 0xd9);
-            } else {
-                b.title = m_filePath.isEmpty() ? QStringLiteral("文件回放分析")
+            bool isReal = (b.id == "source_real");
+            b.color = isReal ? QColor(0x4a, 0x90, 0xd9) : QColor(0x4C, 0xAF, 0x50);
+            if (!isReal) {
+                b.title = m_filePath.isEmpty() ? QStringLiteral("File 回放")
                                                : QFileInfo(m_filePath).fileName();
-                b.icon = "\xF0\x9F\x93\x81";
-                b.color = QColor(0x4C, 0xAF, 0x50);
             }
-            active = true;
+            // 活跃数据源高亮，非活跃灰显
+            active = (b.id == activeSourceId());
         }
 
         auto *item = new SetupBlockGfx(b.rect, b.icon, b.title, b.color, active,
                                         b.category == "source");
         // 传递实例列表给渲染图元
-        if (b.category == "module" && b.moduleName != "trace") {
+        if (b.category == "module" && b.moduleName != "trace" && b.moduleName != "graphic") {
             QStringList instTitles;
             for (const auto &inst : b.instances)
                 instTitles << inst.title;
@@ -460,10 +558,17 @@ void MeasurementSetupView::rebuildScene()
         b.gfxItem = item;
     }
 
-    // 更新场景矩形以适应所有块
+    // 绘制数据源切换开关
+    if (!m_switchRect.isNull()) {
+        auto *switchItem = new SourceSwitchGfx(m_switchRect, m_source == Source::Hardware);
+        m_scene->addItem(switchItem);
+    }
+
+    // 更新场景矩形以适应所有块 + 开关
     QRectF sceneRect;
     for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it)
         sceneRect = sceneRect.united(it.value().rect);
+    sceneRect = sceneRect.united(m_switchRect);
     if (!sceneRect.isNull())
         m_scene->setSceneRect(sceneRect.adjusted(-20, -20, 40, 20));
 }
@@ -511,7 +616,8 @@ void MeasurementSetupView::updateConnections()
         // 检查两端块是否启用
         bool fromActive = fromIt->enabled;
         bool toActive = toIt->enabled;
-        if (fromIt->category == "source") fromActive = true;
+        if (fromIt->category == "source")
+            fromActive = (fromIt->id == activeSourceId());
         // 通道块始终启用 — 逻辑通道概念
 
         if (!fromActive || !toActive) {
@@ -554,13 +660,13 @@ void MeasurementSetupView::updateBlockVisual(const QString &id)
             bool active = b.enabled;
             // 通道块始终启用
             if (b.category == "source") {
-                if (m_source == Source::Hardware) {
-                    gfx->setTitle(QStringLiteral("硬件实时采集"));
+                if (b.id == "source_real") {
+                    gfx->setTitle(QStringLiteral("Real 实时"));
                 } else {
-                    gfx->setTitle(m_filePath.isEmpty() ? QStringLiteral("文件回放分析")
+                    gfx->setTitle(m_filePath.isEmpty() ? QStringLiteral("File 回放")
                                                        : QFileInfo(m_filePath).fileName());
                 }
-                active = true;
+                active = (b.id == activeSourceId());
             }
             gfx->setActive(active);
         }
@@ -613,45 +719,32 @@ void MeasurementSetupView::addModuleInstance(const QString &moduleName, const QS
     if (m_blocks.contains(instanceId))
         return;  // 已存在
 
-    if (moduleName == "trace") {
-        // Trace: 每个实例独占一个块，水平排列在同一行
-        // 找到最右边的 trace 块
-        qreal traceY = 0, traceH = 60, traceW = 140;
-        qreal maxX = 0;
-        for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
-            if (it.value().moduleName == "trace") {
-                traceY = it.value().rect.top();
-                traceH = it.value().rect.height();
-                traceW = it.value().rect.width();
-                maxX = qMax(maxX, it.value().rect.right());
-            }
-        }
-        if (traceY == 0) {
-            // 没有已存在的 trace 块，放到画布底部
-            for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
-                traceY = qMax(traceY, it.value().rect.bottom() + 20);
-            }
-            maxX = 50;
-        }
-
+    if (moduleName == "trace" || moduleName == "graphic") {
+        // Trace / Graphic: 每个实例独占一个块，分行水平排列
         BlockItem b;
         b.id = instanceId;
         b.title = title;
-        b.icon = "\xF0\x9F\x93\x8B";
+        if (moduleName == "trace") {
+            b.icon = "\xF0\x9F\x93\x8B";
+            b.color = QColor(0x21, 0x96, 0xF3);
+        } else {
+            b.icon = "\xF0\x9F\x93\x88";
+            b.color = QColor(0xF4, 0x43, 0x36);
+        }
         b.category = "module";
-        b.moduleName = "trace";
-        b.color = QColor(0x21, 0x96, 0xF3);
-        b.rect = QRectF(maxX + 20, traceY, traceW, traceH);
+        b.moduleName = moduleName;
+        // 临时位置，relayoutModuleBlocks 会重新计算
+        b.rect = QRectF(50, 300, 140, 60);
         m_blocks[instanceId] = b;
 
-        // 添加 DBC → trace 块的连线
+        // 添加 DBC → 模块块 的连线
         Connection c;
         c.fromId = "database";
         c.toId = instanceId;
         c.pathItem = nullptr;
         m_connections.append(c);
 
-        rebuildScene();
+        relayoutModuleBlocks();
     } else {
         // 其他模块: 在现有块内添加实例
         auto it = m_blocks.find(moduleName);
@@ -670,15 +763,15 @@ void MeasurementSetupView::addModuleInstance(const QString &moduleName, const QS
 
 void MeasurementSetupView::removeModuleInstance(const QString &moduleName, const QString &instanceId)
 {
-    if (moduleName == "trace") {
-        // Trace: 删除整个块
+    if (moduleName == "trace" || moduleName == "graphic") {
+        // Trace / Graphic: 删除整个块
         if (!m_blocks.contains(instanceId)) return;
         m_blocks.remove(instanceId);
         for (int i = m_connections.size() - 1; i >= 0; --i) {
             if (m_connections[i].fromId == instanceId || m_connections[i].toId == instanceId)
                 m_connections.removeAt(i);
         }
-        rebuildScene();
+        relayoutModuleBlocks();
     } else {
         // 其他模块: 从块内删除实例
         auto it = m_blocks.find(moduleName);
@@ -721,7 +814,7 @@ void MeasurementSetupView::addChannelBlock()
     m_blocks[id] = ch;
 
     Connection c1;
-    c1.fromId = "source";
+    c1.fromId = activeSourceId();
     c1.toId = id;
     c1.pathItem = nullptr;
     m_connections.append(c1);
@@ -763,11 +856,83 @@ void MeasurementSetupView::removeModuleBlock(const QString &blockId)
             m_connections.removeAt(i);
     }
 
+    relayoutModuleBlocks();
+}
+
+void MeasurementSetupView::relayoutModuleBlocks()
+{
+    // 收集各类型模块块，按 ID 排序
+    QStringList traceIds, graphicIds, otherIds;
+    for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
+        const auto &b = it.value();
+        if (b.category != "module") continue;
+        if (b.moduleName == "trace")
+            traceIds << it.key();
+        else if (b.moduleName == "graphic")
+            graphicIds << it.key();
+        else
+            otherIds << it.key();
+    }
+    traceIds.sort();
+    graphicIds.sort();
+
+    // 找到模块区域的起始 Y（使用最顶部模块块的 Y）
+    qreal moduleY = 0;
+    qreal moduleH = 60;
+    for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
+        if (it.value().category == "module") {
+            if (moduleY == 0 || it.value().rect.top() < moduleY) {
+                moduleY = it.value().rect.top();
+                moduleH = it.value().rect.height();
+            }
+        }
+    }
+    if (moduleY == 0) moduleY = 300;
+
+    const qreal modW = 140;
+    const qreal modGap = 16;
+    const qreal rowGap = 20;
+    const qreal startX = 50;
+    qreal y = moduleY;
+
+    // 第 1 行: Trace 块
+    for (int i = 0; i < traceIds.size(); ++i) {
+        auto it = m_blocks.find(traceIds[i]);
+        if (it != m_blocks.end())
+            it.value().rect = QRectF(startX + i * (modW + modGap), y, modW, moduleH);
+    }
+    if (!traceIds.isEmpty())
+        y += moduleH + rowGap;
+
+    // 第 2 行: Graphic 块
+    for (int i = 0; i < graphicIds.size(); ++i) {
+        auto it = m_blocks.find(graphicIds[i]);
+        if (it != m_blocks.end())
+            it.value().rect = QRectF(startX + i * (modW + modGap), y, modW, moduleH);
+    }
+    if (!graphicIds.isEmpty())
+        y += moduleH + rowGap;
+
+    // 第 3 行: Data + Record
+    for (int i = 0; i < otherIds.size(); ++i) {
+        auto it = m_blocks.find(otherIds[i]);
+        if (it != m_blocks.end())
+            it.value().rect = QRectF(startX + i * (modW + modGap), y, modW, moduleH);
+    }
+
     rebuildScene();
 }
 
 void MeasurementSetupView::onSceneClicked(const QPointF &scenePos)
 {
+    // 检查是否点击了切换开关
+    if (m_switchRect.contains(scenePos)) {
+        Source newSrc = (m_source == Source::Hardware) ? Source::File : Source::Hardware;
+        setSource(newSrc);
+        emit sourceChanged(static_cast<int>(newSrc));
+        return;
+    }
+
     QString moduleId, instanceId;
     if (instanceAt(scenePos, moduleId, instanceId)) {
         emit moduleOpened(moduleId, instanceId);
@@ -775,13 +940,23 @@ void MeasurementSetupView::onSceneClicked(const QPointF &scenePos)
     }
 
     auto *b = blockAt(scenePos);
-    if (b && b->category != "source") {
-        if (b->moduleName == "trace") {
-            // Trace 块: 点击跳转到对应的 Trace 标签页
-            emit moduleOpened("trace", b->id);
-        } else {
-            toggleBlock(b->id);
+    if (!b) return;
+
+    if (b->category == "source") {
+        // 点击数据源块: 切换到该数据源
+        Source newSrc = (b->id == "source_real") ? Source::Hardware : Source::File;
+        if (newSrc != m_source) {
+            setSource(newSrc);
+            emit sourceChanged(static_cast<int>(newSrc));
         }
+    } else if (b->moduleName == "trace") {
+        // Trace 块: 点击跳转到对应的 Trace 标签页
+        emit moduleOpened("trace", b->id);
+    } else if (b->moduleName == "graphic") {
+        // Graphic 块: 点击跳转到对应的 Graphic 标签页
+        emit moduleOpened("graphic", b->id);
+    } else {
+        toggleBlock(b->id);
     }
 }
 
@@ -794,12 +969,18 @@ void MeasurementSetupView::onSceneDoubleClicked(const QPointF &scenePos)
         if (b->moduleName == "trace") {
             // Trace 块: 跳转到对应的 Trace 标签页
             emit moduleOpened("trace", b->id);
+        } else if (b->moduleName == "graphic") {
+            // Graphic 块: 跳转到对应的 Graphic 标签页
+            emit moduleOpened("graphic", b->id);
         } else {
             emit moduleOpened(b->id, "");
         }
     } else if (b->category == "source") {
-        // 双击数据源 → 弹出配置对话框
-        showSourceConfigDialog();
+        // 双击数据源块 → 弹出对应配置对话框
+        if (b->id == "source_real")
+            showRealConfigDialog();
+        else
+            showFileConfigDialog();
     } else if (b->category == "channel") {
         // 双击通道 → 配置过滤条件
         showChannelFilterDialog(b->id);
@@ -812,6 +993,18 @@ void MeasurementSetupView::onSceneDoubleClicked(const QPointF &scenePos)
 void MeasurementSetupView::setSource(Source src)
 {
     m_source = src;
+    // 更新数据源块的 enabled 状态
+    if (m_blocks.contains("source_real"))
+        m_blocks["source_real"].enabled = (src == Source::Hardware);
+    if (m_blocks.contains("source_file"))
+        m_blocks["source_file"].enabled = (src == Source::File);
+    // 更新连线: 将旧数据源的连线替换为新数据源
+    QString oldId = (src == Source::Hardware) ? "source_file" : "source_real";
+    QString newId = (src == Source::Hardware) ? "source_real" : "source_file";
+    for (auto &conn : m_connections) {
+        if (conn.fromId == oldId)
+            conn.fromId = newId;
+    }
     rebuildScene();
 }
 
@@ -915,24 +1108,32 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
     // ---- 数据源块 ----
     if (block->category == "source") {
-        auto *actFile = m_rightMenu->addAction(QStringLiteral("📁 从文件回放"));
-        actFile->setStatusTip(QStringLiteral("选择 ASC/BLF/CSV 文件进行回放分析"));
-        connect(actFile, &QAction::triggered, this, [this]() {
-            showSourceConfigDialog();
-        });
-
-        auto *actHw = m_rightMenu->addAction(QStringLiteral("🔧 从硬件设备采集"));
-        actHw->setStatusTip(QStringLiteral("切换到硬件实时采集模式"));
-        connect(actHw, &QAction::triggered, this, [this]() {
-            setSource(Source::Hardware);
-            emit sourceChanged(static_cast<int>(Source::Hardware));
-        });
+        // 切换数据源
+        if (block->id == "source_real") {
+            auto *actSwitch = m_rightMenu->addAction(QStringLiteral("📁 切换到 File 文件回放"));
+            actSwitch->setStatusTip(QStringLiteral("切换到文件回放模式"));
+            connect(actSwitch, &QAction::triggered, this, [this]() {
+                setSource(Source::File);
+                emit sourceChanged(static_cast<int>(Source::File));
+            });
+        } else {
+            auto *actSwitch = m_rightMenu->addAction(QStringLiteral("🔧 切换到 Real 实时采集"));
+            actSwitch->setStatusTip(QStringLiteral("切换到硬件实时采集模式"));
+            connect(actSwitch, &QAction::triggered, this, [this]() {
+                setSource(Source::Hardware);
+                emit sourceChanged(static_cast<int>(Source::Hardware));
+            });
+        }
 
         m_rightMenu->addSeparator();
-        auto *actFileBrowse = m_rightMenu->addAction(QStringLiteral("📂 选择回放文件..."));
-        actFileBrowse->setStatusTip(QStringLiteral("ASC / BLF / CSV"));
-        connect(actFileBrowse, &QAction::triggered, this, [this]() {
-            emit fileBrowseRequested();
+        auto *actCfg = m_rightMenu->addAction(
+            block->id == "source_real" ? QStringLiteral("⚙️ 配置硬件参数...")
+                                       : QStringLiteral("⚙️ 选择回放文件..."));
+        connect(actCfg, &QAction::triggered, this, [this, block]() {
+            if (block->id == "source_real")
+                showRealConfigDialog();
+            else
+                showFileConfigDialog();
         });
     }
 
@@ -1003,7 +1204,7 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
             connect(actAdd, &QAction::triggered, this, [this]() {
                 emit moduleOpened("trace", "");
             });
-        } else if (block->id == "graphic") {
+        } else if (block->moduleName == "graphic") {
             auto *actAdd = m_rightMenu->addAction("📈 添加 Graphic 波形");
             actAdd->setStatusTip("新建一个 Graphic 波形图标签页");
             connect(actAdd, &QAction::triggered, this, [this]() {
@@ -1029,8 +1230,8 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
         auto *actOpen = m_rightMenu->addAction("🔗 跳转到对应标签页");
         actOpen->setStatusTip("在中心区域打开/切换到该模块的标签页");
         connect(actOpen, &QAction::triggered, this, [this, block]() {
-            if (block->moduleName == "trace")
-                emit moduleOpened("trace", block->id);
+            if (block->moduleName == "trace" || block->moduleName == "graphic")
+                emit moduleOpened(block->moduleName, block->id);
             else
                 emit moduleOpened(block->id, "");
         });
@@ -1044,12 +1245,14 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
         m_rightMenu->addSeparator();
 
-        // Trace 块: 删除实例; 其他模块: 删除块
-        auto *actDelMod = m_rightMenu->addAction(block->moduleName == "trace"
-            ? "🗑 删除此 Trace" : "🗑 删除此模块块");
+        // Trace / Graphic 块: 删除实例; 其他模块: 删除块
+        auto *actDelMod = m_rightMenu->addAction(
+            block->moduleName == "trace"   ? "🗑 删除此 Trace" :
+            block->moduleName == "graphic" ? "🗑 删除此 Graphic" :
+                                              "🗑 删除此模块块");
         connect(actDelMod, &QAction::triggered, this, [this, block]() {
-            if (block->moduleName == "trace")
-                emit moduleInstanceClosed("trace", block->id);
+            if (block->moduleName == "trace" || block->moduleName == "graphic")
+                emit moduleInstanceClosed(block->moduleName, block->id);
             else
                 removeModuleBlock(block->id);
         });
@@ -1081,10 +1284,15 @@ void MeasurementSetupView::buildEmptyAreaMenu(const QPointF &)
         emit moduleOpened("trace", "");
     });
 
+    // Graphic: 总是可以添加新块
+    auto *actAddGraphic = m_rightMenu->addAction(QString::fromUtf8("\xF0\x9F\x93\x88 添加 Graphic 波形"));
+    connect(actAddGraphic, &QAction::triggered, this, [this]() {
+        emit moduleOpened("graphic", "");
+    });
+
     // 仅在画布上不存在该类型模块时显示添加选项
     struct ModDef { QString id; QString icon; QString title; QColor color; };
     ModDef stdMods[] = {
-        {"graphic",  "\xF0\x9F\x93\x88", "Graphic 波形",     QColor(0xF4, 0x43, 0x36)},
         {"data",     "\xF0\x9F\x93\x8A", "Data 统计",        QColor(0x4C, 0xAF, 0x50)},
         {"record",   "\xE2\x97\x8F",     "录制 Record",      QColor(0xFF, 0x98, 0x00)},
     };
@@ -1132,49 +1340,38 @@ void MeasurementSetupView::buildEmptyAreaMenu(const QPointF &)
 }
 
 // ============================================================
-//  数据源配置对话框
+//  File 文件回放配置对话框 — 仅选择文件 + 文件列表
 // ============================================================
-void MeasurementSetupView::showSourceConfigDialog()
+void MeasurementSetupView::showFileConfigDialog()
 {
     QDialog dlg(this);
-    dlg.setWindowTitle("配置数据源");
+    dlg.setWindowTitle("File 文件回放配置");
     dlg.setMinimumWidth(420);
     auto *lay = new QVBoxLayout(&dlg);
 
-    auto *grp = new QGroupBox("选择数据源类型", &dlg);
-    auto *grpLay = new QVBoxLayout(grp);
-    auto *rbFile = new QRadioButton(QStringLiteral("📁 从文件回放（ASC / BLF / CSV）"), grp);
-    auto *rbHw   = new QRadioButton(QStringLiteral("🔧 从硬件设备采集（实时 CAN 通道）"), grp);
-    rbHw->setChecked(true);
-    grpLay->addWidget(rbFile);
-    grpLay->addWidget(rbHw);
-    lay->addWidget(grp);
+    // 当前文件
+    auto *curLabel = new QLabel(
+        m_filePath.isEmpty() ? QStringLiteral("当前未选择文件")
+                               : QStringLiteral("当前: %1").arg(m_filePath),
+        &dlg);
+    curLabel->setWordWrap(true);
+    lay->addWidget(curLabel);
 
-    // 文件列表区域
-    auto *fileWidget = new QWidget(&dlg);
-    auto *fileLay = new QVBoxLayout(fileWidget);
-    fileLay->setContentsMargins(0, 0, 0, 0);
-    auto *fileHint = new QLabel("最近文件:", fileWidget);
-    fileLay->addWidget(fileHint);
-    auto *fileList = new QListWidget(fileWidget);
+    // 文件列表
+    auto *fileHint = new QLabel("最近文件:", &dlg);
+    lay->addWidget(fileHint);
+    auto *fileList = new QListWidget(&dlg);
     fileList->setMinimumHeight(120);
     fileList->setMaximumHeight(180);
     for (const auto &f : m_recentFiles)
         fileList->addItem(f);
     if (m_recentFiles.isEmpty())
         fileList->addItem("（暂无最近文件，请点击“浏览...”选择）");
-    fileLay->addWidget(fileList);
+    lay->addWidget(fileList);
 
-    auto *browseBtn = new QPushButton("📂 浏览其他文件...", fileWidget);
-    fileLay->addWidget(browseBtn);
-
-    lay->addWidget(fileWidget);
-    fileWidget->setVisible(false); // 默认隐藏，选中文件模式时显示
-
-    // 切换显示
-    connect(rbFile, &QRadioButton::toggled, this, [fileWidget](bool on) {
-        fileWidget->setVisible(on);
-    });
+    // 浏览按钮
+    auto *browseBtn = new QPushButton("📂 浏览其他文件...", &dlg);
+    lay->addWidget(browseBtn);
 
     // 浏览文件
     QObject::connect(browseBtn, &QPushButton::clicked, this, [this, &dlg]() {
@@ -1187,8 +1384,6 @@ void MeasurementSetupView::showSourceConfigDialog()
         int row = fileList->currentRow();
         if (row >= 0 && row < m_recentFiles.size()) {
             setFilePath(m_recentFiles[row]);
-            setSource(Source::File);
-            emit sourceChanged(static_cast<int>(Source::File));
             emit fileBrowseRequested();
         }
     });
@@ -1196,18 +1391,201 @@ void MeasurementSetupView::showSourceConfigDialog()
     // 按钮组
     auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
     lay->addWidget(btns);
-    connect(btns, &QDialogButtonBox::accepted, this, [this, rbFile, fileList, &dlg]() {
-        if (rbFile->isChecked()) {
-            setSource(Source::File);
-            emit sourceChanged(static_cast<int>(Source::File));
-            int row = fileList->currentRow();
-            if (row >= 0 && row < m_recentFiles.size())
-                setFilePath(m_recentFiles[row]);
+    connect(btns, &QDialogButtonBox::accepted, this, [this, fileList, &dlg]() {
+        int row = fileList->currentRow();
+        if (row >= 0 && row < m_recentFiles.size()) {
+            setFilePath(m_recentFiles[row]);
             emit fileBrowseRequested();
-        } else {
-            setSource(Source::Hardware);
-            emit sourceChanged(static_cast<int>(Source::Hardware));
         }
+        dlg.accept();
+    });
+    connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    dlg.exec();
+}
+
+// ============================================================
+//  Real 硬件参数配置对话框 — CAN/CAN FD 详细参数
+// ============================================================
+void MeasurementSetupView::showRealConfigDialog()
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle("Real 硬件参数配置");
+    dlg.setMinimumWidth(480);
+    auto *form = new QFormLayout(&dlg);
+    form->setSpacing(6);
+
+    // --- 基本设置 ---
+    auto *titleBasic = new QLabel("<b>基本设置</b>", &dlg);
+    form->addRow(titleBasic);
+
+    // CAN 模式
+    auto *modeCombo = new QComboBox(&dlg);
+    modeCombo->addItem("Classic CAN");
+    modeCombo->addItem("CAN FD");
+    modeCombo->setCurrentIndex(m_hwConfig.canFd ? 1 : 0);
+    form->addRow("CAN 模式:", modeCombo);
+
+    // CAN 通道
+    auto *channelSpin = new QSpinBox(&dlg);
+    channelSpin->setRange(1, 32);
+    channelSpin->setValue(m_hwConfig.channel);
+    form->addRow("CAN 通道:", channelSpin);
+
+    // --- 仲裁段时序参数 (Classic CAN / CAN FD 仲裁段) ---
+    auto *titleArb = new QLabel("<b>仲裁段时序 (Classic CAN / CAN FD Arbitration)</b>", &dlg);
+    form->addRow(titleArb);
+
+    // 仲裁段波特率
+    auto *baudCombo = new QComboBox(&dlg);
+    baudCombo->setEditable(true);
+    baudCombo->addItems({"100000", "125000", "250000", "500000", "800000", "1000000"});
+    baudCombo->setCurrentText(QString::number(m_hwConfig.arbBaudrate));
+    form->addRow("仲裁段波特率 (bps):", baudCombo);
+
+    // 采样点
+    auto *sampleSpin = new QDoubleSpinBox(&dlg);
+    sampleSpin->setRange(50.0, 90.0);
+    sampleSpin->setSuffix(" %");
+    sampleSpin->setSingleStep(0.5);
+    sampleSpin->setValue(m_hwConfig.samplePoint);
+    form->addRow("采样点:", sampleSpin);
+
+    // SJW
+    auto *sjwSpin = new QSpinBox(&dlg);
+    sjwSpin->setRange(1, 4);
+    sjwSpin->setSuffix(" TQ");
+    sjwSpin->setValue(m_hwConfig.sjw);
+    form->addRow("同步跳转宽度 (SJW):", sjwSpin);
+
+    // TSEG1
+    auto *tseg1Spin = new QSpinBox(&dlg);
+    tseg1Spin->setRange(1, 32);
+    tseg1Spin->setSuffix(" TQ");
+    tseg1Spin->setValue(m_hwConfig.tseg1);
+    form->addRow("时间段 1 (TSEG1):", tseg1Spin);
+
+    // TSEG2
+    auto *tseg2Spin = new QSpinBox(&dlg);
+    tseg2Spin->setRange(1, 16);
+    tseg2Spin->setSuffix(" TQ");
+    tseg2Spin->setValue(m_hwConfig.tseg2);
+    form->addRow("时间段 2 (TSEG2):", tseg2Spin);
+
+    // --- CAN FD 数据段时序参数 (仅 CAN FD 模式) ---
+    auto *titleData = new QLabel("<b>数据段时序 (CAN FD Data Phase)</b>", &dlg);
+    form->addRow(titleData);
+
+    // 数据段波特率
+    auto *dataBaudCombo = new QComboBox(&dlg);
+    dataBaudCombo->setEditable(true);
+    dataBaudCombo->addItems({"500000", "1000000", "2000000", "4000000", "5000000", "8000000"});
+    dataBaudCombo->setCurrentText(QString::number(m_hwConfig.dataBaudrate));
+    form->addRow("数据段波特率 (bps):", dataBaudCombo);
+
+    // 数据段采样点
+    auto *dataSampleSpin = new QDoubleSpinBox(&dlg);
+    dataSampleSpin->setRange(50.0, 90.0);
+    dataSampleSpin->setSuffix(" %");
+    dataSampleSpin->setSingleStep(0.5);
+    dataSampleSpin->setValue(m_hwConfig.dataSamplePoint);
+    form->addRow("数据段采样点:", dataSampleSpin);
+
+    // 数据段 SJW
+    auto *dataSjwSpin = new QSpinBox(&dlg);
+    dataSjwSpin->setRange(1, 4);
+    dataSjwSpin->setSuffix(" TQ");
+    dataSjwSpin->setValue(m_hwConfig.dataSjw);
+    form->addRow("数据段 SJW:", dataSjwSpin);
+
+    // 数据段 TSEG1
+    auto *dataTseg1Spin = new QSpinBox(&dlg);
+    dataTseg1Spin->setRange(1, 32);
+    dataTseg1Spin->setSuffix(" TQ");
+    dataTseg1Spin->setValue(m_hwConfig.dataTseg1);
+    form->addRow("数据段 TSEG1:", dataTseg1Spin);
+
+    // 数据段 TSEG2
+    auto *dataTseg2Spin = new QSpinBox(&dlg);
+    dataTseg2Spin->setRange(1, 16);
+    dataTseg2Spin->setSuffix(" TQ");
+    dataTseg2Spin->setValue(m_hwConfig.dataTseg2);
+    form->addRow("数据段 TSEG2:", dataTseg2Spin);
+
+    // --- 模拟参数 ---
+    auto *titleSim = new QLabel("<b>模拟参数</b>", &dlg);
+    form->addRow(titleSim);
+
+    // 帧生成间隔
+    auto *intervalSpin = new QSpinBox(&dlg);
+    intervalSpin->setRange(1, 1000);
+    intervalSpin->setSuffix(" ms");
+    intervalSpin->setValue(m_hwConfig.intervalMs);
+    form->addRow("帧生成间隔:", intervalSpin);
+
+    // 显示计算信息
+    auto *infoLabel = new QLabel(&dlg);
+    infoLabel->setWordWrap(true);
+    infoLabel->setStyleSheet("color: gray; font-size: 11px;");
+    auto updateInfo = [&]() {
+        int totalTq = tseg1Spin->value() + tseg2Spin->value() + 1; // +1 for SYNC
+        int baud = baudCombo->currentText().toInt();
+        double bitTime = 1.0 / baud;
+        double tqTime = bitTime / totalTq;
+        double sp = static_cast<double>(tseg1Spin->value() + 1) / totalTq * 100;
+        QString info = QString("仲裁段: %1 bps, %2 TQ (SYNC 1 + TSEG1 %3 + TSEG2 %4)\n"
+                               "实际采样点: %5%, 位时间: %6 ns, TQ: %7 ns")
+            .arg(baud)
+            .arg(totalTq)
+            .arg(tseg1Spin->value())
+            .arg(tseg2Spin->value())
+            .arg(sp, 0, 'f', 1)
+            .arg(bitTime * 1e9, 0, 'f', 0)
+            .arg(tqTime * 1e9, 0, 'f', 1);
+        if (modeCombo->currentIndex() == 1) {
+            int dTq = dataTseg1Spin->value() + dataTseg2Spin->value() + 1;
+            int dBaud = dataBaudCombo->currentText().toInt();
+            double dBitTime = 1.0 / dBaud;
+            double dTqTime = dBitTime / dTq;
+            double dSp = static_cast<double>(dataTseg1Spin->value() + 1) / dTq * 100;
+            info += QString("\n数据段: %1 bps, %2 TQ (SYNC 1 + TSEG1 %3 + TSEG2 %4)\n"
+                             "数据采样点: %5%, 位时间: %6 ns, TQ: %7 ns")
+                .arg(dBaud)
+                .arg(dTq)
+                .arg(dataTseg1Spin->value())
+                .arg(dataTseg2Spin->value())
+                .arg(dSp, 0, 'f', 1)
+                .arg(dBitTime * 1e9, 0, 'f', 0)
+                .arg(dTqTime * 1e9, 0, 'f', 1);
+        }
+        infoLabel->setText(info);
+    };
+    updateInfo();
+    for (auto *sb : {static_cast<QSpinBox *>(tseg1Spin), static_cast<QSpinBox *>(tseg2Spin)})
+        connect(sb, QOverload<int>::of(&QSpinBox::valueChanged), updateInfo);
+    connect(baudCombo, &QComboBox::currentTextChanged, updateInfo);
+    connect(modeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), updateInfo);
+    form->addRow(infoLabel);
+
+    // 按钮
+    auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    form->addRow(btns);
+
+    connect(btns, &QDialogButtonBox::accepted, this, [&]() {
+        m_hwConfig.canFd = (modeCombo->currentIndex() == 1);
+        m_hwConfig.channel = channelSpin->value();
+        m_hwConfig.arbBaudrate = baudCombo->currentText().toInt();
+        m_hwConfig.samplePoint = static_cast<int>(sampleSpin->value());
+        m_hwConfig.sjw = sjwSpin->value();
+        m_hwConfig.tseg1 = tseg1Spin->value();
+        m_hwConfig.tseg2 = tseg2Spin->value();
+        m_hwConfig.dataBaudrate = dataBaudCombo->currentText().toInt();
+        m_hwConfig.dataSamplePoint = static_cast<int>(dataSampleSpin->value());
+        m_hwConfig.dataSjw = dataSjwSpin->value();
+        m_hwConfig.dataTseg1 = dataTseg1Spin->value();
+        m_hwConfig.dataTseg2 = dataTseg2Spin->value();
+        m_hwConfig.intervalMs = intervalSpin->value();
+        emit realConfigChanged(m_hwConfig);
         dlg.accept();
     });
     connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);

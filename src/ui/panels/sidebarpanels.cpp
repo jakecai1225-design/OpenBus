@@ -688,28 +688,15 @@ ToolsPanel::ToolsPanel(QWidget *parent)
     convItem->setData(Qt::UserRole, "blf_converter");
     convItem->setToolTip("报文日志文件格式互转：BLF / ASC / CSV 之间转换");
 
-    // DBC 工具类
-    auto *dbcItem = new QListWidgetItem("\xF0\x9F\x93\x9D DBC 查看编辑", m_list);
-    dbcItem->setData(Qt::UserRole, "dbc_editor");
-    dbcItem->setToolTip("独立打开 DBC 文件，查看报文/信号定义并编辑属性");
+    // DBC 工具类（合并：查看编辑 + 信号清单导出）
+    auto *dbcItem = new QListWidgetItem("\xF0\x9F\x93\x9D DBC 工具", m_list);
+    dbcItem->setData(Qt::UserRole, "dbc_tool");
+    dbcItem->setToolTip("DBC 查看/编辑 + 信号清单导出");
 
-    // 总线统计分析类
-    auto *statItem = new QListWidgetItem("\xF0\x9F\x93\x8A 报文统计分析", m_list);
-    statItem->setData(Qt::UserRole, "frame_statistics");
-    statItem->setToolTip("加载日志文件，统计各 CAN ID 帧数、频率、周期与抖动");
-
-    auto *idFreqItem = new QListWidgetItem("\xF0\x9F\x94\xA2 ID 频率/周期分析", m_list);
-    idFreqItem->setData(Qt::UserRole, "id_frequency");
-    idFreqItem->setToolTip("按 CAN ID 统计报文周期均值/最大/最小/标准差");
-
-    auto *loadItem = new QListWidgetItem("\xF0\x9F\x93\x88 总线负载率", m_list);
-    loadItem->setData(Qt::UserRole, "bus_load");
-    loadItem->setToolTip("基于波特率与数据量计算总线负载率");
-
-    // DBC 信号快速提取
-    auto *sigListItem = new QListWidgetItem("\xF0\x9F\x90\x9D DBC 信号清单导出", m_list);
-    sigListItem->setData(Qt::UserRole, "dbc_signal_list");
-    sigListItem->setToolTip("从 DBC 导出全部报文/信号清单为 CSV/Markdown");
+    // 总线统计分析类（合并：报文统计 + ID 频率/周期 + 总线负载率）
+    auto *statItem = new QListWidgetItem("\xF0\x9F\x93\x8A 总线统计分析", m_list);
+    statItem->setData(Qt::UserRole, "bus_analysis");
+    statItem->setToolTip("报文统计 / ID 频率周期 / 总线负载率");
 
     cl->addWidget(m_list);
 

@@ -63,6 +63,7 @@
 #include <QComboBox>
 #include <QProgressDialog>
 #include <QRegularExpression>
+#include <algorithm>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -1361,45 +1362,73 @@ void MainWindow::onOpenMeasurementSetup()
     });
     connect(view, &MeasurementSetupView::fileBrowseRequested,
             this, [this, view]() {
-        // 支持 ASC / BLF / CSV 回放格式
+        // 支持多文件选择
         const auto filters = FileImportFactory::fileFilters();
-        QString path = QFileDialog::getOpenFileName(
-            this, QStringLiteral("选择回放文件"), {},
+        QStringList paths = QFileDialog::getOpenFileNames(
+            this, QStringLiteral("选择回放文件（可多选）"), {},
             filters.join(QStringLiteral(";;")));
-        if (path.isEmpty()) return;
+        if (paths.isEmpty()) return;
 
-        QFileInfo fi(path);
-        QString suffix = fi.suffix().toLower();
-
-        // ASC/CSV/BLF 用 FileImporter 解析后载入 Player
-        auto importer = FileImportFactory::create(path);
-        if (!importer) {
-            QMessageBox::warning(this, QStringLiteral("回放"),
-                QStringLiteral("不支持的文件格式: ") + suffix);
-            return;
-        }
+        QVector<CanFrame> allFrames;
+        QStringList loadedNames;
+        int totalFiles = paths.size();
 
         QProgressDialog progress(QStringLiteral("正在导入回放文件..."),
-                                 QStringLiteral("取消"), 0, 100, this);
+                                 QStringLiteral("取消"), 0, totalFiles * 100, this);
         progress.setWindowModality(Qt::WindowModal);
         progress.setMinimumDuration(500);
 
-        auto frames = importer->importFile(path, [&progress](double pct) {
-            progress.setValue(static_cast<int>(pct * 100));
-            QApplication::processEvents();
-        });
+        for (int fi_idx = 0; fi_idx < paths.size(); ++fi_idx) {
+            const auto &path = paths[fi_idx];
+            QFileInfo fi(path);
+            QString suffix = fi.suffix().toLower();
 
-        if (progress.wasCanceled()) return;
+            auto importer = FileImportFactory::create(path);
+            if (!importer) {
+                m_bottomPanel->appendOutput(
+                    QStringLiteral("⚠ 不支持的格式: %1").arg(suffix));
+                continue;
+            }
 
-        if (frames.isEmpty()) {
-            QMessageBox::warning(this, QStringLiteral("回放"),
-                QStringLiteral("文件为空或解析失败"));
+            int baseProgress = fi_idx * 100;
+            auto frames = importer->importFile(path, [&, baseProgress](double pct) {
+                progress.setValue(baseProgress + static_cast<int>(pct * 100));
+                QApplication::processEvents();
+            });
+
+            if (progress.wasCanceled()) break;
+
+            if (frames.isEmpty()) {
+                m_bottomPanel->appendOutput(
+                    QStringLiteral("⚠ 文件为空或解析失败: %1").arg(fi.fileName()));
+                continue;
+            }
+
+            allFrames += frames;
+            loadedNames << fi.fileName();
+            m_bottomPanel->appendOutput(
+                QStringLiteral("已加载: %1 (%2 帧)")
+                    .arg(fi.fileName()).arg(frames.size()));
+        }
+
+        if (progress.wasCanceled() || allFrames.isEmpty()) {
+            if (allFrames.isEmpty())
+                QMessageBox::warning(this, QStringLiteral("回放"),
+                    QStringLiteral("所有文件解析失败或为空"));
             return;
         }
 
-        m_player->loadFrames(frames);
-        view->setFilePath(path);
-        m_bottomPanel->appendOutput(QStringLiteral("已加载回放文件：") + fi.fileName());
+        // 按时间戳排序合并的帧
+        std::sort(allFrames.begin(), allFrames.end(),
+                  [](const CanFrame &a, const CanFrame &b) {
+                      return a.timestamp < b.timestamp;
+                  });
+
+        m_player->loadFrames(allFrames);
+        view->setFilePath(paths.first());
+        m_bottomPanel->appendOutput(
+            QStringLiteral("✅ 共加载 %1 个文件, %2 帧")
+                .arg(loadedNames.size()).arg(allFrames.size()));
     });
     connect(view, &MeasurementSetupView::measurementToggled,
             this, [this, view](bool running) {
@@ -1422,6 +1451,17 @@ void MainWindow::onOpenMeasurementSetup()
             this, [this](const QString &name, bool enabled) {
         m_bottomPanel->appendOutput(QString("模块 %1 %2")
                                     .arg(name).arg(enabled ? "已启用" : "已禁用"));
+    });
+    connect(view, &MeasurementSetupView::realConfigChanged,
+            this, [this](const MeasurementSetupView::CanHwConfig &cfg) {
+        m_simulator->setBaudrate(cfg.arbBaudrate);
+        m_simulator->setChannel(static_cast<quint8>(cfg.channel));
+        m_simulator->setIntervalMs(cfg.intervalMs);
+        QString mode = cfg.canFd ? "CAN FD" : "Classic CAN";
+        m_bottomPanel->appendOutput(
+            QStringLiteral("硬件参数: %1 | CH%2 | 仲裁 %3 bps (SP %4% SJW %5 TQ) | 间隔 %6ms")
+                .arg(mode).arg(cfg.channel).arg(cfg.arbBaudrate)
+                .arg(cfg.samplePoint).arg(cfg.sjw).arg(cfg.intervalMs));
     });
     connect(view, &MeasurementSetupView::moduleOpened,
             this, [this, view](const QString &moduleId, const QString &instanceId) {
@@ -1558,6 +1598,19 @@ void MainWindow::onOpenMeasurementSetup()
         view->addModuleInstance("trace", "trace1", "Trace1");
     }
 
+    // 注册默认 Graphic 实例到测量配置画布
+    if (m_graphicView) {
+        if (!m_graphicInstances.contains("graphic1")) {
+            m_graphicInstances["graphic1"] = m_graphicView;
+            connect(m_graphicView, &QObject::destroyed, this, [this](QObject *) {
+                m_graphicInstances.remove("graphic1");
+                if (m_setupView)
+                    m_setupView->removeModuleInstance("graphic", "graphic1");
+            });
+        }
+        view->addModuleInstance("graphic", "graphic1", "Graphic1");
+    }
+
     openTab(view, "📊 测量配置");
 }
 
@@ -1567,21 +1620,12 @@ void MainWindow::onToolOpened(const QString &toolKey)
     if (toolKey == "blf_converter") {
         auto *conv = new BlfAsConverter(this);
         openTab(conv, QStringLiteral("🔄 格式转换"));
-    } else if (toolKey == "dbc_editor") {
-        auto *editor = new DbcToolView(this);
-        openTab(editor, QStringLiteral("📝 DBC 编辑"));
-    } else if (toolKey == "frame_statistics") {
-        auto *view = new FrameStatisticsView(this);
-        openTab(view, QStringLiteral("📊 报文统计"));
-    } else if (toolKey == "id_frequency") {
-        auto *view = new IdFrequencyView(this);
-        openTab(view, QStringLiteral("🔍 ID 频率分析"));
-    } else if (toolKey == "bus_load") {
-        auto *view = new BusLoadView(this);
-        openTab(view, QStringLiteral("📈 总线负载率"));
-    } else if (toolKey == "dbc_signal_list") {
-        auto *view = new DbcSignalListView(this);
-        openTab(view, QStringLiteral("📋 DBC 信号清单"));
+    } else if (toolKey == "dbc_tool") {
+        auto *view = new DbcUnifiedView(this);
+        openTab(view, QStringLiteral("📝 DBC 工具"));
+    } else if (toolKey == "bus_analysis") {
+        auto *view = new BusAnalysisView(this);
+        openTab(view, QStringLiteral("📊 总线统计分析"));
     }
 }
 
