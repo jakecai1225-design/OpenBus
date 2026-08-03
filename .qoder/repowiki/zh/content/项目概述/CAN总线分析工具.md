@@ -45,6 +45,7 @@
 - 添加了行标记和自定义着色功能，支持高亮重要帧
 - 改进了过滤代理模型，支持高级过滤操作符和范围过滤
 - 新增了覆盖模式，同CAN ID的帧只保留一行并实时更新数据
+- **新增**：FilterHeaderView组件提供完整的Wireshark风格漏斗表头过滤功能
 
 ## 目录
 1. [简介](#简介)
@@ -61,7 +62,7 @@
 ## 简介
 本工具是一个基于 Qt 的 CAN 总线分析应用，提供实时抓包、过滤、回放与录制功能，并通过图形化视图展示信号时序。整体采用分层架构：UI 层负责交互与可视化，模型层封装数据与过滤逻辑，核心层实现播放器、录制器、仿真器与 DBC 数据库管理，工具层提供通用辅助能力。构建系统使用 CMake，资源通过 Qt 资源系统进行管理。
 
-**更新** 增强了CAN追踪分析功能，新增了帧编号和时间增量计算，提供了Wireshark风格的过滤界面和行标记着色功能，显著提升了数据分析能力和用户体验。
+**更新** 增强了CAN追踪分析功能，新增了帧编号和时间增量计算，提供了Wireshark风格的过滤界面和行标记着色功能，显著提升了数据分析能力和用户体验。**最新增强**：FilterHeaderView组件实现了完整的Wireshark风格漏斗表头过滤功能，为用户提供直观的列级数据筛选体验。
 
 ## 项目结构
 项目按职责划分为以下模块：
@@ -125,7 +126,7 @@ S["Qt 资源<br/>resources/*"] --> B
 - CAN 帧定义：统一的数据结构，承载 ID、数据长度、时间戳与载荷等字段，贯穿 UI、模型与核心模块。
 - 追踪模型：维护 CAN 帧序列并提供排序、分页与查询接口，支持帧编号、时间增量、行标记和自定义着色。
 - 过滤代理模型：对底层追踪模型进行动态过滤，支持按 ID、掩码、方向等条件筛选，以及高级操作符和范围过滤。
-- 过滤表头：Wireshark风格的交互式表头，支持鼠标悬停显示漏斗图标和列级过滤。
+- **过滤表头**：Wireshark风格的交互式表头，支持鼠标悬停显示漏斗图标和列级过滤，提供直观的数据筛选体验。
 - 播放器：从文件或缓冲区读取 CAN 帧并按时间轴回放，驱动 UI 更新。
 - 录制器：将实时或回放中的 CAN 帧写入文件，支持格式选择与轮转策略。
 - 仿真器：生成测试用 CAN 帧流，用于验证 UI 与处理链路。
@@ -133,7 +134,7 @@ S["Qt 资源<br/>resources/*"] --> B
 - DBC 数据模型：存储 DBC 文件的结构化数据，包括消息、信号、节点等信息。
 - 工具库：提供字节序转换、校验和计算、字符串解析等通用方法。
 
-**更新** 增强了追踪模型的帧编号和时间增量功能，新增了Wireshark风格的过滤表头和行标记着色能力，显著提升了数据分析体验。
+**更新** 增强了追踪模型的帧编号和时间增量功能，新增了Wireshark风格的过滤表头和行标记着色能力，显著提升了数据分析体验。**最新增强**：FilterHeaderView组件实现了完整的Wireshark风格漏斗表头过滤功能，为用户提供专业的数据筛选体验。
 
 章节来源
 - [src/core/canframe.h](file://src/core/canframe.h)
@@ -168,12 +169,15 @@ class TraceView {
 +滚动定位()
 +支持行标记()
 +支持自定义着色()
++自动绑定FilterHeaderView()
 }
 class FilterHeaderView {
 +绘制漏斗图标()
 +处理鼠标事件()
 +触发列过滤()
 +支持排序切换()
++状态管理()
++视觉反馈()
 }
 class FilterBar {
 +设置过滤规则()
@@ -206,6 +210,7 @@ class CanFilterProxyModel {
 +列级过滤()
 +高级操作符()
 +范围过滤()
++状态查询()
 }
 class Player {
 +加载源()
@@ -293,18 +298,28 @@ DBCManager --> CanUtils : "辅助"
 - 数据绑定：通过 CanFilterProxyModel 访问 CanTraceModel，确保过滤与排序不影响底层数据。
 - 性能优化：延迟渲染、按需加载、批量更新。
 - **新增功能**：支持行标记和自定义着色，可高亮重要帧并设置个性化背景色。
+- **自动集成**：在setModel时自动将代理模型传递给FilterHeaderView，实现无缝集成。
 
 章节来源
 - [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
 - [src/ui/traceview.h](file://src/ui/traceview.h)
 
 ### 过滤表头（FilterHeaderView）
-- 职责：实现Wireshark风格的交互式表头，支持鼠标悬停显示漏斗图标和列级过滤。
-- 视觉反馈：鼠标悬停时显示半透明漏斗图标，已有过滤条件时持续高亮显示。
-- 交互功能：点击漏斗图标触发列过滤对话框，左侧三角形支持排序切换。
-- 状态管理：跟踪当前悬停列号，智能判断过滤状态并更新视觉效果。
+- **核心功能**：实现Wireshark风格的交互式表头，支持鼠标悬停显示漏斗图标和列级过滤。
+- **视觉设计**：
+  - 鼠标悬停时显示半透明漏斗图标，提供直观的过滤入口
+  - 已有过滤条件时漏斗图标持续高亮显示，清晰标识当前过滤状态
+  - 漏斗图标左侧绘制小三角形，点击触发排序切换
+- **交互特性**：
+  - 智能悬停检测：跟踪当前悬停列号，智能判断过滤状态并更新视觉效果
+  - 鼠标形状反馈：在漏斗图标区域显示手型光标，提升用户体验
+  - 事件处理：点击漏斗图标触发filterClicked信号，弹出列筛选对话框
+- **技术实现**：
+  - 继承QHeaderView并重写paintSection、mouseMoveEvent、leaveEvent、mousePressEvent
+  - 使用QPainterPath绘制漏斗形状，支持激活态和悬停态的颜色变化
+  - 与CanFilterProxyModel集成，实时查询各列过滤状态
 
-**新增组件** 实现了完整的Wireshark风格过滤界面，提供了直观的列级过滤操作体验。
+**重大增强** 实现了完整的Wireshark风格过滤界面，提供了直观的列级过滤操作体验，显著提升数据分析效率。
 
 章节来源
 - [src/ui/filterheaderview.cpp](file://src/ui/filterheaderview.cpp)
@@ -362,8 +377,9 @@ DBCManager --> CanUtils : "辅助"
   - 范围过滤：支持时间范围和数值范围过滤
   - 列级过滤：每列独立的过滤条件和状态管理
   - 智能匹配：根据列类型自动选择合适的匹配策略
+  - 状态查询：hasColumnFilter方法支持FilterHeaderView查询过滤状态
 
-**显著改进** 增强了过滤代理模型的功能，支持更复杂的过滤表达式和更智能的匹配算法。
+**显著改进** 增强了过滤代理模型的功能，支持更复杂的过滤表达式和更智能的匹配算法，为FilterHeaderView提供必要的状态查询接口。
 
 章节来源
 - [src/models/canfilterproxymodel.cpp](file://src/models/canfilterproxymodel.cpp)
@@ -447,11 +463,15 @@ class CanFilterProxyModel {
 +refresh()
 +setColumnFilter(column, text)
 +hasColumnFilter(column)
++columnFilter(column)
 }
 class FilterHeaderView {
 +setProxyModel(proxy)
 +hasFilter(logicalIndex)
 +filterClicked(index)
++paintSection()
++mouseMoveEvent()
++mousePressEvent()
 }
 class DBCMessage {
 +name : string
@@ -544,6 +564,28 @@ NotifyChange --> End(["完成"])
 图表来源
 - [src/models/cantracemodel.cpp](file://src/models/cantracemodel.cpp)
 
+### FilterHeaderView工作流程（新增）
+```mermaid
+flowchart TD
+MouseMove["鼠标移动"] --> CheckHover["检查悬停位置"]
+CheckHover --> HoverActive{"是否在漏斗区域?"}
+HoverActive --> |是| ShowHandCursor["显示手型光标"]
+HoverActive --> |否| NormalCursor["正常光标"]
+ShowHandCursor --> UpdateVisual["更新视觉效果"]
+NormalCursor --> UpdateVisual
+UpdateVisual --> PaintIcon["绘制漏斗图标"]
+PaintIcon --> MouseClick["鼠标点击"]
+MouseClick --> CheckFilter{"是否点击漏斗?"}
+CheckFilter --> |是| EmitSignal["发射filterClicked信号"]
+CheckFilter --> |否| DefaultBehavior["默认行为"]
+EmitSignal --> ColumnFilter["触发列过滤"]
+DefaultBehavior --> End(["完成"])
+ColumnFilter --> End
+```
+
+图表来源
+- [src/ui/filterheaderview.cpp](file://src/ui/filterheaderview.cpp)
+
 ## 依赖关系分析
 - 模块耦合：UI 层依赖模型与核心层；模型层仅依赖工具层；核心层不依赖 UI。
 - 外部依赖：Qt GUI/Widgets、CMake 构建系统、Qt 资源系统。
@@ -585,8 +627,9 @@ QRC --> UI
 - I/O 优化：异步写入与批处理，降低磁盘压力。
 - 内存管理：对象池与引用计数，避免频繁分配与回收。
 - **新增优化**：覆盖模式下的高效行更新，避免不必要的插入删除操作；行标记和着色的增量更新机制。
+- **FilterHeaderView优化**：智能悬停检测避免不必要的重绘，高效的漏斗图标绘制算法。
 
-**更新** 新增了覆盖模式和行标记功能的性能优化，确保大量数据处理时的流畅性。
+**更新** 新增了覆盖模式和行标记功能的性能优化，确保大量数据处理时的流畅性。**最新增强**：FilterHeaderView采用高效的绘制算法和智能的事件处理机制，确保流畅的用户交互体验。
 
 ## 故障排查指南
 - 无法加载资源：检查 Qt 资源路径与编译输出目录是否一致。
@@ -599,8 +642,12 @@ QRC --> UI
 - **新增**：行标记失效：检查行号映射是否正确，确认数据更新信号是否正常发送。
 - **新增**：覆盖模式异常：验证CAN ID映射表状态，检查数据一致性。
 - **新增**：过滤表头不显示：确认FilterHeaderView正确绑定代理模型，检查事件处理。
+- **FilterHeaderView问题**：
+  - 漏斗图标不显示：检查列宽是否足够（至少30像素），确认hover属性已启用
+  - 过滤状态不同步：验证hasColumnFilter方法调用是否正确，检查代理模型状态
+  - 鼠标事件异常：确认mouseMoveEvent和mousePressEvent重写是否正确
 
-**更新** 新增了覆盖模式、行标记和过滤表头相关的故障排查指南。
+**更新** 新增了覆盖模式、行标记和过滤表头相关的故障排查指南。**最新增强**：增加了FilterHeaderView专用的故障排查指导，帮助用户快速定位和解决相关问题。
 
 章节来源
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
@@ -612,9 +659,9 @@ QRC --> UI
 - [src/ui/filterheaderview.cpp](file://src/ui/filterheaderview.cpp)
 
 ## 结论
-该 CAN 总线分析工具通过清晰的层次划分与稳定的接口设计，实现了高效的抓包、过滤、回放与录制功能。UI 与模型解耦提升了可维护性与可扩展性，核心层提供了可靠的播放、录制、仿真与 DBC 数据库管理能力。**最新更新** 大幅增强了CAN追踪分析功能，新增了帧编号和时间增量计算、Wireshark风格的过滤界面、行标记着色功能和覆盖模式，显著提升了数据分析能力和用户体验。这些改进使工具能够更好地满足复杂CAN总线数据分析需求，为开发和测试提供了更强大的支持。建议在后续迭代中继续优化渲染与 I/O 性能，并增强错误诊断与用户引导。
+该 CAN 总线分析工具通过清晰的层次划分与稳定的接口设计，实现了高效的抓包、过滤、回放与录制功能。UI 与模型解耦提升了可维护性与可扩展性，核心层提供了可靠的播放、录制、仿真与 DBC 数据库管理能力。**最新更新** 大幅增强了CAN追踪分析功能，新增了帧编号和时间增量计算、Wireshark风格的过滤界面、行标记着色功能和覆盖模式，显著提升了数据分析能力和用户体验。**最新增强**：FilterHeaderView组件实现了完整的Wireshark风格漏斗表头过滤功能，为用户提供专业级的数据筛选体验，使工具能够更好地满足复杂CAN总线数据分析需求，为开发和测试提供了更强大的支持。建议在后续迭代中继续优化渲染与 I/O 性能，并增强错误诊断与用户引导。
 
-**更新** 强调了最新的功能增强对工具性能的显著提升，特别是在大数据量处理和用户交互体验方面的改进。
+**更新** 强调了最新的功能增强对工具性能的显著提升，特别是在大数据量处理和用户交互体验方面的改进。**最新强调**：FilterHeaderView的引入标志着工具在用户界面交互方面达到了新的水平，为用户提供了更加直观和高效的数据筛选体验。
 
 ## 附录
 - 构建说明：使用 CMake 配置与生成工程，参考顶层与 src 下的构建文件。
@@ -626,8 +673,9 @@ QRC --> UI
   - Wireshark风格过滤：直观的列级过滤界面和高级过滤操作符
   - 行标记和着色：灵活的行标记系统和自定义颜色支持
   - 覆盖模式：高效的同ID帧合并显示和数据更新
+  - **FilterHeaderView**：完整的Wireshark风格漏斗表头过滤功能，支持鼠标悬停、状态指示和列级过滤
 
-**更新** 新增了所有新功能的使用说明和扩展建议。
+**更新** 新增了所有新功能的使用说明和扩展建议。**最新增强**：FilterHeaderView作为独立组件提供了完整的Wireshark风格过滤体验，用户可以像使用专业网络分析工具一样进行数据筛选。
 
 章节来源
 - [CMakeLists.txt](file://CMakeLists.txt)

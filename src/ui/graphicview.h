@@ -73,6 +73,18 @@ public slots:
     void onFrame(const CanFrame &frame);
     void clearData();
 
+    /// 从外部文件加载帧数据（BLF/ASC/CSV）
+    void loadFile(const QString &path);
+
+signals:
+    /// 文件拖放后加载完成
+    void fileLoaded(int frameCount);
+
+protected:
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragMoveEvent(QDragMoveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
+
 private:
     struct SignalData {
         Signal config;

@@ -153,6 +153,18 @@ public:
     void clearFilter();
     QString filterExpression() const;
 
+    /// 从外部文件加载帧数据（BLF/ASC/CSV）
+    void loadFile(const QString &path);
+
+signals:
+    /// 文件拖放后加载完成
+    void fileLoaded(int frameCount);
+
+protected:
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragMoveEvent(QDragMoveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
+
 private slots:
     void onSelectionChanged();
 

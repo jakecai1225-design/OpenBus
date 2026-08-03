@@ -14,11 +14,19 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QUrl>
+#include <QFileInfo>
+#include <QThread>
 #include <cmath>
 #include <algorithm>
 #include <functional>
 
 #include "qcustomplot.h"
+#include "core/canfileio/canfileio.h"
+#include "core/canfileio/canfileio_factory.h"
 
 // ============================================================
 //  辅助：QCustomPlot 子类 — 支持卡尺拖动
@@ -62,6 +70,7 @@ GraphicView::GraphicView(QWidget *parent)
     : QWidget(parent)
 {
     setupUi();
+    setAcceptDrops(true);
 }
 
 QColor GraphicView::autoColor(int index)
@@ -552,6 +561,92 @@ void GraphicView::onFrame(const CanFrame &frame)
     // 更新卡尺值
     if (m_cursorMode != CursorMode::None)
         updateCursorValues();
+}
+
+// ============================================================
+//  拖放加载文件
+// ============================================================
+
+void GraphicView::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls()) {
+        const auto urls = event->mimeData()->urls();
+        for (const auto &url : urls) {
+            QString suffix = QFileInfo(url.toLocalFile()).suffix().toLower();
+            if (CanFileIO::formatFromSuffix(suffix) != CanFileIO::Format::Unknown) {
+                event->acceptProposedAction();
+                return;
+            }
+        }
+    }
+    event->ignore();
+}
+
+void GraphicView::dragMoveEvent(QDragMoveEvent *event)
+{
+    if (event->mimeData()->hasUrls())
+        event->acceptProposedAction();
+    else
+        event->ignore();
+}
+
+void GraphicView::dropEvent(QDropEvent *event)
+{
+    if (!event->mimeData()->hasUrls()) {
+        event->ignore();
+        return;
+    }
+    QString path = event->mimeData()->urls().first().toLocalFile();
+    QString suffix = QFileInfo(path).suffix().toLower();
+    if (CanFileIO::formatFromSuffix(suffix) == CanFileIO::Format::Unknown) {
+        event->ignore();
+        return;
+    }
+    event->acceptProposedAction();
+    loadFile(path);
+}
+
+void GraphicView::loadFile(const QString &path)
+{
+    clearData();
+
+    // 后台加载文件
+    auto *thread = QThread::create([this, path]() {
+        QVector<CanFrame> frames;
+        auto reader = CanFileIOFactory::createReader(path);
+        if (!reader || !reader->open(path)) {
+            QMetaObject::invokeMethod(this, [this]() {
+                emit fileLoaded(-1);
+            }, Qt::QueuedConnection);
+            return;
+        }
+        int count = reader->readAll(frames);
+        reader->close();
+
+        QMetaObject::invokeMethod(this, [this, frames, count]() {
+            if (count > 0) {
+                // 批量添加数据点（不逐帧 replot）
+                for (const auto &frame : frames) {
+                    m_currentTime = frame.timestamp;
+                    for (auto &sd : m_signals) {
+                        if ((frame.id & 0x1FFFFFFF) == sd.config.canId &&
+                            frame.extended == sd.config.extended) {
+                            double val = extractValue(frame, sd.config);
+                            if (!std::isnan(val))
+                                sd.graph->addData(frame.timestamp, val);
+                        }
+                    }
+                }
+                // 最终一次 replot
+                refreshTimeAxis();
+                m_plot->replot();
+            }
+            emit fileLoaded(count);
+        }, Qt::QueuedConnection);
+    });
+
+    connect(thread, &QThread::finished, thread, &QThread::deleteLater);
+    thread->start();
 }
 
 double GraphicView::extractValue(const CanFrame &frame, const Signal &sig) const

@@ -42,11 +42,11 @@
 
 ## 更新摘要
 **所做更改**   
-- 活动栏系统新增了'工具集'按钮，集成了新的ToolsPanel侧边栏面板
-- ToolsPanel提供BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析、ID频率分析、总线负载计算等工具功能
-- 更新了活动栏枚举定义，新增Tools类型支持
-- 增强了侧边栏面板系统的工具集管理功能
-- 完善了工具集与主窗口的集成通信机制
+- 主窗口组件新增了onToolOpened槽函数处理工具激活请求，支持6种总线分析工具的动态加载
+- 侧边栏集成了ToolsPanel类管理工具项点击和信号发射，提供完整的工具集界面
+- 活动栏系统新增了'工具集'按钮，位于分析配置和设置之间
+- 增强了UI系统的工具管理能力，支持BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析等
+- 完善了工具集与主窗口的集成通信机制，实现了松耦合的工具路由架构
 
 ## 目录
 1. [简介](#简介)
@@ -66,7 +66,7 @@
 ## 简介
 本文件面向基于Qt Widgets和现代Web技术的混合UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
 
-**更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新针对活动栏系统进行了重大改进，新增了'工具集'按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
+**更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新针对活动栏系统进行了重大改进，新增了'工具集'按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。主窗口组件通过新增的onToolOpened槽函数实现了工具激活请求的处理，支持6种不同的总线分析工具动态加载和管理。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式，结合了传统Qt Widgets架构和现代Web前端技术：
@@ -127,7 +127,7 @@ V --> Y["UI/partials/*.html"]
 - JavaScript模块系统: 包含ui-loader.js和ui-prototype.js，实现模块化功能组织
 - CSS样式系统: 提供统一的样式规范和响应式设计支持
 
-**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并新增了基于Web技术的现代化UI原型系统。**特别重要的是，活动栏系统新增了'工具集'按钮，集成了新的ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并新增了基于Web技术的现代化UI原型系统。**特别重要的是，活动栏系统新增了'工具集'按钮，集成了新的ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。主窗口组件通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -148,7 +148,7 @@ V --> Y["UI/partials/*.html"]
 - 资源通过qrc统一打包，避免路径问题
 - Web前端提供现代化界面原型和动态内容加载能力
 
-**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。**新增了三个专用Tab组件系统，通过统一的标签页管理器进行协调，实现了模块间的松耦合和高内聚。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
+**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。**新增了三个专用Tab组件系统，通过统一的标签页管理器进行协调，实现了模块间的松耦合和高内聚。特别重要的是，新增了工具集系统，通过ActivityBar的工具集按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
 
 ```mermaid
 graph TB
@@ -176,6 +176,10 @@ DBCT["DBCDetailTab<br/>DBC详情标签页"]
 PB["PlaybackTab<br/>播放控制标签页"]
 RT["RecordTab<br/>录制标签页"]
 end
+subgraph "工具集系统层"
+TP["ToolsPanel<br/>工具集面板"]
+TR["ToolRouter<br/>工具路由器"]
+end
 subgraph "专业组件层"
 FB["FilterBar<br/>过滤器栏"]
 GV["GraphicView<br/>图形视图"]
@@ -201,12 +205,14 @@ MW --> SBP
 MW --> DBCT
 MW --> PB
 MW --> RT
+MW --> TP
 SEA --> FB
 SEA --> GV
 SEA --> TV
 MW --> SCD
 MW --> QSS
 QRC --> QSS
+TP --> TR
 ```
 
 图表来源
@@ -269,7 +275,7 @@ App->>App : 进入事件循环
 - 通过信号槽机制与子控件通信
 - 支持Web前端的原型验证和交互测试
 
-**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。**特别重要的是，新增了三个专用Tab组件的管理功能，包括DBC详情标签页、播放控制标签页和录制标签页的动态创建、切换和状态同步。**主窗口作为协调者，统一管理各组件的生命周期和数据流，并支持与Web前端原型的无缝集成。
+**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。**特别重要的是，新增了三个专用Tab组件的管理功能，包括DBC详情标签页、播放控制标签页和录制标签页的动态创建、切换和状态同步。最重要的是，新增了onToolOpened槽函数来处理工具激活请求，支持6种总线分析工具的动态加载和管理。**主窗口作为协调者，统一管理各组件的生命周期和数据流，并支持与Web前端原型的无缝集成。
 
 ```mermaid
 classDiagram
@@ -286,6 +292,7 @@ class MainWindow {
 +switchToTab(tabId)
 +initWebPrototype()
 +communicateWithWeb(message)
++onToolOpened(toolKey)
 }
 class ActivityBar {
 +addActivityItem(item)
@@ -314,6 +321,13 @@ class SidebarPanels {
 +hidePanel(name)
 +updatePanelData(name, data)
 }
+class ToolsPanel {
++toolOpened(toolKey)
++onItemClicked(item)
++addToolItem(name, key, tooltip)
++removeToolItem(key)
++getToolItems()
+}
 class DBCDetailTab {
 +loadDBCFile(path)
 +displaySignals()
@@ -337,6 +351,7 @@ MainWindow --> BottomPanel : "包含"
 MainWindow --> RightPanel : "包含"
 MainWindow --> SplitEditorArea : "包含"
 MainWindow --> SidebarPanels : "管理"
+MainWindow --> ToolsPanel : "管理"
 MainWindow --> DBCDetailTab : "管理"
 MainWindow --> PlaybackTab : "管理"
 MainWindow --> RecordTab : "管理"
@@ -1147,13 +1162,54 @@ ShowError --> End
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 - [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
 
+### 主窗口工具激活处理（onToolOpened）
+功能特性
+- 接收来自ToolsPanel的toolOpened信号
+- 根据工具键值创建对应的工具实例
+- 支持6种不同的总线分析工具
+- 统一管理工具标签页的创建和显示
+
+技术实现
+- 基于工具键值的条件分支处理
+- 每种工具对应特定的类实例化
+- 统一的openTab方法管理标签页
+- 支持工具的动态加载和生命周期管理
+
+```mermaid
+classDiagram
+class MainWindow {
++onToolOpened(toolKey)
++openTab(widget, label)
++blf_converter BlfAsConverter
++dbc_editor DbcToolView
++frame_statistics FrameStatisticsView
++id_frequency IdFrequencyView
++bus_load BusLoadView
++dbc_signal_list DbcSignalListView
+}
+class ToolRouter {
++routeTool(toolKey)
++createToolInstance(key)
++validateToolKey(key)
++getToolClass(key)
++handleToolErrors()
+}
+MainWindow --> ToolRouter : "使用"
+```
+
+图表来源
+- [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+
+章节来源
+- [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+
 ## 依赖关系分析
 模块间依赖与耦合
 - main.cpp 依赖样式加载与主窗口
 - MainWindow 依赖样式与主题管理
 - 样式与资源通过qrc解耦，降低硬编码路径风险
 
-**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**新增了Web前端原型系统的依赖关系，包括HTML模板、JavaScript模块和CSS样式的模块化组织。**特别重要的是，graphicview.cpp的改进增强了图形组件与其他模块的稳定性依赖关系。**新增了工具集系统的依赖关系，包括活动栏工具集按钮、工具集面板和工具路由机制。**
+**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**新增了Web前端原型系统的依赖关系，包括HTML模板、JavaScript模块和CSS样式的模块化组织。特别重要的是，新增了工具集系统的依赖关系，包括活动栏工具集按钮、工具集面板、工具路由机制和主窗口的onToolOpened处理函数。**
 
 ```mermaid
 graph LR
@@ -1167,6 +1223,7 @@ MW --> SBP["SidebarPanels"]
 MW --> DBCT["DBCDetailTab"]
 MW --> PB["PlaybackTab"]
 MW --> RT["RecordTab"]
+MW --> TP["ToolsPanel"]
 SEA --> FB["FilterBar"]
 SEA --> GV["GraphicView"]
 SEA --> TV["TraceView"]
@@ -1193,6 +1250,7 @@ GV --> Stability["稳定性增强"]
 AB --> Tools["工具集管理"]
 SBP --> ToolsPanel["工具集面板"]
 Tools --> ToolRouter["工具路由器"]
+MW --> ToolHandler["onToolOpened处理"]
 ```
 
 图表来源
@@ -1247,6 +1305,7 @@ Tools --> ToolRouter["工具路由器"]
   - 工具项列表采用虚拟化技术处理大量工具
   - 工具路由机制优化工具查找和创建性能
   - 工具实例缓存避免重复创建开销
+  - onToolOpened函数使用条件分支快速路由
 - **Web前端性能优化**
   - HTML模板使用惰性加载技术
   - JavaScript模块按需加载和缓存
@@ -1306,6 +1365,8 @@ Tools --> ToolRouter["工具路由器"]
   - 工具项点击无响应需要检查信号槽连接
   - 工具键值冲突需要检查工具注册逻辑
   - 工具实例创建失败需要检查工具依赖和初始化
+  - onToolOpened函数未正确处理工具键值
+  - 工具标签页创建失败需要检查openTab方法
 - **Web前端问题**
   - HTML模板加载失败需要检查文件路径
   - JavaScript模块依赖错误需要检查模块导入
@@ -1333,7 +1394,7 @@ Tools --> ToolRouter["工具路由器"]
 ## 结论
 本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统，**特别是新增的三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页），为CAN总线数据分析提供了完整的解决方案。**
 
-**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，活动栏系统新增了'工具集'按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案，包括BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析、ID频率分析、总线负载计算等多种实用工具。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
+**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，活动栏系统新增了'工具集'按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案，包括BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析、ID频率分析、总线负载计算等多种实用工具。主窗口组件通过新增的onToolOpened槽函数实现了工具激活请求的统一处理，支持6种不同的总线分析工具动态加载和管理，大大增强了UI系统的工具管理能力。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -1379,6 +1440,7 @@ Tools --> ToolRouter["工具路由器"]
   - 工具键值应保证唯一性和可读性
   - 工具路由机制应支持工具的动态注册和发现
   - 工具实例应支持生命周期管理和资源清理
+  - onToolOpened函数应提供统一的工具激活处理
 - **Web前端规范**
   - HTML模板使用语义化标签和合理的DOM结构
   - JavaScript模块采用ES6模块语法和模块化组织
@@ -1447,6 +1509,8 @@ Tools --> ToolRouter["工具路由器"]
   - 工具键值应保证唯一性和可读性
   - 工具路由机制应支持工具的动态注册和发现
   - 工具实例应支持生命周期管理和资源清理
+  - onToolOpened函数应提供统一的工具激活处理
+  - 工具创建应支持异常处理和错误恢复
 - **Web前端最佳实践**
   - 使用组件化架构和模块化开发
   - 实现响应式设计和跨平台兼容
@@ -1480,12 +1544,13 @@ Tools --> ToolRouter["工具路由器"]
 12. **主题验证**：验证样式在不同主题下的显示效果
 13. **Tab组件测试**：确保标签页切换流畅且状态同步正常
 14. **工具集测试**：验证工具集按钮和面板的正常工作
-15. **Web前端集成**：集成Web前端原型进行交互验证
-16. **模块化重构**：将单体结构重构为模块化组件系统
-17. **增强组件优化**：优化图形视图、跟踪视图和侧边栏面板的性能
-18. **可访问性测试**：验证所有组件的可访问性功能和屏幕阅读器兼容性
-19. **稳定性测试**：验证graphicview.cpp改进后的崩溃恢复机制
-20. **数据集兼容性测试**：确保组件对新测试数据集的支持能力
+15. **onToolOpened测试**：测试工具激活请求的处理逻辑
+16. **Web前端集成**：集成Web前端原型进行交互验证
+17. **模块化重构**：将单体结构重构为模块化组件系统
+18. **增强组件优化**：优化图形视图、跟踪视图和侧边栏面板的性能
+19. **可访问性测试**：验证所有组件的可访问性功能和屏幕阅读器兼容性
+20. **稳定性测试**：验证graphicview.cpp改进后的崩溃恢复机制
+21. **数据集兼容性测试**：确保组件对新测试数据集的支持能力
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)

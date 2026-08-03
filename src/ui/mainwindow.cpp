@@ -496,6 +496,12 @@ void MainWindow::createLayout()
 
     // Graphic 标签页
     m_graphicView = new GraphicView(this);
+    connect(m_graphicView, &GraphicView::fileLoaded, this, [this](int count) {
+        if (count < 0)
+            m_bottomPanel->appendOutput("❌ 文件加载失败");
+        else
+            m_bottomPanel->appendOutput(QString("📈 Graphic 已加载 %1 帧").arg(count));
+    });
     m_editorArea->addTab(m_graphicView, "📈 Graphic1");
 
     // 发送标签页
@@ -1098,6 +1104,16 @@ void MainWindow::setupTraceTab(TraceTab *tab)
             this, &MainWindow::onFrameDoubleClicked);
     connect(traceView, &TraceView::frameSelected,
             this, &MainWindow::onTraceSelectionChanged);
+
+    // 文件拖放加载完成
+    connect(tab, &TraceTab::fileLoaded, this, [this, tab](int count) {
+        if (count < 0)
+            m_bottomPanel->appendOutput("❌ 文件加载失败");
+        else {
+            m_bottomPanel->appendOutput(QString("📁 已加载 %1 帧").arg(count));
+            m_frameCountLabel->setText(QString::number(count) + " 帧");
+        }
+    });
 }
 
 void MainWindow::openTab(QWidget *widget, const QString &label)

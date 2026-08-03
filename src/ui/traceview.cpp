@@ -26,6 +26,14 @@
 #include <QColorDialog>
 #include <QList>
 #include <algorithm>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QUrl>
+#include <QFileInfo>
+#include <QThread>
+#include "core/canfileio/canfileio.h"
+#include "core/canfileio/canfileio_factory.h"
 
 // ============================================================
 //  TraceView
@@ -638,6 +646,9 @@ TraceTab::TraceTab(QWidget *parent)
     // 覆盖模式切换 → 同步到数据模型
     connect(m_filterBar, &FilterBar::overwriteModeToggled,
             m_traceModel, &CanTraceModel::setOverwriteMode);
+
+    // 启用拖放
+    setAcceptDrops(true);
 }
 
 void TraceTab::setDbcManager(DbcManager *mgr)
@@ -699,4 +710,77 @@ void TraceTab::onSelectionChanged()
         m_signalDecode->setFrame(*frame);
         emit m_traceView->frameSelected(*frame);
     }
+}
+
+// ============================================================
+//  拖放加载文件
+// ============================================================
+
+void TraceTab::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls()) {
+        const auto urls = event->mimeData()->urls();
+        for (const auto &url : urls) {
+            QString suffix = QFileInfo(url.toLocalFile()).suffix().toLower();
+            if (CanFileIO::formatFromSuffix(suffix) != CanFileIO::Format::Unknown) {
+                event->acceptProposedAction();
+                return;
+            }
+        }
+    }
+    event->ignore();
+}
+
+void TraceTab::dragMoveEvent(QDragMoveEvent *event)
+{
+    if (event->mimeData()->hasUrls())
+        event->acceptProposedAction();
+    else
+        event->ignore();
+}
+
+void TraceTab::dropEvent(QDropEvent *event)
+{
+    if (!event->mimeData()->hasUrls()) {
+        event->ignore();
+        return;
+    }
+    QString path = event->mimeData()->urls().first().toLocalFile();
+    QString suffix = QFileInfo(path).suffix().toLower();
+    if (CanFileIO::formatFromSuffix(suffix) == CanFileIO::Format::Unknown) {
+        event->ignore();
+        return;
+    }
+    event->acceptProposedAction();
+    loadFile(path);
+}
+
+void TraceTab::loadFile(const QString &path)
+{
+    // 清除现有数据
+    clearTrace();
+    setRunning(false);
+
+    // 后台加载文件
+    auto *thread = QThread::create([this, path]() {
+        QVector<CanFrame> frames;
+        auto reader = CanFileIOFactory::createReader(path);
+        if (!reader || !reader->open(path)) {
+            QMetaObject::invokeMethod(this, [this]() {
+                emit fileLoaded(-1);
+            }, Qt::QueuedConnection);
+            return;
+        }
+        int count = reader->readAll(frames);
+        reader->close();
+
+        QMetaObject::invokeMethod(this, [this, frames, count]() {
+            if (count > 0)
+                appendFrames(frames);
+            emit fileLoaded(count);
+        }, Qt::QueuedConnection);
+    });
+
+    connect(thread, &QThread::finished, thread, &QThread::deleteLater);
+    thread->start();
 }
