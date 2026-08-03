@@ -4,6 +4,7 @@
 #include <QTableView>
 #include <QWidget>
 #include <QPlainTextEdit>
+#include <QList>
 #include "core/canframe.h"
 
 class CanTraceModel;
@@ -27,6 +28,9 @@ public:
     bool autoScrollEnabled() const { return m_autoScroll; }
 
     const CanFrame *selectedFrame() const;
+
+    /// 重写 setModel，自动将代理模型传递给 FilterHeaderView
+    void setModel(QAbstractItemModel *model) override;
 
 public slots:
     void scrollToBottom();

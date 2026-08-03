@@ -18,6 +18,8 @@ set(SRC_CORE
     core/dbcmanager.cpp
     core/dbc/dbc_adapter.h
     core/dbc/dbc_adapter.cpp
+    core/dbc/dbc_writer.h
+    core/dbc/dbc_writer.cpp
     core/filter_engine.h
     core/filter_engine.cpp
     core/appconfig.h
@@ -71,6 +73,8 @@ set(SRC_UI
     ui/mainwindow.cpp
     ui/traceview.h
     ui/traceview.cpp
+    ui/filterheaderview.h
+    ui/filterheaderview.cpp
     ui/graphicview.h
     ui/graphicview.cpp
     ui/filterbar.h
@@ -107,6 +111,15 @@ set(SRC_UI
     ui/thememanager.cpp
     ui/measurementsetupview.h
     ui/measurementsetupview.cpp
+    # 工具集 — 总线分析工具
+    ui/tools/blfasconverter.h
+    ui/tools/blfasconverter.cpp
+    ui/tools/dbctoolview.h
+    ui/tools/dbctoolview.cpp
+    ui/tools/loganalysisview.h
+    ui/tools/loganalysisview.cpp
+    ui/tools/dbcsignallistview.h
+    ui/tools/dbcsignallistview.cpp
 )
 
 # ============================================================

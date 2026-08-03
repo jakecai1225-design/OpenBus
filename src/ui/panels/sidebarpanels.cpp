@@ -648,15 +648,11 @@ MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
     auto *cl = contentLayout();
 
     m_list = new QListWidget(this);
-    m_list->addItem(new QListWidgetItem("\xF0\x9F\x93\x8A 测量配置拓扑"));
-    m_list->addItem(new QListWidgetItem("\xF0\x9F\x94\xA7 硬件实时模式"));
-    m_list->addItem(new QListWidgetItem("\xF0\x9F\x93\x81 文件回放模式"));
-    m_list->addItem(new QListWidgetItem("\xE2\x84\xB9 测量说明"));
+    m_list->addItem(new QListWidgetItem("\xF0\x9F\x93\x8A 测量配置"));
     cl->addWidget(m_list);
 
     auto *hint = new QLabel("\n"
-                           "\xE2\x80\xA2 点击“测量配置拓扑”打开画布\n"
-                           "\xE2\x80\xA2 画布中可切换数据源\n"
+                           "\xE2\x80\xA2 点击“测量配置”打开画布\n"
                            "\xE2\x80\xA2 点击模块块可启用/禁用\n"
                            "\xE2\x80\xA2 双击模块块可打开对应标签页", this);
     hint->setWordWrap(true);
@@ -671,7 +667,7 @@ void MeasurementSetupPanel::onItemClicked(QListWidgetItem *item)
 {
     if (!item) return;
     QString text = item->text();
-    if (text.contains("测量配置拓扑") || text.contains("硬件") || text.contains("文件") || text.contains("说明"))
+    if (text.contains("测量配置"))
         emit openMeasurementSetupRequested();
 }
 
@@ -734,6 +730,7 @@ void ToolsPanel::onItemClicked(QListWidgetItem *item)
     if (!item) return;
     QString key = item->data(Qt::UserRole).toString();
     if (key.isEmpty()) return;
+    qDebug() << "[ToolsPanel] item clicked, key:" << key;
     emit toolOpened(key);
 }
 

@@ -22,6 +22,8 @@
 - [src/models/cantracemodel.h](file://src/models/cantracemodel.h)
 - [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
 - [src/ui/filterbar.h](file://src/ui/filterbar.h)
+- [src/ui/filterheaderview.cpp](file://src/ui/filterheaderview.cpp)
+- [src/ui/filterheaderview.h](file://src/ui/filterheaderview.h)
 - [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
 - [src/ui/graphicview.h](file://src/ui/graphicview.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
@@ -38,10 +40,11 @@
 
 ## 更新摘要
 **所做更改**   
-- 新增多种CAN总线测试数据集支持，包括BLF格式和ASC格式的测试数据文件
-- 增强了测试功能和稳定性，提供更丰富的测试数据源
-- 改进了播放器组件对多种文件格式的支持能力
-- 优化了测试数据的加载和处理流程
+- 增强了CAN追踪分析功能，新增帧编号（No.）和时间增量（Delta）列
+- 实现了Wireshark风格的过滤界面，支持交互式列级过滤
+- 添加了行标记和自定义着色功能，支持高亮重要帧
+- 改进了过滤代理模型，支持高级过滤操作符和范围过滤
+- 新增了覆盖模式，同CAN ID的帧只保留一行并实时更新数据
 
 ## 目录
 1. [简介](#简介)
@@ -58,13 +61,13 @@
 ## 简介
 本工具是一个基于 Qt 的 CAN 总线分析应用，提供实时抓包、过滤、回放与录制功能，并通过图形化视图展示信号时序。整体采用分层架构：UI 层负责交互与可视化，模型层封装数据与过滤逻辑，核心层实现播放器、录制器、仿真器与 DBC 数据库管理，工具层提供通用辅助能力。构建系统使用 CMake，资源通过 Qt 资源系统进行管理。
 
-**更新** 新增了多种CAN总线测试数据集支持，包括BLF格式和ASC格式的测试数据文件，显著增强了测试功能和稳定性，为开发和测试提供了更丰富的数据源。
+**更新** 增强了CAN追踪分析功能，新增了帧编号和时间增量计算，提供了Wireshark风格的过滤界面和行标记着色功能，显著提升了数据分析能力和用户体验。
 
 ## 项目结构
 项目按职责划分为以下模块：
 - src/core：CAN 帧数据结构、播放器、录制器、仿真器、DBC 数据库管理
 - src/models：CAN 追踪模型与过滤器代理模型
-- src/ui：主窗口、跟踪视图、图形视图、过滤栏、信号配置对话框、DBC 详情标签页
+- src/ui：主窗口、跟踪视图、图形视图、过滤栏、过滤表头、信号配置对话框、DBC 详情标签页
 - src/utils：CAN 工具函数
 - resources：样式与资源文件
 - scripts：构建脚本
@@ -76,20 +79,20 @@ A["应用程序入口<br/>src/main.cpp"] --> B["主窗口<br/>src/ui/mainwindow.
 B --> C["跟踪视图<br/>src/ui/traceview.*"]
 B --> D["图形视图<br/>src/ui/graphicview.*"]
 B --> E["过滤栏<br/>src/ui/filterbar.*"]
-B --> F["信号配置对话框<br/>src/ui/signalconfigdialog.*"]
-B --> G["DBC详情标签页<br/>src/ui/dbcdetailtab.*"]
-C --> H["追踪模型<br/>src/models/cantracemodel.*"]
-C --> I["过滤代理模型<br/>src/models/canfilterproxymodel.*"]
-G --> J["DBC管理器<br/>src/core/dbcmanager.*"]
-H --> K["CAN 帧定义<br/>src/core/canframe.h"]
-J --> L["DBC数据模型<br/>src/core/dbcdata.h"]
-B --> M["播放器<br/>src/core/player.*"]
-B --> N["录制器<br/>src/core/recorder.*"]
-B --> O["仿真器<br/>src/core/cansimulator.*"]
-B --> P["CAN 工具<br/>src/utils/canutils.*"]
-Q["构建配置<br/>CMakeLists.txt / src/CMakeLists.txt"] --> A
-R["Qt 资源<br/>resources/*"] --> B
-S["测试数据<br/>scripts/test data/*"] --> M
+B --> F["过滤表头<br/>src/ui/filterheaderview.*"]
+B --> G["信号配置对话框<br/>src/ui/signalconfigdialog.*"]
+B --> H["DBC详情标签页<br/>src/ui/dbcdetailtab.*"]
+C --> I["追踪模型<br/>src/models/cantracemodel.*"]
+C --> J["过滤代理模型<br/>src/models/canfilterproxymodel.*"]
+H --> K["DBC管理器<br/>src/core/dbcmanager.*"]
+I --> L["CAN 帧定义<br/>src/core/canframe.h"]
+K --> M["DBC数据模型<br/>src/core/dbcdata.h"]
+B --> N["播放器<br/>src/core/player.*"]
+B --> O["录制器<br/>src/core/recorder.*"]
+B --> P["仿真器<br/>src/core/cansimulator.*"]
+B --> Q["CAN 工具<br/>src/utils/canutils.*"]
+R["构建配置<br/>CMakeLists.txt / src/CMakeLists.txt"] --> A
+S["Qt 资源<br/>resources/*"] --> B
 ```
 
 图表来源
@@ -98,6 +101,7 @@ S["测试数据<br/>scripts/test data/*"] --> M
 - [src/ui/traceview.h](file://src/ui/traceview.h)
 - [src/ui/graphicview.h](file://src/ui/graphicview.h)
 - [src/ui/filterbar.h](file://src/ui/filterbar.h)
+- [src/ui/filterheaderview.h](file://src/ui/filterheaderview.h)
 - [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
 - [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
 - [src/models/cantracemodel.h](file://src/models/cantracemodel.h)
@@ -119,21 +123,23 @@ S["测试数据<br/>scripts/test data/*"] --> M
 
 ## 核心组件
 - CAN 帧定义：统一的数据结构，承载 ID、数据长度、时间戳与载荷等字段，贯穿 UI、模型与核心模块。
-- 追踪模型：维护 CAN 帧序列并提供排序、分页与查询接口，供视图层渲染。
-- 过滤代理模型：对底层追踪模型进行动态过滤，支持按 ID、掩码、方向等条件筛选。
-- 播放器：从文件或缓冲区读取 CAN 帧并按时间轴回放，驱动 UI 更新，支持多种测试数据格式。
+- 追踪模型：维护 CAN 帧序列并提供排序、分页与查询接口，支持帧编号、时间增量、行标记和自定义着色。
+- 过滤代理模型：对底层追踪模型进行动态过滤，支持按 ID、掩码、方向等条件筛选，以及高级操作符和范围过滤。
+- 过滤表头：Wireshark风格的交互式表头，支持鼠标悬停显示漏斗图标和列级过滤。
+- 播放器：从文件或缓冲区读取 CAN 帧并按时间轴回放，驱动 UI 更新。
 - 录制器：将实时或回放中的 CAN 帧写入文件，支持格式选择与轮转策略。
 - 仿真器：生成测试用 CAN 帧流，用于验证 UI 与处理链路。
 - DBC 管理器：解析和管理 CAN 总线数据库文件，提供信号映射和消息定义访问。
 - DBC 数据模型：存储 DBC 文件的结构化数据，包括消息、信号、节点等信息。
 - 工具库：提供字节序转换、校验和计算、字符串解析等通用方法。
 
-**更新** 增强了播放器组件对多种测试数据格式的支持，包括BLF格式和ASC格式，提升了测试功能的稳定性和兼容性。
+**更新** 增强了追踪模型的帧编号和时间增量功能，新增了Wireshark风格的过滤表头和行标记着色能力，显著提升了数据分析体验。
 
 章节来源
 - [src/core/canframe.h](file://src/core/canframe.h)
 - [src/models/cantracemodel.h](file://src/models/cantracemodel.h)
 - [src/models/canfilterproxymodel.h](file://src/models/canfilterproxymodel.h)
+- [src/ui/filterheaderview.h](file://src/ui/filterheaderview.h)
 - [src/core/player.h](file://src/core/player.h)
 - [src/core/recorder.h](file://src/core/recorder.h)
 - [src/core/cansimulator.h](file://src/core/cansimulator.h)
@@ -155,21 +161,25 @@ class MainWindow {
 +启动/停止捕获()
 +打开/保存文件()
 +加载DBC文件()
-+加载测试数据()
 }
 class TraceView {
 +显示帧列表()
 +高亮选中帧()
 +滚动定位()
++支持行标记()
++支持自定义着色()
 }
-class GraphicView {
-+绘制波形()
-+缩放/平移()
-+标注事件()
+class FilterHeaderView {
++绘制漏斗图标()
++处理鼠标事件()
++触发列过滤()
++支持排序切换()
 }
 class FilterBar {
 +设置过滤规则()
 +应用/重置过滤()
++控制采集状态()
++覆盖模式切换()
 }
 class SignalConfigDialog {
 +编辑信号映射()
@@ -184,17 +194,23 @@ class CanTraceModel {
 +追加帧()
 +获取帧集合()
 +排序/分页()
++行标记管理()
++自定义着色()
++覆盖模式()
++帧编号计算()
++时间增量计算()
 }
 class CanFilterProxyModel {
 +设置过滤器()
 +刷新结果()
++列级过滤()
++高级操作符()
++范围过滤()
 }
 class Player {
 +加载源()
 +开始回放()
 +暂停/停止()
-+支持BLF格式()
-+支持ASC格式()
 }
 class Recorder {
 +开始录制()
@@ -221,14 +237,17 @@ class CanUtils {
 +解析ID/掩码()
 +字节序转换()
 +校验和计算()
++过滤器语法检查()
 }
 MainWindow --> TraceView : "包含"
+MainWindow --> FilterHeaderView : "包含"
 MainWindow --> GraphicView : "包含"
 MainWindow --> FilterBar : "包含"
 MainWindow --> SignalConfigDialog : "调用"
 MainWindow --> DBCDetailTab : "包含"
 TraceView --> CanTraceModel : "绑定"
 TraceView --> CanFilterProxyModel : "使用"
+FilterHeaderView --> CanFilterProxyModel : "查询过滤状态"
 CanFilterProxyModel --> CanTraceModel : "代理"
 DBCDetailTab --> DBCManager : "使用"
 DBCManager --> DBCData : "管理"
@@ -245,7 +264,7 @@ DBCManager --> CanUtils : "辅助"
 图表来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/traceview.h](file://src/ui/traceview.h)
-- [src/ui/graphicview.h](file://src/ui/graphicview.h)
+- [src/ui/filterheaderview.h](file://src/ui/filterheaderview.h)
 - [src/ui/filterbar.h](file://src/ui/filterbar.h)
 - [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
 - [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
@@ -263,9 +282,7 @@ DBCManager --> CanUtils : "辅助"
 ### 主窗口（MainWindow）
 - 职责：创建并布局 UI 组件，连接信号槽，协调播放/录制/仿真生命周期，管理模型绑定与状态同步。
 - 关键流程：启动时初始化资源与模型；用户操作触发过滤更新、回放控制与录制开关；错误通过消息框提示。
-- 交互要点：与 TraceView、GraphicView、FilterBar、SignalConfigDialog、DBCDetailTab 双向通信；与 Player/Recorder/Simulator/DBCManager 单向控制。
-
-**更新** 增加了对测试数据文件的支持，包括BLF格式和ASC格式的测试数据加载功能。
+- 交互要点：与 TraceView、GraphicView、FilterBar、FilterHeaderView、SignalConfigDialog、DBCDetailTab 双向通信；与 Player/Recorder/Simulator/DBCManager 单向控制。
 
 章节来源
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
@@ -275,23 +292,28 @@ DBCManager --> CanUtils : "辅助"
 - 职责：以表格形式展示 CAN 帧，支持排序、搜索、高亮与滚动定位。
 - 数据绑定：通过 CanFilterProxyModel 访问 CanTraceModel，确保过滤与排序不影响底层数据。
 - 性能优化：延迟渲染、按需加载、批量更新。
+- **新增功能**：支持行标记和自定义着色，可高亮重要帧并设置个性化背景色。
 
 章节来源
 - [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
 - [src/ui/traceview.h](file://src/ui/traceview.h)
 
-### 图形视图（GraphicView）
-- 职责：将 CAN 信号转换为波形图，支持多通道叠加、缩放、平移与事件标注。
-- 渲染策略：增量绘制、视口裁剪、双缓冲减少闪烁。
-- 交互：鼠标滚轮缩放、拖拽平移、点击标注。
+### 过滤表头（FilterHeaderView）
+- 职责：实现Wireshark风格的交互式表头，支持鼠标悬停显示漏斗图标和列级过滤。
+- 视觉反馈：鼠标悬停时显示半透明漏斗图标，已有过滤条件时持续高亮显示。
+- 交互功能：点击漏斗图标触发列过滤对话框，左侧三角形支持排序切换。
+- 状态管理：跟踪当前悬停列号，智能判断过滤状态并更新视觉效果。
+
+**新增组件** 实现了完整的Wireshark风格过滤界面，提供了直观的列级过滤操作体验。
 
 章节来源
-- [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
-- [src/ui/graphicview.h](file://src/ui/graphicview.h)
+- [src/ui/filterheaderview.cpp](file://src/ui/filterheaderview.cpp)
+- [src/ui/filterheaderview.h](file://src/ui/filterheaderview.h)
 
 ### 过滤栏（FilterBar）
 - 职责：提供过滤规则输入（如 ID、掩码、方向），即时应用到代理模型。
 - 行为：输入变更触发防抖刷新；支持预设模板与快速切换。
+- **增强功能**：新增覆盖模式按钮，支持同CAN ID帧的合并显示和数据更新。
 
 章节来源
 - [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
@@ -318,6 +340,14 @@ DBCManager --> CanUtils : "辅助"
 - 职责：存储 CAN 帧序列，提供追加、查询、排序与分页接口。
 - 线程安全：在后台线程追加帧，通过信号通知 UI 线程更新。
 - 复杂度：追加 O(1)，随机访问 O(1)，排序 O(n log n)。
+- **新增功能**：
+  - 帧编号列（ColNo）：显示1-based序列号
+  - 时间增量列（ColDelta）：计算与上一帧的时间差
+  - 行标记功能：支持标记重要帧并高亮显示
+  - 自定义着色：为特定行设置个性化背景色
+  - 覆盖模式：同CAN ID的帧只保留一行，实时更新数据
+
+**重大增强** 大幅扩展了追踪模型的功能，新增了帧编号、时间增量计算、行标记着色和覆盖模式，显著提升了数据分析能力。
 
 章节来源
 - [src/models/cantracemodel.cpp](file://src/models/cantracemodel.cpp)
@@ -327,6 +357,13 @@ DBCManager --> CanUtils : "辅助"
 - 职责：对 CanTraceModel 的结果进行动态过滤，保持与底层模型的解耦。
 - 算法：基于规则的匹配与缓存命中，避免重复计算。
 - 扩展性：新增过滤条件只需扩展规则集。
+- **增强功能**：
+  - 高级过滤操作符：支持 >、<、!= 等操作符
+  - 范围过滤：支持时间范围和数值范围过滤
+  - 列级过滤：每列独立的过滤条件和状态管理
+  - 智能匹配：根据列类型自动选择合适的匹配策略
+
+**显著改进** 增强了过滤代理模型的功能，支持更复杂的过滤表达式和更智能的匹配算法。
 
 章节来源
 - [src/models/canfilterproxymodel.cpp](file://src/models/canfilterproxymodel.cpp)
@@ -336,9 +373,6 @@ DBCManager --> CanUtils : "辅助"
 - 职责：从文件或内存缓冲读取 CAN 帧，按时间轴回放，驱动 UI 更新。
 - 控制：开始、暂停、停止、跳转至指定时间戳。
 - 可靠性：断点续播、异常恢复与日志记录。
-- **新增功能**：支持BLF格式和ASC格式的测试数据文件，提供更丰富的测试数据源。
-
-**更新** 增强了播放器对多种测试数据格式的支持，包括BLF和ASC格式，显著提升了测试功能的稳定性和兼容性。
 
 章节来源
 - [src/core/player.cpp](file://src/core/player.cpp)
@@ -383,6 +417,7 @@ DBCManager --> CanUtils : "辅助"
 ### 工具库（CanUtils）
 - 职责：提供 CAN 相关通用方法，如 ID/掩码解析、字节序转换、校验和计算。
 - 设计：无状态函数集合，便于跨模块复用。
+- **新增功能**：过滤器语法检查和帮助信息生成。
 
 章节来源
 - [src/utils/canutils.cpp](file://src/utils/canutils.cpp)
@@ -402,10 +437,21 @@ class CanTraceModel {
 +getFrames()
 +sort(field, order)
 +paginate(page, size)
++toggleMark(row)
++setRowColor(row, color)
++setOverwriteMode(mode)
++frameCountForId(id)
 }
 class CanFilterProxyModel {
 +setFilter(rule)
 +refresh()
++setColumnFilter(column, text)
++hasColumnFilter(column)
+}
+class FilterHeaderView {
++setProxyModel(proxy)
++hasFilter(logicalIndex)
++filterClicked(index)
 }
 class DBCMessage {
 +name : string
@@ -436,6 +482,7 @@ class DBCData {
 +validate()
 }
 CanFilterProxyModel --> CanTraceModel : "代理"
+FilterHeaderView --> CanFilterProxyModel : "查询状态"
 DBCData --> DBCMessage : "包含"
 DBCData --> DBCSignal : "包含"
 DBCData --> DBCNode : "包含"
@@ -445,32 +492,8 @@ DBCData --> DBCNode : "包含"
 - [src/core/canframe.h](file://src/core/canframe.h)
 - [src/models/cantracemodel.h](file://src/models/cantracemodel.h)
 - [src/models/canfilterproxymodel.h](file://src/models/canfilterproxymodel.h)
+- [src/ui/filterheaderview.h](file://src/ui/filterheaderview.h)
 - [src/core/dbcdata.h](file://src/core/dbcdata.h)
-
-### 回放序列图（代码级）
-```mermaid
-sequenceDiagram
-participant User as "用户"
-participant UI as "主窗口"
-participant Player as "播放器"
-participant Model as "追踪模型"
-participant View as "跟踪视图"
-User->>UI : "点击开始回放"
-UI->>Player : "加载源并开始"
-Player-->>Model : "逐帧读取"
-Model-->>Player : "返回帧数据"
-Player-->>View : "推送帧到视图"
-View-->>User : "显示帧列表与波形"
-User->>UI : "点击暂停/停止"
-UI->>Player : "暂停/停止"
-Player-->>Model : "释放资源"
-```
-
-图表来源
-- [src/core/player.cpp](file://src/core/player.cpp)
-- [src/models/cantracemodel.cpp](file://src/models/cantracemodel.cpp)
-- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
-- [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 
 ### 过滤流程图（代码级）
 ```mermaid
@@ -488,49 +511,38 @@ Empty --> End
 - [src/models/canfilterproxymodel.cpp](file://src/models/canfilterproxymodel.cpp)
 - [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
 
-### DBC解析流程图（代码级）
+### 行标记和着色流程（新增）
 ```mermaid
 flowchart TD
-Start(["加载DBC文件"]) --> Validate["验证文件格式"]
-Validate --> Parse["解析DBC内容"]
-Parse --> Extract["提取消息/信号/节点"]
-Extract --> Build["构建数据模型"]
-Build --> Cache["缓存解析结果"]
-Cache --> Ready["准备就绪"]
-Validate --> Error["格式错误"]
-Error --> Report["报告错误信息"]
-Report --> End(["结束"])
-Ready --> End
+UserAction["用户操作"] --> ToggleMark["切换行标记"]
+UserAction --> SetColor["设置行颜色"]
+ToggleMark --> UpdateState["更新标记状态"]
+SetColor --> UpdateColor["更新颜色映射"]
+UpdateState --> NotifyView["通知视图更新"]
+UpdateColor --> NotifyView
+NotifyView --> Refresh["刷新行显示"]
+Refresh --> VisualFeedback["视觉反馈"]
 ```
 
 图表来源
-- [src/core/dbcmanager.cpp](file://src/core/dbcmanager.cpp)
-- [src/core/dbcdata.h](file://src/core/dbcdata.h)
+- [src/models/cantracemodel.cpp](file://src/models/cantracemodel.cpp)
 
-### 测试数据加载流程（新增）
+### 覆盖模式工作流程（新增）
 ```mermaid
 flowchart TD
-Start(["选择测试数据文件"]) --> Detect["检测文件格式"]
-Detect --> BLF{"BLF格式?"}
-Detect --> ASC{"ASC格式?"}
-BLF --> |是| LoadBLF["解析BLF文件"]
-BLF --> |否| ASCCheck{"ASC格式?"}
-ASCCheck --> |是| LoadASC["解析ASC文件"]
-ASCCheck --> |否| Error["不支持的格式"]
-LoadBLF --> ParseBLF["提取CAN帧数据"]
-LoadASC --> ParseASC["提取CAN帧数据"]
-ParseBLF --> Build["构建帧序列"]
-ParseASC --> Build
-Build --> Validate["验证数据完整性"]
-Validate --> Success["加载成功"]
-Error --> Report["报告错误信息"]
-Success --> End(["完成"])
-Report --> End
+NewFrame["新帧到达"] --> CheckMode{"覆盖模式?"}
+CheckMode --> |是| FindExisting["查找相同ID的行"]
+CheckMode --> |否| AppendNew["追加新行"]
+FindExisting --> UpdateRow["更新现有行数据"]
+AppendNew --> AddToMap["添加到ID映射"]
+UpdateRow --> IncrementCount["增加帧计数"]
+AddToMap --> IncrementCount
+IncrementCount --> NotifyChange["通知数据变化"]
+NotifyChange --> End(["完成"])
 ```
 
 图表来源
-- [src/core/player.cpp](file://src/core/player.cpp)
-- [src/core/player.h](file://src/core/player.h)
+- [src/models/cantracemodel.cpp](file://src/models/cantracemodel.cpp)
 
 ## 依赖关系分析
 - 模块耦合：UI 层依赖模型与核心层；模型层仅依赖工具层；核心层不依赖 UI。
@@ -572,10 +584,9 @@ QRC --> UI
 - 过滤优化：规则缓存与增量更新，减少重复计算。
 - I/O 优化：异步写入与批处理，降低磁盘压力。
 - 内存管理：对象池与引用计数，避免频繁分配与回收。
-- DBC解析优化：增量解析、结果缓存、内存池管理，提升大文件处理性能。
-- **新增优化**：测试数据加载优化，支持BLF和ASC格式的并行解析，提升大文件处理效率。
+- **新增优化**：覆盖模式下的高效行更新，避免不必要的插入删除操作；行标记和着色的增量更新机制。
 
-**更新** 增加了测试数据加载的性能优化策略，包括并行解析和内存管理优化。
+**更新** 新增了覆盖模式和行标记功能的性能优化，确保大量数据处理时的流畅性。
 
 ## 故障排查指南
 - 无法加载资源：检查 Qt 资源路径与编译输出目录是否一致。
@@ -585,9 +596,11 @@ QRC --> UI
 - 波形错位：核对信号映射参数（起始位、长度、字节序）。
 - DBC文件解析失败：检查文件格式是否正确，验证语法和语义，查看详细错误信息。
 - DBC数据不一致：验证数据完整性，检查约束条件，重新解析文件。
-- **新增**：测试数据加载失败：检查BLF和ASC文件格式是否正确，验证数据完整性，查看详细错误信息。
+- **新增**：行标记失效：检查行号映射是否正确，确认数据更新信号是否正常发送。
+- **新增**：覆盖模式异常：验证CAN ID映射表状态，检查数据一致性。
+- **新增**：过滤表头不显示：确认FilterHeaderView正确绑定代理模型，检查事件处理。
 
-**更新** 新增了测试数据相关的故障排查指南，包括BLF和ASC格式的文件验证和数据完整性检查。
+**更新** 新增了覆盖模式、行标记和过滤表头相关的故障排查指南。
 
 章节来源
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
@@ -595,23 +608,32 @@ QRC --> UI
 - [src/core/recorder.cpp](file://src/core/recorder.cpp)
 - [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
 - [src/core/dbcmanager.cpp](file://src/core/dbcmanager.cpp)
+- [src/models/cantracemodel.cpp](file://src/models/cantracemodel.cpp)
+- [src/ui/filterheaderview.cpp](file://src/ui/filterheaderview.cpp)
 
 ## 结论
-该 CAN 总线分析工具通过清晰的层次划分与稳定的接口设计，实现了高效的抓包、过滤、回放与录制功能。UI 与模型解耦提升了可维护性与可扩展性，核心层提供了可靠的播放、录制、仿真与 DBC 数据库管理能力。新增的多种测试数据格式支持（BLF和ASC格式）进一步增强了工具的测试能力和实用性，为CAN总线开发提供了更完整的解决方案。建议在后续迭代中继续优化渲染与 I/O 性能，并增强错误诊断与用户引导。
+该 CAN 总线分析工具通过清晰的层次划分与稳定的接口设计，实现了高效的抓包、过滤、回放与录制功能。UI 与模型解耦提升了可维护性与可扩展性，核心层提供了可靠的播放、录制、仿真与 DBC 数据库管理能力。**最新更新** 大幅增强了CAN追踪分析功能，新增了帧编号和时间增量计算、Wireshark风格的过滤界面、行标记着色功能和覆盖模式，显著提升了数据分析能力和用户体验。这些改进使工具能够更好地满足复杂CAN总线数据分析需求，为开发和测试提供了更强大的支持。建议在后续迭代中继续优化渲染与 I/O 性能，并增强错误诊断与用户引导。
 
-**更新** 强调了新增的测试数据格式支持对工具测试能力的显著提升，为CAN总线开发和测试提供了更强大的支持。
+**更新** 强调了最新的功能增强对工具性能的显著提升，特别是在大数据量处理和用户交互体验方面的改进。
 
 ## 附录
 - 构建说明：使用 CMake 配置与生成工程，参考顶层与 src 下的构建文件。
 - 资源管理：样式与图标通过 Qt 资源系统集成，确保跨平台一致性。
 - 扩展建议：新增过滤类型、信号映射与导出格式时，优先扩展工具层与模型层。
 - DBC支持：支持标准 DBC 文件格式，提供完整的消息、信号、节点信息管理。
-- **新增**：测试数据支持：支持BLF和ASC格式的测试数据文件，提供丰富的测试场景和数据源。
+- **新增功能**：
+  - 帧编号和时间增量：提供精确的帧序列分析和时间关系计算
+  - Wireshark风格过滤：直观的列级过滤界面和高级过滤操作符
+  - 行标记和着色：灵活的行标记系统和自定义颜色支持
+  - 覆盖模式：高效的同ID帧合并显示和数据更新
 
-**更新** 新增了测试数据支持的说明，强调了对BLF和ASC格式测试数据文件的完整支持。
+**更新** 新增了所有新功能的使用说明和扩展建议。
 
 章节来源
 - [CMakeLists.txt](file://CMakeLists.txt)
 - [src/CMakeLists.txt](file://src/CMakeLists.txt)
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
+- [src/models/cantracemodel.h](file://src/models/cantracemodel.h)
+- [src/models/canfilterproxymodel.h](file://src/models/canfilterproxymodel.h)
+- [src/ui/filterheaderview.h](file://src/ui/filterheaderview.h)

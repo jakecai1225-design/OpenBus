@@ -253,34 +253,6 @@ void MeasurementSetupView::setupUi()
     m_toolbar->setMovable(false);
     m_toolbar->setIconSize(QSize(20, 20));
 
-    auto *srcLabel = new QLabel("  数据源: ", m_toolbar);
-    m_toolbar->addWidget(srcLabel);
-
-    m_hwBtn = new QToolButton(m_toolbar);
-    m_hwBtn->setText("🔧 硬件实时");
-    m_hwBtn->setCheckable(true);
-    m_hwBtn->setAutoRaise(true);
-    m_hwBtn->setStyleSheet("QToolButton { padding: 2px 8px; font-size: 9pt; }"
-                           "QToolButton:checked { background: #4a90d9; color: white; border-radius: 3px; }");
-    m_toolbar->addWidget(m_hwBtn);
-
-    m_fileBtn = new QToolButton(m_toolbar);
-    m_fileBtn->setText("📁 文件回放");
-    m_fileBtn->setCheckable(true);
-    m_fileBtn->setAutoRaise(true);
-    m_fileBtn->setStyleSheet("QToolButton { padding: 2px 8px; font-size: 9pt; }"
-                             "QToolButton:checked { background: #4CAF50; color: white; border-radius: 3px; }");
-    m_toolbar->addWidget(m_fileBtn);
-
-    m_hwBtn->setChecked(true);
-
-    m_toolbar->addSeparator();
-
-    m_browseAct = m_toolbar->addAction(QStringLiteral("📂 选择回放文件"));
-    m_browseAct->setVisible(false);
-
-    m_toolbar->addSeparator();
-
     m_startAct = m_toolbar->addAction("▶ 开始测量");
 
     m_stopAct = m_toolbar->addAction("■ 停止");
@@ -312,15 +284,6 @@ void MeasurementSetupView::setupUi()
     layout->addWidget(m_view);
 
     // ---- 信号连接 ----
-    connect(m_hwBtn, &QToolButton::clicked, this, [this]() {
-        setSource(Source::Hardware);
-        emit sourceChanged(static_cast<int>(Source::Hardware));
-    });
-    connect(m_fileBtn, &QToolButton::clicked, this, [this]() {
-        setSource(Source::File);
-        emit sourceChanged(static_cast<int>(Source::File));
-    });
-    connect(m_browseAct, &QAction::triggered, this, &MeasurementSetupView::onBrowseClicked);
     connect(m_startAct, &QAction::triggered, this, &MeasurementSetupView::onStartClicked);
     connect(m_stopAct, &QAction::triggered, this, &MeasurementSetupView::onStopClicked);
 
@@ -849,9 +812,6 @@ void MeasurementSetupView::onSceneDoubleClicked(const QPointF &scenePos)
 void MeasurementSetupView::setSource(Source src)
 {
     m_source = src;
-    m_hwBtn->setChecked(src == Source::Hardware);
-    m_fileBtn->setChecked(src == Source::File);
-    m_browseAct->setVisible(src == Source::File);
     rebuildScene();
 }
 
@@ -873,8 +833,6 @@ void MeasurementSetupView::onStartClicked()
     m_running = true;
     m_startAct->setEnabled(false);
     m_stopAct->setEnabled(true);
-    m_hwBtn->setEnabled(false);
-    m_fileBtn->setEnabled(false);
     m_statusLabel->setText("▶ 测量运行中...");
     m_frameCount = 0;
     emit measurementToggled(true);
@@ -885,8 +843,6 @@ void MeasurementSetupView::onStopClicked()
     m_running = false;
     m_startAct->setEnabled(true);
     m_stopAct->setEnabled(false);
-    m_hwBtn->setEnabled(true);
-    m_fileBtn->setEnabled(true);
     m_statusLabel->setText(QString("■ 已停止 (帧数: %1)").arg(m_frameCount));
     emit measurementToggled(false);
 }

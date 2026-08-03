@@ -1,5 +1,6 @@
 #include "traceview.h"
 #include "filterbar.h"
+#include "filterheaderview.h"
 #include "models/cantracemodel.h"
 #include "models/canfilterproxymodel.h"
 #include "core/dbcmanager.h"
@@ -22,6 +23,8 @@
 #include <QInputDialog>
 #include <QLineEdit>
 #include <QSet>
+#include <QColorDialog>
+#include <QList>
 #include <algorithm>
 
 // ============================================================
@@ -48,15 +51,21 @@ void TraceView::setupAppearance()
     setSortingEnabled(true);
     setShowGrid(false);
 
-    horizontalHeader()->setStretchLastSection(false);
-    horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-    horizontalHeader()->setSectionsClickable(true);
-    horizontalHeader()->setSectionsMovable(true);
-    horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
+    // 替换为 Wireshark 风格漏斗表头
+    auto *filterHeader = new FilterHeaderView(Qt::Horizontal, this);
+    setHorizontalHeader(filterHeader);
+    filterHeader->setStretchLastSection(false);
+    filterHeader->setSectionResizeMode(QHeaderView::Interactive);
+    filterHeader->setSectionsClickable(true);
+    filterHeader->setSectionsMovable(true);
+    filterHeader->setContextMenuPolicy(Qt::CustomContextMenu);
     verticalHeader()->setDefaultSectionSize(22);
     verticalHeader()->setVisible(false);
 
+    // 列宽
+    setColumnWidth(CanTraceModel::ColNo, 60);
     setColumnWidth(CanTraceModel::ColTime, 100);
+    setColumnWidth(CanTraceModel::ColDelta, 90);
     setColumnWidth(CanTraceModel::ColChannel, 40);
     setColumnWidth(CanTraceModel::ColDirection, 40);
     setColumnWidth(CanTraceModel::ColId, 120);
@@ -65,14 +74,27 @@ void TraceView::setupAppearance()
     setColumnWidth(CanTraceModel::ColFlags, 80);
     setColumnWidth(CanTraceModel::ColFrameCount, 70);
 
-    // 默认按时间升序排序
-    sortByColumn(CanTraceModel::ColTime, Qt::AscendingOrder);
+    // 默认按帧编号升序排序
+    sortByColumn(CanTraceModel::ColNo, Qt::AscendingOrder);
 
     // 表头信号
-    connect(horizontalHeader(), &QHeaderView::sectionClicked,
+    connect(filterHeader, &QHeaderView::sectionClicked,
             this, &TraceView::onHeaderClicked);
-    connect(horizontalHeader(), &QHeaderView::customContextMenuRequested,
+    connect(filterHeader, &QHeaderView::customContextMenuRequested,
             this, &TraceView::onHeaderContextMenu);
+    connect(filterHeader, &FilterHeaderView::filterClicked,
+            this, &TraceView::onFilterIconClicked);
+}
+
+void TraceView::setModel(QAbstractItemModel *model)
+{
+    QTableView::setModel(model);
+    // 自动将代理模型传递给 FilterHeaderView
+    auto *fh = qobject_cast<FilterHeaderView *>(horizontalHeader());
+    if (fh) {
+        auto *proxy = qobject_cast<CanFilterProxyModel *>(model);
+        fh->setProxyModel(proxy);
+    }
 }
 
 void TraceView::scrollToBottom()
@@ -104,16 +126,40 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
     QModelIndex index = indexAt(event->pos());
     QMenu menu(this);
 
-    QAction copyAction("复制选中行", this);
-    QAction copyDataAction("复制数据", this);
-    QAction clearAction("清空所有", this);
-    QAction filterIdAction("按此 ID 过滤", this);
+    QAction copyAction(QStringLiteral("复制选中行"), this);
+    QAction copyDataAction(QStringLiteral("复制数据"), this);
+    QAction filterIdAction(QStringLiteral("按此 ID 过滤"), this);
 
     menu.addAction(&copyAction);
     menu.addAction(&copyDataAction);
     menu.addSeparator();
     menu.addAction(&filterIdAction);
+
+    // 标记与着色子菜单
+    auto rows = selectedSourceRows();
+    if (!rows.isEmpty()) {
+        menu.addSeparator();
+        QMenu *markMenu = menu.addMenu(QStringLiteral("标记与着色"));
+
+        QAction toggleMarkAct(QStringLiteral("\xE2\x98\x85 标记/取消标记选中行"), this);
+        QAction colorAct(QStringLiteral("🎨 着色选中行..."), this);
+        QAction clearMarkAct(QStringLiteral("✕ 清除所有标记"), this);
+        QAction clearColorAct(QStringLiteral("✕ 清除所有自定义颜色"), this);
+
+        markMenu->addAction(&toggleMarkAct);
+        markMenu->addAction(&colorAct);
+        markMenu->addSeparator();
+        markMenu->addAction(&clearMarkAct);
+        markMenu->addAction(&clearColorAct);
+
+        connect(&toggleMarkAct, &QAction::triggered, this, &TraceView::onToggleMarkSelected);
+        connect(&colorAct, &QAction::triggered, this, &TraceView::onColorSelected);
+        connect(&clearMarkAct, &QAction::triggered, this, &TraceView::onClearMarks);
+        connect(&clearColorAct, &QAction::triggered, this, &TraceView::onClearColors);
+    }
+
     menu.addSeparator();
+    QAction clearAction(QStringLiteral("清空所有"), this);
     menu.addAction(&clearAction);
 
     copyAction.setEnabled(index.isValid());
@@ -131,7 +177,8 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
 
         QString text;
         if (selected == &copyAction) {
-            text = QString("Time: %1  Ch: %2  Dir: %3  ID: %4  DLC: %5  Data: %6")
+            text = QString("No.: %1  Time: %2  Ch: %3  Dir: %4  ID: %5  DLC: %6  Data: %7")
+                       .arg(rows.isEmpty() ? 0 : rows.first() + 1)
                        .arg(frame->timestamp, 0, 'f', 6)
                        .arg(frame->channel)
                        .arg(frame->direction == CanFrame::Rx ? "Rx" : "Tx")
@@ -186,14 +233,16 @@ void TraceView::onHeaderContextMenu(const QPoint &pos)
 QString TraceView::columnFilterHint(int column) const
 {
     switch (column) {
-    case CanTraceModel::ColTime:      return "例如: >0.5  或  <1.0  或  0.123";
-    case CanTraceModel::ColChannel:   return "例如: 1  或  2";
-    case CanTraceModel::ColDirection: return "rx  或  tx";
-    case CanTraceModel::ColId:        return "例如: 0x123  或  >0x100  或  !=0x200";
-    case CanTraceModel::ColDlc:       return "例如: 8  或  >4";
-    case CanTraceModel::ColData:      return "例如: 01 02  或  FF";
+    case CanTraceModel::ColNo:         return QStringLiteral("例如: >10  或  <50  或  123");
+    case CanTraceModel::ColTime:      return QStringLiteral("例如: >0.5  或  <1.0  或  0.123");
+    case CanTraceModel::ColDelta:     return QStringLiteral("例如: >0.01  或  <0.1  排查周期异常");
+    case CanTraceModel::ColChannel:   return QStringLiteral("例如: 1  或  2");
+    case CanTraceModel::ColDirection: return QStringLiteral("rx  或  tx");
+    case CanTraceModel::ColId:        return QStringLiteral("例如: 0x123  或  >0x100  或  !=0x200");
+    case CanTraceModel::ColDlc:       return QStringLiteral("例如: 8  或  >4");
+    case CanTraceModel::ColData:      return QStringLiteral("例如: 01 02  或  FF");
     case CanTraceModel::ColFlags:     return QStringLiteral("例如: FD  或  BRS");
-    case CanTraceModel::ColFrameCount: return QStringLiteral("例如: >10 或 50");
+    case CanTraceModel::ColFrameCount: return QStringLiteral("例如: >10  或  50");
     }
     return {};
 }
@@ -329,6 +378,82 @@ void TraceView::onClearAllFilters()
     auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
     if (proxy)
         proxy->clearAllColumnFilters();
+}
+
+// ============================================================
+//  漏斗图标点击 → 弹出列筛选
+// ============================================================
+
+void TraceView::onFilterIconClicked(int column)
+{
+    onColumnFilter(column);
+}
+
+// ============================================================
+//  行标记与着色
+// ============================================================
+
+int TraceView::toSourceRow(const QModelIndex &proxyIndex) const
+{
+    if (!proxyIndex.isValid())
+        return -1;
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    if (proxy)
+        return proxy->mapToSource(proxyIndex).row();
+    return proxyIndex.row();
+}
+
+QList<int> TraceView::selectedSourceRows() const
+{
+    QList<int> rows;
+    if (!selectionModel())
+        return rows;
+    const auto indexes = selectionModel()->selectedRows();
+    rows.reserve(indexes.size());
+    for (const auto &idx : indexes)
+        rows.append(toSourceRow(idx));
+    std::sort(rows.begin(), rows.end());
+    rows.erase(std::unique(rows.begin(), rows.end()), rows.end());
+    return rows;
+}
+
+void TraceView::onToggleMarkSelected()
+{
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel()) : nullptr;
+    if (!source)
+        return;
+    for (int row : selectedSourceRows())
+        source->toggleMark(row);
+}
+
+void TraceView::onColorSelected()
+{
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel()) : nullptr;
+    if (!source)
+        return;
+    QColor color = QColorDialog::getColor(Qt::yellow, this, QStringLiteral("选择行颜色"));
+    if (!color.isValid())
+        return;
+    for (int row : selectedSourceRows())
+        source->setRowColor(row, color);
+}
+
+void TraceView::onClearMarks()
+{
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel()) : nullptr;
+    if (source)
+        source->clearMarks();
+}
+
+void TraceView::onClearColors()
+{
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel()) : nullptr;
+    if (source)
+        source->clearColors();
 }
 
 // ============================================================

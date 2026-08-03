@@ -25,6 +25,10 @@
 #include "ui/udsview.h"
 #include "ui/canopenview.h"
 #include "ui/measurementsetupview.h"
+#include "ui/tools/blfasconverter.h"
+#include "ui/tools/dbctoolview.h"
+#include "ui/tools/loganalysisview.h"
+#include "ui/tools/dbcsignallistview.h"
 #include "utils/canutils.h"
 #include "core/appconfig.h"
 #include "core/projectmanager.h"
@@ -166,6 +170,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_sideBar->analysisPanel(), &MeasurementSetupPanel::openMeasurementSetupRequested,
             this, [this]() { onOpenMeasurementSetup(); });
 
+    // 工具集面板 — 点击打开对应工具标签页
+    connect(m_sideBar->toolsPanel(), &ToolsPanel::toolOpened,
+            this, &MainWindow::onToolOpened);
+
     // 右侧面板快捷按钮
     connect(m_rightPanel, &RightPanel::recordRequested, this, &MainWindow::onQuickRecord);
     connect(m_rightPanel, &RightPanel::stopRecordRequested, this, &MainWindow::onQuickStopRecord);
@@ -210,6 +218,8 @@ MainWindow::MainWindow(QWidget *parent)
                 act = ActivityBar::Protocol;
             else if (text.contains("测量配置"))
                 act = ActivityBar::Analysis;
+            else if (text.contains("格式转换") || text.contains("DBC 编辑"))
+                act = ActivityBar::Tools;
 
             if (act != ActivityBar::None) {
                 m_activityBar->setCurrentActivity(act);
@@ -615,6 +625,23 @@ void MainWindow::onActivityChanged(int activity)
         onOpenRecordTab();
     } else if (activity == ActivityBar::Analysis) {
         onOpenMeasurementSetup();
+    } else if (activity == ActivityBar::Tools) {
+        // 切换到已存在的工具标签页（格式转换 / DBC 编辑）
+        const auto allTabs = m_editorArea->allTabWidgets();
+        bool found = false;
+        for (auto *tw : allTabs) {
+            for (int i = tw->count() - 1; i >= 0; --i) {
+                QString text = tw->tabText(i);
+                if (text.contains("格式转换") || text.contains("DBC 编辑")) {
+                    tw->setCurrentIndex(i);
+                    m_tabLabel->setText(text);
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+        // 未找到已打开的工具标签页时，仅显示工具集面板供用户选择
     }
 }
 
@@ -1516,6 +1543,30 @@ void MainWindow::onOpenMeasurementSetup()
     }
 
     openTab(view, "📊 测量配置");
+}
+
+void MainWindow::onToolOpened(const QString &toolKey)
+{
+    qDebug() << "[MainWindow] onToolOpened:" << toolKey;
+    if (toolKey == "blf_converter") {
+        auto *conv = new BlfAsConverter(this);
+        openTab(conv, QStringLiteral("🔄 格式转换"));
+    } else if (toolKey == "dbc_editor") {
+        auto *editor = new DbcToolView(this);
+        openTab(editor, QStringLiteral("📝 DBC 编辑"));
+    } else if (toolKey == "frame_statistics") {
+        auto *view = new FrameStatisticsView(this);
+        openTab(view, QStringLiteral("📊 报文统计"));
+    } else if (toolKey == "id_frequency") {
+        auto *view = new IdFrequencyView(this);
+        openTab(view, QStringLiteral("🔍 ID 频率分析"));
+    } else if (toolKey == "bus_load") {
+        auto *view = new BusLoadView(this);
+        openTab(view, QStringLiteral("📈 总线负载率"));
+    } else if (toolKey == "dbc_signal_list") {
+        auto *view = new DbcSignalListView(this);
+        openTab(view, QStringLiteral("📋 DBC 信号清单"));
+    }
 }
 
 void MainWindow::onProtocolOpened(const QString &protocolName)
