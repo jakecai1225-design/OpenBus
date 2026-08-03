@@ -34,6 +34,7 @@ public:
     explicit ActivityBar(QWidget *parent = nullptr);
 
     Activity currentActivity() const { return m_current; }
+    void setCurrentActivity(Activity act);
 
 signals:
     void activityChanged(int activity);

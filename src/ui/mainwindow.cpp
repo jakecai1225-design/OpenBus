@@ -27,7 +27,9 @@
 #include "ui/measurementsetupview.h"
 #include "utils/canutils.h"
 #include "core/appconfig.h"
+#include "core/projectmanager.h"
 #include "ui/settingsdialog.h"
+#include "core/file_import/file_importer.h"
 
 #include <QMenuBar>
 #include <QMenu>
@@ -55,6 +57,8 @@
 #include <QLineEdit>
 #include <QSlider>
 #include <QComboBox>
+#include <QProgressDialog>
+#include <QRegularExpression>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -183,11 +187,35 @@ MainWindow::MainWindow(QWidget *parent)
     // 标签页变化 → 刷新侧边栏面板列表
     connect(m_editorArea, &SplitEditorArea::tabListChanged,
             this, &MainWindow::refreshPanelLists);
-    // 标签页切换 → 更新标签名和统计
+    // 标签页切换 → 同步侧边栏面板 + 更新标签名和统计
     connect(m_editorArea, &SplitEditorArea::currentChanged, this, [this](int) {
         auto *tabs = m_editorArea->activeTabWidget();
-        if (tabs && tabs->currentIndex() >= 0)
-            m_tabLabel->setText(tabs->tabText(tabs->currentIndex()));
+        if (tabs && tabs->currentIndex() >= 0) {
+            QString text = tabs->tabText(tabs->currentIndex());
+            m_tabLabel->setText(text);
+
+            // 根据标签页文本同步侧边栏面板和活动栏
+            ActivityBar::Activity act = ActivityBar::None;
+            if (text.contains("Trace"))
+                act = ActivityBar::Trace;
+            else if (text.contains("Graphic"))
+                act = ActivityBar::Graphic;
+            else if (text.contains("DBC"))
+                act = ActivityBar::Dbc;
+            else if (text.contains("发送"))
+                act = ActivityBar::Send;
+            else if (text.contains("回放") || text.contains("录制"))
+                act = ActivityBar::Record;
+            else if (text.contains("UDS") || text.contains("CANopen"))
+                act = ActivityBar::Protocol;
+            else if (text.contains("测量配置"))
+                act = ActivityBar::Analysis;
+
+            if (act != ActivityBar::None) {
+                m_activityBar->setCurrentActivity(act);
+                m_sideBar->showPanel(static_cast<int>(act));
+            }
+        }
         updateStatistics();
     });
 
@@ -203,6 +231,36 @@ MainWindow::MainWindow(QWidget *parent)
     m_bottomPanel->appendOutput("sin 启动完成");
     updateActions();
     refreshPanelLists();
+
+    // ---- 工程管理 ----
+    connect(m_sideBar->projectPanel(), &ProjectPanel::projectSwitched,
+            this, &MainWindow::onProjectSwitched);
+    connect(m_sideBar->projectPanel(), &ProjectPanel::projectCreated,
+            this, &MainWindow::onProjectCreated);
+    connect(m_sideBar->projectPanel(), &ProjectPanel::openProjectRequested,
+            this, [this](const QString &path) {
+        captureProjectState();
+        if (!ProjectManager::instance()->currentFilePath().isEmpty())
+            ProjectManager::instance()->saveProject();
+        if (ProjectManager::instance()->loadProject(path)) {
+            applyProjectState();
+            m_bottomPanel->appendOutput(QStringLiteral("工程已加载: ") +
+                                        ProjectManager::instance()->currentProjectName());
+        }
+    });
+    connect(m_sideBar->projectPanel(), &ProjectPanel::saveProjectRequested,
+            this, [this](const QString &path) {
+        captureProjectState();
+        if (ProjectManager::instance()->saveProject(path))
+            m_bottomPanel->appendOutput(QStringLiteral("工程已保存: ") + path);
+    });
+
+    // 自动加载上次工程
+    QString lastProj = AppConfig::instance()->getString("project.lastPath", "");
+    if (!lastProj.isEmpty() && QFile::exists(lastProj)) {
+        if (ProjectManager::instance()->loadProject(lastProj))
+            applyProjectState();
+    }
 }
 
 MainWindow::~MainWindow() = default;
@@ -225,6 +283,20 @@ void MainWindow::createMenuBar()
     auto *openProj = new QAction("打开工程...", this);
     openProj->setShortcut(QKeySequence("Ctrl+Shift+O"));
     fileMenu->addAction(openProj);
+    connect(openProj, &QAction::triggered, this, &MainWindow::onOpenProject);
+
+    auto *saveProj = new QAction("保存工程", this);
+    saveProj->setShortcut(QKeySequence("Ctrl+Shift+S"));
+    fileMenu->addAction(saveProj);
+    connect(saveProj, &QAction::triggered, this, &MainWindow::onSaveProject);
+
+    fileMenu->addSeparator();
+
+    m_importAction = new QAction("导入日志文件...", this);
+    m_importAction->setShortcut(QKeySequence("Ctrl+I"));
+    m_importAction->setToolTip("导入 BLF/ASC/CSV 日志文件到 Trace");
+    fileMenu->addAction(m_importAction);
+    connect(m_importAction, &QAction::triggered, this, &MainWindow::onImportLog);
 
     fileMenu->addSeparator();
     fileMenu->addAction("退出(&Q)", QKeySequence("Alt+F4"), this, &QApplication::quit);
@@ -652,6 +724,66 @@ void MainWindow::onOpenFile()
         m_playbackTab->setFileInfo(fi.fileName(), m_player->totalFrames(), m_player->totalTime());
     }
     updateActions();
+}
+
+void MainWindow::onImportLog()
+{
+    const auto filters = FileImportFactory::fileFilters();
+    QString path = QFileDialog::getOpenFileName(
+        this, QStringLiteral("导入日志文件"), {},
+        filters.join(QStringLiteral(";;")));
+    if (path.isEmpty()) return;
+
+    auto importer = FileImportFactory::create(path);
+    if (!importer) {
+        QMessageBox::warning(this, QStringLiteral("导入"), QStringLiteral("不支持的文件格式"));
+        return;
+    }
+
+    // 进度对话框（500ms 后显示，避免小文件闪烁）
+    QProgressDialog progress(QStringLiteral("正在导入..."), QStringLiteral("取消"), 0, 100, this);
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(500);
+
+    auto frames = importer->importFile(path, [&progress](double pct) {
+        progress.setValue(static_cast<int>(pct * 100));
+        QApplication::processEvents();
+    });
+
+    if (progress.wasCanceled()) return;
+
+    if (frames.isEmpty()) {
+        QMessageBox::warning(this, QStringLiteral("导入"),
+            QStringLiteral("文件为空或解析失败"));
+        return;
+    }
+
+    // 找到活跃的 TraceTab（当前页或第一个找到的）
+    TraceTab *traceTab = qobject_cast<TraceTab *>(m_editorArea->currentWidget());
+    if (!traceTab) {
+        const auto allTabs = m_editorArea->allTabWidgets();
+        for (auto *tw : allTabs) {
+            for (int i = 0; i < tw->count(); ++i) {
+                traceTab = qobject_cast<TraceTab *>(tw->widget(i));
+                if (traceTab) break;
+            }
+            if (traceTab) break;
+        }
+    }
+
+    if (traceTab) {
+        traceTab->appendFrames(frames);
+        if (m_autoScroll)
+            traceTab->traceView()->scrollToBottom();
+    }
+
+    const QFileInfo fi(path);
+    const int count = traceTab ? traceTab->frameCount() : frames.size();
+    m_bottomPanel->appendOutput(QString("导入完成: %1 (%2 帧, 格式: %3)")
+        .arg(fi.fileName()).arg(frames.size()).arg(importer->formatName()));
+    m_frameCountLabel->setText(QString::number(count) + QStringLiteral(" 帧"));
+    m_rowCountLabel->setText(QString::number(count) + QStringLiteral("行"));
+    m_statusLabel->setText(QString("已导入 %1").arg(fi.fileName()));
 }
 
 void MainWindow::onAutoScrollToggled(bool on)
@@ -1169,6 +1301,10 @@ void MainWindow::onOpenMeasurementSetup()
         view->setDbcFiles(files);
     });
 
+    // 记录当前测量配置视图，用于实例跟踪
+    m_setupView = view;
+    connect(view, &QObject::destroyed, this, [this]() { m_setupView = nullptr; });
+
     // 连接信号
     connect(view, &MeasurementSetupView::sourceChanged,
             this, [this](int src) {
@@ -1182,14 +1318,45 @@ void MainWindow::onOpenMeasurementSetup()
     });
     connect(view, &MeasurementSetupView::fileBrowseRequested,
             this, [this, view]() {
+        // 支持 ASC / BLF / CSV 回放格式
+        const auto filters = FileImportFactory::fileFilters();
         QString path = QFileDialog::getOpenFileName(
-            this, "选择待分析的报文文件", {},
-            CanFileIO::allFileFilters());
-        if (!path.isEmpty()) {
-            view->setFilePath(path);
-            m_player->load(path);
-            m_bottomPanel->appendOutput("已加载分析文件：" + QFileInfo(path).fileName());
+            this, QStringLiteral("选择回放文件"), {},
+            filters.join(QStringLiteral(";;")));
+        if (path.isEmpty()) return;
+
+        QFileInfo fi(path);
+        QString suffix = fi.suffix().toLower();
+
+        // ASC/CSV/BLF 用 FileImporter 解析后载入 Player
+        auto importer = FileImportFactory::create(path);
+        if (!importer) {
+            QMessageBox::warning(this, QStringLiteral("回放"),
+                QStringLiteral("不支持的文件格式: ") + suffix);
+            return;
         }
+
+        QProgressDialog progress(QStringLiteral("正在导入回放文件..."),
+                                 QStringLiteral("取消"), 0, 100, this);
+        progress.setWindowModality(Qt::WindowModal);
+        progress.setMinimumDuration(500);
+
+        auto frames = importer->importFile(path, [&progress](double pct) {
+            progress.setValue(static_cast<int>(pct * 100));
+            QApplication::processEvents();
+        });
+
+        if (progress.wasCanceled()) return;
+
+        if (frames.isEmpty()) {
+            QMessageBox::warning(this, QStringLiteral("回放"),
+                QStringLiteral("文件为空或解析失败"));
+            return;
+        }
+
+        m_player->loadFrames(frames);
+        view->setFilePath(path);
+        m_bottomPanel->appendOutput(QStringLiteral("已加载回放文件：") + fi.fileName());
     });
     connect(view, &MeasurementSetupView::measurementToggled,
             this, [this, view](bool running) {
@@ -1214,15 +1381,106 @@ void MainWindow::onOpenMeasurementSetup()
                                     .arg(name).arg(enabled ? "已启用" : "已禁用"));
     });
     connect(view, &MeasurementSetupView::moduleOpened,
-            this, [this](const QString &moduleId) {
-        if (moduleId == "trace")
-            onOpenTraceTab();
-        else if (moduleId == "graphic")
-            onNewGraphicRequested();
-        else if (moduleId == "record")
+            this, [this, view](const QString &moduleId, const QString &instanceId) {
+        if (moduleId == "trace") {
+            if (instanceId.isEmpty()) {
+                // 新建 Trace 实例
+                auto *tab = new TraceTab(this);
+                setupTraceTab(tab);
+                int n = ++m_traceCount;
+                QString id = QString("trace%1").arg(n);
+                QString title = QString("Trace%1").arg(n);
+                openTab(tab, QString("📋 %1").arg(title));
+                m_traceInstances[id] = tab;
+                view->addModuleInstance("trace", id, title);
+                // 标签页关闭时自动同步
+                connect(tab, &QObject::destroyed, this, [this, id](QObject *) {
+                    m_traceInstances.remove(id);
+                    if (m_setupView)
+                        m_setupView->removeModuleInstance("trace", id);
+                });
+            } else {
+                // 跳转到已有 Trace 实例
+                auto *tab = m_traceInstances.value(instanceId);
+                if (tab) {
+                    const auto allTabs = m_editorArea->allTabWidgets();
+                    for (auto *tw : allTabs) {
+                        int idx = tw->indexOf(tab);
+                        if (idx >= 0) {
+                            tw->setCurrentIndex(idx);
+                            m_tabLabel->setText(tw->tabText(idx));
+                            break;
+                        }
+                    }
+                }
+            }
+        } else if (moduleId == "graphic") {
+            if (instanceId.isEmpty()) {
+                // 新建 Graphic 实例
+                auto *gv = new GraphicView(this);
+                int n = ++m_graphicCount;
+                QString id = QString("graphic%1").arg(n);
+                QString title = QString("Graphic%1").arg(n);
+                openTab(gv, QString("📈 %1").arg(title));
+                m_graphicInstances[id] = gv;
+                view->addModuleInstance("graphic", id, title);
+                connect(gv, &QObject::destroyed, this, [this, id](QObject *) {
+                    m_graphicInstances.remove(id);
+                    if (m_setupView)
+                        m_setupView->removeModuleInstance("graphic", id);
+                });
+            } else {
+                // 跳转到已有 Graphic 实例
+                auto *gv = m_graphicInstances.value(instanceId);
+                if (gv) {
+                    const auto allTabs = m_editorArea->allTabWidgets();
+                    for (auto *tw : allTabs) {
+                        int idx = tw->indexOf(gv);
+                        if (idx >= 0) {
+                            tw->setCurrentIndex(idx);
+                            m_tabLabel->setText(tw->tabText(idx));
+                            break;
+                        }
+                    }
+                }
+            }
+        } else if (moduleId == "record") {
             onOpenRecordTab();
-        else if (moduleId == "data")
+        } else if (moduleId == "data") {
             m_bottomPanel->appendOutput("Data 统计模块（待实现）");
+        }
+    });
+
+    // 关闭模块实例请求
+    connect(view, &MeasurementSetupView::moduleInstanceClosed,
+            this, [this](const QString &moduleId, const QString &instanceId) {
+        if (moduleId == "trace") {
+            auto *tab = m_traceInstances.value(instanceId);
+            if (tab) {
+                const auto allTabs = m_editorArea->allTabWidgets();
+                for (auto *tw : allTabs) {
+                    int idx = tw->indexOf(tab);
+                    if (idx >= 0) {
+                        tw->removeTab(idx);
+                        break;
+                    }
+                }
+                tab->deleteLater();  // destroyed 信号会自动清理 map 和通知 view
+            }
+        } else if (moduleId == "graphic") {
+            auto *gv = m_graphicInstances.value(instanceId);
+            if (gv) {
+                const auto allTabs = m_editorArea->allTabWidgets();
+                for (auto *tw : allTabs) {
+                    int idx = tw->indexOf(gv);
+                    if (idx >= 0) {
+                        tw->removeTab(idx);
+                        break;
+                    }
+                }
+                gv->deleteLater();
+            }
+        }
     });
 
     // DBC 选择请求 → 打开 DBC 导入对话框
@@ -1243,6 +1501,19 @@ void MainWindow::onOpenMeasurementSetup()
             this, [this](const QString &channelId) {
         m_bottomPanel->appendOutput(QString("通道 %1 过滤条件已配置").arg(channelId));
     });
+
+    // 注册默认 Trace 实例到测量配置画布
+    if (m_traceTab) {
+        if (!m_traceInstances.contains("trace1")) {
+            m_traceInstances["trace1"] = m_traceTab;
+            connect(m_traceTab, &QObject::destroyed, this, [this](QObject *) {
+                m_traceInstances.remove("trace1");
+                if (m_setupView)
+                    m_setupView->removeModuleInstance("trace", "trace1");
+            });
+        }
+        view->addModuleInstance("trace", "trace1", "Trace1");
+    }
 
     openTab(view, "📊 测量配置");
 }
@@ -1730,5 +2001,281 @@ void MainWindow::closeEvent(QCloseEvent *event)
     }
     m_simulator->stop();
     m_player->stop();
+
+    // 自动保存工程
+    if (AppConfig::instance()->getBool("project.autoSaveOnClose", true)) {
+        captureProjectState();
+        if (!ProjectManager::instance()->currentFilePath().isEmpty()) {
+            ProjectManager::instance()->saveProject();
+        }
+    }
+
     event->accept();
+}
+
+// ============================================================
+//  工程管理
+// ============================================================
+
+void MainWindow::onOpenProject()
+{
+    QString path = QFileDialog::getOpenFileName(
+        this, QStringLiteral("打开工程"), {},
+        QStringLiteral("sin 工程文件 (*.sinproj);;所有文件 (*.*)"));
+    if (path.isEmpty()) return;
+
+    // 先保存当前工程状态
+    captureProjectState();
+    if (!ProjectManager::instance()->currentFilePath().isEmpty())
+        ProjectManager::instance()->saveProject();
+
+    // 加载新工程
+    if (ProjectManager::instance()->loadProject(path)) {
+        applyProjectState();
+        m_bottomPanel->appendOutput(QStringLiteral("工程已加载: ") +
+                                    ProjectManager::instance()->currentProjectName());
+    }
+}
+
+void MainWindow::onSaveProject()
+{
+    captureProjectState();
+
+    QString path = ProjectManager::instance()->currentFilePath();
+    if (path.isEmpty()) {
+        path = QFileDialog::getSaveFileName(
+            this, QStringLiteral("保存工程"),
+            ProjectManager::instance()->currentProjectName() + ".sinproj",
+            QStringLiteral("sin 工程文件 (*.sinproj);;所有文件 (*.*)"));
+        if (path.isEmpty()) return;
+    }
+
+    if (ProjectManager::instance()->saveProject(path)) {
+        m_bottomPanel->appendOutput(QStringLiteral("工程已保存: ") + path);
+    }
+}
+
+void MainWindow::onProjectSwitched(int index)
+{
+    const auto &projects = m_sideBar->projectPanel()->projects();
+    if (index < 0 || index >= projects.size()) return;
+
+    // 保存当前工程
+    captureProjectState();
+    if (!ProjectManager::instance()->currentFilePath().isEmpty())
+        ProjectManager::instance()->saveProject();
+
+    // 加载目标工程
+    const auto &target = projects.at(index);
+    if (!target.filePath.isEmpty() && QFile::exists(target.filePath)) {
+        if (ProjectManager::instance()->loadProject(target.filePath)) {
+            applyProjectState();
+            m_bottomPanel->appendOutput(QStringLiteral("已切换到工程: ") +
+                                        ProjectManager::instance()->currentProjectName());
+        }
+    } else {
+        // 新工程，尚未保存到文件
+        ProjectManager::instance()->newProject(target.name);
+        applyProjectState();
+    }
+}
+
+void MainWindow::onProjectCreated(const QString &name)
+{
+    // 保存当前工程
+    captureProjectState();
+    if (!ProjectManager::instance()->currentFilePath().isEmpty())
+        ProjectManager::instance()->saveProject();
+
+    // 创建新工程
+    ProjectManager::instance()->newProject(name);
+    applyProjectState();
+    m_bottomPanel->appendOutput(QStringLiteral("已创建新工程: ") + name);
+}
+
+void MainWindow::captureProjectState()
+{
+    auto &st = ProjectManager::instance()->currentStateRef();
+
+    // 数据源
+    if (m_setupView) {
+        st.sourceMode = static_cast<int>(m_setupView->currentSource());
+        st.filePath = m_setupView->filePath();
+    }
+
+    // 波特率 / 通道
+    if (m_simulator) {
+        st.baudrate = m_simulator->baudrate();
+        st.channel = m_simulator->channel();
+    }
+
+    // DBC 文件
+    st.dbcFiles.clear();
+    if (m_dbcManager) {
+        for (const auto &f : m_dbcManager->files())
+            st.dbcFiles << f.filePath;
+    }
+
+    // Trace 实例
+    st.traces.clear();
+    for (auto it = m_traceInstances.begin(); it != m_traceInstances.end(); ++it) {
+        ProjectTraceInstance ti;
+        ti.id = it.key();
+        ti.title = it.key();
+        ti.title[0] = ti.title[0].toUpper();
+        auto *tab = qobject_cast<TraceTab*>(it.value());
+        if (tab)
+            ti.filterExpression = tab->filterExpression();
+        st.traces.append(ti);
+    }
+
+    // Graphic 实例
+    st.graphics.clear();
+    for (auto it = m_graphicInstances.begin(); it != m_graphicInstances.end(); ++it) {
+        ProjectGraphicInstance gi;
+        gi.id = it.key();
+        gi.title = it.key();
+        gi.title[0] = gi.title[0].toUpper();
+        auto *gv = qobject_cast<GraphicView*>(it.value());
+        if (gv) {
+            for (const auto &sig : gv->signalConfigs()) {
+                ProjectSigCfg sc;
+                sc.canId = sig.canId;
+                sc.name = sig.name;
+                sc.extended = sig.extended;
+                gi.sigList.append(sc);
+            }
+        }
+        st.graphics.append(gi);
+    }
+
+    // 标签页顺序
+    st.openTabs.clear();
+    st.activeTab.clear();
+    if (m_editorArea) {
+        const auto allTabs = m_editorArea->allTabWidgets();
+        for (auto *tw : allTabs) {
+            for (int i = 0; i < tw->count(); ++i)
+                st.openTabs << tw->tabText(i).trimmed();
+            int idx = tw->currentIndex();
+            if (idx >= 0 && idx < tw->count())
+                st.activeTab = tw->tabText(idx).trimmed();
+            break;
+        }
+    }
+
+    ProjectManager::instance()->currentStateRef() = st;
+}
+
+void MainWindow::applyProjectState()
+{
+    const auto &st = ProjectManager::instance()->currentState();
+
+    // 1. 停止测量
+    m_simulator->stop();
+    m_player->stop();
+
+    // 2. 关闭当前所有 Trace/Graphic 标签页
+    if (m_editorArea) {
+        const auto allTabs = m_editorArea->allTabWidgets();
+        for (auto *tw : allTabs) {
+            for (int i = tw->count() - 1; i >= 0; --i) {
+                QString text = tw->tabText(i);
+                if (text.contains("Trace") || text.contains("Graphic") ||
+                    text.contains("📈") || text.contains("📋")) {
+                    QWidget *w = tw->widget(i);
+                    tw->removeTab(i);
+                    if (w) w->deleteLater();
+                }
+            }
+        }
+    }
+    m_traceInstances.clear();
+    m_graphicInstances.clear();
+    m_traceCount = 0;
+    m_graphicCount = 0;
+
+    // 3. 卸载所有 DBC 并重新加载
+    auto dbcFiles = m_dbcManager->files();
+    for (const auto &f : dbcFiles)
+        m_dbcManager->unloadDbc(f.filePath);
+    for (const auto &path : st.dbcFiles) {
+        if (QFile::exists(path)) {
+            m_dbcManager->loadDbc(path);
+        } else {
+            m_bottomPanel->appendOutput(QStringLiteral("⚠ DBC 文件不存在: ") + path);
+        }
+    }
+
+    // 4. 设置数据源
+    if (m_setupView) {
+        m_setupView->setSource(static_cast<MeasurementSetupView::Source>(st.sourceMode));
+        m_setupView->setFilePath(st.filePath);
+    }
+
+    // 5. 波特率 / 通道
+    m_simulator->setChannel(static_cast<quint8>(st.channel));
+    m_simulator->setBaudrate(st.baudrate);
+
+    // 6. 创建 Trace 实例
+    for (const auto &t : st.traces) {
+        auto *tab = new TraceTab(this);
+        setupTraceTab(tab);
+        if (!t.filterExpression.isEmpty())
+            tab->setFilterExpression(t.filterExpression);
+        openTab(tab, QStringLiteral("📋 %1").arg(t.title));
+        m_traceInstances[t.id] = tab;
+        // 更新计数器
+        int n = 0;
+        QRegularExpression re("trace(\\d+)", QRegularExpression::CaseInsensitiveOption);
+        auto m = re.match(t.id);
+        if (m.hasMatch())
+            n = m.captured(1).toInt();
+        m_traceCount = qMax(m_traceCount, n);
+    }
+
+    // 7. 创建 Graphic 实例
+    for (const auto &g : st.graphics) {
+        auto *gv = new GraphicView(this);
+        // 重建信号配置
+        QVector<GraphicView::Signal> sigConfigs;
+        for (const auto &s : g.sigList) {
+            GraphicView::Signal sig;
+            sig.name = s.name;
+            sig.canId = s.canId;
+            sig.extended = s.extended;
+            // 从 DbcManager 查找完整的 DbcSignal 定义
+            const DbcMessage *msg = m_dbcManager->findMessage(s.canId);
+            if (msg) {
+                const DbcSignal *ds = msg->findSignal(s.name);
+                if (ds) sig.dbcSig = *ds;
+            }
+            sigConfigs.append(sig);
+        }
+        if (!sigConfigs.isEmpty())
+            gv->loadSignalConfigs(sigConfigs);
+        openTab(gv, QStringLiteral("📈 %1").arg(g.title));
+        m_graphicInstances[g.id] = gv;
+        int n = 0;
+        QRegularExpression re("graphic(\\d+)", QRegularExpression::CaseInsensitiveOption);
+        auto m = re.match(g.id);
+        if (m.hasMatch())
+            n = m.captured(1).toInt();
+        m_graphicCount = qMax(m_graphicCount, n);
+    }
+
+    // 8. 更新测量配置视图
+    if (m_setupView) {
+        // 重新注册所有 trace/graphic 实例
+        for (const auto &t : st.traces)
+            m_setupView->addModuleInstance("trace", t.id, t.title);
+        for (const auto &g : st.graphics)
+            m_setupView->addModuleInstance("graphic", g.id, g.title);
+        m_setupView->rebuildScene();
+    }
+
+    // 9. 更新窗口标题
+    setWindowTitle(QStringLiteral("sin - %1").arg(st.name));
+
+    m_bottomPanel->appendOutput(QStringLiteral("工程现场已恢复: %1").arg(st.name));
 }

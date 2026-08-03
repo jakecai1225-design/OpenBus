@@ -71,7 +71,12 @@ private:
     {
         for (int i = 0; i < m_tabs->tabBar()->count(); ++i) {
             auto *btn = m_tabs->tabBar()->tabButton(i, QTabBar::RightSide);
-            if (btn) btn->setVisible(i == visibleIdx);
+            if (btn) {
+                // 固定标签页不显示关闭按钮
+                QWidget *w = m_tabs->widget(i);
+                bool pinned = w && w->property("pinned").toBool();
+                btn->setVisible(i == visibleIdx && !pinned);
+            }
         }
     }
 
@@ -181,11 +186,7 @@ QTabWidget *SplitEditorArea::createTabWidget()
 
     // 关闭标签页
     connect(tabs, &QTabWidget::tabCloseRequested, this, [this, tabs](int index) {
-        QWidget *w = tabs->widget(index);
-        tabs->removeTab(index);
-        if (w) w->deleteLater();
-        removeEmptySplits();
-        emit tabListChanged();
+        closeTab(tabs, index);
     });
 
     // 鼠标悬停时显示关闭按钮，离开时隐藏
@@ -311,18 +312,47 @@ void SplitEditorArea::onTabBarContextMenu(int index, const QPoint &pos)
     if (!tabs)
         return;
 
+    QWidget *widget = tabs->widget(index);
+    bool pinned = widget && widget->property("pinned").toBool();
+
     auto *menu = new QMenu(this);
 
-    auto *splitRight = menu->addAction("向右拆分");
-    auto *splitDown = menu->addAction("向下拆分");
-    auto *detach = menu->addAction("分离到新窗口");
-
+    // ---- Pin / Unpin ----
+    auto *pinAct = menu->addAction(pinned ? QStringLiteral("📌 取消固定")
+                                          : QStringLiteral("📌 固定标签页"));
     menu->addSeparator();
-    auto *closeSplit = menu->addAction("关闭此拆分组");
+
+    // ---- 关闭操作 ----
+    auto *closeAct = menu->addAction(QStringLiteral("关闭"));
+    closeAct->setEnabled(!pinned);
+    auto *closeOthersAct = menu->addAction(QStringLiteral("关闭其他"));
+    closeOthersAct->setEnabled(tabs->count() > 1);
+    auto *closeRightAct = menu->addAction(QStringLiteral("关闭右侧标签页"));
+    closeRightAct->setEnabled(index < tabs->count() - 1);
+    auto *closeAllAct = menu->addAction(QStringLiteral("关闭所有"));
+    closeAllAct->setEnabled(tabs->count() > 0);
+    menu->addSeparator();
+
+    // ---- 拆分 / 分离 ----
+    auto *splitRight = menu->addAction(QStringLiteral("向右拆分"));
+    auto *splitDown = menu->addAction(QStringLiteral("向下拆分"));
+    auto *detach = menu->addAction(QStringLiteral("分离到新窗口"));
+    menu->addSeparator();
+    auto *closeSplit = menu->addAction(QStringLiteral("关闭此拆分组"));
     closeSplit->setEnabled(tabs->count() > 0);
 
     auto *chosen = menu->exec(tabs->tabBar()->mapToGlobal(pos));
-    if (chosen == splitRight) {
+    if (chosen == pinAct) {
+        togglePin(tabs, index);
+    } else if (chosen == closeAct) {
+        closeTab(tabs, index);
+    } else if (chosen == closeOthersAct) {
+        closeOthers(tabs, index);
+    } else if (chosen == closeRightAct) {
+        closeRight(tabs, index);
+    } else if (chosen == closeAllAct) {
+        closeAll(tabs);
+    } else if (chosen == splitRight) {
         splitTab(tabs, index, Qt::Horizontal);
     } else if (chosen == splitDown) {
         splitTab(tabs, index, Qt::Vertical);
@@ -346,6 +376,91 @@ void SplitEditorArea::onTabBarContextMenu(int index, const QPoint &pos)
         emit tabListChanged();
     }
     menu->deleteLater();
+}
+
+// ============================================================
+//  Pin / 关闭操作实现
+// ============================================================
+
+bool SplitEditorArea::isPinned(QWidget *w) const
+{
+    return w && w->property("pinned").toBool();
+}
+
+void SplitEditorArea::togglePin(QTabWidget *tabs, int index)
+{
+    QWidget *w = tabs->widget(index);
+    if (!w) return;
+    bool newPinned = !w->property("pinned").toBool();
+    w->setProperty("pinned", newPinned);
+
+    // 更新标签页文本（添加/移除 📌 前缀）
+    QString text = tabs->tabText(index);
+    static const QString pinPrefix = QString::fromUtf8("\xF0\x9F\x93\x8C ");
+    if (newPinned) {
+        if (!text.startsWith(pinPrefix))
+            tabs->setTabText(index, pinPrefix + text);
+    } else {
+        if (text.startsWith(pinPrefix))
+            tabs->setTabText(index, text.mid(pinPrefix.length()));
+    }
+
+    // 固定标签页隐藏关闭按钮
+    auto *btn = tabs->tabBar()->tabButton(index, QTabBar::RightSide);
+    if (btn) btn->setVisible(!newPinned);
+
+    emit tabListChanged();
+}
+
+void SplitEditorArea::closeTab(QTabWidget *tabs, int index)
+{
+    if (!tabs || index < 0 || index >= tabs->count()) return;
+    QWidget *w = tabs->widget(index);
+    if (w && w->property("pinned").toBool()) return;  // 固定标签页不可关闭
+    tabs->removeTab(index);
+    if (w) w->deleteLater();
+    removeEmptySplits();
+    emit tabListChanged();
+}
+
+void SplitEditorArea::closeOthers(QTabWidget *tabs, int keepIndex)
+{
+    if (!tabs) return;
+    for (int i = tabs->count() - 1; i >= 0; --i) {
+        if (i == keepIndex) continue;
+        QWidget *w = tabs->widget(i);
+        if (w && w->property("pinned").toBool()) continue;
+        tabs->removeTab(i);
+        if (w) w->deleteLater();
+    }
+    removeEmptySplits();
+    emit tabListChanged();
+}
+
+void SplitEditorArea::closeRight(QTabWidget *tabs, int startIndex)
+{
+    if (!tabs) return;
+    for (int i = tabs->count() - 1; i > startIndex; --i) {
+        QWidget *w = tabs->widget(i);
+        if (w && w->property("pinned").toBool()) continue;
+        tabs->removeTab(i);
+        if (w) w->deleteLater();
+    }
+    removeEmptySplits();
+    emit tabListChanged();
+}
+
+void SplitEditorArea::closeAll(QTabWidget *tabs)
+{
+    if (!tabs) return;
+    for (int i = tabs->count() - 1; i >= 0; --i) {
+        QWidget *w = tabs->widget(i);
+        if (w && w->property("pinned").toBool()) continue;
+        tabs->removeTab(i);
+        if (w) w->deleteLater();
+    }
+    removeEmptySplits();
+    emit tabListChanged();
 }
 
 void SplitEditorArea::splitTab(QTabWidget *source, int index, Qt::Orientation orient)

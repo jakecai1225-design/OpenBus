@@ -60,6 +60,8 @@ public:
     void removeSignal(int index);
     void clearSignals();
     QVector<Signal> signalConfigs() const;
+    /// 批量加载信号配置（清除原有后添加）
+    void loadSignalConfigs(const QVector<Signal> &configs);
 
     void setTimeWindow(double seconds) { m_timeWindow = seconds; refreshTimeAxis(); }
     double timeWindow() const { return m_timeWindow; }

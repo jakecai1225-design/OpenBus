@@ -133,10 +133,12 @@ public:
     bool isOverwriteMode() const;
 
     void appendFrame(const CanFrame &frame);
+    void appendFrames(const QVector<CanFrame> &frames);
     void clearTrace();
     int frameCount() const;
     bool setFilterExpression(const QString &expr);
     void clearFilter();
+    QString filterExpression() const;
 
 private slots:
     void onSelectionChanged();

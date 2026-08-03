@@ -536,6 +536,11 @@ void TraceTab::appendFrame(const CanFrame &frame)
     m_traceModel->appendFrame(frame);
 }
 
+void TraceTab::appendFrames(const QVector<CanFrame> &frames)
+{
+    m_traceModel->appendFrames(frames);
+}
+
 void TraceTab::clearTrace()
 {
     m_traceModel->clear();
@@ -554,6 +559,11 @@ bool TraceTab::setFilterExpression(const QString &expr)
 void TraceTab::clearFilter()
 {
     m_proxyModel->clearFilter();
+}
+
+QString TraceTab::filterExpression() const
+{
+    return m_proxyModel->filterExpression();
 }
 
 void TraceTab::onSelectionChanged()

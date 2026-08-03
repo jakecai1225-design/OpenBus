@@ -70,6 +70,14 @@ QToolButton *ActivityBar::createButton(const QString &text, const QString &toolt
     return btn;
 }
 
+void ActivityBar::setCurrentActivity(Activity act)
+{
+    if (m_current == act) return;
+    m_current = act;
+    for (auto &info : m_buttons)
+        info.btn->setChecked(info.activity == act);
+}
+
 void ActivityBar::onButtonClicked()
 {
     auto *btn = qobject_cast<QToolButton *>(sender());

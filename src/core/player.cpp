@@ -33,6 +33,14 @@ bool Player::load(const QString &filePath)
     return true;
 }
 
+void Player::loadFrames(const QVector<CanFrame> &frames)
+{
+    stop();
+    m_frames = frames;
+    m_currentIndex = 0;
+    emitProgress();
+}
+
 void Player::unload()
 {
     stop();

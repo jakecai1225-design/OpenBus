@@ -55,6 +55,9 @@ public:
     QTabWidget *activeTabWidget() const;
     QList<QTabWidget *> allTabWidgets() const;
 
+    /// 检查标签页是否已固定
+    bool isPinned(QWidget *w) const;
+
     /// 将标签页分离到独立窗口
     void detachTab(QTabWidget *tabs, int index);
 
@@ -83,6 +86,13 @@ private:
 
     // 标签页拖拽分离检测
     void installDragOutFilter(QTabWidget *tabs);
+
+    // Pin / 关闭操作
+    void togglePin(QTabWidget *tabs, int index);
+    void closeTab(QTabWidget *tabs, int index);
+    void closeOthers(QTabWidget *tabs, int keepIndex);
+    void closeRight(QTabWidget *tabs, int startIndex);
+    void closeAll(QTabWidget *tabs);
 };
 
 #endif // SPLITEDITORAREA_H

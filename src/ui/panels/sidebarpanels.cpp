@@ -1,8 +1,11 @@
 #include "sidebarpanels.h"
 #include "core/dbcmanager.h"
 #include "core/cansimulator.h"
+#include "core/appconfig.h"
 #include "ui/graphicview.h"
 #include "ui/thememanager.h"
+
+#include <nlohmann/json.hpp>
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -66,30 +69,45 @@ ProjectPanel::ProjectPanel(QWidget *parent)
     m_projectList->setObjectName("ProjectList");
     cl->addWidget(m_projectList, 1);
 
+    // 最近工程列表
+    auto *recentLabel = new QLabel("最近打开", this);
+    recentLabel->setStyleSheet("font-weight: bold; padding: 2px; color: #888;");
+    cl->addWidget(recentLabel);
+    m_recentList = new QListWidget(this);
+    m_recentList->setMaximumHeight(100);
+    cl->addWidget(m_recentList);
+
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(4, 4, 4, 4);
     auto *newBtn = new QPushButton("新建", this);
+    auto *openBtn = new QPushButton("打开", this);
     auto *saveBtn = new QPushButton("保存", this);
     auto *delBtn = new QPushButton("删除", this);
     btnBar->addWidget(newBtn);
+    btnBar->addWidget(openBtn);
     btnBar->addWidget(saveBtn);
     btnBar->addWidget(delBtn);
     cl->addLayout(btnBar);
 
     ProjectContext defaultProj;
-    defaultProj.name = "EngineAnalysis";
+    defaultProj.name = "默认工程";
     m_projects.append(defaultProj);
-    ProjectContext proj2;
-    proj2.name = "BodyControl";
-    m_projects.append(proj2);
     m_currentIndex = 0;
     refreshList();
+    refreshRecentList();
 
     connect(newBtn, &QPushButton::clicked, this, &ProjectPanel::onNewProject);
+    connect(openBtn, &QPushButton::clicked, this, &ProjectPanel::onOpenProject);
     connect(saveBtn, &QPushButton::clicked, this, &ProjectPanel::onSaveProject);
     connect(delBtn, &QPushButton::clicked, this, &ProjectPanel::onDeleteProject);
     connect(m_projectList, &QListWidget::currentRowChanged,
             this, &ProjectPanel::onProjectSelected);
+    connect(m_recentList, &QListWidget::itemDoubleClicked,
+            this, [this](QListWidgetItem *item) {
+        QString path = item->data(Qt::UserRole).toString();
+        if (!path.isEmpty())
+            emit openProjectRequested(path);
+    });
 }
 
 void ProjectPanel::refreshList()
@@ -127,26 +145,77 @@ void ProjectPanel::onSaveProject()
 {
     if (m_currentIndex < 0 || m_currentIndex >= m_projects.size()) return;
 
-    QString path = QFileDialog::getSaveFileName(
-        this, "保存工程", m_projects[m_currentIndex].name + ".sinproj",
+    QString path = m_projects[m_currentIndex].filePath;
+    if (path.isEmpty()) {
+        path = QFileDialog::getSaveFileName(
+            this, "保存工程", m_projects[m_currentIndex].name + ".sinproj",
+            "sin 工程文件 (*.sinproj);;所有文件 (*.*)");
+        if (path.isEmpty()) return;
+    }
+
+    m_projects[m_currentIndex].filePath = path;
+    emit saveProjectRequested(path);
+    refreshRecentList();
+}
+
+void ProjectPanel::onOpenProject()
+{
+    QString path = QFileDialog::getOpenFileName(
+        this, "打开工程", {},
         "sin 工程文件 (*.sinproj);;所有文件 (*.*)");
     if (path.isEmpty()) return;
 
-    QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox::warning(this, "保存工程", "无法创建文件: " + path);
-        return;
+    // 添加到工程列表
+    QFileInfo fi(path);
+    ProjectContext proj;
+    proj.name = fi.baseName();
+    proj.filePath = path;
+
+    // 检查是否已存在
+    for (int i = 0; i < m_projects.size(); ++i) {
+        if (m_projects[i].filePath == path) {
+            m_currentIndex = i;
+            refreshList();
+            emit projectSwitched(m_currentIndex);
+            return;
+        }
     }
-    QTextStream out(&file);
-    const auto &p = m_projects[m_currentIndex];
-    out << "name=" << p.name << "\n";
-    out << "[dbc]\n";
-    for (const auto &f : p.dbcFiles)
-        out << f << "\n";
-    out << "[record]\n";
-    for (const auto &f : p.recordFiles)
-        out << f << "\n";
-    file.close();
+
+    m_projects.append(proj);
+    m_currentIndex = m_projects.size() - 1;
+    refreshList();
+    emit openProjectRequested(path);
+}
+
+void ProjectPanel::onOpenRecent()
+{
+    // 由 m_recentList 的 itemDoubleClicked 直接处理
+}
+
+void ProjectPanel::refreshRecentList()
+{
+    if (!m_recentList) return;
+    m_recentList->clear();
+
+    // 从 AppConfig 读取最近工程列表
+    QString raw = AppConfig::instance()->getString("project.recent", "");
+    if (raw.isEmpty()) return;
+
+    try {
+        auto j = nlohmann::json::parse(raw.toStdString());
+        if (j.is_array()) {
+            for (const auto &item : j) {
+                if (item.is_string()) {
+                    QString p = QString::fromStdString(item.get<std::string>());
+                    QFileInfo fi(p);
+                    auto *listItem = new QListWidgetItem(fi.fileName());
+                    listItem->setToolTip(p);
+                    listItem->setData(Qt::UserRole, p);
+                    m_recentList->addItem(listItem);
+                }
+            }
+        }
+    } catch (...) {}
 }
 
 void ProjectPanel::onDeleteProject()

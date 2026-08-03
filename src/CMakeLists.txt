@@ -22,21 +22,16 @@ set(SRC_CORE
     core/filter_engine.cpp
     core/appconfig.h
     core/appconfig.cpp
-    # 文件格式 I/O 层
-    core/canfileio/canfileio.h
-    core/canfileio/canfileio.cpp
-    core/canfileio/canfileio_factory.h
-    core/canfileio/canfileio_factory.cpp
-    core/canfileio/blf.h
-    core/canfileio/blf.cpp
-    core/canfileio/asc.h
-    core/canfileio/asc.cpp
-    core/canfileio/csv.h
-    core/canfileio/csv.cpp
-    core/canfileio/pcap_reader.h
-    core/canfileio/pcap_reader.cpp
-    core/canfileio/trc_reader.h
-    core/canfileio/trc_reader.cpp
+    core/file_import/file_importer.h
+    core/file_import/file_importer.cpp
+    core/file_import/asc_importer.h
+    core/file_import/asc_importer.cpp
+    core/file_import/csv_importer.h
+    core/file_import/csv_importer.cpp
+    core/file_import/blf_importer.h
+    core/file_import/blf_importer.cpp
+    core/projectmanager.h
+    core/projectmanager.cpp
 )
 
 # models 层 — Qt 数据模型

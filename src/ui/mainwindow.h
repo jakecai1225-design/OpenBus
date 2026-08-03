@@ -28,6 +28,7 @@ class ActivityBar;
 class SideBar;
 class BottomPanel;
 class RightPanel;
+class MeasurementSetupView;
 class QAction;
 class QSlider;
 class QComboBox;
@@ -65,6 +66,7 @@ private slots:
     void onStop();
     void onClear();
     void onOpenFile();
+    void onImportLog();
     void onAutoScrollToggled(bool on);
 
     // 数据流
@@ -98,6 +100,14 @@ private slots:
     void onOpenMeasurementSetup();
     void onSettingsRequested(const QString &section);
     void onProtocolOpened(const QString &protocolName);
+
+    // 工程
+    void onOpenProject();
+    void onSaveProject();
+    void onProjectSwitched(int index);
+    void onProjectCreated(const QString &name);
+    void captureProjectState();
+    void applyProjectState();
 
     // 右侧面板快捷按钮
     void onQuickRecord();
@@ -170,6 +180,7 @@ private:
     QAction *m_stopAction = nullptr;
     QAction *m_clearAction = nullptr;
     QAction *m_openAction = nullptr;
+    QAction *m_importAction = nullptr;
     QAction *m_autoScrollAction = nullptr;
     QAction *m_simAction = nullptr;
 
@@ -190,6 +201,11 @@ private:
     int m_savedDockWidth = 300;
     int m_traceCount = 1;
     int m_graphicCount = 1;
+
+    // ---- 实例跟踪（测量配置页面模块实例）----
+    QMap<QString, QWidget*> m_traceInstances;    // "trace1" → TraceTab*
+    QMap<QString, QWidget*> m_graphicInstances;  // "graphic1" → GraphicView*
+    MeasurementSetupView *m_setupView = nullptr;
 
     // ---- 窗口控制按钮 ----
     QToolButton *m_minBtn = nullptr;

@@ -189,6 +189,12 @@ json AppConfig::defaultConfig()
         // ---- 日志 ----
         {"log.level", "info"},
         {"log.maxFileSize", 1048576},
-        {"log.maxFiles", 5}
+        {"log.maxFiles", 5},
+
+        // ---- 工程 ----
+        {"project.lastPath", ""},
+        {"project.recent", "[]"},
+        {"project.recentMax", 10},
+        {"project.autoSaveOnClose", true}
     };
 }
