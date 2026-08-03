@@ -28,6 +28,7 @@ public:
         Device,
         Protocol,
         Analysis,
+        Tools,
         Settings
     };
 

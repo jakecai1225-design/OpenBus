@@ -676,9 +676,72 @@ void MeasurementSetupPanel::onItemClicked(QListWidgetItem *item)
 }
 
 // ============================================================
-//  SideBar — 10 个面板，索引与 ActivityBar 一致
+//  工具集面板 — 总线分析工具列表
+// ============================================================
+
+ToolsPanel::ToolsPanel(QWidget *parent)
+    : SidePanel("工具集", parent)
+{
+    auto *cl = contentLayout();
+
+    m_list = new QListWidget(this);
+    m_list->setObjectName("ToolsList");
+
+    // 文件格式转换类
+    auto *convItem = new QListWidgetItem("\xF0\x9F\x9B\x80 BLF \xE2\x86\x94 ASC \xE2\x86\x94 CSV 转换", m_list);
+    convItem->setData(Qt::UserRole, "blf_converter");
+    convItem->setToolTip("报文日志文件格式互转：BLF / ASC / CSV 之间转换");
+
+    // DBC 工具类
+    auto *dbcItem = new QListWidgetItem("\xF0\x9F\x93\x9D DBC 查看编辑", m_list);
+    dbcItem->setData(Qt::UserRole, "dbc_editor");
+    dbcItem->setToolTip("独立打开 DBC 文件，查看报文/信号定义并编辑属性");
+
+    // 总线统计分析类
+    auto *statItem = new QListWidgetItem("\xF0\x9F\x93\x8A 报文统计分析", m_list);
+    statItem->setData(Qt::UserRole, "frame_statistics");
+    statItem->setToolTip("加载日志文件，统计各 CAN ID 帧数、频率、周期与抖动");
+
+    auto *idFreqItem = new QListWidgetItem("\xF0\x9F\x94\xA2 ID 频率/周期分析", m_list);
+    idFreqItem->setData(Qt::UserRole, "id_frequency");
+    idFreqItem->setToolTip("按 CAN ID 统计报文周期均值/最大/最小/标准差");
+
+    auto *loadItem = new QListWidgetItem("\xF0\x9F\x93\x88 总线负载率", m_list);
+    loadItem->setData(Qt::UserRole, "bus_load");
+    loadItem->setToolTip("基于波特率与数据量计算总线负载率");
+
+    // DBC 信号快速提取
+    auto *sigListItem = new QListWidgetItem("\xF0\x9F\x90\x9D DBC 信号清单导出", m_list);
+    sigListItem->setData(Qt::UserRole, "dbc_signal_list");
+    sigListItem->setToolTip("从 DBC 导出全部报文/信号清单为 CSV/Markdown");
+
+    cl->addWidget(m_list);
+
+    auto *hint = new QLabel("\n"
+                           "\xE2\x80\xA2 点击工具名打开对应标签页\n"
+                           "\xE2\x80\xA2 工具独立运行，不影响当前工程\n"
+                           "\xE2\x80\xA2 后续将持续集成更多总线分析工具", this);
+    hint->setWordWrap(true);
+    hint->setStyleSheet("padding: 8px; color: #888; font-size: 11px;");
+    cl->addWidget(hint);
+
+    connect(m_list, &QListWidget::itemClicked,
+            this, &ToolsPanel::onItemClicked);
+}
+
+void ToolsPanel::onItemClicked(QListWidgetItem *item)
+{
+    if (!item) return;
+    QString key = item->data(Qt::UserRole).toString();
+    if (key.isEmpty()) return;
+    emit toolOpened(key);
+}
+
+// ============================================================
+//  SideBar — 11 个面板，索引与 ActivityBar 一致
 //  0=Project  1=Trace  2=Graphic  3=DBC
-//  4=Send     5=Record 6=Device   7=Protocol  8=Analysis  9=Settings
+//  4=Send     5=Record 6=Device   7=Protocol  8=Analysis
+//  9=Tools   10=Settings
 // ============================================================
 
 SideBar::SideBar(QWidget *parent)
@@ -693,6 +756,7 @@ SideBar::SideBar(QWidget *parent)
     m_device       = new DevicePanel(this);
     m_protocol     = new ProtocolPanel(this);
     m_analysis     = new MeasurementSetupPanel(this);
+    m_tools        = new ToolsPanel(this);
     m_settings     = new SettingsPanel(this);
 
     addWidget(m_project);        // 0 = Project
@@ -704,7 +768,8 @@ SideBar::SideBar(QWidget *parent)
     addWidget(m_device);         // 6 = Device
     addWidget(m_protocol);       // 7 = Protocol
     addWidget(m_analysis);       // 8 = Analysis
-    addWidget(m_settings);       // 9 = Settings
+    addWidget(m_tools);          // 9 = Tools
+    addWidget(m_settings);       // 10 = Settings
 
     setCurrentIndex(0);
     setMinimumWidth(220);

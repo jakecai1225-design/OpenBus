@@ -282,8 +282,30 @@ private:
 };
 
 // ============================================================
+//  工具集面板 — 总线分析工具列表入口
+// ============================================================
+class ToolsPanel : public SidePanel
+{
+    Q_OBJECT
+public:
+    explicit ToolsPanel(QWidget *parent = nullptr);
+
+signals:
+    /// 请求打开工具标签页，toolKey 为工具唯一标识
+    void toolOpened(const QString &toolKey);
+
+private slots:
+    void onItemClicked(QListWidgetItem *item);
+
+private:
+    QListWidget *m_list;
+};
+
+// ============================================================
 //  SideBar — 侧边栏容器（QStackedWidget 切换面板）
 //  索引必须与 ActivityBar::Activity 枚举一致
+//  0=Project 1=Trace 2=Graphic 3=DBC 4=Send 5=Record
+//  6=Device 7=Protocol 8=Analysis 9=Tools 10=Settings
 // ============================================================
 class SideBar : public QStackedWidget
 {
@@ -300,6 +322,7 @@ public:
     DevicePanel *devicePanel() const { return m_device; }
     ProtocolPanel *protocolPanel() const { return m_protocol; }
     MeasurementSetupPanel *analysisPanel() const { return m_analysis; }
+    ToolsPanel *toolsPanel() const { return m_tools; }
     SettingsPanel *settingsPanel() const { return m_settings; }
 
     void showPanel(int index);
@@ -315,6 +338,7 @@ private:
     DevicePanel *m_device;
     ProtocolPanel *m_protocol;
     MeasurementSetupPanel *m_analysis;
+    ToolsPanel *m_tools;
     SettingsPanel *m_settings;
     int m_lastIndex = 0;
 };

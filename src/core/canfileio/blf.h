@@ -3,7 +3,11 @@
 
 #include "canfileio.h"
 
-/// BLF (Binary Logging Format) 写入器 — Vector 二进制格式
+#include <memory>
+
+class QFile;
+
+/// BLF (Binary Logging Format) 写入器 — 基于 third_party/blf 库
 class BlfWriter : public CanFileWriter
 {
 public:
@@ -13,25 +17,15 @@ public:
     bool open(const QString &filePath) override;
     void writeFrame(const CanFrame &frame) override;
     void close() override;
-    bool isOpen() const override { return m_file.isOpen(); }
-    int frameCount() const override { return m_frameCount; }
+    bool isOpen() const override;
+    int frameCount() const override;
 
 private:
-    QFile m_file;
-    qint64 m_fileHeaderPos = 0;   // 文件头位置（用于回写帧数）
-    int   m_frameCount = 0;
-    qint64 m_startTimeNs = 0;    // 录制起始时间（10ns ticks）
-
-    // LOG container 缓冲
-    QByteArray m_containerBuf;
-    static constexpr int MAX_CONTAINER_SIZE = 65536; // 64KB
-
-    void flushContainer();
-    void writeFileHeader();
-    void updateFileHeader();
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
 };
 
-/// BLF (Binary Logging Format) 读取器 — Vector 二进制格式
+/// BLF (Binary Logging Format) 读取器 — 基于 third_party/blf 库
 class BlfReader : public CanFileReader
 {
 public:
@@ -41,13 +35,11 @@ public:
     bool open(const QString &filePath) override;
     int readAll(QVector<CanFrame> &frames) override;
     void close() override;
-    bool isOpen() const override { return m_file.isOpen(); }
+    bool isOpen() const override;
 
 private:
-    QFile m_file;
-
-    // 读取 LOG container 内的帧
-    int parseContainer(const QByteArray &containerData, QVector<CanFrame> &frames);
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
 };
 
 #endif // BLF_H

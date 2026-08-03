@@ -32,6 +32,21 @@ set(SRC_CORE
     core/file_import/blf_importer.cpp
     core/projectmanager.h
     core/projectmanager.cpp
+    # 文件格式 I/O 层
+    core/canfileio/canfileio.h
+    core/canfileio/canfileio.cpp
+    core/canfileio/canfileio_factory.h
+    core/canfileio/canfileio_factory.cpp
+    core/canfileio/blf.h
+    core/canfileio/blf.cpp
+    core/canfileio/asc.h
+    core/canfileio/asc.cpp
+    core/canfileio/csv.h
+    core/canfileio/csv.cpp
+    core/canfileio/pcap_reader.h
+    core/canfileio/pcap_reader.cpp
+    core/canfileio/trc_reader.h
+    core/canfileio/trc_reader.cpp
 )
 
 # models 层 — Qt 数据模型
@@ -125,6 +140,11 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/concurrentqueue/concurrentqueue.h")
 endif()
 
 target_link_libraries(sin_core PUBLIC Qt6::Widgets)
+
+# vector_blf: 仅 canfileio/blf.cpp 使用 <Vector/BLF/File.h>，头文件用前向声明 → PRIVATE
+target_link_libraries(sin_core PRIVATE
+    vector_blf
+)
 
 # PCH — 核心层使用精简的 Qt 头（无 Widget），编译更快
 target_precompile_headers(sin_core PRIVATE
