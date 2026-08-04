@@ -675,7 +675,7 @@ void SettingsPanel::onThemeItemClicked(QListWidgetItem *item)
 // ============================================================
 
 MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
-    : SidePanel("分析配置", parent)
+    : SidePanel("Flow", parent)
 {
     auto *cl = contentLayout();
 

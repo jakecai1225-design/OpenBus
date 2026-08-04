@@ -340,13 +340,13 @@ void MainWindow::createMenuBar()
 
     auto *toggleBottom = new QAction("底部栏", this);
     toggleBottom->setCheckable(true);
-    toggleBottom->setChecked(true);
+    toggleBottom->setChecked(false);
     viewMenu->addAction(toggleBottom);
     connect(toggleBottom, &QAction::triggered, this, &MainWindow::toggleBottomDock);
 
     auto *toggleRight = new QAction("右侧栏", this);
     toggleRight->setCheckable(true);
-    toggleRight->setChecked(true);
+    toggleRight->setChecked(false);
     viewMenu->addAction(toggleRight);
     connect(toggleRight, &QAction::triggered, this, &MainWindow::toggleRightDock);
 
@@ -510,6 +510,7 @@ void MainWindow::createLayout()
     // Trace 标签页
     m_traceTab = new TraceTab(this);
     setupTraceTab(m_traceTab);
+    connect(m_traceTab, &QObject::destroyed, this, [this]() { m_traceTab = nullptr; });
     m_editorArea->addTab(m_traceTab, "📋 Trace1");
 
     // Graphic 标签页
@@ -520,6 +521,7 @@ void MainWindow::createLayout()
         else
             m_bottomPanel->appendOutput(QString("📈 Graphic 已加载 %1 帧").arg(count));
     });
+    connect(m_graphicView, &QObject::destroyed, this, [this]() { m_graphicView = nullptr; });
     m_editorArea->addTab(m_graphicView, "📈 Graphic1");
 
     // 发送标签页
@@ -563,6 +565,10 @@ void MainWindow::createLayout()
     resizeDocks({m_leftDock}, {300}, Qt::Horizontal);
     resizeDocks({m_rightDock}, {260}, Qt::Horizontal);
     resizeDocks({m_bottomDock}, {180}, Qt::Vertical);
+
+    // 默认隐藏右侧栏和底部栏
+    m_rightDock->setVisible(false);
+    m_bottomDock->setVisible(false);
 }
 
 // ============================================================
@@ -2471,6 +2477,9 @@ void MainWindow::applyProjectState()
     m_graphicInstances.clear();
     m_traceCount = 0;
     m_graphicCount = 0;
+    // 清除默认实例指针（对象已通过 deleteLater 调度删除）
+    m_traceTab = nullptr;
+    m_graphicView = nullptr;
 
     // 3. 卸载所有 DBC 并重新加载
     auto dbcFiles = m_dbcManager->files();
@@ -2502,6 +2511,8 @@ void MainWindow::applyProjectState()
             tab->setFilterExpression(t.filterExpression);
         openTab(tab, QStringLiteral("📋 %1").arg(t.title));
         m_traceInstances[t.id] = tab;
+        if (t.id == "trace1")
+            m_traceTab = tab;
         // 更新计数器
         int n = 0;
         QRegularExpression re("trace(\\d+)", QRegularExpression::CaseInsensitiveOption);
@@ -2533,6 +2544,8 @@ void MainWindow::applyProjectState()
             gv->loadSignalConfigs(sigConfigs);
         openTab(gv, QStringLiteral("📈 %1").arg(g.title));
         m_graphicInstances[g.id] = gv;
+        if (g.id == "graphic1")
+            m_graphicView = gv;
         int n = 0;
         QRegularExpression re("graphic(\\d+)", QRegularExpression::CaseInsensitiveOption);
         auto m = re.match(g.id);
@@ -2551,7 +2564,30 @@ void MainWindow::applyProjectState()
         m_setupView->rebuildScene();
     }
 
-    // 9. 更新窗口标题
+    // 9. 重建默认 Trace/Graphic 实例（工程状态中未包含时）
+    if (!m_traceTab) {
+        m_traceTab = new TraceTab(this);
+        setupTraceTab(m_traceTab);
+        connect(m_traceTab, &QObject::destroyed, this, [this]() { m_traceTab = nullptr; });
+        openTab(m_traceTab, QStringLiteral("📋 Trace1"));
+        m_traceInstances["trace1"] = m_traceTab;
+        m_traceCount = qMax(m_traceCount, 1);
+    }
+    if (!m_graphicView) {
+        m_graphicView = new GraphicView(this);
+        connect(m_graphicView, &GraphicView::fileLoaded, this, [this](int count) {
+            if (count < 0)
+                m_bottomPanel->appendOutput("❌ 文件加载失败");
+            else
+                m_bottomPanel->appendOutput(QString("📈 Graphic 已加载 %1 帧").arg(count));
+        });
+        connect(m_graphicView, &QObject::destroyed, this, [this]() { m_graphicView = nullptr; });
+        openTab(m_graphicView, QStringLiteral("📈 Graphic1"));
+        m_graphicInstances["graphic1"] = m_graphicView;
+        m_graphicCount = qMax(m_graphicCount, 1);
+    }
+
+    // 10. 更新窗口标题
     setWindowTitle(QStringLiteral("sin - %1").arg(st.name));
 
     m_bottomPanel->appendOutput(QStringLiteral("工程现场已恢复: %1").arg(st.name));

@@ -39,7 +39,7 @@ ActivityBar::ActivityBar(QWidget *parent)
     m_buttons.append({createButton("\xF0\x9F\x93\xA6", "协议", Protocol), Protocol, "协议", "上层协议分析"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xF0\x9F\x93\x8A", "分析配置", Analysis), Analysis, "分析配置", "flow — CANoe Measurement Setup 风格"});
+    m_buttons.append({createButton("\xF0\x9F\x93\x8A", "Flow", Analysis), Analysis, "Flow", "flow — CANoe Measurement Setup 风格"});
     layout->addWidget(m_buttons.last().btn);
 
     m_buttons.append({createButton("\xF0\x9F\x9B\xA0", "工具集", Tools), Tools, "工具集", "总线分析工具集 — 格式转换 / DBC 编辑 / 统计分析"});

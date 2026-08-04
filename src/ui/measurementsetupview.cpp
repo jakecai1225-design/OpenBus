@@ -306,8 +306,7 @@ MeasurementSetupView::MeasurementSetupView(QWidget *parent)
     : QWidget(parent)
 {
     setupUi();
-    buildTopology();
-    rebuildScene();
+    buildTopology();  // buildTopology() 内部已调用 relayoutModuleBlocks() → rebuildScene()
 
     m_recentFiles.clear();
 }

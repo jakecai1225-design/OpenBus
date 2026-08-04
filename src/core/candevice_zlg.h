@@ -7,6 +7,13 @@
 #include <atomic>
 #include <memory>
 
+// ZLG SDK 使用 __stdcall 调用约定 (WINAPI) — 在 32-bit Windows 上至关重要
+#ifdef _WIN32
+#define ZCAN_CALL __stdcall
+#else
+#define ZCAN_CALL
+#endif
+
 /**
  * @brief ZLG 致远电子 CAN/CAN FD 设备后端
  *
@@ -58,16 +65,18 @@ public:
     static std::vector<DeviceInfo> enumerate();
 
 private:
-    // ---- ZLG SDK 函数指针类型 ----
-    using fn_OpenDevice  = void* (*)(int deviceType, int deviceIndex, int reserved);
-    using fn_CloseDevice = int   (*)(void* devHandle);
-    using fn_InitCan     = int   (*)(void* devHandle, unsigned int channel, const void* config);
-    using fn_StartCan    = int   (*)(void* devHandle, unsigned int channel);
-    using fn_Transmit    = int   (*)(void* devHandle, unsigned int channel, const void* sendBuf, unsigned int len);
-    using fn_GetRecvNum  = unsigned int (*)(void* devHandle, unsigned int channel);
-    using fn_Receive     = int   (*)(void* devHandle, unsigned int channel, void* recvBuf, unsigned int len, int timeout);
-    using fn_ResetCan    = int   (*)(void* devHandle, unsigned int channel);
-    using fn_GetDevInfo  = int   (*)(void* devHandle, unsigned char* info, unsigned int len);
+    // ---- ZLG SDK 函数指针类型 (ZLG SDK 使用 __stdcall / WINAPI 调用约定) ----
+    // ZCAN_InitCAN 返回 CHANNEL_HANDLE，后续操作使用 channelHandle 而非 devHandle+channel
+    using fn_OpenDevice  = void* (ZCAN_CALL *)(int deviceType, int deviceIndex, int reserved);
+    using fn_CloseDevice = int   (ZCAN_CALL *)(void* devHandle);
+    using fn_InitCan     = void* (ZCAN_CALL *)(void* devHandle, unsigned int channel, void* config);
+    using fn_StartCan    = int   (ZCAN_CALL *)(void* channelHandle);
+    using fn_Transmit    = int   (ZCAN_CALL *)(void* channelHandle, void* sendBuf, unsigned int len);
+    using fn_GetRecvNum  = unsigned int (ZCAN_CALL *)(void* channelHandle);
+    using fn_Receive     = int   (ZCAN_CALL *)(void* channelHandle, void* recvBuf, unsigned int len, int timeout);
+    using fn_ResetCan    = int   (ZCAN_CALL *)(void* channelHandle);
+    using fn_GetDevInfo  = int   (ZCAN_CALL *)(void* devHandle, unsigned char* info, unsigned int len);
+    using fn_SetValue    = int   (ZCAN_CALL *)(void* devHandle, const char* valueKey, const char* value);
 
     // ---- DLL 加载 ----
     bool loadDll();
@@ -83,10 +92,12 @@ private:
     fn_Receive     m_fn_recv   = nullptr;
     fn_ResetCan    m_fn_reset  = nullptr;
     fn_GetDevInfo  m_fn_devInfo = nullptr;
+    fn_SetValue    m_fn_setVal = nullptr;
 
     // ---- 设备状态 ----
     QLibrary m_dll;
-    void *m_devHandle = nullptr;  ///< ZCAN_OpenDevice 返回的句柄
+    void *m_devHandle = nullptr;    ///< ZCAN_OpenDevice 返回的设备句柄
+    void *m_channelHandle = nullptr;  ///< ZCAN_InitCAN 返回的通道句柄
     DeviceType m_devType;
     int m_devIndex = 0;
     int m_channel = 0;
