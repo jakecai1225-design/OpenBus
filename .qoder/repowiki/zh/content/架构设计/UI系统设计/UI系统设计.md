@@ -42,11 +42,10 @@
 
 ## 更新摘要
 **所做更改**   
-- 主窗口组件新增了onToolOpened槽函数处理工具激活请求，支持6种总线分析工具的动态加载
-- 侧边栏集成了ToolsPanel类管理工具项点击和信号发射，提供完整的工具集界面
-- 活动栏系统新增了'工具集'按钮，位于分析配置和设置之间
-- 增强了UI系统的工具管理能力，支持BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析等
-- 完善了工具集与主窗口的集成通信机制，实现了松耦合的工具路由架构
+- 活动栏按钮标签从'分析配置'更新为'Flow'，提升了用户界面的直观性和一致性
+- 侧边栏面板系统保持一致性更新，MeasurementSetupPanel标题改为'Flow'
+- 工具集系统与主窗口集成更加完善，支持6种总线分析工具的动态加载
+- 增强了用户体验，使界面术语与行业标准（CANoe Measurement Setup）保持一致
 
 ## 目录
 1. [简介](#简介)
@@ -66,7 +65,7 @@
 ## 简介
 本文件面向基于Qt Widgets和现代Web技术的混合UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
 
-**更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新针对活动栏系统进行了重大改进，新增了'工具集'按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。主窗口组件通过新增的onToolOpened槽函数实现了工具激活请求的处理，支持6种不同的总线分析工具动态加载和管理。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
+**更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新针对活动栏系统进行了重大改进，将'分析配置'按钮标签更新为'Flow'，与CANoe Measurement Setup行业标准保持一致，同时新增了'工具集'按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。主窗口组件通过新增的onToolOpened槽函数实现了工具激活请求的处理，支持6种不同的总线分析工具动态加载和管理。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式，结合了传统Qt Widgets架构和现代Web前端技术：
@@ -127,7 +126,7 @@ V --> Y["UI/partials/*.html"]
 - JavaScript模块系统: 包含ui-loader.js和ui-prototype.js，实现模块化功能组织
 - CSS样式系统: 提供统一的样式规范和响应式设计支持
 
-**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并新增了基于Web技术的现代化UI原型系统。**特别重要的是，活动栏系统新增了'工具集'按钮，集成了新的ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。主窗口组件通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并新增了基于Web技术的现代化UI原型系统。**特别重要的是，活动栏系统已将'分析配置'按钮标签更新为'Flow'，与行业标准的CANoe Measurement Setup保持一致，同时新增了'工具集'按钮，集成了新的ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。主窗口组件通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -148,7 +147,7 @@ V --> Y["UI/partials/*.html"]
 - 资源通过qrc统一打包，避免路径问题
 - Web前端提供现代化界面原型和动态内容加载能力
 
-**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。**新增了三个专用Tab组件系统，通过统一的标签页管理器进行协调，实现了模块间的松耦合和高内聚。特别重要的是，新增了工具集系统，通过ActivityBar的工具集按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
+**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。**新增了三个专用Tab组件系统，通过统一的标签页管理器进行协调，实现了模块间的松耦合和高内聚。特别重要的是，活动栏按钮标签已更新为'Flow'，与行业标准保持一致，同时新增了工具集系统，通过ActivityBar的工具集按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
 
 ```mermaid
 graph TB
@@ -163,13 +162,13 @@ WP["ui-prototype.js<br/>核心逻辑"]
 WC["ui-prototype.css<br/>样式"]
 end
 subgraph "导航组件层"
-AB["ActivityBar<br/>活动栏"]
+AB["ActivityBar<br/>活动栏<br/>Flow按钮已更新"]
 BP["BottomPanel<br/>底部面板"]
 RP["RightPanel<br/>右侧面板"]
 end
 subgraph "编辑区域层"
 SEA["SplitEditorArea<br/>分割编辑器区域"]
-SBP["SidebarPanels<br/>侧边栏面板"]
+SBP["SidebarPanels<br/>侧边栏面板<br/>MeasurementSetupPanel标题为'Flow'"]
 end
 subgraph "专用Tab组件层"
 DBCT["DBCDetailTab<br/>DBC详情标签页"]
@@ -298,6 +297,7 @@ class ActivityBar {
 +addActivityItem(item)
 +removeActivityItem(id)
 +onActivityChanged(id)
++flowButtonUpdated()
 }
 class BottomPanel {
 +showMessage(message)
@@ -1008,6 +1008,8 @@ TabManager --> TabStateManager : "使用"
 - 支持工具集的动态管理和扩展
 - 与侧边栏面板系统集成，实现工具面板的切换
 
+**更新** 活动栏按钮标签已从'分析配置'更新为'Flow'，与CANoe Measurement Setup行业标准保持一致，提升了用户界面的直观性和一致性。
+
 技术实现
 - 在ActivityBar::Activity枚举中新增Tools类型
 - 在活动栏初始化时添加工具集按钮
@@ -1027,7 +1029,7 @@ class ActivityBar {
 + Record,
 + Device,
 + Protocol,
-+ Analysis,
++ Flow,
 + Tools,
 + Settings
 +}
@@ -1035,6 +1037,7 @@ class ActivityBar {
 +setCurrentActivity(act)
 +onButtonClicked()
 +createButton(text, tooltip, act, atBottom)
++flowButtonUpdated()
 }
 class ToolsPanel {
 +ToolsPanel(parent)
@@ -1209,17 +1212,17 @@ MainWindow --> ToolRouter : "使用"
 - MainWindow 依赖样式与主题管理
 - 样式与资源通过qrc解耦，降低硬编码路径风险
 
-**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**新增了Web前端原型系统的依赖关系，包括HTML模板、JavaScript模块和CSS样式的模块化组织。特别重要的是，新增了工具集系统的依赖关系，包括活动栏工具集按钮、工具集面板、工具路由机制和主窗口的onToolOpened处理函数。**
+**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**新增了Web前端原型系统的依赖关系，包括HTML模板、JavaScript模块和CSS样式的模块化组织。特别重要的是，活动栏按钮标签已更新为'Flow'，与行业标准保持一致，同时新增了工具集系统的依赖关系，包括活动栏工具集按钮、工具集面板、工具路由机制和主窗口的onToolOpened处理函数。**
 
 ```mermaid
 graph LR
 Main["main.cpp"] --> MW["MainWindow"]
 MW --> UI["Ui::MainWindow<br/>(生成代码)"]
-MW --> AB["ActivityBar"]
+MW --> AB["ActivityBar<br/>Flow按钮已更新"]
 MW --> BP["BottomPanel"]
 MW --> RP["RightPanel"]
 MW --> SEA["SplitEditorArea"]
-MW --> SBP["SidebarPanels"]
+MW --> SBP["SidebarPanels<br/>MeasurementSetupPanel标题为'Flow'"]
 MW --> DBCT["DBCDetailTab"]
 MW --> PB["PlaybackTab"]
 MW --> RT["RecordTab"]
@@ -1394,7 +1397,7 @@ MW --> ToolHandler["onToolOpened处理"]
 ## 结论
 本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统，**特别是新增的三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页），为CAN总线数据分析提供了完整的解决方案。**
 
-**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，活动栏系统新增了'工具集'按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案，包括BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析、ID频率分析、总线负载计算等多种实用工具。主窗口组件通过新增的onToolOpened槽函数实现了工具激活请求的统一处理，支持6种不同的总线分析工具动态加载和管理，大大增强了UI系统的工具管理能力。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
+**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，活动栏按钮标签已从'分析配置'更新为'Flow'，与CANoe Measurement Setup行业标准保持一致，同时新增了'工具集'按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案，包括BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析、ID频率分析、总线负载计算等多种实用工具。主窗口组件通过新增的onToolOpened槽函数实现了工具激活请求的统一处理，支持6种不同的总线分析工具动态加载和管理，大大增强了UI系统的工具管理能力。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -1551,6 +1554,7 @@ MW --> ToolHandler["onToolOpened处理"]
 19. **可访问性测试**：验证所有组件的可访问性功能和屏幕阅读器兼容性
 20. **稳定性测试**：验证graphicview.cpp改进后的崩溃恢复机制
 21. **数据集兼容性测试**：确保组件对新测试数据集的支持能力
+22. **Flow按钮验证**：确认活动栏按钮标签已更新为'Flow'并与行业标准保持一致
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
