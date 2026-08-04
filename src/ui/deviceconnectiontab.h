@@ -2,12 +2,12 @@
 #define DEVICECONNECTIONTAB_H
 
 #include <QWidget>
+#include <QList>
 
 class QComboBox;
 class QCheckBox;
 class QLabel;
 class QPushButton;
-class QSpinBox;
 class QGroupBox;
 class CanSimulator;
 class CanDeviceManager;
@@ -19,7 +19,7 @@ class CanDeviceManager;
  * 包含完整的设备参数配置（通道、波特率、CAN FD、高级时序等），
  * 以及连接/断开控制。
  *
- * 支持不同设备类型的参数差异（模拟器 / ZLG / PEAK …）。
+ * 不同设备共用此界面，通过 setDevice() 切换设备类型。
  */
 class DeviceConnectionTab : public QWidget
 {
@@ -32,7 +32,7 @@ public:
     void setDeviceManager(CanDeviceManager *mgr);
 
     /// 设置要配置的设备（由侧边栏点击触发）
-    /// @param deviceKind 0=模拟器, 1=ZLG
+    /// @param deviceKind 0=模拟器, 1=ZLG, 2=PEAK, 3=Kvaser, 4=CandleLight
     /// @param devIndex 设备序号
     /// @param deviceName 设备显示名称
     void setDevice(int deviceKind, int devIndex, const QString &deviceName);
@@ -41,12 +41,6 @@ signals:
     void deviceConnectRequested(const QString &device, int baudrate);
     void deviceDisconnectRequested();
     /// 设备连接请求（携带完整参数）
-    /// @param deviceKind 0=模拟器, 1=ZLG
-    /// @param devIndex 设备序号
-    /// @param channel 通道号 (0-based)
-    /// @param arbBaud 仲裁段波特率
-    /// @param dataBaud 数据段波特率
-    /// @param canFd CAN FD 模式
     void deviceConnectRequestedV2(int deviceKind, int devIndex, int channel,
                                   int arbBaud, int dataBaud, bool canFd);
 
@@ -54,8 +48,21 @@ private slots:
     void onConnect();
     void onDisconnect();
     void onCanFdToggled(bool enabled);
+    void onArbTimingChanged(int index);
+    void onDataTimingChanged(int index);
 
 private:
+    // 时序预设
+    struct TimingPreset {
+        QString name;
+        int sjw;
+        int tseg1;
+        int tseg2;
+        int samplePoint;
+    };
+    QList<TimingPreset> m_arbPresets;
+    QList<TimingPreset> m_dataPresets;
+
     // 设备信息
     QLabel *m_deviceLabel;
     int m_deviceKind = 0;
@@ -63,19 +70,19 @@ private:
     QString m_deviceName;
 
     // 基本配置
-    QComboBox *m_channelCombo;
+    QList<QCheckBox *> m_channelChecks;
     QComboBox *m_fdCombo;
 
-    // 波特率配置
+    // 仲裁段波特率
     QComboBox *m_baudCombo;
-    QComboBox *m_dataBaudCombo;
-    QGroupBox *m_dataBaudGroup;
+    QComboBox *m_arbTimingCombo;
+    QLabel *m_arbTimingDetail;
 
-    // 高级参数
-    QSpinBox *m_samplePointSpin;
-    QSpinBox *m_sjwSpin;
-    QSpinBox *m_tseg1Spin;
-    QSpinBox *m_tseg2Spin;
+    // 数据段波特率 (CAN FD)
+    QGroupBox *m_dataBaudGroup;
+    QComboBox *m_dataBaudCombo;
+    QComboBox *m_dataTimingCombo;
+    QLabel *m_dataTimingDetail;
 
     // 连接控制
     QPushButton *m_connectBtn;
@@ -87,6 +94,8 @@ private:
 
     void setupUi();
     void updateCanFdVisibility();
+    void populateTimingPresets();
+    QString timingDetailText(const TimingPreset &p);
 };
 
 #endif // DEVICECONNECTIONTAB_H

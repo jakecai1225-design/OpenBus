@@ -466,13 +466,13 @@ void DevicePanel::populateTree()
 
     // 模拟器（内置）
     auto *simItem = new QTreeWidgetItem(m_deviceTree);
-    simItem->setText(0, QStringLiteral("\xF0\x9F\x96\xA5 模拟器 (内置)"));
-    simItem->setData(0, Qt::UserRole, 0);  // deviceKind = 0
-    simItem->setData(0, Qt::UserRole + 1, 0);  // devIndex = 0
+    simItem->setText(0, QStringLiteral("模拟器 (内置)"));
+    simItem->setData(0, Qt::UserRole, 0);       // deviceKind = 0
+    simItem->setData(0, Qt::UserRole + 1, 0);   // devIndex = 0
 
     // ZLG 设备系列
     auto *zlgItem = new QTreeWidgetItem(m_deviceTree);
-    zlgItem->setText(0, QStringLiteral("\xF0\x9F\x94\xA7 ZLG 致远电子"));
+    zlgItem->setText(0, QStringLiteral("ZLG 致远电子"));
 
     QStringList zlgDevices;
     if (m_deviceMgr) {
@@ -483,9 +483,9 @@ void DevicePanel::populateTree()
 
     if (zlgDevices.isEmpty()) {
         auto *emptyItem = new QTreeWidgetItem(zlgItem);
-        emptyItem->setText(0, QStringLiteral("  (未检测到设备)"));
-        emptyItem->setData(0, Qt::UserRole, -1);
-        emptyItem->setFlags(emptyItem->flags() & ~Qt::ItemIsEnabled);
+        emptyItem->setText(0, QStringLiteral("  ZLG USBCANFD (未检测到硬件)"));
+        emptyItem->setData(0, Qt::UserRole, 1);       // deviceKind = 1 (ZLG)
+        emptyItem->setData(0, Qt::UserRole + 1, 0);   // devIndex = 0
     } else {
         for (int i = 0; i < zlgDevices.size(); ++i) {
             auto *devItem = new QTreeWidgetItem(zlgItem);
@@ -497,29 +497,30 @@ void DevicePanel::populateTree()
 
     // PEAK (占位)
     auto *peakItem = new QTreeWidgetItem(m_deviceTree);
-    peakItem->setText(0, QStringLiteral("\xF0\x9F\x94\xA7 PEAK PCAN"));
+    peakItem->setText(0, QStringLiteral("PEAK PCAN"));
     auto *peakEmpty = new QTreeWidgetItem(peakItem);
-    peakEmpty->setText(0, QStringLiteral("  (待实现)"));
-    peakEmpty->setData(0, Qt::UserRole, -1);
-    peakEmpty->setFlags(peakEmpty->flags() & ~Qt::ItemIsEnabled);
+    peakEmpty->setText(0, QStringLiteral("  PCAN-USB (待实现)"));
+    peakEmpty->setData(0, Qt::UserRole, 2);       // deviceKind = 2 (PEAK)
+    peakEmpty->setData(0, Qt::UserRole + 1, 0);
 
     // Kvaser (占位)
     auto *kvaserItem = new QTreeWidgetItem(m_deviceTree);
-    kvaserItem->setText(0, QStringLiteral("\xF0\x9F\x94\xA7 Kvaser"));
+    kvaserItem->setText(0, QStringLiteral("Kvaser"));
     auto *kvaserEmpty = new QTreeWidgetItem(kvaserItem);
-    kvaserEmpty->setText(0, QStringLiteral("  (待实现)"));
-    kvaserEmpty->setData(0, Qt::UserRole, -1);
-    kvaserEmpty->setFlags(kvaserEmpty->flags() & ~Qt::ItemIsEnabled);
+    kvaserEmpty->setText(0, QStringLiteral("  Kvaser USBcan (待实现)"));
+    kvaserEmpty->setData(0, Qt::UserRole, 3);     // deviceKind = 3 (Kvaser)
+    kvaserEmpty->setData(0, Qt::UserRole + 1, 0);
 
     // 开源 USB-CAN (占位)
     auto *candleItem = new QTreeWidgetItem(m_deviceTree);
-    candleItem->setText(0, QStringLiteral("\xF0\x9F\x94\xA7 开源 USB-CAN (CandleLight)"));
+    candleItem->setText(0, QStringLiteral("开源 USB-CAN (CandleLight)"));
     auto *candleEmpty = new QTreeWidgetItem(candleItem);
-    candleEmpty->setText(0, QStringLiteral("  (待实现)"));
-    candleEmpty->setData(0, Qt::UserRole, -1);
-    candleEmpty->setFlags(candleEmpty->flags() & ~Qt::ItemIsEnabled);
+    candleEmpty->setText(0, QStringLiteral("  CandleLight (待实现)"));
+    candleEmpty->setData(0, Qt::UserRole, 4);    // deviceKind = 4 (CandleLight)
+    candleEmpty->setData(0, Qt::UserRole + 1, 0);
 
     zlgItem->setExpanded(true);
+    peakItem->setExpanded(true);
 }
 
 void DevicePanel::onItemClicked(QTreeWidgetItem *item, int /*column*/)
@@ -531,8 +532,6 @@ void DevicePanel::onItemClicked(QTreeWidgetItem *item, int /*column*/)
     }
     // 叶子节点 → 发出打开请求
     int deviceKind = item->data(0, Qt::UserRole).toInt();
-    if (deviceKind < 0)
-        return;
     int devIndex = item->data(0, Qt::UserRole + 1).toInt();
     emit deviceOpenRequested(deviceKind, devIndex, item->text(0).trimmed());
 }
@@ -542,8 +541,6 @@ void DevicePanel::onItemDoubleClicked(QTreeWidgetItem *item, int /*column*/)
     if (item->childCount() > 0)
         return;
     int deviceKind = item->data(0, Qt::UserRole).toInt();
-    if (deviceKind < 0)
-        return;
     int devIndex = item->data(0, Qt::UserRole + 1).toInt();
     emit deviceOpenRequested(deviceKind, devIndex, item->text(0).trimmed());
 }
