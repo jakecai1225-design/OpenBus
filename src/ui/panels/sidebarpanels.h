@@ -185,9 +185,11 @@ signals:
 private slots:
     void onItemClicked(QTreeWidgetItem *item, int column);
     void onItemDoubleClicked(QTreeWidgetItem *item, int column);
+    void onScanClicked();
 
 private:
     QTreeWidget *m_deviceTree;
+    QPushButton *m_scanBtn = nullptr;
     CanSimulator *m_simulator = nullptr;
     CanDeviceManager *m_deviceMgr = nullptr;
 

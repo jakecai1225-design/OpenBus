@@ -434,12 +434,17 @@ DevicePanel::DevicePanel(QWidget *parent)
     m_deviceTree->setExpandsOnDoubleClick(false);
     cl->addWidget(m_deviceTree);
 
+    // 扫描设备按钮
+    m_scanBtn = new QPushButton(QStringLiteral("扫描设备"), this);
+    cl->addWidget(m_scanBtn);
+
     cl->addStretch();
 
     connect(m_deviceTree, &QTreeWidget::itemClicked,
             this, &DevicePanel::onItemClicked);
     connect(m_deviceTree, &QTreeWidget::itemDoubleClicked,
             this, &DevicePanel::onItemDoubleClicked);
+    connect(m_scanBtn, &QPushButton::clicked, this, &DevicePanel::onScanClicked);
 
     populateTree();
 }
@@ -458,6 +463,20 @@ void DevicePanel::setDeviceManager(CanDeviceManager *mgr)
 void DevicePanel::refreshDevices()
 {
     populateTree();
+}
+
+void DevicePanel::onScanClicked()
+{
+    // 重新枚举设备并刷新树
+    if (m_scanBtn) {
+        m_scanBtn->setEnabled(false);
+        m_scanBtn->setText(QStringLiteral("扫描中..."));
+    }
+    refreshDevices();
+    if (m_scanBtn) {
+        m_scanBtn->setEnabled(true);
+        m_scanBtn->setText(QStringLiteral("扫描设备"));
+    }
 }
 
 void DevicePanel::populateTree()
