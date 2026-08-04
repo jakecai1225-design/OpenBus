@@ -157,8 +157,13 @@ private:
 };
 
 // ============================================================
-//  设备面板 — 仅设备连接
+//  设备连接面板 — 仅显示设备系列树（点击跳转标签页配置）
 // ============================================================
+
+class QTreeWidget;
+class QTreeWidgetItem;
+class CanDeviceManager;
+
 class DevicePanel : public SidePanel
 {
     Q_OBJECT
@@ -166,24 +171,27 @@ public:
     explicit DevicePanel(QWidget *parent = nullptr);
 
     void setSimulator(CanSimulator *sim);
+    void setDeviceManager(CanDeviceManager *mgr);
+    /// 刷新设备列表（调用 CanDeviceManager::enumerateDevices）
+    void refreshDevices();
 
 signals:
-    void deviceConnectRequested(const QString &device, int baudrate);
-    void deviceDisconnectRequested();
+    /// 请求打开设备连接标签页
+    /// @param deviceKind 0=模拟器, 1=ZLG
+    /// @param devIndex 设备序号
+    /// @param deviceName 设备显示名称
+    void deviceOpenRequested(int deviceKind, int devIndex, const QString &deviceName);
 
 private slots:
-    void onConnect();
-    void onDisconnect();
+    void onItemClicked(QTreeWidgetItem *item, int column);
+    void onItemDoubleClicked(QTreeWidgetItem *item, int column);
 
 private:
-    QComboBox *m_deviceCombo;
-    QComboBox *m_baudCombo;
-    QComboBox *m_channelCombo;
-    QComboBox *m_fdCombo;
-    QPushButton *m_connectBtn;
-    QPushButton *m_disconnectBtn;
-    QLabel *m_statusLabel;
+    QTreeWidget *m_deviceTree;
     CanSimulator *m_simulator = nullptr;
+    CanDeviceManager *m_deviceMgr = nullptr;
+
+    void populateTree();
 };
 
 // ============================================================

@@ -33,7 +33,7 @@ ActivityBar::ActivityBar(QWidget *parent)
     m_buttons.append({createButton("\xE2\x97\x8F", "录制", Record), Record, "录制", "录制"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xF0\x9F\x94\xA7", "硬件", Device), Device, "硬件", "硬件"});
+    m_buttons.append({createButton("\xF0\x9F\x94\xA7", "设备连接", Device), Device, "设备连接", "设备连接"});
     layout->addWidget(m_buttons.last().btn);
 
     m_buttons.append({createButton("\xF0\x9F\x93\xA6", "协议", Protocol), Protocol, "协议", "上层协议分析"});

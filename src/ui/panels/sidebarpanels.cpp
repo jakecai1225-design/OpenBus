@@ -1,6 +1,7 @@
 #include "sidebarpanels.h"
 #include "core/dbcmanager.h"
 #include "core/cansimulator.h"
+#include "core/candevicemanager.h"
 #include "core/appconfig.h"
 #include "ui/graphicview.h"
 #include "ui/thememanager.h"
@@ -423,75 +424,24 @@ void GraphicConfigPanel::refreshList(const QStringList &names)
 // ============================================================
 
 DevicePanel::DevicePanel(QWidget *parent)
-    : SidePanel("硬件", parent)
+    : SidePanel(QStringLiteral("设备连接"), parent)
 {
     auto *cl = contentLayout();
 
-    auto *formWidget = new QWidget(this);
-    auto *formLayout = new QVBoxLayout(formWidget);
-    formLayout->setContentsMargins(8, 8, 8, 8);
-    formLayout->setSpacing(6);
+    m_deviceTree = new QTreeWidget(this);
+    m_deviceTree->setHeaderHidden(true);
+    m_deviceTree->setIndentation(12);
+    m_deviceTree->setExpandsOnDoubleClick(false);
+    cl->addWidget(m_deviceTree);
 
-    // 通道
-    auto *chLayout = new QHBoxLayout;
-    chLayout->addWidget(new QLabel("通道:", formWidget));
-    m_channelCombo = new QComboBox(formWidget);
-    m_channelCombo->addItem("1");
-    m_channelCombo->addItem("2");
-    chLayout->addWidget(m_channelCombo, 1);
-    formLayout->addLayout(chLayout);
+    cl->addStretch();
 
-    // 波特率
-    auto *brLayout = new QHBoxLayout;
-    brLayout->addWidget(new QLabel("波特率:", formWidget));
-    m_baudCombo = new QComboBox(formWidget);
-    m_baudCombo->addItem("500000");
-    m_baudCombo->addItem("250000");
-    m_baudCombo->addItem("1000000");
-    m_baudCombo->addItem("125000");
-    m_baudCombo->addItem("800000");
-    brLayout->addWidget(m_baudCombo, 1);
-    formLayout->addLayout(brLayout);
+    connect(m_deviceTree, &QTreeWidget::itemClicked,
+            this, &DevicePanel::onItemClicked);
+    connect(m_deviceTree, &QTreeWidget::itemDoubleClicked,
+            this, &DevicePanel::onItemDoubleClicked);
 
-    // FD 配置
-    auto *fdLayout = new QHBoxLayout;
-    fdLayout->addWidget(new QLabel("FD 配置:", formWidget));
-    m_fdCombo = new QComboBox(formWidget);
-    m_fdCombo->addItem("CAN 2.0");
-    m_fdCombo->addItem("CAN FD");
-    fdLayout->addWidget(m_fdCombo, 1);
-    formLayout->addLayout(fdLayout);
-
-    // 设备类型
-    auto *devLayout = new QHBoxLayout;
-    devLayout->addWidget(new QLabel("设备:", formWidget));
-    m_deviceCombo = new QComboBox(formWidget);
-    m_deviceCombo->addItem("模拟器 (内置)");
-    m_deviceCombo->addItem("PCAN-USB");
-    m_deviceCombo->addItem("Kvaser");
-    m_deviceCombo->addItem("Vector VN1630");
-    m_deviceCombo->addItem("SocketCAN");
-    devLayout->addWidget(m_deviceCombo, 1);
-    formLayout->addLayout(devLayout);
-
-    // 按钮
-    auto *btnBar = new QHBoxLayout;
-    m_connectBtn = new QPushButton("连接", formWidget);
-    m_disconnectBtn = new QPushButton("断开", formWidget);
-    m_disconnectBtn->setEnabled(false);
-    btnBar->addWidget(m_connectBtn);
-    btnBar->addWidget(m_disconnectBtn);
-    formLayout->addLayout(btnBar);
-
-    m_statusLabel = new QLabel("● 未连接", formWidget);
-    m_statusLabel->setContentsMargins(4, 0, 4, 4);
-    formLayout->addWidget(m_statusLabel);
-
-    formLayout->addStretch();
-    cl->addWidget(formWidget);
-
-    connect(m_connectBtn, &QPushButton::clicked, this, &DevicePanel::onConnect);
-    connect(m_disconnectBtn, &QPushButton::clicked, this, &DevicePanel::onDisconnect);
+    populateTree();
 }
 
 void DevicePanel::setSimulator(CanSimulator *sim)
@@ -499,37 +449,103 @@ void DevicePanel::setSimulator(CanSimulator *sim)
     m_simulator = sim;
 }
 
-void DevicePanel::onConnect()
+void DevicePanel::setDeviceManager(CanDeviceManager *mgr)
 {
-    QString device = m_deviceCombo->currentText();
-    int baudrate = m_baudCombo->currentText().toInt();
-    int channel = m_channelCombo->currentText().toInt();
-
-    if (m_deviceCombo->currentIndex() == 0 && m_simulator) {
-        m_simulator->setChannel(static_cast<quint8>(channel));
-        m_simulator->start();
-    }
-
-    m_connectBtn->setEnabled(false);
-    m_disconnectBtn->setEnabled(true);
-    m_statusLabel->setText(QString("● 已连接: %1 (Ch%2, %3)")
-        .arg(device).arg(channel).arg(baudrate));
-    m_statusLabel->setStyleSheet("color: green;");
-
-    emit deviceConnectRequested(device, baudrate);
+    m_deviceMgr = mgr;
+    refreshDevices();
 }
 
-void DevicePanel::onDisconnect()
+void DevicePanel::refreshDevices()
 {
-    if (m_simulator)
-        m_simulator->stop();
+    populateTree();
+}
 
-    m_connectBtn->setEnabled(true);
-    m_disconnectBtn->setEnabled(false);
-    m_statusLabel->setText("● 未连接");
-    m_statusLabel->setStyleSheet("color: gray;");
+void DevicePanel::populateTree()
+{
+    m_deviceTree->clear();
 
-    emit deviceDisconnectRequested();
+    // 模拟器（内置）
+    auto *simItem = new QTreeWidgetItem(m_deviceTree);
+    simItem->setText(0, QStringLiteral("\xF0\x9F\x96\xA5 模拟器 (内置)"));
+    simItem->setData(0, Qt::UserRole, 0);  // deviceKind = 0
+    simItem->setData(0, Qt::UserRole + 1, 0);  // devIndex = 0
+
+    // ZLG 设备系列
+    auto *zlgItem = new QTreeWidgetItem(m_deviceTree);
+    zlgItem->setText(0, QStringLiteral("\xF0\x9F\x94\xA7 ZLG 致远电子"));
+
+    QStringList zlgDevices;
+    if (m_deviceMgr) {
+        auto devices = CanDeviceManager::enumerateDevices();
+        for (int i = 1; i < devices.size(); ++i)
+            zlgDevices << devices[i];
+    }
+
+    if (zlgDevices.isEmpty()) {
+        auto *emptyItem = new QTreeWidgetItem(zlgItem);
+        emptyItem->setText(0, QStringLiteral("  (未检测到设备)"));
+        emptyItem->setData(0, Qt::UserRole, -1);
+        emptyItem->setFlags(emptyItem->flags() & ~Qt::ItemIsEnabled);
+    } else {
+        for (int i = 0; i < zlgDevices.size(); ++i) {
+            auto *devItem = new QTreeWidgetItem(zlgItem);
+            devItem->setText(0, QStringLiteral("  ") + zlgDevices[i]);
+            devItem->setData(0, Qt::UserRole, 1);       // deviceKind = 1 (ZLG)
+            devItem->setData(0, Qt::UserRole + 1, i);   // devIndex
+        }
+    }
+
+    // PEAK (占位)
+    auto *peakItem = new QTreeWidgetItem(m_deviceTree);
+    peakItem->setText(0, QStringLiteral("\xF0\x9F\x94\xA7 PEAK PCAN"));
+    auto *peakEmpty = new QTreeWidgetItem(peakItem);
+    peakEmpty->setText(0, QStringLiteral("  (待实现)"));
+    peakEmpty->setData(0, Qt::UserRole, -1);
+    peakEmpty->setFlags(peakEmpty->flags() & ~Qt::ItemIsEnabled);
+
+    // Kvaser (占位)
+    auto *kvaserItem = new QTreeWidgetItem(m_deviceTree);
+    kvaserItem->setText(0, QStringLiteral("\xF0\x9F\x94\xA7 Kvaser"));
+    auto *kvaserEmpty = new QTreeWidgetItem(kvaserItem);
+    kvaserEmpty->setText(0, QStringLiteral("  (待实现)"));
+    kvaserEmpty->setData(0, Qt::UserRole, -1);
+    kvaserEmpty->setFlags(kvaserEmpty->flags() & ~Qt::ItemIsEnabled);
+
+    // 开源 USB-CAN (占位)
+    auto *candleItem = new QTreeWidgetItem(m_deviceTree);
+    candleItem->setText(0, QStringLiteral("\xF0\x9F\x94\xA7 开源 USB-CAN (CandleLight)"));
+    auto *candleEmpty = new QTreeWidgetItem(candleItem);
+    candleEmpty->setText(0, QStringLiteral("  (待实现)"));
+    candleEmpty->setData(0, Qt::UserRole, -1);
+    candleEmpty->setFlags(candleEmpty->flags() & ~Qt::ItemIsEnabled);
+
+    zlgItem->setExpanded(true);
+}
+
+void DevicePanel::onItemClicked(QTreeWidgetItem *item, int /*column*/)
+{
+    // 父节点 → 展开/折叠
+    if (item->childCount() > 0) {
+        item->setExpanded(!item->isExpanded());
+        return;
+    }
+    // 叶子节点 → 发出打开请求
+    int deviceKind = item->data(0, Qt::UserRole).toInt();
+    if (deviceKind < 0)
+        return;
+    int devIndex = item->data(0, Qt::UserRole + 1).toInt();
+    emit deviceOpenRequested(deviceKind, devIndex, item->text(0).trimmed());
+}
+
+void DevicePanel::onItemDoubleClicked(QTreeWidgetItem *item, int /*column*/)
+{
+    if (item->childCount() > 0)
+        return;
+    int deviceKind = item->data(0, Qt::UserRole).toInt();
+    if (deviceKind < 0)
+        return;
+    int devIndex = item->data(0, Qt::UserRole + 1).toInt();
+    emit deviceOpenRequested(deviceKind, devIndex, item->text(0).trimmed());
 }
 
 // ============================================================

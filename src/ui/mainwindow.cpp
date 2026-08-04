@@ -3,6 +3,7 @@
 #include "core/recorder.h"
 #include "core/player.h"
 #include "core/cansimulator.h"
+#include "core/candevicemanager.h"
 #include "core/dbcmanager.h"
 #include "core/dbcdata.h"
 #include "core/canfileio/canfileio.h"
@@ -25,6 +26,7 @@
 #include "ui/udsview.h"
 #include "ui/canopenview.h"
 #include "ui/measurementsetupview.h"
+#include "ui/deviceconnectiontab.h"
 #include "ui/tools/blfasconverter.h"
 #include "ui/tools/dbctoolview.h"
 #include "ui/tools/loganalysisview.h"
@@ -82,6 +84,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_recorder  = new Recorder(this);
     m_player    = new Player(this);
     m_simulator = new CanSimulator(this);
+    m_deviceManager = new CanDeviceManager(this);
 
     // ---- UI 构建 ----
     createMenuBar();
@@ -102,6 +105,24 @@ MainWindow::MainWindow(QWidget *parent)
     // 模拟器 → 帧接收
     connect(m_simulator, &CanSimulator::frameGenerated,
             this, &MainWindow::onFrameReceived);
+
+    // 硬件设备管理器 → 帧接收（与模拟器同信号）
+    connect(m_deviceManager, &CanDeviceManager::frameGenerated,
+            this, &MainWindow::onFrameReceived);
+    connect(m_deviceManager, &CanDeviceManager::connectionChanged,
+            this, [this](bool connected, const QString &name) {
+        if (connected) {
+            m_connLabel->setText(QStringLiteral("🔗 已连接: %1").arg(name));
+            m_bottomPanel->appendOutput(QStringLiteral("✅ 硬件已连接: %1").arg(name));
+        } else {
+            m_connLabel->setText("🔗 未连接");
+            m_bottomPanel->appendOutput(QStringLiteral("■ 硬件已断开"));
+        }
+    });
+    connect(m_deviceManager, &CanDeviceManager::errorOccurred,
+            this, [this](const QString &msg) {
+        m_bottomPanel->appendOutput(QStringLiteral("⚠ %1").arg(msg));
+    });
 
     // 回放器
     connect(m_player, &Player::framePlayed, this, &MainWindow::onFramePlayed);
@@ -158,14 +179,9 @@ MainWindow::MainWindow(QWidget *parent)
             this, [](const QString &name) {
         ThemeManager::instance()->applyTheme(name);
     });
-    connect(m_sideBar->devicePanel(), &DevicePanel::deviceConnectRequested,
-            this, [this](const QString &, int) {
-        m_connLabel->setText("🔗 已连接");
-    });
-    connect(m_sideBar->devicePanel(), &DevicePanel::deviceDisconnectRequested,
-            this, [this]() {
-        m_connLabel->setText("🔗 未连接");
-    });
+    // 设备连接面板 — 点击设备条目打开标签页
+    connect(m_sideBar->devicePanel(), &DevicePanel::deviceOpenRequested,
+            this, &MainWindow::onOpenDeviceTab);
 
     // 分析配置面板 — 点击打开 flow 标签页
     connect(m_sideBar->analysisPanel(), &MeasurementSetupPanel::openMeasurementSetupRequested,
@@ -191,6 +207,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_sideBar->dbcPanel()->setDbcManager(m_dbcManager);
     m_sideBar->graphicConfigPanel()->setGraphicView(m_graphicView);
     m_sideBar->devicePanel()->setSimulator(m_simulator);
+    m_sideBar->devicePanel()->setDeviceManager(m_deviceManager);
     m_sendTab->setDbcManager(m_dbcManager);
 
     // 标签页变化 → 刷新侧边栏面板列表
@@ -630,6 +647,23 @@ void MainWindow::onActivityChanged(int activity)
         onOpenSendTab();
     } else if (activity == ActivityBar::Record) {
         onOpenRecordTab();
+    } else if (activity == ActivityBar::Device) {
+        // 切换到已存在的设备连接标签页
+        const auto allTabs = m_editorArea->allTabWidgets();
+        bool found = false;
+        for (auto *tw : allTabs) {
+            for (int i = tw->count() - 1; i >= 0; --i) {
+                if (tw->tabText(i).contains("设备连接")) {
+                    tw->setCurrentIndex(i);
+                    m_tabLabel->setText(tw->tabText(i));
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+        if (!found && m_deviceTab)
+            m_editorArea->addTab(m_deviceTab, QStringLiteral("设备连接"));
     } else if (activity == ActivityBar::Analysis) {
         onOpenMeasurementSetup();
     } else if (activity == ActivityBar::Tools) {
@@ -1340,6 +1374,59 @@ void MainWindow::setupRecordTab(RecordTab *tab)
     });
 }
 
+void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName)
+{
+    // 查找已有的设备连接标签页
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains("设备连接")) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
+                if (m_deviceTab)
+                    m_deviceTab->setDevice(deviceKind, devIndex, deviceName);
+                return;
+            }
+        }
+    }
+
+    // 未找到则创建新的
+    if (!m_deviceTab) {
+        m_deviceTab = new DeviceConnectionTab(this);
+        m_deviceTab->setSimulator(m_simulator);
+        m_deviceTab->setDeviceManager(m_deviceManager);
+        setupDeviceTab(m_deviceTab);
+        connect(m_deviceTab, &QObject::destroyed, this, [this]() { m_deviceTab = nullptr; });
+    }
+    m_deviceTab->setDevice(deviceKind, devIndex, deviceName);
+    openTab(m_deviceTab, QStringLiteral("设备连接"));
+}
+
+void MainWindow::setupDeviceTab(DeviceConnectionTab *tab)
+{
+    // V2 信号 — 真实硬件连接
+    connect(tab, &DeviceConnectionTab::deviceConnectRequestedV2,
+            this, [this](int devKind, int devIndex, int channel,
+                         int arbBaud, int dataBaud, bool canFd) {
+        auto kind = static_cast<CanDeviceManager::DeviceKind>(devKind);
+        m_deviceManager->configure(kind, devIndex, channel,
+                                   arbBaud, dataBaud, canFd);
+        m_deviceManager->start();
+    });
+
+    // 连接状态
+    connect(tab, &DeviceConnectionTab::deviceConnectRequested,
+            this, [this](const QString &, int) {
+        if (!m_deviceManager->isRealDevice())
+            m_connLabel->setText("🔗 已连接");
+    });
+    connect(tab, &DeviceConnectionTab::deviceDisconnectRequested,
+            this, [this]() {
+        if (!m_deviceManager->isRealDevice() || !m_deviceManager->isRunning())
+            m_connLabel->setText("🔗 未连接");
+    });
+}
+
 void MainWindow::onNewGraphicRequested()
 {
     auto *gv = new GraphicView(this);
@@ -1392,6 +1479,7 @@ void MainWindow::onOpenMeasurementSetup()
             this, [this](int src) {
         if (src == static_cast<int>(MeasurementSetupView::Source::File)) {
             m_simulator->stop();
+            m_deviceManager->stop();
             m_bottomPanel->appendOutput("数据源切换：文件回放");
         } else {
             m_player->stop();
@@ -1474,7 +1562,12 @@ void MainWindow::onOpenMeasurementSetup()
         if (running) {
             m_bottomPanel->appendOutput("▶ 测量开始");
             if (view->currentSource() == MeasurementSetupView::Source::Hardware) {
-                m_simulator->start();
+                // 硬件模式：根据 DevicePanel 选中设备决定数据源
+                if (m_deviceManager->isRunning()) {
+                    // 真实硬件已连接，无需重复启动
+                } else {
+                    m_simulator->start();
+                }
             } else {
                 if (!m_player->isLoaded())
                     onOpenFile();
@@ -1488,6 +1581,7 @@ void MainWindow::onOpenMeasurementSetup()
         } else {
             m_bottomPanel->appendOutput("■ 测量停止");
             m_simulator->stop();
+            m_deviceManager->stop();
             m_player->stop();
             for (auto *w : m_traceInstances) {
                 auto *tab = qobject_cast<TraceTab *>(w);
@@ -1513,6 +1607,10 @@ void MainWindow::onOpenMeasurementSetup()
         m_simulator->setBaudrate(cfg.arbBaudrate);
         m_simulator->setChannel(static_cast<quint8>(cfg.channel));
         m_simulator->setIntervalMs(cfg.intervalMs);
+        // 同步配置到设备管理器（真实硬件模式时生效）
+        m_deviceManager->configure(CanDeviceManager::DeviceKind::ZLG,
+                                    0, cfg.channel - 1,
+                                    cfg.arbBaudrate, cfg.dataBaudrate, cfg.canFd);
         QString mode = cfg.canFd ? "CAN FD" : "Classic CAN";
         m_bottomPanel->appendOutput(
             QStringLiteral("硬件参数: %1 | CH%2 | 仲裁 %3 bps (SP %4% SJW %5 TQ) | 间隔 %6ms")
@@ -1758,8 +1856,10 @@ void MainWindow::onQuickStopRecord()
 
 void MainWindow::onQuickConnect()
 {
-    // 通过模拟器连接
-    if (!m_simulator->isRunning()) {
+    // 硬件设备优先连接，模拟器作为备选
+    if (m_deviceManager->isRealDevice() && !m_deviceManager->isRunning()) {
+        m_deviceManager->start();
+    } else if (!m_simulator->isRunning() && !m_deviceManager->isRealDevice()) {
         m_simulator->start();
         m_connLabel->setText("🔗 已连接");
         m_bottomPanel->appendOutput("设备已连接 (模拟器)");
@@ -1769,6 +1869,7 @@ void MainWindow::onQuickConnect()
 void MainWindow::onQuickDisconnect()
 {
     m_simulator->stop();
+    m_deviceManager->stop();
     m_connLabel->setText("🔗 未连接");
     m_bottomPanel->appendOutput("设备已断开");
 }
@@ -1797,6 +1898,8 @@ void MainWindow::processCommand(const QString &cmd)
         out->appendTerminal("  clear       - 清空 Trace");
         out->appendTerminal("  sim on      - 启动模拟器");
         out->appendTerminal("  sim off     - 停止模拟器");
+        out->appendTerminal("  dev on      - 启动硬件设备");
+        out->appendTerminal("  dev off     - 停止硬件设备");
         out->appendTerminal("  record <file> - 开始录制");
         out->appendTerminal("  stop        - 停止录制/回放");
         out->appendTerminal("  play        - 播放");
@@ -1812,6 +1915,12 @@ void MainWindow::processCommand(const QString &cmd)
     } else if (cmd == "sim off") {
         m_simulator->stop();
         out->appendTerminal("模拟器已停止");
+    } else if (cmd == "dev on") {
+        m_deviceManager->start();
+        out->appendTerminal("硬件设备已启动");
+    } else if (cmd == "dev off") {
+        m_deviceManager->stop();
+        out->appendTerminal("硬件设备已停止");
     } else if (cmd.startsWith("record ")) {
         QString path = cmd.mid(7).trimmed();
         if (m_recorder->start(path))
@@ -2167,6 +2276,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
         m_recorder->stop();
     }
     m_simulator->stop();
+    m_deviceManager->stop();
     m_player->stop();
 
     // 自动保存工程

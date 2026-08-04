@@ -937,3 +937,20 @@ ICanDevice (src/core/candevice.h)
 2. SLCAN 设备普遍无硬件时间戳，界面需区分“硬件时间戳”与“软件接收时间”
 3. 厂商 DLL 使用 `LoadLibrary` 动态加载，避免缺失 DLL 导致程序崩溃
 4. PCAN-Basic 商用分发需保留版权声明
+
+### UI 交互
+
+侧边栏 ActivityBar 按钮名为「设备连接」，展开后显示设备系列树（ZLG、PEAK、Kvaser、开源 USB-CAN 等），不显示配置参数。点击设备条目后跳转到「设备连接」标签页，所有参数配置（通道、波特率、CAN FD、高级时序等）均在标签页中完成，以支持不同设备类型的参数差异。
+
+### 实现状态
+
+| 组件 | 状态 | 说明 |
+|------|------|------|
+| `ICanDevice` 抽象接口 | ✅ 已实现 | `src/core/candevice.h` |
+| `CanDeviceZLG` 后端 | ✅ 已实现 | 动态加载 `zlgcan.dll`，支持 USBCAN-1/2、USBCANFD-200U/100U |
+| `CanDeviceManager` 桥接层 | ✅ 已实现 | `src/core/candevicemanager.cpp`，与 `CanSimulator` 同信号接口 |
+| `DevicePanel` 侧边栏 | ✅ 已实现 | 设备系列树入口，点击跳转标签页 |
+| `DeviceConnectionTab` 标签页 | ✅ 已实现 | `src/ui/deviceconnectiontab.cpp`，含通道/波特率/CAN FD/高级时序参数 |
+| `CanDevicePeak` 后端 | ⬜ 待实现 | 封装 PCAN-Basic 库 |
+| `CanDeviceCandleLight` 后端 | ⬜ 待实现 | libusb + GS_USB 协议 |
+| `CanDeviceSlcan` 后端 | ⬜ 待实现 | 串口文本协议 |

@@ -13,6 +13,12 @@ set(SRC_CORE
     core/player.cpp
     core/cansimulator.h
     core/cansimulator.cpp
+    core/candevice.h
+    core/candevice.cpp
+    core/candevice_zlg.h
+    core/candevice_zlg.cpp
+    core/candevicemanager.h
+    core/candevicemanager.cpp
     core/dbcdata.h
     core/dbcmanager.h
     core/dbcmanager.cpp
@@ -111,6 +117,8 @@ set(SRC_UI
     ui/thememanager.cpp
     ui/measurementsetupview.h
     ui/measurementsetupview.cpp
+    ui/deviceconnectiontab.h
+    ui/deviceconnectiontab.cpp
     # 工具集 — 总线分析工具
     ui/tools/blfasconverter.h
     ui/tools/blfasconverter.cpp

@@ -23,12 +23,14 @@ class CanOpenView;
 class Recorder;
 class Player;
 class CanSimulator;
+class CanDeviceManager;
 class DbcManager;
 class ActivityBar;
 class SideBar;
 class BottomPanel;
 class RightPanel;
 class MeasurementSetupView;
+class DeviceConnectionTab;
 class QAction;
 class QSlider;
 class QComboBox;
@@ -98,6 +100,7 @@ private slots:
     void onOpenRecordTab();
     void onNewGraphicRequested();
     void onOpenMeasurementSetup();
+    void onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName);
     void onToolOpened(const QString &toolKey);
     void onSettingsRequested(const QString &section);
     void onProtocolOpened(const QString &protocolName);
@@ -145,6 +148,7 @@ private:
     void setupSendTab(SignalSendTab *tab);
     void setupPlaybackTab(PlaybackTab *tab);
     void setupRecordTab(RecordTab *tab);
+    void setupDeviceTab(DeviceConnectionTab *tab);
     void processCommand(const QString &cmd);
     void openTab(QWidget *widget, const QString &label);
     void refreshPanelLists();
@@ -168,11 +172,13 @@ private:
     SignalSendTab *m_sendTab = nullptr;
     PlaybackTab *m_playbackTab = nullptr;
     RecordTab *m_recordTab = nullptr;
+    DeviceConnectionTab *m_deviceTab = nullptr;
 
     // ---- 核心引擎 ----
     Recorder *m_recorder = nullptr;
     Player *m_player = nullptr;
     CanSimulator *m_simulator = nullptr;
+    CanDeviceManager *m_deviceManager = nullptr;  ///< 硬件设备管理器（ZLG/PEAK/...）
 
     // ---- 菜单 Action ----
     QAction *m_recordAction = nullptr;

@@ -1,0 +1,203 @@
+#include "candevicemanager.h"
+#include "cansimulator.h"
+#include "candevice_zlg.h"
+#include "logging.h"
+
+#include <QThread>
+
+// ============================================================
+//  CanDeviceManager 实现
+// ============================================================
+
+CanDeviceManager::CanDeviceManager(QObject *parent)
+    : QObject(parent)
+{
+    m_drainTimer.setTimerType(Qt::PreciseTimer);
+    m_drainTimer.setInterval(2);  // 每 2ms 批量消费
+    connect(&m_drainTimer, &QTimer::timeout, this, &CanDeviceManager::drainQueue);
+}
+
+CanDeviceManager::~CanDeviceManager()
+{
+    stop();
+}
+
+// ---- 配置 ----
+
+void CanDeviceManager::configure(DeviceKind kind, int devIndex, int channel,
+                                  int arbBaud, int dataBaud, bool canFd)
+{
+    // 如果正在运行且配置变了，先停止
+    if (m_running)
+        stop();
+
+    m_kind = kind;
+    m_devIndex = devIndex;
+    m_channel = channel;
+    m_arbBaud = arbBaud;
+    m_dataBaud = dataBaud;
+    m_canFd = canFd;
+}
+
+void CanDeviceManager::configureSimulator(int channel, int intervalMs, int baudrate)
+{
+    if (m_running)
+        stop();
+    m_kind = DeviceKind::Simulator;
+    m_channel = channel;
+    m_arbBaud = baudrate;
+    // intervalMs 由 CanSimulator 自己管理
+}
+
+// ---- 运行控制 ----
+
+void CanDeviceManager::start()
+{
+    if (m_running)
+        return;
+
+    if (m_kind == DeviceKind::Simulator) {
+        // 模拟器模式由 MainWindow 直接控制 CanSimulator
+        // 此处不重复启动
+        m_running = true;
+        return;
+    }
+
+    // ---- 真实设备模式 ----
+
+    // 创建设备实例
+    if (m_kind == DeviceKind::ZLG) {
+        auto *zlg = new CanDeviceZLG(CanDeviceZLG::DEV_USBCANFD_200U);
+        m_device.reset(zlg);
+    } else {
+        // 其他厂商待扩展
+        emit errorOccurred(QStringLiteral("不支持的设备类型"));
+        return;
+    }
+
+    // 打开设备
+    if (!m_device->open(m_devIndex, m_channel, m_arbBaud, m_dataBaud, m_canFd)) {
+        emit errorOccurred(QStringLiteral("无法打开设备: %1")
+                           .arg(m_device->deviceName()));
+        m_device.reset();
+        return;
+    }
+
+    m_running = true;
+
+    // 启动接收线程
+    m_recvThread = QThread::create([this]() { recvLoop(); });
+    if (m_recvThread) {
+        m_recvThread->start();
+        SIN_LOG_INFO("CanDeviceManager", "recv thread started: {}",
+                     m_device->deviceName().toStdString());
+    }
+
+    // 启动主线程消费定时器
+    m_drainTimer.start();
+
+    emit connectionChanged(true, m_device->deviceName());
+}
+
+void CanDeviceManager::stop()
+{
+    if (!m_running)
+        return;
+
+    m_running = false;
+    m_drainTimer.stop();
+
+    // 等待接收线程退出
+    if (m_recvThread) {
+        m_recvThread->wait(1000);
+        m_recvThread->deleteLater();
+        m_recvThread = nullptr;
+    }
+
+    // 关闭真实设备
+    if (m_device) {
+        m_device->close();
+        m_device.reset();
+        emit connectionChanged(false, QString());
+    }
+
+    // 排空队列中残留帧
+    drainQueue();
+}
+
+// ---- 帧消费 ----
+
+void CanDeviceManager::drainQueue()
+{
+    QVector<CanFrame> frames;
+    size_t got = m_queue.tryDequeueBulk(frames, 512);
+    if (got == 0)
+        return;
+
+    for (const auto &frame : frames)
+        emit frameGenerated(frame);
+}
+
+// ---- 状态查询 ----
+
+QString CanDeviceManager::currentDeviceName() const
+{
+    if (m_kind == DeviceKind::Simulator)
+        return QStringLiteral("模拟器 (内置)");
+    if (m_device)
+        return m_device->deviceName();
+    switch (m_kind) {
+    case DeviceKind::ZLG: return QStringLiteral("ZLG CAN Device");
+    default:              return QStringLiteral("Unknown");
+    }
+}
+
+// ---- 发送 ----
+
+bool CanDeviceManager::sendFrame(const CanFrame &frame)
+{
+    if (m_kind == DeviceKind::Simulator)
+        return false;  // 模拟器不支持发送
+
+    if (!m_running || !m_device)
+        return false;
+
+    return m_device->send(frame) > 0;
+}
+
+// ---- 设备枚举 ----
+
+QStringList CanDeviceManager::enumerateDevices()
+{
+    QStringList list;
+    list << QStringLiteral("模拟器 (内置)");
+
+    // ZLG 设备
+    if (CanDeviceZLG::isAvailable()) {
+        auto devs = CanDeviceZLG::enumerate();
+        for (const auto &d : devs)
+            list << d.name;
+    }
+
+    return list;
+}
+
+// ---- 接收线程 ----
+
+void CanDeviceManager::recvLoop()
+{
+    std::vector<CanFrame> recvBuf;
+
+    while (m_running.load(std::memory_order_relaxed)) {
+        // 从设备批量接收（10ms 超时）
+        int got = m_device->recv(10, recvBuf);
+        if (got > 0) {
+            // 入队（无锁，不阻塞）
+            for (const auto &f : recvBuf)
+                m_queue.enqueue(f);
+        }
+        // 超时无数据时短暂休眠，避免 CPU 空转
+        if (got == 0)
+            QThread::msleep(1);
+    }
+}
