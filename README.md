@@ -898,3 +898,42 @@ QSortFilterProxyModel 增强版本，支持多条件、正则、多列联合过�
 2. 曲线控件一定要提前规划数据降采样，回放几十上百万帧时，直接渲染必然卡顿
 3. Trace 表格强制使用虚拟 Model，绝对不要使用 QTableWidget 加载大量报文
 4. QCustomPlot 默认单线程渲染；实时高流速报文，需要分离数据缓存线程与 UI 线程
+
+---
+
+## 硬件接入规划
+
+接入 ZLG、PEAK、开源 USB-CAN 三大类设备，释放硬件全部能力。不存在现成库统一覆盖三家，需自建抽象层 + 分厂商封装。
+
+### 架构集成方案
+
+在现有 `CanSimulator` / `Player` / `Recorder` 管线中插入 `ICanDevice` 抽象层：
+
+```
+ICanDevice (src/core/candevice.h)
+├── CanDeviceZLG       — 动态加载 zlgcan.dll，封装全部原生 API
+├── CanDevicePeak       — 封装 PCAN-Basic 库
+├── CanDeviceCandleLight — libusb + GS_USB 协议（推荐的开源设备路径）
+└── CanDeviceSlcan     — 串口文本协议（兼容老旧开源硬件）
+```
+
+- 通用帧收发走虚基类 `Open/Send/Recv`
+- 厂商特有功能（硬件时间戳、滤波、错误帧、ISO/Non-ISO 切换）通过 `VendorCtrl(cmd, args)` 扩展，不阉割能力
+- 工厂模式枚举设备（ZLG `ZCAN_FindDevice` / PCAN `CAN_GetValue` / libusb 扫 VID:PID），动态创建实例
+- DLL 缺失时优雅降级（`LoadLibrary` + 友好提示），不影响其他后端
+
+### 厂商 SDK
+
+| 厂商 | 库 | 能力 | 下载 |
+|------|----|------|------|
+| ZLG | `zlgcan.dll` / `libzlgcan.so` | CAN/FD、硬件滤波、总线负载、错误帧、硬件时间戳 | <https://manual.zlg.cn/web/#/152?page_id=5332> |
+| PEAK | PCAN-Basic（免费） | CAN/FD/XL、ISO 切换、硬件时间戳、通道状态 | <https://www.peak-system.com/PCAN-Basic.239.0.html> |
+| 开源（推荐） | CandleLight / GS_USB | CAN FD、硬件时间戳、USB HID 高速 | [固件](https://github.com/candle-usb/candleLight_fw) · [C++ 参考](https://github.com/GreatScottG/gs_usb_cpp) |
+| 开源（兼容） | SLCAN | 串口文本协议，无硬件时间戳 | [协议规范](https://github.com/canable/slcan-spec) |
+
+### 风险提示
+
+1. ZLG Linux 端仅提供预编译 `libzlgcan.so`，无开源
+2. SLCAN 设备普遍无硬件时间戳，界面需区分“硬件时间戳”与“软件接收时间”
+3. 厂商 DLL 使用 `LoadLibrary` 动态加载，避免缺失 DLL 导致程序崩溃
+4. PCAN-Basic 商用分发需保留版权声明

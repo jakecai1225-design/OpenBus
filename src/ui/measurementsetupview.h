@@ -79,7 +79,7 @@ signals:
     void sourceChanged(int source);
     void fileBrowseRequested();
     void measurementToggled(bool running);
-    void moduleToggled(const QString &moduleName, bool enabled);
+    void moduleToggled(const QString &blockId, const QString &moduleName, bool enabled);
     /// 请求打开/跳转模块实例（instanceId 为空表示新建）
     void moduleOpened(const QString &moduleName, const QString &instanceId);
     /// 请求关闭指定模块实例

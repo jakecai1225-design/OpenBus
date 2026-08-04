@@ -11,8 +11,8 @@ class QLabel;
 /**
  * @brief Wireshark 风格显示过滤栏
  *
- * 左侧有 Start/Stop 按钮控制本标签页的数据采集，
- * 右侧为过滤输入框。
+ * 左侧为覆盖模式切换，右侧为过滤输入框。
+ * 开始/停止由 flow 标签页全局控制，本组件不再包含独立按钮。
  */
 class FilterBar : public QWidget
 {
@@ -24,14 +24,11 @@ public:
     QString filterText() const;
     bool filterActive() const;
 
-    void setRunning(bool running);
     void setOverwriteMode(bool enabled);
 
 signals:
     void filterApplied(const QString &filter);
     void filterCleared();
-    void startRequested();
-    void stopRequested();
     void overwriteModeToggled(bool enabled);
 
 private slots:
@@ -39,8 +36,6 @@ private slots:
     void onClear();
     void showHelp();
     void onTextChanged();
-    void onStart();
-    void onStop();
 
 private:
     QLineEdit *m_edit;
@@ -48,8 +43,6 @@ private:
     QPushButton *m_clearBtn;
     QToolButton *m_helpBtn;
     QLabel *m_statusIcon;
-    QPushButton *m_startBtn;
-    QPushButton *m_stopBtn;
     QPushButton *m_overwriteBtn;
 };
 

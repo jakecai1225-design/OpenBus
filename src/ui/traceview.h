@@ -38,6 +38,10 @@ public slots:
 signals:
     void frameDoubleClicked(const CanFrame &frame);
     void frameSelected(const CanFrame &frame);
+    /// 请求将选中帧的信号发送到 Graphic
+    void frameAddToGraphic(const CanFrame &frame);
+    /// 请求清除当前过滤
+    void clearFilterRequested();
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;

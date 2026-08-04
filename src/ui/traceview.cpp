@@ -137,11 +137,15 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
     QAction copyAction(QStringLiteral("复制选中行"), this);
     QAction copyDataAction(QStringLiteral("复制数据"), this);
     QAction filterIdAction(QStringLiteral("按此 ID 过滤"), this);
+    QAction addToGraphicAction(QStringLiteral("\xF0\x9F\x93\x88 发送到 Graphic"), this);
+    QAction clearFilterAction(QStringLiteral("\xE2\x9C\x95 清除过滤"), this);
 
     menu.addAction(&copyAction);
     menu.addAction(&copyDataAction);
     menu.addSeparator();
     menu.addAction(&filterIdAction);
+    menu.addAction(&addToGraphicAction);
+    menu.addAction(&clearFilterAction);
 
     // 标记与着色子菜单
     auto rows = selectedSourceRows();
@@ -173,6 +177,8 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
     copyAction.setEnabled(index.isValid());
     copyDataAction.setEnabled(index.isValid());
     filterIdAction.setEnabled(index.isValid());
+    addToGraphicAction.setEnabled(index.isValid());
+    clearFilterAction.setEnabled(true);
 
     QAction *selected = menu.exec(event->globalPos());
     if (!selected)
@@ -201,6 +207,12 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
         const CanFrame *frame = selectedFrame();
         if (frame)
             emit frameDoubleClicked(*frame);
+    } else if (selected == &addToGraphicAction) {
+        const CanFrame *frame = selectedFrame();
+        if (frame)
+            emit frameAddToGraphic(*frame);
+    } else if (selected == &clearFilterAction) {
+        emit clearFilterRequested();
     } else if (selected == &clearAction) {
         auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
         auto *source = qobject_cast<CanTraceModel *>(
@@ -659,7 +671,6 @@ void TraceTab::setDbcManager(DbcManager *mgr)
 void TraceTab::setRunning(bool running)
 {
     m_running = running;
-    m_filterBar->setRunning(running);
 }
 
 bool TraceTab::isOverwriteMode() const

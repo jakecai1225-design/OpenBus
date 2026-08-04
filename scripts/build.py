@@ -62,9 +62,9 @@ EXECUTABLE = BUILD_DIR / "bin" / "sin.exe"
 TOOLS_DIR = PROJECT_ROOT / "tools"
 
 # 默认工具路径 (可通过环境变量或 --qt-dir / --mingw-dir / --cmake-dir 覆盖)
-DEFAULT_QT_DIR = Path(os.environ.get("SIN_QT_DIR", "C:/Qt/6.8.3/mingw_64"))
-DEFAULT_MINGW_DIR = Path(os.environ.get("SIN_MINGW_DIR", "C:/Qt/Tools/mingw1310_64"))
-DEFAULT_CMAKE_DIR = Path(os.environ.get("SIN_CMAKE_DIR", "C:/tools/cmake-3.30.3-windows-x86_64"))
+DEFAULT_QT_DIR = Path(os.environ.get("SIN_QT_DIR", "D:/Qt/6.8.3/mingw_64"))
+DEFAULT_MINGW_DIR = Path(os.environ.get("SIN_MINGW_DIR", "D:/Qt/Tools/mingw1310_64"))
+DEFAULT_CMAKE_DIR = Path(os.environ.get("SIN_CMAKE_DIR", "C:/Program Files/CMake"))
 
 BUILD_TYPES = ["Debug", "Release", "RelWithDebInfo", "MinSizeRel"]
 
@@ -128,6 +128,17 @@ class Environment:
         self.cc = self.mingw_bin / "gcc.exe"
         self.gdb = self.mingw_bin / "gdb.exe"
         self.windeployqt = self.qt_bin / "windeployqt.exe"
+
+        # ---- make 程序 (MinGW Makefiles 生成器需要) ----
+        # 优先 mingw32-make.exe，回退 make.exe
+        mingw32_make = self.mingw_bin / "mingw32-make.exe"
+        make_exe = self.mingw_bin / "make.exe"
+        if mingw32_make.exists():
+            self.make_program = mingw32_make
+        elif make_exe.exists():
+            self.make_program = make_exe
+        else:
+            self.make_program = mingw32_make  # 默认值，verify 时会报错
 
         # ---- Ninja 构建系统 (项目本地 tools/ 目录，自动检测) ----
         self.ninja = TOOLS_DIR / "ninja" / "ninja.exe"
@@ -220,7 +231,8 @@ def cmd_configure(env, args):
         info("使用 Ninja 生成器")
     else:
         cmd.extend(["-G", "MinGW Makefiles"])
-        info("使用 MinGW Makefiles 生成器")
+        cmd.append(f"-DCMAKE_MAKE_PROGRAM={env.make_program.as_posix()}")
+        info(f"使用 MinGW Makefiles 生成器 (make: {env.make_program.name})")
 
     cmd.extend([
         f"-DCMAKE_PREFIX_PATH={env.qt_dir.as_posix()}",

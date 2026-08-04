@@ -707,7 +707,7 @@ void MeasurementSetupView::toggleBlock(const QString &id)
 
     b.enabled = !b.enabled;
     rebuildScene();
-    emit moduleToggled(b.title, b.enabled);
+    emit moduleToggled(b.id, b.moduleName, b.enabled);
 }
 
 // ============================================================

@@ -198,12 +198,13 @@ private:
 
     bool m_autoScroll = true;
     bool m_recording = false;
+    bool m_measurementRunning = false;  ///< 全局测量运行状态（由 flow 标签页控制）
     bool m_sideBarVisible = true;
     int m_savedDockWidth = 300;
     int m_traceCount = 1;
     int m_graphicCount = 1;
 
-    // ---- 实例跟踪（测量配置页面模块实例）----
+    // ---- 实例跟踪（flow 页面模块实例）----
     QMap<QString, QWidget*> m_traceInstances;    // "trace1" → TraceTab*
     QMap<QString, QWidget*> m_graphicInstances;  // "graphic1" → GraphicView*
     MeasurementSetupView *m_setupView = nullptr;

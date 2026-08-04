@@ -167,7 +167,7 @@ MainWindow::MainWindow(QWidget *parent)
         m_connLabel->setText("🔗 未连接");
     });
 
-    // 分析配置面板 — 点击打开测量配置标签页
+    // 分析配置面板 — 点击打开 flow 标签页
     connect(m_sideBar->analysisPanel(), &MeasurementSetupPanel::openMeasurementSetupRequested,
             this, [this]() { onOpenMeasurementSetup(); });
 
@@ -217,7 +217,7 @@ MainWindow::MainWindow(QWidget *parent)
                 act = ActivityBar::Record;
             else if (text.contains("UDS") || text.contains("CANopen"))
                 act = ActivityBar::Protocol;
-            else if (text.contains("测量配置"))
+            else if (text.contains("flow"))
                 act = ActivityBar::Analysis;
             else if (text.contains("格式转换") || text.contains("DBC 编辑"))
                 act = ActivityBar::Tools;
@@ -838,12 +838,17 @@ void MainWindow::onAutoScrollToggled(bool on)
 
 void MainWindow::onFrameReceived(const CanFrame &frame)
 {
-    // 发送到所有 Graphic 视图，仅向运行中的 Trace 标签页追加帧
+    // 发送到所有启用的 Graphic 视图，仅向运行中的 Trace 标签页追加帧
     const auto allTabs = m_editorArea->allTabWidgets();
     for (auto *tw : allTabs) {
         for (int i = 0; i < tw->count(); ++i) {
             auto *gv = qobject_cast<GraphicView *>(tw->widget(i));
-            if (gv) gv->onFrame(frame);
+            if (gv) {
+                // 检查 flow 块是否启用（未设置 property 默认为 true）
+                bool flowEnabled = gv->property("flowEnabled").toBool();
+                if (!gv->property("flowEnabled").isValid() || flowEnabled)
+                    gv->onFrame(frame);
+            }
             auto *tt = qobject_cast<TraceTab *>(tw->widget(i));
             if (tt && tt->isRunning()) {
                 tt->appendFrame(frame);
@@ -1090,21 +1095,54 @@ void MainWindow::setupTraceTab(TraceTab *tab)
         tab->clearFilter();
     });
 
-    // Start/Stop 控制
-    connect(filterBar, &FilterBar::startRequested, this, [this, tab]() {
-        tab->setRunning(true);
-        m_bottomPanel->appendOutput("Trace 开始采集");
-    });
-    connect(filterBar, &FilterBar::stopRequested, this, [this, tab]() {
-        tab->setRunning(false);
-        m_bottomPanel->appendOutput("Trace 停止采集");
-    });
-
     auto *traceView = tab->traceView();
     connect(traceView, &TraceView::frameDoubleClicked,
             this, &MainWindow::onFrameDoubleClicked);
     connect(traceView, &TraceView::frameSelected,
             this, &MainWindow::onTraceSelectionChanged);
+    connect(traceView, &TraceView::frameAddToGraphic,
+            this, [this](const CanFrame &frame) {
+        // 查找该帧对应的 DBC 信号，添加到当前或最后的 Graphic
+        const DbcMessage *msg = m_dbcManager->findMessage(frame.id);
+        if (!msg) {
+            m_bottomPanel->appendOutput(
+                QStringLiteral("⚠ 未找到 ID=0x%1 对应的 DBC 报文定义")
+                    .arg(frame.id, 0, 16).toUpper());
+            return;
+        }
+        // 查找或创建目标 Graphic 视图
+        GraphicView *targetGv = nullptr;
+        auto *tabs = m_editorArea->activeTabWidget();
+        if (tabs) {
+            targetGv = qobject_cast<GraphicView *>(tabs->currentWidget());
+            if (!targetGv) {
+                for (int i = tabs->count() - 1; i >= 0; --i) {
+                    auto *gv = qobject_cast<GraphicView *>(tabs->widget(i));
+                    if (gv) { targetGv = gv; break; }
+                }
+            }
+        }
+        if (!targetGv) {
+            targetGv = new GraphicView(this);
+            openTab(targetGv, QString("📈 Graphic%1").arg(++m_graphicCount));
+        }
+        // 添加该报文的所有信号到 Graphic
+        for (const auto &sig : msg->signalList) {
+            GraphicView::Signal gsig;
+            gsig.name = sig.name;
+            gsig.canId = frame.id;
+            gsig.extended = frame.extended;
+            gsig.dbcSig = sig;
+            targetGv->addSignal(gsig);
+        }
+        m_bottomPanel->appendOutput(
+            QStringLiteral("已添加 %1 个信号到 Graphic (ID=0x%2)")
+                .arg(msg->signalList.size()).arg(frame.id, 0, 16).toUpper());
+    });
+    connect(traceView, &TraceView::clearFilterRequested,
+            this, [tab]() {
+        tab->clearFilter();
+    });
 
     // 文件拖放加载完成
     connect(tab, &TraceTab::fileLoaded, this, [this, tab](int count) {
@@ -1310,11 +1348,11 @@ void MainWindow::onNewGraphicRequested()
 
 void MainWindow::onOpenMeasurementSetup()
 {
-    // 查找已有的测量配置标签页
+    // 查找已有的 flow 标签页
     const auto allTabs = m_editorArea->allTabWidgets();
     for (auto *tw : allTabs) {
         for (int i = 0; i < tw->count(); ++i) {
-            if (tw->tabText(i).contains("测量配置")) {
+            if (tw->tabText(i).contains("flow")) {
                 tw->setCurrentIndex(i);
                 m_tabLabel->setText(tw->tabText(i));
                 return;
@@ -1322,7 +1360,7 @@ void MainWindow::onOpenMeasurementSetup()
         }
     }
 
-    // 创建新的测量配置标签页
+    // 创建新的 flow 标签页
     auto *view = new MeasurementSetupView(this);
 
     // 设置已加载的 DBC 文件列表
@@ -1345,7 +1383,7 @@ void MainWindow::onOpenMeasurementSetup()
         view->setDbcFiles(files);
     });
 
-    // 记录当前测量配置视图，用于实例跟踪
+    // 记录当前 flow 视图，用于实例跟踪
     m_setupView = view;
     connect(view, &QObject::destroyed, this, [this]() { m_setupView = nullptr; });
 
@@ -1432,6 +1470,7 @@ void MainWindow::onOpenMeasurementSetup()
     });
     connect(view, &MeasurementSetupView::measurementToggled,
             this, [this, view](bool running) {
+        m_measurementRunning = running;
         if (running) {
             m_bottomPanel->appendOutput("▶ 测量开始");
             if (view->currentSource() == MeasurementSetupView::Source::Hardware) {
@@ -1441,16 +1480,33 @@ void MainWindow::onOpenMeasurementSetup()
                     onOpenFile();
                 m_player->play();
             }
+            // 所有已启用的 Trace 实例自动开始接收数据
+            for (auto *w : m_traceInstances) {
+                auto *tab = qobject_cast<TraceTab *>(w);
+                if (tab) tab->setRunning(true);
+            }
         } else {
             m_bottomPanel->appendOutput("■ 测量停止");
             m_simulator->stop();
             m_player->stop();
+            for (auto *w : m_traceInstances) {
+                auto *tab = qobject_cast<TraceTab *>(w);
+                if (tab) tab->setRunning(false);
+            }
         }
     });
     connect(view, &MeasurementSetupView::moduleToggled,
-            this, [this](const QString &name, bool enabled) {
+            this, [this](const QString &blockId, const QString &name, bool enabled) {
         m_bottomPanel->appendOutput(QString("模块 %1 %2")
                                     .arg(name).arg(enabled ? "已启用" : "已禁用"));
+        // 根据 blockId 控制对应实例的数据接收
+        if (blockId.startsWith("trace")) {
+            auto *tab = qobject_cast<TraceTab *>(m_traceInstances.value(blockId));
+            if (tab) tab->setRunning(enabled && m_measurementRunning);
+        } else if (blockId.startsWith("graphic")) {
+            auto *gv = qobject_cast<GraphicView *>(m_graphicInstances.value(blockId));
+            if (gv) gv->setProperty("flowEnabled", enabled);
+        }
     });
     connect(view, &MeasurementSetupView::realConfigChanged,
             this, [this](const MeasurementSetupView::CanHwConfig &cfg) {
@@ -1585,7 +1641,7 @@ void MainWindow::onOpenMeasurementSetup()
         m_bottomPanel->appendOutput(QString("通道 %1 过滤条件已配置").arg(channelId));
     });
 
-    // 注册默认 Trace 实例到测量配置画布
+    // 注册默认 Trace 实例到 flow 画布
     if (m_traceTab) {
         if (!m_traceInstances.contains("trace1")) {
             m_traceInstances["trace1"] = m_traceTab;
@@ -1598,7 +1654,7 @@ void MainWindow::onOpenMeasurementSetup()
         view->addModuleInstance("trace", "trace1", "Trace1");
     }
 
-    // 注册默认 Graphic 实例到测量配置画布
+    // 注册默认 Graphic 实例到 flow 画布
     if (m_graphicView) {
         if (!m_graphicInstances.contains("graphic1")) {
             m_graphicInstances["graphic1"] = m_graphicView;
@@ -1611,7 +1667,7 @@ void MainWindow::onOpenMeasurementSetup()
         view->addModuleInstance("graphic", "graphic1", "Graphic1");
     }
 
-    openTab(view, "📊 测量配置");
+    openTab(view, "📊 flow");
 }
 
 void MainWindow::onToolOpened(const QString &toolKey)
@@ -1621,10 +1677,10 @@ void MainWindow::onToolOpened(const QString &toolKey)
         auto *conv = new BlfAsConverter(this);
         openTab(conv, QStringLiteral("🔄 格式转换"));
     } else if (toolKey == "dbc_tool") {
-        auto *view = new DbcUnifiedView(this);
+        auto *view = new DbcToolView(this);
         openTab(view, QStringLiteral("📝 DBC 工具"));
     } else if (toolKey == "bus_analysis") {
-        auto *view = new BusAnalysisView(this);
+        auto *view = new FrameStatisticsView(this);
         openTab(view, QStringLiteral("📊 总线统计分析"));
     }
 }
@@ -2375,7 +2431,7 @@ void MainWindow::applyProjectState()
         m_graphicCount = qMax(m_graphicCount, n);
     }
 
-    // 8. 更新测量配置视图
+    // 8. 更新 flow 视图
     if (m_setupView) {
         // 重新注册所有 trace/graphic 实例
         for (const auto &t : st.traces)

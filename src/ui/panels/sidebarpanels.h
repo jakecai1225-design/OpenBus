@@ -262,7 +262,7 @@ private:
 };
 
 // ============================================================
-//  分析配置面板 — 侧边栏入口（点击打开测量配置标签页）
+//  分析配置面板 — 侧边栏入口（点击打开 flow 标签页）
 // ============================================================
 class MeasurementSetupPanel : public SidePanel
 {
@@ -271,7 +271,7 @@ public:
     explicit MeasurementSetupPanel(QWidget *parent = nullptr);
 
 signals:
-    /// 请求打开测量配置标签页
+    /// 请求打开 flow 标签页
     void openMeasurementSetupRequested();
 
 private slots:

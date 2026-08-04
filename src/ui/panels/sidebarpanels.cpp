@@ -648,11 +648,11 @@ MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
     auto *cl = contentLayout();
 
     m_list = new QListWidget(this);
-    m_list->addItem(new QListWidgetItem("\xF0\x9F\x93\x8A 测量配置"));
+    m_list->addItem(new QListWidgetItem("\xF0\x9F\x93\x8A flow"));
     cl->addWidget(m_list);
 
     auto *hint = new QLabel("\n"
-                           "\xE2\x80\xA2 点击“测量配置”打开画布\n"
+                           "\xE2\x80\xA2 点击“flow”打开画布\n"
                            "\xE2\x80\xA2 点击模块块可启用/禁用\n"
                            "\xE2\x80\xA2 双击模块块可打开对应标签页", this);
     hint->setWordWrap(true);
@@ -667,7 +667,7 @@ void MeasurementSetupPanel::onItemClicked(QListWidgetItem *item)
 {
     if (!item) return;
     QString text = item->text();
-    if (text.contains("测量配置"))
+    if (text.contains("flow"))
         emit openMeasurementSetupRequested();
 }
 
