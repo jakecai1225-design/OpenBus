@@ -67,14 +67,21 @@ void DeviceConnectionTab::setupUi()
 
     arbLayout->addWidget(new QLabel(QStringLiteral("波特率:"), arbGroup), 0, 0);
     m_baudCombo = new QComboBox(arbGroup);
+    m_baudCombo->setEditable(true);  // 允许手动输入自定义波特率
     m_baudCombo->addItem("1000000");
     m_baudCombo->addItem("800000");
+    m_baudCombo->addItem("666000");
     m_baudCombo->addItem("500000");
     m_baudCombo->addItem("250000");
+    m_baudCombo->addItem("200000");
     m_baudCombo->addItem("125000");
     m_baudCombo->addItem("100000");
+    m_baudCombo->addItem("62500");
     m_baudCombo->addItem("50000");
     m_baudCombo->addItem("33333");
+    m_baudCombo->addItem("20000");
+    m_baudCombo->addItem("10000");
+    m_baudCombo->addItem("5000");
     m_baudCombo->setCurrentText("500000");
     arbLayout->addWidget(m_baudCombo, 0, 1);
 
@@ -95,6 +102,8 @@ void DeviceConnectionTab::setupUi()
 
     dataLayout->addWidget(new QLabel(QStringLiteral("数据波特率:"), m_dataBaudGroup), 0, 0);
     m_dataBaudCombo = new QComboBox(m_dataBaudGroup);
+    m_dataBaudCombo->setEditable(true);  // 允许手动输入自定义波特率
+    m_dataBaudCombo->addItem("500000");
     m_dataBaudCombo->addItem("1000000");
     m_dataBaudCombo->addItem("2000000");
     m_dataBaudCombo->addItem("4000000");
@@ -242,6 +251,18 @@ void DeviceConnectionTab::onConnect()
     bool canFd = (m_fdCombo->currentIndex() == 1);
     int dataBaud = canFd ? m_dataBaudCombo->currentText().toInt() : 0;
 
+    // 验证波特率
+    if (baudrate <= 0) {
+        QMessageBox::warning(this, QStringLiteral("设备连接"),
+                              QStringLiteral("仲裁段波特率无效"));
+        return;
+    }
+    if (canFd && dataBaud <= 0) {
+        QMessageBox::warning(this, QStringLiteral("设备连接"),
+                              QStringLiteral("数据段波特率无效"));
+        return;
+    }
+
     // 获取时序预设
     int arbIdx = m_arbTimingCombo->currentIndex();
     if (arbIdx >= 0 && arbIdx < m_arbPresets.size()) {
@@ -319,7 +340,6 @@ void DeviceConnectionTab::onDataTimingChanged(int index)
 
 void DeviceConnectionTab::updateCanFdVisibility()
 {
-    bool isSim = (m_deviceKind == 0);
     bool isFd = (m_fdCombo->currentIndex() == 1);
-    m_dataBaudGroup->setVisible(!isSim && isFd);
+    m_dataBaudGroup->setVisible(isFd);
 }

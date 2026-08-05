@@ -512,6 +512,8 @@ void MainWindow::createLayout()
     setupTraceTab(m_traceTab);
     connect(m_traceTab, &QObject::destroyed, this, [this]() { m_traceTab = nullptr; });
     m_editorArea->addTab(m_traceTab, "📋 Trace1");
+    // 注册默认实例到映射表，确保设备连接时能设置 running 状态
+    m_traceInstances["trace1"] = m_traceTab;
 
     // Graphic 标签页
     m_graphicView = new GraphicView(this);
@@ -523,6 +525,8 @@ void MainWindow::createLayout()
     });
     connect(m_graphicView, &QObject::destroyed, this, [this]() { m_graphicView = nullptr; });
     m_editorArea->addTab(m_graphicView, "📈 Graphic1");
+    // 注册默认实例到映射表
+    m_graphicInstances["graphic1"] = m_graphicView;
 
     // 发送标签页
     m_sendTab = new SignalSendTab(this);
@@ -1425,12 +1429,13 @@ void MainWindow::setupDeviceTab(DeviceConnectionTab *tab)
             this, [this](const QString &name, int) {
         if (!m_deviceManager->isRealDevice())
             m_connLabel->setText(QStringLiteral("🔗 已连接"));
-        // 启动数据流：标记测量运行 + 所有 Trace 实例开始接收
+        // 启动数据流：标记测量运行 + Trace 实例遵循 Flow 块使能状态
         m_measurementRunning = true;
-        for (auto *w : m_traceInstances) {
-            auto *traceTab = qobject_cast<TraceTab *>(w);
-            if (traceTab)
-                traceTab->setRunning(true);
+        for (auto it = m_traceInstances.begin(); it != m_traceInstances.end(); ++it) {
+            auto *traceTab = qobject_cast<TraceTab *>(it.value());
+            if (!traceTab) continue;
+            bool en = m_setupView ? m_setupView->isBlockEnabled(it.key()) : true;
+            traceTab->setRunning(en);
         }
         m_bottomPanel->appendOutput(
             QStringLiteral("▶ 数据流已启动: %1").arg(name));
