@@ -3,7 +3,7 @@ schema_version: 1
 locale: zh-CN
 branch: master
 nodes_managed: true
-exported_at: "2026-08-04T10:56:53Z"
+exported_at: "2026-08-05T02:45:58Z"
 modules:
     "":
         dir_name: 信号发送与 DBC 导入界面模块

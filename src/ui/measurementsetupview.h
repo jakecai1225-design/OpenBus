@@ -53,22 +53,8 @@ public:
     /// 移除模块实例（由 MainWindow 在关闭标签页后调用）
     void removeModuleInstance(const QString &moduleName, const QString &instanceId);
 
-    /// CAN 硬件配置参数（参考 CANoe 硬件参数配置）
-    struct CanHwConfig {
-        int channel = 1;
-        bool canFd = false;           // CAN FD 模式
-        int arbBaudrate = 500000;     // 仲裁段波特率
-        int dataBaudrate = 2000000;   // 数据段波特率（CAN FD）
-        int samplePoint = 75;        // 采样点 (%)
-        int sjw = 1;                  // 同步跳转宽度 (TQ)
-        int tseg1 = 12;              // 时间段 1 (TQ)
-        int tseg2 = 3;               // 时间段 2 (TQ)
-        int dataSamplePoint = 75;    // 数据段采样点 (%)
-        int dataSjw = 1;             // 数据段 SJW (TQ)
-        int dataTseg1 = 12;          // 数据段 TSEG1 (TQ)
-        int dataTseg2 = 3;           // 数据段 TSEG2 (TQ)
-        int intervalMs = 5;          // 帧生成间隔 (ms)
-    };
+    /// 查询模块块的使能状态（默认 true）
+    bool isBlockEnabled(const QString &blockId) const;
 
 public slots:
     void setSource(Source src);
@@ -88,8 +74,8 @@ signals:
     void dbcSelectRequested();
     /// 请求配置通道过滤条件
     void channelFilterRequested(const QString &channelId);
-    /// Real 硬件参数变更
-    void realConfigChanged(const MeasurementSetupView::CanHwConfig &config);
+    /// 请求跳转到设备连接界面（点击 Real 块时触发）
+    void realBlockClicked();
 
 private:
     // ---- UI ----
@@ -114,7 +100,6 @@ private:
     // ---- 记录文件列表 & REAL 设备 ----
     QStringList m_recentFiles;           ///< 最近打开的文件
     QStringList m_dbcFiles;              ///< 已加载的 DBC 文件名列表
-    CanHwConfig m_hwConfig;              ///< 硬件参数
     QStringList m_loadedFiles;           ///< 已加载的回放文件列表
 
     // ---- 画布块 ----
@@ -195,7 +180,6 @@ private:
 
     // ---- 右键弹窗对话框 ----
     void showFileConfigDialog();
-    void showRealConfigDialog();
     void showChannelFilterDialog(const QString &channelId);
     void showDbcSelectDialog();
 };

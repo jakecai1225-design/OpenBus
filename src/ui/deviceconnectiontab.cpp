@@ -288,9 +288,8 @@ void DeviceConnectionTab::onDisconnect()
     if (m_deviceKind == 0) {
         if (m_simulator)
             m_simulator->stop();
-    } else {
-        emit deviceDisconnectRequested();
     }
+    // 真实设备的停止由 MainWindow 在 deviceDisconnectRequested 信号中处理
 
     m_connectBtn->setEnabled(m_deviceKind <= 1);
     m_disconnectBtn->setEnabled(false);

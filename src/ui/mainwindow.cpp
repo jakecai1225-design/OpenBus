@@ -1420,16 +1420,34 @@ void MainWindow::setupDeviceTab(DeviceConnectionTab *tab)
         m_deviceManager->start();
     });
 
-    // 连接状态
+    // 连接成功 — 启动数据流到 Trace / Graphic
     connect(tab, &DeviceConnectionTab::deviceConnectRequested,
-            this, [this](const QString &, int) {
+            this, [this](const QString &name, int) {
         if (!m_deviceManager->isRealDevice())
-            m_connLabel->setText("🔗 已连接");
+            m_connLabel->setText(QStringLiteral("🔗 已连接"));
+        // 启动数据流：标记测量运行 + 所有 Trace 实例开始接收
+        m_measurementRunning = true;
+        for (auto *w : m_traceInstances) {
+            auto *traceTab = qobject_cast<TraceTab *>(w);
+            if (traceTab)
+                traceTab->setRunning(true);
+        }
+        m_bottomPanel->appendOutput(
+            QStringLiteral("▶ 数据流已启动: %1").arg(name));
     });
+    // 断开 — 停止数据流
     connect(tab, &DeviceConnectionTab::deviceDisconnectRequested,
             this, [this]() {
-        if (!m_deviceManager->isRealDevice() || !m_deviceManager->isRunning())
-            m_connLabel->setText("🔗 未连接");
+        m_connLabel->setText(QStringLiteral("🔗 未连接"));
+        m_measurementRunning = false;
+        m_simulator->stop();
+        m_deviceManager->stop();
+        for (auto *w : m_traceInstances) {
+            auto *traceTab = qobject_cast<TraceTab *>(w);
+            if (traceTab)
+                traceTab->setRunning(false);
+        }
+        m_bottomPanel->appendOutput(QStringLiteral("■ 数据流已停止"));
     });
 }
 
@@ -1579,10 +1597,11 @@ void MainWindow::onOpenMeasurementSetup()
                     onOpenFile();
                 m_player->play();
             }
-            // 所有已启用的 Trace 实例自动开始接收数据
-            for (auto *w : m_traceInstances) {
-                auto *tab = qobject_cast<TraceTab *>(w);
-                if (tab) tab->setRunning(true);
+            // 所有已启用的 Trace 实例自动开始接收数据（遵循 Flow 块使能状态）
+            for (auto it = m_traceInstances.begin(); it != m_traceInstances.end(); ++it) {
+                auto *tab = qobject_cast<TraceTab *>(it.value());
+                if (tab)
+                    tab->setRunning(view->isBlockEnabled(it.key()));
             }
         } else {
             m_bottomPanel->appendOutput("■ 测量停止");
@@ -1608,20 +1627,27 @@ void MainWindow::onOpenMeasurementSetup()
             if (gv) gv->setProperty("flowEnabled", enabled);
         }
     });
-    connect(view, &MeasurementSetupView::realConfigChanged,
-            this, [this](const MeasurementSetupView::CanHwConfig &cfg) {
-        m_simulator->setBaudrate(cfg.arbBaudrate);
-        m_simulator->setChannel(static_cast<quint8>(cfg.channel));
-        m_simulator->setIntervalMs(cfg.intervalMs);
-        // 同步配置到设备管理器（真实硬件模式时生效）
-        m_deviceManager->configure(CanDeviceManager::DeviceKind::ZLG,
-                                    0, cfg.channel - 1,
-                                    cfg.arbBaudrate, cfg.dataBaudrate, cfg.canFd);
-        QString mode = cfg.canFd ? "CAN FD" : "Classic CAN";
-        m_bottomPanel->appendOutput(
-            QStringLiteral("硬件参数: %1 | CH%2 | 仲裁 %3 bps (SP %4% SJW %5 TQ) | 间隔 %6ms")
-                .arg(mode).arg(cfg.channel).arg(cfg.arbBaudrate)
-                .arg(cfg.samplePoint).arg(cfg.sjw).arg(cfg.intervalMs));
+    connect(view, &MeasurementSetupView::realBlockClicked,
+            this, [this]() {
+        // 跳转到设备连接标签页（已存在则切换，不存在则创建）
+        const auto allTabs = m_editorArea->allTabWidgets();
+        for (auto *tw : allTabs) {
+            for (int i = 0; i < tw->count(); ++i) {
+                if (tw->tabText(i).contains(QStringLiteral("设备连接"))) {
+                    tw->setCurrentIndex(i);
+                    m_tabLabel->setText(tw->tabText(i));
+                    return;
+                }
+            }
+        }
+        if (!m_deviceTab) {
+            m_deviceTab = new DeviceConnectionTab(this);
+            m_deviceTab->setSimulator(m_simulator);
+            m_deviceTab->setDeviceManager(m_deviceManager);
+            setupDeviceTab(m_deviceTab);
+            connect(m_deviceTab, &QObject::destroyed, this, [this]() { m_deviceTab = nullptr; });
+        }
+        openTab(m_deviceTab, QStringLiteral("设备连接"));
     });
     connect(view, &MeasurementSetupView::moduleOpened,
             this, [this, view](const QString &moduleId, const QString &instanceId) {

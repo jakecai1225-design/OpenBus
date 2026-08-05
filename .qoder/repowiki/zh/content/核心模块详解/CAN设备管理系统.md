@@ -25,11 +25,12 @@
 
 ## 更新摘要
 **已进行的更改**
-- 更新了ZLG CAN设备驱动的架构描述，反映新的双句柄方法（设备句柄+通道句柄）
-- 增强了DLL加载机制的详细说明
-- 更新了SDK函数签名和调用约定的描述
-- 改进了配置管理和错误处理机制的说明
-- 添加了通道基架构的技术细节
+- 完全重构了ZLG CAN设备驱动以支持完整的CAN FD协议
+- 新增了USBCAN-E-U、USBCAN-2E-U、USBCAN-4E-U、USBCANFD-mini、USBCANFD-800U等设备支持
+- 实现了双句柄架构（设备句柄+通道句柄）分离管理
+- 增强了SDK函数管理和动态加载机制
+- 完善了CAN FD帧处理，包括64字节载荷、BRS/ESI标志等完整功能
+- 改进了设备枚举系统和错误处理机制
 
 ## 目录
 1. [简介](#简介)
@@ -46,7 +47,7 @@
 ## 简介
 本系统是一款面向汽车电子与总线调试的CAN/CAN FD报文分析工具，提供实时录制、文件回放、DBC信号解析、Trace列表展示、Graphic波形视图等能力。整体采用Qt6 + C++17构建，UI风格参考VS Code，支持无边框窗口、可停靠面板与多标签编辑区。系统通过统一的设备抽象层隔离硬件差异，结合无锁消息队列与发布订阅机制，实现高吞吐、低延迟的数据流处理。
 
-**最新更新**：ZLG CAN设备驱动已完全重构以支持新的SDK API结构，包括增强的DLL加载机制、通道基架构、改进的配置管理和错误处理。
+**最新更新**：ZLG CAN设备驱动已完全重构以支持完整的CAN FD协议，新增多种设备类型支持，实现了双句柄架构和增强的SDK函数管理。
 
 ## 项目结构
 - 顶层CMake工程负责Qt6查找、子模块集成与安装规则
@@ -82,14 +83,14 @@ F --> P["src/utils/message_queue.h"]
 - [src/core/candevicemanager.h:1-120](file://src/core/candevicemanager.h#L1-L120)
 - [src/core/candevice.h:1-80](file://src/core/candevice.h#L1-L80)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
-- [src/core/candevice_zlg.h:1-109](file://src/core/candevice_zlg.h#L1-L109)
-- [src/core/candevice_zlg.cpp:1-414](file://src/core/candevice_zlg.cpp#L1-L414)
+- [src/core/candevice_zlg.h:1-124](file://src/core/candevice_zlg.h#L1-L124)
+- [src/core/candevice_zlg.cpp:1-622](file://src/core/candevice_zlg.cpp#L1-L622)
 - [src/models/cantracemodel.h:1-120](file://src/models/cantracemodel.h#L1-L120)
 - [src/core/filter_engine.h:1-59](file://src/core/filter_engine.h#L1-L59)
 - [src/core/recorder.h:1-48](file://src/core/recorder.h#L1-L48)
 - [src/core/player.h:1-74](file://src/core/player.h#L1-L74)
 - [src/core/dbcmanager.h:1-73](file://src/core/dbcmanager.h#L1-L73)
-- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-L87)
+- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 
 **章节来源**
 - [CMakeLists.txt:1-63](file://CMakeLists.txt#L1-L63)
@@ -115,7 +116,7 @@ F --> P["src/utils/message_queue.h"]
 - [src/core/candevice.h:1-80](file://src/core/candevice.h#L1-L80)
 - [src/core/candevicemanager.h:1-120](file://src/core/candevicemanager.h#L1-L120)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
-- [src/core/candevice_zlg.h:1-109](file://src/core/candevice_zlg.h#L1-L109)
+- [src/core/candevice_zlg.h:1-124](file://src/core/candevice_zlg.h#L1-L124)
 - [src/models/cantracemodel.h:1-120](file://src/models/cantracemodel.h#L1-L120)
 - [src/ui/traceview.h:1-189](file://src/ui/traceview.h#L1-L189)
 - [src/core/filter_engine.h:1-59](file://src/core/filter_engine.h#L1-L59)
@@ -123,13 +124,13 @@ F --> P["src/utils/message_queue.h"]
 - [src/core/player.h:1-74](file://src/core/player.h#L1-L74)
 - [src/ui/graphicview.h:1-160](file://src/ui/graphicview.h#L1-L160)
 - [src/core/dbcmanager.h:1-73](file://src/core/dbcmanager.h#L1-L73)
-- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-L87)
+- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 - [src/core/appconfig.h:1-73](file://src/core/appconfig.h#L1-L73)
 
 ## 架构总览
 系统采用"中心化发布订阅"思想：设备抽象层（HAL）将在线采集、离线回放、仿真源统一为标准帧流；核心内核层进行时间对齐与分发；业务服务层订阅数据并执行日志、统计、解析等任务；UI交互层仅消费数据，不直接访问底层。
 
-**更新**：ZLG设备驱动现在采用双句柄架构，通过设备句柄和通道句柄分离管理，提供更灵活的通道控制能力。
+**更新**：ZLG设备驱动现在采用双句柄架构，通过设备句柄和通道句柄分离管理，提供更灵活的通道控制能力和完整的CAN FD协议支持。
 
 ```mermaid
 graph TB
@@ -143,6 +144,7 @@ subgraph "ZLG SDK层"
 SDK1["设备句柄(devHandle)"]
 SDK2["通道句柄(channelHandle)"]
 SDK3["DLL动态加载"]
+SDK4["CAN FD支持"]
 end
 subgraph "核心内核层"
 Core["帧分发中心<br/>时间对齐/缓存"]
@@ -163,6 +165,7 @@ HAL1 --> MQ
 HAL2 --> SDK1
 HAL2 --> SDK2
 HAL2 --> SDK3
+HAL2 --> SDK4
 HAL3 --> MQ
 HAL4 --> MQ
 MQ --> Core
@@ -182,9 +185,9 @@ UI2 --> UI3
 - [src/core/candevicemanager.h:1-120](file://src/core/candevicemanager.h#L1-L120)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
 - [src/core/player.h:1-74](file://src/core/player.h#L1-L74)
-- [src/core/candevice_zlg.h:1-109](file://src/core/candevice_zlg.h#L1-L109)
-- [src/core/candevice_zlg.cpp:1-414](file://src/core/candevice_zlg.cpp#L1-L414)
-- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-L87)
+- [src/core/candevice_zlg.h:1-124](file://src/core/candevice_zlg.h#L1-L124)
+- [src/core/candevice_zlg.cpp:1-622](file://src/core/candevice_zlg.cpp#L1-L622)
+- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 - [src/core/recorder.h:1-48](file://src/core/recorder.h#L1-L48)
 - [src/core/filter_engine.h:1-59](file://src/core/filter_engine.h#L1-L59)
 - [src/core/dbcmanager.h:1-73](file://src/core/dbcmanager.h#L1-L73)
@@ -260,24 +263,44 @@ CanDeviceZLG --> ICanDevice : "实现"
 - [src/core/candevice.h:1-80](file://src/core/candevice.h#L1-L80)
 - [src/core/candevicemanager.h:1-120](file://src/core/candevicemanager.h#L1-L120)
 - [src/core/candevicemanager.cpp:1-204](file://src/core/candevicemanager.cpp#L1-L204)
-- [src/core/candevice_zlg.h:1-109](file://src/core/candevice_zlg.h#L1-L109)
+- [src/core/candevice_zlg.h:1-124](file://src/core/candevice_zlg.h#L1-L124)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
-- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-L87)
+- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 
 **章节来源**
 - [src/core/candevice.h:1-80](file://src/core/candevice.h#L1-L80)
 - [src/core/candevicemanager.h:1-120](file://src/core/candevicemanager.h#L1-L120)
 - [src/core/candevicemanager.cpp:1-204](file://src/core/candevicemanager.cpp#L1-L204)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
-- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-L87)
+- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 
 ### ZLG设备驱动架构
-**新增**：ZLG CAN设备驱动采用全新的双句柄架构，通过设备句柄和通道句柄分离管理，提供更好的灵活性和错误处理能力。
+**重大更新**：ZLG CAN设备驱动采用全新的双句柄架构，通过设备句柄和通道句柄分离管理，提供更好的灵活性和错误处理能力，并完全支持CAN FD协议。
 
 #### 双句柄管理机制
 - **设备句柄（devHandle）**：由`ZCAN_OpenDevice`返回，用于设备级操作如波特率设置、设备信息查询
 - **通道句柄（channelHandle）**：由`ZCAN_InitCAN`返回，用于通道级操作如数据收发、通道控制
 - **DLL动态加载**：运行时加载zlgcan.dll，支持热插拔和设备检测
+
+#### 支持的ZLG设备类型
+**新增设备支持**：
+- USBCAN-1 (8路) - DEV_USBCAN_1 = 3
+- USBCAN-2 (2路) - DEV_USBCAN_2 = 4  
+- USBCAN-E-U (1路) - DEV_USBCAN_E_U = 20
+- USBCAN-2E-U (2路) - DEV_USBCAN_2E_U = 21
+- USBCAN-4E-U (4路) - DEV_USBCAN_4E_U = 31
+- USBCANFD-200U (2路) - DEV_USBCANFD_200U = 41
+- USBCANFD-100U (1路) - DEV_USBCANFD_100U = 42
+- USBCANFD-mini (1路) - DEV_USBCANFD_MINI = 43
+- USBCANFD-800U (8路) - DEV_USBCANFD_800U = 59
+
+#### CAN FD协议完整支持
+**新增CAN FD功能**：
+- **64字节载荷支持**：CAN FD帧最大支持64字节数据载荷
+- **BRS标志处理**：Bit Rate Switch标志位支持
+- **ESI标志处理**：Error State Indicator标志位支持
+- **双波特率配置**：仲裁段和数据段独立波特率设置
+- **完整帧结构**：canfd_frame结构体定义，包含flags字段
 
 #### SDK函数映射
 ```mermaid
@@ -285,8 +308,10 @@ flowchart TD
 OpenDev["ZCAN_OpenDevice<br/>返回设备句柄"] --> SetBaud["ZCAN_SetValue<br/>设置波特率"]
 SetBaud --> InitCh["ZCAN_InitCAN<br/>返回通道句柄"]
 InitCh --> StartCh["ZCAN_StartCAN<br/>启动通道"]
-StartCh --> SendRecv["ZCAN_Transmit/ZCAN_Receive<br/>数据收发"]
+StartCh --> SendRecv["ZCAN_Transmit/ZCAN_Receive<br/>Classic CAN数据收发"]
+StartCh --> SendRecvFD["ZCAN_TransmitFD/ZCAN_ReceiveFD<br/>CAN FD数据收发"]
 SendRecv --> ResetCh["ZCAN_ResetCAN<br/>复位通道"]
+SendRecvFD --> ResetCh
 ResetCh --> CloseDev["ZCAN_CloseDevice<br/>关闭设备"]
 ```
 
@@ -298,10 +323,11 @@ ResetCh --> CloseDev["ZCAN_CloseDevice<br/>关闭设备"]
 - **智能路径搜索**：应用目录 → ZCANPRO安装目录 → 系统PATH
 - **符号解析**：动态解析ZLG SDK函数指针，确保API兼容性
 - **错误处理**：完整的错误日志和降级机制
+- **CAN FD函数可选**：Classic CAN设备可能不导出CAN FD函数
 
 **章节来源**
-- [src/core/candevice_zlg.h:1-109](file://src/core/candevice_zlg.h#L1-L109)
-- [src/core/candevice_zlg.cpp:1-414](file://src/core/candevice_zlg.cpp#L1-L414)
+- [src/core/candevice_zlg.h:1-124](file://src/core/candevice_zlg.h#L1-L124)
+- [src/core/candevice_zlg.cpp:1-622](file://src/core/candevice_zlg.cpp#L1-L622)
 
 ### Trace追踪与过滤
 - CanTraceModel维护帧序列，支持appendFrame/appendFrames、覆盖模式、行标记与自定义颜色
@@ -436,7 +462,7 @@ App->>App : exec()
 - dbcppp用于DBC解析（在README中提及）
 - zlgcan.dll用于ZLG设备驱动（运行时动态加载）
 
-**更新**：新增了ZLG SDK的动态依赖关系。
+**更新**：新增了ZLG SDK的动态依赖关系和CAN FD协议支持。
 
 ```mermaid
 graph LR
@@ -446,15 +472,16 @@ MQ["moodycamel::ConcurrentQueue"] --> Q["FrameQueue"]
 QCP["QCustomPlot"] --> GV["GraphicView"]
 DBCPP["dbcppp"] --> DM["DbcManager"]
 ZLG["zlgcan.dll"] --> ZLGDRV["CanDeviceZLG"]
+CFD["CAN FD协议"] --> ZLGDRV
 ```
 
 **图表来源**
 - [CMakeLists.txt:1-63](file://CMakeLists.txt#L1-L63)
 - [src/core/appconfig.h:1-73](file://src/core/appconfig.h#L1-L73)
-- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-L87)
+- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 - [src/ui/graphicview.h:1-160](file://src/ui/graphicview.h#L1-L160)
 - [src/core/dbcmanager.h:1-73](file://src/core/dbcmanager.h#L1-L73)
-- [src/core/candevice_zlg.h:1-109](file://src/core/candevice_zlg.h#L1-L109)
+- [src/core/candevice_zlg.h:1-124](file://src/core/candevice_zlg.h#L1-L124)
 - [README.md:377-384](file://README.md#L377-L384)
 
 **章节来源**
@@ -468,6 +495,7 @@ ZLG["zlgcan.dll"] --> ZLGDRV["CanDeviceZLG"]
 - 虚拟模型：Trace使用QAbstractTableModel，避免QTableWidget的性能瓶颈
 - 视口采样：GraphicView建议对大数据点进行降采样，保证流畅渲染
 - **优化**：ZLG驱动采用双句柄架构，减少SDK调用开销，提高数据传输效率
+- **增强**：CAN FD协议支持64字节大载荷，提升数据传输吞吐量
 
 [本节为通用指导，无需特定文件引用]
 
@@ -475,6 +503,8 @@ ZLG["zlgcan.dll"] --> ZLGDRV["CanDeviceZLG"]
 - 设备连接失败：检查ICanDevice::open参数与设备序号；确认驱动与权限
 - **新增**：ZLG DLL加载失败：检查zlgcan.dll是否存在于应用目录或ZCANPRO安装目录；确认函数符号解析成功
 - **新增**：通道初始化失败：验证设备句柄有效性；检查波特率配置是否正确
+- **新增**：CAN FD功能异常：确认设备支持CAN FD协议；检查BRS/ESI标志位配置
+- **新增**：新设备类型不支持：检查设备类型枚举定义；确认SDK版本兼容性
 - 帧丢失：监控FrameQueue.approxSize与pendingFrames，确保主线程及时drain
 - 过滤表达式错误：查看FilterEngine.errorString，修正语法
 - 录制失败：确认文件路径与写入器初始化；检查磁盘空间与权限
@@ -482,20 +512,21 @@ ZLG["zlgcan.dll"] --> ZLGDRV["CanDeviceZLG"]
 
 **章节来源**
 - [src/core/candevicemanager.h:1-120](file://src/core/candevicemanager.h#L1-L120)
-- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-L87)
+- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 - [src/core/filter_engine.h:1-59](file://src/core/filter_engine.h#L1-L59)
 - [src/core/recorder.h:1-48](file://src/core/recorder.h#L1-L48)
 - [src/core/player.h:1-74](file://src/core/player.h#L1-L74)
 - [src/core/candevice_zlg.cpp:93-127](file://src/core/candevice_zlg.cpp#L93-L127)
 
 ## 结论
-本系统以清晰的层次化架构与松耦合设计，实现了CAN/CAN FD报文的采集、录制、回放与可视化分析。通过设备抽象、无锁队列与表达式过滤，兼顾了易用性与高性能。**最新更新**：ZLG设备驱动的双句柄架构重构显著提升了设备管理的灵活性和稳定性，为未来扩展更多硬件后端奠定了坚实基础。后续可扩展更多硬件后端、高级统计与脚本能力，满足复杂工程需求。
+本系统以清晰的层次化架构与松耦合设计，实现了CAN/CAN FD报文的采集、录制、回放与可视化分析。通过设备抽象、无锁队列与表达式过滤，兼顾了易用性与高性能。**重大更新**：ZLG设备驱动的双句柄架构重构显著提升了设备管理的灵活性和稳定性，完全支持CAN FD协议，新增多种设备类型支持，为未来扩展更多硬件后端奠定了坚实基础。后续可扩展更多硬件后端、高级统计与脚本能力，满足复杂工程需求。
 
 [本节为总结性内容，无需特定文件引用]
 
 ## 附录
 - 构建与运行：参考README中的安装教程与CMake配置
 - 协议与扩展：预留脚本引擎与AI侧边栏接口，便于未来增强
-- **新增**：ZLG设备支持：USBCAN-1/2、USBCANFD-200U/100U、PCI-CANal等设备类型
+- **新增**：ZLG设备支持：USBCAN-1/2、USBCAN-E-U、USBCAN-2E-U、USBCAN-4E-U、USBCANFD-200U/100U、USBCANFD-mini、USBCANFD-800U等设备类型
+- **新增**：CAN FD协议特性：64字节载荷、BRS/ESI标志、双波特率配置等完整支持
 
 [本节为补充信息，无需特定文件引用]

@@ -786,6 +786,14 @@ void MeasurementSetupView::removeModuleInstance(const QString &moduleName, const
     }
 }
 
+bool MeasurementSetupView::isBlockEnabled(const QString &blockId) const
+{
+    auto it = m_blocks.find(blockId);
+    if (it == m_blocks.end())
+        return true;  // 不存在则默认启用
+    return it->enabled;
+}
+
 void MeasurementSetupView::addChannelBlock()
 {
     QString id = QString("channel%1").arg(m_nextChannelNum++);
@@ -942,19 +950,22 @@ void MeasurementSetupView::onSceneClicked(const QPointF &scenePos)
     if (!b) return;
 
     if (b->category == "source") {
-        // 点击数据源块: 切换到该数据源
-        Source newSrc = (b->id == "source_real") ? Source::Hardware : Source::File;
-        if (newSrc != m_source) {
-            setSource(newSrc);
-            emit sourceChanged(static_cast<int>(newSrc));
+        if (b->id == "source_real") {
+            // 点击 Real 块: 切换到 Hardware 源并跳转设备连接界面
+            if (m_source != Source::Hardware) {
+                setSource(Source::Hardware);
+                emit sourceChanged(static_cast<int>(Source::Hardware));
+            }
+            emit realBlockClicked();
+        } else {
+            // 点击 File 块: 切换到 File 源
+            if (m_source != Source::File) {
+                setSource(Source::File);
+                emit sourceChanged(static_cast<int>(Source::File));
+            }
         }
-    } else if (b->moduleName == "trace") {
-        // Trace 块: 点击跳转到对应的 Trace 标签页
-        emit moduleOpened("trace", b->id);
-    } else if (b->moduleName == "graphic") {
-        // Graphic 块: 点击跳转到对应的 Graphic 标签页
-        emit moduleOpened("graphic", b->id);
     } else {
+        // Trace / Graphic / 其他模块块: 单击切换使能/禁用
         toggleBlock(b->id);
     }
 }
@@ -975,9 +986,9 @@ void MeasurementSetupView::onSceneDoubleClicked(const QPointF &scenePos)
             emit moduleOpened(b->id, "");
         }
     } else if (b->category == "source") {
-        // 双击数据源块 → 弹出对应配置对话框
+        // 双击数据源块 → 跳转对应配置界面
         if (b->id == "source_real")
-            showRealConfigDialog();
+            emit realBlockClicked();
         else
             showFileConfigDialog();
     } else if (b->category == "channel") {
@@ -1126,11 +1137,11 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
         m_rightMenu->addSeparator();
         auto *actCfg = m_rightMenu->addAction(
-            block->id == "source_real" ? QStringLiteral("⚙️ 配置硬件参数...")
+            block->id == "source_real" ? QStringLiteral("⚙️ 设备参数配置...")
                                        : QStringLiteral("⚙️ 选择回放文件..."));
         connect(actCfg, &QAction::triggered, this, [this, block]() {
             if (block->id == "source_real")
-                showRealConfigDialog();
+                emit realBlockClicked();
             else
                 showFileConfigDialog();
         });
@@ -1404,197 +1415,10 @@ void MeasurementSetupView::showFileConfigDialog()
 }
 
 // ============================================================
-//  Real 硬件参数配置对话框 — CAN/CAN FD 详细参数
-// ============================================================
-void MeasurementSetupView::showRealConfigDialog()
-{
-    QDialog dlg(this);
-    dlg.setWindowTitle("Real 硬件参数配置");
-    dlg.setMinimumWidth(480);
-    auto *form = new QFormLayout(&dlg);
-    form->setSpacing(6);
-
-    // --- 基本设置 ---
-    auto *titleBasic = new QLabel("<b>基本设置</b>", &dlg);
-    form->addRow(titleBasic);
-
-    // CAN 模式
-    auto *modeCombo = new QComboBox(&dlg);
-    modeCombo->addItem("Classic CAN");
-    modeCombo->addItem("CAN FD");
-    modeCombo->setCurrentIndex(m_hwConfig.canFd ? 1 : 0);
-    form->addRow("CAN 模式:", modeCombo);
-
-    // CAN 通道
-    auto *channelSpin = new QSpinBox(&dlg);
-    channelSpin->setRange(1, 32);
-    channelSpin->setValue(m_hwConfig.channel);
-    form->addRow("CAN 通道:", channelSpin);
-
-    // --- 仲裁段时序参数 (Classic CAN / CAN FD 仲裁段) ---
-    auto *titleArb = new QLabel("<b>仲裁段时序 (Classic CAN / CAN FD Arbitration)</b>", &dlg);
-    form->addRow(titleArb);
-
-    // 仲裁段波特率
-    auto *baudCombo = new QComboBox(&dlg);
-    baudCombo->setEditable(true);
-    baudCombo->addItems({"100000", "125000", "250000", "500000", "800000", "1000000"});
-    baudCombo->setCurrentText(QString::number(m_hwConfig.arbBaudrate));
-    form->addRow("仲裁段波特率 (bps):", baudCombo);
-
-    // 采样点
-    auto *sampleSpin = new QDoubleSpinBox(&dlg);
-    sampleSpin->setRange(50.0, 90.0);
-    sampleSpin->setSuffix(" %");
-    sampleSpin->setSingleStep(0.5);
-    sampleSpin->setValue(m_hwConfig.samplePoint);
-    form->addRow("采样点:", sampleSpin);
-
-    // SJW
-    auto *sjwSpin = new QSpinBox(&dlg);
-    sjwSpin->setRange(1, 4);
-    sjwSpin->setSuffix(" TQ");
-    sjwSpin->setValue(m_hwConfig.sjw);
-    form->addRow("同步跳转宽度 (SJW):", sjwSpin);
-
-    // TSEG1
-    auto *tseg1Spin = new QSpinBox(&dlg);
-    tseg1Spin->setRange(1, 32);
-    tseg1Spin->setSuffix(" TQ");
-    tseg1Spin->setValue(m_hwConfig.tseg1);
-    form->addRow("时间段 1 (TSEG1):", tseg1Spin);
-
-    // TSEG2
-    auto *tseg2Spin = new QSpinBox(&dlg);
-    tseg2Spin->setRange(1, 16);
-    tseg2Spin->setSuffix(" TQ");
-    tseg2Spin->setValue(m_hwConfig.tseg2);
-    form->addRow("时间段 2 (TSEG2):", tseg2Spin);
-
-    // --- CAN FD 数据段时序参数 (仅 CAN FD 模式) ---
-    auto *titleData = new QLabel("<b>数据段时序 (CAN FD Data Phase)</b>", &dlg);
-    form->addRow(titleData);
-
-    // 数据段波特率
-    auto *dataBaudCombo = new QComboBox(&dlg);
-    dataBaudCombo->setEditable(true);
-    dataBaudCombo->addItems({"500000", "1000000", "2000000", "4000000", "5000000", "8000000"});
-    dataBaudCombo->setCurrentText(QString::number(m_hwConfig.dataBaudrate));
-    form->addRow("数据段波特率 (bps):", dataBaudCombo);
-
-    // 数据段采样点
-    auto *dataSampleSpin = new QDoubleSpinBox(&dlg);
-    dataSampleSpin->setRange(50.0, 90.0);
-    dataSampleSpin->setSuffix(" %");
-    dataSampleSpin->setSingleStep(0.5);
-    dataSampleSpin->setValue(m_hwConfig.dataSamplePoint);
-    form->addRow("数据段采样点:", dataSampleSpin);
-
-    // 数据段 SJW
-    auto *dataSjwSpin = new QSpinBox(&dlg);
-    dataSjwSpin->setRange(1, 4);
-    dataSjwSpin->setSuffix(" TQ");
-    dataSjwSpin->setValue(m_hwConfig.dataSjw);
-    form->addRow("数据段 SJW:", dataSjwSpin);
-
-    // 数据段 TSEG1
-    auto *dataTseg1Spin = new QSpinBox(&dlg);
-    dataTseg1Spin->setRange(1, 32);
-    dataTseg1Spin->setSuffix(" TQ");
-    dataTseg1Spin->setValue(m_hwConfig.dataTseg1);
-    form->addRow("数据段 TSEG1:", dataTseg1Spin);
-
-    // 数据段 TSEG2
-    auto *dataTseg2Spin = new QSpinBox(&dlg);
-    dataTseg2Spin->setRange(1, 16);
-    dataTseg2Spin->setSuffix(" TQ");
-    dataTseg2Spin->setValue(m_hwConfig.dataTseg2);
-    form->addRow("数据段 TSEG2:", dataTseg2Spin);
-
-    // --- 模拟参数 ---
-    auto *titleSim = new QLabel("<b>模拟参数</b>", &dlg);
-    form->addRow(titleSim);
-
-    // 帧生成间隔
-    auto *intervalSpin = new QSpinBox(&dlg);
-    intervalSpin->setRange(1, 1000);
-    intervalSpin->setSuffix(" ms");
-    intervalSpin->setValue(m_hwConfig.intervalMs);
-    form->addRow("帧生成间隔:", intervalSpin);
-
-    // 显示计算信息
-    auto *infoLabel = new QLabel(&dlg);
-    infoLabel->setWordWrap(true);
-    infoLabel->setStyleSheet("color: gray; font-size: 11px;");
-    auto updateInfo = [&]() {
-        int totalTq = tseg1Spin->value() + tseg2Spin->value() + 1; // +1 for SYNC
-        int baud = baudCombo->currentText().toInt();
-        double bitTime = 1.0 / baud;
-        double tqTime = bitTime / totalTq;
-        double sp = static_cast<double>(tseg1Spin->value() + 1) / totalTq * 100;
-        QString info = QString("仲裁段: %1 bps, %2 TQ (SYNC 1 + TSEG1 %3 + TSEG2 %4)\n"
-                               "实际采样点: %5%, 位时间: %6 ns, TQ: %7 ns")
-            .arg(baud)
-            .arg(totalTq)
-            .arg(tseg1Spin->value())
-            .arg(tseg2Spin->value())
-            .arg(sp, 0, 'f', 1)
-            .arg(bitTime * 1e9, 0, 'f', 0)
-            .arg(tqTime * 1e9, 0, 'f', 1);
-        if (modeCombo->currentIndex() == 1) {
-            int dTq = dataTseg1Spin->value() + dataTseg2Spin->value() + 1;
-            int dBaud = dataBaudCombo->currentText().toInt();
-            double dBitTime = 1.0 / dBaud;
-            double dTqTime = dBitTime / dTq;
-            double dSp = static_cast<double>(dataTseg1Spin->value() + 1) / dTq * 100;
-            info += QString("\n数据段: %1 bps, %2 TQ (SYNC 1 + TSEG1 %3 + TSEG2 %4)\n"
-                             "数据采样点: %5%, 位时间: %6 ns, TQ: %7 ns")
-                .arg(dBaud)
-                .arg(dTq)
-                .arg(dataTseg1Spin->value())
-                .arg(dataTseg2Spin->value())
-                .arg(dSp, 0, 'f', 1)
-                .arg(dBitTime * 1e9, 0, 'f', 0)
-                .arg(dTqTime * 1e9, 0, 'f', 1);
-        }
-        infoLabel->setText(info);
-    };
-    updateInfo();
-    for (auto *sb : {static_cast<QSpinBox *>(tseg1Spin), static_cast<QSpinBox *>(tseg2Spin)})
-        connect(sb, QOverload<int>::of(&QSpinBox::valueChanged), updateInfo);
-    connect(baudCombo, &QComboBox::currentTextChanged, updateInfo);
-    connect(modeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), updateInfo);
-    form->addRow(infoLabel);
-
-    // 按钮
-    auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
-    form->addRow(btns);
-
-    connect(btns, &QDialogButtonBox::accepted, this, [&]() {
-        m_hwConfig.canFd = (modeCombo->currentIndex() == 1);
-        m_hwConfig.channel = channelSpin->value();
-        m_hwConfig.arbBaudrate = baudCombo->currentText().toInt();
-        m_hwConfig.samplePoint = static_cast<int>(sampleSpin->value());
-        m_hwConfig.sjw = sjwSpin->value();
-        m_hwConfig.tseg1 = tseg1Spin->value();
-        m_hwConfig.tseg2 = tseg2Spin->value();
-        m_hwConfig.dataBaudrate = dataBaudCombo->currentText().toInt();
-        m_hwConfig.dataSamplePoint = static_cast<int>(dataSampleSpin->value());
-        m_hwConfig.dataSjw = dataSjwSpin->value();
-        m_hwConfig.dataTseg1 = dataTseg1Spin->value();
-        m_hwConfig.dataTseg2 = dataTseg2Spin->value();
-        m_hwConfig.intervalMs = intervalSpin->value();
-        emit realConfigChanged(m_hwConfig);
-        dlg.accept();
-    });
-    connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
-
-    dlg.exec();
-}
-
-// ============================================================
 //  通道过滤条件配置对话框
 // ============================================================
+// NOTE: Real 硬件参数配置已移至设备连接界面 (DeviceConnectionTab)
+//       点击 Flow 页面的 Real 块将跳转到设备连接标签页
 void MeasurementSetupView::showChannelFilterDialog(const QString &channelId)
 {
     QDialog dlg(this);
