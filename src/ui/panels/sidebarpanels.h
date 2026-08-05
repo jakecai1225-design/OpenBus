@@ -85,7 +85,8 @@ private:
 };
 
 // ============================================================
-// DBC 面板 — DBC 文件列表（点击在右侧标签页展开详情）
+// 数据库面板 — 多协议解析文件管理（DBC / EDS / DCF / LDF / ARXML 等）
+// 按协议类别以树形结构展示：CAN/CANFD · CANopen · EtherCAT · LIN · J1939 · AUTOSAR
 // ============================================================
 class DbcPanel : public SidePanel
 {
@@ -95,16 +96,36 @@ public:
 
     void setDbcManager(DbcManager *mgr);
 
+    // 非协议文件信息
+    struct DatabaseEntry {
+        QString fileName;
+        QString filePath;
+        QString category;   // "CAN/CANFD", "CANopen", "EtherCAT", "LIN", "J1939", "AUTOSAR"
+    };
+
 signals:
     void dbcFileClicked(const QString &fileName);
+    void databaseFileClicked(const QString &category, const QString &fileName);
 
 private slots:
-    void onImportDbc();
+    void onImportDatabase();
     void onItemClicked(QTreeWidgetItem *item, int column);
 
 private:
     QTreeWidget *m_tree;
     DbcManager *m_dbcMgr = nullptr;
+    QList<DatabaseEntry> m_otherDbs;  // 非 DBC 文件列表
+
+    // 协议分类根节点
+    QTreeWidgetItem *m_catCanFd    = nullptr;
+    QTreeWidgetItem *m_catCanopen  = nullptr;
+    QTreeWidgetItem *m_catEthercat = nullptr;
+    QTreeWidgetItem *m_catLin      = nullptr;
+    QTreeWidgetItem *m_catJ1939    = nullptr;
+    QTreeWidgetItem *m_catAutosar  = nullptr;
+
+    static QString categoryForFile(const QString &fileName);
+    void initCategoryNodes();
     void refreshTree();
 };
 

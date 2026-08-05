@@ -14,7 +14,7 @@ ActivityBar::ActivityBar(QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    // 顶部按钮 — 按设计顺序: 工程 / Trace / Graphic / DBC / 回放 / 录制 / 设备
+    // 顶部按钮 — 按设计顺序: 工程 / Trace / Graphic / 数据库 / 回放 / 录制 / 设备
     m_buttons.append({createButton("\xF0\x9F\x93\x81", "工程管理", Project), Project, "工程管理", "工程管理"});
     layout->addWidget(m_buttons.last().btn);
 
@@ -24,7 +24,7 @@ ActivityBar::ActivityBar(QWidget *parent)
     m_buttons.append({createButton("\xF0\x9F\x93\x88", "Graphic", Graphic), Graphic, "Graphic", "Graphic"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xF0\x9F\x93\x84", "DBC", Dbc), Dbc, "DBC", "DBC 数据库"});
+    m_buttons.append({createButton("\xF0\x9F\x97\x84", "数据库", Dbc), Dbc, "数据库", "数据库 — 多协议解析文件管理"});
     layout->addWidget(m_buttons.last().btn);
 
     m_buttons.append({createButton("\xF0\x9F\x93\xA1", "发送", Send), Send, "发送", "发送"});

@@ -245,34 +245,68 @@ void ProjectPanel::onProjectSelected(int row)
 }
 
 // ============================================================
-//  DbcPanel
+//  DbcPanel — 数据库面板（多协议树形分类）
 // ============================================================
 
 DbcPanel::DbcPanel(QWidget *parent)
-    : SidePanel("DBC 文件列表", parent)
+    : SidePanel("数据库", parent)
 {
     m_tree = new QTreeWidget(this);
     m_tree->setHeaderHidden(true);
-    m_tree->setIndentation(0);          // 扁平列表，无缩进
+    m_tree->setIndentation(16);         // 树形缩进
     m_tree->setColumnCount(1);
-    m_tree->setRootIsDecorated(false);  // 不显示展开箭头
+    m_tree->setRootIsDecorated(false);  // 顶层无展开箭头，分类节点自行控制
+    m_tree->setExpandsOnDoubleClick(false);
 
     auto *cl = contentLayout();
     cl->addWidget(m_tree);
 
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(4, 4, 4, 4);
-    auto *importBtn = new QPushButton("+ 加载 DBC", this);
+    auto *importBtn = new QPushButton("+ 加载数据库文件", this);
     btnBar->addWidget(importBtn);
     btnBar->addStretch();
     cl->addLayout(btnBar);
 
-    connect(importBtn, &QPushButton::clicked, this, &DbcPanel::onImportDbc);
+    initCategoryNodes();
+
+    connect(importBtn, &QPushButton::clicked, this, &DbcPanel::onImportDatabase);
     connect(m_tree, &QTreeWidget::itemClicked,
             this, &DbcPanel::onItemClicked);
+}
 
-    auto *hint = new QTreeWidgetItem(m_tree, {"（点击加载 DBC 文件）"});
-    hint->setFlags(Qt::NoItemFlags);
+void DbcPanel::initCategoryNodes()
+{
+    // 创建协议分类根节点
+    m_catCanFd    = new QTreeWidgetItem(m_tree, {"📁 CAN / CANFD"});
+    m_catCanopen  = new QTreeWidgetItem(m_tree, {"📁 CANopen"});
+    m_catEthercat = new QTreeWidgetItem(m_tree, {"📁 EtherCAT"});
+    m_catLin      = new QTreeWidgetItem(m_tree, {"📁 LIN"});
+    m_catJ1939    = new QTreeWidgetItem(m_tree, {"📁 J1939"});
+    m_catAutosar  = new QTreeWidgetItem(m_tree, {"📁 AUTOSAR"});
+
+    for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
+        auto *cat = m_tree->topLevelItem(i);
+        cat->setFlags(Qt::ItemIsEnabled);  // 分类节点不可选中，仅可展开
+    }
+}
+
+QString DbcPanel::categoryForFile(const QString &fileName)
+{
+    QString ext = QFileInfo(fileName).suffix().toLower();
+    if (ext == "dbc")
+        return "CAN/CANFD";
+    if (ext == "eds" || ext == "dcf" || ext == "xdd")
+        return "CANopen";
+    if (ext == "xml")
+        return "EtherCAT";
+    if (ext == "ldf" || ext == "ncf")
+        return "LIN";
+    if (ext == "dpf")
+        return "J1939";
+    if (ext == "arxml")
+        return "AUTOSAR";
+    return {};
 }
 
 void DbcPanel::setDbcManager(DbcManager *mgr)
@@ -285,39 +319,140 @@ void DbcPanel::setDbcManager(DbcManager *mgr)
     refreshTree();
 }
 
-void DbcPanel::onImportDbc()
+void DbcPanel::onImportDatabase()
 {
     QString path = QFileDialog::getOpenFileName(
-        this, "导入 DBC 文件", {}, "DBC 文件 (*.dbc);;所有文件 (*.*)");
-    if (path.isEmpty() || !m_dbcMgr)
+        this, "加载数据库文件", {},
+        "CAN/CANFD DBC (*.dbc);;"
+        "CANopen EDS/DCF/XDD (*.eds *.dcf *.xdd);;"
+        "EtherCAT ESI (*.xml);;"
+        "LIN LDF/NCF (*.ldf *.ncf);;"
+        "J1939 DPF (*.dpf);;"
+        "AUTOSAR ARXML (*.arxml);;"
+        "所有文件 (*.*)");
+    if (path.isEmpty())
         return;
 
-    if (!m_dbcMgr->loadDbc(path))
-        m_tree->addTopLevelItem(new QTreeWidgetItem({QString("加载失败: %1").arg(path)}));
+    QString category = categoryForFile(path);
+    if (category.isEmpty()) {
+        QMessageBox::warning(this, "不支持的格式",
+            QString("无法识别文件类型: %1\n支持: DBC / EDS / DCF / XDD / XML / LDF / NCF / DPF / ARXML")
+                .arg(QFileInfo(path).fileName()));
+        return;
+    }
+
+    // DBC 文件交给 DbcManager 解析
+    if (category == "CAN/CANFD" && m_dbcMgr) {
+        if (!m_dbcMgr->loadDbc(path))
+            QMessageBox::warning(this, "加载失败", "无法加载 DBC 文件: " + path);
+        return;
+    }
+
+    // 其他协议文件加入本地列表
+    DatabaseEntry entry;
+    entry.fileName = QFileInfo(path).fileName();
+    entry.filePath = path;
+    entry.category = category;
+
+    // 避免重复加载
+    for (const auto &e : m_otherDbs) {
+        if (e.filePath == path) {
+            QMessageBox::information(this, "已加载", "该文件已在列表中");
+            return;
+        }
+    }
+
+    m_otherDbs.append(entry);
+    refreshTree();
 }
 
 void DbcPanel::refreshTree()
 {
-    m_tree->clear();
-    if (!m_dbcMgr) return;
+    // 清空分类节点下的子项
+    auto clearChildren = [](QTreeWidgetItem *cat) {
+        while (cat->childCount() > 0)
+            delete cat->takeChild(0);
+    };
+    clearChildren(m_catCanFd);
+    clearChildren(m_catCanopen);
+    clearChildren(m_catEthercat);
+    clearChildren(m_catLin);
+    clearChildren(m_catJ1939);
+    clearChildren(m_catAutosar);
 
-    // 仅显示 DBC 文件名，不展开内部结构
-    for (const auto &file : m_dbcMgr->files()) {
-        auto *fileItem = new QTreeWidgetItem(m_tree, {file.fileName});
-        fileItem->setIcon(0, style()->standardIcon(QStyle::SP_FileDialogListView));
+    // DBC 文件 → CAN/CANFD 分类
+    if (m_dbcMgr) {
+        for (const auto &file : m_dbcMgr->files()) {
+            auto *item = new QTreeWidgetItem(m_catCanFd, {file.fileName});
+            item->setIcon(0, style()->standardIcon(QStyle::SP_FileDialogListView));
+            item->setData(0, Qt::UserRole, "CAN/CANFD");
+        }
     }
 
-    if (m_tree->topLevelItemCount() == 0) {
-        auto *hint = new QTreeWidgetItem(m_tree, {"（点击加载 DBC 文件）"});
-        hint->setFlags(Qt::NoItemFlags);
+    // 其他协议文件
+    for (const auto &entry : m_otherDbs) {
+        QTreeWidgetItem *parent = nullptr;
+        if (entry.category == "CAN/CANFD")       parent = m_catCanFd;
+        else if (entry.category == "CANopen")    parent = m_catCanopen;
+        else if (entry.category == "EtherCAT")   parent = m_catEthercat;
+        else if (entry.category == "LIN")        parent = m_catLin;
+        else if (entry.category == "J1939")      parent = m_catJ1939;
+        else if (entry.category == "AUTOSAR")    parent = m_catAutosar;
+        if (!parent) continue;
+
+        auto *item = new QTreeWidgetItem(parent, {entry.fileName});
+        item->setIcon(0, style()->standardIcon(QStyle::SP_FileDialogListView));
+        item->setData(0, Qt::UserRole, entry.category);
+        item->setData(0, Qt::UserRole + 1, entry.filePath);
     }
+
+    // 展开有内容的分类节点
+    auto updateVisibility = [](QTreeWidgetItem *cat) {
+        bool hasChildren = cat->childCount() > 0;
+        cat->setHidden(!hasChildren);
+        if (hasChildren)
+            cat->setExpanded(true);
+    };
+    updateVisibility(m_catCanFd);
+    updateVisibility(m_catCanopen);
+    updateVisibility(m_catEthercat);
+    updateVisibility(m_catLin);
+    updateVisibility(m_catJ1939);
+    updateVisibility(m_catAutosar);
+
+    // 更新分类节点标题中的计数
+    auto setCount = [](QTreeWidgetItem *cat, const QString &label) {
+        int n = cat->childCount();
+        cat->setText(0, QString("%1 %2").arg(label).arg(n > 0 ? QString("(%1)").arg(n) : ""));
+    };
+    setCount(m_catCanFd,    "📁 CAN / CANFD");
+    setCount(m_catCanopen,  "📁 CANopen");
+    setCount(m_catEthercat, "📁 EtherCAT");
+    setCount(m_catLin,      "📁 LIN");
+    setCount(m_catJ1939,    "📁 J1939");
+    setCount(m_catAutosar,  "📁 AUTOSAR");
 }
 
 void DbcPanel::onItemClicked(QTreeWidgetItem *item, int)
 {
-    // 点击文件项 → 发出 dbcFileClicked 信号，在右侧标签页展开
-    if (item && (item->flags() != Qt::NoItemFlags))
+    if (!item || item->flags() == Qt::NoItemFlags)
+        return;
+
+    // 分类节点 → 展开/折叠
+    if (item->childCount() > 0) {
+        item->setExpanded(!item->isExpanded());
+        return;
+    }
+
+    // 叶子节点 → 发出信号
+    QString category = item->data(0, Qt::UserRole).toString();
+    if (category.isEmpty())
+        return;
+
+    if (category == "CAN/CANFD")
         emit dbcFileClicked(item->text(0));
+    else
+        emit databaseFileClicked(category, item->text(0));
 }
 
 // ============================================================
