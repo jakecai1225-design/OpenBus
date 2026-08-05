@@ -62,9 +62,9 @@ EXECUTABLE = BUILD_DIR / "bin" / "sin.exe"
 TOOLS_DIR = PROJECT_ROOT / "tools"
 
 # 默认工具路径 (可通过环境变量或 --qt-dir / --mingw-dir / --cmake-dir 覆盖)
-DEFAULT_QT_DIR = Path(os.environ.get("SIN_QT_DIR", "D:/Qt/6.8.3/mingw_64"))
-DEFAULT_MINGW_DIR = Path(os.environ.get("SIN_MINGW_DIR", "D:/Qt/Tools/mingw1310_64"))
-DEFAULT_CMAKE_DIR = Path(os.environ.get("SIN_CMAKE_DIR", "C:/Program Files/CMake"))
+DEFAULT_QT_DIR = Path(os.environ.get("SIN_QT_DIR", "C:/Qt/6.8.3/mingw_64"))
+DEFAULT_MINGW_DIR = Path(os.environ.get("SIN_MINGW_DIR", "C:/Qt/Tools/mingw1310_64"))
+DEFAULT_CMAKE_DIR = Path(os.environ.get("SIN_CMAKE_DIR", "C:/tools/cmake-3.30.3-windows-x86_64"))
 
 BUILD_TYPES = ["Debug", "Release", "RelWithDebInfo", "MinSizeRel"]
 
