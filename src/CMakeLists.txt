@@ -17,6 +17,10 @@ set(SRC_CORE
     core/candevice.cpp
     core/candevice_zlg.h
     core/candevice_zlg.cpp
+    core/candevice_peak.h
+    core/candevice_peak.cpp
+    core/candevice_kvaser.h
+    core/candevice_kvaser.cpp
     core/candevicemanager.h
     core/candevicemanager.cpp
     core/dbcdata.h
@@ -282,6 +286,25 @@ target_link_libraries(sin PRIVATE
 if(WIN32)
     set_target_properties(sin PROPERTIES
         WIN32_EXECUTABLE TRUE
+    )
+endif()
+
+# ============================================================
+#  驱动 DLL — 编译后拷贝 driver/ 下的 DLL 直接到输出目录
+#  ZLG SDK 的 zlgcan.dll 必须与 exe 在同一目录才能找到 USB 驱动
+#  driver/ 目录是项目中的存储位置，编译时拷贝到 exe 同级目录
+# ============================================================
+if(EXISTS "${CMAKE_SOURCE_DIR}/driver")
+    add_custom_command(TARGET sin POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/driver"
+                "$<TARGET_FILE_DIR:sin>"
+        COMMENT "Copying driver DLLs to output directory"
+    )
+    # 安装规则 — 安装包包含驱动 DLL
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/driver/"
+            DESTINATION bin
+            FILES_MATCHING PATTERN "*.dll"
     )
 endif()
 

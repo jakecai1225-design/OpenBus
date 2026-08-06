@@ -1,9 +1,11 @@
 #include "candevicemanager.h"
 #include "cansimulator.h"
 #include "candevice_zlg.h"
+#include "candevice_peak.h"
 #include "logging.h"
 
 #include <QThread>
+#include <chrono>
 
 // ============================================================
 //  CanDeviceManager 实现
@@ -25,7 +27,7 @@ CanDeviceManager::~CanDeviceManager()
 // ---- 配置 ----
 
 void CanDeviceManager::configure(DeviceKind kind, int devIndex, int channel,
-                                  int arbBaud, int dataBaud, bool canFd)
+                                  int arbBaud, int dataBaud, bool canFd, int subType)
 {
     // 如果正在运行且配置变了，先停止
     if (m_running)
@@ -37,6 +39,7 @@ void CanDeviceManager::configure(DeviceKind kind, int devIndex, int channel,
     m_arbBaud = arbBaud;
     m_dataBaud = dataBaud;
     m_canFd = canFd;
+    m_devSubType = subType;
 }
 
 void CanDeviceManager::configureSimulator(int channel, int intervalMs, int baudrate)
@@ -63,15 +66,24 @@ void CanDeviceManager::start()
         return;
     }
 
-    // ---- 真实设备模式 ----
+    // ---- 真实设备模式 — 使用工厂方法创建 ----
 
-    // 创建设备实例
-    if (m_kind == DeviceKind::ZLG) {
-        auto *zlg = new CanDeviceZLG(CanDeviceZLG::DEV_USBCANFD_200U);
-        m_device.reset(zlg);
-    } else {
-        // 其他厂商待扩展
-        emit errorOccurred(QStringLiteral("不支持的设备类型"));
+    ICanDevice::Brand brand = kindToBrand(m_kind);
+    int subType = m_devSubType;
+
+    // 子类型默认值：用户未指定时使用各品牌最常见的型号
+    if (subType == 0) {
+        switch (m_kind) {
+        case DeviceKind::ZLG:  subType = CanDeviceZLG::DEV_USBCANFD_200U; break;
+        case DeviceKind::PEAK: subType = CanDevicePEAK::PCAN_USBFD;       break;
+        default: break;
+        }
+    }
+
+    m_device = ICanDevice::create(brand, subType);
+    if (!m_device) {
+        emit errorOccurred(QStringLiteral("无法创建设备: %1 (DLL 缺失?)")
+                           .arg(ICanDevice::brandName(brand)));
         return;
     }
 
@@ -84,6 +96,7 @@ void CanDeviceManager::start()
     }
 
     m_running = true;
+    m_startClock = std::chrono::steady_clock::now();
 
     // 启动接收线程
     m_recvThread = QThread::create([this]() { recvLoop(); });
@@ -146,10 +159,7 @@ QString CanDeviceManager::currentDeviceName() const
         return QStringLiteral("模拟器 (内置)");
     if (m_device)
         return m_device->deviceName();
-    switch (m_kind) {
-    case DeviceKind::ZLG: return QStringLiteral("ZLG CAN Device");
-    default:              return QStringLiteral("Unknown");
-    }
+    return ICanDevice::brandName(kindToBrand(m_kind));
 }
 
 // ---- 发送 ----
@@ -172,14 +182,27 @@ QStringList CanDeviceManager::enumerateDevices()
     QStringList list;
     list << QStringLiteral("模拟器 (内置)");
 
-    // ZLG 设备
-    if (CanDeviceZLG::isAvailable()) {
-        auto devs = CanDeviceZLG::enumerate();
-        for (const auto &d : devs)
-            list << d.name;
+    // 统一枚举所有品牌设备
+    auto devices = ICanDevice::enumerateAll();
+    for (const auto &d : devices) {
+        list << d.name;
     }
 
     return list;
+}
+
+// ---- DeviceKind → Brand 映射 ----
+
+ICanDevice::Brand CanDeviceManager::kindToBrand(DeviceKind k)
+{
+    switch (k) {
+    case DeviceKind::ZLG:      return ICanDevice::Brand::ZLG;
+    case DeviceKind::PEAK:     return ICanDevice::Brand::PEAK;
+    case DeviceKind::Kvaser:   return ICanDevice::Brand::Kvaser;
+    case DeviceKind::TongXing: return ICanDevice::Brand::TongXing;
+    case DeviceKind::SLCAN:    return ICanDevice::Brand::SLCAN;
+    default:                   return ICanDevice::Brand::ZLG;
+    }
 }
 
 // ---- 接收线程 ----
@@ -192,9 +215,23 @@ void CanDeviceManager::recvLoop()
         // 从设备批量接收（10ms 超时）
         int got = m_device->recv(10, recvBuf);
         if (got > 0) {
-            // 入队（无锁，不阻塞）
-            for (const auto &f : recvBuf)
-                m_queue.enqueue(f);
+            for (const auto &f : recvBuf) {
+                CanFrame frame = f;
+
+                // ---- 时间戳归一化 ----
+                // 硬件未提供纳秒时间戳时，用 steady_clock 补零
+                // 确保 ZLG/PEAK/Kvaser 混用时时间轴一致
+                if (frame.timestampNs == 0) {
+                    auto nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::steady_clock::now() - m_startClock).count();
+                    frame.timestampNs = static_cast<quint64>(nowNs);
+                }
+                // 派生 timestamp（秒）— 所有下游消费者统一使用
+                frame.timestamp = static_cast<double>(frame.timestampNs) / 1e9;
+
+                // 入队（无锁，不阻塞主线程 UI）
+                m_queue.enqueue(frame);
+            }
         }
         // 超时无数据时短暂休眠，避免 CPU 空转
         if (got == 0)

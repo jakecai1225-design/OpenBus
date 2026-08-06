@@ -27,11 +27,14 @@ class CanDeviceManager : public QObject
     Q_OBJECT
 
 public:
-    /// 设备类型
+    /// 设备类型（映射到 ICanDevice::Brand）
     enum class DeviceKind {
         Simulator,  ///< 内置模拟器（无硬件）
         ZLG,        ///< ZLG 致远电子
-        // 后续扩展: PEAK, CandleLight, SLCAN
+        PEAK,       ///< PEAK PCAN
+        Kvaser,     ///< Kvaser canlib32
+        TongXing,   ///< 同星科技
+        SLCAN,      ///< 开源 SLCAN / serial-CAN
     };
 
     explicit CanDeviceManager(QObject *parent = nullptr);
@@ -46,8 +49,9 @@ public:
     /// @param arbBaud 仲裁段波特率
     /// @param dataBaud 数据段波特率
     /// @param canFd CAN FD 模式
+    /// @param subType 厂商设备子类型（如 ZLG DEV_USBCANFD_200U=41, PEAK PCAN_USBFD=0x54）
     void configure(DeviceKind kind, int devIndex, int channel,
-                   int arbBaud, int dataBaud, bool canFd);
+                   int arbBaud, int dataBaud, bool canFd, int subType = 0);
 
     /// 快捷：配置为模拟器模式
     void configureSimulator(int channel, int intervalMs, int baudrate);
@@ -100,6 +104,7 @@ private:
     int m_arbBaud = 500000;
     int m_dataBaud = 2000000;
     bool m_canFd = false;
+    int m_devSubType = 0;           ///< 厂商设备子类型
 
     // ---- 模拟器模式 ----
     CanSimulator *m_simulator = nullptr;  ///< 内置模拟器（非拥有，由 MainWindow 持有）
@@ -111,8 +116,12 @@ private:
     QTimer m_drainTimer;          ///< 主线程批量消费定时器
     QThread *m_recvThread = nullptr;  ///< 接收线程（真实设备模式）
     FrameQueue m_queue;           ///< 无锁队列：recv thread → main
+    std::chrono::steady_clock::time_point m_startClock;  ///< 接收起始时钟
 
-    /// 接收线程主循环
+    /// DeviceKind → ICanDevice::Brand 映射
+    static ICanDevice::Brand kindToBrand(DeviceKind k);
+
+    /// 接收线程主循环（含时间戳归一化）
     void recvLoop();
 };
 
