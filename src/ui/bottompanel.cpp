@@ -34,12 +34,15 @@ BottomPanel::BottomPanel(QWidget *parent)
     termLayout->addWidget(m_terminal, 1);
 
     auto *inputBar = new QHBoxLayout;
-    inputBar->setContentsMargins(4, 2, 4, 2);
-    auto *promptLabel = new QLabel(">", termWidget);
+    inputBar->setContentsMargins(0, 0, 0, 0);
+    inputBar->setSpacing(0);
+    auto *promptLabel = new QLabel(">  ", termWidget);
     promptLabel->setObjectName("TerminalPrompt");
+    promptLabel->setContentsMargins(8, 4, 0, 4);
     m_cmdInput = new QLineEdit(termWidget);
     m_cmdInput->setFont(mono);
     m_cmdInput->setPlaceholderText("输入命令后按 Enter 执行 (help 查看帮助)...");
+    m_cmdInput->setFrame(false);
     inputBar->addWidget(promptLabel);
     inputBar->addWidget(m_cmdInput);
     termLayout->addLayout(inputBar);
@@ -69,7 +72,8 @@ BottomPanel::BottomPanel(QWidget *parent)
     problemsLayout->addWidget(m_problemsTable);
 
     m_problemCount = new QLabel("0 个问题", this);
-    m_problemCount->setContentsMargins(8, 2, 8, 2);
+    m_problemCount->setObjectName("DimLabel");
+    m_problemCount->setContentsMargins(10, 3, 10, 3);
     problemsLayout->addWidget(m_problemCount);
 
     addTab(problemsWidget, "问题");
@@ -87,9 +91,9 @@ void BottomPanel::addProblem(int severity, const QString &source, const QString 
     QString sevText;
     QColor sevColor;
     switch (severity) {
-    case 0: sevText = "⚠ 警告"; sevColor = QColor(0xCC, 0x88, 0x00); break;
-    case 1: sevText = "✕ 错误"; sevColor = QColor(0xCC, 0x00, 0x00); break;
-    default: sevText = "ℹ 信息"; sevColor = QColor(0x00, 0x66, 0xCC); break;
+    case 0: sevText = "警告"; sevColor = QColor(0xCC, 0x88, 0x00); break;
+    case 1: sevText = "错误"; sevColor = QColor(0xCC, 0x00, 0x00); break;
+    default: sevText = "信息"; sevColor = QColor(0x00, 0x66, 0xCC); break;
     }
 
     auto *sevItem = new QTableWidgetItem(sevText);

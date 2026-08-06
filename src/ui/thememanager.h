@@ -15,10 +15,15 @@ struct Theme
     QString panelBg;     // Panel title / toolbar / tab bar background
 
     // Menu & Activity bar (often darker even in light themes)
-    QString barBg;       // Menu bar + Activity bar background
-    QString barFg;       // Menu bar + Activity bar text
-    QString barHover;    // Menu / Activity bar hover
+    QString barBg;       // Menu bar background
+    QString barFg;       // Menu bar text
+    QString barHover;    // Menu bar hover
     QString barBorder;   // Menu border
+
+    // Activity bar (always dark, even in light themes — VS Code style)
+    QString activityBarBg;     // Activity bar background
+    QString activityBarFg;     // Activity bar icon/text color
+    QString activityBarHover;  // Activity bar hover
 
     // Text
     QString text;

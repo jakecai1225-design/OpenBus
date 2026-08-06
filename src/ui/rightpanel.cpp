@@ -56,8 +56,8 @@ RightPanel::RightPanel(QWidget *parent)
     // 录制组
     auto *recGroup = new QGroupBox("录制", quickWidget);
     auto *recLayout = new QHBoxLayout(recGroup);
-    m_recordBtn = new QPushButton("● 开始录制", recGroup);
-    m_stopRecBtn = new QPushButton("⏹ 停止录制", recGroup);
+    m_recordBtn = new QPushButton("开始录制", recGroup);
+    m_stopRecBtn = new QPushButton("停止录制", recGroup);
     recLayout->addWidget(m_recordBtn);
     recLayout->addWidget(m_stopRecBtn);
     quickLayout->addWidget(recGroup);
@@ -65,9 +65,9 @@ RightPanel::RightPanel(QWidget *parent)
     // 回放组
     auto *playGroup = new QGroupBox("回放", quickWidget);
     auto *playLayout = new QHBoxLayout(playGroup);
-    m_playBtn = new QPushButton("▶ 播放", playGroup);
-    m_pauseBtn = new QPushButton("⏸ 暂停", playGroup);
-    m_stopBtn = new QPushButton("⏹ 停止", playGroup);
+    m_playBtn = new QPushButton("播放", playGroup);
+    m_pauseBtn = new QPushButton("暂停", playGroup);
+    m_stopBtn = new QPushButton("停止", playGroup);
     playLayout->addWidget(m_playBtn);
     playLayout->addWidget(m_pauseBtn);
     playLayout->addWidget(m_stopBtn);
@@ -77,7 +77,7 @@ RightPanel::RightPanel(QWidget *parent)
     auto *traceGroup = new QGroupBox("Trace", quickWidget);
     auto *traceLayout = new QVBoxLayout(traceGroup);
     m_clearTraceBtn = new QPushButton("清空 Trace", traceGroup);
-    m_autoScrollBtn = new QPushButton("☑ 自动滚动", traceGroup);
+    m_autoScrollBtn = new QPushButton("自动滚动: 开", traceGroup);
     m_autoScrollBtn->setCheckable(true);
     m_autoScrollBtn->setChecked(true);
     traceLayout->addWidget(m_clearTraceBtn);
@@ -87,8 +87,8 @@ RightPanel::RightPanel(QWidget *parent)
     // 设备组
     auto *devGroup = new QGroupBox("设备", quickWidget);
     auto *devLayout = new QHBoxLayout(devGroup);
-    m_connectBtn = new QPushButton("🔗 连接", devGroup);
-    m_disconnectBtn = new QPushButton("✂ 断开", devGroup);
+    m_connectBtn = new QPushButton("连接", devGroup);
+    m_disconnectBtn = new QPushButton("断开", devGroup);
     devLayout->addWidget(m_connectBtn);
     devLayout->addWidget(m_disconnectBtn);
     quickLayout->addWidget(devGroup);
@@ -104,7 +104,7 @@ RightPanel::RightPanel(QWidget *parent)
     connect(m_stopBtn, &QPushButton::clicked, this, &RightPanel::stopRequested);
     connect(m_clearTraceBtn, &QPushButton::clicked, this, &RightPanel::clearTraceRequested);
     connect(m_autoScrollBtn, &QPushButton::toggled, this, [this](bool on) {
-        m_autoScrollBtn->setText(on ? "☑ 自动滚动" : "☐ 自动滚动");
+        m_autoScrollBtn->setText(on ? "自动滚动: 开" : "自动滚动: 关");
         emit autoScrollToggled(on);
     });
     connect(m_connectBtn, &QPushButton::clicked, this, &RightPanel::connectRequested);

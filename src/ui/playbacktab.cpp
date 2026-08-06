@@ -59,7 +59,7 @@ PlaybackTab::PlaybackTab(QWidget *parent)
     ctrlLayout->addWidget(m_posLabel);
 
     m_fileInfoLabel = new QLabel("文件: (未加载)", ctrlGroup);
-    m_fileInfoLabel->setStyleSheet("color: gray;");
+    m_fileInfoLabel->setObjectName("DimLabel");
     ctrlLayout->addWidget(m_fileInfoLabel);
 
     // Speed & options

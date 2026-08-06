@@ -117,7 +117,7 @@ void DbcDetailTab::buildRightPane(QSplitter *splitter)
     phLayout->setAlignment(Qt::AlignCenter);
     auto *phLabel = new QLabel("点击左侧树中的条目查看详情", placeholder);
     phLabel->setAlignment(Qt::AlignCenter);
-    phLabel->setStyleSheet("color: #999; font-size: 13px;");
+    phLabel->setObjectName("DbcDetailPlaceholder");
     phLayout->addWidget(phLabel);
     m_pagePlaceholder = m_detailStack->addWidget(placeholder);
 
@@ -133,16 +133,16 @@ void DbcDetailTab::buildMessagePage(QWidget *page)
     layout->setSpacing(6);
 
     m_msgTitleLabel = new QLabel(page);
-    m_msgTitleLabel->setStyleSheet("font-weight: bold; font-size: 13px;");
+    m_msgTitleLabel->setObjectName("DbcDetailPageTitle");
     layout->addWidget(m_msgTitleLabel);
 
     m_msgInfoLabel = new QLabel(page);
-    m_msgInfoLabel->setStyleSheet("color: #555;");
+    m_msgInfoLabel->setObjectName("DbcDetailInfo");
     layout->addWidget(m_msgInfoLabel);
 
     m_msgCommentLabel = new QLabel(page);
     m_msgCommentLabel->setWordWrap(true);
-    m_msgCommentLabel->setStyleSheet("color: #666; font-style: italic;");
+    m_msgCommentLabel->setObjectName("DbcDetailComment");
     m_msgCommentLabel->setVisible(false);
     layout->addWidget(m_msgCommentLabel);
 
@@ -170,7 +170,7 @@ void DbcDetailTab::buildSignalPage(QWidget *page)
     layout->setSpacing(6);
 
     m_sigTitleLabel = new QLabel(page);
-    m_sigTitleLabel->setStyleSheet("font-weight: bold; font-size: 13px;");
+    m_sigTitleLabel->setObjectName("DbcDetailPageTitle");
     layout->addWidget(m_sigTitleLabel);
 
     // 属性表
@@ -188,7 +188,7 @@ void DbcDetailTab::buildSignalPage(QWidget *page)
     // 注释
     m_sigCommentLabel = new QLabel(page);
     m_sigCommentLabel->setWordWrap(true);
-    m_sigCommentLabel->setStyleSheet("color: #666; font-style: italic;");
+    m_sigCommentLabel->setObjectName("DbcDetailComment");
     m_sigCommentLabel->setVisible(false);
     layout->addWidget(m_sigCommentLabel);
 
@@ -215,12 +215,12 @@ void DbcDetailTab::buildNodePage(QWidget *page)
     layout->setSpacing(6);
 
     m_nodeTitleLabel = new QLabel(page);
-    m_nodeTitleLabel->setStyleSheet("font-weight: bold; font-size: 13px;");
+    m_nodeTitleLabel->setObjectName("DbcDetailPageTitle");
     layout->addWidget(m_nodeTitleLabel);
 
     m_nodeCommentLabel = new QLabel(page);
     m_nodeCommentLabel->setWordWrap(true);
-    m_nodeCommentLabel->setStyleSheet("color: #666; font-style: italic;");
+    m_nodeCommentLabel->setObjectName("DbcDetailComment");
     m_nodeCommentLabel->setVisible(false);
     layout->addWidget(m_nodeCommentLabel);
 
@@ -256,7 +256,7 @@ void DbcDetailTab::buildValueTablePage(QWidget *page)
     layout->setSpacing(6);
 
     m_vtTitleLabel = new QLabel(page);
-    m_vtTitleLabel->setStyleSheet("font-weight: bold; font-size: 13px;");
+    m_vtTitleLabel->setObjectName("DbcDetailPageTitle");
     layout->addWidget(m_vtTitleLabel);
 
     m_vtTable = new QTableWidget(0, 2, page);

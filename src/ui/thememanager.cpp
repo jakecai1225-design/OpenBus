@@ -1,5 +1,8 @@
 #include "thememanager.h"
 #include <QApplication>
+#include <QFile>
+#include <QHash>
+#include <QDir>
 
 ThemeManager *ThemeManager::instance()
 {
@@ -20,23 +23,24 @@ void ThemeManager::initThemes()
     // ===== Light =====
     Theme light;
     light.name = "Light";
-    light.windowBg = "#f0f0f0";  light.contentBg = "#ffffff";  light.sidebarBg = "#f5f5f5";
-    light.panelBg = "#e0e0e0";
-    light.barBg = "#2d2d2d";      light.barFg = "#e0e0e0";      light.barHover = "#3d3d3d";
-    light.barBorder = "#1a1a1a";
-    light.text = "#333333";      light.textDim = "#666666";
-    light.accent = "#4a90d9";     light.accentHover = "#5a9ee8"; light.accentBorder = "#3a7fc9";
-    light.border = "#b0b0b0";    light.borderDim = "#c0c0c0";
-    light.selectionBg = "#c5d9f1"; light.hoverBg = "#e0e0e0";
-    light.buttonBg = "#e0e0e0";  light.buttonHover = "#d0d0d0"; light.buttonPress = "#c0c0c0";
-    light.buttonDisabledBg = "#eeeeee"; light.buttonDisabledText = "#aaaaaa";
-    light.statusBg = "#4a90d9";  light.statusFg = "#ffffff";
+    light.windowBg = "#f8f8f8";  light.contentBg = "#ffffff";  light.sidebarBg = "#f3f3f3";
+    light.panelBg = "#ececec";
+    light.barBg = "#dddddd";      light.barFg = "#333333";      light.barHover = "#d0d0d0";
+    light.barBorder = "#c4c4c4";
+    light.activityBarBg = "#2c2c2c";  light.activityBarFg = "#cccccc";  light.activityBarHover = "#3c3c3c";
+    light.text = "#3b3b3b";      light.textDim = "#6c6c6c";
+    light.accent = "#0066b8";     light.accentHover = "#1f7ad3"; light.accentBorder = "#005a9e";
+    light.border = "#d0d0d0";    light.borderDim = "#e4e4e4";
+    light.selectionBg = "#d6ebff"; light.hoverBg = "#eaeaea";
+    light.buttonBg = "#ececec";  light.buttonHover = "#dcdcdc"; light.buttonPress = "#cccccc";
+    light.buttonDisabledBg = "#f0f0f0"; light.buttonDisabledText = "#b0b0b0";
+    light.statusBg = "#0066b8";  light.statusFg = "#ffffff";
     light.terminalBg = "#1e1e1e"; light.terminalFg = "#d4d4d4";
-    light.tabBg = "#e0e0e0";     light.tabActiveBg = "#ffffff"; light.tabHoverBg = "#d8d8d8";
-    light.scrollBg = "#f0f0f0";  light.scrollHandle = "#c0c0c0"; light.scrollHandleHover = "#a0a0a0";
+    light.tabBg = "#ececec";     light.tabActiveBg = "#ffffff"; light.tabHoverBg = "#dcdcdc";
+    light.scrollBg = "#f8f8f8";  light.scrollHandle = "#c8c8c8"; light.scrollHandleHover = "#a0a0a0";
     light.closeBtnHover = "#e81123"; light.closeBtnPress = "#f1707a";
-    light.headerBg = "#d8d8d8";  light.headerHover = "#c8c8c8";
-    light.altRowBg = "#f7f7f7";
+    light.headerBg = "#f0f0f0";  light.headerHover = "#e8e8e8";
+    light.altRowBg = "#fafafa";
     m_themes.append({light.name, light});
 
     // ===== Dark =====
@@ -46,6 +50,7 @@ void ThemeManager::initThemes()
     dark.panelBg = "#2d2d2d";
     dark.barBg = "#1e1e1e";      dark.barFg = "#cccccc";       dark.barHover = "#3d3d3d";
     dark.barBorder = "#0a0a0a";
+    dark.activityBarBg = "#333333";  dark.activityBarFg = "#cccccc";  dark.activityBarHover = "#454545";
     dark.text = "#d4d4d4";       dark.textDim = "#808080";
     dark.accent = "#0e639c";     dark.accentHover = "#1177bb"; dark.accentBorder = "#0a5680";
     dark.border = "#3c3c3c";     dark.borderDim = "#2d2d2d";
@@ -68,6 +73,7 @@ void ThemeManager::initThemes()
     vscDark.panelBg = "#333333";
     vscDark.barBg = "#333333";    vscDark.barFg = "#cccccc";     vscDark.barHover = "#454545";
     vscDark.barBorder = "#1a1a1a";
+    vscDark.activityBarBg = "#333333";  vscDark.activityBarFg = "#cccccc";  vscDark.activityBarHover = "#454545";
     vscDark.text = "#d4d4d4";     vscDark.textDim = "#858585";
     vscDark.accent = "#007acc";   vscDark.accentHover = "#1f8ad3"; vscDark.accentBorder = "#0066b8";
     vscDark.border = "#3c3c3c";  vscDark.borderDim = "#2d2d2d";
@@ -88,8 +94,9 @@ void ThemeManager::initThemes()
     vscLight.name = "VS Code Light+";
     vscLight.windowBg = "#f3f3f3"; vscLight.contentBg = "#ffffff"; vscLight.sidebarBg = "#f3f3f3";
     vscLight.panelBg = "#e8e8e8";
-    vscLight.barBg = "#2c2c2c";   vscLight.barFg = "#cccccc";    vscLight.barHover = "#3c3c3c";
-    vscLight.barBorder = "#1a1a1a";
+    vscLight.barBg = "#dddddd";   vscLight.barFg = "#333333";    vscLight.barHover = "#d0d0d0";
+    vscLight.barBorder = "#c4c4c4";
+    vscLight.activityBarBg = "#2c2c2c";  vscLight.activityBarFg = "#cccccc";  vscLight.activityBarHover = "#3c3c3c";
     vscLight.text = "#333333";    vscLight.textDim = "#6c6c6c";
     vscLight.accent = "#0066b8";  vscLight.accentHover = "#1f7ad3"; vscLight.accentBorder = "#005a9e";
     vscLight.border = "#c4c4c4"; vscLight.borderDim = "#d4d4d4";
@@ -112,6 +119,7 @@ void ThemeManager::initThemes()
     monokai.panelBg = "#3e3d32";
     monokai.barBg = "#1e1f1c";   monokai.barFg = "#f8f8f2";    monokai.barHover = "#3e3d32";
     monokai.barBorder = "#0c0c0a";
+    monokai.activityBarBg = "#1e1f1c";  monokai.activityBarFg = "#f8f8f2";  monokai.activityBarHover = "#3e3d32";
     monokai.text = "#f8f8f2";    monokai.textDim = "#75715e";
     monokai.accent = "#a6e22e"; monokai.accentHover = "#b6f23e"; monokai.accentBorder = "#86c20e";
     monokai.border = "#3e3d32"; monokai.borderDim = "#2d2c28";
@@ -132,8 +140,9 @@ void ThemeManager::initThemes()
     solLight.name = "Solarized Light";
     solLight.windowBg = "#eee8d5"; solLight.contentBg = "#fdf6e3"; solLight.sidebarBg = "#eee8d5";
     solLight.panelBg = "#ddd6c1";
-    solLight.barBg = "#073642";   solLight.barFg = "#93a1a1";    solLight.barHover = "#0a4858";
-    solLight.barBorder = "#05232e";
+    solLight.barBg = "#ddd6c1";   solLight.barFg = "#586e75";    solLight.barHover = "#cdc6b1";
+    solLight.barBorder = "#b8b098";
+    solLight.activityBarBg = "#073642";  solLight.activityBarFg = "#93a1a1";  solLight.activityBarHover = "#0a4858";
     solLight.text = "#586e75";    solLight.textDim = "#93a1a1";
     solLight.accent = "#268bd2";  solLight.accentHover = "#3a9ee3"; solLight.accentBorder = "#1a6da8";
     solLight.border = "#c8c0a8"; solLight.borderDim = "#d8d2c0";
@@ -156,6 +165,7 @@ void ThemeManager::initThemes()
     solDark.panelBg = "#073642";
     solDark.barBg = "#002b36";   solDark.barFg = "#93a1a1";    solDark.barHover = "#0a3b46";
     solDark.barBorder = "#001a22";
+    solDark.activityBarBg = "#002b36";  solDark.activityBarFg = "#93a1a1";  solDark.activityBarHover = "#0a3b46";
     solDark.text = "#839496";    solDark.textDim = "#586e75";
     solDark.accent = "#268bd2";  solDark.accentHover = "#3a9ee3"; solDark.accentBorder = "#1a6da8";
     solDark.border = "#0a4252";  solDark.borderDim = "#073642";
@@ -195,201 +205,70 @@ void ThemeManager::applyTheme(const QString &name)
 
 QString ThemeManager::generateQss(const Theme &t) const
 {
-    return QString(
-        /* ---- Global ---- */
-        "QMainWindow { background-color: %1; }"
-        "QWidget { font-size: 12px; }"
+    // 1. 读取 QSS 模板 — 优先从文件系统 (开发模式, 改完无需编译), 回退到 qrc
+    QString rawQss;
+    QString fsPath = QDir::currentPath() + "/styles/theme.qss";
+    if (QFile::exists(fsPath)) {
+        QFile f(fsPath);
+        if (f.open(QIODevice::ReadOnly | QIODevice::Text))
+            rawQss = QString::fromUtf8(f.readAll());
+    }
+    if (rawQss.isEmpty()) {
+        QFile f(":/styles/theme.qss");
+        if (f.open(QIODevice::ReadOnly | QIODevice::Text))
+            rawQss = QString::fromUtf8(f.readAll());
+    }
+    if (rawQss.isEmpty())
+        return {};
 
-        /* ---- Menu bar ---- */
-        "QMenuBar { background-color: %2; color: %3; border: none; padding: 1px; min-height: 28px; }"
-        "QMenuBar::item { background-color: transparent; padding: 4px 12px; border-radius: 2px; }"
-        "QMenuBar::item:selected { background-color: %4; }"
-        "QMenuBar::item:pressed { background-color: %5; }"
+    // 2. 构建 @变量 → 颜色值 映射
+    static const QHash<QString, QString Theme::*> varMap = {
+        {"@windowBg",          &Theme::windowBg},
+        {"@contentBg",         &Theme::contentBg},
+        {"@sidebarBg",         &Theme::sidebarBg},
+        {"@panelBg",           &Theme::panelBg},
+        {"@barBg",             &Theme::barBg},
+        {"@barFg",             &Theme::barFg},
+        {"@barHover",          &Theme::barHover},
+        {"@barBorder",         &Theme::barBorder},
+        {"@activityBarBg",     &Theme::activityBarBg},
+        {"@activityBarFg",     &Theme::activityBarFg},
+        {"@activityBarHover",  &Theme::activityBarHover},
+        {"@text",              &Theme::text},
+        {"@textDim",           &Theme::textDim},
+        {"@accent",            &Theme::accent},
+        {"@accentHover",       &Theme::accentHover},
+        {"@accentBorder",      &Theme::accentBorder},
+        {"@border",            &Theme::border},
+        {"@borderDim",         &Theme::borderDim},
+        {"@selectionBg",       &Theme::selectionBg},
+        {"@hoverBg",           &Theme::hoverBg},
+        {"@buttonBg",          &Theme::buttonBg},
+        {"@buttonHover",       &Theme::buttonHover},
+        {"@buttonPress",       &Theme::buttonPress},
+        {"@buttonDisabledBg",  &Theme::buttonDisabledBg},
+        {"@buttonDisabledText",&Theme::buttonDisabledText},
+        {"@statusBg",          &Theme::statusBg},
+        {"@statusFg",          &Theme::statusFg},
+        {"@terminalBg",        &Theme::terminalBg},
+        {"@terminalFg",        &Theme::terminalFg},
+        {"@tabBg",             &Theme::tabBg},
+        {"@tabActiveBg",       &Theme::tabActiveBg},
+        {"@tabHoverBg",        &Theme::tabHoverBg},
+        {"@scrollBg",          &Theme::scrollBg},
+        {"@scrollHandle",      &Theme::scrollHandle},
+        {"@scrollHandleHover", &Theme::scrollHandleHover},
+        {"@closeBtnHover",     &Theme::closeBtnHover},
+        {"@closeBtnPress",     &Theme::closeBtnPress},
+        {"@headerBg",          &Theme::headerBg},
+        {"@headerHover",       &Theme::headerHover},
+        {"@altRowBg",          &Theme::altRowBg},
+    };
 
-        "QMenu { background-color: %2; color: %3; border: 1px solid %6; padding: 4px; }"
-        "QMenu::item { padding: 5px 24px 5px 20px; border-radius: 2px; }"
-        "QMenu::item:selected { background-color: %5; color: #ffffff; }"
-        "QMenu::separator { height: 1px; background-color: %7; margin: 4px 8px; }"
+    // 3. 替换所有 @变量
+    QString qss = rawQss;
+    for (auto it = varMap.constBegin(); it != varMap.constEnd(); ++it)
+        qss.replace(it.key(), t.*(it.value()));
 
-        /* ---- DockWidget ---- */
-        "QDockWidget { titlebar-close-icon: none; titlebar-normal-icon: none; background-color: %13; }"
-        "QDockWidget::title { background-color: %8; padding: 2px 4px; border: none; border-bottom: 1px solid %9; }"
-        "#LeftContainer { background-color: %13; }"
-        "#LeftDock { background-color: %13; border: none; }"
-        "#BottomDock { background-color: %13; border: none; }"
-        "#RightDock { background-color: %13; border: none; }"
-
-        /* ---- Panel titles ---- */
-        "#CollapsibleTitle { background-color: %10; color: %11; font-weight: bold; font-size: 11px; padding: 4px 8px; border: none; border-bottom: 1px solid %9; }"
-        "#CollapsibleTitle:hover { background-color: %8; }"
-        "#DockPanelTitle { background-color: %10; color: %12; font-weight: bold; font-size: 11px; padding: 4px 6px; border: none; border-bottom: 1px solid %9; }"
-        "#SidePanelTitle { background-color: %10; color: %11; font-weight: bold; font-size: 11px; padding: 6px 10px; border-bottom: 1px solid %9; }"
-        "#DbcDetailTitle { background-color: %10; color: %11; font-weight: bold; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid %9; }"
-
-        /* ---- Lists ---- */
-        "#ProjectList { background-color: %13; border: none; outline: none; font-size: 12px; }"
-        "#ProjectList::item { padding: 4px 8px; min-height: 22px; }"
-        "#ProjectList::item:hover { background-color: %14; }"
-        "#ProjectList::item:selected { background-color: %15; color: %11; }"
-
-        "QTreeWidget { background-color: %13; border: none; outline: none; font-size: 12px; }"
-        "QTreeWidget::item { padding: 2px 4px; min-height: 20px; }"
-        "QTreeWidget::item:hover { background-color: %14; }"
-        "QTreeWidget::item:selected { background-color: %15; color: %11; }"
-        "QTreeWidget::branch:has-siblings:!adjoins-item { background: transparent; }"
-
-        "QListWidget { background-color: %13; border: none; outline: none; font-size: 12px; }"
-        "QListWidget::item { padding: 3px 6px; min-height: 20px; }"
-        "QListWidget::item:hover { background-color: %14; }"
-        "QListWidget::item:selected { background-color: %15; }"
-
-        /* ---- ActivityBar ---- */
-        "#ActivityBar { background-color: %2; }"
-        "#ActivityBar QToolButton { background-color: transparent; border: none; color: %3; font-size: 18px; padding: 0; margin: 0; }"
-        "#ActivityBar QToolButton:hover { background-color: %4; }"
-        "#ActivityBar QToolButton:checked { border-left: 2px solid %5; color: #ffffff; }"
-
-        /* ---- Toolbar ---- */
-        "QToolBar { background-color: %10; border: none; border-bottom: 1px solid %9; padding: 3px; spacing: 3px; }"
-        "QToolBar QToolButton { padding: 4px 8px; margin: 1px; border-radius: 3px; background-color: transparent; color: %11; font-size: 12px; }"
-        "QToolBar QToolButton:hover { background-color: %8; }"
-        "QToolBar QToolButton:checked { background-color: %9; border: 1px solid %7; }"
-        "QToolBar QLabel { color: %12; font-size: 11px; padding: 0 4px; }"
-
-        /* ---- Tabs ---- */
-        "QTabWidget::pane { border: none; background-color: %16; }"
-        "QTabBar::tab { background-color: %17; color: %18; padding: 6px 14px; border: none; border-right: 1px solid %9; border-bottom: 1px solid %9; font-size: 12px; }"
-        "QTabBar::tab:selected { background-color: %19; color: %11; border-bottom: 2px solid %5; }"
-        "QTabBar::tab:hover:!selected { background-color: %20; }"
-
-        "#BottomPanel { background-color: %13; }"
-        "#BottomPanel::pane { border-top: 1px solid %9; background-color: %13; }"
-        "#BottomPanel QTabBar::tab { padding: 4px 12px; font-size: 11px; border-bottom: none; border-top: 2px solid transparent; }"
-        "#BottomPanel QTabBar::tab:selected { border-top: 2px solid %5; border-bottom: none; }"
-
-        "#RightPanel::pane { border: none; border-left: 1px solid %9; background-color: %13; }"
-        "#RightPanel QTabBar::tab { padding: 4px 10px; font-size: 11px; }"
-
-        /* ---- Inputs ---- */
-        "QLineEdit { border: 1px solid %9; border-radius: 3px; padding: 3px 6px; background-color: %16; font-size: 12px; selection-background-color: %5; }"
-        "QLineEdit:focus { border: 1px solid %5; }"
-
-        "QPushButton { background-color: %21; color: %11; border: 1px solid %9; border-radius: 3px; padding: 4px 10px; font-size: 12px; }"
-        "QPushButton:hover { background-color: %22; border: 1px solid %7; }"
-        "QPushButton:pressed { background-color: %23; }"
-        "QPushButton:disabled { background-color: %24; color: %25; border: 1px solid %9; }"
-
-        /* ---- Table ---- */
-        "QTableView { background-color: %16; alternate-background-color: %26; gridline-color: %9; selection-background-color: %15; selection-color: %11; border: none; font-size: 12px; }"
-        "QTableView::item { padding: 1px 4px; min-height: 18px; }"
-        "QTableView::item:selected { background-color: %15; }"
-
-        "QHeaderView::section { background-color: %27; color: %11; padding: 3px 6px; border: none; border-right: 1px solid %9; border-bottom: 1px solid %9; font-size: 12px; font-weight: bold; }"
-        "QHeaderView::section:hover { background-color: %28; }"
-
-        /* ---- Splitter ---- */
-        "QSplitter::handle { background-color: %8; }"
-        "QSplitter::handle:vertical { height: 2px; }"
-        "QSplitter::handle:horizontal { width: 2px; }"
-        "QSplitter::handle:hover { background-color: %5; }"
-
-        /* ---- Slider ---- */
-        "QSlider::groove:horizontal { border: 1px solid %9; height: 4px; background: %10; border-radius: 2px; }"
-        "QSlider::handle:horizontal { background: %5; border: 1px solid %29; width: 12px; margin: -5px 0; border-radius: 6px; }"
-        "QSlider::handle:horizontal:hover { background: %30; }"
-
-        /* ---- ComboBox ---- */
-        "QComboBox { border: 1px solid %9; border-radius: 3px; padding: 2px 6px; background-color: %16; font-size: 12px; }"
-        "QComboBox:hover { border: 1px solid %7; }"
-        "QComboBox::drop-down { border: none; width: 20px; }"
-        "QComboBox QAbstractItemView { border: 1px solid %9; background-color: %16; selection-background-color: %15; selection-color: %11; }"
-
-        /* ---- Status bar ---- */
-        "QStatusBar { background-color: %31; color: %32; border-top: 1px solid %29; font-size: 11px; }"
-        "QStatusBar QLabel { padding: 1px 8px; }"
-
-        /* ---- CheckBox ---- */
-        "QCheckBox { color: %11; font-size: 12px; spacing: 6px; }"
-
-        /* ---- GroupBox ---- */
-        "QGroupBox { border: 1px solid %9; border-radius: 4px; margin-top: 10px; padding-top: 6px; font-size: 12px; font-weight: bold; }"
-        "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }"
-
-        /* ---- Dialog ---- */
-        "QDialog { background-color: %1; }"
-        "QTextBrowser { background-color: %16; color: %11; border: 1px solid %9; font-size: 12px; }"
-        "QDialogButtonBox QPushButton { min-width: 70px; }"
-
-        /* ---- SpinBox ---- */
-        "QSpinBox { border: 1px solid %9; border-radius: 3px; padding: 2px 4px; background-color: %16; font-size: 12px; }"
-
-        /* ---- Text edit ---- */
-        "QPlainTextEdit { background-color: %13; color: %11; border: none; font-family: Consolas, \"Courier New\", monospace; font-size: 12px; }"
-        "#TerminalOutput { background-color: %33; color: %34; }"
-        "#TerminalPrompt { font-family: monospace; font-weight: bold; color: %5; }"
-
-        /* ---- Table widget ---- */
-        "QTableWidget { background-color: %13; alternate-background-color: %8; border: none; gridline-color: %9; font-size: 12px; }"
-        "QTableWidget::item { padding: 2px 6px; }"
-        "QTableWidget::item:selected { background-color: %15; }"
-
-        /* ---- Scrollbar ---- */
-        "QScrollBar:vertical { border: none; background: %35; width: 10px; margin: 0; }"
-        "QScrollBar::handle:vertical { background: %36; min-height: 20px; border-radius: 5px; }"
-        "QScrollBar::handle:vertical:hover { background: %37; }"
-        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-        "QScrollBar:horizontal { border: none; background: %35; height: 10px; margin: 0; }"
-        "QScrollBar::handle:horizontal { background: %36; min-width: 20px; border-radius: 5px; }"
-        "QScrollBar::handle:horizontal:hover { background: %37; }"
-        "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
-
-        /* ---- Window buttons ---- */
-        "#WindowButtons { background-color: transparent; }"
-        "#WinMinBtn, #WinMaxBtn { background-color: transparent; color: %3; border: none; font-size: 13px; }"
-        "#WinMinBtn:hover, #WinMaxBtn:hover { background-color: %4; }"
-        "#WinMinBtn:pressed, #WinMaxBtn:pressed { background-color: %5; }"
-        "#WinCloseBtn { background-color: transparent; color: %3; border: none; font-size: 13px; }"
-        "#WinCloseBtn:hover { background-color: %38; color: #ffffff; }"
-        "#WinCloseBtn:pressed { background-color: %39; color: #ffffff; }"
-    )
-    .arg(t.windowBg)      // %1
-    .arg(t.barBg)         // %2
-    .arg(t.barFg)         // %3
-    .arg(t.barHover)      // %4
-    .arg(t.accent)        // %5
-    .arg(t.barBorder)     // %6
-    .arg(t.border)        // %7
-    .arg(t.panelBg)       // %8
-    .arg(t.borderDim)     // %9
-    .arg(t.panelBg)       // %10 (same as %8)
-    .arg(t.text)          // %11
-    .arg(t.textDim)       // %12
-    .arg(t.sidebarBg)     // %13
-    .arg(t.hoverBg)       // %14
-    .arg(t.selectionBg)   // %15
-    .arg(t.contentBg)     // %16
-    .arg(t.tabBg)         // %17
-    .arg(t.textDim)       // %18
-    .arg(t.tabActiveBg)   // %19
-    .arg(t.tabHoverBg)    // %20
-    .arg(t.buttonBg)      // %21
-    .arg(t.buttonHover)   // %22
-    .arg(t.buttonPress)   // %23
-    .arg(t.buttonDisabledBg)  // %24
-    .arg(t.buttonDisabledText) // %25
-    .arg(t.altRowBg)      // %26
-    .arg(t.headerBg)      // %27
-    .arg(t.headerHover)   // %28
-    .arg(t.accentBorder)  // %29
-    .arg(t.accentHover)   // %30
-    .arg(t.statusBg)      // %31
-    .arg(t.statusFg)      // %32
-    .arg(t.terminalBg)    // %33
-    .arg(t.terminalFg)    // %34
-    .arg(t.scrollBg)      // %35
-    .arg(t.scrollHandle)  // %36
-    .arg(t.scrollHandleHover) // %37
-    .arg(t.closeBtnHover) // %38
-    .arg(t.closeBtnPress) // %39
-    ;
+    return qss;
 }

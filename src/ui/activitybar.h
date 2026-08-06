@@ -55,7 +55,7 @@ private:
     QList<BtnInfo> m_buttons;
     Activity m_current = None;
 
-    QToolButton *createButton(const QString &text, const QString &tooltip,
+    QToolButton *createButton(const QString &iconPath, const QString &tooltip,
                               Activity act, bool atBottom = false);
 };
 

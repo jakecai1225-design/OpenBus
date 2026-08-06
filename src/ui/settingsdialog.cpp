@@ -96,7 +96,7 @@ void SettingsDialog::setupUi()
     jsonLayout->setContentsMargins(4, 4, 4, 4);
 
     auto *jsonLabel = new QLabel("settings.json", m_jsonPage);
-    jsonLabel->setStyleSheet("font-weight: bold; padding: 2px;");
+    jsonLabel->setObjectName("SidePanelSubTitle");
     jsonLayout->addWidget(jsonLabel);
 
     m_jsonEdit = new QPlainTextEdit(m_jsonPage);
@@ -122,7 +122,7 @@ void SettingsDialog::setupUi()
     bottomLayout->setContentsMargins(8, 4, 8, 4);
 
     m_statusLabel = new QLabel(bottomBar);
-    m_statusLabel->setStyleSheet("color: gray; font-size: 11px;");
+    m_statusLabel->setObjectName("DimLabel");
     bottomLayout->addWidget(m_statusLabel);
 
     bottomLayout->addStretch();

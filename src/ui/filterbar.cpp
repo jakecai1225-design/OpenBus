@@ -109,10 +109,10 @@ void FilterBar::onTextChanged()
     if (CanUtils::isFilterValid(expr)) {
         m_statusIcon->setPixmap(style()->standardIcon(QStyle::SP_DialogOkButton).pixmap(16, 16));
         m_statusIcon->setToolTip("语法正确");
-        m_edit->setStyleSheet("QLineEdit { background-color: #E8F5E8; }");
+        m_edit->setStyleSheet("QLineEdit { background-color: #eff6ee; }");
     } else {
         m_statusIcon->setPixmap(style()->standardIcon(QStyle::SP_DialogCancelButton).pixmap(16, 16));
         m_statusIcon->setToolTip("语法错误");
-        m_edit->setStyleSheet("QLineEdit { background-color: #FDE8E8; }");
+        m_edit->setStyleSheet("QLineEdit { background-color: #fbeaea; }");
     }
 }

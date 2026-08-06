@@ -1,7 +1,18 @@
 #include "activitybar.h"
+#include "utils/svg_icon.h"
 
 #include <QToolButton>
 #include <QVBoxLayout>
+
+// 为 ActivityBar 按钮创建双状态图标 (未选中灰色 / 选中白色)
+static QIcon makeActivityIcon(const QString &resourcePath)
+{
+    QIcon icon;
+    icon.addPixmap(renderSvgPixmap(resourcePath, "#858585", 24), QIcon::Normal, QIcon::Off);
+    icon.addPixmap(renderSvgPixmap(resourcePath, "#c8c8c8", 24), QIcon::Active, QIcon::Off);
+    icon.addPixmap(renderSvgPixmap(resourcePath, "#ffffff", 24), QIcon::Normal, QIcon::On);
+    return icon;
+}
 
 ActivityBar::ActivityBar(QWidget *parent)
     : QWidget(parent)
@@ -14,41 +25,41 @@ ActivityBar::ActivityBar(QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    // 顶部按钮 — 按设计顺序: 工程 / Trace / Graphic / 数据库 / 回放 / 录制 / 设备
-    m_buttons.append({createButton("\xF0\x9F\x93\x81", "工程管理", Project), Project, "工程管理", "工程管理"});
+    // 顶部按钮 — 线条 SVG 图标
+    m_buttons.append({createButton(":/icons/project.svg", "工程管理", Project), Project, "工程管理", "工程管理"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xF0\x9F\x93\x8B", "Trace", Trace), Trace, "Trace", "Trace"});
+    m_buttons.append({createButton(":/icons/trace.svg", "Trace", Trace), Trace, "Trace", "Trace"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xF0\x9F\x93\x88", "Graphic", Graphic), Graphic, "Graphic", "Graphic"});
+    m_buttons.append({createButton(":/icons/graphic.svg", "Graphic", Graphic), Graphic, "Graphic", "Graphic"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xF0\x9F\x97\x84", "数据库", Dbc), Dbc, "数据库", "数据库 — 多协议解析文件管理"});
+    m_buttons.append({createButton(":/icons/database.svg", "数据库", Dbc), Dbc, "数据库", "数据库 — 多协议解析文件管理"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xF0\x9F\x93\xA1", "发送", Send), Send, "发送", "发送"});
+    m_buttons.append({createButton(":/icons/send.svg", "发送", Send), Send, "发送", "发送"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xE2\x97\x8F", "录制", Record), Record, "录制", "录制"});
+    m_buttons.append({createButton(":/icons/record.svg", "录制", Record), Record, "录制", "录制"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xF0\x9F\x94\xA7", "设备连接", Device), Device, "设备连接", "设备连接"});
+    m_buttons.append({createButton(":/icons/device.svg", "设备连接", Device), Device, "设备连接", "设备连接"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xF0\x9F\x93\xA6", "协议", Protocol), Protocol, "协议", "上层协议分析"});
+    m_buttons.append({createButton(":/icons/protocol.svg", "协议", Protocol), Protocol, "协议", "上层协议分析"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xF0\x9F\x93\x8A", "Flow", Analysis), Analysis, "Flow", "flow — CANoe Measurement Setup 风格"});
+    m_buttons.append({createButton(":/icons/flow.svg", "Flow", Analysis), Analysis, "Flow", "flow — CANoe Measurement Setup 风格"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton("\xF0\x9F\x9B\xA0", "工具集", Tools), Tools, "工具集", "总线分析工具集 — 格式转换 / DBC 编辑 / 统计分析"});
+    m_buttons.append({createButton(":/icons/tools.svg", "工具集", Tools), Tools, "工具集", "总线分析工具集 — 格式转换 / DBC 编辑 / 统计分析"});
     layout->addWidget(m_buttons.last().btn);
 
     layout->addStretch();
 
     // 底部按钮
-    auto *settingsBtn = createButton("\xE2\x9A\x99", "配置", Settings, true);
+    auto *settingsBtn = createButton(":/icons/settings.svg", "配置", Settings, true);
     layout->addWidget(settingsBtn);
 
     // 默认选中工程
@@ -56,11 +67,12 @@ ActivityBar::ActivityBar(QWidget *parent)
     m_current = Project;
 }
 
-QToolButton *ActivityBar::createButton(const QString &text, const QString &tooltip,
+QToolButton *ActivityBar::createButton(const QString &iconPath, const QString &tooltip,
                                        Activity act, bool atBottom)
 {
     auto *btn = new QToolButton(this);
-    btn->setText(text);
+    btn->setIcon(makeActivityIcon(iconPath));
+    btn->setIconSize(QSize(24, 24));
     btn->setToolTip(tooltip);
     btn->setCheckable(true);
     btn->setAutoRaise(true);

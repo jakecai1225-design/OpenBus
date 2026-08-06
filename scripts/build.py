@@ -245,6 +245,33 @@ def cmd_configure(env, args):
     ok("CMake 配置完成")
 
 
+def kill_running_executable():
+    """编译前自动终止正在运行的 sin.exe，避免文件锁导致链接失败"""
+    if sys.platform != "win32":
+        return
+    try:
+        result = subprocess.run(
+            ["taskkill", "/F", "/IM", "sin.exe"],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            warn("检测到 sin.exe 正在运行，已自动终止")
+            # 等待进程完全退出、文件锁释放
+            import time
+            for _ in range(20):
+                time.sleep(0.25)
+                try:
+                    # 尝试以独占模式打开文件，成功则说明锁已释放
+                    if EXECUTABLE.exists():
+                        with open(EXECUTABLE, "a"):
+                            pass
+                    break
+                except (PermissionError, OSError):
+                    continue
+    except Exception:
+        pass
+
+
 def cmd_build(env, args):
     """增量编译 (首次运行自动配置)"""
     header("增量编译")
@@ -252,6 +279,9 @@ def cmd_build(env, args):
     if not (BUILD_DIR / "CMakeCache.txt").exists():
         info("构建目录未配置，自动执行 configure...")
         cmd_configure(env, args)
+
+    # 编译前自动终止正在运行的程序，避免文件锁
+    kill_running_executable()
 
     cmd = [str(env.cmake), "--build", str(BUILD_DIR)]
     if args.target:
@@ -271,6 +301,9 @@ def cmd_run(env, args):
     if not EXECUTABLE.exists():
         info("可执行文件不存在，自动执行 build...")
         cmd_build(env, args)
+    else:
+        # 即使已存在，也先确保旧进程已退出
+        kill_running_executable()
 
     extra = args.args.split() if args.args else []
     cmd = [str(EXECUTABLE)] + extra
@@ -288,6 +321,8 @@ def cmd_debug(env, args):
     if not EXECUTABLE.exists():
         info("可执行文件不存在，自动执行 build...")
         cmd_build(env, args)
+    else:
+        kill_running_executable()
 
     extra = args.args.split() if args.args else []
     if extra:

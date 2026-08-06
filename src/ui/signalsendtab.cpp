@@ -154,7 +154,7 @@ SignalSendTab::SignalSendTab(QWidget *parent)
 
     // 信号级编辑区域
     m_signalHintLabel = new QLabel("输入 CAN ID 或从发送列表选择一行，自动显示信号编辑器", editGroup);
-    m_signalHintLabel->setStyleSheet("color: gray; font-style: italic;");
+    m_signalHintLabel->setObjectName("DbcDetailComment");
     editLayout->addWidget(m_signalHintLabel);
 
     m_signalScroll = new QScrollArea(editGroup);
@@ -308,7 +308,9 @@ void SignalSendTab::rebuildSignalEditors()
 
         auto *nameLabel = new QLabel(sig.name);
         nameLabel->setMinimumWidth(140);
-        nameLabel->setStyleSheet("font-weight: bold;");
+        QFont boldFont = nameLabel->font();
+        boldFont.setBold(true);
+        nameLabel->setFont(boldFont);
         rowLayout->addWidget(nameLabel);
 
         if (!sig.valueTable.isEmpty()) {
@@ -365,7 +367,7 @@ void SignalSendTab::rebuildSignalEditors()
 
         auto *rangeLabel = new QLabel(
             QString("(%1 ~ %2)").arg(sig.minimum).arg(sig.maximum));
-        rangeLabel->setStyleSheet("color: gray; font-size: 11px;");
+        rangeLabel->setObjectName("DimLabel");
         rowLayout->addWidget(rangeLabel);
         rowLayout->addStretch();
 
@@ -468,9 +470,9 @@ QWidget *SignalSendTab::createOpWidget()
     layout->setContentsMargins(2, 2, 2, 2);
     layout->setSpacing(2);
 
-    auto *sendBtn = new QPushButton("▶", widget);
-    auto *stopBtn = new QPushButton("⏹", widget);
-    auto *delBtn = new QPushButton("✕", widget);
+    auto *sendBtn = new QPushButton("发送", widget);
+    auto *stopBtn = new QPushButton("停止", widget);
+    auto *delBtn = new QPushButton("×", widget);
     auto *upBtn = new QPushButton("↑", widget);
     auto *downBtn = new QPushButton("↓", widget);
 

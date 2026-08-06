@@ -1,5 +1,18 @@
 <RCC>
     <qresource prefix="/">
         <file>styles/default.qss</file>
+        <file>styles/theme.qss</file>
+        <file>icons/project.svg</file>
+        <file>icons/trace.svg</file>
+        <file>icons/graphic.svg</file>
+        <file>icons/database.svg</file>
+        <file>icons/send.svg</file>
+        <file>icons/record.svg</file>
+        <file>icons/device.svg</file>
+        <file>icons/protocol.svg</file>
+        <file>icons/flow.svg</file>
+        <file>icons/tools.svg</file>
+        <file>icons/settings.svg</file>
+        <file>icons/file.svg</file>
     </qresource>
 </RCC>

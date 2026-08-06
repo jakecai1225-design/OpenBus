@@ -131,7 +131,7 @@ QWidget *CanOpenView::createNmtTab()
 
     // 状态显示
     m_nmtStatusLabel = new QLabel("状态: 未知", widget);
-    m_nmtStatusLabel->setStyleSheet("padding: 4px; background: #333; color: #aaa;");
+    m_nmtStatusLabel->setObjectName("NmtStatus");
     layout->addRow("当前状态:", m_nmtStatusLabel);
 
     return widget;
@@ -200,7 +200,7 @@ QWidget *CanOpenView::createSdoTab()
 
     // 结果
     m_sdoResultLabel = new QLabel("就绪", widget);
-    m_sdoResultLabel->setStyleSheet("padding: 4px; background: #333; color: #aaa;");
+    m_sdoResultLabel->setObjectName("NmtStatus");
     m_sdoResultLabel->setWordWrap(true);
     layout->addRow("结果:", m_sdoResultLabel);
 
@@ -308,7 +308,7 @@ QWidget *CanOpenView::createHeartbeatTab()
         "生产者周期性发送 (COB-ID: 0x700 + NodeID)，消费者超时检测。",
         widget);
     infoLabel->setWordWrap(true);
-    infoLabel->setStyleSheet("padding: 8px; background: #333; color: #aaa;");
+    infoLabel->setObjectName("SidePanelHint");
     layout->addWidget(infoLabel);
 
     m_heartbeatTable = new QTableWidget(0, 5, widget);
@@ -381,7 +381,7 @@ void CanOpenView::onNmtCommand(int cmd)
     appendLog("NMT", QString("%1 → %2").arg(cmdName).arg(target), data, "已发送");
 
     m_nmtStatusLabel->setText(QString("状态: %1").arg(statusText));
-    m_nmtStatusLabel->setStyleSheet("padding: 4px; background: #2d4a2d; color: #4CAF50;");
+    m_nmtStatusLabel->setObjectName("StatusSuccess");
 }
 
 void CanOpenView::onSdoRead()
@@ -400,7 +400,7 @@ void CanOpenView::onSdoRead()
     // 模拟响应
     QString simData = "12 34 56 78";
     m_sdoResultLabel->setText(QString("读取成功: %1").arg(simData));
-    m_sdoResultLabel->setStyleSheet("padding: 4px; background: #2d4a2d; color: #4CAF50;");
+    m_sdoResultLabel->setObjectName("StatusSuccess");
 
     appendLog("SDO 响应", desc, simData, "成功");
 }
@@ -414,7 +414,7 @@ void CanOpenView::onSdoWrite()
 
     if (data.isEmpty()) {
         m_sdoResultLabel->setText("错误: 请输入要写入的数据");
-        m_sdoResultLabel->setStyleSheet("padding: 4px; background: #4a2d2d; color: #F44336;");
+        m_sdoResultLabel->setObjectName("StatusError");
         return;
     }
 
@@ -428,7 +428,7 @@ void CanOpenView::onSdoWrite()
 
     // 模拟成功
     m_sdoResultLabel->setText("写入成功");
-    m_sdoResultLabel->setStyleSheet("padding: 4px; background: #2d4a2d; color: #4CAF50;");
+    m_sdoResultLabel->setObjectName("StatusSuccess");
 
     appendLog("SDO 响应", desc, "", "成功");
 }

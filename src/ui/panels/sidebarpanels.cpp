@@ -1,4 +1,5 @@
 #include "sidebarpanels.h"
+#include "utils/svg_icon.h"
 #include "core/dbcmanager.h"
 #include "core/cansimulator.h"
 #include "core/candevicemanager.h"
@@ -47,7 +48,7 @@ void SidePanel::setupTitle(const QString &title)
 
     auto *titleBar = new QLabel(title, this);
     titleBar->setObjectName("SidePanelTitle");
-    titleBar->setContentsMargins(8, 6, 8, 6);
+    titleBar->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(titleBar);
 
     auto *contentWidget = new QWidget(this);
@@ -72,14 +73,15 @@ ProjectPanel::ProjectPanel(QWidget *parent)
 
     // 最近工程列表
     auto *recentLabel = new QLabel("最近打开", this);
-    recentLabel->setStyleSheet("font-weight: bold; padding: 2px; color: #888;");
+    recentLabel->setObjectName("SidePanelSubTitle");
     cl->addWidget(recentLabel);
     m_recentList = new QListWidget(this);
     m_recentList->setMaximumHeight(100);
     cl->addWidget(m_recentList);
 
     auto *btnBar = new QHBoxLayout;
-    btnBar->setContentsMargins(4, 4, 4, 4);
+    btnBar->setContentsMargins(8, 6, 8, 6);
+    btnBar->setSpacing(4);
     auto *newBtn = new QPushButton("新建", this);
     auto *openBtn = new QPushButton("打开", this);
     auto *saveBtn = new QPushButton("保存", this);
@@ -262,7 +264,8 @@ DbcPanel::DbcPanel(QWidget *parent)
     cl->addWidget(m_tree);
 
     auto *btnBar = new QHBoxLayout;
-    btnBar->setContentsMargins(4, 4, 4, 4);
+    btnBar->setContentsMargins(8, 6, 8, 6);
+    btnBar->setSpacing(4);
     auto *importBtn = new QPushButton("+ 加载数据库文件", this);
     btnBar->addWidget(importBtn);
     btnBar->addStretch();
@@ -278,12 +281,12 @@ DbcPanel::DbcPanel(QWidget *parent)
 void DbcPanel::initCategoryNodes()
 {
     // 创建协议分类根节点
-    m_catCanFd    = new QTreeWidgetItem(m_tree, {"📁 CAN / CANFD"});
-    m_catCanopen  = new QTreeWidgetItem(m_tree, {"📁 CANopen"});
-    m_catEthercat = new QTreeWidgetItem(m_tree, {"📁 EtherCAT"});
-    m_catLin      = new QTreeWidgetItem(m_tree, {"📁 LIN"});
-    m_catJ1939    = new QTreeWidgetItem(m_tree, {"📁 J1939"});
-    m_catAutosar  = new QTreeWidgetItem(m_tree, {"📁 AUTOSAR"});
+    m_catCanFd    = new QTreeWidgetItem(m_tree, {"CAN / CANFD"});
+    m_catCanopen  = new QTreeWidgetItem(m_tree, {"CANopen"});
+    m_catEthercat = new QTreeWidgetItem(m_tree, {"EtherCAT"});
+    m_catLin      = new QTreeWidgetItem(m_tree, {"LIN"});
+    m_catJ1939    = new QTreeWidgetItem(m_tree, {"J1939"});
+    m_catAutosar  = new QTreeWidgetItem(m_tree, {"AUTOSAR"});
 
     for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
         auto *cat = m_tree->topLevelItem(i);
@@ -384,7 +387,7 @@ void DbcPanel::refreshTree()
     if (m_dbcMgr) {
         for (const auto &file : m_dbcMgr->files()) {
             auto *item = new QTreeWidgetItem(m_catCanFd, {file.fileName});
-            item->setIcon(0, style()->standardIcon(QStyle::SP_FileDialogListView));
+            item->setIcon(0, svgIcon(":/icons/file.svg", "#6c6c6c"));
             item->setData(0, Qt::UserRole, "CAN/CANFD");
         }
     }
@@ -401,7 +404,7 @@ void DbcPanel::refreshTree()
         if (!parent) continue;
 
         auto *item = new QTreeWidgetItem(parent, {entry.fileName});
-        item->setIcon(0, style()->standardIcon(QStyle::SP_FileDialogListView));
+        item->setIcon(0, svgIcon(":/icons/file.svg", "#6c6c6c"));
         item->setData(0, Qt::UserRole, entry.category);
         item->setData(0, Qt::UserRole + 1, entry.filePath);
     }
@@ -425,12 +428,12 @@ void DbcPanel::refreshTree()
         int n = cat->childCount();
         cat->setText(0, QString("%1 %2").arg(label).arg(n > 0 ? QString("(%1)").arg(n) : ""));
     };
-    setCount(m_catCanFd,    "📁 CAN / CANFD");
-    setCount(m_catCanopen,  "📁 CANopen");
-    setCount(m_catEthercat, "📁 EtherCAT");
-    setCount(m_catLin,      "📁 LIN");
-    setCount(m_catJ1939,    "📁 J1939");
-    setCount(m_catAutosar,  "📁 AUTOSAR");
+    setCount(m_catCanFd,    "CAN / CANFD");
+    setCount(m_catCanopen,  "CANopen");
+    setCount(m_catEthercat, "EtherCAT");
+    setCount(m_catLin,      "LIN");
+    setCount(m_catJ1939,    "J1939");
+    setCount(m_catAutosar,  "AUTOSAR");
 }
 
 void DbcPanel::onItemClicked(QTreeWidgetItem *item, int)
@@ -468,7 +471,8 @@ TracePanel::TracePanel(QWidget *parent)
     cl->addWidget(m_traceList, 1);
 
     auto *btnBar = new QHBoxLayout;
-    btnBar->setContentsMargins(4, 4, 4, 4);
+    btnBar->setContentsMargins(8, 6, 8, 6);
+    btnBar->setSpacing(4);
     auto *newBtn = new QPushButton("+ 新建 Trace", this);
     btnBar->addWidget(newBtn);
     btnBar->addStretch();
@@ -515,7 +519,8 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
     cl->addWidget(m_pageList, 1);
 
     auto *btnBar = new QHBoxLayout;
-    btnBar->setContentsMargins(4, 4, 4, 4);
+    btnBar->setContentsMargins(8, 6, 8, 6);
+    btnBar->setSpacing(4);
     auto *newBtn = new QPushButton("+ 新建 Graphic", this);
     btnBar->addWidget(newBtn);
     btnBar->addStretch();
@@ -570,8 +575,13 @@ DevicePanel::DevicePanel(QWidget *parent)
     cl->addWidget(m_deviceTree);
 
     // 扫描设备按钮
+    auto *scanBar = new QHBoxLayout;
+    scanBar->setContentsMargins(8, 6, 8, 6);
+    scanBar->setSpacing(4);
     m_scanBtn = new QPushButton(QStringLiteral("扫描设备"), this);
-    cl->addWidget(m_scanBtn);
+    scanBar->addWidget(m_scanBtn);
+    scanBar->addStretch();
+    cl->addLayout(scanBar);
 
     cl->addStretch();
 
@@ -708,12 +718,12 @@ SendPanel::SendPanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
-    auto *sendBtn = new QPushButton("📡 发送  →  点击打开发送标签页", this);
-    sendBtn->setStyleSheet("text-align: left; padding: 8px;");
+    auto *sendBtn = new QPushButton("发送  →  点击打开发送标签页", this);
+    sendBtn->setObjectName("SidePanelButton");
     cl->addWidget(sendBtn);
 
-    auto *playbackBtn = new QPushButton("▶ 回放  →  点击打开回放标签页", this);
-    playbackBtn->setStyleSheet("text-align: left; padding: 8px;");
+    auto *playbackBtn = new QPushButton("回放  →  点击打开回放标签页", this);
+    playbackBtn->setObjectName("SidePanelButton");
     cl->addWidget(playbackBtn);
 
     cl->addStretch();
@@ -741,8 +751,8 @@ RecordPanel::RecordPanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
-    auto *btn = new QPushButton("● 录制  →  点击打开录制标签页", this);
-    btn->setStyleSheet("text-align: left; padding: 8px;");
+    auto *btn = new QPushButton("录制  →  点击打开录制标签页", this);
+    btn->setObjectName("SidePanelButton");
     cl->addWidget(btn);
     cl->addStretch();
 
@@ -770,8 +780,7 @@ SettingsPanel::SettingsPanel(QWidget *parent)
 
     // 颜色主题
     auto *themeLabel = new QLabel("颜色主题", this);
-    themeLabel->setObjectName("SidePanelTitle");
-    themeLabel->setContentsMargins(8, 6, 8, 6);
+    themeLabel->setObjectName("SidePanelSubTitle");
     cl->addWidget(themeLabel);
 
     m_themeList = new QListWidget(this);
@@ -815,7 +824,7 @@ MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
     auto *cl = contentLayout();
 
     m_list = new QListWidget(this);
-    m_list->addItem(new QListWidgetItem("\xF0\x9F\x93\x8A flow"));
+    m_list->addItem(new QListWidgetItem("flow"));
     cl->addWidget(m_list);
 
     auto *hint = new QLabel("\n"
@@ -823,7 +832,7 @@ MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
                            "\xE2\x80\xA2 点击模块块可启用/禁用\n"
                            "\xE2\x80\xA2 双击模块块可打开对应标签页", this);
     hint->setWordWrap(true);
-    hint->setStyleSheet("padding: 8px; color: #888; font-size: 11px;");
+    hint->setObjectName("SidePanelHint");
     cl->addWidget(hint);
 
     connect(m_list, &QListWidget::itemClicked,
@@ -851,17 +860,17 @@ ToolsPanel::ToolsPanel(QWidget *parent)
     m_list->setObjectName("ToolsList");
 
     // 文件格式转换类
-    auto *convItem = new QListWidgetItem("\xF0\x9F\x9B\x80 BLF \xE2\x86\x94 ASC \xE2\x86\x94 CSV 转换", m_list);
+    auto *convItem = new QListWidgetItem("BLF ↔ ASC ↔ CSV 转换", m_list);
     convItem->setData(Qt::UserRole, "blf_converter");
     convItem->setToolTip("报文日志文件格式互转：BLF / ASC / CSV 之间转换");
 
     // DBC 工具类（合并：查看编辑 + 信号清单导出）
-    auto *dbcItem = new QListWidgetItem("\xF0\x9F\x93\x9D DBC 工具", m_list);
+    auto *dbcItem = new QListWidgetItem("DBC 工具", m_list);
     dbcItem->setData(Qt::UserRole, "dbc_tool");
     dbcItem->setToolTip("DBC 查看/编辑 + 信号清单导出");
 
     // 总线统计分析类（合并：报文统计 + ID 频率/周期 + 总线负载率）
-    auto *statItem = new QListWidgetItem("\xF0\x9F\x93\x8A 总线统计分析", m_list);
+    auto *statItem = new QListWidgetItem("总线统计分析", m_list);
     statItem->setData(Qt::UserRole, "bus_analysis");
     statItem->setToolTip("报文统计 / ID 频率周期 / 总线负载率");
 
@@ -872,7 +881,7 @@ ToolsPanel::ToolsPanel(QWidget *parent)
                            "\xE2\x80\xA2 工具独立运行，不影响当前工程\n"
                            "\xE2\x80\xA2 后续将持续集成更多总线分析工具", this);
     hint->setWordWrap(true);
-    hint->setStyleSheet("padding: 8px; color: #888; font-size: 11px;");
+    hint->setObjectName("SidePanelHint");
     cl->addWidget(hint);
 
     connect(m_list, &QListWidget::itemClicked,
@@ -923,8 +932,8 @@ SideBar::SideBar(QWidget *parent)
     addWidget(m_settings);       // 10 = Settings
 
     setCurrentIndex(0);
-    setMinimumWidth(220);
-    setMaximumWidth(400);
+    setMinimumWidth(240);
+    setMaximumWidth(500);
 }
 
 void SideBar::showPanel(int index)
@@ -951,39 +960,39 @@ ProtocolPanel::ProtocolPanel(QWidget *parent)
     m_list->setObjectName("ProtocolList");
 
     // 已实现的协议（可点击打开标签页）
-    auto *udsItem = new QListWidgetItem("\xF0\x9F\x9A\x97 UDS 诊断 (ISO 14229)", m_list);
+    auto *udsItem = new QListWidgetItem("UDS 诊断 (ISO 14229)", m_list);
     udsItem->setData(Qt::UserRole, "UDS");
     udsItem->setToolTip("Unified Diagnostic Services — ECU 诊断服务交互");
 
-    auto *canopenItem = new QListWidgetItem("\xF0\x9F\x94\x84 CANopen (CiA 301)", m_list);
+    auto *canopenItem = new QListWidgetItem("CANopen (CiA 301)", m_list);
     canopenItem->setData(Qt::UserRole, "CANopen");
     canopenItem->setToolTip("CANopen 协议 — NMT/SDO/PDO/Emergency/Heartbeat");
 
     // 未实现的协议（灰色显示）
-    auto *j1939Item = new QListWidgetItem("\xF0\x9F\x9A\x9B J1939", m_list);
+    auto *j1939Item = new QListWidgetItem("J1939", m_list);
     j1939Item->setData(Qt::UserRole, "J1939");
     j1939Item->setToolTip("SAE J1939 — 商用车/工程机械协议（敬请期待）");
 
-    auto *isotpItem = new QListWidgetItem("\xF0\x9F\x93\xA6 ISO-TP (ISO 15765-2)", m_list);
+    auto *isotpItem = new QListWidgetItem("ISO-TP (ISO 15765-2)", m_list);
     isotpItem->setData(Qt::UserRole, "ISO-TP");
     isotpItem->setToolTip("CAN 传输层协议 — 多帧拆包/组包（敬请期待）");
 
-    auto *obdItem = new QListWidgetItem("\xF0\x9F\x9A\x97 OBD-II", m_list);
+    auto *obdItem = new QListWidgetItem("OBD-II", m_list);
     obdItem->setData(Qt::UserRole, "OBD-II");
     obdItem->setToolTip("车载诊断 — 故障码读取/排放监测（敬请期待）");
 
-    auto *xcpItem = new QListWidgetItem("\xF0\x9F\x93\x8A XCP (CCP/Universal)", m_list);
+    auto *xcpItem = new QListWidgetItem("XCP (CCP/Universal)", m_list);
     xcpItem->setData(Qt::UserRole, "XCP");
     xcpItem->setToolTip("通用标定测量协议 — ECU 标定/数据采集（敬请期待）");
 
-    auto *nmeaItem = new QListWidgetItem("\xF0\x9F\x9A\xA2 NMEA 2000", m_list);
+    auto *nmeaItem = new QListWidgetItem("NMEA 2000", m_list);
     nmeaItem->setData(Qt::UserRole, "NMEA2000");
     nmeaItem->setToolTip("船舶电子设备互联协议（敬请期待）");
 
     // 灰色标记未实现
     for (int i = 2; i < m_list->count(); ++i) {
         auto *item = m_list->item(i);
-        item->setForeground(QColor(0x80, 0x80, 0x80));
+        item->setForeground(QColor(0x6c, 0x6c, 0x6c));
         QFont f = item->font();
         f.setItalic(true);
         item->setFont(f);
@@ -993,7 +1002,7 @@ ProtocolPanel::ProtocolPanel(QWidget *parent)
 
     // 信息提示
     auto *infoLabel = new QLabel("点击协议名称打开对应标签页\n灰色项暂未实现", this);
-    infoLabel->setStyleSheet("color: #888; font-size: 11px; padding: 4px;");
+    infoLabel->setObjectName("SidePanelInfo");
     infoLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(infoLabel);
 

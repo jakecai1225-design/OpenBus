@@ -153,10 +153,10 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
         menu.addSeparator();
         QMenu *markMenu = menu.addMenu(QStringLiteral("标记与着色"));
 
-        QAction toggleMarkAct(QStringLiteral("\xE2\x98\x85 标记/取消标记选中行"), this);
-        QAction colorAct(QStringLiteral("🎨 着色选中行..."), this);
-        QAction clearMarkAct(QStringLiteral("✕ 清除所有标记"), this);
-        QAction clearColorAct(QStringLiteral("✕ 清除所有自定义颜色"), this);
+        QAction toggleMarkAct(QStringLiteral("标记/取消标记选中行"), this);
+        QAction colorAct(QStringLiteral("着色选中行..."), this);
+        QAction clearMarkAct(QStringLiteral("清除所有标记"), this);
+        QAction clearColorAct(QStringLiteral("清除所有自定义颜色"), this);
 
         markMenu->addAction(&toggleMarkAct);
         markMenu->addAction(&colorAct);
@@ -334,7 +334,7 @@ void TraceView::showHeaderMenu(int column, const QPoint &pos)
     // 清除列筛选
     if (proxy->hasColumnFilter(column)) {
         menu.addSeparator();
-        QAction clearColAct("✕ 清除本列筛选", this);
+        QAction clearColAct("清除本列筛选", this);
         menu.addAction(&clearColAct);
         connect(&clearColAct, &QAction::triggered, this, [this, column]() {
             onClearColumnFilter(column);

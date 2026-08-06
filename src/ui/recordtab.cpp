@@ -23,13 +23,13 @@ RecordTab::RecordTab(QWidget *parent)
     // ---- 录制按钮 ----
     auto *btnLayout = new QHBoxLayout;
     btnLayout->setSpacing(8);
-    m_recordBtn = new QPushButton("● 开始录制", this);
+    m_recordBtn = new QPushButton("开始录制", this);
     m_recordBtn->setCheckable(true);
     m_recordBtn->setMinimumWidth(120);
-    m_pauseBtn = new QPushButton("⏸ 暂停", this);
+    m_pauseBtn = new QPushButton("暂停", this);
     m_pauseBtn->setMinimumWidth(100);
     m_pauseBtn->setEnabled(false);
-    m_stopBtn = new QPushButton("⏹ 停止", this);
+    m_stopBtn = new QPushButton("停止", this);
     m_stopBtn->setMinimumWidth(100);
     m_stopBtn->setEnabled(false);
     btnLayout->addWidget(m_recordBtn);
@@ -152,11 +152,11 @@ void RecordTab::onBrowse()
 void RecordTab::onRecord()
 {
     bool on = m_recordBtn->isChecked();
-    m_recordBtn->setText(on ? "■ 停止录制" : "● 开始录制");
+    m_recordBtn->setText(on ? "停止录制" : "开始录制");
     m_pauseBtn->setEnabled(on);
     m_stopBtn->setEnabled(on);
     m_statusLabel->setText(on ? "状态: 录制中..." : "状态: 未录制");
-    m_statusLabel->setStyleSheet(on ? "color: red;" : "color: gray;");
+    m_statusLabel->setObjectName(on ? "StatusRec" : "StatusDim");
     emit recordToggled(on);
 }
 
@@ -164,10 +164,10 @@ void RecordTab::setRecording(bool recording)
 {
     m_recordBtn->blockSignals(true);
     m_recordBtn->setChecked(recording);
-    m_recordBtn->setText(recording ? "■ 停止录制" : "● 开始录制");
+    m_recordBtn->setText(recording ? "停止录制" : "开始录制");
     m_pauseBtn->setEnabled(recording);
     m_stopBtn->setEnabled(recording);
     m_statusLabel->setText(recording ? "状态: 录制中..." : "状态: 未录制");
-    m_statusLabel->setStyleSheet(recording ? "color: red;" : "color: gray;");
+    m_statusLabel->setObjectName(recording ? "StatusRec" : "StatusDim");
     m_recordBtn->blockSignals(false);
 }

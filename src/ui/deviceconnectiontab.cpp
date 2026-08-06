@@ -28,7 +28,7 @@ void DeviceConnectionTab::setupUi()
 
     // ---- 设备标题 ----
     m_deviceLabel = new QLabel(QStringLiteral("设备: 未选择"), this);
-    m_deviceLabel->setStyleSheet("font-size: 14px; font-weight: bold; padding: 4px;");
+    m_deviceLabel->setObjectName("SectionLabel");
     mainLayout->addWidget(m_deviceLabel);
 
     auto *sep1 = new QFrame(this);
@@ -90,7 +90,8 @@ void DeviceConnectionTab::setupUi()
     arbLayout->addWidget(m_arbTimingCombo, 1, 1);
 
     m_arbTimingDetail = new QLabel(arbGroup);
-    m_arbTimingDetail->setStyleSheet("color: gray; font-size: 11px; padding-left: 8px;");
+    m_arbTimingDetail->setObjectName("DimLabel");
+    m_arbTimingDetail->setContentsMargins(8, 0, 0, 0);
     arbLayout->addWidget(m_arbTimingDetail, 2, 0, 1, 2);
 
     mainLayout->addWidget(arbGroup);
@@ -117,7 +118,8 @@ void DeviceConnectionTab::setupUi()
     dataLayout->addWidget(m_dataTimingCombo, 1, 1);
 
     m_dataTimingDetail = new QLabel(m_dataBaudGroup);
-    m_dataTimingDetail->setStyleSheet("color: gray; font-size: 11px; padding-left: 8px;");
+    m_dataTimingDetail->setObjectName("DimLabel");
+    m_dataTimingDetail->setContentsMargins(8, 0, 0, 0);
     dataLayout->addWidget(m_dataTimingDetail, 2, 0, 1, 2);
 
     mainLayout->addWidget(m_dataBaudGroup);
@@ -137,8 +139,8 @@ void DeviceConnectionTab::setupUi()
     btnLayout->addStretch();
     mainLayout->addLayout(btnLayout);
 
-    m_statusLabel = new QLabel(QStringLiteral("● 未连接"), this);
-    m_statusLabel->setStyleSheet("color: gray; font-size: 12px; padding: 4px;");
+    m_statusLabel = new QLabel(QStringLiteral("未连接"), this);
+    m_statusLabel->setObjectName("StatusDim");
     mainLayout->addWidget(m_statusLabel);
 
     // ---- 信号 ----
@@ -218,12 +220,12 @@ void DeviceConnectionTab::setDevice(int deviceKind, int devIndex, const QString 
     m_connectBtn->setEnabled(implemented);
     if (!implemented) {
         m_connectBtn->setText(QStringLiteral("连接 (待实现)"));
-        m_statusLabel->setText(QStringLiteral("● 该设备类型暂未实现"));
-        m_statusLabel->setStyleSheet("color: orange; font-size: 12px; padding: 4px;");
+        m_statusLabel->setText(QStringLiteral("该设备类型暂未实现"));
+        m_statusLabel->setObjectName("StatusWarn");
     } else {
         m_connectBtn->setText(QStringLiteral("连接"));
-        m_statusLabel->setText(QStringLiteral("● 未连接"));
-        m_statusLabel->setStyleSheet("color: gray; font-size: 12px; padding: 4px;");
+        m_statusLabel->setText(QStringLiteral("未连接"));
+        m_statusLabel->setObjectName("StatusDim");
     }
 
     // 重置按钮状态
@@ -294,12 +296,12 @@ void DeviceConnectionTab::onConnect()
     QStringList chStrs;
     for (int ch : channels)
         chStrs << QStringLiteral("Ch%1").arg(ch + 1);
-    m_statusLabel->setText(QStringLiteral("● 已连接: %1 (%2, %3%4)")
+    m_statusLabel->setText(QStringLiteral("已连接: %1 (%2, %3%4)")
         .arg(m_deviceName)
         .arg(chStrs.join(", "))
         .arg(baudrate)
         .arg(canFd ? QStringLiteral("/D%1").arg(dataBaud) : QString()));
-    m_statusLabel->setStyleSheet("color: green; font-size: 12px; padding: 4px;");
+    m_statusLabel->setObjectName("StatusOk");
 
     emit deviceConnectRequested(m_deviceName, baudrate);
 }
@@ -314,8 +316,8 @@ void DeviceConnectionTab::onDisconnect()
 
     m_connectBtn->setEnabled(m_deviceKind <= 1);
     m_disconnectBtn->setEnabled(false);
-    m_statusLabel->setText(QStringLiteral("● 未连接"));
-    m_statusLabel->setStyleSheet("color: gray; font-size: 12px; padding: 4px;");
+    m_statusLabel->setText(QStringLiteral("未连接"));
+    m_statusLabel->setObjectName("StatusDim");
 
     emit deviceDisconnectRequested();
 }

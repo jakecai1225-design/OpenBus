@@ -214,8 +214,10 @@ target_link_libraries(sin_ui PUBLIC
 )
 
 # qcustomplot: 仅 graphicview.cpp 使用，graphicview.h 用前向声明 → PRIVATE
+# Qt6::Svg: SVG 线条图标渲染 (activitybar / sidebarpanels)
 target_link_libraries(sin_ui PRIVATE
     qcustomplot
+    Qt6::Svg
 )
 
 # PCH — UI 层使用完整的 Qt Widget 头列表

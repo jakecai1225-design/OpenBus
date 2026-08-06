@@ -334,7 +334,8 @@ void MeasurementSetupView::setupUi()
     m_toolbar->addWidget(spacer);
 
     m_statusLabel = new QLabel("帧数: 0", m_toolbar);
-    m_statusLabel->setStyleSheet("padding: 0 10px; color: #666;");
+    m_statusLabel->setObjectName("DimLabel");
+    m_statusLabel->setContentsMargins(10, 0, 10, 0);
     m_toolbar->addWidget(m_statusLabel);
 
     layout->addWidget(m_toolbar);
@@ -1120,7 +1121,7 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
     if (block->category == "source") {
         // 切换数据源
         if (block->id == "source_real") {
-            auto *actSwitch = m_rightMenu->addAction(QStringLiteral("📁 切换到 File 文件回放"));
+            auto *actSwitch = m_rightMenu->addAction(QStringLiteral("切换到 File 文件回放"));
             actSwitch->setStatusTip(QStringLiteral("切换到文件回放模式"));
             connect(actSwitch, &QAction::triggered, this, [this]() {
                 setSource(Source::File);
@@ -1519,7 +1520,7 @@ void MeasurementSetupView::showDbcSelectDialog()
     lay->addWidget(list);
 
     // 导入新文件按钮
-    auto *importBtn = new QPushButton("📁 导入新 DBC 文件...", &dlg);
+    auto *importBtn = new QPushButton("导入新 DBC 文件...", &dlg);
     lay->addWidget(importBtn);
 
     auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);

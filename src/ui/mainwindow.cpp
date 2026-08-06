@@ -112,16 +112,16 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_deviceManager, &CanDeviceManager::connectionChanged,
             this, [this](bool connected, const QString &name) {
         if (connected) {
-            m_connLabel->setText(QStringLiteral("🔗 已连接: %1").arg(name));
-            m_bottomPanel->appendOutput(QStringLiteral("✅ 硬件已连接: %1").arg(name));
+            m_connLabel->setText(QStringLiteral("已连接: %1").arg(name));
+            m_bottomPanel->appendOutput(QStringLiteral("硬件已连接: %1").arg(name));
         } else {
-            m_connLabel->setText("🔗 未连接");
-            m_bottomPanel->appendOutput(QStringLiteral("■ 硬件已断开"));
+            m_connLabel->setText("未连接");
+            m_bottomPanel->appendOutput(QStringLiteral("硬件已断开"));
         }
     });
     connect(m_deviceManager, &CanDeviceManager::errorOccurred,
             this, [this](const QString &msg) {
-        m_bottomPanel->appendOutput(QStringLiteral("⚠ %1").arg(msg));
+        m_bottomPanel->appendOutput(QStringLiteral("%1").arg(msg));
     });
 
     // 回放器
@@ -356,7 +356,7 @@ void MainWindow::createMenuBar()
     // ---- 工具 ----
     auto *toolsMenu = menuBar()->addMenu("工具(&T)");
 
-    m_recordAction = new QAction("● 录制", this);
+    m_recordAction = new QAction("录制", this);
     m_recordAction->setCheckable(true);
     m_recordAction->setShortcut(QKeySequence("Ctrl+R"));
     toolsMenu->addAction(m_recordAction);
@@ -364,16 +364,16 @@ void MainWindow::createMenuBar()
 
     toolsMenu->addSeparator();
 
-    m_playAction = new QAction("▶ 播放", this);
+    m_playAction = new QAction("播放", this);
     m_playAction->setShortcut(QKeySequence(Qt::Key_Space));
     toolsMenu->addAction(m_playAction);
     connect(m_playAction, &QAction::triggered, this, &MainWindow::onPlay);
 
-    m_pauseAction = new QAction("⏸ 暂停", this);
+    m_pauseAction = new QAction("暂停", this);
     toolsMenu->addAction(m_pauseAction);
     connect(m_pauseAction, &QAction::triggered, this, &MainWindow::onPause);
 
-    m_stopAction = new QAction("⏹ 停止", this);
+    m_stopAction = new QAction("停止", this);
     toolsMenu->addAction(m_stopAction);
     connect(m_stopAction, &QAction::triggered, this, &MainWindow::onStop);
 
@@ -434,7 +434,7 @@ void MainWindow::createWindowButtons()
 {
     auto *container = new QWidget(this);
     container->setObjectName("WindowButtons");
-    container->setFixedHeight(28);
+    container->setFixedHeight(30);
     auto *layout = new QHBoxLayout(container);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
@@ -442,21 +442,21 @@ void MainWindow::createWindowButtons()
     m_minBtn = new QToolButton(container);
     m_minBtn->setObjectName("WinMinBtn");
     m_minBtn->setText("\u2500");
-    m_minBtn->setFixedSize(46, 28);
+    m_minBtn->setFixedSize(46, 30);
     m_minBtn->setAutoRaise(true);
     m_minBtn->setToolTip("最小化");
 
     m_maxBtn = new QToolButton(container);
     m_maxBtn->setObjectName("WinMaxBtn");
     m_maxBtn->setText("\u25a1");
-    m_maxBtn->setFixedSize(46, 28);
+    m_maxBtn->setFixedSize(46, 30);
     m_maxBtn->setAutoRaise(true);
     m_maxBtn->setToolTip("最大化");
 
     m_closeBtn = new QToolButton(container);
     m_closeBtn->setObjectName("WinCloseBtn");
     m_closeBtn->setText("\u2715");
-    m_closeBtn->setFixedSize(46, 28);
+    m_closeBtn->setFixedSize(46, 30);
     m_closeBtn->setAutoRaise(true);
     m_closeBtn->setToolTip("关闭");
 
@@ -502,6 +502,7 @@ void MainWindow::createLayout()
                             QDockWidget::DockWidgetFloatable);
     m_leftDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_leftDock->setTitleBarWidget(new QWidget());
+    m_leftDock->setMinimumWidth(0);
     addDockWidget(Qt::LeftDockWidgetArea, m_leftDock);
 
     // ---- 中央: 可拆分编辑器区域 ----
@@ -511,7 +512,7 @@ void MainWindow::createLayout()
     m_traceTab = new TraceTab(this);
     setupTraceTab(m_traceTab);
     connect(m_traceTab, &QObject::destroyed, this, [this]() { m_traceTab = nullptr; });
-    m_editorArea->addTab(m_traceTab, "📋 Trace1");
+    m_editorArea->addTab(m_traceTab, "Trace 1");
     // 注册默认实例到映射表，确保设备连接时能设置 running 状态
     m_traceInstances["trace1"] = m_traceTab;
 
@@ -519,26 +520,26 @@ void MainWindow::createLayout()
     m_graphicView = new GraphicView(this);
     connect(m_graphicView, &GraphicView::fileLoaded, this, [this](int count) {
         if (count < 0)
-            m_bottomPanel->appendOutput("❌ 文件加载失败");
+            m_bottomPanel->appendOutput("文件加载失败");
         else
-            m_bottomPanel->appendOutput(QString("📈 Graphic 已加载 %1 帧").arg(count));
+            m_bottomPanel->appendOutput(QString("Graphic 已加载 %1 帧").arg(count));
     });
     connect(m_graphicView, &QObject::destroyed, this, [this]() { m_graphicView = nullptr; });
-    m_editorArea->addTab(m_graphicView, "📈 Graphic1");
+    m_editorArea->addTab(m_graphicView, "Graphic 1");
     // 注册默认实例到映射表
     m_graphicInstances["graphic1"] = m_graphicView;
 
     // 发送标签页
     m_sendTab = new SignalSendTab(this);
-    m_editorArea->addTab(m_sendTab, "📡 发送");
+    m_editorArea->addTab(m_sendTab, "发送");
 
     // 回放标签页
     m_playbackTab = new PlaybackTab(this);
-    m_editorArea->addTab(m_playbackTab, "▶ 回放");
+    m_editorArea->addTab(m_playbackTab, "回放");
 
     // 录制标签页
     m_recordTab = new RecordTab(this);
-    m_editorArea->addTab(m_recordTab, "● 录制");
+    m_editorArea->addTab(m_recordTab, "录制");
 
     setCentralWidget(m_editorArea);
 
@@ -552,6 +553,7 @@ void MainWindow::createLayout()
                              QDockWidget::DockWidgetClosable |
                              QDockWidget::DockWidgetFloatable);
     m_rightDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_rightDock->setTitleBarWidget(new QWidget());
     addDockWidget(Qt::RightDockWidgetArea, m_rightDock);
 
     // ---- 底部 Dock ----
@@ -564,11 +566,12 @@ void MainWindow::createLayout()
                               QDockWidget::DockWidgetClosable |
                               QDockWidget::DockWidgetFloatable);
     m_bottomDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
+    m_bottomDock->setTitleBarWidget(new QWidget());
     addDockWidget(Qt::BottomDockWidgetArea, m_bottomDock);
 
-    resizeDocks({m_leftDock}, {300}, Qt::Horizontal);
+    resizeDocks({m_leftDock}, {280}, Qt::Horizontal);
     resizeDocks({m_rightDock}, {260}, Qt::Horizontal);
-    resizeDocks({m_bottomDock}, {180}, Qt::Vertical);
+    resizeDocks({m_bottomDock}, {200}, Qt::Vertical);
 
     // 默认隐藏右侧栏和底部栏
     m_rightDock->setVisible(false);
@@ -582,7 +585,7 @@ void MainWindow::createLayout()
 void MainWindow::createStatusBar()
 {
     m_statusLabel = new QLabel("就绪", this);
-    m_connLabel = new QLabel("🔗 未连接", this);
+    m_connLabel = new QLabel("未连接", this);
     m_errorLabel = new QLabel("", this);
     m_tabLabel = new QLabel("Trace", this);
     m_rowCountLabel = new QLabel("0行", this);
@@ -1150,7 +1153,7 @@ void MainWindow::setupTraceTab(TraceTab *tab)
         const DbcMessage *msg = m_dbcManager->findMessage(frame.id);
         if (!msg) {
             m_bottomPanel->appendOutput(
-                QStringLiteral("⚠ 未找到 ID=0x%1 对应的 DBC 报文定义")
+                QStringLiteral("未找到 ID=0x%1 对应的 DBC 报文定义")
                     .arg(frame.id, 0, 16).toUpper());
             return;
         }
@@ -1191,9 +1194,9 @@ void MainWindow::setupTraceTab(TraceTab *tab)
     // 文件拖放加载完成
     connect(tab, &TraceTab::fileLoaded, this, [this, tab](int count) {
         if (count < 0)
-            m_bottomPanel->appendOutput("❌ 文件加载失败");
+            m_bottomPanel->appendOutput("文件加载失败");
         else {
-            m_bottomPanel->appendOutput(QString("📁 已加载 %1 帧").arg(count));
+            m_bottomPanel->appendOutput(QString("已加载 %1 帧").arg(count));
             m_frameCountLabel->setText(QString::number(count) + " 帧");
         }
     });
@@ -1541,7 +1544,7 @@ void MainWindow::onOpenMeasurementSetup()
             auto importer = FileImportFactory::create(path);
             if (!importer) {
                 m_bottomPanel->appendOutput(
-                    QStringLiteral("⚠ 不支持的格式: %1").arg(suffix));
+                    QStringLiteral("不支持的格式: %1").arg(suffix));
                 continue;
             }
 
@@ -1555,7 +1558,7 @@ void MainWindow::onOpenMeasurementSetup()
 
             if (frames.isEmpty()) {
                 m_bottomPanel->appendOutput(
-                    QStringLiteral("⚠ 文件为空或解析失败: %1").arg(fi.fileName()));
+                    QStringLiteral("文件为空或解析失败: %1").arg(fi.fileName()));
                 continue;
             }
 
@@ -2057,9 +2060,9 @@ void MainWindow::resetLayout()
     m_leftDock->setVisible(true);
     m_rightDock->setVisible(true);
     m_bottomDock->setVisible(true);
-    resizeDocks({m_leftDock}, {300}, Qt::Horizontal);
+    resizeDocks({m_leftDock}, {280}, Qt::Horizontal);
     resizeDocks({m_rightDock}, {260}, Qt::Horizontal);
-    resizeDocks({m_bottomDock}, {180}, Qt::Vertical);
+    resizeDocks({m_bottomDock}, {200}, Qt::Vertical);
 }
 
 // ============================================================
@@ -2083,9 +2086,9 @@ void MainWindow::showAboutDialog()
     auto *email = new QLabel("邮箱: 929168503@qq.com", &dlg);
     auto *wechat = new QLabel("微信: 13368295840", &dlg);
     auto *biz = new QLabel("商业合作: 929168503@qq.com / 微信 13368295840", &dlg);
-    biz->setStyleSheet("font-size: 11px; color: gray;");
+    biz->setObjectName("DimLabel");
     auto *copyright = new QLabel("基于 Qt6 构建 © 2026", &dlg);
-    copyright->setStyleSheet("font-size: 11px; color: gray;");
+    copyright->setObjectName("DimLabel");
 
     for (auto *l : {title, desc, ver, author, github, email, wechat, biz, copyright}) {
         layout->addWidget(l);
@@ -2184,7 +2187,7 @@ void MainWindow::showShortcuts()
         "切换底部栏       Ctrl+J\n"
         "向右拆分         Ctrl+\\\n"
         "关闭拆分组       Ctrl+W\n");
-    browser->setStyleSheet("font-family: Consolas, monospace; font-size: 12px;");
+    browser->setObjectName("TerminalOutput");
     layout->addWidget(browser);
 
     auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok, &dlg);
@@ -2218,7 +2221,7 @@ void MainWindow::showBusinessCoop()
     github->setTextInteractionFlags(Qt::TextBrowserInteraction);
     github->setOpenExternalLinks(true);
     auto *note = new QLabel("本项目基于 MIT License 开源，商业使用请联系作者获取授权。", &dlg);
-    note->setStyleSheet("font-size: 11px; color: gray;");
+    note->setObjectName("DimLabel");
     note->setWordWrap(true);
 
     for (auto *l : {title, author, email, wechat, github, note}) {
@@ -2520,7 +2523,7 @@ void MainWindow::applyProjectState()
         if (QFile::exists(path)) {
             m_dbcManager->loadDbc(path);
         } else {
-            m_bottomPanel->appendOutput(QStringLiteral("⚠ DBC 文件不存在: ") + path);
+            m_bottomPanel->appendOutput(QStringLiteral("DBC 文件不存在: ") + path);
         }
     }
 
@@ -2608,9 +2611,9 @@ void MainWindow::applyProjectState()
         m_graphicView = new GraphicView(this);
         connect(m_graphicView, &GraphicView::fileLoaded, this, [this](int count) {
             if (count < 0)
-                m_bottomPanel->appendOutput("❌ 文件加载失败");
+                m_bottomPanel->appendOutput("文件加载失败");
             else
-                m_bottomPanel->appendOutput(QString("📈 Graphic 已加载 %1 帧").arg(count));
+                m_bottomPanel->appendOutput(QString("Graphic 已加载 %1 帧").arg(count));
         });
         connect(m_graphicView, &QObject::destroyed, this, [this]() { m_graphicView = nullptr; });
         openTab(m_graphicView, QStringLiteral("📈 Graphic1"));
