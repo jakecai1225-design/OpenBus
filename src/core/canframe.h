@@ -15,8 +15,13 @@ struct CanFrame
 {
     enum Direction { Rx = 0, Tx = 1 };
 
-    /// 相对开始时间（秒），精度到微秒
+    /// 相对开始时间（秒），精度到微秒（向后兼容字段，由 timestampNs 派生）
     double timestamp = 0.0;
+
+    /// 纳秒级时间戳（相对测量开始的单调时钟纳秒数，0=未设置）
+    /// 由 CanDeviceManager 统一使用 std::chrono::steady_clock 填充，
+    /// 确保多设备时间轴一致，避免厂商时钟差异
+    quint64 timestampNs = 0;
 
     /// CAN ID（标准 11 位 / 扩展 29 位）
     quint32 id = 0;
@@ -82,6 +87,7 @@ struct CanFrame
     friend QDataStream &operator<<(QDataStream &out, const CanFrame &f)
     {
         out << f.timestamp;
+        out << static_cast<quint64>(f.timestampNs);
         out << static_cast<quint32>(f.id);
         out << static_cast<quint8>(
             (f.extended      ? 0x01 : 0) |
@@ -100,7 +106,9 @@ struct CanFrame
     {
         quint32 id;
         quint8 flags;
-        in >> f.timestamp >> id >> flags >> f.dlc >> f.channel >> f.data;
+        quint64 tsNs;
+        in >> f.timestamp >> tsNs >> id >> flags >> f.dlc >> f.channel >> f.data;
+        f.timestampNs = tsNs;
         f.id = id;
         f.extended      = (flags & 0x01) != 0;
         f.fd            = (flags & 0x02) != 0;

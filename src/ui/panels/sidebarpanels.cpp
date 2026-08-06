@@ -2,6 +2,7 @@
 #include "core/dbcmanager.h"
 #include "core/cansimulator.h"
 #include "core/candevicemanager.h"
+#include "core/candevice.h"
 #include "core/appconfig.h"
 #include "ui/graphicview.h"
 #include "ui/thememanager.h"
@@ -621,60 +622,60 @@ void DevicePanel::populateTree()
     // 模拟器（内置）
     auto *simItem = new QTreeWidgetItem(m_deviceTree);
     simItem->setText(0, QStringLiteral("模拟器 (内置)"));
-    simItem->setData(0, Qt::UserRole, 0);       // deviceKind = 0
+    simItem->setData(0, Qt::UserRole, 0);       // deviceKind = 0 (Simulator)
     simItem->setData(0, Qt::UserRole + 1, 0);   // devIndex = 0
 
-    // ZLG 设备系列
-    auto *zlgItem = new QTreeWidgetItem(m_deviceTree);
-    zlgItem->setText(0, QStringLiteral("ZLG 致远电子"));
+    // 统一枚举所有品牌的硬件设备
+    auto allDevices = ICanDevice::enumerateAll();
 
-    QStringList zlgDevices;
-    if (m_deviceMgr) {
-        auto devices = CanDeviceManager::enumerateDevices();
-        for (int i = 1; i < devices.size(); ++i)
-            zlgDevices << devices[i];
-    }
+    // 按品牌分组的辅助 lambda
+    auto devicesOfBrand = [&allDevices](ICanDevice::Brand b) {
+        QList<ICanDevice::DeviceInfo> result;
+        for (const auto &d : allDevices)
+            if (d.brand == b) result << d;
+        return result;
+    };
 
-    if (zlgDevices.isEmpty()) {
-        auto *emptyItem = new QTreeWidgetItem(zlgItem);
-        emptyItem->setText(0, QStringLiteral("  ZLG USBCANFD (未检测到硬件)"));
-        emptyItem->setData(0, Qt::UserRole, 1);       // deviceKind = 1 (ZLG)
-        emptyItem->setData(0, Qt::UserRole + 1, 0);   // devIndex = 0
-    } else {
-        for (int i = 0; i < zlgDevices.size(); ++i) {
-            auto *devItem = new QTreeWidgetItem(zlgItem);
-            devItem->setText(0, QStringLiteral("  ") + zlgDevices[i]);
-            devItem->setData(0, Qt::UserRole, 1);       // deviceKind = 1 (ZLG)
-            devItem->setData(0, Qt::UserRole + 1, i);   // devIndex
+    // 添加品牌分组的辅助 lambda
+    auto addBrandSection = [&](const QString &title, ICanDevice::Brand brand,
+                               CanDeviceManager::DeviceKind kind,
+                               const QString &emptyHint) {
+        auto *parent = new QTreeWidgetItem(m_deviceTree);
+        parent->setText(0, title);
+        auto devs = devicesOfBrand(brand);
+        if (devs.isEmpty()) {
+            auto *empty = new QTreeWidgetItem(parent);
+            empty->setText(0, emptyHint);
+            empty->setData(0, Qt::UserRole, static_cast<int>(kind));
+            empty->setData(0, Qt::UserRole + 1, 0);
+        } else {
+            for (const auto &d : devs) {
+                auto *dev = new QTreeWidgetItem(parent);
+                dev->setText(0, QStringLiteral("  ") + d.name);
+                dev->setData(0, Qt::UserRole, static_cast<int>(kind));
+                dev->setData(0, Qt::UserRole + 1, d.deviceIndex);
+            }
         }
-    }
+        parent->setExpanded(true);
+        return parent;
+    };
 
-    // PEAK (占位)
-    auto *peakItem = new QTreeWidgetItem(m_deviceTree);
-    peakItem->setText(0, QStringLiteral("PEAK PCAN"));
-    auto *peakEmpty = new QTreeWidgetItem(peakItem);
-    peakEmpty->setText(0, QStringLiteral("  PCAN-USB (待实现)"));
-    peakEmpty->setData(0, Qt::UserRole, 2);       // deviceKind = 2 (PEAK)
-    peakEmpty->setData(0, Qt::UserRole + 1, 0);
+    // ---- 各品牌设备分组 ----
+    addBrandSection(QStringLiteral("ZLG 致远电子"), ICanDevice::Brand::ZLG,
+                    CanDeviceManager::DeviceKind::ZLG,
+                    QStringLiteral("  ZLG USBCANFD (未检测到硬件)"));
 
-    // Kvaser (占位)
-    auto *kvaserItem = new QTreeWidgetItem(m_deviceTree);
-    kvaserItem->setText(0, QStringLiteral("Kvaser"));
-    auto *kvaserEmpty = new QTreeWidgetItem(kvaserItem);
-    kvaserEmpty->setText(0, QStringLiteral("  Kvaser USBcan (待实现)"));
-    kvaserEmpty->setData(0, Qt::UserRole, 3);     // deviceKind = 3 (Kvaser)
-    kvaserEmpty->setData(0, Qt::UserRole + 1, 0);
+    addBrandSection(QStringLiteral("PEAK PCAN"), ICanDevice::Brand::PEAK,
+                    CanDeviceManager::DeviceKind::PEAK,
+                    QStringLiteral("  PCAN-USB (未检测到硬件)"));
 
-    // 开源 USB-CAN (占位)
-    auto *candleItem = new QTreeWidgetItem(m_deviceTree);
-    candleItem->setText(0, QStringLiteral("开源 USB-CAN (CandleLight)"));
-    auto *candleEmpty = new QTreeWidgetItem(candleItem);
-    candleEmpty->setText(0, QStringLiteral("  CandleLight (待实现)"));
-    candleEmpty->setData(0, Qt::UserRole, 4);    // deviceKind = 4 (CandleLight)
-    candleEmpty->setData(0, Qt::UserRole + 1, 0);
+    addBrandSection(QStringLiteral("Kvaser"), ICanDevice::Brand::Kvaser,
+                    CanDeviceManager::DeviceKind::Kvaser,
+                    QStringLiteral("  Kvaser USBcan (未检测到硬件)"));
 
-    zlgItem->setExpanded(true);
-    peakItem->setExpanded(true);
+    addBrandSection(QStringLiteral("开源 USB-CAN (SLCAN)"), ICanDevice::Brand::SLCAN,
+                    CanDeviceManager::DeviceKind::SLCAN,
+                    QStringLiteral("  SLCAN (待实现)"));
 }
 
 void DevicePanel::onItemClicked(QTreeWidgetItem *item, int /*column*/)

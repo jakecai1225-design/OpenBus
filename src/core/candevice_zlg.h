@@ -54,6 +54,7 @@ public:
     ~CanDeviceZLG() override;
 
     // ---- ICanDevice ----
+    Brand brand() const override { return Brand::ZLG; }
     bool open(int devIndex, int channel, int arbBaud, int dataBaud, bool canFd) override;
     void close() override;
     int send(const CanFrame &frame) override;

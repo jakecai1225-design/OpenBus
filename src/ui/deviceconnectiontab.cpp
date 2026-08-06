@@ -213,8 +213,8 @@ void DeviceConnectionTab::setDevice(int deviceKind, int devIndex, const QString 
 
     m_deviceLabel->setText(QStringLiteral("设备: %1").arg(deviceName));
 
-    // 未实现的设备类型
-    bool implemented = (deviceKind <= 1);
+    // ZLG(1) 和 PEAK(2) 已实现(P0)，Kvaser(3) 基础可用(P1)
+    bool implemented = (deviceKind <= 3);
     m_connectBtn->setEnabled(implemented);
     if (!implemented) {
         m_connectBtn->setText(QStringLiteral("连接 (待实现)"));
@@ -277,15 +277,12 @@ void DeviceConnectionTab::onConnect()
             m_simulator->setBaudrate(baudrate);
             m_simulator->start();
         }
-    } else if (m_deviceKind == 1) {
-        // ZLG 真实设备
+    } else {
+        // 所有真实硬件设备（ZLG/PEAK/Kvaser/...）统一走 V2 信号
+        // MainWindow → CanDeviceManager::configure(DeviceKind, ...)
+        // → ICanDevice::create(Brand, subType) 工厂方法分派
         emit deviceConnectRequestedV2(m_deviceKind, m_devIndex,
                                        channel, baudrate, dataBaud, canFd);
-    } else {
-        // 未实现的设备类型
-        QMessageBox::information(this, QStringLiteral("设备连接"),
-                                  QStringLiteral("该设备类型 (%1) 暂未实现").arg(m_deviceName));
-        return;
     }
 
     m_connectBtn->setEnabled(false);
@@ -312,7 +309,7 @@ void DeviceConnectionTab::onDisconnect()
     }
     // 真实设备的停止由 MainWindow 在 deviceDisconnectRequested 信号中处理
 
-    m_connectBtn->setEnabled(m_deviceKind <= 1);
+    m_connectBtn->setEnabled(m_deviceKind <= 3);
     m_disconnectBtn->setEnabled(false);
     m_statusLabel->setText(QStringLiteral("● 未连接"));
     m_statusLabel->setStyleSheet("color: gray; font-size: 12px; padding: 4px;");

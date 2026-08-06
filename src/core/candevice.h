@@ -11,28 +11,57 @@
  * @brief CAN 设备抽象接口
  *
  * 定义统一的 CAN/CAN FD 设备操作契约（打开、关闭、发送、接收）。
- * 各厂商后端（ZLG、PEAK、CandleLight、SLCAN）分别实现此接口。
+ * 各厂商后端（ZLG、PEAK、Kvaser、同星等）分别实现此接口。
  * 厂商特有功能通过 vendorCtrl() 扩展，不丢失硬件能力。
  *
  * 架构位置：src/core/candevice.h
  * 使用方：CanDeviceManager (QObject 桥接层) 持有 ICanDevice 实例
+ *
+ * 时间戳约定：
+ *   - 设备后端可选择填充 CanFrame::timestampNs（硬件纳秒时间戳）
+ *   - CanDeviceManager 统一用 steady_clock 补零并派生 timestamp（秒）
+ *   - 确保 ZLG/PEAK/Kvaser 混用时时间轴不发生偏移
  */
 class ICanDevice
 {
 public:
     virtual ~ICanDevice() = default;
 
+    // ---- 品牌标识 ----
+
+    /// 设备品牌（用于工厂创建、UI 展示、日志标识）
+    enum class Brand {
+        ZLG       = 0,   ///< 致远电子 ZLG (USBCANFD-200U 等)
+        PEAK      = 1,   ///< PEAK PCAN (PCAN-USB / PCAN-USB FD)
+        Kvaser    = 2,   ///< Kvaser (canlib32)
+        TongXing  = 3,   ///< 同星科技 (TSMCAN)
+        SLCAN     = 4,   ///< 开源 SLCAN / serial-CAN 固件
+    };
+
+    /// 品牌显示名
+    static QString brandName(Brand b);
+
+    /// 本设备品牌
+    virtual Brand brand() const = 0;
+
     // ---- 设备枚举 ----
 
     struct DeviceInfo {
-        QString name;        ///< 显示名（如 "USBCANFD-200U #0"）
-        int deviceType = 0;  ///< 厂商设备类型 ID
-        int deviceIndex = 0; ///< 设备序号（0-based）
-        int channels = 1;    ///< 通道数
+        Brand brand = Brand::ZLG;   ///< 设备品牌
+        QString name;               ///< 显示名（如 "USBCANFD-200U #0"）
+        int deviceType = 0;         ///< 厂商设备类型 ID
+        int deviceIndex = 0;        ///< 设备序号（0-based）
+        int channels = 1;           ///< 通道数
     };
 
-    /// 枚举所有可用设备（纯函数，不持有状态）
-    static std::vector<DeviceInfo> enumerate();
+    /// 枚举所有品牌的所有可用设备
+    static std::vector<DeviceInfo> enumerateAll();
+
+    /// 工厂方法：按品牌创建设备实例
+    /// @param brand 品牌
+    /// @param subType 厂商设备子类型（如 ZLG 的 DEV_USBCANFD_200U，PEAK 的 PCAN_USBFD）
+    /// @return 设备实例，DLL 不可用时返回 nullptr
+    static std::unique_ptr<ICanDevice> create(Brand brand, int subType = 0);
 
     // ---- 设备操作 ----
 

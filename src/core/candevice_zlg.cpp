@@ -139,20 +139,33 @@ CanDeviceZLG::~CanDeviceZLG()
 
 // ---- DLL 加载 ----
 
-// 搜索 zlgcan.dll 路径 — 应用目录 → ZCANPRO 安装目录 → 系统 PATH
+// 搜索 zlgcan.dll 路径
+// 搜索顺序: 应用目录 → 应用目录/driver → C:/Program Files/ZCANPRO → C:/Program Files (x86)/ZCANPRO → 系统 PATH
+// 每个路径都试加载，跳过架构不匹配的 32 位 DLL
 static QString findZlgDllPath()
 {
+    const QString appDir = QCoreApplication::applicationDirPath();
     const QStringList dirs = {
-        QCoreApplication::applicationDirPath(),
-        QStringLiteral("C:/Program Files (x86)/ZCANPRO"),
+        appDir,
+        appDir + QStringLiteral("/driver"),
         QStringLiteral("C:/Program Files/ZCANPRO"),
+        QStringLiteral("C:/Program Files (x86)/ZCANPRO"),
     };
     for (const auto &dir : dirs) {
         QString path = dir + QStringLiteral("/zlgcan.dll");
-        if (QFile::exists(path)) {
-            SIN_LOG_INFO("CanDeviceZLG", "DLL found: {}", path.toStdString());
-            return path;
+        if (!QFile::exists(path))
+            continue;
+        // 试加载 — 跳过 32 位 DLL（64 位进程无法加载）
+        QLibrary testLoad(path);
+        if (!testLoad.load()) {
+            SIN_LOG_WARN("CanDeviceZLG",
+                         "DLL found but not loadable (32-bit?): {}",
+                         path.toStdString());
+            continue;
         }
+        testLoad.unload();
+        SIN_LOG_INFO("CanDeviceZLG", "DLL found: {}", path.toStdString());
+        return path;
     }
     // 回退到系统 PATH
     return QStringLiteral("zlgcan.dll");
@@ -429,10 +442,8 @@ int CanDeviceZLG::recv(int timeoutMs, std::vector<CanFrame> &outFrames)
             frame.channel = static_cast<quint8>(m_channel + 1);
             frame.direction = CanFrame::Rx;
 
-            // 相对时间戳（秒）
-            double nowT = static_cast<double>(
-                QDateTime::currentMSecsSinceEpoch()) / 1000.0;
-            frame.timestamp = nowT - m_startTime;
+            // timestampNs 留 0，由 CanDeviceManager 用 steady_clock 统一填充
+            // 确保 ZLG/PEAK/Kvaser 混用时时间轴一致
 
             outFrames.push_back(frame);
         }
@@ -460,10 +471,7 @@ int CanDeviceZLG::recv(int timeoutMs, std::vector<CanFrame> &outFrames)
             frame.channel = static_cast<quint8>(m_channel + 1);
             frame.direction = CanFrame::Rx;
 
-            // 相对时间戳（秒）
-            double nowT = static_cast<double>(
-                QDateTime::currentMSecsSinceEpoch()) / 1000.0;
-            frame.timestamp = nowT - m_startTime;
+            // timestampNs 留 0，由 CanDeviceManager 用 steady_clock 统一填充
 
             outFrames.push_back(frame);
         }
@@ -587,24 +595,20 @@ std::vector<ICanDevice::DeviceInfo> CanDeviceZLG::enumerate()
                               static_cast<unsigned int>(idx), 0);
             if (!h)
                 continue;
-
-            // 打开成功，进一步检查设备是否在线
-            // ZCAN_IsDeviceOnLine(deviceHandle) — 返回 1=在线
-            bool online = true;
+    
+            // ZCAN_OpenDevice 成功即认为设备可用
+            // 注: ZCAN_IsDeviceOnLine 在部分设备/驱动组合下返回 0,
+            //     但实际可以正常 InitCAN + StartCAN, 因此不依赖此判断
             if (fn_isOnline) {
-                online = (fn_isOnline(h) == 1);
-            }
-
-            fn_close(h);
-
-            if (!online) {
-                SIN_LOG_INFO("CanDeviceZLG", "  Opened but offline: type={} idx={}",
+                int online = fn_isOnline(h);
+                SIN_LOG_INFO("CanDeviceZLG", "  Opened: type={} idx={} online={}",
+                             static_cast<int>(e.type), idx, online);
+            } else {
+                SIN_LOG_INFO("CanDeviceZLG", "  Opened: type={} idx={}",
                              static_cast<int>(e.type), idx);
-                continue;
             }
-
-            SIN_LOG_INFO("CanDeviceZLG", "  Found: type={} idx={}",
-                         static_cast<int>(e.type), idx);
+    
+            fn_close(h);
 
             DeviceInfo info;
             info.deviceType = static_cast<int>(e.type);

@@ -1427,6 +1427,12 @@ void MainWindow::setupDeviceTab(DeviceConnectionTab *tab)
     // 连接成功 — 启动数据流到 Trace / Graphic
     connect(tab, &DeviceConnectionTab::deviceConnectRequested,
             this, [this](const QString &name, int) {
+        // 真实设备模式下，检查设备是否成功启动
+        if (m_deviceManager->isRealDevice() && !m_deviceManager->isRunning()) {
+            m_bottomPanel->appendOutput(
+                QStringLiteral("⚠ 设备连接失败: %1").arg(name));
+            return;
+        }
         if (!m_deviceManager->isRealDevice())
             m_connLabel->setText(QStringLiteral("🔗 已连接"));
         // 启动数据流：标记测量运行 + Trace 实例遵循 Flow 块使能状态
