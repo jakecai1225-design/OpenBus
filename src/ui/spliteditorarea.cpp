@@ -318,8 +318,8 @@ void SplitEditorArea::onTabBarContextMenu(int index, const QPoint &pos)
     auto *menu = new QMenu(this);
 
     // ---- Pin / Unpin ----
-    auto *pinAct = menu->addAction(pinned ? QStringLiteral("📌 取消固定")
-                                          : QStringLiteral("📌 固定标签页"));
+    auto *pinAct = menu->addAction(pinned ? QStringLiteral("取消固定")
+                                          : QStringLiteral("固定标签页"));
     menu->addSeparator();
 
     // ---- 关闭操作 ----
@@ -394,9 +394,9 @@ void SplitEditorArea::togglePin(QTabWidget *tabs, int index)
     bool newPinned = !w->property("pinned").toBool();
     w->setProperty("pinned", newPinned);
 
-    // 更新标签页文本（添加/移除 📌 前缀）
+    // 更新标签页文本（添加/移除 [固定] 前缀）
     QString text = tabs->tabText(index);
-    static const QString pinPrefix = QString::fromUtf8("\xF0\x9F\x93\x8C ");
+    static const QString pinPrefix = QStringLiteral("[固定] ");
     if (newPinned) {
         if (!text.startsWith(pinPrefix))
             tabs->setTabText(index, pinPrefix + text);

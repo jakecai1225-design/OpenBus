@@ -342,3 +342,58 @@ void DeviceConnectionTab::updateCanFdVisibility()
     bool isFd = (m_fdCombo->currentIndex() == 1);
     m_dataBaudGroup->setVisible(isFd);
 }
+
+// ============================================================
+//  工程切换：配置捕获/恢复
+// ============================================================
+
+int DeviceConnectionTab::baudrate() const
+{
+    return m_baudCombo->currentText().toInt();
+}
+
+int DeviceConnectionTab::channel() const
+{
+    for (int i = 0; i < m_channelChecks.size(); ++i) {
+        if (m_channelChecks[i]->isChecked())
+            return i + 1;  // 1-based
+    }
+    return 0;  // 未选中
+}
+
+bool DeviceConnectionTab::isCanFd() const
+{
+    return m_fdCombo->currentIndex() == 1;
+}
+
+int DeviceConnectionTab::dataBaudrate() const
+{
+    return m_dataBaudCombo->currentText().toInt();
+}
+
+int DeviceConnectionTab::deviceKind() const
+{
+    return m_deviceKind;
+}
+
+void DeviceConnectionTab::setBaudrate(int baud)
+{
+    m_baudCombo->setCurrentText(QString::number(baud));
+}
+
+void DeviceConnectionTab::setChannel(int ch)
+{
+    for (int i = 0; i < m_channelChecks.size(); ++i)
+        m_channelChecks[i]->setChecked((i + 1) == ch);
+}
+
+void DeviceConnectionTab::setCanFd(bool fd)
+{
+    m_fdCombo->setCurrentIndex(fd ? 1 : 0);
+    updateCanFdVisibility();
+}
+
+void DeviceConnectionTab::setDataBaudrate(int baud)
+{
+    m_dataBaudCombo->setCurrentText(QString::number(baud));
+}

@@ -137,8 +137,8 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
     QAction copyAction(QStringLiteral("复制选中行"), this);
     QAction copyDataAction(QStringLiteral("复制数据"), this);
     QAction filterIdAction(QStringLiteral("按此 ID 过滤"), this);
-    QAction addToGraphicAction(QStringLiteral("\xF0\x9F\x93\x88 发送到 Graphic"), this);
-    QAction clearFilterAction(QStringLiteral("\xE2\x9C\x95 清除过滤"), this);
+    QAction addToGraphicAction(QStringLiteral("发送到 Graphic"), this);
+    QAction clearFilterAction(QStringLiteral("x 清除过滤"), this);
 
     menu.addAction(&copyAction);
     menu.addAction(&copyDataAction);

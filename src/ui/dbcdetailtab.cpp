@@ -1,4 +1,4 @@
-#include "dbcdetailtab.h"
+﻿#include "dbcdetailtab.h"
 #include "core/dbcmanager.h"
 #include "core/logging.h"
 
@@ -501,8 +501,8 @@ void DbcDetailTab::onTreeContextMenu(const QPoint &pos)
     menu->setAttribute(Qt::WA_DeleteOnClose);
 
     if (isSignal) {
-        auto *actGraphic = menu->addAction(QStringLiteral("📈 添加到 Graphic"));
-        auto *actTrace = menu->addAction(QStringLiteral("📋 添加到 Trace"));
+        auto *actGraphic = menu->addAction(QStringLiteral(" 添加到 Graphic"));
+        auto *actTrace = menu->addAction(QStringLiteral(" 添加到 Trace"));
         menu->addSeparator();
         auto *actDetail = menu->addAction(QStringLiteral("查看信号详情"));
 
@@ -517,8 +517,8 @@ void DbcDetailTab::onTreeContextMenu(const QPoint &pos)
         });
     } else {
         // Message: 添加该报文下所有信号
-        auto *actGraphic = menu->addAction(QStringLiteral("📈 添加全部信号到 Graphic"));
-        auto *actTrace = menu->addAction(QStringLiteral("📋 添加全部信号到 Trace"));
+        auto *actGraphic = menu->addAction(QStringLiteral(" 添加全部信号到 Graphic"));
+        auto *actTrace = menu->addAction(QStringLiteral(" 添加全部信号到 Trace"));
 
         connect(actGraphic, &QAction::triggered, this, [this, canId]() {
             const DbcFile *file = currentDbcFile();

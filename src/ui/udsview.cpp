@@ -144,9 +144,9 @@ void UdsView::setupUi()
 
     // 按钮行
     auto *btnLayout = new QHBoxLayout();
-    m_sendBtn = new QPushButton("▶ 发送请求", reqGroup);
+    m_sendBtn = new QPushButton(" 发送请求", reqGroup);
     m_sendBtn->setObjectName("primaryBtn");
-    m_clearBtn = new QPushButton("🗑 清空日志", reqGroup);
+    m_clearBtn = new QPushButton(" 清空日志", reqGroup);
     btnLayout->addWidget(m_sendBtn);
     btnLayout->addWidget(m_clearBtn);
     btnLayout->addStretch();

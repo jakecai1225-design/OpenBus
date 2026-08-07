@@ -1,4 +1,4 @@
-#include "sidebarpanels.h"
+﻿#include "sidebarpanels.h"
 #include "utils/svg_icon.h"
 #include "core/dbcmanager.h"
 #include "core/cansimulator.h"
@@ -69,9 +69,14 @@ ProjectPanel::ProjectPanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
-    m_projectList = new QListWidget(this);
-    m_projectList->setObjectName("ProjectList");
-    cl->addWidget(m_projectList, 1);
+    m_projectTree = new QTreeWidget(this);
+    m_projectTree->setObjectName("ProjectTree");
+    m_projectTree->setHeaderHidden(true);
+    m_projectTree->setIndentation(16);
+    m_projectTree->setColumnCount(1);
+    m_projectTree->setRootIsDecorated(true);
+    m_projectTree->setExpandsOnDoubleClick(false);  // 双击不折叠，用于切换工程
+    cl->addWidget(m_projectTree, 1);
 
     // 最近工程列表
     auto *recentLabel = new QLabel("最近打开", this);
@@ -105,8 +110,10 @@ ProjectPanel::ProjectPanel(QWidget *parent)
     connect(openBtn, &QPushButton::clicked, this, &ProjectPanel::onOpenProject);
     connect(saveBtn, &QPushButton::clicked, this, &ProjectPanel::onSaveProject);
     connect(delBtn, &QPushButton::clicked, this, &ProjectPanel::onDeleteProject);
-    connect(m_projectList, &QListWidget::currentRowChanged,
-            this, &ProjectPanel::onProjectSelected);
+    connect(m_projectTree, &QTreeWidget::itemClicked,
+            this, &ProjectPanel::onProjectItemClicked);
+    connect(m_projectTree, &QTreeWidget::itemDoubleClicked,
+            this, &ProjectPanel::onProjectItemDoubleClicked);
     connect(m_recentList, &QListWidget::itemDoubleClicked,
             this, [this](QListWidgetItem *item) {
         QString path = item->data(Qt::UserRole).toString();
@@ -117,16 +124,78 @@ ProjectPanel::ProjectPanel(QWidget *parent)
 
 void ProjectPanel::refreshList()
 {
-    m_projectList->clear();
+    m_projectTree->blockSignals(true);
+    m_projectTree->clear();
+
     for (int i = 0; i < m_projects.size(); ++i) {
-        auto *item = new QListWidgetItem(m_projects[i].name);
-        if (i == m_currentIndex) {
-            item->setText(m_projects[i].name + "  (当前)");
+        const auto &proj = m_projects[i];
+        QString label = proj.name;
+        if (i == m_currentIndex)
+            label += "  (当前)";
+
+        auto *projItem = new QTreeWidgetItem(m_projectTree, {label});
+        projItem->setData(0, Qt::UserRole, i);  // 存储工程索引
+        projItem->setExpanded(false);  // 默认折叠，点击箭头展开
+
+        // ---- 子节点：工程文件 ----
+        if (!proj.filePath.isEmpty()) {
+            auto *fItem = new QTreeWidgetItem(projItem,
+                {QStringLiteral("[工程] ") + QFileInfo(proj.filePath).fileName()});
+            fItem->setData(0, Qt::UserRole, proj.filePath);
+            fItem->setToolTip(0, proj.filePath);
         }
-        m_projectList->addItem(item);
+
+        // ---- 子节点：回放文件 ----
+        QString playback = extractPlaybackFile(proj.stateJson);
+        if (!playback.isEmpty()) {
+            auto *fItem = new QTreeWidgetItem(projItem,
+                {QStringLiteral("[回放] ") + QFileInfo(playback).fileName()});
+            fItem->setData(0, Qt::UserRole, playback);
+            fItem->setToolTip(0, playback);
+        }
+
+        // ---- 子节点：DBC 文件 ----
+        auto dbcFiles = extractDbcFiles(proj.stateJson);
+        if (!dbcFiles.isEmpty()) {
+            auto *catItem = new QTreeWidgetItem(projItem,
+                {QStringLiteral("DBC 文件 (") + QString::number(dbcFiles.size()) + ")"});
+            for (const auto &f : dbcFiles) {
+                auto *fItem = new QTreeWidgetItem(catItem, {QFileInfo(f).fileName()});
+                fItem->setData(0, Qt::UserRole, f);
+                fItem->setToolTip(0, f);
+            }
+        }
+
+        // ---- 子节点：录制文件 ----
+        auto recFiles = extractRecordFiles(proj.stateJson);
+        // 合并 ProjectContext 中直接存储的录制文件
+        for (const auto &f : proj.recordFiles) {
+            if (!recFiles.contains(f))
+                recFiles << f;
+        }
+        if (!recFiles.isEmpty()) {
+            auto *catItem = new QTreeWidgetItem(projItem,
+                {QStringLiteral("录制文件 (") + QString::number(recFiles.size()) + ")"});
+            for (const auto &f : recFiles) {
+                auto *fItem = new QTreeWidgetItem(catItem, {QFileInfo(f).fileName()});
+                fItem->setData(0, Qt::UserRole, f);
+                fItem->setToolTip(0, f);
+            }
+        }
+
+        // 无文件时的提示
+        if (proj.filePath.isEmpty() && playback.isEmpty() &&
+            dbcFiles.isEmpty() && recFiles.isEmpty()) {
+            auto *empty = new QTreeWidgetItem(projItem,
+                {QStringLiteral("(无关联文件)")});
+            empty->setFlags(Qt::NoItemFlags);
+        }
     }
-    if (m_currentIndex >= 0 && m_currentIndex < m_projectList->count())
-        m_projectList->setCurrentRow(m_currentIndex);
+
+    // 选中当前工程
+    if (m_currentIndex >= 0 && m_currentIndex < m_projectTree->topLevelItemCount())
+        m_projectTree->setCurrentItem(m_projectTree->topLevelItem(m_currentIndex));
+    m_projectTree->blockSignals(false);
 }
 
 void ProjectPanel::onNewProject()
@@ -143,7 +212,8 @@ void ProjectPanel::onNewProject()
     m_currentIndex = m_projects.size() - 1;
     refreshList();
     emit projectCreated(proj.name);
-    emit projectSwitched(m_currentIndex);
+    // 不再 emit projectSwitched — onProjectCreated 已处理全部逻辑
+    // 避免 newProject 被重复调用导致工程状态反复重置
 }
 
 void ProjectPanel::onSaveProject()
@@ -212,7 +282,7 @@ void ProjectPanel::refreshRecentList()
         if (name.isEmpty())
             name = QFileInfo(p).fileName();
         if (map.value("pinned").toBool())
-            name = QStringLiteral("\xF0\x9F\x93\x8C ") + name;  // 📌 图标
+            name = QStringLiteral("[置顶] ") + name;
 
         auto *listItem = new QListWidgetItem(name);
         listItem->setToolTip(p);
@@ -239,11 +309,104 @@ void ProjectPanel::onDeleteProject()
     emit projectSwitched(m_currentIndex);
 }
 
-void ProjectPanel::onProjectSelected(int row)
+void ProjectPanel::onProjectItemClicked(QTreeWidgetItem *item, int column)
 {
-    if (row < 0 || row >= m_projects.size()) return;
-    m_currentIndex = row;
+    Q_UNUSED(column)
+    if (!item) return;
+    // 只处理顶层工程节点
+    if (item->parent()) return;
+    int idx = item->data(0, Qt::UserRole).toInt();
+    if (idx < 0 || idx >= m_projects.size()) return;
+    // 单击仅更新选中索引，不触发切换
+    m_currentIndex = idx;
+}
+
+void ProjectPanel::onProjectItemDoubleClicked(QTreeWidgetItem *item, int column)
+{
+    Q_UNUSED(column)
+    if (!item) return;
+
+    // 子节点双击 — 打开文件预览标签页
+    if (item->parent()) {
+        QString filePath = item->data(0, Qt::UserRole).toString();
+        if (!filePath.isEmpty())
+            emit filePreviewRequested(filePath);
+        return;  // 分类节点无 UserRole，不做操作
+    }
+
+    // 顶层工程节点双击 — 切换工程
+    int idx = item->data(0, Qt::UserRole).toInt();
+    if (idx < 0 || idx >= m_projects.size()) return;
+    m_currentIndex = idx;
     emit projectSwitched(m_currentIndex);
+}
+
+// ============================================================
+//  ProjectPanel — 工程文件信息解析辅助
+// ============================================================
+
+QStringList ProjectPanel::extractDbcFiles(const QString &stateJson) const
+{
+    QStringList result;
+    if (stateJson.isEmpty()) return result;
+    try {
+        auto j = nlohmann::json::parse(stateJson.toStdString());
+        // v2 格式: resources.dbc
+        if (j.contains("resources") && j["resources"].contains("dbc") &&
+            j["resources"]["dbc"].is_array()) {
+            for (const auto &f : j["resources"]["dbc"])
+                if (f.is_string())
+                    result << QString::fromStdString(f.get<std::string>());
+        }
+        // v1 格式: dbc.files
+        if (result.isEmpty() && j.contains("dbc") && j["dbc"].contains("files") &&
+            j["dbc"]["files"].is_array()) {
+            for (const auto &f : j["dbc"]["files"])
+                if (f.is_string())
+                    result << QString::fromStdString(f.get<std::string>());
+        }
+    } catch (...) {}
+    return result;
+}
+
+QStringList ProjectPanel::extractRecordFiles(const QString &stateJson) const
+{
+    QStringList result;
+    if (stateJson.isEmpty()) return result;
+    try {
+        auto j = nlohmann::json::parse(stateJson.toStdString());
+        // v2 格式: resources.logs
+        if (j.contains("resources") && j["resources"].contains("logs") &&
+            j["resources"]["logs"].is_array()) {
+            for (const auto &f : j["resources"]["logs"])
+                if (f.is_string())
+                    result << QString::fromStdString(f.get<std::string>());
+        }
+        // v1 格式: record.files
+        if (result.isEmpty() && j.contains("record") && j["record"].contains("files") &&
+            j["record"]["files"].is_array()) {
+            for (const auto &f : j["record"]["files"])
+                if (f.is_string())
+                    result << QString::fromStdString(f.get<std::string>());
+        }
+    } catch (...) {}
+    return result;
+}
+
+QString ProjectPanel::extractPlaybackFile(const QString &stateJson) const
+{
+    if (stateJson.isEmpty()) return {};
+    try {
+        auto j = nlohmann::json::parse(stateJson.toStdString());
+        // v2 格式: source.filePath
+        if (j.contains("source") && j["source"].contains("filePath") &&
+            j["source"]["filePath"].is_string())
+            return QString::fromStdString(j["source"]["filePath"].get<std::string>());
+        // v1 格式: filePath
+        if (j.contains("filePath") && j["filePath"].is_string())
+            return QString::fromStdString(j["filePath"].get<std::string>());
+    } catch (...) {}
+    return {};
 }
 
 // ============================================================
@@ -267,13 +430,16 @@ DbcPanel::DbcPanel(QWidget *parent)
     btnBar->setContentsMargins(8, 6, 8, 6);
     btnBar->setSpacing(4);
     auto *importBtn = new QPushButton("+ 加载数据库文件", this);
+    auto *removeBtn = new QPushButton("- 删除", this);
     btnBar->addWidget(importBtn);
+    btnBar->addWidget(removeBtn);
     btnBar->addStretch();
     cl->addLayout(btnBar);
 
     initCategoryNodes();
 
     connect(importBtn, &QPushButton::clicked, this, &DbcPanel::onImportDatabase);
+    connect(removeBtn, &QPushButton::clicked, this, &DbcPanel::onRemoveDatabase);
     connect(m_tree, &QTreeWidget::itemClicked,
             this, &DbcPanel::onItemClicked);
 }
@@ -369,6 +535,45 @@ void DbcPanel::onImportDatabase()
     refreshTree();
 }
 
+void DbcPanel::onRemoveDatabase()
+{
+    // 获取当前选中的叶子节点
+    auto *item = m_tree->currentItem();
+    if (!item || item->childCount() > 0) {
+        QMessageBox::information(this, "删除", "请先选择一个数据库文件");
+        return;
+    }
+
+    QString category = item->data(0, Qt::UserRole).toString();
+    QString filePath = item->data(0, Qt::UserRole + 1).toString();
+    QString fileName = item->text(0);
+
+    if (filePath.isEmpty()) {
+        QMessageBox::information(this, "删除", "无法获取文件路径");
+        return;
+    }
+
+    auto reply = QMessageBox::question(this, "删除数据库文件",
+        QString("确定删除 \"%1\"?").arg(fileName));
+    if (reply != QMessageBox::Yes)
+        return;
+
+    if (category == "CAN/CANFD" && m_dbcMgr) {
+        // DBC 文件 → 通过 DbcManager 卸载，同时通知 MainWindow 清理关联标签页
+        emit dbcRemoveRequested(filePath);
+        m_dbcMgr->unloadDbc(filePath);
+    } else {
+        // 其他协议文件 → 从本地列表移除
+        for (int i = 0; i < m_otherDbs.size(); ++i) {
+            if (m_otherDbs[i].filePath == filePath) {
+                m_otherDbs.removeAt(i);
+                break;
+            }
+        }
+        refreshTree();
+    }
+}
+
 void DbcPanel::refreshTree()
 {
     // 清空分类节点下的子项
@@ -389,6 +594,7 @@ void DbcPanel::refreshTree()
             auto *item = new QTreeWidgetItem(m_catCanFd, {file.fileName});
             item->setIcon(0, svgIcon(":/icons/file.svg", "#6c6c6c"));
             item->setData(0, Qt::UserRole, "CAN/CANFD");
+            item->setData(0, Qt::UserRole + 1, file.filePath);  // 存储完整路径用于删除
         }
     }
 

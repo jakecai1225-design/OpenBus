@@ -1,4 +1,4 @@
-#include "measurementsetupview.h"
+﻿#include "measurementsetupview.h"
 #include <QToolBar>
 #include <QAction>
 #include <QToolButton>
@@ -170,7 +170,7 @@ protected:
                     painter->drawText(QRectF(rowRect.left() + 8, rowRect.top(),
                                              rowRect.width() - 16, rowRect.height()),
                                       Qt::AlignVCenter | Qt::AlignLeft,
-                                      QStringLiteral("\xE2\x96\xB6 %1").arg(m_instances[i]));
+                                      QStringLiteral("> %1").arg(m_instances[i]));
                 }
             }
         } else if (!m_isSource && m_instances.isEmpty() && m_active) {
@@ -322,7 +322,7 @@ void MeasurementSetupView::setupUi()
     m_toolbar->setMovable(false);
     m_toolbar->setIconSize(QSize(20, 20));
 
-    m_startAct = m_toolbar->addAction("▶ 开始测量");
+    m_startAct = m_toolbar->addAction(" 开始测量");
 
     m_stopAct = m_toolbar->addAction("■ 停止");
     m_stopAct->setEnabled(false);
@@ -392,7 +392,7 @@ void MeasurementSetupView::buildTopology()
     BlockItem srcReal;
     srcReal.id = "source_real";
     srcReal.title = "Real 实时";
-    srcReal.icon = "\xF0\x9F\x94\xA7";
+    srcReal.icon = "";
     srcReal.category = "source";
     srcReal.moduleName = "real";
     srcReal.rect = QRectF(srcStartX, y, srcW, srcH);
@@ -404,7 +404,7 @@ void MeasurementSetupView::buildTopology()
     BlockItem srcFile;
     srcFile.id = "source_file";
     srcFile.title = m_filePath.isEmpty() ? "File 回放" : QFileInfo(m_filePath).fileName();
-    srcFile.icon = "\xF0\x9F\x93\x81";
+    srcFile.icon = "";
     srcFile.category = "source";
     srcFile.moduleName = "file";
     srcFile.rect = QRectF(srcStartX + srcW + srcGap, y, srcW, srcH);
@@ -421,7 +421,7 @@ void MeasurementSetupView::buildTopology()
     BlockItem ch1;
     ch1.id = "channel1";
     ch1.title = "CAN 通道 1";
-    ch1.icon = "\xF0\x9F\x93\xA1";
+    ch1.icon = "";
     ch1.category = "channel";
     ch1.rect = QRectF(startX, y, bw - 30, bh);
     ch1.color = QColor(0x00, 0x79, 0x8C);
@@ -430,7 +430,7 @@ void MeasurementSetupView::buildTopology()
     BlockItem ch2;
     ch2.id = "channel2";
     ch2.title = "CAN 通道 2";
-    ch2.icon = "\xF0\x9F\x93\xA1";
+    ch2.icon = "";
     ch2.category = "channel";
     ch2.rect = QRectF(startX + bw - 30 + gapX, y, bw - 30, bh);
     ch2.color = QColor(0x00, 0x79, 0x8C);
@@ -441,7 +441,7 @@ void MeasurementSetupView::buildTopology()
     BlockItem dbc;
     dbc.id = "database";
     dbc.title = "DBC 数据库";
-    dbc.icon = "\xF0\x9F\x93\x84";
+    dbc.icon = "";
     dbc.category = "database";
     dbc.rect = QRectF(startX + 100, y, bw, bh);
     dbc.color = QColor(0x7B, 0x1F, 0xA2);
@@ -451,10 +451,10 @@ void MeasurementSetupView::buildTopology()
     // ---- 第 4 行: 分析模块（4列: Trace1 / Graphic / Data / Record，平行排列）----
     struct ModDef { QString id; QString icon; QString title; QColor color; QString moduleName; };
     ModDef mods[] = {
-        {"trace1",   "\xF0\x9F\x93\x8B", "Trace1",          QColor(0x21, 0x96, 0xF3), "trace"},
-        {"graphic1", "\xF0\x9F\x93\x88", "Graphic1",        QColor(0xF4, 0x43, 0x36), "graphic"},
-        {"data",     "\xF0\x9F\x93\x8A", "Data 统计",        QColor(0x4C, 0xAF, 0x50), ""},
-        {"record",   "\xE2\x97\x8F",     "录制 Record",      QColor(0xFF, 0x98, 0x00), ""},
+        {"trace1",   "", "Trace1",          QColor(0x21, 0x96, 0xF3), "trace"},
+        {"graphic1", "", "Graphic1",        QColor(0xF4, 0x43, 0x36), "graphic"},
+        {"data",     "", "Data 统计",        QColor(0x4C, 0xAF, 0x50), ""},
+        {"record",   "", "录制 Record",      QColor(0xFF, 0x98, 0x00), ""},
     };
     int modW = 140;
     int modGap = 16;
@@ -725,10 +725,10 @@ void MeasurementSetupView::addModuleInstance(const QString &moduleName, const QS
         b.id = instanceId;
         b.title = title;
         if (moduleName == "trace") {
-            b.icon = "\xF0\x9F\x93\x8B";
+            b.icon = "";
             b.color = QColor(0x21, 0x96, 0xF3);
         } else {
-            b.icon = "\xF0\x9F\x93\x88";
+            b.icon = "";
             b.color = QColor(0xF4, 0x43, 0x36);
         }
         b.category = "module";
@@ -787,6 +787,27 @@ void MeasurementSetupView::removeModuleInstance(const QString &moduleName, const
     }
 }
 
+void MeasurementSetupView::clearTraceGraphicInstances()
+{
+    // 收集所有 Trace/Graphic 实例块 ID（以 "trace" 或 "graphic" 开头的块）
+    QStringList toRemove;
+    for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
+        const auto &b = it.value();
+        if (b.category == "module" &&
+            (b.moduleName == "trace" || b.moduleName == "graphic"))
+            toRemove << it.key();
+    }
+    for (const auto &id : toRemove) {
+        m_blocks.remove(id);
+        for (int i = m_connections.size() - 1; i >= 0; --i) {
+            if (m_connections[i].fromId == id || m_connections[i].toId == id)
+                m_connections.removeAt(i);
+        }
+    }
+    if (!toRemove.isEmpty())
+        relayoutModuleBlocks();
+}
+
 bool MeasurementSetupView::isBlockEnabled(const QString &blockId) const
 {
     auto it = m_blocks.find(blockId);
@@ -815,7 +836,7 @@ void MeasurementSetupView::addChannelBlock()
     BlockItem ch;
     ch.id = id;
     ch.title = QString("CAN 通道 %1").arg(chNum);
-    ch.icon = "\xF0\x9F\x93\xA1";
+    ch.icon = "";
     ch.category = "channel";
     ch.color = QColor(0x00, 0x79, 0x8C);
     ch.rect = QRectF(maxX + gapX, chY, chW, chH);
@@ -1036,7 +1057,7 @@ void MeasurementSetupView::onStartClicked()
     m_running = true;
     m_startAct->setEnabled(false);
     m_stopAct->setEnabled(true);
-    m_statusLabel->setText("▶ 测量运行中...");
+    m_statusLabel->setText(" 测量运行中...");
     m_frameCount = 0;
     emit measurementToggled(true);
 }
@@ -1127,7 +1148,7 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
                 emit sourceChanged(static_cast<int>(Source::File));
             });
         } else {
-            auto *actSwitch = m_rightMenu->addAction(QStringLiteral("🔧 切换到 Real 实时采集"));
+            auto *actSwitch = m_rightMenu->addAction(QStringLiteral(" 切换到 Real 实时采集"));
             actSwitch->setStatusTip(QStringLiteral("切换到硬件实时采集模式"));
             connect(actSwitch, &QAction::triggered, this, [this]() {
                 setSource(Source::Hardware);
@@ -1137,8 +1158,8 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
         m_rightMenu->addSeparator();
         auto *actCfg = m_rightMenu->addAction(
-            block->id == "source_real" ? QStringLiteral("⚙️ 设备参数配置...")
-                                       : QStringLiteral("⚙️ 选择回放文件..."));
+            block->id == "source_real" ? QStringLiteral("设备参数配置...")
+                                       : QStringLiteral("选择回放文件..."));
         connect(actCfg, &QAction::triggered, this, [this, block]() {
             if (block->id == "source_real")
                 emit realBlockClicked();
@@ -1149,7 +1170,7 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
     // ---- 通道块 ----
     else if (block->category == "channel") {
-        auto *actFilter = m_rightMenu->addAction("⚙️ 配置过滤条件...");
+        auto *actFilter = m_rightMenu->addAction("配置过滤条件...");
         actFilter->setStatusTip("设置 CAN ID 范围、扩展帧、CAN FD 等过滤参数");
         connect(actFilter, &QAction::triggered, this, [this, block]() {
             showChannelFilterDialog(block->id);
@@ -1164,12 +1185,12 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
         m_rightMenu->addSeparator();
 
-        auto *actAddCh = m_rightMenu->addAction("➕ 添加通道");
+        auto *actAddCh = m_rightMenu->addAction("+ 添加通道");
         connect(actAddCh, &QAction::triggered, this, [this]() {
             addChannelBlock();
         });
 
-        auto *actDelCh = m_rightMenu->addAction("🗑 删除此通道");
+        auto *actDelCh = m_rightMenu->addAction("- 删除此通道");
         int channelCount = 0;
         for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
             if (it.value().category == "channel") channelCount++;
@@ -1182,7 +1203,7 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
     // ---- 数据库块 ----
     else if (block->category == "database") {
-        auto *actDbc = m_rightMenu->addAction("📄 选择 DBC 文件...");
+        auto *actDbc = m_rightMenu->addAction("选择 DBC 文件...");
         actDbc->setStatusTip("在当前工程已加载的 DBC 文件中选择");
         connect(actDbc, &QAction::triggered, this, [this]() {
             showDbcSelectDialog();
@@ -1190,16 +1211,20 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
         m_rightMenu->addSeparator();
 
-        // 显示已加载的 DBC 文件列表
+        // 显示已加载的 DBC 文件列表，每项可点击移除
         if (!m_dbcFiles.isEmpty()) {
             auto *dbcListAct = m_rightMenu->addAction(QString("已加载 DBC: %1 个").arg(m_dbcFiles.size()));
             dbcListAct->setEnabled(false);
+            m_rightMenu->addSeparator();
             for (const auto &name : m_dbcFiles) {
-                auto *act = m_rightMenu->addAction("  ““ ”” " + name);
-                act->setEnabled(false);
+                auto *act = m_rightMenu->addAction(QString("移除  %1").arg(name));
+                act->setStatusTip("从工程中卸载此 DBC 文件");
+                connect(act, &QAction::triggered, this, [this, name]() {
+                    emit dbcRemoveRequested(name);
+                });
             }
         } else {
-            auto *noDbc = m_rightMenu->addAction("  （未加载任何 DBC 文件）");
+            auto *noDbc = m_rightMenu->addAction("（未加载任何 DBC 文件）");
             noDbc->setEnabled(false);
         }
     }
@@ -1209,25 +1234,25 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
         // 模块类型对应的添加实例动作
         if (block->moduleName == "trace") {
             // Trace 独立块: 跳转 + 删除（不提供添加，添加在空白区菜单）
-            auto *actAdd = m_rightMenu->addAction("➕ 添加 Trace 视图");
+            auto *actAdd = m_rightMenu->addAction("+ 添加 Trace 视图");
             actAdd->setStatusTip("新建一个 Trace 报文列表块");
             connect(actAdd, &QAction::triggered, this, [this]() {
                 emit moduleOpened("trace", "");
             });
         } else if (block->moduleName == "graphic") {
-            auto *actAdd = m_rightMenu->addAction("📈 添加 Graphic 波形");
+            auto *actAdd = m_rightMenu->addAction("添加 Graphic 波形");
             actAdd->setStatusTip("新建一个 Graphic 波形图标签页");
             connect(actAdd, &QAction::triggered, this, [this]() {
                 emit moduleOpened("graphic", "");
             });
         } else if (block->id == "data") {
-            auto *actCfg = m_rightMenu->addAction("⚙️ 配置统计参数...");
+            auto *actCfg = m_rightMenu->addAction("配置统计参数...");
             actCfg->setStatusTip("配置总线负载率、报文频率等统计项");
             connect(actCfg, &QAction::triggered, this, []() {
                 // 占位：实际实现需要 Data 模块视图
             });
         } else if (block->id == "record") {
-            auto *actCfg = m_rightMenu->addAction("● 配置录制参数...");
+            auto *actCfg = m_rightMenu->addAction(" 配置录制参数...");
             actCfg->setStatusTip("设置录制文件路径和格式");
             connect(actCfg, &QAction::triggered, this, [this]() {
                 emit moduleOpened("record", "");
@@ -1257,9 +1282,9 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
         // Trace / Graphic 块: 删除实例; 其他模块: 删除块
         auto *actDelMod = m_rightMenu->addAction(
-            block->moduleName == "trace"   ? "🗑 删除此 Trace" :
-            block->moduleName == "graphic" ? "🗑 删除此 Graphic" :
-                                              "🗑 删除此模块块");
+            block->moduleName == "trace"   ? "删除此 Trace" :
+            block->moduleName == "graphic" ? "删除此 Graphic" :
+                                              "删除此模块块");
         connect(actDelMod, &QAction::triggered, this, [this, block]() {
             if (block->moduleName == "trace" || block->moduleName == "graphic")
                 emit moduleInstanceClosed(block->moduleName, block->id);
@@ -1283,19 +1308,19 @@ void MeasurementSetupView::buildEmptyAreaMenu(const QPointF &)
     titleAct->setFont(titleFont);
     m_rightMenu->addSeparator();
 
-    auto *actAddCh = m_rightMenu->addAction("📡 添加 CAN 通道");
+    auto *actAddCh = m_rightMenu->addAction(" 添加 CAN 通道");
     connect(actAddCh, &QAction::triggered, this, [this]() {
         addChannelBlock();
     });
 
     // Trace: 总是可以添加新块
-    auto *actAddTrace = m_rightMenu->addAction(QString::fromUtf8("\xF0\x9F\x93\x8B 添加 Trace 视图"));
+    auto *actAddTrace = m_rightMenu->addAction("添加 Trace 视图");
     connect(actAddTrace, &QAction::triggered, this, [this]() {
         emit moduleOpened("trace", "");
     });
 
     // Graphic: 总是可以添加新块
-    auto *actAddGraphic = m_rightMenu->addAction(QString::fromUtf8("\xF0\x9F\x93\x88 添加 Graphic 波形"));
+    auto *actAddGraphic = m_rightMenu->addAction("添加 Graphic 波形");
     connect(actAddGraphic, &QAction::triggered, this, [this]() {
         emit moduleOpened("graphic", "");
     });
@@ -1303,13 +1328,13 @@ void MeasurementSetupView::buildEmptyAreaMenu(const QPointF &)
     // 仅在画布上不存在该类型模块时显示添加选项
     struct ModDef { QString id; QString icon; QString title; QColor color; };
     ModDef stdMods[] = {
-        {"data",     "\xF0\x9F\x93\x8A", "Data 统计",        QColor(0x4C, 0xAF, 0x50)},
-        {"record",   "\xE2\x97\x8F",     "录制 Record",      QColor(0xFF, 0x98, 0x00)},
+        {"data",     "", "Data 统计",        QColor(0x4C, 0xAF, 0x50)},
+        {"record",   "", "录制 Record",      QColor(0xFF, 0x98, 0x00)},
     };
 
     for (const auto &mod : stdMods) {
         if (!m_blocks.contains(mod.id)) {
-            auto *actAdd = m_rightMenu->addAction(QString::fromUtf8("%1 添加 %2").arg(mod.icon, mod.title));
+            auto *actAdd = m_rightMenu->addAction(QString("添加 %1").arg(mod.title));
             connect(actAdd, &QAction::triggered, this, [this, mod]() {
                 qreal modY = 0, modH = 60;
                 qreal modW = 160, modGap = 20;

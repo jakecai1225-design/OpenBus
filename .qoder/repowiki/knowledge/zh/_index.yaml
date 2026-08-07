@@ -3,5 +3,13 @@ schema_version: 1
 locale: zh-CN
 branch: master
 nodes_managed: true
-exported_at: "2026-08-07T05:01:29Z"
-modules: {}
+exported_at: "2026-08-07T08:26:28Z"
+modules:
+    "":
+        dir_name: sin CAN 总线分析工具（Qt6 桌面应用）
+        title: sin CAN 总线分析工具（Qt6 桌面应用）
+        scope: []
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []

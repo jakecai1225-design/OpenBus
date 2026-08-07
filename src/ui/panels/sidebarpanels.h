@@ -47,6 +47,7 @@ struct ProjectContext
     QStringList dbcFiles;
     QStringList recordFiles;
     QString layoutConfig;
+    QString stateJson;    ///< 工程状态 JSON 快照（未保存到文件时用于切换恢复）
 };
 
 // ============================================================
@@ -59,29 +60,36 @@ public:
     explicit ProjectPanel(QWidget *parent = nullptr);
 
     const QList<ProjectContext> &projects() const { return m_projects; }
+    QList<ProjectContext> &projectsRef() { return m_projects; }
     int currentIndex() const { return m_currentIndex; }
+    void refreshList();  ///< 刷新工程列表 UI
 
 signals:
     void projectSwitched(int index);
     void projectCreated(const QString &name);
     void openProjectRequested(const QString &filePath);
     void saveProjectRequested(const QString &filePath);
+    void filePreviewRequested(const QString &filePath);  ///< 请求打开文件预览标签页
 
 private slots:
     void onNewProject();
     void onSaveProject();
     void onDeleteProject();
-    void onProjectSelected(int row);
+    void onProjectItemClicked(QTreeWidgetItem *item, int column);
+    void onProjectItemDoubleClicked(QTreeWidgetItem *item, int column);
     void onOpenProject();
     void onOpenRecent();
 
 private:
-    QListWidget *m_projectList;
+    QTreeWidget *m_projectTree;
     QListWidget *m_recentList = nullptr;
     QList<ProjectContext> m_projects;
     int m_currentIndex = -1;
-    void refreshList();
     void refreshRecentList();
+    /// 从 stateJson 解析关键文件信息列表
+    QStringList extractDbcFiles(const QString &stateJson) const;
+    QStringList extractRecordFiles(const QString &stateJson) const;
+    QString extractPlaybackFile(const QString &stateJson) const;
 };
 
 // ============================================================
@@ -106,9 +114,12 @@ public:
 signals:
     void dbcFileClicked(const QString &fileName);
     void databaseFileClicked(const QString &category, const QString &fileName);
+    /// 请求卸载 DBC 文件（由 MainWindow 处理，清理关联标签页等）
+    void dbcRemoveRequested(const QString &filePath);
 
 private slots:
     void onImportDatabase();
+    void onRemoveDatabase();
     void onItemClicked(QTreeWidgetItem *item, int column);
 
 private:

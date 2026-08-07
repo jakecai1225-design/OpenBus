@@ -110,6 +110,7 @@ private slots:
     void onSaveProject();
     void onProjectSwitched(int index);
     void onProjectCreated(const QString &name);
+    void onFilePreviewRequested(const QString &filePath);
     void captureProjectState();
     void applyProjectState();
 

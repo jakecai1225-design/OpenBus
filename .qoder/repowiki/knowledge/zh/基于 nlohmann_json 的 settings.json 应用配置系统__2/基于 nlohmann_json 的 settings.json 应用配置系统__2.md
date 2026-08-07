@@ -7,22 +7,52 @@ scope:
 source_files:
     - src/core/appconfig.h
     - src/core/appconfig.cpp
+    - src/ui/settingsdialog.h
     - src/ui/settingsdialog.cpp
     - src/main.cpp
+    - src/core/projectmanager.cpp
 ---
 
-本项目的配置系统采用单文件 JSON 持久化方案，核心由 `src/core/appconfig.h/.cpp` 中的 `AppConfig` 单例类实现，配置文件路径为 `%APPDATA%/sin/sin/settings.json`（通过 `QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)` 解析）。
+## 1. 系统概览
 
-**加载与默认值**：应用启动时 `main.cpp` 调用 `AppConfig::instance()->load()`，若 `settings.json` 不存在则自动生成并写入 `defaultConfig()` 返回的默认 JSON；若文件存在但解析失败则回退到默认值。所有 getter（`getString/getInt/getBool/getDouble`）均支持传入默认值作为回退。
+本项目采用自研的 `AppConfig` 单例作为唯一的应用级配置管理入口，使用 **nlohmann/json** 库将配置持久化为 JSON 文件（`settings.json`），并通过 Qt 的 `QStandardPaths::AppDataLocation` 定位到 `%APPDATA%/sin/sin/settings.json`。该设计在注释中明确描述为“类似 VS Code settings.json”，并提供 typed getter/setter、默认值回退、JSON 文本导入导出以及变更信号通知。
 
-**读写接口**：提供类型安全的 typed setter（`set(key, value)` 重载 string/int/bool/double），每次修改后发射 `changed(key)` 信号；`save()` 将内存中的 `nlohmann::json` 对象以 4 空格缩进格式序列化写入磁盘。
+## 2. 核心文件与职责
 
-**配置项分类与元数据**：`SettingsDialog` 通过 `setupMetas()` 集中定义全部设置项的键名、显示标签、所属分类（通用/Trace/Graphic/Record/日志）、数据类型（string/int/bool/double/combo）及描述文本，UI 根据类型动态生成 QCheckBox/QSpinBox/QDoubleSpinBox/QComboBox/QLineEdit 编辑器，实现“设置列表”和“JSON 编辑”双视图。
+- `src/core/appconfig.h` / `src/core/appconfig.cpp`：配置系统的核心实现。提供 `instance()` 单例、`load()`/`save()` 生命周期方法、`getString/getInt/getBool/getDouble` 类型安全读取、对应的 `set(key, value)` 重载、`reset(key)` 删除键、`toJsonString()`/`fromJsonString()` 批量导入导出、`defaultConfig()` 定义所有默认项。
+- `src/ui/settingsdialog.h` / `src/ui/settingsdialog.cpp`：VS Code 风格的设置 UI。通过 `SettingMeta` 元数据（key、label、category、type、desc、comboChoices）声明式地注册每个设置项，动态生成分类树、搜索过滤、表单控件（QCheckBox/QSpinBox/QDoubleSpinBox/QComboBox/QLineEdit）和 JSON 纯文本编辑器两种编辑模式。
+- `src/main.cpp`：在应用启动时调用 `AppConfig::instance()->load()` 完成首次加载。
+- `src/core/projectmanager.cpp`、`src/ui/mainwindow.cpp`、`src/ui/panels/sidebarpanels.cpp`：业务模块通过 `AppConfig::instance()->get/set` 读写工程相关配置（如 `project.lastPath`、`project.recent`、`project.autoSaveOnClose`）。
 
-**使用位置**：除 SettingsDialog 直接操作外，`ThemeManager` 通过该配置读取主题名称，`logging::init()` 依据 `log.level/log.maxFileSize/log.maxFiles` 初始化 spdlog 输出。
+## 3. 架构与设计约定
 
-**约束与约定**：
-- 配置键采用点号分隔的层级命名（如 `trace.maxFrames`、`window.width`），与 VS Code `settings.json` 风格一致。
-- 所有配置项必须在 `defaultConfig()` 中声明默认值，否则运行时取不到对应 key 时会返回空/0/false。
-- 配置文件仅存放用户可覆盖的设置，不存储运行时状态（如窗口几何由 `window.rememberGeometry` 控制是否持久化）。
-- 不支持环境变量或命令行参数覆盖配置，也不支持多环境/多用户配置切换。
+### 3.1 存储格式与位置
+- 配置文件路径固定为 `QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/settings.json"`。
+- 首次运行或 JSON 解析失败时，自动写入 `defaultConfig()` 返回的默认 JSON，并记录日志。
+- 保存时使用 `json.dump(4)` 输出带 4 空格缩进的格式化 JSON。
+
+### 3.2 配置项命名空间
+所有 key 采用点号分隔的层级命名（如 `trace.maxFrames`、`graphic.timeWindow`、`log.level`、`project.recentMax`），UI 层据此划分“通用”、“Trace”、“Graphic”、“Record”、“日志”、“工程”等分类。
+
+### 3.3 默认值与回退机制
+- `AppConfig` 构造时即初始化 `m_data = defaultConfig()`。
+- 所有 typed getter 在 key 不存在或类型不匹配时返回传入的 `def` 参数，保证调用方无需判空。
+- `SettingsDialog::onReset()` 通过 `fromJsonString(defaultConfig().dump(4))` 一键恢复全部默认值。
+
+### 3.4 运行时修改与持久化
+- 每次 `set(key, value)` 都会 `emit changed(key)` 信号，供观察者响应。
+- 配置修改后需显式调用 `save()` 才会落盘；`SettingsDialog` 的“保存”按钮触发 `AppConfig::instance()->save()`。
+- 项目最近列表等关键状态在写入后立即调用 `save()` 确保一致性。
+
+### 3.5 双模编辑
+- **表单模式**：根据 `SettingMeta.type`（string/int/bool/double/combo）动态创建对应 Qt 控件，实时写回 `AppConfig`。
+- **JSON 模式**：顶部切换按钮可进入纯文本编辑页，直接编辑 `settings.json` 内容，点击保存时通过 `fromJsonString()` 解析并校验语法。
+
+## 4. 约束与规则
+
+- **单一配置源**：整个应用仅通过 `AppConfig::instance()` 访问配置，无其他全局配置入口。
+- **key 必须存在且类型正确**：typed getter 会严格检查 `is_string()/is_number_integer()/is_boolean()/is_number()`，类型不符则回退默认值。
+- **JSON 必须合法**：`fromJsonString()` 捕获 `json::parse_error` 并记录错误日志，解析失败时返回 false，阻止脏数据写入。
+- **目录自动创建**：`load()`/`save()` 均先调用 `QDir().mkpath(...)` 确保配置目录存在。
+- **未使用 QSettings**：尽管 CMakeLists 中列出了 `<QSettings>` 头文件，但实际配置系统完全基于 nlohmann/json 自建，未启用 Qt 原生注册表/ini 后端。
+- **配置项扩展方式**：新增设置需在 `defaultConfig()` 中添加默认值，并在 `SettingsDialog::setupMetas()` 中注册 `SettingMeta` 以出现在 UI 中。

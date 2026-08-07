@@ -52,6 +52,8 @@ public:
     void addModuleInstance(const QString &moduleName, const QString &instanceId, const QString &title);
     /// 移除模块实例（由 MainWindow 在关闭标签页后调用）
     void removeModuleInstance(const QString &moduleName, const QString &instanceId);
+    /// 清除所有 Trace/Graphic 实例块（切换工程时调用）
+    void clearTraceGraphicInstances();
 
     /// 查询模块块的使能状态（默认 true）
     bool isBlockEnabled(const QString &blockId) const;
@@ -72,6 +74,8 @@ signals:
     void moduleInstanceClosed(const QString &moduleName, const QString &instanceId);
     /// 请求选择 DBC 文件（由 MainWindow 弹出选择对话框）
     void dbcSelectRequested();
+    /// 请求卸载指定 DBC 文件（由 MainWindow 调用 DbcManager::unloadDbc）
+    void dbcRemoveRequested(const QString &fileName);
     /// 请求配置通道过滤条件
     void channelFilterRequested(const QString &channelId);
     /// 请求跳转到设备连接界面（点击 Real 块时触发）

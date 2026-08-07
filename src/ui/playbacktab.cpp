@@ -30,7 +30,7 @@ PlaybackTab::PlaybackTab(QWidget *parent)
 
     // Play / Pause / Stop
     auto *btnLayout = new QHBoxLayout;
-    m_playBtn = new QPushButton("▶ 播放", ctrlGroup);
+    m_playBtn = new QPushButton(" 播放", ctrlGroup);
     m_pauseBtn = new QPushButton("⏸ 暂停", ctrlGroup);
     m_stopBtn = new QPushButton("⏹ 停止", ctrlGroup);
     m_playBtn->setEnabled(false);

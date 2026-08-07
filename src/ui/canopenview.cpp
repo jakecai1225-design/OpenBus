@@ -1,4 +1,4 @@
-#include "canopenview.h"
+﻿#include "canopenview.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -60,7 +60,7 @@ void CanOpenView::setupUi()
     logLayout->addWidget(m_logTable);
 
     auto *btnLayout = new QHBoxLayout();
-    auto *clearBtn = new QPushButton("🗑 清空日志", logGroup);
+    auto *clearBtn = new QPushButton(" 清空日志", logGroup);
     btnLayout->addStretch();
     btnLayout->addWidget(clearBtn);
     logLayout->addLayout(btnLayout);
@@ -99,7 +99,7 @@ QWidget *CanOpenView::createNmtTab()
     // NMT 命令定义
     struct NmtCmd { int cmd; const char *name; const char *desc; };
     static const NmtCmd cmds[] = {
-        {0x01, "▶ Start",          "启动节点 (进入 Operational)"},
+        {0x01, " Start",          "启动节点 (进入 Operational)"},
         {0x02, "■ Stop",           "停止节点 (进入 Stopped)"},
         {0x80, "⏸ Pre-Operational", "进入预操作状态"},
         {0x81, "↻ Reset Node",     "复位节点 (应用层复位)"},
@@ -264,8 +264,8 @@ QWidget *CanOpenView::createEmergencyTab()
     layout->addWidget(m_emergencyTable);
 
     auto *btnLayout = new QHBoxLayout();
-    auto *addDemoBtn = new QPushButton("📋 添加模拟 Emergency", widget);
-    auto *clearBtn = new QPushButton("🗑 清空", widget);
+    auto *addDemoBtn = new QPushButton("添加模拟 Emergency", widget);
+    auto *clearBtn = new QPushButton(" 清空", widget);
     btnLayout->addWidget(addDemoBtn);
     btnLayout->addStretch();
     btnLayout->addWidget(clearBtn);
@@ -325,8 +325,8 @@ QWidget *CanOpenView::createHeartbeatTab()
     layout->addWidget(m_heartbeatTable);
 
     auto *btnLayout = new QHBoxLayout();
-    auto *addBtn = new QPushButton("➕ 添加节点监控", widget);
-    auto *clearBtn = new QPushButton("🗑 清空", widget);
+    auto *addBtn = new QPushButton(" 添加节点监控", widget);
+    auto *clearBtn = new QPushButton(" 清空", widget);
     btnLayout->addWidget(addBtn);
     btnLayout->addStretch();
     btnLayout->addWidget(clearBtn);

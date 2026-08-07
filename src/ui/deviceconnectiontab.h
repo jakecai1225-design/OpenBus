@@ -37,6 +37,17 @@ public:
     /// @param deviceName 设备显示名称
     void setDevice(int deviceKind, int devIndex, const QString &deviceName);
 
+    // ---- 工程切换：配置捕获/恢复 ----
+    int  baudrate() const;             ///< 仲裁段波特率
+    int  channel() const;             ///< 选中的通道号 (1-based, 0=未选)
+    bool isCanFd() const;             ///< 是否启用 CAN FD
+    int  dataBaudrate() const;         ///< 数据段波特率 (CAN FD)
+    int  deviceKind() const;          ///< 设备类型 (0=模拟器, 1=ZLG, ...)
+    void setBaudrate(int baud);      ///< 设置仲裁段波特率
+    void setChannel(int ch);          ///< 设置选中通道 (1-based)
+    void setCanFd(bool fd);           ///< 启用/禁用 CAN FD
+    void setDataBaudrate(int baud);   ///< 设置数据段波特率
+
 signals:
     void deviceConnectRequested(const QString &device, int baudrate);
     void deviceDisconnectRequested();
