@@ -207,8 +207,8 @@ private:
     bool m_measurementRunning = false;  ///< 全局测量运行状态（由 flow 标签页控制）
     bool m_sideBarVisible = true;
     int m_savedDockWidth = 300;
-    int m_traceCount = 1;
-    int m_graphicCount = 1;
+    int m_traceCount = 0;
+    int m_graphicCount = 0;
 
     // ---- 实例跟踪（flow 页面模块实例）----
     QMap<QString, QWidget*> m_traceInstances;    // "trace1" → TraceTab*

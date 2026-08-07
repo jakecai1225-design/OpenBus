@@ -20,14 +20,14 @@ public:
     enum Activity {
         None = -1,
         Project = 0,
+        Analysis,      // Flow
+        Device,         // 设备连接
         Trace,
         Graphic,
         Dbc,
         Send,
         Record,
-        Device,
         Protocol,
-        Analysis,
         Tools,
         Settings
     };

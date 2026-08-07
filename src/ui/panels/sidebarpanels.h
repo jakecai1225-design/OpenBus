@@ -335,8 +335,8 @@ private:
 // ============================================================
 //  SideBar — 侧边栏容器（QStackedWidget 切换面板）
 //  索引必须与 ActivityBar::Activity 枚举一致
-//  0=Project 1=Trace 2=Graphic 3=DBC 4=Send 5=Record
-//  6=Device 7=Protocol 8=Analysis 9=Tools 10=Settings
+//  0=Project 1=Analysis(Flow) 2=Device 3=Trace 4=Graphic
+//  5=Dbc 6=Send 7=Record 8=Protocol 9=Tools 10=Settings
 // ============================================================
 class SideBar : public QStackedWidget
 {

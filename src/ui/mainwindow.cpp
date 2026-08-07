@@ -89,8 +89,8 @@ MainWindow::MainWindow(QWidget *parent)
     // ---- UI 构建 ----
     createMenuBar();
     createWindowButtons();
+    createStatusBar();  // 先创建状态栏（openTab 需要 m_tabLabel）
     createLayout();
-    createStatusBar();
 
     menuBar()->installEventFilter(this);
 
@@ -143,16 +143,6 @@ MainWindow::MainWindow(QWidget *parent)
         if (m_recordTab) m_recordTab->setRecording(false);
         updateActions();
     });
-
-    // SignalSendTab / PlaybackTab / RecordTab 信号连接
-    setupSendTab(m_sendTab);
-    setupPlaybackTab(m_playbackTab);
-    setupRecordTab(m_recordTab);
-
-    // 标签页关闭后置空指针，避免悬空
-    connect(m_sendTab, &QObject::destroyed, this, [this]() { m_sendTab = nullptr; });
-    connect(m_playbackTab, &QObject::destroyed, this, [this]() { m_playbackTab = nullptr; });
-    connect(m_recordTab, &QObject::destroyed, this, [this]() { m_recordTab = nullptr; });
 
     // 侧边栏面板
     connect(m_sideBar->dbcPanel(), &DbcPanel::dbcFileClicked,
@@ -208,7 +198,6 @@ MainWindow::MainWindow(QWidget *parent)
     m_sideBar->graphicConfigPanel()->setGraphicView(m_graphicView);
     m_sideBar->devicePanel()->setSimulator(m_simulator);
     m_sideBar->devicePanel()->setDeviceManager(m_deviceManager);
-    m_sendTab->setDbcManager(m_dbcManager);
 
     // 标签页变化 → 刷新侧边栏面板列表
     connect(m_editorArea, &SplitEditorArea::tabListChanged,
@@ -222,22 +211,24 @@ MainWindow::MainWindow(QWidget *parent)
 
             // 根据标签页文本同步侧边栏面板和活动栏
             ActivityBar::Activity act = ActivityBar::None;
-            if (text.contains("Trace"))
+            if (text.contains("设备连接"))
+                act = ActivityBar::Device;
+            else if (text.contains("flow"))
+                act = ActivityBar::Analysis;
+            else if (text.contains("Trace"))
                 act = ActivityBar::Trace;
             else if (text.contains("Graphic"))
                 act = ActivityBar::Graphic;
+            else if (text.contains("格式转换") || text.contains("DBC 工具") || text.contains("总线统计"))
+                act = ActivityBar::Tools;
             else if (text.contains("DBC"))
                 act = ActivityBar::Dbc;
-            else if (text.contains("发送"))
+            else if (text.contains("发送") || text.contains("回放"))
                 act = ActivityBar::Send;
-            else if (text.contains("回放") || text.contains("录制"))
+            else if (text.contains("录制"))
                 act = ActivityBar::Record;
             else if (text.contains("UDS") || text.contains("CANopen"))
                 act = ActivityBar::Protocol;
-            else if (text.contains("flow"))
-                act = ActivityBar::Analysis;
-            else if (text.contains("格式转换") || text.contains("DBC 编辑"))
-                act = ActivityBar::Tools;
 
             if (act != ActivityBar::None) {
                 m_activityBar->setCurrentActivity(act);
@@ -507,41 +498,19 @@ void MainWindow::createLayout()
 
     // ---- 中央: 可拆分编辑器区域 ----
     m_editorArea = new SplitEditorArea(this);
-
-    // Trace 标签页
-    m_traceTab = new TraceTab(this);
-    setupTraceTab(m_traceTab);
-    connect(m_traceTab, &QObject::destroyed, this, [this]() { m_traceTab = nullptr; });
-    m_editorArea->addTab(m_traceTab, "Trace 1");
-    // 注册默认实例到映射表，确保设备连接时能设置 running 状态
-    m_traceInstances["trace1"] = m_traceTab;
-
-    // Graphic 标签页
-    m_graphicView = new GraphicView(this);
-    connect(m_graphicView, &GraphicView::fileLoaded, this, [this](int count) {
-        if (count < 0)
-            m_bottomPanel->appendOutput("文件加载失败");
-        else
-            m_bottomPanel->appendOutput(QString("Graphic 已加载 %1 帧").arg(count));
-    });
-    connect(m_graphicView, &QObject::destroyed, this, [this]() { m_graphicView = nullptr; });
-    m_editorArea->addTab(m_graphicView, "Graphic 1");
-    // 注册默认实例到映射表
-    m_graphicInstances["graphic1"] = m_graphicView;
-
-    // 发送标签页
-    m_sendTab = new SignalSendTab(this);
-    m_editorArea->addTab(m_sendTab, "发送");
-
-    // 回放标签页
-    m_playbackTab = new PlaybackTab(this);
-    m_editorArea->addTab(m_playbackTab, "回放");
-
-    // 录制标签页
-    m_recordTab = new RecordTab(this);
-    m_editorArea->addTab(m_recordTab, "录制");
-
     setCentralWidget(m_editorArea);
+
+    // 默认标签页：Flow + 设备连接（其他不打开）
+    onOpenMeasurementSetup();
+
+    if (!m_deviceTab) {
+        m_deviceTab = new DeviceConnectionTab(this);
+        m_deviceTab->setSimulator(m_simulator);
+        m_deviceTab->setDeviceManager(m_deviceManager);
+        setupDeviceTab(m_deviceTab);
+        connect(m_deviceTab, &QObject::destroyed, this, [this]() { m_deviceTab = nullptr; });
+    }
+    openTab(m_deviceTab, QStringLiteral("设备连接"));
 
     // ---- 右侧 Dock ----
     m_rightPanel = new RightPanel(this);
@@ -802,7 +771,8 @@ void MainWindow::onOpenFile()
         m_bottomPanel->appendOutput(QString("已加载: %1 (%2 帧, %3s)")
             .arg(fi.fileName()).arg(m_player->totalFrames())
             .arg(m_player->totalTime(), 0, 'f', 2));
-        m_playbackTab->setFileInfo(fi.fileName(), m_player->totalFrames(), m_player->totalTime());
+        if (m_playbackTab)
+            m_playbackTab->setFileInfo(fi.fileName(), m_player->totalFrames(), m_player->totalTime());
     }
     updateActions();
 }
@@ -997,7 +967,8 @@ void MainWindow::onFrameDoubleClicked(const CanFrame &frame)
 
 void MainWindow::onPlayerProgress(int cur, int total, double curTime, double totalTime)
 {
-    m_playbackTab->setProgress(cur, total, curTime, totalTime);
+    if (m_playbackTab)
+        m_playbackTab->setProgress(cur, total, curTime, totalTime);
     if (totalTime > 0)
         m_timeLabel->setText(QString::number(curTime, 'f', 3) + "s / " +
                               QString::number(totalTime, 'f', 3) + "s");
@@ -1219,7 +1190,8 @@ void MainWindow::openTab(QWidget *widget, const QString &label)
     tabs = m_editorArea->activeTabWidget();
     if (tabs)
         tabs->setCurrentIndex(idx);
-    m_tabLabel->setText(label);
+    if (m_tabLabel)
+        m_tabLabel->setText(label);
 }
 
 void MainWindow::onOpenTraceTab()
@@ -1666,66 +1638,83 @@ void MainWindow::onOpenMeasurementSetup()
     connect(view, &MeasurementSetupView::moduleOpened,
             this, [this, view](const QString &moduleId, const QString &instanceId) {
         if (moduleId == "trace") {
-            if (instanceId.isEmpty()) {
-                // 新建 Trace 实例
-                auto *tab = new TraceTab(this);
-                setupTraceTab(tab);
-                int n = ++m_traceCount;
-                QString id = QString("trace%1").arg(n);
-                QString title = QString("Trace%1").arg(n);
-                openTab(tab, QString("📋 %1").arg(title));
-                m_traceInstances[id] = tab;
+            auto *tab = m_traceInstances.value(instanceId);
+            if (tab) {
+                // 跳转到已有 Trace 实例
+                const auto allTabs = m_editorArea->allTabWidgets();
+                for (auto *tw : allTabs) {
+                    int idx = tw->indexOf(tab);
+                    if (idx >= 0) {
+                        tw->setCurrentIndex(idx);
+                        m_tabLabel->setText(tw->tabText(idx));
+                        break;
+                    }
+                }
+            } else {
+                // 新建 Trace 实例（instanceId 为空时自动生成编号，非空时使用给定 ID）
+                auto *newTab = new TraceTab(this);
+                setupTraceTab(newTab);
+                QString id = instanceId;
+                if (id.isEmpty())
+                    id = QString("trace%1").arg(++m_traceCount);
+                else {
+                    QRegularExpression re("trace(\\d+)", QRegularExpression::CaseInsensitiveOption);
+                    auto m = re.match(id);
+                    if (m.hasMatch()) {
+                        int n = m.captured(1).toInt();
+                        if (n > m_traceCount) m_traceCount = n;
+                    }
+                }
+                QString numPart = id;
+                numPart.remove("trace", Qt::CaseInsensitive);
+                QString title = QString("Trace%1").arg(numPart.toInt());
+                openTab(newTab, QString("📋 %1").arg(title));
+                m_traceInstances[id] = newTab;
                 view->addModuleInstance("trace", id, title);
-                // 标签页关闭时自动同步
-                connect(tab, &QObject::destroyed, this, [this, id](QObject *) {
+                connect(newTab, &QObject::destroyed, this, [this, id](QObject *) {
                     m_traceInstances.remove(id);
                     if (m_setupView)
                         m_setupView->removeModuleInstance("trace", id);
                 });
-            } else {
-                // 跳转到已有 Trace 实例
-                auto *tab = m_traceInstances.value(instanceId);
-                if (tab) {
-                    const auto allTabs = m_editorArea->allTabWidgets();
-                    for (auto *tw : allTabs) {
-                        int idx = tw->indexOf(tab);
-                        if (idx >= 0) {
-                            tw->setCurrentIndex(idx);
-                            m_tabLabel->setText(tw->tabText(idx));
-                            break;
-                        }
-                    }
-                }
             }
         } else if (moduleId == "graphic") {
-            if (instanceId.isEmpty()) {
+            auto *gv = m_graphicInstances.value(instanceId);
+            if (gv) {
+                // 跳转到已有 Graphic 实例
+                const auto allTabs = m_editorArea->allTabWidgets();
+                for (auto *tw : allTabs) {
+                    int idx = tw->indexOf(gv);
+                    if (idx >= 0) {
+                        tw->setCurrentIndex(idx);
+                        m_tabLabel->setText(tw->tabText(idx));
+                        break;
+                    }
+                }
+            } else {
                 // 新建 Graphic 实例
-                auto *gv = new GraphicView(this);
-                int n = ++m_graphicCount;
-                QString id = QString("graphic%1").arg(n);
-                QString title = QString("Graphic%1").arg(n);
-                openTab(gv, QString("📈 %1").arg(title));
-                m_graphicInstances[id] = gv;
+                auto *newGv = new GraphicView(this);
+                QString id = instanceId;
+                if (id.isEmpty())
+                    id = QString("graphic%1").arg(++m_graphicCount);
+                else {
+                    QRegularExpression re("graphic(\\d+)", QRegularExpression::CaseInsensitiveOption);
+                    auto m = re.match(id);
+                    if (m.hasMatch()) {
+                        int n = m.captured(1).toInt();
+                        if (n > m_graphicCount) m_graphicCount = n;
+                    }
+                }
+                QString numPart = id;
+                numPart.remove("graphic", Qt::CaseInsensitive);
+                QString title = QString("Graphic%1").arg(numPart.toInt());
+                openTab(newGv, QString("📈 %1").arg(title));
+                m_graphicInstances[id] = newGv;
                 view->addModuleInstance("graphic", id, title);
-                connect(gv, &QObject::destroyed, this, [this, id](QObject *) {
+                connect(newGv, &QObject::destroyed, this, [this, id](QObject *) {
                     m_graphicInstances.remove(id);
                     if (m_setupView)
                         m_setupView->removeModuleInstance("graphic", id);
                 });
-            } else {
-                // 跳转到已有 Graphic 实例
-                auto *gv = m_graphicInstances.value(instanceId);
-                if (gv) {
-                    const auto allTabs = m_editorArea->allTabWidgets();
-                    for (auto *tw : allTabs) {
-                        int idx = tw->indexOf(gv);
-                        if (idx >= 0) {
-                            tw->setCurrentIndex(idx);
-                            m_tabLabel->setText(tw->tabText(idx));
-                            break;
-                        }
-                    }
-                }
             }
         } else if (moduleId == "record") {
             onOpenRecordTab();
@@ -2039,7 +2028,7 @@ void MainWindow::updateActions()
     m_pauseAction->setEnabled(playing);
     m_stopAction->setEnabled(hasFile);
     m_recordAction->setChecked(m_recording);
-    m_playbackTab->setPlayerLoaded(hasFile, playing);
+    if (m_playbackTab) m_playbackTab->setPlayerLoaded(hasFile, playing);
 }
 
 // ============================================================
@@ -2604,28 +2593,7 @@ void MainWindow::applyProjectState()
         m_setupView->rebuildScene();
     }
 
-    // 9. 重建默认 Trace/Graphic 实例（工程状态中未包含时）
-    if (!m_traceTab) {
-        m_traceTab = new TraceTab(this);
-        setupTraceTab(m_traceTab);
-        connect(m_traceTab, &QObject::destroyed, this, [this]() { m_traceTab = nullptr; });
-        openTab(m_traceTab, QStringLiteral("📋 Trace1"));
-        m_traceInstances["trace1"] = m_traceTab;
-        m_traceCount = qMax(m_traceCount, 1);
-    }
-    if (!m_graphicView) {
-        m_graphicView = new GraphicView(this);
-        connect(m_graphicView, &GraphicView::fileLoaded, this, [this](int count) {
-            if (count < 0)
-                m_bottomPanel->appendOutput("文件加载失败");
-            else
-                m_bottomPanel->appendOutput(QString("Graphic 已加载 %1 帧").arg(count));
-        });
-        connect(m_graphicView, &QObject::destroyed, this, [this]() { m_graphicView = nullptr; });
-        openTab(m_graphicView, QStringLiteral("📈 Graphic1"));
-        m_graphicInstances["graphic1"] = m_graphicView;
-        m_graphicCount = qMax(m_graphicCount, 1);
-    }
+    // 9. 默认 Trace/Graphic 不再强制创建 — 用户可通过 Flow 画布点击对应块按需创建
 
     // 10. 更新窗口标题
     setWindowTitle(QStringLiteral("sin - %1").arg(st.name));

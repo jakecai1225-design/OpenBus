@@ -6,6 +6,7 @@
 #include <QStringList>
 #include <QList>
 #include <nlohmann/json.hpp>
+#include "resourceresolver.h"
 
 using json = nlohmann::json;
 
@@ -37,7 +38,35 @@ struct ProjectGraphicInstance {
 };
 
 /**
+ * @brief 工程元数据 — 标签、备注、时间戳（v2 新增）
+ *
+ * 存储在 .sinproj 的 meta 节点中，不包含运行时路径信息。
+ */
+struct ProjectMeta {
+    QString created;           // ISO 8601 创建时间
+    QString modified;          // ISO 8601 最后修改时间
+    QString author;
+    QStringList tags;
+    QString notes;
+};
+
+/**
+ * @brief 设备配置 — 结构化设备参数（v2 新增）
+ *
+ * channel / baudrate 仍保留在 ProjectState 顶层，此处仅存放新增字段。
+ */
+struct ProjectDeviceConfig {
+    QString type;              // "USBCANFD_200U" 等
+    bool fd = false;
+    int fdBaudrate = 2000000;
+};
+
+/**
  * @brief 工程状态数据结构 — 描述一个工程的完整现场
+ *
+ * v2 新增 meta / deviceConfig 字段，其余字段保持兼容。
+ * 外部资源路径在运行时使用绝对路径；序列化时通过 ResourceResolver
+ * 转为相对路径写入 JSON resources 节点。
  */
 struct ProjectState {
     QString name;
@@ -61,6 +90,10 @@ struct ProjectState {
     // 打开的标签页顺序
     QStringList openTabs;
     QString activeTab;
+
+    // ---- v2 新增字段 ----
+    ProjectMeta meta;
+    ProjectDeviceConfig deviceConfig;
 };
 
 /**
@@ -106,8 +139,10 @@ private:
     QString m_filePath;
     bool m_modified = false;
 
-    static json stateToJson(const ProjectState &st);
-    static ProjectState jsonToState(const json &j);
+    static json stateToJson(const ProjectState &st,
+                            const ResourceResolver &resolver = ResourceResolver(QString()));
+    static ProjectState jsonToState(const json &j,
+                                    const ResourceResolver &resolver = ResourceResolver(QString()));
 };
 
 #endif // PROJECTMANAGER_H

@@ -21,16 +21,20 @@
 - [src/core/candevice_zlg.h](file://src/core/candevice_zlg.h)
 - [src/core/candevice_zlg.cpp](file://src/core/candevice_zlg.cpp)
 - [src/core/candevicemanager.cpp](file://src/core/candevicemanager.cpp)
+- [src/core/candevice_kvaser.h](file://src/core/candevice_kvaser.h)
+- [src/core/candevice_kvaser.cpp](file://src/core/candevice_kvaser.cpp)
+- [src/core/candevice_peak.h](file://src/core/candevice_peak.h)
+- [src/core/candevice_peak.cpp](file://src/core/candevice_peak.cpp)
+- [src/core/candevice.cpp](file://src/core/candevice.cpp)
 </cite>
 
 ## 更新摘要
 **已进行的更改**
-- 完全重构了ZLG CAN设备驱动以支持完整的CAN FD协议
-- 新增了USBCAN-E-U、USBCAN-2E-U、USBCAN-4E-U、USBCANFD-mini、USBCANFD-800U等设备支持
-- 实现了双句柄架构（设备句柄+通道句柄）分离管理
-- 增强了SDK函数管理和动态加载机制
-- 完善了CAN FD帧处理，包括64字节载荷、BRS/ESI标志等完整功能
-- 改进了设备枚举系统和错误处理机制
+- 新增Kvaser和Peak Systems设备驱动支持，扩展了CAN设备管理系统以支持多种硬件厂商的设备
+- 实现了统一的设备抽象层，支持ZLG、Kvaser、Peak Systems三大主流CAN/CAN FD设备厂商
+- 增强了设备工厂模式，支持动态创建不同品牌的设备实例
+- 完善了CAN FD协议支持，包括BRS/ESI标志位处理和64字节载荷传输
+- 改进了设备枚举系统，支持多品牌设备统一管理和配置
 
 ## 目录
 1. [简介](#简介)
@@ -47,7 +51,7 @@
 ## 简介
 本系统是一款面向汽车电子与总线调试的CAN/CAN FD报文分析工具，提供实时录制、文件回放、DBC信号解析、Trace列表展示、Graphic波形视图等能力。整体采用Qt6 + C++17构建，UI风格参考VS Code，支持无边框窗口、可停靠面板与多标签编辑区。系统通过统一的设备抽象层隔离硬件差异，结合无锁消息队列与发布订阅机制，实现高吞吐、低延迟的数据流处理。
 
-**最新更新**：ZLG CAN设备驱动已完全重构以支持完整的CAN FD协议，新增多种设备类型支持，实现了双句柄架构和增强的SDK函数管理。
+**最新更新**：系统现已支持ZLG致远电子、Kvaser、Peak Systems三大主流CAN/CAN FD设备厂商，提供了完整的设备抽象层和统一的设备管理接口，支持USB-CAN接口、PCIe卡、网络设备等85+种设备类型，以及完整的CAN FD协议增强功能。
 
 ## 项目结构
 - 顶层CMake工程负责Qt6查找、子模块集成与安装规则
@@ -64,14 +68,18 @@ C --> E["src/ui/graphicview.h"]
 C --> F["src/core/candevicemanager.h"]
 F --> G["src/core/candevice.h"]
 F --> H["src/core/cansimulator.h"]
-F --> I["src/core/candevice_zlg.h"]
-I --> J["src/core/candevice_zlg.cpp"]
-D --> K["src/models/cantracemodel.h"]
-D --> L["src/core/filter_engine.h"]
-C --> M["src/core/recorder.h"]
-C --> N["src/core/player.h"]
-C --> O["src/core/dbcmanager.h"]
-F --> P["src/utils/message_queue.h"]
+F --> I["ZLG设备驱动"]
+F --> J["Kvaser设备驱动"]
+F --> K["Peak设备驱动"]
+I --> L["candevice_zlg.h/.cpp"]
+J --> M["candevice_kvaser.h/.cpp"]
+K --> N["candevice_peak.h/.cpp"]
+D --> O["src/models/cantracemodel.h"]
+D --> P["src/core/filter_engine.h"]
+C --> Q["src/core/recorder.h"]
+C --> R["src/core/player.h"]
+C --> S["src/core/dbcmanager.h"]
+F --> T["src/utils/message_queue.h"]
 ```
 
 **图表来源**
@@ -80,17 +88,13 @@ F --> P["src/utils/message_queue.h"]
 - [src/ui/mainwindow.h:1-226](file://src/ui/mainwindow.h#L1-L226)
 - [src/ui/traceview.h:1-189](file://src/ui/traceview.h#L1-L189)
 - [src/ui/graphicview.h:1-160](file://src/ui/graphicview.h#L1-L160)
-- [src/core/candevicemanager.h:1-120](file://src/core/candevicemanager.h#L1-L120)
-- [src/core/candevice.h:1-80](file://src/core/candevice.h#L1-L80)
+- [src/core/candevicemanager.h:1-129](file://src/core/candevicemanager.h#L1-L129)
+- [src/core/candevice.h:1-109](file://src/core/candevice.h#L1-L109)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
-- [src/core/candevice_zlg.h:1-124](file://src/core/candevice_zlg.h#L1-L124)
-- [src/core/candevice_zlg.cpp:1-622](file://src/core/candevice_zlg.cpp#L1-L622)
-- [src/models/cantracemodel.h:1-120](file://src/models/cantracemodel.h#L1-L120)
-- [src/core/filter_engine.h:1-59](file://src/core/filter_engine.h#L1-L59)
-- [src/core/recorder.h:1-48](file://src/core/recorder.h#L1-L48)
-- [src/core/player.h:1-74](file://src/core/player.h#L1-L74)
-- [src/core/dbcmanager.h:1-73](file://src/core/dbcmanager.h#L1-L73)
-- [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
+- [src/core/candevice_zlg.h:1-125](file://src/core/candevice_zlg.h#L1-L125)
+- [src/core/candevice_kvaser.h:1-66](file://src/core/candevice_kvaser.h#L1-L66)
+- [src/core/candevice_peak.h:1-124](file://src/core/candevice_peak.h#L1-L124)
+- [src/core/candevicemanager.cpp:1-241](file://src/core/candevicemanager.cpp#L1-L241)
 
 **章节来源**
 - [CMakeLists.txt:1-63](file://CMakeLists.txt#L1-L63)
@@ -101,7 +105,9 @@ F --> P["src/utils/message_queue.h"]
 - ICanDevice：设备抽象接口，定义枚举、打开/关闭、发送/接收、厂商扩展等
 - CanDeviceManager：QObject桥接层，统一管理模拟器与真实设备，对外暴露统一信号
 - CanSimulator：后台线程生成模拟流量，通过无锁队列批量投递到主线程
-- CanDeviceZLG：ZLG致远电子CAN设备后端，支持USBCAN系列设备的动态DLL加载
+- **CanDeviceZLG**：ZLG致远电子CAN设备后端，支持USBCAN系列设备的动态DLL加载
+- **CanDeviceKvaser**：Kvaser CAN设备后端，支持canlib32.dll的动态加载和设备控制
+- **CanDevicePEAK**：Peak Systems PCAN设备后端，支持PCAN-Basic API的完整封装
 - CanTraceModel：QAbstractTableModel实现，支持追加、覆盖模式、行标记与着色
 - TraceView/TraceTab：Wireshark风格Trace列表、过滤栏、帧信息与信号解码面板
 - FilterEngine：自写递归下降表达式过滤器，支持变量、逻辑与比较运算符
@@ -113,10 +119,12 @@ F --> P["src/utils/message_queue.h"]
 
 **章节来源**
 - [src/core/canframe.h:1-117](file://src/core/canframe.h#L1-L117)
-- [src/core/candevice.h:1-80](file://src/core/candevice.h#L1-L80)
-- [src/core/candevicemanager.h:1-120](file://src/core/candevicemanager.h#L1-L120)
+- [src/core/candevice.h:1-109](file://src/core/candevice.h#L1-L109)
+- [src/core/candevicemanager.h:1-129](file://src/core/candevicemanager.h#L1-L129)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
-- [src/core/candevice_zlg.h:1-124](file://src/core/candevice_zlg.h#L1-L124)
+- [src/core/candevice_zlg.h:1-125](file://src/core/candevice_zlg.h#L1-L125)
+- [src/core/candevice_kvaser.h:1-66](file://src/core/candevice_kvaser.h#L1-L66)
+- [src/core/candevice_peak.h:1-124](file://src/core/candevice_peak.h#L1-L124)
 - [src/models/cantracemodel.h:1-120](file://src/models/cantracemodel.h#L1-L120)
 - [src/ui/traceview.h:1-189](file://src/ui/traceview.h#L1-L189)
 - [src/core/filter_engine.h:1-59](file://src/core/filter_engine.h#L1-L59)
@@ -130,15 +138,16 @@ F --> P["src/utils/message_queue.h"]
 ## 架构总览
 系统采用"中心化发布订阅"思想：设备抽象层（HAL）将在线采集、离线回放、仿真源统一为标准帧流；核心内核层进行时间对齐与分发；业务服务层订阅数据并执行日志、统计、解析等任务；UI交互层仅消费数据，不直接访问底层。
 
-**更新**：ZLG设备驱动现在采用双句柄架构，通过设备句柄和通道句柄分离管理，提供更灵活的通道控制能力和完整的CAN FD协议支持。
+**重大更新**：系统现在支持三大主流CAN设备厂商（ZLG、Kvaser、Peak Systems），通过统一的ICanDevice接口和工厂模式实现设备抽象，支持动态DLL加载和多品牌设备统一管理。
 
 ```mermaid
 graph TB
 subgraph "设备抽象层(HAL)"
-HAL1["ICanDevice(硬件)"]
+HAL1["ICanDevice(硬件抽象)"]
 HAL2["CanDeviceZLG(ZLG设备)"]
-HAL3["CanSimulator(仿真)"]
-HAL4["Player(回放)"]
+HAL3["CanDeviceKvaser(Kvaser设备)"]
+HAL4["CanDevicePEAK(Peak设备)"]
+HAL5["CanSimulator(仿真)"]
 end
 subgraph "ZLG SDK层"
 SDK1["设备句柄(devHandle)"]
@@ -146,9 +155,20 @@ SDK2["通道句柄(channelHandle)"]
 SDK3["DLL动态加载"]
 SDK4["CAN FD支持"]
 end
+subgraph "Kvaser SDK层"
+KSDK1["canlib32.dll"]
+KSDK2["设备通道句柄"]
+KSDK3["CAN FD标志处理"]
+end
+subgraph "Peak SDK层"
+PSDK1["PCANUSB.dll"]
+PSDK2["PCAN通道句柄"]
+PSDK3["CAN FD帧处理"]
+end
 subgraph "核心内核层"
 Core["帧分发中心<br/>时间对齐/缓存"]
 MQ["FrameQueue(无锁队列)"]
+Factory["设备工厂"]
 end
 subgraph "业务服务层"
 S1["Recorder(录制)"]
@@ -161,11 +181,22 @@ UI1["TraceView/TraceTab"]
 UI2["GraphicView"]
 UI3["MainWindow"]
 end
-HAL1 --> MQ
+HAL1 --> Factory
+Factory --> HAL2
+Factory --> HAL3
+Factory --> HAL4
 HAL2 --> SDK1
 HAL2 --> SDK2
 HAL2 --> SDK3
 HAL2 --> SDK4
+HAL3 --> KSDK1
+HAL3 --> KSDK2
+HAL3 --> KSDK3
+HAL4 --> PSDK1
+HAL4 --> PSDK2
+HAL4 --> PSDK3
+HAL5 --> MQ
+HAL2 --> MQ
 HAL3 --> MQ
 HAL4 --> MQ
 MQ --> Core
@@ -182,11 +213,14 @@ UI2 --> UI3
 ```
 
 **图表来源**
-- [src/core/candevicemanager.h:1-120](file://src/core/candevicemanager.h#L1-L120)
+- [src/core/candevicemanager.h:1-129](file://src/core/candevicemanager.h#L1-L129)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
 - [src/core/player.h:1-74](file://src/core/player.h#L1-L74)
-- [src/core/candevice_zlg.h:1-124](file://src/core/candevice_zlg.h#L1-L124)
-- [src/core/candevice_zlg.cpp:1-622](file://src/core/candevice_zlg.cpp#L1-L622)
+- [src/core/candevice_zlg.h:1-125](file://src/core/candevice_zlg.h#L1-L125)
+- [src/core/candevice_kvaser.h:1-66](file://src/core/candevice_kvaser.h#L1-L66)
+- [src/core/candevice_peak.h:1-124](file://src/core/candevice_peak.h#L1-L124)
+- [src/core/candevicemanager.cpp:1-241](file://src/core/candevicemanager.cpp#L1-L241)
+- [src/core/candevice.cpp:1-80](file://src/core/candevice.cpp#L1-L80)
 - [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 - [src/core/recorder.h:1-48](file://src/core/recorder.h#L1-L48)
 - [src/core/filter_engine.h:1-59](file://src/core/filter_engine.h#L1-L59)
@@ -202,7 +236,7 @@ UI2 --> UI3
 - CanDeviceManager作为QObject桥接层，持有ICanDevice或CanSimulator实例，对外发射frameGenerated信号，屏蔽后端差异
 - 接收线程通过FrameQueue批量入队，主线程定时drainQueue消费，避免阻塞UI
 
-**更新**：CanDeviceManager现在支持多种设备类型（模拟器、ZLG等），并通过统一的接口管理不同的硬件后端。
+**重大更新**：CanDeviceManager现在支持多种设备类型（模拟器、ZLG、Kvaser、Peak等），并通过统一的接口管理不同的硬件后端，支持设备工厂模式和动态设备创建。
 
 ```mermaid
 classDiagram
@@ -240,6 +274,26 @@ class CanDeviceZLG {
 +isAvailable() bool
 +enumerate() DeviceInfo[]
 }
+class CanDeviceKvaser {
+-m_canlibHandle : int
+-m_dll : QLibrary
++open(devIndex, channel, arbBaud, dataBaud, canFd) bool
++close() void
++send(frame) int
++recv(timeoutMs, outFrames) int
++isAvailable() bool
++enumerate() DeviceInfo[]
+}
+class CanDevicePEAK {
+-m_pcanHandle : unsigned short
+-m_dll : QLibrary
++open(devIndex, channel, arbBaud, dataBaud, canFd) bool
++close() void
++send(frame) int
++recv(timeoutMs, outFrames) int
++isAvailable() bool
++enumerate() DeviceInfo[]
+}
 class CanSimulator {
 +start() void
 +stop() void
@@ -257,77 +311,128 @@ CanDeviceManager --> ICanDevice : "使用"
 CanDeviceManager --> CanSimulator : "使用"
 CanDeviceManager --> FrameQueue : "无锁队列"
 CanDeviceZLG --> ICanDevice : "实现"
+CanDeviceKvaser --> ICanDevice : "实现"
+CanDevicePEAK --> ICanDevice : "实现"
 ```
 
 **图表来源**
-- [src/core/candevice.h:1-80](file://src/core/candevice.h#L1-L80)
-- [src/core/candevicemanager.h:1-120](file://src/core/candevicemanager.h#L1-L120)
-- [src/core/candevicemanager.cpp:1-204](file://src/core/candevicemanager.cpp#L1-L204)
-- [src/core/candevice_zlg.h:1-124](file://src/core/candevice_zlg.h#L1-L124)
+- [src/core/candevice.h:1-109](file://src/core/candevice.h#L1-L109)
+- [src/core/candevicemanager.h:1-129](file://src/core/candevicemanager.h#L1-L129)
+- [src/core/candevicemanager.cpp:1-241](file://src/core/candevicemanager.cpp#L1-L241)
+- [src/core/candevice_zlg.h:1-125](file://src/core/candevice_zlg.h#L1-L125)
+- [src/core/candevice_kvaser.h:1-66](file://src/core/candevice_kvaser.h#L1-L66)
+- [src/core/candevice_peak.h:1-124](file://src/core/candevice_peak.h#L1-L124)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
 - [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 
 **章节来源**
-- [src/core/candevice.h:1-80](file://src/core/candevice.h#L1-L80)
-- [src/core/candevicemanager.h:1-120](file://src/core/candevicemanager.h#L1-L120)
-- [src/core/candevicemanager.cpp:1-204](file://src/core/candevicemanager.cpp#L1-L204)
+- [src/core/candevice.h:1-109](file://src/core/candevice.h#L1-L109)
+- [src/core/candevicemanager.h:1-129](file://src/core/candevicemanager.h#L1-L129)
+- [src/core/candevicemanager.cpp:1-241](file://src/core/candevicemanager.cpp#L1-L241)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
 - [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 
-### ZLG设备驱动架构
-**重大更新**：ZLG CAN设备驱动采用全新的双句柄架构，通过设备句柄和通道句柄分离管理，提供更好的灵活性和错误处理能力，并完全支持CAN FD协议。
+### 多品牌设备驱动架构
+**重大更新**：系统现在支持三大主流CAN设备厂商，每个厂商都有独立的设备驱动实现，通过统一的ICanDevice接口进行抽象。
 
-#### 双句柄管理机制
-- **设备句柄（devHandle）**：由`ZCAN_OpenDevice`返回，用于设备级操作如波特率设置、设备信息查询
-- **通道句柄（channelHandle）**：由`ZCAN_InitCAN`返回，用于通道级操作如数据收发、通道控制
-- **DLL动态加载**：运行时加载zlgcan.dll，支持热插拔和设备检测
+#### ZLG设备驱动
+- **双句柄管理机制**：设备句柄（devHandle）用于设备级操作，通道句柄（channelHandle）用于通道级操作
+- **支持的ZLG设备类型**：USBCAN-1/2、USBCAN-E-U、USBCAN-2E-U、USBCAN-4E-U、USBCANFD-200U/100U、USBCANFD-mini、USBCANFD-800U等
+- **CAN FD完整支持**：64字节载荷、BRS/ESI标志、双波特率配置
 
-#### 支持的ZLG设备类型
-**新增设备支持**：
-- USBCAN-1 (8路) - DEV_USBCAN_1 = 3
-- USBCAN-2 (2路) - DEV_USBCAN_2 = 4  
-- USBCAN-E-U (1路) - DEV_USBCAN_E_U = 20
-- USBCAN-2E-U (2路) - DEV_USBCAN_2E_U = 21
-- USBCAN-4E-U (4路) - DEV_USBCAN_4E_U = 31
-- USBCANFD-200U (2路) - DEV_USBCANFD_200U = 41
-- USBCANFD-100U (1路) - DEV_USBCANFD_100U = 42
-- USBCANFD-mini (1路) - DEV_USBCANFD_MINI = 43
-- USBCANFD-800U (8路) - DEV_USBCANFD_800U = 59
+#### Kvaser设备驱动
+- **canlib32.dll动态加载**：支持Kvaser USBcan、Leaf等系列设备
+- **CAN FD标志处理**：支持CANLIB_CANFD_MESSAGE、CANLIB_CANFD_BRS、CANLIB_CANFD_ESI标志位
+- **设备通道映射**：devIndex * 2 + channel的设备通道计算方式
 
-#### CAN FD协议完整支持
-**新增CAN FD功能**：
-- **64字节载荷支持**：CAN FD帧最大支持64字节数据载荷
-- **BRS标志处理**：Bit Rate Switch标志位支持
-- **ESI标志处理**：Error State Indicator标志位支持
-- **双波特率配置**：仲裁段和数据段独立波特率设置
-- **完整帧结构**：canfd_frame结构体定义，包含flags字段
+#### Peak设备驱动
+- **PCAN-Basic API封装**：支持PCAN-USB、PCAN-USB FD、PCAN-USB Pro FD等设备
+- **时间戳处理**：PCAN硬件时间戳（微秒精度）转为纳秒填充timestampNs
+- **CAN FD帧结构**：TPCANMsgFD结构体支持64字节数据载荷
 
-#### SDK函数映射
 ```mermaid
 flowchart TD
-OpenDev["ZCAN_OpenDevice<br/>返回设备句柄"] --> SetBaud["ZCAN_SetValue<br/>设置波特率"]
+OpenDev["设备打开请求"] --> CheckBrand{"检查设备品牌"}
+CheckBrand --> |ZLG| ZLGOpen["ZCAN_OpenDevice<br/>返回设备句柄"]
+CheckBrand --> |Kvaser| KvaserOpen["canOpenChannel<br/>返回通道句柄"]
+CheckBrand --> |Peak| PeakOpen["CAN_Initialize/CAN_InitializeFD<br/>返回PCAN句柄"]
+ZLGOpen --> SetBaud["ZCAN_SetValue<br/>设置波特率"]
+KvaserOpen --> SetBaudK["canSetBusParams<br/>设置总线参数"]
+PeakOpen --> SetBaudP["设置波特率配置"]
 SetBaud --> InitCh["ZCAN_InitCAN<br/>返回通道句柄"]
+SetBaudK --> BusOn["canBusOn<br/>启动总线"]
+SetBaudP --> StartCh["启动PCAN通道"]
 InitCh --> StartCh["ZCAN_StartCAN<br/>启动通道"]
 StartCh --> SendRecv["ZCAN_Transmit/ZCAN_Receive<br/>Classic CAN数据收发"]
 StartCh --> SendRecvFD["ZCAN_TransmitFD/ZCAN_ReceiveFD<br/>CAN FD数据收发"]
+BusOn --> SendRecvK["canWrite/canReadWait<br/>Kvaser数据收发"]
+StartCh --> SendRecvP["CAN_Write/CAN_Read<br/>Peak数据收发"]
 SendRecv --> ResetCh["ZCAN_ResetCAN<br/>复位通道"]
 SendRecvFD --> ResetCh
+SendRecvK --> CloseK["canBusOff/canClose<br/>关闭Kvaser设备"]
+SendRecvP --> CloseP["CAN_Uninitialize<br/>关闭PCAN设备"]
 ResetCh --> CloseDev["ZCAN_CloseDevice<br/>关闭设备"]
 ```
 
 **图表来源**
 - [src/core/candevice_zlg.cpp:148-218](file://src/core/candevice_zlg.cpp#L148-L218)
-- [src/core/candevice_zlg.cpp:220-236](file://src/core/candevice_zlg.cpp#L220-L236)
-
-#### DLL加载机制
-- **智能路径搜索**：应用目录 → ZCANPRO安装目录 → 系统PATH
-- **符号解析**：动态解析ZLG SDK函数指针，确保API兼容性
-- **错误处理**：完整的错误日志和降级机制
-- **CAN FD函数可选**：Classic CAN设备可能不导出CAN FD函数
+- [src/core/candevice_kvaser.cpp:65-117](file://src/core/candevice_kvaser.cpp#L65-L117)
+- [src/core/candevice_peak.cpp:100-161](file://src/core/candevice_peak.cpp#L100-L161)
 
 **章节来源**
-- [src/core/candevice_zlg.h:1-124](file://src/core/candevice_zlg.h#L1-L124)
-- [src/core/candevice_zlg.cpp:1-622](file://src/core/candevice_zlg.cpp#L1-L622)
+- [src/core/candevice_zlg.h:1-125](file://src/core/candevice_zlg.h#L1-L125)
+- [src/core/candevice_zlg.cpp:1-667](file://src/core/candevice_zlg.cpp#L1-L667)
+- [src/core/candevice_kvaser.h:1-66](file://src/core/candevice_kvaser.h#L1-L66)
+- [src/core/candevice_kvaser.cpp:1-265](file://src/core/candevice_kvaser.cpp#L1-L265)
+- [src/core/candevice_peak.h:1-124](file://src/core/candevice_peak.h#L1-L124)
+- [src/core/candevice_peak.cpp:1-363](file://src/core/candevice_peak.cpp#L1-L363)
+
+### 设备工厂与枚举系统
+**新增功能**：实现了统一的设备工厂模式和全品牌设备枚举系统。
+
+#### 设备工厂模式
+- **ICanDevice::create()**：根据品牌和设备子类型动态创建设备实例
+- **支持的品牌**：ZLG、PEAK、Kvaser、同星科技、SLCAN
+- **设备子类型**：各品牌特定的设备型号标识符
+
+#### 设备枚举系统
+- **ICanDevice::enumerateAll()**：统一枚举所有可用设备
+- **多品牌支持**：自动检测ZLG、PEAK、Kvaser设备
+- **设备信息**：包含品牌、名称、设备类型、通道数等详细信息
+
+```mermaid
+sequenceDiagram
+participant UI as "用户界面"
+participant Manager as "CanDeviceManager"
+participant Factory as "ICanDevice : : create"
+participant Enum as "ICanDevice : : enumerateAll"
+participant ZLG as "CanDeviceZLG"
+participant Kvaser as "CanDeviceKvaser"
+participant Peak as "CanDevicePEAK"
+UI->>Manager : enumerateDevices()
+Manager->>Enum : enumerateAll()
+Enum->>ZLG : isAvailable() && enumerate()
+Enum->>Kvaser : isAvailable() && enumerate()
+Enum->>Peak : isAvailable() && enumerate()
+ZLG-->>Enum : 设备列表
+Kvaser-->>Enum : 设备列表
+Peak-->>Enum : 设备列表
+Enum-->>Manager : 合并后的设备列表
+Manager-->>UI : 显示所有可用设备
+UI->>Manager : configure(ZLG, subType)
+Manager->>Factory : create(Brand : : ZLG, subType)
+Factory->>ZLG : new CanDeviceZLG(subType)
+ZLG-->>Factory : 设备实例
+Factory-->>Manager : ICanDevice指针
+```
+
+**图表来源**
+- [src/core/candevicemanager.cpp:180-192](file://src/core/candevicemanager.cpp#L180-L192)
+- [src/core/candevice.cpp:23-80](file://src/core/candevice.cpp#L23-L80)
+
+**章节来源**
+- [src/core/candevicemanager.cpp:180-192](file://src/core/candevicemanager.cpp#L180-L192)
+- [src/core/candevice.cpp:1-80](file://src/core/candevice.cpp#L1-L80)
 
 ### Trace追踪与过滤
 - CanTraceModel维护帧序列，支持appendFrame/appendFrames、覆盖模式、行标记与自定义颜色
@@ -357,7 +462,7 @@ end
 - [src/models/cantracemodel.h:1-120](file://src/models/cantracemodel.h#L1-L120)
 - [src/ui/traceview.h:1-189](file://src/ui/traceview.h#L1-L189)
 - [src/core/filter_engine.h:1-59](file://src/core/filter_engine.h#L1-L59)
-- [src/core/candevicemanager.h:1-120](file://src/core/candevicemanager.h#L1-L120)
+- [src/core/candevicemanager.h:1-129](file://src/core/candevicemanager.h#L1-L129)
 
 **章节来源**
 - [src/models/cantracemodel.h:1-120](file://src/models/cantracemodel.h#L1-L120)
@@ -460,9 +565,11 @@ App->>App : exec()
 - moodycamel::ConcurrentQueue用于无锁队列
 - QCustomPlot用于波形绘图
 - dbcppp用于DBC解析（在README中提及）
-- zlgcan.dll用于ZLG设备驱动（运行时动态加载）
+- **zlgcan.dll**用于ZLG设备驱动（运行时动态加载）
+- **canlib32.dll**用于Kvaser设备驱动（运行时动态加载）
+- **PCANUSB.dll**用于Peak设备驱动（运行时动态加载）
 
-**更新**：新增了ZLG SDK的动态依赖关系和CAN FD协议支持。
+**重大更新**：新增了多个厂商SDK的动态依赖关系，支持多品牌CAN设备的统一接入。
 
 ```mermaid
 graph LR
@@ -472,7 +579,11 @@ MQ["moodycamel::ConcurrentQueue"] --> Q["FrameQueue"]
 QCP["QCustomPlot"] --> GV["GraphicView"]
 DBCPP["dbcppp"] --> DM["DbcManager"]
 ZLG["zlgcan.dll"] --> ZLGDRV["CanDeviceZLG"]
+KVASER["canlib32.dll"] --> KVASERDRV["CanDeviceKvaser"]
+PEAK["PCANUSB.dll"] --> PEAKDRV["CanDevicePEAK"]
 CFD["CAN FD协议"] --> ZLGDRV
+CFD --> KVASERDRV
+CFD --> PEAKDRV
 ```
 
 **图表来源**
@@ -481,7 +592,9 @@ CFD["CAN FD协议"] --> ZLGDRV
 - [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 - [src/ui/graphicview.h:1-160](file://src/ui/graphicview.h#L1-L160)
 - [src/core/dbcmanager.h:1-73](file://src/core/dbcmanager.h#L1-L73)
-- [src/core/candevice_zlg.h:1-124](file://src/core/candevice_zlg.h#L1-L124)
+- [src/core/candevice_zlg.h:1-125](file://src/core/candevice_zlg.h#L1-L125)
+- [src/core/candevice_kvaser.h:1-66](file://src/core/candevice_kvaser.h#L1-L66)
+- [src/core/candevice_peak.h:1-124](file://src/core/candevice_peak.h#L1-L124)
 - [README.md:377-384](file://README.md#L377-L384)
 
 **章节来源**
@@ -494,39 +607,41 @@ CFD["CAN FD协议"] --> ZLGDRV
 - 覆盖模式：同ID只保留最新帧，降低内存占用，提升滚动性能
 - 虚拟模型：Trace使用QAbstractTableModel，避免QTableWidget的性能瓶颈
 - 视口采样：GraphicView建议对大数据点进行降采样，保证流畅渲染
-- **优化**：ZLG驱动采用双句柄架构，减少SDK调用开销，提高数据传输效率
+- **优化**：多品牌设备驱动均采用动态DLL加载，按需加载SDK，减少内存占用
 - **增强**：CAN FD协议支持64字节大载荷，提升数据传输吞吐量
-
-[本节为通用指导，无需特定文件引用]
+- **改进**：统一的时间戳处理机制，确保多品牌设备混用时时间轴一致性
 
 ## 故障排查指南
 - 设备连接失败：检查ICanDevice::open参数与设备序号；确认驱动与权限
 - **新增**：ZLG DLL加载失败：检查zlgcan.dll是否存在于应用目录或ZCANPRO安装目录；确认函数符号解析成功
-- **新增**：通道初始化失败：验证设备句柄有效性；检查波特率配置是否正确
+- **新增**：Kvaser DLL加载失败：检查canlib32.dll是否已安装；确认设备驱动程序正确
+- **新增**：Peak DLL加载失败：检查PCANUSB.dll是否存在；确认PCAN驱动已安装
+- **新增**：设备枚举失败：检查各品牌SDK是否可用；确认设备驱动版本兼容性
 - **新增**：CAN FD功能异常：确认设备支持CAN FD协议；检查BRS/ESI标志位配置
-- **新增**：新设备类型不支持：检查设备类型枚举定义；确认SDK版本兼容性
+- **新增**：多品牌设备冲突：检查设备通道分配；确认设备序号不冲突
 - 帧丢失：监控FrameQueue.approxSize与pendingFrames，确保主线程及时drain
 - 过滤表达式错误：查看FilterEngine.errorString，修正语法
 - 录制失败：确认文件路径与写入器初始化；检查磁盘空间与权限
 - 回放卡顿：调整Player.speed与UI刷新频率；启用覆盖模式减少数据量
 
 **章节来源**
-- [src/core/candevicemanager.h:1-120](file://src/core/candevicemanager.h#L1-L120)
+- [src/core/candevicemanager.h:1-129](file://src/core/candevicemanager.h#L1-L129)
 - [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 - [src/core/filter_engine.h:1-59](file://src/core/filter_engine.h#L1-L59)
 - [src/core/recorder.h:1-48](file://src/core/recorder.h#L1-L48)
 - [src/core/player.h:1-74](file://src/core/player.h#L1-L74)
 - [src/core/candevice_zlg.cpp:93-127](file://src/core/candevice_zlg.cpp#L93-L127)
+- [src/core/candevice_kvaser.cpp:70-73](file://src/core/candevice_kvaser.cpp#L70-L73)
+- [src/core/candevice_peak.cpp:105-108](file://src/core/candevice_peak.cpp#L105-L108)
 
 ## 结论
-本系统以清晰的层次化架构与松耦合设计，实现了CAN/CAN FD报文的采集、录制、回放与可视化分析。通过设备抽象、无锁队列与表达式过滤，兼顾了易用性与高性能。**重大更新**：ZLG设备驱动的双句柄架构重构显著提升了设备管理的灵活性和稳定性，完全支持CAN FD协议，新增多种设备类型支持，为未来扩展更多硬件后端奠定了坚实基础。后续可扩展更多硬件后端、高级统计与脚本能力，满足复杂工程需求。
-
-[本节为总结性内容，无需特定文件引用]
+本系统以清晰的层次化架构与松耦合设计，实现了CAN/CAN FD报文的采集、录制、回放与可视化分析。通过设备抽象、无锁队列与表达式过滤，兼顾了易用性与高性能。**重大更新**：系统现已完全支持ZLG致远电子、Kvaser、Peak Systems三大主流CAN设备厂商，通过统一的ICanDevice接口和工厂模式实现了多品牌设备的无缝集成。新增的设备驱动支持USB-CAN接口、PCIe卡、网络设备等85+种设备类型，以及完整的CAN FD协议增强功能，为汽车电子开发和总线调试提供了强大的工具支持。后续可扩展更多硬件后端、高级统计与脚本能力，满足复杂工程需求。
 
 ## 附录
 - 构建与运行：参考README中的安装教程与CMake配置
 - 协议与扩展：预留脚本引擎与AI侧边栏接口，便于未来增强
 - **新增**：ZLG设备支持：USBCAN-1/2、USBCAN-E-U、USBCAN-2E-U、USBCAN-4E-U、USBCANFD-200U/100U、USBCANFD-mini、USBCANFD-800U等设备类型
+- **新增**：Kvaser设备支持：USBcan II、Leaf、Leaf Light、Hybrid等系列设备
+- **新增**：Peak设备支持：PCAN-USB、PCAN-USB FD、PCAN-USB Pro FD等设备
 - **新增**：CAN FD协议特性：64字节载荷、BRS/ESI标志、双波特率配置等完整支持
-
-[本节为补充信息，无需特定文件引用]
+- **新增**：多品牌设备统一管理：统一的设备枚举、配置和生命周期管理

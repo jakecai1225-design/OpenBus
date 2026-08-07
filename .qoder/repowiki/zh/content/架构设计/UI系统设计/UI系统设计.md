@@ -9,6 +9,7 @@
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 - [resources/styles/default.qss](file://resources/styles/default.qss)
+- [resources/styles/theme.qss](file://resources/styles/theme.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
 - [src/ui/filterbar.h](file://src/ui/filterbar.h)
 - [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
@@ -34,6 +35,11 @@
 - [src/ui/playbacktab.cpp](file://src/ui/playbacktab.cpp)
 - [src/ui/recordtab.h](file://src/ui/recordtab.h)
 - [src/ui/recordtab.cpp](file://src/ui/recordtab.cpp)
+- [src/ui/deviceconnectiontab.h](file://src/ui/deviceconnectiontab.h)
+- [src/ui/deviceconnectiontab.cpp](file://src/ui/deviceconnectiontab.cpp)
+- [src/ui/thememanager.h](file://src/ui/thememanager.h)
+- [src/ui/thememanager.cpp](file://src/ui/thememanager.cpp)
+- [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
 - [UI/ui-prototype.html](file://UI/ui-prototype.html)
 - [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
 - [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
@@ -42,11 +48,12 @@
 
 ## 更新摘要
 **所做更改**   
-- 侧边栏面板系统得到显著增强，特别是DbcPanel类现在支持DatabaseEntry结构和多协议分类管理
-- 活动栏导航系统更新了数据库面板的标识，将'分析配置'按钮标签更新为'Flow'
-- 工具集系统得到完善，支持6种总线分析工具的动态加载和管理
-- MeasurementSetupPanel标题改为'Flow'，与CANoe Measurement Setup行业标准保持一致
-- 增强了用户体验，使界面术语与行业标准保持一致
+- 新增SVG图标支持系统，实现动态颜色替换和主题适配的矢量图标渲染
+- 重构样式系统，引入ThemeManager主题管理器，支持运行时主题切换和变量替换
+- 增强设备连接界面，提供完整的CAN/CAN FD配置参数和时序预设管理
+- 优化活动栏导航系统，将'分析配置'按钮标签更新为'Flow'，符合行业标准
+- 改进资源管理系统，统一SVG图标资源和QSS样式文件的组织
+- 完善工具集系统，支持6种总线分析工具的动态加载和管理
 
 ## 目录
 1. [简介](#简介)
@@ -66,7 +73,7 @@
 ## 简介
 本文件面向基于Qt Widgets和现代Web技术的混合UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
 
-**更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新针对侧边栏面板系统进行了重大改进，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件。活动栏导航系统将'分析配置'按钮标签更新为'Flow'，与CANoe Measurement Setup行业标准保持一致，同时完善了工具集系统，为CAN总线数据分析提供了完整的工具解决方案。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
+**更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新针对UI系统进行了全面增强，包括SVG图标支持系统、样式系统重构、现代化界面设计改进，以及设备连接界面的优化。新增的ThemeManager主题管理器支持多种内置主题和运行时切换，SVG图标系统提供动态颜色替换功能，设备连接界面提供了完整的CAN/CAN FD配置选项和时序预设管理。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式，结合了传统Qt Widgets架构和现代Web前端技术：
@@ -92,15 +99,19 @@ B --> M["src/ui/signalconfigdialog.h/.cpp"]
 B --> N["src/ui/dbcdetailtab.h/.cpp"]
 B --> O["src/ui/playbacktab.h/.cpp"]
 B --> P["src/ui/recordtab.h/.cpp"]
-A --> Q["resources/resources.qrc"]
-Q --> R["resources/styles/default.qss"]
-A --> S["UI/ui-prototype.html"]
-S --> T["UI/js/ui-loader.js"]
-S --> U["UI/js/ui-prototype.js"]
-S --> V["UI/css/ui-prototype.css"]
-T --> W["UI/partials/*.html"]
-U --> X["UI/partials/*.html"]
-V --> Y["UI/partials/*.html"]
+B --> Q["src/ui/deviceconnectiontab.h/.cpp"]
+B --> R["src/ui/thememanager.h/.cpp"]
+B --> S["src/utils/svg_icon.h"]
+A --> T["resources/resources.qrc"]
+T --> U["resources/styles/default.qss"]
+T --> V["resources/styles/theme.qss"]
+A --> W["UI/ui-prototype.html"]
+W --> X["UI/js/ui-loader.js"]
+W --> Y["UI/js/ui-prototype.js"]
+W --> Z["UI/css/ui-prototype.css"]
+X --> AA["UI/partials/*.html"]
+Y --> AA
+Z --> AA
 ```
 
 图表来源
@@ -121,20 +132,26 @@ V --> Y["UI/partials/*.html"]
 ## 核心组件
 - 应用入口 main.cpp: 初始化Qt应用实例、设置全局样式、创建并显示主窗口
 - 主窗口 MainWindow: 承载UI树、管理布局与交互逻辑、加载QSS与主题切换
+- ThemeManager 主题管理器: 集中管理主题配置、QSS生成和运行时切换
+- SVG图标系统: 提供动态颜色替换和主题适配的矢量图标渲染
 - QSS样式 default.qss: 集中式样式表，统一外观与主题基础
 - Qt资源 resources.qrc: 将样式与图标等资源打包进应用，便于分发与加载
 - Web前端原型 ui-prototype.html: 基于HTML的现代化界面原型，支持动态内容加载
 - JavaScript模块系统: 包含ui-loader.js和ui-prototype.js，实现模块化功能组织
 - CSS样式系统: 提供统一的样式规范和响应式设计支持
 
-**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并新增了基于Web技术的现代化UI原型系统。**特别重要的是，侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件。活动栏导航系统将'分析配置'按钮标签更新为'Flow'，与CANoe Measurement Setup行业标准保持一致，MeasurementSetupPanel标题也相应更新为'Flow'。工具集系统得到完善，支持6种总线分析工具的动态加载和管理。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并新增了基于Web技术的现代化UI原型系统。**特别重要的是，新增了ThemeManager主题管理器，支持Light、Dark、VS Code Dark+、VS Code Light+、Monokai、Solarized Light、Solarized Dark等多种内置主题，通过@变量占位符实现运行时主题切换。SVG图标系统提供了renderSvgPixmap和svgIcon函数，支持动态颜色替换和主题适配。设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项，包括波特率设置、时序预设管理和通道配置。活动栏导航系统将'分析配置'按钮标签更新为'Flow'，与CANoe Measurement Setup行业标准保持一致。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 - [resources/styles/default.qss](file://resources/styles/default.qss)
+- [resources/styles/theme.qss](file://resources/styles/theme.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
+- [src/ui/thememanager.h](file://src/ui/thememanager.h)
+- [src/ui/thememanager.cpp](file://src/ui/thememanager.cpp)
+- [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
 - [UI/ui-prototype.html](file://UI/ui-prototype.html)
 - [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
 - [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
@@ -144,17 +161,18 @@ V --> Y["UI/partials/*.html"]
 整体采用"入口初始化 + 主窗口容器 + 样式/资源分离 + Web前端集成"的混合架构模式：
 - 入口负责生命周期与全局样式注入
 - 主窗口作为UI根节点，组织子控件与布局
-- 样式通过QSS集中管理，支持运行时切换
+- 样式通过ThemeManager集中管理，支持运行时切换
 - 资源通过qrc统一打包，避免路径问题
 - Web前端提供现代化界面原型和动态内容加载能力
 
-**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。**特别重要的是，侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理多种协议类型的数据库文件。活动栏导航系统将'分析配置'按钮标签更新为'Flow'，与行业标准保持一致。工具集系统得到完善，通过ActivityBar的工具集按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
+**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项；活动栏导航系统将'分析配置'按钮标签更新为'Flow'，与行业标准保持一致。工具集系统得到完善，通过ActivityBar的工具集按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
 
 ```mermaid
 graph TB
 subgraph "应用层"
 M["main.cpp<br/>应用入口"]
 MW["MainWindow<br/>主窗口"]
+TM["ThemeManager<br/>主题管理器"]
 end
 subgraph "Web前端层"
 WPH["ui-prototype.html<br/>主界面"]
@@ -170,6 +188,7 @@ end
 subgraph "编辑区域层"
 SEA["SplitEditorArea<br/>分割编辑器区域"]
 SBP["SidebarPanels<br/>侧边栏面板<br/>DbcPanel支持多协议分类"]
+DCT["DeviceConnectionTab<br/>设备连接界面"]
 end
 subgraph "专用Tab组件层"
 DBCT["DBCDetailTab<br/>DBC详情标签页"]
@@ -186,13 +205,14 @@ GV["GraphicView<br/>图形视图"]
 TV["TraceView<br/>跟踪视图"]
 SCD["SignalConfigDialog<br/>信号配置对话框"]
 end
-subgraph "视图层"
+subgraph "样式与资源层"
 QSS["default.qss<br/>样式表"]
-end
-subgraph "资源层"
+THEME["theme.qss<br/>主题模板"]
 QRC["resources.qrc<br/>资源清单"]
+SVG["SVG图标系统<br/>动态颜色替换"]
 end
 M --> MW
+M --> TM
 M --> WPH
 WPH --> WL
 WPH --> WP
@@ -202,6 +222,7 @@ MW --> BP
 MW --> RP
 MW --> SEA
 MW --> SBP
+MW --> DCT
 MW --> DBCT
 MW --> PB
 MW --> RT
@@ -211,7 +232,10 @@ SEA --> GV
 SEA --> TV
 MW --> SCD
 MW --> QSS
+TM --> THEME
 QRC --> QSS
+QRC --> THEME
+QRC --> SVG
 TP --> TR
 ```
 
@@ -219,6 +243,8 @@ TP --> TR
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [src/ui/thememanager.h](file://src/ui/thememanager.h)
+- [src/ui/thememanager.cpp](file://src/ui/thememanager.cpp)
 - [UI/ui-prototype.html](file://UI/ui-prototype.html)
 - [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
 - [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
@@ -244,10 +270,13 @@ sequenceDiagram
 participant App as "QApplication"
 participant Main as "main.cpp"
 participant Style as "QSS加载器"
+participant Theme as "ThemeManager"
 participant Win as "MainWindow"
 participant Web as "Web前端"
 Main->>App : 创建实例
 Main->>Style : 加载默认样式
+Main->>Theme : 初始化主题管理器
+Theme-->>Main : 主题就绪
 Style-->>Main : 样式就绪
 Main->>Win : 构造主窗口
 Main->>Web : 初始化Web前端
@@ -275,7 +304,7 @@ App->>App : 进入事件循环
 - 通过信号槽机制与子控件通信
 - 支持Web前端的原型验证和交互测试
 
-**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统等多个专业UI组件。**特别重要的是，侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理。活动栏导航系统将'分析配置'按钮标签更新为'Flow'，与行业标准保持一致。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持6种总线分析工具的动态加载和管理。**主窗口作为协调者，统一管理各组件的生命周期和数据流，并支持与Web前端原型的无缝集成。
+**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，新增了ThemeManager主题管理器的集成，支持运行时主题切换；设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项；侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理。活动栏导航系统将'分析配置'按钮标签更新为'Flow'，与行业标准保持一致。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持6种总线分析工具的动态加载和管理。**主窗口作为协调者，统一管理各组件的生命周期和数据流，并支持与Web前端原型的无缝集成。
 
 ```mermaid
 classDiagram
@@ -329,6 +358,14 @@ class ToolsPanel {
 +removeToolItem(key)
 +getToolItems()
 }
+class DeviceConnectionTab {
++setDevice(deviceKind, devIndex, deviceName)
++setSimulator(sim)
++setDeviceManager(mgr)
++onConnect()
++onDisconnect()
++onCanFdToggled(enabled)
+}
 class DBCDetailTab {
 +loadDBCFile(path)
 +displaySignals()
@@ -353,6 +390,7 @@ MainWindow --> RightPanel : "包含"
 MainWindow --> SplitEditorArea : "包含"
 MainWindow --> SidebarPanels : "管理"
 MainWindow --> ToolsPanel : "管理"
+MainWindow --> DeviceConnectionTab : "管理"
 MainWindow --> DBCDetailTab : "管理"
 MainWindow --> PlaybackTab : "管理"
 MainWindow --> RecordTab : "管理"
@@ -366,6 +404,7 @@ MainWindow --> RecordTab : "管理"
 - [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
 - [src/ui/spliteditorarea.h](file://src/ui/spliteditorarea.h)
 - [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/deviceconnectiontab.h](file://src/ui/deviceconnectiontab.h)
 - [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
 - [src/ui/playbacktab.h](file://src/ui/playbacktab.h)
 - [src/ui/recordtab.h](file://src/ui/recordtab.h)
@@ -381,21 +420,22 @@ MainWindow --> RecordTab : "管理"
 - 动态更新：不重建控件的前提下刷新样式
 - Web前端样式集成：支持CSS样式与QSS样式的统一管理
 
+**更新** 新增了ThemeManager主题管理器，支持7种内置主题（Light、Dark、VS Code Dark+、VS Code Light+、Monokai、Solarized Light、Solarized Dark），通过@变量占位符实现运行时主题切换。主题模板theme.qss使用@变量语法，ThemeManager在运行时将变量替换为具体的颜色值。
+
 样式加载与切换流程
 ```mermaid
 flowchart TD
 Start(["开始"]) --> LoadDefault["加载默认样式"]
-LoadDefault --> Apply["应用到应用程序"]
+LoadDefault --> InitTheme["初始化ThemeManager"]
+InitTheme --> Apply["应用到应用程序"]
 Apply --> CheckWeb{"检查Web前端？"}
 CheckWeb --> |是| LoadCSS["加载CSS样式"]
 CheckWeb --> |否| UserAction{"用户切换主题？"}
 LoadCSS --> UserAction
 UserAction --> |否| End(["结束"])
-UserAction --> |是| SelectTheme["选择新主题路径"]
-SelectTheme --> LoadNew["读取新QSS"]
-LoadNew --> Validate{"样式有效？"}
-Validate --> |否| Error["记录错误并回退"]
-Validate --> |是| ApplyNew["应用新样式"]
+UserAction --> |是| SelectTheme["选择新主题"]
+SelectTheme --> GenerateQSS["ThemeManager生成QSS"]
+GenerateQSS --> ApplyNew["应用新样式"]
 ApplyNew --> Refresh["触发重绘"]
 Refresh --> UpdateWeb["更新Web前端样式"]
 UpdateWeb --> End
@@ -403,13 +443,61 @@ UpdateWeb --> End
 
 图表来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
+- [resources/styles/theme.qss](file://resources/styles/theme.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
+- [src/ui/thememanager.h](file://src/ui/thememanager.h)
+- [src/ui/thememanager.cpp](file://src/ui/thememanager.cpp)
 - [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
+- [resources/styles/theme.qss](file://resources/styles/theme.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
+- [src/ui/thememanager.h](file://src/ui/thememanager.h)
+- [src/ui/thememanager.cpp](file://src/ui/thememanager.cpp)
 - [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
+
+### SVG图标系统
+功能特性
+- 动态颜色替换：读取SVG文件后替换currentColor为指定颜色
+- 主题适配：根据当前主题自动调整图标颜色
+- 双状态图标：支持未选中灰色和选中白色两种状态
+- 高性能渲染：使用QSvgRenderer进行矢量渲染
+
+技术实现
+- renderSvgPixmap函数：读取SVG文件，替换颜色，渲染为QPixmap
+- svgIcon便捷函数：直接返回单色QIcon
+- 支持透明背景和抗锯齿渲染
+
+```mermaid
+classDiagram
+class SvgIconSystem {
++renderSvgPixmap(resourcePath, color, size) QPixmap
++svgIcon(resourcePath, color, size) QIcon
++makeActivityIcon(resourcePath) QIcon
+}
+class ActivityIcon {
++normalState QColor
++activeState QColor
++selectedState QColor
++createDoubleStateIcon()
+}
+class ThemeIntegration {
++getCurrentThemeColor() QString
++applyThemeColors() void
++updateIconsOnThemeChange() void
+}
+SvgIconSystem --> ActivityIcon : "创建"
+SvgIconSystem --> ThemeIntegration : "集成"
+```
+
+图表来源
+- [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
+- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
+
+章节来源
+- [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
+- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
 
 ### 资源系统（resources.qrc）
 组织原则
@@ -418,10 +506,13 @@ UpdateWeb --> End
 - 便于打包与版本化管理
 - 支持Web前端资源的统一管理
 
+**更新** 新增了SVG图标资源，包括project.svg、trace.svg、graphic.svg、database.svg、send.svg、record.svg、device.svg、protocol.svg、flow.svg、tools.svg、settings.svg、file.svg等图标文件，全部支持动态颜色替换。
+
 常用用法
 - 在样式表中引用资源：url(:/styles/default.qss)
 - 在代码中加载资源：QFile(":/...")
 - Web前端资源通过HTTP服务器访问
+- SVG图标通过renderSvgPixmap函数动态渲染
 
 章节来源
 - [resources/resources.qrc](file://resources/resources.qrc)
@@ -574,6 +665,72 @@ TraceView --> DataCache : "管理"
 章节来源
 - [src/ui/traceview.h](file://src/ui/traceview.h)
 - [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
+
+### 设备连接界面（DeviceConnectionTab）增强
+功能特性
+- 提供完整的设备参数配置界面
+- 支持CAN 2.0A和CAN FD模式切换
+- 通道使能配置和多通道支持
+- 仲裁段和数据段波特率设置
+- 时序预设管理和详细信息显示
+- 连接/断开控制和状态显示
+
+**更新** 设备连接界面得到了显著增强，提供了完整的CAN/CAN FD配置选项，包括波特率预设、时序预设管理和通道配置。支持模拟器模式和真实硬件设备连接，通过V2接口统一处理设备连接请求。
+
+技术实现
+- 基于QVBoxLayout的垂直布局
+- QGroupBox分组管理不同配置区域
+- QComboBox提供可编辑的波特率输入
+- QCheckBox支持多通道选择
+- 时序预设包含SJW、TSEG1、TSEG2和采样点信息
+
+```mermaid
+classDiagram
+class DeviceConnectionTab {
++DeviceConnectionTab(parent)
++setDevice(deviceKind, devIndex, deviceName)
++setSimulator(sim)
++setDeviceManager(mgr)
++onConnect()
++onDisconnect()
++onCanFdToggled(enabled)
++onArbTimingChanged(index)
++onDataTimingChanged(index)
++updateCanFdVisibility()
++populateTimingPresets()
++timingDetailText(preset) QString
+}
+class TimingPreset {
++name string
++sjw int
++tseg1 int
++tseg2 int
++samplePoint int
++calculateTotalTQ() int
++isValid() bool
+}
+class CanConfiguration {
++mode string
++channels QList<int>
++arbBaudrate int
++dataBaudrate int
++canFdEnabled bool
++arbTiming Preset
++dataTiming Preset
++validate() bool
++serialize() QVariantMap
+}
+DeviceConnectionTab --> TimingPreset : "管理"
+DeviceConnectionTab --> CanConfiguration : "配置"
+```
+
+图表来源
+- [src/ui/deviceconnectiontab.h](file://src/ui/deviceconnectiontab.h)
+- [src/ui/deviceconnectiontab.cpp](file://src/ui/deviceconnectiontab.cpp)
+
+章节来源
+- [src/ui/deviceconnectiontab.h](file://src/ui/deviceconnectiontab.h)
+- [src/ui/deviceconnectiontab.cpp](file://src/ui/deviceconnectiontab.cpp)
 
 ### 侧边栏面板系统（SidebarPanels）增强
 功能特性
@@ -1025,14 +1182,14 @@ class ActivityBar {
 +enum Activity {
 + None = -1,
 + Project = 0,
++ Analysis,
++ Device,
 + Trace,
 + Graphic,
 + Dbc,
 + Send,
 + Record,
-+ Device,
 + Protocol,
-+ Flow,
 + Tools,
 + Settings
 +}
@@ -1278,7 +1435,7 @@ DbcPanel --> CategoryNode : "使用"
 - MainWindow 依赖样式与主题管理
 - 样式与资源通过qrc解耦，降低硬编码路径风险
 
-**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**特别重要的是，侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理。活动栏导航系统将'分析配置'按钮标签更新为'Flow'，与行业标准保持一致。工具集系统得到完善，包括活动栏工具集按钮、工具集面板、工具路由机制和主窗口的onToolOpened处理函数。**
+**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统、设备连接界面和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**特别重要的是，新增了ThemeManager主题管理器和SVG图标系统，增强了样式管理和图标渲染能力。设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项。活动栏导航系统将'分析配置'按钮标签更新为'Flow'，与行业标准保持一致。工具集系统得到完善，包括活动栏工具集按钮、工具集面板、工具路由机制和主窗口的onToolOpened处理函数。**
 
 ```mermaid
 graph LR
@@ -1289,21 +1446,27 @@ MW --> BP["BottomPanel"]
 MW --> RP["RightPanel"]
 MW --> SEA["SplitEditorArea"]
 MW --> SBP["SidebarPanels<br/>DbcPanel支持多协议分类"]
+MW --> DCT["DeviceConnectionTab<br/>设备连接界面"]
 MW --> DBCT["DBCDetailTab"]
 MW --> PB["PlaybackTab"]
 MW --> RT["RecordTab"]
 MW --> TP["ToolsPanel"]
+MW --> TM["ThemeManager<br/>主题管理器"]
 SEA --> FB["FilterBar"]
 SEA --> GV["GraphicView"]
 SEA --> TV["TraceView"]
 MW --> SCD["SignalConfigDialog"]
 MW --> QSS["QSS样式"]
+TM --> THEME["theme.qss<br/>主题模板"]
 QSS --> QRC["resources.qrc"]
+QRC --> THEME
+QRC --> SVG["SVG图标系统"]
 AB --> Navigation["导航管理"]
 BP --> Logging["日志管理"]
 RP --> Properties["属性管理"]
 SEA --> Editors["编辑器管理"]
 SBP --> Panels["面板管理"]
+DCT --> Config["配置管理"]
 DBCT --> DBC["DBC管理"]
 PB --> Player["播放器"]
 RT --> Recorder["录制器"]
@@ -1322,12 +1485,17 @@ Tools --> ToolRouter["工具路由器"]
 MW --> ToolHandler["onToolOpened处理"]
 SBP --> MultiProtocol["多协议分类管理"]
 MultiProtocol --> DatabaseEntry["DatabaseEntry结构"]
+TM --> ThemeVars["@变量替换"]
+SVG --> IconSystem["图标渲染"]
 ```
 
 图表来源
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [src/ui/thememanager.h](file://src/ui/thememanager.h)
+- [src/ui/thememanager.cpp](file://src/ui/thememanager.cpp)
+- [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
 - [UI/ui-prototype.html](file://UI/ui-prototype.html)
 - [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
 - [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
@@ -1365,6 +1533,7 @@ MultiProtocol --> DatabaseEntry["DatabaseEntry结构"]
   - 右侧面板的内容切换使用虚拟化技术
   - 分割编辑器区域实现编辑器的按需创建
   - 侧边栏面板系统优化面板切换性能
+  - 设备连接界面使用延迟初始化配置选项
 - **专用Tab组件性能优化**
   - DBC详情标签页实现大数据集的虚拟滚动
   - 播放控制标签页使用高效的定时器机制
@@ -1387,11 +1556,18 @@ MultiProtocol --> DatabaseEntry["DatabaseEntry结构"]
   - 跟踪视图实现智能预取和缓存策略
   - 侧边栏面板系统优化面板切换动画
   - 所有组件支持硬件加速渲染
+- **主题系统性能优化**
+  - ThemeManager使用单例模式避免重复实例化
+  - @变量替换使用QHash提高查找性能
+  - 主题切换时只更新必要的样式属性
+  - SVG图标缓存避免重复渲染
 - **最新性能改进**
   - graphicview.cpp的崩溃问题修复减少了异常处理开销
   - 优化的内存管理降低了内存占用峰值
   - 改进的错误处理机制避免了不必要的重试
   - 增强的测试数据集支持提高了数据处理效率
+  - SVG图标系统使用QSvgRenderer提高渲染性能
+  - 设备连接界面使用延迟初始化减少启动时间
 
 [本节为通用指导，无需特定文件引用]
 
@@ -1403,6 +1579,7 @@ MultiProtocol --> DatabaseEntry["DatabaseEntry结构"]
 - 主题切换无效
   - 校验新样式语法，捕获解析异常
   - 确保应用了正确的对象名称与选择器
+  - 检查ThemeManager的@变量映射是否正确
 - 资源加载失败
   - 核对qrc中的路径大小写与相对路径
   - 使用:/前缀访问资源，避免平台差异
@@ -1424,6 +1601,7 @@ MultiProtocol --> DatabaseEntry["DatabaseEntry结构"]
   - 右侧面板内容切换卡顿需要优化数据绑定
   - 分割编辑器区域布局错乱需要检查约束设置
   - 侧边栏面板系统面板注册失败需要检查命名冲突
+  - 设备连接界面配置验证失败需要检查参数格式
 - **专用Tab组件问题**
   - DBC文件加载失败需要检查文件格式与权限
   - 播放控制标签页时间轴不同步需要检查定时器精度
@@ -1448,11 +1626,23 @@ MultiProtocol --> DatabaseEntry["DatabaseEntry结构"]
   - 跟踪视图内存泄漏需要检查缓存清理机制
   - 侧边栏面板切换卡顿需要检查动画配置
   - 所有组件的可访问性功能需要验证屏幕阅读器兼容性
+- **主题系统问题**
+  - 主题切换后样式未更新需要检查QSS应用时机
+  - @变量替换失败需要检查ThemeManager映射配置
+  - SVG图标颜色不正确需要检查currentColor替换逻辑
+  - 主题文件加载失败需要检查文件路径和权限
+- **设备连接界面问题**
+  - 设备连接失败需要检查设备驱动和权限
+  - CAN FD配置无效需要检查波特率和时序参数
+  - 时序预设显示异常需要检查预设数据格式
+  - 通道选择无效需要检查设备支持情况
 - **最新问题修复**
   - graphicview.cpp崩溃问题已通过增强的错误处理机制解决
   - 测试数据集兼容性问题已通过数据验证和适配层修复
   - 内存管理问题已通过优化的资源清理机制改善
   - 图形渲染稳定性已通过双缓冲和增量更新技术提升
+  - SVG图标渲染问题已通过QSvgRenderer优化解决
+  - 主题切换性能问题已通过缓存机制改善
 - **DbcPanel多协议分类问题**
   - 协议分类节点不显示需要检查文件扩展名识别
   - DatabaseEntry结构数据丢失需要检查序列化机制
@@ -1461,16 +1651,22 @@ MultiProtocol --> DatabaseEntry["DatabaseEntry结构"]
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
+- [resources/styles/theme.qss](file://resources/styles/theme.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
+- [src/ui/thememanager.h](file://src/ui/thememanager.h)
+- [src/ui/thememanager.cpp](file://src/ui/thememanager.cpp)
+- [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
+- [src/ui/deviceconnectiontab.h](file://src/ui/deviceconnectiontab.h)
+- [src/ui/deviceconnectiontab.cpp](file://src/ui/deviceconnectiontab.cpp)
 - [UI/ui-prototype.html](file://UI/ui-prototype.html)
 - [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
 - [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
 - [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 
 ## 结论
-本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域和增强的侧边栏面板系统，**特别是侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件。**
+本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面，**特别是侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件。**
 
-**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理多种协议类型的数据库文件。活动栏导航系统将'分析配置'按钮标签更新为'Flow'，与CANoe Measurement Setup行业标准保持一致，MeasurementSetupPanel标题也相应更新为'Flow'。工具集系统得到完善，通过ActivityBar的工具集按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案，包括BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析、ID频率分析、总线负载计算等多种实用工具。主窗口组件通过新增的onToolOpened槽函数实现了工具激活请求的统一处理，支持6种不同的总线分析工具动态加载和管理，大大增强了UI系统的工具管理能力。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
+**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，新增了ThemeManager主题管理器，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项；活动栏导航系统将'分析配置'按钮标签更新为'Flow'，与CANoe Measurement Setup行业标准保持一致，MeasurementSetupPanel标题也相应更新为'Flow'。工具集系统得到完善，通过ActivityBar的工具集按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案，包括BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析、ID频率分析、总线负载计算等多种实用工具。主窗口组件通过新增的onToolOpened槽函数实现了工具激活请求的统一处理，支持6种不同的总线分析工具动态加载和管理，大大增强了UI系统的工具管理能力。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -1504,6 +1700,7 @@ MultiProtocol --> DatabaseEntry["DatabaseEntry结构"]
   - 右侧面板应具备可调整的宽度与状态持久化
   - 分割编辑器区域需支持多文档编辑与同步操作
   - 侧边栏面板系统应提供灵活的注册与管理接口
+  - 设备连接界面需提供完整的配置验证和错误提示
 - **专用Tab组件规范**
   - DBC详情标签页应支持大数据集的虚拟滚动
   - 播放控制标签页需实现精确的时间轴控制
@@ -1533,11 +1730,15 @@ MultiProtocol --> DatabaseEntry["DatabaseEntry结构"]
   - 跟踪视图应实现智能缓存和预取机制
   - 侧边栏面板系统需支持可访问性功能
   - 所有组件应支持硬件加速渲染
+  - 主题管理器应支持运行时主题切换
+  - SVG图标系统需提供动态颜色替换功能
 - **最新规范要求**
   - 图形组件必须包含完善的错误处理和异常恢复机制
   - 所有组件需支持测试数据集的兼容性验证
   - 内存管理需遵循RAII原则和资源自动清理
   - 性能监控需集成到组件的生命周期管理中
+  - 主题切换需支持平滑过渡和状态保持
+  - 设备连接需支持多种设备类型和配置选项
 
 ### 样式定制指南
 - 主题设计
@@ -1553,6 +1754,16 @@ MultiProtocol --> DatabaseEntry["DatabaseEntry结构"]
   - 使用CSS Modules进行样式隔离
   - 实现主题变量的统一管理
   - 支持动态样式切换和热重载
+- **主题系统使用指南**
+  - 使用ThemeManager.instance()获取单例实例
+  - 通过applyTheme()方法切换主题
+  - 使用generateQSS()方法生成QSS字符串
+  - 支持@变量占位符的运行时替换
+- **SVG图标使用指南**
+  - 使用renderSvgPixmap()函数渲染SVG为QPixmap
+  - 使用svgIcon()便捷函数创建单色QIcon
+  - 支持动态颜色替换和主题适配
+  - 建议使用currentColor占位符实现主题适配
 
 ### 设计模式与最佳实践
 - 观察者模式
@@ -1579,6 +1790,7 @@ MultiProtocol --> DatabaseEntry["DatabaseEntry结构"]
   - 右侧面板应提供内容切换的动画效果
   - 分割编辑器区域需支持编辑器的拖拽重排
   - 侧边栏面板系统应实现面板状态的自动保存
+  - 设备连接界面需提供完整的配置验证和错误提示
 - **专用Tab组件最佳实践**
   - DBC详情标签页应实现高效的文件解析与缓存
   - 播放控制标签页需支持精确的时间同步
@@ -1609,11 +1821,16 @@ MultiProtocol --> DatabaseEntry["DatabaseEntry结构"]
   - 跟踪视图需实现智能缓存和预取机制
   - 侧边栏面板系统应支持可访问性功能
   - 所有组件应支持硬件加速渲染
+  - 主题管理器应支持平滑的主题切换
+  - SVG图标系统应提供高效的渲染性能
 - **最新最佳实践**
   - 图形组件必须实现健壮的异常处理和崩溃恢复
   - 所有数据处理组件需包含数据验证和完整性检查
   - 内存密集型操作需使用异步处理和背压机制
   - 性能监控和诊断工具应集成到开发流程中
+  - 主题切换需支持平滑过渡和用户状态保持
+  - 设备连接需支持多种设备类型和配置选项
+  - SVG图标需支持动态颜色替换和主题适配
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -1641,10 +1858,19 @@ MultiProtocol --> DatabaseEntry["DatabaseEntry结构"]
 21. **可访问性测试**：验证所有组件的可访问性功能和屏幕阅读器兼容性
 22. **稳定性测试**：验证graphicview.cpp改进后的崩溃恢复机制
 23. **数据集兼容性测试**：确保组件对新测试数据集的支持能力
+24. **主题系统测试**：验证ThemeManager的运行时主题切换功能
+25. **SVG图标测试**：验证SVG图标的动态颜色替换和主题适配
+26. **设备连接测试**：验证DeviceConnectionTab的CAN/CAN FD配置功能
+27. **性能基准测试**：建立性能基准并进行持续监控
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [src/ui/thememanager.h](file://src/ui/thememanager.h)
+- [src/ui/thememanager.cpp](file://src/ui/thememanager.cpp)
+- [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
+- [src/ui/deviceconnectiontab.h](file://src/ui/deviceconnectiontab.h)
+- [src/ui/deviceconnectiontab.cpp](file://src/ui/deviceconnectiontab.cpp)
 - [UI/ui-prototype.html](file://UI/ui-prototype.html)
 - [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
 - [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)

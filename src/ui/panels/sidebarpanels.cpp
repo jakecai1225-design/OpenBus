@@ -5,6 +5,7 @@
 #include "core/candevicemanager.h"
 #include "core/candevice.h"
 #include "core/appconfig.h"
+#include "core/sessionmanager.h"
 #include "ui/graphicview.h"
 #include "ui/thememanager.h"
 
@@ -201,25 +202,23 @@ void ProjectPanel::refreshRecentList()
     if (!m_recentList) return;
     m_recentList->clear();
 
-    // 从 AppConfig 读取最近工程列表
-    QString raw = AppConfig::instance()->getString("project.recent", "");
-    if (raw.isEmpty()) return;
+    // 从 SessionManager 读取最近工程列表（含元数据）
+    auto items = SessionManager::instance()->recentItems();
+    for (const auto &var : items) {
+        auto map = var.toMap();
+        QString p = map.value("path").toString();
+        if (p.isEmpty()) continue;
+        QString name = map.value("name").toString();
+        if (name.isEmpty())
+            name = QFileInfo(p).fileName();
+        if (map.value("pinned").toBool())
+            name = QStringLiteral("\xF0\x9F\x93\x8C ") + name;  // 📌 图标
 
-    try {
-        auto j = nlohmann::json::parse(raw.toStdString());
-        if (j.is_array()) {
-            for (const auto &item : j) {
-                if (item.is_string()) {
-                    QString p = QString::fromStdString(item.get<std::string>());
-                    QFileInfo fi(p);
-                    auto *listItem = new QListWidgetItem(fi.fileName());
-                    listItem->setToolTip(p);
-                    listItem->setData(Qt::UserRole, p);
-                    m_recentList->addItem(listItem);
-                }
-            }
-        }
-    } catch (...) {}
+        auto *listItem = new QListWidgetItem(name);
+        listItem->setToolTip(p);
+        listItem->setData(Qt::UserRole, p);
+        m_recentList->addItem(listItem);
+    }
 }
 
 void ProjectPanel::onDeleteProject()
@@ -921,14 +920,14 @@ SideBar::SideBar(QWidget *parent)
     m_settings     = new SettingsPanel(this);
 
     addWidget(m_project);        // 0 = Project
-    addWidget(m_trace);          // 1 = Trace
-    addWidget(m_graphicConfig);  // 2 = Graphic
-    addWidget(m_dbc);            // 3 = Dbc
-    addWidget(m_send);           // 4 = Send
-    addWidget(m_record);         // 5 = Record
-    addWidget(m_device);         // 6 = Device
-    addWidget(m_protocol);       // 7 = Protocol
-    addWidget(m_analysis);       // 8 = Analysis
+    addWidget(m_analysis);       // 1 = Analysis (Flow)
+    addWidget(m_device);         // 2 = Device
+    addWidget(m_trace);          // 3 = Trace
+    addWidget(m_graphicConfig);  // 4 = Graphic
+    addWidget(m_dbc);            // 5 = Dbc
+    addWidget(m_send);           // 6 = Send
+    addWidget(m_record);         // 7 = Record
+    addWidget(m_protocol);       // 8 = Protocol
     addWidget(m_tools);          // 9 = Tools
     addWidget(m_settings);       // 10 = Settings
 

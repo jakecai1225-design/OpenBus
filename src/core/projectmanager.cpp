@@ -1,9 +1,11 @@
 #include "projectmanager.h"
 #include "appconfig.h"
+#include "sessionmanager.h"
 #include "logging.h"
 
 #include <QFile>
 #include <QFileInfo>
+#include <QDateTime>
 
 // ============================================================
 //  单例
@@ -26,6 +28,9 @@ void ProjectManager::newProject(const QString &name)
 {
     m_state = ProjectState{};
     m_state.name = name;
+    QString now = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
+    m_state.meta.created = now;
+    m_state.meta.modified = now;
     m_filePath.clear();
     m_modified = true;
     emit projectLoaded(name);
@@ -46,7 +51,8 @@ bool ProjectManager::loadProject(const QString &filePath)
     QByteArray raw = file.readAll();
     try {
         json j = json::parse(raw.toStdString());
-        m_state = jsonToState(j);
+        ResourceResolver resolver(filePath);
+        m_state = jsonToState(j, resolver);
         m_filePath = filePath;
         m_modified = false;
         addRecentProject(filePath);
@@ -71,13 +77,21 @@ bool ProjectManager::saveProject(const QString &filePath)
         return false;
     }
 
+    // 更新修改时间戳
+    m_state.meta.modified = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
+
+    // 如果是新建工程且 created 为空，补上
+    if (m_state.meta.created.isEmpty())
+        m_state.meta.created = m_state.meta.modified;
+
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         spdlog::error("ProjectManager: 无法写入工程文件 {}", path.toStdString());
         return false;
     }
 
-    json j = stateToJson(m_state);
+    ResourceResolver resolver(path);
+    json j = stateToJson(m_state, resolver);
     std::string dump = j.dump(2);
     file.write(dump.data(), static_cast<qint64>(dump.size()));
     file.close();
@@ -97,49 +111,23 @@ bool ProjectManager::saveAs(const QString &filePath)
 }
 
 // ============================================================
-//  最近工程列表
+//  最近工程列表（委托给 SessionManager）
 // ============================================================
 QStringList ProjectManager::recentProjects() const
 {
-    QStringList result;
-    QString raw = AppConfig::instance()->getString("project.recent", "");
-    if (raw.isEmpty()) return result;
-
-    try {
-        json j = json::parse(raw.toStdString());
-        if (j.is_array()) {
-            for (const auto &item : j) {
-                if (item.is_string())
-                    result << QString::fromStdString(item.get<std::string>());
-            }
-        }
-    } catch (...) {}
-
-    return result;
+    return SessionManager::instance()->recentPaths();
 }
 
 void ProjectManager::addRecentProject(const QString &path)
 {
-    QStringList recent = recentProjects();
-    recent.removeAll(path);
-    recent.prepend(path);
-
-    int maxCount = AppConfig::instance()->getInt("project.recentMax", 10);
-    while (recent.size() > maxCount)
-        recent.removeLast();
-
-    json j = json::array();
-    for (const auto &p : recent)
-        j.push_back(p.toStdString());
-
-    AppConfig::instance()->set("project.recent", QString::fromStdString(j.dump()));
-    AppConfig::instance()->save();
+    SessionManager::instance()->addRecent(path, "project");
+    // 保留 AppConfig lastPath 设置，向后兼容
+    AppConfig::instance()->set("project.lastPath", path);
 }
 
 void ProjectManager::clearRecent()
 {
-    AppConfig::instance()->set("project.recent", "[]");
-    AppConfig::instance()->save();
+    SessionManager::instance()->clearRecent();
 }
 
 // ============================================================
@@ -147,14 +135,16 @@ void ProjectManager::clearRecent()
 // ============================================================
 QString ProjectManager::toJsonString() const
 {
-    return QString::fromStdString(stateToJson(m_state).dump(2));
+    ResourceResolver resolver(m_filePath);
+    return QString::fromStdString(stateToJson(m_state, resolver).dump(2));
 }
 
 bool ProjectManager::fromJsonString(const QString &jsonStr)
 {
     try {
         json j = json::parse(jsonStr.toStdString());
-        m_state = jsonToState(j);
+        ResourceResolver resolver(m_filePath);
+        m_state = jsonToState(j, resolver);
         m_modified = true;
         return true;
     } catch (const json::parse_error &e) {
@@ -164,14 +154,45 @@ bool ProjectManager::fromJsonString(const QString &jsonStr)
 }
 
 // ============================================================
-//  JSON <-> ProjectState 转换
+//  JSON <-> ProjectState 转换（v2 格式 + v1 向后兼容）
 // ============================================================
-json ProjectManager::stateToJson(const ProjectState &st)
+json ProjectManager::stateToJson(const ProjectState &st,
+                                const ResourceResolver &resolver)
 {
     json j;
     j["name"] = st.name.toStdString();
-    j["version"] = 1;
+    j["version"] = 2;
 
+    // ---- meta（v2 新增）----
+    j["meta"]["name"] = st.name.toStdString();
+    j["meta"]["created"] = st.meta.created.toStdString();
+    j["meta"]["modified"] = st.meta.modified.toStdString();
+    j["meta"]["author"] = st.meta.author.toStdString();
+    json tagArr = json::array();
+    for (const auto &t : st.meta.tags)
+        tagArr.push_back(t.toStdString());
+    j["meta"]["tags"] = tagArr;
+    j["meta"]["notes"] = st.meta.notes.toStdString();
+
+    // ---- resources（v2 新增，相对路径）----
+    json dbcRel = json::array();
+    for (const auto &f : st.dbcFiles)
+        dbcRel.push_back(resolver.relativize(f).toStdString());
+    j["resources"]["dbc"] = dbcRel;
+
+    json logRel = json::array();
+    for (const auto &f : st.recordFiles)
+        logRel.push_back(resolver.relativize(f).toStdString());
+    j["resources"]["logs"] = logRel;
+
+    // ---- device（v2 新增）----
+    j["device"]["type"] = st.deviceConfig.type.toStdString();
+    j["device"]["channel"] = st.channel;
+    j["device"]["baudrate"] = st.baudrate;
+    j["device"]["fd"] = st.deviceConfig.fd;
+    j["device"]["fdBaudrate"] = st.deviceConfig.fdBaudrate;
+
+    // ---- 以下为 v1 兼容字段（绝对路径），旧版 sin 仍可读取 ----
     j["source"]["mode"] = st.sourceMode;
     j["source"]["filePath"] = st.filePath.toStdString();
     j["source"]["baudrate"] = st.baudrate;
@@ -182,6 +203,7 @@ json ProjectManager::stateToJson(const ProjectState &st)
         dbcArr.push_back(f.toStdString());
     j["dbc"]["files"] = dbcArr;
 
+    // ---- Trace / Graphic 实例（格式不变）----
     json traceArr = json::array();
     for (const auto &t : st.traces) {
         json tj;
@@ -210,11 +232,13 @@ json ProjectManager::stateToJson(const ProjectState &st)
     }
     j["graphics"] = graphicArr;
 
+    // ---- 录制文件（v1 兼容，绝对路径）----
     json recArr = json::array();
     for (const auto &f : st.recordFiles)
         recArr.push_back(f.toStdString());
     j["record"]["files"] = recArr;
 
+    // ---- 标签页 ----
     json tabArr = json::array();
     for (const auto &t : st.openTabs)
         tabArr.push_back(t.toStdString());
@@ -224,13 +248,63 @@ json ProjectManager::stateToJson(const ProjectState &st)
     return j;
 }
 
-ProjectState ProjectManager::jsonToState(const json &j)
+ProjectState ProjectManager::jsonToState(const json &j,
+                                    const ResourceResolver &resolver)
 {
     ProjectState st;
 
+    // ---- 名称 ----
     if (j.contains("name") && j["name"].is_string())
         st.name = QString::fromStdString(j["name"].get<std::string>());
 
+    // ---- 版本号 ----
+    int version = 1;
+    if (j.contains("version") && j["version"].is_number_integer())
+        version = j["version"].get<int>();
+
+    // ---- meta（v2 新增）----
+    if (j.contains("meta")) {
+        const auto &m = j["meta"];
+        if (m.contains("created") && m["created"].is_string())
+            st.meta.created = QString::fromStdString(m["created"].get<std::string>());
+        if (m.contains("modified") && m["modified"].is_string())
+            st.meta.modified = QString::fromStdString(m["modified"].get<std::string>());
+        if (m.contains("author") && m["author"].is_string())
+            st.meta.author = QString::fromStdString(m["author"].get<std::string>());
+        if (m.contains("tags") && m["tags"].is_array()) {
+            for (const auto &t : m["tags"])
+                if (t.is_string())
+                    st.meta.tags << QString::fromStdString(t.get<std::string>());
+        }
+        if (m.contains("notes") && m["notes"].is_string())
+            st.meta.notes = QString::fromStdString(m["notes"].get<std::string>());
+    }
+
+    // ---- resources（v2 新增，相对路径 → 绝对路径）----
+    if (version >= 2 && j.contains("resources")) {
+        const auto &r = j["resources"];
+        if (r.contains("dbc") && r["dbc"].is_array()) {
+            for (const auto &f : r["dbc"])
+                if (f.is_string())
+                    st.dbcFiles << resolver.resolve(QString::fromStdString(f.get<std::string>()));
+        }
+        if (r.contains("logs") && r["logs"].is_array()) {
+            for (const auto &f : r["logs"])
+                if (f.is_string())
+                    st.recordFiles << resolver.resolve(QString::fromStdString(f.get<std::string>()));
+        }
+    }
+
+    // ---- device（v2 新增）----
+    if (version >= 2 && j.contains("device")) {
+        const auto &d = j["device"];
+        if (d.contains("type") && d["type"].is_string())
+            st.deviceConfig.type = QString::fromStdString(d["type"].get<std::string>());
+        if (d.contains("fd")) st.deviceConfig.fd = d["fd"].get<bool>();
+        if (d.contains("fdBaudrate")) st.deviceConfig.fdBaudrate = d["fdBaudrate"].get<int>();
+    }
+
+    // ---- source（v1/v2 兼容，始终读取）----
     if (j.contains("source")) {
         const auto &src = j["source"];
         if (src.contains("mode")) st.sourceMode = src["mode"].get<int>();
@@ -240,12 +314,20 @@ ProjectState ProjectManager::jsonToState(const json &j)
         if (src.contains("channel")) st.channel = src["channel"].get<int>();
     }
 
-    if (j.contains("dbc") && j["dbc"].contains("files")) {
+    // ---- v1 向后兼容：无 resources 时从旧字段读取绝对路径 ----
+    if (st.dbcFiles.isEmpty() && j.contains("dbc") && j["dbc"].contains("files")) {
         for (const auto &f : j["dbc"]["files"])
             if (f.is_string())
                 st.dbcFiles << QString::fromStdString(f.get<std::string>());
     }
 
+    if (st.recordFiles.isEmpty() && j.contains("record") && j["record"].contains("files")) {
+        for (const auto &f : j["record"]["files"])
+            if (f.is_string())
+                st.recordFiles << QString::fromStdString(f.get<std::string>());
+    }
+
+    // ---- Trace 实例 ----
     if (j.contains("traces") && j["traces"].is_array()) {
         for (const auto &t : j["traces"]) {
             ProjectTraceInstance ti;
@@ -257,6 +339,7 @@ ProjectState ProjectManager::jsonToState(const json &j)
         }
     }
 
+    // ---- Graphic 实例 ----
     if (j.contains("graphics") && j["graphics"].is_array()) {
         for (const auto &g : j["graphics"]) {
             ProjectGraphicInstance gi;
@@ -276,12 +359,7 @@ ProjectState ProjectManager::jsonToState(const json &j)
         }
     }
 
-    if (j.contains("record") && j["record"].contains("files")) {
-        for (const auto &f : j["record"]["files"])
-            if (f.is_string())
-                st.recordFiles << QString::fromStdString(f.get<std::string>());
-    }
-
+    // ---- 标签页 ----
     if (j.contains("tabs")) {
         const auto &tabs = j["tabs"];
         if (tabs.contains("open") && tabs["open"].is_array()) {

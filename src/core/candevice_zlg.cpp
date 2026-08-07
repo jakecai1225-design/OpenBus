@@ -8,6 +8,10 @@
 #include <algorithm>
 #include <cstring>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 // ============================================================
 //  ZLG SDK 结构体定义（与官方 zlgcan.h / canframe.h 内存布局一致）
 //  直接定义，避免依赖厂商头文件
@@ -142,6 +146,36 @@ CanDeviceZLG::~CanDeviceZLG()
 // 搜索 zlgcan.dll 路径
 // 搜索顺序: 应用目录 → 应用目录/driver → C:/Program Files/ZCANPRO → C:/Program Files (x86)/ZCANPRO → 系统 PATH
 // 每个路径都试加载，跳过架构不匹配的 32 位 DLL
+// 检查 DLL 是否为 64 位（通过 PE 头解析，不加载 DLL）
+static bool isDll64Bit(const QString &path)
+{
+#ifdef Q_OS_WIN
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return false;
+    // DOS Header: e_magic(2) + ... + e_lfanew(4) at offset 60
+    QByteArray dos = f.read(64);
+    if (dos.size() < 64)
+        return false;
+    quint32 peOffset = *reinterpret_cast<const quint32 *>(dos.constData() + 60);
+    // PE Signature (4 bytes) + COFF Header
+    f.seek(peOffset);
+    QByteArray pe = f.read(6);
+    if (pe.size() < 6)
+        return false;
+    // PE signature "PE\0\0"
+    if (pe.at(0) != 'P' || pe.at(1) != 'E' || pe.at(2) != 0 || pe.at(3) != 0)
+        return false;
+    // Machine type at offset 4-5 (little-endian)
+    quint16 machine = static_cast<quint16>(static_cast<unsigned char>(pe.at(4)) |
+                                           (static_cast<unsigned char>(pe.at(5)) << 8));
+    // IMAGE_FILE_MACHINE_AMD64 = 0x8664
+    return machine == 0x8664;
+#else
+    return true;
+#endif
+}
+
 static QString findZlgDllPath()
 {
     const QString appDir = QCoreApplication::applicationDirPath();
@@ -155,15 +189,13 @@ static QString findZlgDllPath()
         QString path = dir + QStringLiteral("/zlgcan.dll");
         if (!QFile::exists(path))
             continue;
-        // 试加载 — 跳过 32 位 DLL（64 位进程无法加载）
-        QLibrary testLoad(path);
-        if (!testLoad.load()) {
+        // 通过 PE 头判断位数，不加载 DLL（避免 DllMain 副作用）
+        if (!isDll64Bit(path)) {
             SIN_LOG_WARN("CanDeviceZLG",
-                         "DLL found but not loadable (32-bit?): {}",
+                         "DLL found but 32-bit (skipped): {}",
                          path.toStdString());
             continue;
         }
-        testLoad.unload();
         SIN_LOG_INFO("CanDeviceZLG", "DLL found: {}", path.toStdString());
         return path;
     }
@@ -541,15 +573,26 @@ bool CanDeviceZLG::vendorCtrl(int cmd, void *param)
 
 // ---- 静态方法 ----
 
+// 共享 DLL 实例 — 全局只加载一次，永不卸载
+// 避免反复 load/unload 导致 DllMain 副作用破坏 USB 设备状态
+static QLibrary& sharedZlgDll()
+{
+    static QLibrary dll;
+    static bool initialized = false;
+    if (!initialized) {
+        initialized = true;
+        dll.setFileName(findZlgDllPath());
+        if (!dll.load())
+            SIN_LOG_ERROR("CanDeviceZLG", "sharedZlgDll: load failed: {}",
+                         dll.errorString().toStdString());
+    }
+    return dll;
+}
+
 bool CanDeviceZLG::isAvailable()
 {
-    QLibrary dll(findZlgDllPath());
-    if (!dll.load()) {
-        SIN_LOG_ERROR("CanDeviceZLG", "isAvailable: zlgcan.dll not loadable: {}",
-                       dll.errorString().toStdString());
-        return false;
-    }
-    bool ok = dll.resolve("ZCAN_OpenDevice") != nullptr;
+    QLibrary& dll = sharedZlgDll();
+    bool ok = dll.isLoaded() && dll.resolve("ZCAN_OpenDevice") != nullptr;
     SIN_LOG_INFO("CanDeviceZLG", "isAvailable: {}", ok ? "true" : "false");
     return ok;
 }
@@ -560,9 +603,7 @@ std::vector<ICanDevice::DeviceInfo> CanDeviceZLG::enumerate()
     if (!isAvailable())
         return list;
 
-    QLibrary dll(findZlgDllPath());
-    if (!dll.load())
-        return list;
+    QLibrary& dll = sharedZlgDll();
 
     auto fn_open     = (fn_OpenDevice)  dll.resolve("ZCAN_OpenDevice");
     auto fn_close    = (fn_CloseDevice) dll.resolve("ZCAN_CloseDevice");

@@ -884,18 +884,17 @@ void MeasurementSetupView::relayoutModuleBlocks()
     traceIds.sort();
     graphicIds.sort();
 
-    // 找到模块区域的起始 Y（使用最顶部模块块的 Y）
+    // 从 DBC 块底部推导模块区域起始 Y，确保不依赖新块的临时位置
+    const qreal gapY = 55;  // 与 buildTopology 一致
+    const qreal moduleH = 60;
     qreal moduleY = 0;
-    qreal moduleH = 60;
-    for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
-        if (it.value().category == "module") {
-            if (moduleY == 0 || it.value().rect.top() < moduleY) {
-                moduleY = it.value().rect.top();
-                moduleH = it.value().rect.height();
-            }
-        }
+    {
+        auto dbIt = m_blocks.find("database");
+        if (dbIt != m_blocks.end())
+            moduleY = dbIt->rect.bottom() + gapY;
+        else
+            moduleY = 300;  // fallback
     }
-    if (moduleY == 0) moduleY = 300;
 
     const qreal modW = 140;
     const qreal modGap = 16;

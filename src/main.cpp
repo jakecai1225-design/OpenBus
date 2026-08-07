@@ -5,6 +5,7 @@
 #include "core/canframe.h"
 #include "core/logging.h"
 #include "core/appconfig.h"
+#include "core/sessionmanager.h"
 
 int main(int argc, char *argv[])
 {
@@ -21,6 +22,9 @@ int main(int argc, char *argv[])
 
     // 加载应用配置
     AppConfig::instance()->load();
+
+    // 加载会话状态（含从 AppConfig 迁移 project.recent）
+    SessionManager::instance()->load();
 
     // 应用主题
     ThemeManager::instance()->applyTheme("Light");

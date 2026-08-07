@@ -954,3 +954,476 @@ ICanDevice (src/core/candevice.h)
 | `CanDevicePeak` 后端 | ⬜ 待实现 | 封装 PCAN-Basic 库 |
 | `CanDeviceCandleLight` 后端 | ⬜ 待实现 | libusb + GS_USB 协议 |
 | `CanDeviceSlcan` 后端 | ⬜ 待实现 | 串口文本协议 |
+
+---
+
+## 工程化管理框架设计方案
+
+> **状态：方案评审中，待确认后实施**
+>
+> 参照 VS Code（Multi-root Workspace）、IAR Embedded Workbench（.eww/.ewp 分层）、CANoe（.cfg 配置体系）、Qt Creator（Session 会话管理）的工程化思路，为 sin 设计一套完整的工程管理框架，实现不同工程互相独立、归档、快速打开历史工程、同时管理多个工程。
+
+### 一、现状分析与问题
+
+| 维度 | 当前实现 | 痛点 |
+|------|---------|------|
+| **单/多工程** | `ProjectManager` 单例管理一个工程，侧边栏列表可切换 | 切换时需保存当前→加载目标，状态恢复不完整；无法同时查看两个工程的 Trace 对比 |
+| **工程文件** | `.sinproj`（JSON，已有） | 文件格式可用，但 DBC/日志等外部资源使用绝对路径，工程文件移动后路径失效 |
+| **最近工程** | AppConfig `settings.json` 中的 `project.recent` 数组 | 仅存文件路径，无元数据（修改时间、设备类型、备注）；无法搜索/筛选 |
+| **归档** | 无 | 项目完成后无法一键打包归档，历史数据散落各处 |
+| **会话状态** | `ProjectState` 内嵌在 .sinproj 中 | UI 状态（窗口布局、断点、书签）与工程配置耦合，不适合多工程场景 |
+| **工程隔离** | 切换时 `captureProjectState()` + `applyProjectState()` | 数据模型全局单例，切换工程时需清空/重建，无法并行运行 |
+
+### 二、设计目标
+
+1. **工程独立** — 每个工程拥有独立的 DBC、设备配置、Trace 数据、Graphic 视图，互不干扰
+2. **工作区聚合** — 将相关工程组织到工作区中，一键恢复整组工程上下文（对标 VS Code `.code-workspace`）
+3. **快速访问** — 启动页/欢迎页展示最近工程与工作区，搜索/标签/排序快速定位
+4. **归档冷存储** — 完成的工程一键归档为 `.sinarch`（ZIP），包含 .sinproj + 关联 DBC + 日志快照
+5. **并行管理** — 侧边栏工程面板展示多工程列表，支持同时打开多个工程的 Trace/Graphic 对比
+6. **少重复造轮子** — 序列化用已集成的 nlohmann/json；压缩归档用 zlib（已通过 vector_blf 间接引入）；文件监控用 Qt `QFileSystemWatcher`；不做自研 IDE 框架
+
+### 三、分层架构设计
+
+#### 参考模型对比
+
+| 软件 | 工作区文件 | 工程文件 | 会话文件 | 归档机制 |
+|------|-----------|---------|---------|---------|
+| **VS Code** | `.code-workspace`（JSON，多文件夹引用） | 文件夹（无单独工程文件） | `workspace.json`（个人 UI 状态） | 无内置归档（靠 Git） |
+| **IAR EW** | `.eww`（XML，引用多个 .ewp） | `.ewp`（XML，编译配置） | `.eww` 内联（个人状态） | 无 |
+| **Qt Creator** | Session（`.qts` 隐式） | `.pro` / `CMakeLists.txt` | Session 文件（个人状态） | 无 |
+| **CANoe** | 无工作区概念 | `.cfg`（可读文本） | `.cfg` 内联 | 无 |
+| **sin（本方案）** | `.sinws`（JSON，引用多个 .sinproj） | `.sinproj`（JSON，已有） | `sessions.json`（个人 UI 状态） | `.sinarch`（ZIP） |
+
+#### 文件格式定义
+
+**1. 工程文件 `.sinproj`（已有，需增强）**
+
+```jsonc
+{
+  "version": 2,              // 格式版本号，用于向后兼容
+  "meta": {
+    "name": "制动系统测试",
+    "created": "2026-08-07T10:00:00",
+    "modified": "2026-08-07T14:30:00",
+    "author": "",
+    "tags": ["制动", "CAN-FD"],  // 用户自定义标签
+    "notes": ""                  // 用户备注
+  },
+  // 资源引用 — 改为相对路径（相对于 .sinproj 所在目录）
+  "resources": {
+    "dbc": ["configs/brake.dbc", "configs/steering.dbc"],
+    "logs": ["data/20260807_session1.blf"],
+    "filters": ["filters/brake_filter.sfilter"]  // 新增：保存的表达式过滤器
+  },
+  // 设备配置
+  "device": {
+    "type": "USBCANFD_200U",
+    "channel": 1,
+    "baudrate": 500000,
+    "fd": true,
+    "fdBaudrate": 2000000
+  },
+  // Trace/Graphic 实例（已有，保持不变）
+  "traces": [...],
+  "graphics": [...],
+  // 打开的标签页（已有，保持不变）
+  "tabs": {"open": [...], "active": "..."}
+}
+```
+
+**核心改动**：外部资源路径从绝对路径改为相对路径，工程文件移动/拷贝后仍然有效。
+
+**2. 工作区文件 `.sinws`（新增）**
+
+```jsonc
+{
+  "version": 1,
+  "meta": {
+    "name": "底盘域测试套件",
+    "created": "2026-08-07T10:00:00",
+    "modified": "2026-08-07T14:30:00"
+  },
+  "projects": [
+    {"path": "brake/brake.sinproj", "active": true},
+    {"path": "steering/steering.sinproj"},
+    {"path": "suspension/suspension.sinproj"}
+  ],
+  "shared": {
+    "dbc": ["shared/J1939.dbc"],  // 工作区级共享 DBC
+    "tags": ["底盘域"]
+  }
+}
+```
+
+- 工作区文件与工程文件放在同一根目录下，工程路径为相对路径
+- `shared.dbc` 下的 DBC 在工作区内所有工程中自动可用（对标 VS Code workspace settings）
+- 打开 `.sinws` 等于一次性恢复整组工程上下文
+
+**3. 会话文件 `sessions.json`（新增，个人状态）**
+
+```jsonc
+{
+  "lastWorkspace": "D:/projects/chassis/chassis.sinws",
+  "recent": [
+    {
+      "path": "D:/projects/chassis/chassis.sinws",
+      "type": "workspace",
+      "name": "底盘域测试套件",
+      "modified": "2026-08-07T14:30:00",
+      "pinned": true
+    },
+    {
+      "path": "D:/projects/brake/brake.sinproj",
+      "type": "project",
+      "name": "制动系统测试",
+      "modified": "2026-08-07T10:00:00",
+      "pinned": false
+    }
+  ],
+  "ui": {
+    "windowGeometry": "...",
+    "sidebarVisible": true,
+    "activePanel": "project"
+  }
+}
+```
+
+- 存储位置：`QStandardPaths::AppDataLocation/sin/sessions.json`（与 `settings.json` 同目录）
+- 个人状态不进入 .sinproj / .sinws，保持工程文件可分享（对标 Qt Creator Session 设计）
+
+**4. 归档文件 `.sinarch`（新增）**
+
+- 实质上是 ZIP 压缩包，扩展名 `.sinarch`
+- 内容：
+  ```
+  brake.sinarch
+  ├── brake.sinproj
+  ├── configs/          # DBC 文件
+  │   ├── brake.dbc
+  │   └── steering.dbc
+  ├── data/             # 日志文件（可选，用户勾选）
+  │   └── 20260807_session1.blf
+  └── manifest.json     # 归档清单（时间、源路径、文件校验）
+  ```
+- 实现：使用 zlib（已间接通过 vector_blf 引入）或 miniz（单文件库）进行 ZIP 打包
+- 归档后可选删除源文件或标记为「已归档」
+
+#### 架构分层
+
+```
+src/core/
+├── projectmanager.h/cpp        # 已有 — 升级为多工程管理
+├── workspacemanager.h/cpp      # 新增 — .sinws 工作区文件管理
+├── projectarchive.h/cpp        # 新增 — .sinarch 归档打包/解包
+├── sessionmanager.h/cpp        # 新增 — sessions.json 会话状态管理
+├── resourceresolver.h/cpp      # 新增 — 相对路径→绝对路径解析器
+└── ...（已有模块）
+```
+
+### 四、核心模块设计
+
+#### 4.1 WorkspaceManager — 工作区管理器
+
+```cpp
+class WorkspaceManager : public QObject {
+    Q_OBJECT
+public:
+    static WorkspaceManager *instance();
+
+    // 工作区生命周期
+    bool openWorkspace(const QString &filePath);
+    bool saveWorkspace();
+    bool saveAsWorkspace(const QString &filePath);
+    void closeWorkspace();
+
+    // 工程管理（工作区内）
+    bool addProject(const QString &projFilePath);
+    bool removeProject(int index);
+    void setActiveProject(int index);
+
+    // 查询
+    QString workspacePath() const;
+    QString workspaceName() const;
+    QStringList projectPaths() const;      // 已解析为绝对路径
+    int activeProjectIndex() const;
+    QStringList sharedDbcFiles() const;
+
+signals:
+    void workspaceOpened(const QString &name);
+    void workspaceClosed();
+    void projectAdded(int index);
+    void projectRemoved(int index);
+    void activeProjectChanged(int index);
+};
+```
+
+- 不持有 ProjectState 数据，仅管理工作区文件 I/O 和工程引用列表
+- 工程数据的加载/保存仍由 `ProjectManager` 负责
+- 支持无工作区模式（直接打开单个 .sinproj，隐式创建临时工作区）
+
+#### 4.2 ProjectManager — 升级为多工程
+
+当前 `ProjectManager` 是单例管理单个 `ProjectState`。升级方案：
+
+```cpp
+class ProjectManager : public QObject {
+    Q_OBJECT
+public:
+    static ProjectManager *instance();
+
+    // 单工程操作（已有，保持兼容）
+    void newProject(const QString &name);
+    bool loadProject(const QString &filePath);
+    bool saveProject(const QString &filePath = QString());
+
+    // 多工程操作（新增）
+    int openProjectCount() const;
+    ProjectState *projectState(int index);
+    ProjectState *activeProjectState();
+    int activeProjectIndex() const;
+    void setActiveProject(int index);
+    bool closeProject(int index);
+    bool isProjectModified(int index) const;
+
+    // 资源路径解析
+    QString resolvePath(const QString &relativePath, int projIndex = -1) const;
+
+signals:
+    void projectLoaded(const QString &name);
+    void projectClosed(int index);
+    void activeProjectChanged(int index);
+    void stateModified();
+};
+```
+
+- 内部 `QList<ProjectState>` 替换单个 `ProjectState`
+- `m_activeIndex` 跟踪当前活跃工程
+- 所有资源路径通过 `resolvePath()` 解析为绝对路径
+- `captureProjectState()` / `applyProjectState()` 按 `m_activeIndex` 操作
+
+#### 4.3 SessionManager — 会话管理器
+
+```cpp
+class SessionManager : public QObject {
+    Q_OBJECT
+public:
+    static SessionManager *instance();
+
+    void load();       // 启动时从 sessions.json 加载
+    void save();       // 退出/切换时保存
+
+    // 最近列表管理
+    QVariantList recentItems() const;          // 含元数据
+    void addRecent(const QString &path, const QString &type, const QString &name);
+    void removeRecent(const QString &path);
+    void pinRecent(const QString &path, bool pinned);
+    void clearRecent();
+
+    // 最后打开的工作区/工程
+    QString lastOpenedPath() const;
+    QString lastOpenedType() const;  // "workspace" / "project"
+
+    // UI 状态
+    void saveUiState(const QByteArray &geometry, const QByteArray &windowState);
+    QByteArray uiGeometry() const;
+    QByteArray uiWindowState() const;
+
+signals:
+    void recentChanged();
+};
+```
+
+- 存储位置：`AppDataLocation/sin/sessions.json`
+- 与 `AppConfig` 解耦：AppConfig 管理全局应用设置，SessionManager 管理会话状态
+
+#### 4.4 ProjectArchive — 归档器
+
+```cpp
+class ProjectArchive : public QObject {
+    Q_OBJECT
+public:
+    // 归档：将 .sinproj + 关联资源打包为 .sinarch
+    static bool archive(const QString &projFilePath,
+                        const QString &outputPath,
+                        bool includeLogs = false,
+                        QWidget *parent = nullptr);  // 用于进度对话框
+
+    // 解档：从 .sinarch 恢复工程
+    static bool extract(const QString &archPath,
+                        const QString &outputDir,
+                        QWidget *parent = nullptr);
+
+    // 验证归档完整性
+    static bool verify(const QString &archPath);
+};
+```
+
+- 压缩实现：优先复用 zlib（vector_blf 已依赖），或引入 miniz（单文件 ~3000 行，MIT 协议）
+- 归档前自动将绝对路径转为相对路径写入 .sinproj
+- 解档后自动将相对路径转回绝对路径
+- 大文件日志（.blf）归档可选（`includeLogs` 参数），避免归档包过大
+
+### 五、UI 交互设计
+
+#### 5.1 欢迎页/启动页
+
+参照 VS Code Welcome 页和 Qt Creator Welcome Mode：
+
+```
+┌──────────────────────────────────────────┐
+│  sin — CAN/CAN FD 报文分析工具              │
+│                                          │
+│  ┌─ 新建 ─────────────────────────────┐  │
+│  │  [新建工程]  [新建工作区]           │  │
+│  └────────────────────────────────────┘  │
+│                                          │
+│  ┌─ 最近 ─────────────────────────────┐  │
+│  │  📌 底盘域测试套件      工作区  8/7 │  │
+│  │     └ 制动系统测试      工程   8/7 │  │
+│  │     └ 转向系统测试      工程   8/6 │  │
+│  │  📌 ECU诊断验证         工程   8/5 │  │
+│  │     导航信号分析        工程   8/3 │  │
+│  └────────────────────────────────────┘  │
+│                                          │
+│  [打开工程文件...]  [打开工作区文件...]   │
+└──────────────────────────────────────────┘
+```
+
+- 启动时如果 `sessions.json` 有 `lastOpenedPath`，可直接恢复上次状态（可配置）
+- 📌 图标表示已固定（pinned）
+- 搜索框过滤最近列表
+
+#### 5.2 侧边栏工程面板（升级）
+
+```
+┌─ 工程面板 ─────────────────────┐
+│  📁 底盘域测试套件 (工作区)     │
+│  ├── ✅ 制动系统测试  [活跃]    │
+│  ├── ⬜ 转向系统测试            │
+│  └── ⬜ 悬架系统测试            │
+│  ──────────────────────────    │
+│  最近工程                      │
+│  • ECU诊断验证                 │
+│  • 导航信号分析                │
+│  ──────────────────────────    │
+│  [新建] [打开] [归档] [搜索]    │
+└────────────────────────────────┘
+```
+
+- 工作区模式下展示工程树，点击切换活跃工程（不卸载其他工程数据）
+- 双击工程名展开/折叠工程详情（DBC 数量、Trace 数量等）
+- 右键菜单：设为活跃 / 在新标签页打开 / 归档 / 从工作区移除
+- 搜索框实时过滤工程列表
+
+#### 5.3 归档对话框
+
+```
+┌─ 归档工程 ──────────────────────┐
+│  源工程: D:/projects/brake/brake.sinproj  │
+│  归档到: D:/archive/brake_20260807.sinarch │
+│  ☑ 包含 DBC 文件 (2 个, 1.2 MB)            │
+│  ☐ 包含日志文件 (1 个, 45 MB)             │
+│  ☑ 归档后标记源工程为「已归档」             │
+│  ☐ 归档后删除源文件                       │
+│                          [取消] [归档]    │
+└────────────────────────────────────────────┘
+```
+
+### 六、数据模型变更
+
+#### 6.1 路径策略：绝对→相对
+
+当前 .sinproj 中的 DBC 路径、日志路径为绝对路径（如 `D:/projects/brake/configs/brake.dbc`）。
+新方案改为相对于 .sinproj 所在目录的路径（如 `configs/brake.dbc`）。
+
+```cpp
+// ResourceResolver — 路径解析器
+class ResourceResolver {
+public:
+    explicit ResourceResolver(const QString &projFilePath);
+
+    // 相对路径 → 绝对路径（加载时调用）
+    QString resolve(const QString &relativePath) const;
+
+    // 绝对路径 → 相对路径（保存时调用）
+    QString relativize(const QString &absolutePath) const;
+
+private:
+    QString m_projDir;  // .sinproj 所在目录
+};
+```
+
+- 使用 `QDir::relativeFilePath()` 和 `QDir::absoluteFilePath()` 实现
+- 外部驱动器/不同盘符的路径保持绝对路径（Windows 跨盘符无法相对化时的回退策略）
+
+#### 6.2 多工程数据隔离
+
+当前数据模型（`CanTraceModel`、`DbcManager` 等）为全局单例，多工程场景需要隔离：
+
+| 组件 | 当前 | 方案 |
+|------|------|------|
+| `CanTraceModel` | 全局单例 | 工程级实例（每个工程一个），切换活跃工程时 swap 指针 |
+| `DbcManager` | 全局单例 | 工程级实例，工作区级共享 DBC 注入到各工程实例 |
+| `CanDeviceManager` | 全局单例 | 保持单例（同时只能连接一个物理设备），但设备配置按工程存储 |
+| `GraphicView` | 标签页级 | 已天然隔离（每个标签页一个 GraphicView 实例） |
+
+**过渡策略**：第一阶段不改为多实例，而是在切换工程时完整 `capture → save → load → apply`，实现"伪并行"（同时加载在内存，但同一时间只显示一个）。第二阶段再实现真正的多工程 Tab 并行显示。
+
+### 七、开源组件选型
+
+| 需求 | 推荐方案 | 协议 | 集成方式 | 理由 |
+|------|---------|------|---------|------|
+| **JSON 序列化** | nlohmann/json | MIT | ✅ 已集成 | 无需额外引入，直接用于所有文件格式 |
+| **ZIP 压缩** | miniz | MIT | 源码引入 `third_party/miniz/` | 单文件库（~1 个 .c + .h），API 简洁，zlib 兼容；比直接用 zlib 更简单 |
+| **ZIP 压缩（备选）** | zlib | zlib | ✅ 已通过 vector_blf 间接引入 | 无需额外引入，但 API 较低层，需要手动处理 ZIP 容器格式 |
+| **文件监控** | QFileSystemWatcher | Qt 内置 | 无需引入 | 监控工程目录外部变更（如 DBC 文件被外部修改） |
+| **路径解析** | QDir | Qt 内置 | 无需引入 | `relativeFilePath()` / `absoluteFilePath()` 满足需求 |
+| **时间戳** | QDateTime | Qt 内置 | 无需引入 | ISO 8601 格式，`Qt::ISODateWithMs` |
+| **元数据搜索** | 自写 | — | ~100 行 | 对 recent 列表的 name/tags 做 `contains()` 过滤，无需全文搜索引擎 |
+
+**不引入的组件及理由**：
+- **SQLite** — 工程数量在百级以内，JSON 文件 + 内存遍历完全够用，引入数据库增加部署复杂度
+- **自研 IDE 框架** — sin 不是 IDE，不需要代码索引/构建系统/调试器等通用 IDE 能力
+- **Libarchive** — 归档需求仅限 ZIP 格式，miniz 足够，libarchive 引入 10+ 文件过重
+
+### 八、实施计划
+
+#### Phase 1 — 基础设施（1-2 天）
+
+1. **ResourceResolver** — 相对路径解析器
+2. **ProjectState v2** — 增加 `meta`（标签/备注/时间戳）、`resources`（相对路径）字段
+3. **向后兼容** — 加载 v1 格式时自动转换绝对路径为相对路径，保存为 v2
+4. **SessionManager** — 从 AppConfig 迁移 `project.recent` 到独立 `sessions.json`，增加元数据
+
+#### Phase 2 — 工作区（2-3 天）
+
+1. **WorkspaceManager** — .sinws 文件读写
+2. **ProjectManager 多工程** — `QList<ProjectState>` 替换单实例，`m_activeIndex` 跟踪
+3. **ProjectPanel UI 升级** — 工作区工程树 + 切换 + 右键菜单
+4. **欢迎页** — 最近列表 + 新建/打开入口
+
+#### Phase 3 — 归档（1-2 天）
+
+1. 引入 miniz 到 `third_party/`
+2. **ProjectArchive** — 打包/解包/验证
+3. **归档对话框 UI**
+4. CMake 集成 miniz 编译
+
+#### Phase 4 — 多工程并行（3-5 天，可选）
+
+1. `CanTraceModel` / `DbcManager` 改为工程级实例
+2. 切换活跃工程时 swap 指针（O(1) 切换，无数据重建）
+3. 多工程 Trace 对比标签页
+4. 工作区级共享 DBC 注入
+
+### 九、风险与注意事项
+现在的软件版本还没有发布过，不存在兼容性问题，可以不考虑兼容问题。
+1. **路径迁移** — 从绝对路径迁移到相对路径时，如果 DBC 文件不在 .sinproj 同目录下（如 `D:/Qt/...`），保持绝对路径，不做错误的相对化
+2. **文件锁** — Windows 上 .sinproj 被外部编辑器打开时保存可能失败，需 try-catch + 友好提示
+3. **归档大小** — BLF 日志可能数百 MB，归档时默认不包含日志，用户显式勾选
+4. **miniz vs zlib** — miniz 更简单但功能较少（无 ZIP64 支持，单文件 < 4GB 足够）；zlib 已引入但需手动实现 ZIP 容器逻辑
+5. **多工程内存** — 每个工程的 Trace 数据可能很大（万帧级），Phase 4 前需评估内存上限，必要时仅活跃工程加载数据，非活跃工程仅加载配置
+6. **文件格式版本号** — 所有文件格式（.sinproj / .sinws / sessions.json）都带 `version` 字段，为未来格式升级预留
+
+

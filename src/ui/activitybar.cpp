@@ -25,8 +25,16 @@ ActivityBar::ActivityBar(QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    // 顶部按钮 — 线条 SVG 图标
+    // 顶部按钮 — 顺序与 Activity 枚举一致
+    // 0=Project 1=Analysis(Flow) 2=Device 3=Trace 4=Graphic
+    // 5=Dbc 6=Send 7=Record 8=Protocol 9=Tools
     m_buttons.append({createButton(":/icons/project.svg", "工程管理", Project), Project, "工程管理", "工程管理"});
+    layout->addWidget(m_buttons.last().btn);
+
+    m_buttons.append({createButton(":/icons/flow.svg", "Flow", Analysis), Analysis, "Flow", "flow — CANoe Measurement Setup 风格"});
+    layout->addWidget(m_buttons.last().btn);
+
+    m_buttons.append({createButton(":/icons/device.svg", "设备连接", Device), Device, "设备连接", "设备连接"});
     layout->addWidget(m_buttons.last().btn);
 
     m_buttons.append({createButton(":/icons/trace.svg", "Trace", Trace), Trace, "Trace", "Trace"});
@@ -44,13 +52,7 @@ ActivityBar::ActivityBar(QWidget *parent)
     m_buttons.append({createButton(":/icons/record.svg", "录制", Record), Record, "录制", "录制"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/device.svg", "设备连接", Device), Device, "设备连接", "设备连接"});
-    layout->addWidget(m_buttons.last().btn);
-
     m_buttons.append({createButton(":/icons/protocol.svg", "协议", Protocol), Protocol, "协议", "上层协议分析"});
-    layout->addWidget(m_buttons.last().btn);
-
-    m_buttons.append({createButton(":/icons/flow.svg", "Flow", Analysis), Analysis, "Flow", "flow — CANoe Measurement Setup 风格"});
     layout->addWidget(m_buttons.last().btn);
 
     m_buttons.append({createButton(":/icons/tools.svg", "工具集", Tools), Tools, "工具集", "总线分析工具集 — 格式转换 / DBC 编辑 / 统计分析"});

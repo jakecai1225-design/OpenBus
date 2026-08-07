@@ -44,6 +44,10 @@ set(SRC_CORE
     core/file_import/blf_importer.cpp
     core/projectmanager.h
     core/projectmanager.cpp
+    core/resourceresolver.h
+    core/resourceresolver.cpp
+    core/sessionmanager.h
+    core/sessionmanager.cpp
     # 文件格式 I/O 层
     core/canfileio/canfileio.h
     core/canfileio/canfileio.cpp
