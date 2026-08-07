@@ -371,22 +371,21 @@ void MeasurementSetupView::buildTopology()
 {
     m_blocks.clear();
 
-    // ---- 布局参数 ----
+    // ---- 布局参数 (从左向右排列) ----
     const qreal bw = 220;   // 块宽
     const qreal bh = 60;    // 块高
-    const qreal gapX = 40;  // 水平间距
-    const qreal gapY = 55;  // 垂直间距
-    const qreal startX = 50;
-    qreal y = 30;
+    const qreal gapX = 60;  // 水平间距（列间距）
+    const qreal gapY = 30;  // 垂直间距（同列块间距）
+    const qreal startX = 40;
+    qreal x = startX;
 
-    // ---- 第 1 行: 数据源 (Real / File 两个块 + 切换开关) ----
+    // ---- 第 1 列: 数据源 (Real / File 两个块 + 切换开关) ----
     qreal srcW = 160;
     qreal srcH = bh + 10;
     qreal switchW = 70;
-    qreal srcGap = switchW + 16;
-    qreal totalSrcW = 2 * srcW + srcGap;
-    qreal srcStartX = startX + 100 + (bw - totalSrcW) / 2;
-    if (srcStartX < 20) srcStartX = 20;
+    qreal switchH = 32;
+    qreal srcY1 = 50;
+    qreal srcY2 = srcY1 + srcH + switchH + 10;
 
     // Real (硬件实时)
     BlockItem srcReal;
@@ -395,7 +394,7 @@ void MeasurementSetupView::buildTopology()
     srcReal.icon = "";
     srcReal.category = "source";
     srcReal.moduleName = "real";
-    srcReal.rect = QRectF(srcStartX, y, srcW, srcH);
+    srcReal.rect = QRectF(x, srcY1, srcW, srcH);
     srcReal.color = QColor(0x4a, 0x90, 0xd9);
     srcReal.enabled = (m_source == Source::Hardware);
     m_blocks["source_real"] = srcReal;
@@ -407,23 +406,27 @@ void MeasurementSetupView::buildTopology()
     srcFile.icon = "";
     srcFile.category = "source";
     srcFile.moduleName = "file";
-    srcFile.rect = QRectF(srcStartX + srcW + srcGap, y, srcW, srcH);
+    srcFile.rect = QRectF(x, srcY2, srcW, srcH);
     srcFile.color = QColor(0x4C, 0xAF, 0x50);
     srcFile.enabled = (m_source == Source::File);
     m_blocks["source_file"] = srcFile;
 
-    // 切换开关位置
-    m_switchRect = QRectF(srcStartX + srcW + 8, y + srcH / 2 - 16, switchW, 32);
+    // 切换开关位置 (在两个数据源块之间)
+    m_switchRect = QRectF(x + (srcW - switchW) / 2, srcY1 + srcH + 5, switchW, switchH);
 
-    y += srcH + gapY;
+    x += srcW + gapX;
 
-    // ---- 第 2 行: 通道 / 文件源 ----
+    // ---- 第 2 列: 通道 ----
+    qreal chY1 = srcY1 + 5;
+    qreal chY2 = srcY2 + 5;
+    qreal chW = bw - 30;
+
     BlockItem ch1;
     ch1.id = "channel1";
     ch1.title = "CAN 通道 1";
     ch1.icon = "";
     ch1.category = "channel";
-    ch1.rect = QRectF(startX, y, bw - 30, bh);
+    ch1.rect = QRectF(x, chY1, chW, bh);
     ch1.color = QColor(0x00, 0x79, 0x8C);
     m_blocks["channel1"] = ch1;
 
@@ -432,23 +435,27 @@ void MeasurementSetupView::buildTopology()
     ch2.title = "CAN 通道 2";
     ch2.icon = "";
     ch2.category = "channel";
-    ch2.rect = QRectF(startX + bw - 30 + gapX, y, bw - 30, bh);
+    ch2.rect = QRectF(x, chY2, chW, bh);
     ch2.color = QColor(0x00, 0x79, 0x8C);
     m_blocks["channel2"] = ch2;
-    y += bh + gapY;
 
-    // ---- 第 3 行: DBC 数据库 ----
+    x += chW + gapX;
+
+    // ---- 第 3 列: DBC 数据库 ----
+    qreal dbY = (chY1 + chY2 + bh) / 2 - bh / 2;  // 垂直居中
+
     BlockItem dbc;
     dbc.id = "database";
     dbc.title = "DBC 数据库";
     dbc.icon = "";
     dbc.category = "database";
-    dbc.rect = QRectF(startX + 100, y, bw, bh);
+    dbc.rect = QRectF(x, dbY, bw, bh);
     dbc.color = QColor(0x7B, 0x1F, 0xA2);
     m_blocks["database"] = dbc;
-    y += bh + gapY;
 
-    // ---- 第 4 行: 分析模块（4列: Trace1 / Graphic / Data / Record，平行排列）----
+    x += bw + gapX;
+
+    // ---- 第 4 列: 分析模块 (垂直堆叠: Trace / Graphic / Data / Record) ----
     struct ModDef { QString id; QString icon; QString title; QColor color; QString moduleName; };
     ModDef mods[] = {
         {"trace1",   "", "Trace1",          QColor(0x21, 0x96, 0xF3), "trace"},
@@ -458,9 +465,7 @@ void MeasurementSetupView::buildTopology()
     };
     int modW = 140;
     int modGap = 16;
-    int totalW = 4 * modW + 3 * modGap;
-    int modStartX = startX + 100 + (bw - totalW) / 2;
-    if (modStartX < 20) modStartX = 20;
+    qreal modY = 30;
 
     for (int i = 0; i < 4; ++i) {
         BlockItem b;
@@ -469,11 +474,10 @@ void MeasurementSetupView::buildTopology()
         b.icon = mods[i].icon;
         b.category = "module";
         b.moduleName = mods[i].moduleName;
-        b.rect = QRectF(modStartX + i * (modW + modGap), y, modW, bh);
+        b.rect = QRectF(x, modY + i * (bh + modGap), modW, bh);
         b.color = mods[i].color;
         m_blocks[mods[i].id] = b;
     }
-    y += bh + gapY;
 
     // ---- 连线定义 ----
     m_connections.clear();
@@ -484,19 +488,21 @@ void MeasurementSetupView::buildTopology()
         c.pathItem = nullptr;
         m_connections.append(c);
     };
-    // 数据源 → 通道1, 通道2 (仅活跃数据源)
-    addConn(activeSourceId(), "channel1");
-    addConn(activeSourceId(), "channel2");
+    // 数据源 → 通道
+    addConn("source_real", "channel1");
+    addConn("source_real", "channel2");
+    addConn("source_file", "channel1");
+    addConn("source_file", "channel2");
     // 通道 → DBC
     addConn("channel1", "database");
     addConn("channel2", "database");
     // DBC → 各模块
+    addConn("database", "trace1");
     addConn("database", "graphic1");
     addConn("database", "data");
     addConn("database", "record");
-    addConn("database", "trace1");
 
-    // 模块块分行水平排列
+    // 模块块垂直堆叠
     relayoutModuleBlocks();
 }
 
@@ -584,54 +590,54 @@ void MeasurementSetupView::updateConnections()
         QRectF from = fromIt->rect;
         QRectF to = toIt->rect;
 
-        QPointF start = QPointF(from.center().x(), from.bottom());
-        QPointF end = QPointF(to.center().x(), to.top());
+        // 水平连线：从 from 右侧到 to 左侧
+        QPointF start = QPointF(from.right(), from.center().y());
+        QPointF end = QPointF(to.left(), to.center().y());
 
-        // 如果起始块在目标块下方，调整起止点
-        if (from.top() > to.bottom()) {
-            start = QPointF(from.center().x(), from.top());
-            end = QPointF(to.center().x(), to.bottom());
+        // 如果起始块在目标块右侧，反向连接
+        if (from.left() > to.right()) {
+            start = QPointF(from.left(), from.center().y());
+            end = QPointF(to.right(), to.center().y());
         }
-
-        // 如果不在同一垂直线上，画 L 型路径
-        QPainterPath path;
-        path.moveTo(start);
-
-        qreal midY = (start.y() + end.y()) / 2;
-        if (qAbs(start.x() - end.x()) < 2) {
-            // 垂直线
-            path.lineTo(end);
-        } else {
-            // L 型路径: 下 → 水平 → 下
-            path.lineTo(QPointF(start.x(), midY));
-            path.lineTo(QPointF(end.x(), midY));
-            path.lineTo(end);
-        }
-
-        // 绘制路径
-        auto *pathItem = new QGraphicsPathItem();
-        pathItem->setPath(path);
-        pathItem->setPen(QPen(QColor(0xa0, 0xa0, 0xa0), 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
 
         // 检查两端块是否启用
         bool fromActive = fromIt->enabled;
         bool toActive = toIt->enabled;
         if (fromIt->category == "source")
             fromActive = (fromIt->id == activeSourceId());
-        // 通道块始终启用 — 逻辑通道概念
 
-        if (!fromActive || !toActive) {
-            pathItem->setPen(QPen(QColor(0xd0, 0xd0, 0xd0), 1.5, Qt::DashLine));
+        // 非 active 数据源的连线不绘制（避免 4 条线交叉）
+        if (fromIt->category == "source" && !fromActive)
+            continue;
+
+        // 绘制路径
+        QPainterPath path;
+        path.moveTo(start);
+
+        qreal midX = (start.x() + end.x()) / 2;
+        if (qAbs(start.y() - end.y()) < 2) {
+            // 同一水平线上 — 直线
+            path.lineTo(end);
+        } else {
+            // Z 型路径: 右 → 垂直 → 右
+            path.lineTo(QPointF(midX, start.y()));
+            path.lineTo(QPointF(midX, end.y()));
+            path.lineTo(end);
         }
+
+        auto *pathItem = new QGraphicsPathItem();
+        pathItem->setPath(path);
+        QColor lineColor = (fromActive && toActive) ? QColor(0xa0, 0xa0, 0xa0) : QColor(0xd0, 0xd0, 0xd0);
+        Qt::PenStyle style = (fromActive && toActive) ? Qt::SolidLine : Qt::DashLine;
+        pathItem->setPen(QPen(lineColor, 1.8, style, Qt::RoundCap, Qt::RoundJoin));
 
         m_scene->addItem(pathItem);
         conn.pathItem = pathItem;
 
-        // 箭头
+        // 箭头 (指向右侧)
         qreal arrowSize = 6;
-        qreal angle = std::atan2(end.y() - (end.y() - arrowSize), 0); // 向下箭头
         QPointF arrowP1 = QPointF(end.x() - arrowSize, end.y() - arrowSize);
-        QPointF arrowP2 = QPointF(end.x() + arrowSize, end.y() - arrowSize);
+        QPointF arrowP2 = QPointF(end.x() - arrowSize, end.y() + arrowSize);
 
         QPainterPath arrowPath;
         arrowPath.moveTo(end);
@@ -641,9 +647,8 @@ void MeasurementSetupView::updateConnections()
 
         auto *arrowItem = new QGraphicsPathItem();
         arrowItem->setPath(arrowPath);
-        QColor arrowColor = (fromActive && toActive) ? QColor(0xa0, 0xa0, 0xa0) : QColor(0xd0, 0xd0, 0xd0);
-        arrowItem->setBrush(arrowColor);
-        arrowItem->setPen(QPen(arrowColor, 1));
+        arrowItem->setBrush(lineColor);
+        arrowItem->setPen(QPen(lineColor, 1));
         m_scene->addItem(arrowItem);
     }
 }
@@ -822,16 +827,18 @@ void MeasurementSetupView::addChannelBlock()
     int chNum = m_nextChannelNum - 1;
 
     auto refIt = m_blocks.find("channel1");
-    qreal chY = refIt != m_blocks.end() ? refIt->rect.top() : 85;
-    qreal chH = refIt != m_blocks.end() ? refIt->rect.height() : 60;
+    qreal chX = refIt != m_blocks.end() ? refIt->rect.left() : 260;
     qreal chW = refIt != m_blocks.end() ? refIt->rect.width() : 190;
-    qreal gapX = 40;
+    qreal chH = refIt != m_blocks.end() ? refIt->rect.height() : 60;
+    qreal gapY = 30;  // 垂直间距
 
-    qreal maxX = 0;
+    // 在通道列最下方添加新通道
+    qreal maxY = 0;
     for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
         if (it.value().category == "channel")
-            maxX = qMax(maxX, it.value().rect.right());
+            maxY = qMax(maxY, it.value().rect.bottom());
     }
+    if (maxY == 0) maxY = 85;
 
     BlockItem ch;
     ch.id = id;
@@ -839,14 +846,20 @@ void MeasurementSetupView::addChannelBlock()
     ch.icon = "";
     ch.category = "channel";
     ch.color = QColor(0x00, 0x79, 0x8C);
-    ch.rect = QRectF(maxX + gapX, chY, chW, chH);
+    ch.rect = QRectF(chX, maxY + gapY, chW, chH);
     m_blocks[id] = ch;
 
     Connection c1;
-    c1.fromId = activeSourceId();
+    c1.fromId = "source_real";
     c1.toId = id;
     c1.pathItem = nullptr;
     m_connections.append(c1);
+
+    Connection c1b;
+    c1b.fromId = "source_file";
+    c1b.toId = id;
+    c1b.pathItem = nullptr;
+    m_connections.append(c1b);
 
     Connection c2;
     c2.fromId = id;
@@ -905,47 +918,31 @@ void MeasurementSetupView::relayoutModuleBlocks()
     traceIds.sort();
     graphicIds.sort();
 
-    // 从 DBC 块底部推导模块区域起始 Y，确保不依赖新块的临时位置
-    const qreal gapY = 55;  // 与 buildTopology 一致
+    // 模块块在 DBC 块右侧垂直堆叠
     const qreal moduleH = 60;
-    qreal moduleY = 0;
+    const qreal modW = 140;
+    const qreal modGap = 16;       // 垂直间距
+    qreal moduleX = 0;
+    qreal moduleY = 30;
     {
         auto dbIt = m_blocks.find("database");
         if (dbIt != m_blocks.end())
-            moduleY = dbIt->rect.bottom() + gapY;
+            moduleX = dbIt->rect.right() + 60;  // DBC 右侧 + gapX
         else
-            moduleY = 300;  // fallback
+            moduleX = 750;  // fallback
     }
 
-    const qreal modW = 140;
-    const qreal modGap = 16;
-    const qreal rowGap = 20;
-    const qreal startX = 50;
+    // 合并所有模块 ID，按顺序排列：Trace → Graphic → Other
+    QStringList allIds;
+    allIds << traceIds << graphicIds << otherIds;
+
     qreal y = moduleY;
-
-    // 第 1 行: Trace 块
-    for (int i = 0; i < traceIds.size(); ++i) {
-        auto it = m_blocks.find(traceIds[i]);
-        if (it != m_blocks.end())
-            it.value().rect = QRectF(startX + i * (modW + modGap), y, modW, moduleH);
-    }
-    if (!traceIds.isEmpty())
-        y += moduleH + rowGap;
-
-    // 第 2 行: Graphic 块
-    for (int i = 0; i < graphicIds.size(); ++i) {
-        auto it = m_blocks.find(graphicIds[i]);
-        if (it != m_blocks.end())
-            it.value().rect = QRectF(startX + i * (modW + modGap), y, modW, moduleH);
-    }
-    if (!graphicIds.isEmpty())
-        y += moduleH + rowGap;
-
-    // 第 3 行: Data + Record
-    for (int i = 0; i < otherIds.size(); ++i) {
-        auto it = m_blocks.find(otherIds[i]);
-        if (it != m_blocks.end())
-            it.value().rect = QRectF(startX + i * (modW + modGap), y, modW, moduleH);
+    for (int i = 0; i < allIds.size(); ++i) {
+        auto it = m_blocks.find(allIds[i]);
+        if (it != m_blocks.end()) {
+            it.value().rect = QRectF(moduleX, y, modW, moduleH);
+            y += moduleH + modGap;
+        }
     }
 
     rebuildScene();
@@ -1336,21 +1333,22 @@ void MeasurementSetupView::buildEmptyAreaMenu(const QPointF &)
         if (!m_blocks.contains(mod.id)) {
             auto *actAdd = m_rightMenu->addAction(QString("添加 %1").arg(mod.title));
             connect(actAdd, &QAction::triggered, this, [this, mod]() {
-                qreal modY = 0, modH = 60;
-                qreal modW = 160, modGap = 20;
+                const qreal modW = 140;
+                const qreal modH = 60;
+                const qreal modGap = 16;
+                // 在模块区域最下方垂直堆叠
+                qreal maxY = 0;
+                qreal modX = 0;
                 for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
                     if (it.value().category == "module") {
-                        modY = it.value().rect.top();
-                        modH = it.value().rect.height();
-                        break;
+                        maxY = qMax(maxY, it.value().rect.bottom());
+                        modX = it.value().rect.left();
                     }
                 }
-                if (modY == 0) modY = 300;
-
-                qreal maxX = 0;
-                for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
-                    if (it.value().category == "module")
-                        maxX = qMax(maxX, it.value().rect.right());
+                if (maxY == 0) {
+                    auto dbIt = m_blocks.find("database");
+                    modX = (dbIt != m_blocks.end()) ? dbIt->rect.right() + 60 : 750;
+                    maxY = 30;
                 }
 
                 BlockItem b;
@@ -1359,7 +1357,7 @@ void MeasurementSetupView::buildEmptyAreaMenu(const QPointF &)
                 b.icon = mod.icon;
                 b.category = "module";
                 b.color = mod.color;
-                b.rect = QRectF(maxX > 0 ? maxX + modGap : 20, modY, modW, modH);
+                b.rect = QRectF(modX, maxY + modGap, modW, modH);
                 m_blocks[mod.id] = b;
 
                 Connection c;
@@ -1405,7 +1403,7 @@ void MeasurementSetupView::showFileConfigDialog()
     lay->addWidget(fileList);
 
     // 浏览按钮
-    auto *browseBtn = new QPushButton("📂 浏览其他文件...", &dlg);
+    auto *browseBtn = new QPushButton(" 浏览其他文件...", &dlg);
     lay->addWidget(browseBtn);
 
     // 浏览文件
