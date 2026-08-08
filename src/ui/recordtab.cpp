@@ -10,6 +10,7 @@
 #include <QCheckBox>
 #include <QLabel>
 #include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QFileDialog>
 #include <QDateTime>
 
@@ -88,6 +89,10 @@ RecordTab::RecordTab(QWidget *parent)
     m_timeSpin->setEnabled(false);
     splitLayout->addWidget(m_timeSpin, 1, 2);
 
+    // ---- 环形模式 ----
+    auto *ringChk = new QCheckBox("环形模式 (覆盖最旧文件)", splitGroup);
+    splitLayout->addWidget(ringChk, 2, 0, 1, 3);
+
     connect(m_splitByTime, &QCheckBox::toggled, m_timeSpin, &QWidget::setEnabled);
 
     mainLayout->addWidget(splitGroup);
@@ -131,6 +136,43 @@ RecordTab::RecordTab(QWidget *parent)
 
     mainLayout->addWidget(filterGroup);
 
+    // ---- 触发录制 ----
+    m_triggerGroup = new QGroupBox("触发录制 (Trigger Recording)", this);
+    auto *triggerLayout = new QGridLayout(m_triggerGroup);
+    triggerLayout->setSpacing(6);
+
+    m_triggerEnable = new QCheckBox("启用触发录制", m_triggerGroup);
+    triggerLayout->addWidget(m_triggerEnable, 0, 0, 1, 4);
+
+    triggerLayout->addWidget(new QLabel("触发条件:", m_triggerGroup), 1, 0);
+    m_triggerExprEdit = new QLineEdit(m_triggerGroup);
+    m_triggerExprEdit->setPlaceholderText("例: id == 0x1A5 and data[0] == 0xFF");
+    triggerLayout->addWidget(m_triggerExprEdit, 1, 1, 1, 3);
+
+    triggerLayout->addWidget(new QLabel("前置缓冲(s):", m_triggerGroup), 2, 0);
+    m_preTriggerSpin = new QDoubleSpinBox(m_triggerGroup);
+    m_preTriggerSpin->setRange(0.1, 600.0);
+    m_preTriggerSpin->setValue(5.0);
+    m_preTriggerSpin->setSuffix(" s");
+    triggerLayout->addWidget(m_preTriggerSpin, 2, 1);
+
+    triggerLayout->addWidget(new QLabel("后置录制(s):", m_triggerGroup), 2, 2);
+    m_postTriggerSpin = new QDoubleSpinBox(m_triggerGroup);
+    m_postTriggerSpin->setRange(0.1, 3600.0);
+    m_postTriggerSpin->setValue(10.0);
+    m_postTriggerSpin->setSuffix(" s");
+    triggerLayout->addWidget(m_postTriggerSpin, 2, 3);
+
+    m_repeatTriggerChk = new QCheckBox("重复触发", m_triggerGroup);
+    m_repeatTriggerChk->setChecked(true);
+    triggerLayout->addWidget(m_repeatTriggerChk, 3, 0, 1, 2);
+
+    m_triggerRecordBtn = new QPushButton("开始触发录制", m_triggerGroup);
+    m_triggerRecordBtn->setCheckable(true);
+    triggerLayout->addWidget(m_triggerRecordBtn, 3, 2, 1, 2);
+
+    mainLayout->addWidget(m_triggerGroup);
+
     // ---- 状态 ----
     m_statusLabel = new QLabel("状态: 未录制", this);
     mainLayout->addWidget(m_statusLabel);
@@ -140,6 +182,7 @@ RecordTab::RecordTab(QWidget *parent)
     // ---- 信号连接 ----
     connect(browseBtn, &QPushButton::clicked, this, &RecordTab::onBrowse);
     connect(m_recordBtn, &QPushButton::toggled, this, &RecordTab::onRecord);
+    connect(m_triggerRecordBtn, &QPushButton::toggled, this, &RecordTab::onTriggerRecord);
 }
 
 void RecordTab::onBrowse()
@@ -170,4 +213,30 @@ void RecordTab::setRecording(bool recording)
     m_statusLabel->setText(recording ? "状态: 录制中..." : "状态: 未录制");
     m_statusLabel->setObjectName(recording ? "StatusRec" : "StatusDim");
     m_recordBtn->blockSignals(false);
+}
+
+void RecordTab::onTriggerRecord()
+{
+    bool on = m_triggerRecordBtn->isChecked();
+    m_triggerRecordBtn->setText(on ? "停止触发录制" : "开始触发录制");
+
+    if (on) {
+        // 发送触发录制配置
+        emit triggerRecordingRequested(
+            m_dirEdit->text(),
+            m_prefixEdit->text(),
+            m_formatCombo->currentData().toString(),
+            m_splitBySize->isChecked(),
+            m_sizeSpin->value(),
+            m_splitByTime->isChecked(),
+            m_timeSpin->value(),
+            false,  // ringMode - could add UI later
+            10,     // maxFiles
+            m_triggerExprEdit->text(),
+            m_preTriggerSpin->value(),
+            m_postTriggerSpin->value(),
+            m_repeatTriggerChk->isChecked());
+    } else {
+        emit recordToggled(false);
+    }
 }

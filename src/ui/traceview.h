@@ -13,6 +13,8 @@ class FilterBar;
 class QSplitter;
 class QLabel;
 class DbcManager;
+class QComboBox;
+class QTimer;
 
 /**
  * @brief CANoe 风格 Trace 报文列表视图
@@ -31,6 +33,26 @@ public:
 
     /// 重写 setModel，自动将代理模型传递给 FilterHeaderView
     void setModel(QAbstractItemModel *model) override;
+
+    // ---- 选中行保持（过滤变化后恢复定位） ----
+
+    /// 在过滤/排序变化前记录当前选中的源模型行号
+    void pinSelection();
+    /// 在过滤/排序变化后恢复选中并滚动到该行
+    void restoreSelection();
+
+    // ---- Wireshark 风格导航 ----
+
+    /// 跳转到指定帧编号（1-based）
+    void goToPacket(int frameNumber);
+    /// 查找下一匹配帧（从当前选中行之后开始）
+    bool findNext(const QString &text);
+    /// 查找上一匹配帧（从当前选中行之前开始）
+    bool findPrevious(const QString &text);
+    /// 跳转到下一个相同 CAN ID 的帧
+    void goToNextSameId();
+    /// 跳转到上一个相同 CAN ID 的帧
+    void goToPrevSameId();
 
 public slots:
     void scrollToBottom();
@@ -58,9 +80,16 @@ private slots:
     void onColorSelected();
     void onClearMarks();
     void onClearColors();
+    void onGoToPacket();
+    void onFind();
+    void onFindNext();
+    void onFindPrevious();
 
 private:
     bool m_autoScroll = true;
+    int m_pinnedSourceRow = -1;  ///< 过滤变化前锁定的源模型行号
+    QString m_lastFindText;      ///< 上次查找文本
+
     void setupAppearance();
     void showHeaderMenu(int column, const QPoint &pos);
     QString columnFilterHint(int column) const;
@@ -68,6 +97,8 @@ private:
     int toSourceRow(const QModelIndex &proxyIndex) const;
     /// 获取当前选中的源模型行号列表
     QList<int> selectedSourceRows() const;
+    /// 选中并滚动到指定源模型行
+    void selectSourceRow(int sourceRow);
 };
 
 /**
@@ -122,6 +153,8 @@ private:
  *   ┌────────────────────────────────┐
  *   │ FilterBar (Start/Stop + Filter) │
  *   ├────────────────────────────────┤
+ *   │ 工具条 (时间戳模式 + 分组统计)    │
+ *   ├────────────────────────────────┤
  *   │ TraceView (报文列表)            │
  *   ├──────────────┬─────────────────┤
  *   │ 帧结构        │ 信号解析         │
@@ -141,6 +174,8 @@ public:
     FilterBar *filterBar() const { return m_filterBar; }
     FrameInfoWidget *frameInfo() const { return m_frameInfo; }
     SignalDecodeWidget *signalDecode() const { return m_signalDecode; }
+    CanTraceModel *traceModel() const { return m_traceModel; }
+    CanFilterProxyModel *proxyModel() const { return m_proxyModel; }
 
     void setDbcManager(DbcManager *mgr);
 
@@ -154,11 +189,17 @@ public:
     void clearTrace();
     int frameCount() const;
     bool setFilterExpression(const QString &expr);
+    /// 仅清除主过滤表达式（不影响列过滤）
     void clearFilter();
+    /// 清除主过滤表达式 + 所有列过滤
+    void clearAllFilters();
     QString filterExpression() const;
 
     /// 从外部文件加载帧数据（BLF/ASC/CSV）
     void loadFile(const QString &path);
+
+    /// 更新分组统计显示
+    void updatePacketCount();
 
 signals:
     /// 文件拖放后加载完成
@@ -171,6 +212,8 @@ protected:
 
 private slots:
     void onSelectionChanged();
+    void onTimestampModeChanged(int index);
+    void onPacketCountTimer();
 
 private:
     FilterBar *m_filterBar = nullptr;
@@ -183,6 +226,12 @@ private:
     CanTraceModel *m_traceModel = nullptr;
     CanFilterProxyModel *m_proxyModel = nullptr;
     bool m_running = false;
+
+    // ---- Wireshark 风格工具条 ----
+    QComboBox *m_tsModeCombo = nullptr;   ///< 时间戳显示模式
+    QLabel *m_packetCountLabel = nullptr;  ///< 捕获/显示分组计数
+    QTimer *m_packetCountTimer = nullptr;  ///< 分组计数防抖定时器
+    bool m_packetCountDirty = false;       ///< 分组计数待更新标记
 };
 
 #endif // TRACEVIEW_H

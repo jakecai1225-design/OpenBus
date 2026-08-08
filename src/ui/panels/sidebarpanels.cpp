@@ -1080,6 +1080,16 @@ ToolsPanel::ToolsPanel(QWidget *parent)
     statItem->setData(Qt::UserRole, "bus_analysis");
     statItem->setToolTip("报文统计 / ID 频率周期 / 总线负载率");
 
+    // P0: Data Window
+    auto *dataItem = new QListWidgetItem("Data Window", m_list);
+    dataItem->setData(Qt::UserRole, "data_window");
+    dataItem->setToolTip("信号实时表格：当前值/原始值/物理值/最小值/最大值");
+
+    // P1: 着色规则编辑器
+    auto *colorItem = new QListWidgetItem("着色规则编辑器", m_list);
+    colorItem->setData(Qt::UserRole, "color_rules");
+    colorItem->setToolTip("Trace 行动态着色规则管理");
+
     cl->addWidget(m_list);
 
     auto *hint = new QLabel("\n"

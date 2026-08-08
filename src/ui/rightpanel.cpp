@@ -1,4 +1,5 @@
 #include "rightpanel.h"
+#include "core/bookmarkmanager.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -7,6 +8,8 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QGroupBox>
+#include <QListWidget>
+#include <QListWidgetItem>
 
 RightPanel::RightPanel(QWidget *parent)
     : QTabWidget(parent)
@@ -96,6 +99,33 @@ RightPanel::RightPanel(QWidget *parent)
     quickLayout->addStretch();
     addTab(quickWidget, "快捷按钮");
 
+    // ---- 书签标签页 ----
+    auto *bookmarkWidget = new QWidget(this);
+    auto *bookmarkLayout = new QVBoxLayout(bookmarkWidget);
+    bookmarkLayout->setContentsMargins(4, 4, 4, 4);
+    bookmarkLayout->setSpacing(4);
+
+    auto *bmTitle = new QLabel("书签列表", bookmarkWidget);
+    bmTitle->setObjectName("PanelTitle");
+    bookmarkLayout->addWidget(bmTitle);
+
+    m_bookmarkList = new QListWidget(bookmarkWidget);
+    m_bookmarkList->setAlternatingRowColors(true);
+    bookmarkLayout->addWidget(m_bookmarkList, 1);
+
+    auto *bmClearBtn = new QPushButton("清空书签", bookmarkWidget);
+    bookmarkLayout->addWidget(bmClearBtn);
+
+    addTab(bookmarkWidget, "书签");
+
+    connect(m_bookmarkList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item) {
+        int frameIdx = item->data(Qt::UserRole).toInt();
+        emit bookmarkJumped(frameIdx);
+    });
+    connect(bmClearBtn, &QPushButton::clicked, this, [this]() {
+        if (m_bookmarkMgr) m_bookmarkMgr->clear();
+    });
+
     // 信号连接
     connect(m_recordBtn, &QPushButton::clicked, this, &RightPanel::recordRequested);
     connect(m_stopRecBtn, &QPushButton::clicked, this, &RightPanel::stopRecordRequested);
@@ -117,4 +147,29 @@ RightPanel::RightPanel(QWidget *parent)
 void RightPanel::appendAiMessage(const QString &role, const QString &text)
 {
     m_chatMessages->appendPlainText(QString("[%1] %2").arg(role, text));
+}
+
+void RightPanel::setBookmarkManager(BookmarkManager *mgr)
+{
+    m_bookmarkMgr = mgr;
+    if (m_bookmarkMgr) {
+        connect(m_bookmarkMgr, &BookmarkManager::bookmarkAdded, this, &RightPanel::refreshBookmarks);
+        connect(m_bookmarkMgr, &BookmarkManager::bookmarkRemoved, this, &RightPanel::refreshBookmarks);
+        connect(m_bookmarkMgr, &BookmarkManager::cleared, this, &RightPanel::refreshBookmarks);
+    }
+}
+
+void RightPanel::refreshBookmarks()
+{
+    m_bookmarkList->clear();
+    if (!m_bookmarkMgr) return;
+
+    for (const auto &bm : m_bookmarkMgr->bookmarks()) {
+        auto *item = new QListWidgetItem(
+            QString("#%1  %2").arg(bm.frameIndex).arg(bm.note));
+        item->setData(Qt::UserRole, bm.frameIndex);
+        if (bm.color.isValid())
+            item->setBackground(bm.color);
+        m_bookmarkList->addItem(item);
+    }
 }

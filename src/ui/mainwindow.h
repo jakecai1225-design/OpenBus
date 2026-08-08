@@ -31,6 +31,11 @@ class BottomPanel;
 class RightPanel;
 class MeasurementSetupView;
 class DeviceConnectionTab;
+class BusStatistics;
+class FilterPresetManager;
+class BookmarkManager;
+class DataWindow;
+struct DbcFile;
 class QAction;
 class QSlider;
 class QComboBox;
@@ -105,6 +110,17 @@ private slots:
     void onSettingsRequested(const QString &section);
     void onProtocolOpened(const QString &protocolName);
 
+    // P0/P1 新增
+    void onOpenDataWindow();
+    void onOpenColorRuleEditor();
+    void onBookmarkJumped(int frameIndex);
+    void onTriggerRecording(const QString &dir, const QString &prefix,
+                              const QString &format, bool splitBySize, int sizeMb,
+                              bool splitByTime, int timeSec, bool ringMode,
+                              int maxFiles, const QString &triggerExpr,
+                              double preTriggerSec, double postTriggerSec,
+                              bool repeatTrigger);
+
     // 工程
     void onOpenProject();
     void onSaveProject();
@@ -166,6 +182,12 @@ private:
 
     // ---- 数据 ----
     DbcManager *m_dbcManager = nullptr;
+
+    // ---- P0/P1 核心服务 ----
+    BusStatistics *m_busStats = nullptr;
+    FilterPresetManager *m_filterPresets = nullptr;
+    BookmarkManager *m_bookmarkMgr = nullptr;
+    DataWindow *m_dataWindow = nullptr;
 
     // ---- UI (Main tabs) ----
     TraceTab *m_traceTab = nullptr;

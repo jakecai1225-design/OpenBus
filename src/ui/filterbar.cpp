@@ -1,5 +1,6 @@
 #include "filterbar.h"
 #include "utils/canutils.h"
+#include "core/filterpresetmanager.h"
 
 #include <QLineEdit>
 #include <QPushButton>
@@ -10,6 +11,8 @@
 #include <QStyle>
 #include <QEnterEvent>
 #include <QFrame>
+#include <QMenu>
+#include <QInputDialog>
 
 FilterBar::FilterBar(QWidget *parent)
     : QWidget(parent)
@@ -46,8 +49,14 @@ FilterBar::FilterBar(QWidget *parent)
     m_helpBtn->setText("?");
     m_helpBtn->setToolTip("过滤器语法帮助");
 
+    m_presetBtn = new QToolButton(this);
+    m_presetBtn->setText("☰");
+    m_presetBtn->setToolTip("过滤预设");
+    m_presetBtn->setPopupMode(QToolButton::InstantPopup);
+
     layout->addWidget(m_statusIcon);
     layout->addWidget(m_edit, 1);
+    layout->addWidget(m_presetBtn);
     layout->addWidget(m_applyBtn);
     layout->addWidget(m_clearBtn);
     layout->addWidget(m_helpBtn);
@@ -58,6 +67,56 @@ FilterBar::FilterBar(QWidget *parent)
     connect(m_helpBtn, &QToolButton::clicked, this, &FilterBar::showHelp);
     connect(m_edit, &QLineEdit::returnPressed, this, &FilterBar::onApply);
     connect(m_edit, &QLineEdit::textChanged, this, &FilterBar::onTextChanged);
+}
+
+void FilterBar::setPresetManager(FilterPresetManager *mgr)
+{
+    m_presetMgr = mgr;
+    refreshPresets();
+}
+
+void FilterBar::refreshPresets()
+{
+    if (!m_presetMgr) return;
+
+    auto *menu = new QMenu(this);
+    for (const auto &p : m_presetMgr->presets()) {
+        auto *action = menu->addAction(p.name);
+        action->setToolTip(p.expr);
+        connect(action, &QAction::triggered, this, [this, expr = p.expr]() {
+            m_edit->setText(expr);
+            onApply();
+        });
+    }
+    menu->addSeparator();
+    auto *saveAction = menu->addAction("保存当前表达式为预设...");
+    connect(saveAction, &QAction::triggered, this, &FilterBar::onSaveAsPreset);
+    m_presetBtn->setMenu(menu);
+}
+
+void FilterBar::onPresetMenu()
+{
+    // 由 QToolButton::InstantPopup 自动处理
+}
+
+void FilterBar::onSaveAsPreset()
+{
+    if (!m_presetMgr) return;
+
+    QString expr = m_edit->text().trimmed();
+    if (expr.isEmpty()) {
+        QMessageBox::information(this, "保存预设", "请先输入过滤表达式");
+        return;
+    }
+
+    bool ok = false;
+    QString name = QInputDialog::getText(this, "保存过滤预设",
+        "预设名称:", QLineEdit::Normal, QString(), &ok);
+    if (ok && !name.isEmpty()) {
+        m_presetMgr->addPreset(name, expr);
+        m_presetMgr->saveDefault();
+        refreshPresets();
+    }
 }
 
 QString FilterBar::filterText() const

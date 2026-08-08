@@ -88,6 +88,515 @@
 
 ---
 
+## 对标分析：CANoe & TSMaster 核心 20% 功能
+
+> 帕累托法则：20% 的功能覆盖 80% 的日常使用场景。以下梳理 CANoe（Vector）和 TSMaster（TOSUN）最核心的功能，逐项对标 sin 当前状态与实施方案。
+
+### 一、竞品核心功能矩阵
+
+#### CANoe (Vector) — 行业标杆
+
+CANoe 是 Vector 旗舰级 CAN 总线开发工具，覆盖测量、分析、仿真、测试全流程。其核心 20% 功能如下：
+
+| # | 功能模块 | CANoe 能力 | sin 状态 | 差距分析 |
+|---|---------|-----------|---------|--------|
+| C1 | **Trace Window** | 实时报文列表：Delta 时间、行着色、表达式过滤、预定义过滤器、快速搜索、书签标记 | ✅ 基础已实现 | 缺少预定义过滤器集、书签持久化、动态着色规则编辑器 |
+| C2 | **Graphics Window** | 信号曲线：多 Y 轴、双游标测量、视口降采样、信号数学运算、导出图片 | ✅ 基础已实现 | 缺少游标测量、多 Y 轴、视口降采样、信号数学运算 |
+| C3 | **Data Window** | 信号/系统变量实时表格：当前值、最小/最大值、原始值与物理值并列显示 | ⬜ 未实现 | 新增功能，需设计信号表格数据模型 |
+| C4 | **Measurement Setup** | 通道树配置：波特率、采样点、CAN FD、触发条件、硬件通道映射 | ✅ 已实现 | 缺少触发条件配置（基于 ID/数据/错误的触发录制） |
+| C5 | **Online/Offline** | 在线采集 ↔ 离线回放共享同一套上层分析逻辑，无缝切换 | ✅ 已实现 | 架构层面已具备，DataCore 统一数据流设计已就绪 |
+| C6 | **Interactive Send (IGS)** | 交互式信号发送：面板控件（按钮、滑块、输入框）→ 信号值 → 周期发送报文 | ✅ 基础已实现 | 缺少面板设计器（可视化拖拽创建交互面板） |
+| C7 | **CAPL Scripting** | C 语法脚本引擎：事件驱动（on message/on key/on timer）、报文收发、信号读写、文件 I/O | ⬜ 未实现 | 核心差距，需引入脚本引擎（Lua/sol2 方案） |
+| C8 | **Bus Statistics** | 总线负载率、各 ID 帧数/频率、周期/抖动、错误帧分类统计 | ✅ 基础已实现 | 缺少周期抖动分析（均值/最大/最小/标准差）和错误帧分类统计 |
+| C9 | **Log File I/O** | BLF 原生录制、ASC 导入导出、日志文件分片、条件触发录制 | ✅ 已实现 | 缺少文件分片（按大小/时间自动切割）和条件触发录制 |
+| C10 | **Filter & Analysis** | 表达式过滤（类似 Wireshark）、预定义过滤集、分析窗口（差值计算） | ✅ 已实现 | 缺少预定义过滤集管理和差值分析窗口 |
+
+#### TSMaster (TOSUN) — 新兴竞品
+
+TSMaster 是 TOSUN 推出的开放总线工具平台，支持多厂商硬件，免费用于科研教育。其核心 20% 功能如下：
+
+| # | 功能模块 | TSMaster 能力 | sin 状态 | 差距分析 |
+|---|---------|-------------|---------|--------|
+| T1 | **Trace Window** | 报文列表：覆盖模式、行着色、列筛选、实时刷新 | ✅ 已实现 | 功能基本对齐 |
+| T2 | **Graphics** | 信号曲线：多通道叠加、缩放平移 | ✅ 基础已实现 | 缺少多 Y 轴和游标联动 |
+| T3 | **Signal Browser** | DBC 信号树：报文→信号层级浏览 | ✅ 已实现 | 功能基本对齐 |
+| T4 | **Measurement Setup** | 通道映射、波特率、CAN FD 配置 | ✅ 已实现 | 功能基本对齐 |
+| T5 | **Online Replay** | 在线采集 + 离线回放 | ✅ 已实现 | 功能基本对齐 |
+| T6 | **Interactive Send** | 信号/报文发送面板 | ✅ 基础已实现 | 缺少面板设计器 |
+| T7 | **C/C++ Script Editor** | 内嵌 C/C++ 脚本编辑器，编译执行自动化测试 | ⬜ 未实现 | 核心差距，与 CANoe CAPL 类似的自动化能力 |
+| T8 | **Statistics Window** | 总线负载、帧率、错误帧统计 | ✅ 基础已实现 | 缺少周期抖动和错误帧分类 |
+| T9 | **Bus Logging** | BLF/ASC 日志录制 | ✅ 已实现 | 功能基本对齐 |
+| T10 | **File Converter** | DBC/ARXML/XLS/XLSX/DBF/YAML 格式互转 | 🔄 部分实现 | 仅支持 DBC，缺少 ARXML/XLS 格式转换 |
+| T11 | **Panel Designer** | 可视化拖拽创建交互面板（按钮/滑块/图表/输入框） | ⬜ 未实现 | 与 CANoe IGS 面板设计器类同 |
+| T12 | **Test System** | 自动化测试序列：步骤化测试用例、通过/失败判定、报告生成 | ⬜ 未实现 | 核心差距，对标 CANoe Test Feature Set |
+
+### 二、差距优先级矩阵
+
+按 **用户价值 × 实现可行性** 排序，识别最值得投入的功能：
+
+| 优先级 | 功能 | 来源 | 用户价值 | 实现难度 | 预计工时 |
+|-------|------|------|---------|---------|---------|
+| 🔴 P0 | **Data Window（信号实时表格）** | CANoe C3 | ⭐⭐⭐⭐⭐ | 🟢 低 | 2-3 天 |
+| 🔴 P0 | **Graphics 游标测量 + 多 Y 轴** | CANoe C2 / TSMaster T2 | ⭐⭐⭐⭐⭐ | 🟡 中 | 3-5 天 |
+| 🔴 P0 | **Bus Statistics 增强（周期抖动 + 错误帧分类）** | CANoe C8 | ⭐⭐⭐⭐ | 🟢 低 | 2-3 天 |
+| 🟡 P1 | **Log File 分片 + 条件触发录制** | CANoe C9 | ⭐⭐⭐⭐ | 🟡 中 | 3-4 天 |
+| 🟡 P1 | **预定义过滤集管理** | CANoe C10 | ⭐⭐⭐⭐ | 🟢 低 | 1-2 天 |
+| 🟡 P1 | **Trace 书签持久化 + 动态着色规则编辑器** | CANoe C1 | ⭐⭐⭐ | 🟢 低 | 2-3 天 |
+| 🟡 P1 | **File Converter（ARXML 支持）** | TSMaster T10 | ⭐⭐⭐ | 🟡 中 | 5-7 天 |
+| 🟠 P2 | **Panel Designer（交互面板设计器）** | CANoe C6 / TSMaster T11 | ⭐⭐⭐⭐⭐ | 🔴 高 | 7-14 天 |
+| 🟠 P2 | **CAPL/脚本引擎（Lua + sol2）** | CANoe C7 / TSMaster T7 | ⭐⭐⭐⭐⭐ | 🔴 高 | 10-15 天 |
+| 🟠 P2 | **Test System（自动化测试序列）** | TSMaster T12 | ⭐⭐⭐⭐ | 🔴 高 | 10-15 天 |
+
+### 三、核心功能实施方案
+
+#### 方案 1：Data Window — 信号实时表格（P0，对标 CANoe Data Window）
+
+**目标**：以表格形式实时展示多个信号的当前值、最小值、最大值、原始值与物理值。
+
+**UI 布局**：
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ Data Window                                                       │
+├──────────┬─────────┬──────────┬──────────┬──────────┬───────────┤
+│ Signal   │ Current │ Raw      │ Physical │ Min      │ Max       │
+├──────────┼─────────┼──────────┼──────────┼──────────┼───────────┤
+│ EngineRPM│ 3250    │ 0x0CAA   │ 3250 rpm │ 0        │ 6500      │
+│ Throttle │ 45.2    │ 0xB5     │ 45.2 %   │ 0.0      │ 100.0     │
+│ BrakeSt  │ 1       │ 0x01     │ ON       │ 0        │ 1         │
+└──────────┴─────────┴──────────┴──────────┴──────────┴───────────┘
+```
+
+**实现方案**：
+- 新增 `DataWindow` 类，继承 `QWidget`，内嵌 `QTableWidget`
+- 数据源：订阅 `DbcManager` 信号解码结果 + `CanTraceModel` 覆盖模式最新帧
+- 信号列表来源：用户从 DBC 信号树拖拽或双击添加（复用现有 Graphic 信号添加交互）
+- 刷新策略：定时器 100ms 轮询最新帧数据（而非每帧触发），避免高频报文导致 UI 卡顿
+- 最小/最大值：在 `DataWindow` 内部维护每个信号的统计缓存
+
+**涉及文件**：
+- 新增：`src/ui/datawindow.h` / `src/ui/datawindow.cpp`
+- 修改：`src/ui/mainwindow.cpp`（注册标签页类型）
+- 修改：`src/ui/spliteditorarea.cpp`（支持 Data 标签页创建）
+
+---
+
+#### 方案 2：Graphics 游标测量 + 多 Y 轴（P0，对标 CANoe Graphics Window）
+
+**目标**：在 Graphic 图形视图中增加双游标测量、多 Y 轴支持、视口降采样。
+
+**游标测量**：
+```
+┌────────────────────────────────────────────────┐
+│ Graphic View                                    │
+│                                                  │
+│  ┌───┬─────┬──────────┬──────────┐              │
+│  │     │     ╲          ╱         │  ← 信号曲线   │
+│  │  A  │      ╲        ╱          │              │
+│  │  ╫  │       ╲      ╱           │  ← 游标 A     │
+│  │  ╫  B        ╲    ╱            │  ← 游标 B     │
+│  │     │          ╲  ╱             │              │
+│  └───┴─────┴──────────┴──────────┘              │
+│  ΔT = 2.35s    ΔY = 15.3    f = 0.43 Hz          │
+└────────────────────────────────────────────────┘
+```
+
+**实现方案**：
+- 游标：在 `QCustomPlot` 上添加 `QCPItemStraightLine`（垂直线），鼠标拖拽移动
+- 差值计算：双游标之间的时间差 (ΔT)、信号值差 (ΔY)、频率估算 (1/ΔT)
+- 多 Y 轴：使用 `QCustomPlot::yAxis2`（右轴），不同信号可分配到左轴或右轴
+- 视口降采样：当数据点超过视口宽度 ×2 时，按最大/最小值分组抽稀（保留波形轮廓）
+- 游标联动：多个 GraphicView 标签页间游标时间同步（通过信号槽）
+
+**涉及文件**：
+- 修改：`src/ui/graphicview.h` / `src/ui/graphicview.cpp`
+- 新增：游标控制工具栏（QToolBar：添加/移除游标、显示/隐藏差值面板）
+
+---
+
+#### 方案 3：Bus Statistics 增强（P0，对标 CANoe Bus Statistics Window）
+
+**目标**：在现有统计面板基础上增加周期抖动分析和错误帧分类统计。
+
+**统计表格**：
+```
+┌──────────┬──────┬────────┬──────────┬──────────┬──────────┬──────────┐
+│ CAN ID   │ 帧数 │ 平均周期│ 最小周期 │ 最大周期 │ 抖动(σ) │ 频率(Hz) │
+├──────────┼──────┼────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0x100    │ 1240 │ 10.0ms │ 9.8ms    │ 10.5ms   │ 0.12ms   │ 100.0    │
+│ 0x1A5    │  620 │ 16.1ms │ 15.2ms   │ 17.8ms   │ 0.45ms   │ 62.1     │
+│ 0x2FF    │   15 │ —      │ —        │ —        │ —        │ 0.5 (事件)│
+└──────────┴──────┴────────┴──────────┴──────────┴──────────┴──────────┘
+
+错误帧统计：
+┌──────────────┬──────┬──────────────┐
+│ 错误类型     │ 数量 │ 占比          │
+├──────────────┼──────┼──────────────┤
+│ Stuff Error  │    3 │ 30.0%        │
+│ Form Error   │    2 │ 20.0%        │
+│ ACK Error    │    5 │ 50.0%        │
+│ Bit0 Error  │    0 │ 0.0%         │
+│ Bit1 Error  │    0 │ 0.0%         │
+│ CRC Error    │    0 │ 0.0%         │
+└──────────────┴──────┴──────────────┘
+```
+
+**实现方案**：
+- 新增 `BusStatistics` 类，在后台线程统计
+- 周期计算：每个 CAN ID 维护一个 `QQueue<uint64_t>` 时间戳队列，计算相邻帧时间差
+- 抖动 (σ)：周期的标准差 `sqrt(Σ(xi-x̄)²/N)`
+- 错误帧分类：解析 `CanFrame::flags` 中的错误标志位（ECC 错误码）
+- 总线负载率：`(总数据位数 / (统计时长 × 波特率)) × 100%`
+  - 总数据位数 = Σ(47 + DLC×8) for each frame（经典 CAN 帧位数）
+- 刷新策略：1s 定时器触发统计计算，避免每帧更新
+
+**涉及文件**：
+- 新增：`src/core/busstatistics.h` / `src/core/busstatistics.cpp`
+- 修改：`src/ui/tools/loganalysisview.h` / `src/ui/tools/loganalysisview.cpp`（替换现有 FrameStatisticsView 桩实现）
+- 修改：`src/ui/mainwindow.cpp`（对接统计服务信号槽）
+
+---
+
+#### 方案 4：Log File 分片 + 条件触发录制（P1，对标 CANoe Logging）
+
+**目标**：录制时支持按文件大小/时间自动分片，支持基于表达式条件的触发录制。
+
+**分片策略**：
+- 按大小分片：文件达到配置阈值（默认 50 MB）时自动切割，文件名追加序号
+- 按时间分片：录制达到配置时长（默认 10 分钟）时自动切割
+- 环形模式：达到最大文件数时覆盖最旧文件（对标 CANoe Ring Buffer）
+
+**条件触发录制**：
+- 前置缓冲 (Pre-Trigger)：始终在内存中缓存最近 N 秒/N 帧的报文
+- 触发条件：复用现有 `FilterEngine` 表达式引擎
+  - 示例：`id == 0x1A5 && data[0] == 0xFF`（特定报文特定数据触发）
+  - 示例：`error == true`（错误帧出现时触发）
+- 触发后行为：将前置缓冲写入文件 → 持续录制 → 达到后置时长后停止
+
+**实现方案**：
+- 新增 `LogSplitter` 类，管理文件分片逻辑
+- 新增 `TriggerRecorder` 类，封装前置缓冲 + 触发条件 + 后置录制
+- 复用 `FilterEngine` 解析触发条件表达式
+- UI：在 RecordTab 中增加「分片设置」和「触发录制」折叠面板
+
+**涉及文件**：
+- 新增：`src/core/logsplitter.h` / `src/core/logsplitter.cpp`
+- 新增：`src/core/triggerrecorder.h` / `src/core/triggerrecorder.cpp`
+- 修改：`src/ui/recordtab.h` / `src/ui/recordtab.cpp`
+
+---
+
+#### 方案 5：预定义过滤集管理（P1，对标 CANoe Filter Presets）
+
+**目标**：将常用的过滤表达式保存为命名预设，一键切换。
+
+**功能设计**：
+- 过滤栏右侧增加「预设」下拉按钮
+- 预设列表以菜单形式展示，点击即应用
+- 右键当前表达式 → 「保存为预设」→ 输入名称
+- 预设存储在 `filters/` 目录下 `.sfilter` 文件中（JSON 格式）
+
+**文件格式**（`.sfilter`）：
+```jsonc
+{
+  "version": 1,
+  "filters": [
+    {"name": "仅 Rx 帧",       "expr": "rx"},
+    {"name": "仅错误帧",       "expr": "error"},
+    {"name": "制动系统",       "expr": "id in (0x100, 0x1A5, 0x2FF)"},
+    {"name": "高优先级",       "expr": "id < 0x100"},
+    {"name": "CAN FD 帧",      "expr": "fd"}
+  ]
+}
+```
+
+**实现方案**：
+- 新增 `FilterPresetManager` 类，加载/保存 `.sfilter` 文件
+- 修改 `FilterBar` 添加预设下拉按钮和菜单
+- 预设可导入导出，方便团队共享
+
+**涉及文件**：
+- 新增：`src/core/filterpresetmanager.h` / `src/core/filterpresetmanager.cpp`
+- 修改：`src/ui/filterbar.h` / `src/ui/filterbar.cpp`
+
+---
+
+#### 方案 6：Trace 书签持久化 + 着色规则编辑器（P1，对标 CANoe Trace 标记着色）
+
+**书签持久化**：
+- 右键报文行 → 「添加书签」→ 输入备注
+- 书签数据结构：`{frameIndex, note, timestamp, color}`
+- 书签保存在 `.sinproj` 工程文件中（或独立的 `.sbm` 书签文件）
+- 右侧面板增加「书签」标签页，点击跳转到对应帧
+
+**着色规则编辑器**：
+- 工具菜单 → 「着色规则」打开编辑器
+- 规则列表：每条规则 = 条件表达式 + 背景色 + 前景色
+- 条件复用 `FilterEngine`（如 `id == 0x123` → 黄色背景）
+- 规则优先级：从上到下匹配，首个命中规则的着色生效
+- 规则保存在 `.sinproj` 中
+
+**UI**：
+```
+┌─ 着色规则编辑器 ──────────────────────────────┐
+│  规则列表                      [添加] [删除]   │
+│  ┌──────────────────────────────────────────┐  │
+│  │ ▲ id == 0x123        🟡 黄色背景         │  │
+│  │   error == true      🔴 浅红背景         │  │
+│  │   fd == true         🔵 浅蓝背景         │  │
+│  │   id in (0x1A5,..)   🟢 浅绿背景         │  │
+│  └──────────────────────────────────────────┘  │
+│  条件: [id == 0x123                        ]   │
+│  背景: [⬛ 黄色 ▼]   前景: [⬛ 黑色 ▼]           │
+│                                  [取消] [确定]   │
+└────────────────────────────────────────────────┘
+```
+
+**涉及文件**：
+- 新增：`src/ui/colorruleeditor.h` / `src/ui/colorruleeditor.cpp`
+- 修改：`src/core/cantracemodel.h` / `src/core/cantracemodel.cpp`（支持着色规则求值）
+- 修改：`src/ui/rightpanel.h` / `src/ui/rightpanel.cpp`（增加书签标签页）
+
+---
+
+#### 方案 7：File Converter — ARXML 格式支持（P1，对标 TSMaster File Converter）
+
+**目标**：支持 ARXML（AUTOSAR XML）格式的 DBC 导入导出，覆盖现代 ECU 开发流程。
+
+**ARXML 格式说明**：
+- AUTOSAR 标准文件格式，基于 XML
+- 描述 ECU 通信（PDU、Signal、ISignal、IPdu、Frame 等）
+- 比 DBC 更复杂，支持 CAN FD、以太网等
+- 使用 `pugixml`（MIT 协议）解析 XML
+
+**实现方案**：
+- 引入 `pugixml`（MIT，单头文件 + 单源文件）到 `third_party/pugixml/`
+- 新增 `ArxmlImporter` 类，解析 ARXML → 转换为内部 `DbcData` 结构
+- 新增 `ArxmlExporter` 类，反向导出
+- 支持批量转换：菜单「工具 → 文件格式转换」中增加 ARXML 选项
+
+**涉及文件**：
+- 新增：`third_party/pugixml/`（pugixml.hpp + pugixml.cpp + pugiconfig.hpp）
+- 新增：`src/core/dbc/arxml_importer.h` / `src/core/dbc/arxml_importer.cpp`
+- 新增：`src/core/dbc/arxml_exporter.h` / `src/core/dbc/arxml_exporter.cpp`
+- 修改：`src/ui/tools/blfasconverter.h` / `src/ui/tools/blfasconverter.cpp`（扩展为通用文件转换器）
+- 修改：`third_party/Dependencies.cmake`（添加 pugixml 目标）
+
+---
+
+#### 方案 8：Panel Designer — 交互面板设计器（P2，对标 CANoe Panels / TSMaster Panel）
+
+**目标**：可视化拖拽创建交互面板，通过控件（按钮、滑块、输入框、仪表盘）发送信号/报文。
+
+**面板设计器**：
+- 左侧控件库：按钮、滑块、输入框、下拉框、开关、仪表盘、LED 指示灯
+- 中间画布：拖拽控件到画布，自由布局
+- 右侧属性：绑定信号/报文、范围、步进、样式
+- 面板保存为 `.spanel` 文件（JSON 格式）
+
+**运行时**：
+- 面板以标签页方式打开，控件值变化 → 信号值更新 → 周期发送或手动发送
+- 支持面板控件的信号值回显（从 Trace 数据更新控件状态）
+
+**面板文件格式**（`.spanel`）：
+```jsonc
+{
+  "version": 1,
+  "name": "制动控制面板",
+  "controls": [
+    {
+      "type": "slider",
+      "name": "BrakePressure",
+      "x": 20, "y": 20, "w": 300, "h": 40,
+      "signal": {"dbc": "brake.dbc", "message": "BrakeCmd", "signal": "Pressure"},
+      "range": {"min": 0, "max": 100, "step": 1},
+      "sendMode": "onRelease"
+    },
+    {
+      "type": "button",
+      "name": "EmergencyBrake",
+      "x": 20, "y": 80, "w": 120, "h": 40,
+      "signal": {"dbc": "brake.dbc", "message": "BrakeCmd", "signal": "Emergency"},
+      "sendMode": "onPress",
+      "value": 1
+    },
+    {
+      "type": "led",
+      "name": "BrakeStatus",
+      "x": 160, "y": 80, "w": 30, "h": 30,
+      "signal": {"dbc": "brake.dbc", "message": "BrakeSts", "signal": "Active"},
+      "onColor": "#00FF00", "offColor": "#333333"
+    }
+  ]
+}
+```
+
+**实现方案**：
+- 新增 `PanelDesigner` 类：设计模式画布，拖拽布局控件
+- 新增 `PanelRuntime` 类：运行模式，加载 `.spanel` 并实例化控件
+- 控件库：每种控件一个类（`PanelButton`、`PanelSlider`、`PanelLed`、`PanelGauge`）
+- 信号绑定：控件值变化 → 调用 `DbcManager::encodeSignal()` → 构造 `CanFrame` → `CanDeviceManager::send()`
+- 面板可作为独立标签页或 Dock 面板
+
+**涉及文件**：
+- 新增：`src/ui/panels/paneldesigner.h` / `src/ui/panels/paneldesigner.cpp`
+- 新增：`src/ui/panels/panelruntime.h` / `src/ui/panels/panelruntime.cpp`
+- 新增：`src/ui/panels/panelcontrols.h` / `src/ui/panels/panelcontrols.cpp`
+- 新增：`src/core/panelmanager.h` / `src/core/panelmanager.cpp`
+
+---
+
+#### 方案 9：脚本引擎 — Lua + sol2（P2，对标 CANoe CAPL / TSMaster C++ Script）
+
+**目标**：嵌入 Lua 脚本引擎，支持事件驱动（报文接收、按键、定时器）的自动化测试。
+
+**CAPL 能力对标**：
+
+| CAPL 能力 | sin Lua 等价实现 | 说明 |
+|---------|-----------------|------|
+| `on message CAN1.0x123` | `sin.on_message(0x123, function(msg) ... end)` | 报文事件回调 |
+| `on key 'a'` | `sin.on_key('a', function() ... end)` | 按键事件回调 |
+| `on timer T1` | `sin.on_timer(1000, function() ... end)` | 定时器事件 |
+| `output(0x456, ...)` | `sin.send(0x456, {0x01, 0x02})` | 发送报文 |
+| `$Signal::RPM` | `sin.signal("RPM").value` | 读写信号值 |
+| `write("...")` | `sin.log("...")` | 日志输出 |
+| `if (this.id == 0x123)` | `if msg.id == 0x123 then` | 条件判断 |
+
+**Lua 脚本示例**：
+```lua
+-- 自动制动测试用例
+sin.on_message(0x100, function(msg)
+  local rpm = sin.signal("EngineRPM").value
+  if rpm > 5000 then
+    sin.log("WARN: RPM 过高: " .. rpm)
+    sin.send(0x1A5, {0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+  end
+end)
+
+sin.on_timer(1000, function()
+  sin.log("当前总线负载: " .. sin.bus_load() .. "%")
+end)
+
+sin.on_key('F5', function()
+  sin.log("开始测试序列...")
+  sin.send(0x200, {0x01})
+  sin.wait(100)
+  sin.send(0x200, {0x00})
+end)
+```
+
+**实现方案**：
+- 引入 `sol2`（MIT）到 `third_party/sol2/`
+- 引入 `lua`（MIT）到 `third_party/lua/`（预编译 Windows DLL + 源码）
+- 新增 `ScriptEngine` 类：封装 sol2 state，注册 sin API 绑定
+- 新增 `ScriptEditor` 类：内嵌代码编辑器（语法高亮可选，先做纯文本 + 行号）
+- 脚本以标签页方式打开，F5 执行，底部输出窗口显示日志
+- 事件绑定：`ScriptEngine` 订阅 `DataCore` 报文流，匹配 Lua 回调
+
+**涉及文件**：
+- 新增：`third_party/sol2/`（sol2 头文件）
+- 新增：`third_party/lua/`（lua 5.4 源码 + CMake 集成）
+- 新增：`src/core/scriptengine.h` / `src/core/scriptengine.cpp`
+- 新增：`src/ui/scripteditor.h` / `src/ui/scripteditor.cpp`
+- 修改：`third_party/Dependencies.cmake`（添加 lua + sol2 目标）
+- 修改：`src/ui/bottompanel.cpp`（增加脚本输出标签页）
+
+---
+
+#### 方案 10：Test System — 自动化测试序列（P2，对标 TSMaster Test System / CANoe Test Feature Set）
+
+**目标**：步骤化测试用例编排，自动执行、结果判定、报告生成。
+
+**测试用例格式**（`.stest` JSON）：
+```jsonc
+{
+  "version": 1,
+  "name": "制动系统回归测试",
+  "setup": [
+    {"action": "load_dbc",    "file": "brake.dbc"},
+    {"action": "load_log",    "file": "baseline.blf"},
+    {"action": "start_replay"}
+  ],
+  "steps": [
+    {
+      "name": "验证制动压力响应",
+      "wait_signal": {"signal": "BrakePressure", "timeout": 5000},
+      "assert": {"signal": "BrakePressure", "op": ">", "value": 50},
+      "on_pass": {"log": "制动压力正常"},
+      "on_fail": {"log": "制动压力异常", "severity": "error"}
+    },
+    {
+      "name": "验证紧急制动触发",
+      "send": {"id": "0x200", "data": [1]},
+      "wait_signal": {"signal": "EmergencyBrake", "timeout": 1000},
+      "assert": {"signal": "EmergencyBrake", "op": "==", "value": 1}
+    }
+  ],
+  "teardown": [
+    {"action": "stop_replay"}
+  ]
+}
+```
+
+**实现方案**：
+- 新增 `TestEngine` 类：解析 `.stest` 文件，顺序执行步骤
+- 动作类型：`load_dbc`、`load_log`、`start_replay`、`stop_replay`、`send`、`wait_signal`、`assert`、`wait`
+- 测试报告：生成 HTML/CSV 格式报告（通过/失败/耗时/日志）
+- UI：左侧测试用例列表，右侧步骤详情，底部执行日志
+- 测试可嵌套调用 Lua 脚本（与方案 9 脚本引擎联动）
+
+**涉及文件**：
+- 新增：`src/core/testengine.h` / `src/core/testengine.cpp`
+- 新增：`src/ui/testview.h` / `src/ui/testview.cpp`
+- 新增：`src/core/testreporter.h` / `src/core/testreporter.cpp`
+
+---
+
+### 四、实施路线图
+
+```
+Phase 1 (近期 1-2 周) — P0 核心体验补齐
+├── Data Window 信号实时表格        ← 方案 1
+├── Graphics 游标测量 + 多 Y 轴     ← 方案 2
+└── Bus Statistics 周期抖动增强     ← 方案 3
+
+Phase 2 (中期 2-4 周) — P1 功能完善
+├── Log File 分片 + 触发录制       ← 方案 4
+├── 预定义过滤集管理              ← 方案 5
+├── Trace 书签 + 着色规则编辑器    ← 方案 6
+└── ARXML 格式支持                ← 方案 7
+
+Phase 3 (长期 1-2 月) — P2 高级能力
+├── Panel Designer 交互面板设计器  ← 方案 8
+├── Lua 脚本引擎 (sol2)           ← 方案 9
+└── Test System 自动化测试序列     ← 方案 10
+```
+
+### 五、对标总结
+
+| 维度 | CANoe | TSMaster | sin (当前) | sin (Phase 3 后) |
+|------|-------|---------|-----------|-----------------|
+| 报文追踪 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| 信号图形 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| 信号表格 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐ |
+| DBC 解析 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| 录制回放 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| 交互发送 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| 自动化脚本 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐ |
+| 总线统计 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| 文件格式 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| 测试系统 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐ |
+| UI 灵活性 | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| 开源/免费 | ❌ | 🔄 部分 | ✅ | ✅ |
+
+**sin 差异化优势**：
+1. **VS Code 式自由布局** — CANoe/TSMaster 布局固定，sin 全面板可拖拽停靠
+2. **Wireshark 风格过滤引擎** — 自研递归下降解析器，语法更直观
+3. **开源 MIT 协议** — CANoe 年费数万，sin 完全免费
+4. **跨平台潜力** — Qt 天然支持 Linux/macOS，CANoe 仅 Windows
+5. **现代化 UI** — VS Code 风格暗色主题，视觉体验优于 CANoe 传统界面
+
+---
+
 ## Trace 页面详细规划
 
 > Trace 是总线分析工具的核心视图，对标 CANoe Trace 窗口 + Wireshark 报文列表。

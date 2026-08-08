@@ -183,6 +183,15 @@ void GraphicView::setupUi()
     m_splitter->setStretchFactor(1, 1);
     m_splitter->setSizes({300, 600});
 
+    // ---- 卡尺信息面板 ----
+    m_cursorInfoLabel = new QLabel(this);
+    m_cursorInfoLabel->setObjectName("CursorInfoLabel");
+    m_cursorInfoLabel->setStyleSheet(
+        "QLabel { padding: 4px 8px; background: #1e1e1e; color: #cccccc; "
+        "border-top: 1px solid #333; font-family: monospace; }");
+    m_cursorInfoLabel->setVisible(false);
+    mainLayout->addWidget(m_cursorInfoLabel);
+
     mainLayout->addWidget(m_splitter, 1);
 
     connect(addBtn, &QPushButton::clicked, this, [this]() {
@@ -740,6 +749,44 @@ void GraphicView::updateCursorValues()
                     .arg(delta, 0, 'f', 3));
             }
         }
+    }
+
+    // ---- 卡尺信息面板 ----
+    if (m_cursorMode == CursorMode::None || !m_cursorInfoLabel) {
+        if (m_cursorInfoLabel) m_cursorInfoLabel->setVisible(false);
+        return;
+    }
+
+    m_cursorInfoLabel->setVisible(true);
+
+    if (m_cursorMode == CursorMode::Single) {
+        m_cursorInfoLabel->setText(
+            QString("T₁ = %1s").arg(m_cursor1Time, 0, 'f', 4));
+    } else if (m_cursorMode == CursorMode::Double) {
+        double deltaT = m_cursor2Time - m_cursor1Time;
+        double freq = (std::abs(deltaT) > 1e-9) ? 1.0 / std::abs(deltaT) : 0.0;
+
+        QString info = QString("T₁ = %1s  T₂ = %2s  ΔT = %3s")
+            .arg(m_cursor1Time, 0, 'f', 4)
+            .arg(m_cursor2Time, 0, 'f', 4)
+            .arg(deltaT, 0, 'f', 4);
+
+        if (freq > 0)
+            info += QString("  f ≈ %1 Hz").arg(freq, 0, 'f', 2);
+
+        // 添加每个信号的 ΔY
+        for (int i = 0; i < m_signals.size(); ++i) {
+            double v1, v2;
+            if (m_signals[i].graph &&
+                valueAtTime(m_signals[i].graph, m_cursor1Time, v1) &&
+                valueAtTime(m_signals[i].graph, m_cursor2Time, v2)) {
+                info += QString("  Δ%1 = %2")
+                    .arg(m_signals[i].config.name)
+                    .arg(v2 - v1, 0, 'f', 3);
+            }
+        }
+
+        m_cursorInfoLabel->setText(info);
     }
 }
 

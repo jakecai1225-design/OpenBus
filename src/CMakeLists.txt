@@ -30,6 +30,20 @@ set(SRC_CORE
     core/dbc/dbc_adapter.cpp
     core/dbc/dbc_writer.h
     core/dbc/dbc_writer.cpp
+    core/dbc/arxml_importer.h
+    core/dbc/arxml_importer.cpp
+    core/dbc/arxml_exporter.h
+    core/dbc/arxml_exporter.cpp
+    core/busstatistics.h
+    core/busstatistics.cpp
+    core/logsplitter.h
+    core/logsplitter.cpp
+    core/triggerrecorder.h
+    core/triggerrecorder.cpp
+    core/filterpresetmanager.h
+    core/filterpresetmanager.cpp
+    core/bookmarkmanager.h
+    core/bookmarkmanager.cpp
     core/filter_engine.h
     core/filter_engine.cpp
     core/appconfig.h
@@ -115,6 +129,10 @@ set(SRC_UI
     ui/playbacktab.cpp
     ui/recordtab.h
     ui/recordtab.cpp
+    ui/datawindow.h
+    ui/datawindow.cpp
+    ui/colorruleeditor.h
+    ui/colorruleeditor.cpp
     ui/dbcdetailtab.h
     ui/dbcdetailtab.cpp
     ui/udsview.h
@@ -168,12 +186,22 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/concurrentqueue/concurrentqueue.h")
     target_include_directories(sin_core PUBLIC ${CMAKE_SOURCE_DIR}/third_party/concurrentqueue)
 endif()
 
+# pugixml include path (for arxml_importer.h which includes "pugixml.hpp")
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/pugixml/pugixml.hpp")
+    target_include_directories(sin_core PUBLIC ${CMAKE_SOURCE_DIR}/third_party/pugixml)
+endif()
+
 target_link_libraries(sin_core PUBLIC Qt6::Widgets)
 
 # zlib: blf.cpp 手动解析 BLF 文件需要 zlib 解压 (MinGW 自带 libz.a)
 target_link_libraries(sin_core PRIVATE
     z
 )
+
+# pugixml: arxml_importer.cpp 使用 (如果存在 pugixml 目标)
+if(TARGET pugixml)
+    target_link_libraries(sin_core PRIVATE pugixml)
+endif()
 
 # PCH — 核心层使用精简的 Qt 头（无 Widget），编译更快
 target_precompile_headers(sin_core PRIVATE

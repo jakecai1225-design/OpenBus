@@ -213,3 +213,102 @@ bool CanFilterProxyModel::lessThan(const QModelIndex &left, const QModelIndex &r
 
     return QSortFilterProxyModel::lessThan(left, right);
 }
+
+// ============================================================
+//  时间戳显示模式
+// ============================================================
+
+void CanFilterProxyModel::setTimestampMode(TimestampMode mode)
+{
+    if (m_timestampMode == mode)
+        return;
+    m_timestampMode = mode;
+
+    if (mode == SinceDisplay)
+        recomputeDisplayDeltas();
+
+    // 刷新 Time 列所有可见行
+    int rows = rowCount();
+    if (rows > 0) {
+        emit dataChanged(index(0, CanTraceModel::ColTime),
+                         index(rows - 1, CanTraceModel::ColTime),
+                         {Qt::DisplayRole});
+    }
+}
+
+int CanFilterProxyModel::capturedCount() const
+{
+    auto *model = qobject_cast<CanTraceModel *>(sourceModel());
+    return model ? model->frameCount() : 0;
+}
+
+void CanFilterProxyModel::invalidateFilter()
+{
+    QSortFilterProxyModel::invalidateFilter();
+    if (m_timestampMode == SinceDisplay)
+        recomputeDisplayDeltas();
+    emitPacketCount();
+}
+
+void CanFilterProxyModel::recomputeDisplayDeltas()
+{
+    m_displayDeltas.clear();
+    auto *model = qobject_cast<CanTraceModel *>(sourceModel());
+    if (!model)
+        return;
+
+    double prevTime = 0.0;
+    bool first = true;
+    int total = model->rowCount();
+    for (int i = 0; i < total; ++i) {
+        // 利用 mapFromSource 判断该行是否通过过滤（避免重复 filterAcceptsRow）
+        QModelIndex proxyIdx = mapFromSource(model->index(i, 0));
+        if (proxyIdx.isValid()) {
+            double t = model->frameAt(i).timestamp;
+            m_displayDeltas[i] = first ? t : (t - prevTime);
+            prevTime = t;
+            first = false;
+        }
+    }
+}
+
+void CanFilterProxyModel::emitPacketCount()
+{
+    emit packetCountChanged(capturedCount(), displayedCount());
+}
+
+QVariant CanFilterProxyModel::data(const QModelIndex &proxyIndex, int role) const
+{
+    if (role == Qt::DisplayRole && proxyIndex.column() == CanTraceModel::ColTime
+        && m_timestampMode != Absolute) {
+        auto *model = qobject_cast<CanTraceModel *>(sourceModel());
+        if (!model)
+            return {};
+        QModelIndex sourceIdx = mapToSource(proxyIndex);
+        if (!sourceIdx.isValid())
+            return {};
+        const CanFrame &f = model->frameAt(sourceIdx.row());
+
+        if (m_timestampMode == SinceCapture) {
+            double prev = (sourceIdx.row() > 0)
+                ? model->frameAt(sourceIdx.row() - 1).timestamp : 0.0;
+            return CanUtils::formatTime(f.timestamp - prev);
+        }
+        if (m_timestampMode == SinceDisplay) {
+            auto it = m_displayDeltas.find(sourceIdx.row());
+            if (it != m_displayDeltas.end())
+                return CanUtils::formatTime(it.value());
+            // 未命中缓存（例如模式刚切换），实时计算
+            double prevTime = 0.0;
+            for (int r = sourceIdx.row() - 1; r >= 0; --r) {
+                QModelIndex prevProxy = mapFromSource(model->index(r, 0));
+                if (prevProxy.isValid()) {
+                    prevTime = model->frameAt(r).timestamp;
+                    break;
+                }
+            }
+            return CanUtils::formatTime(f.timestamp - prevTime);
+        }
+    }
+    return QSortFilterProxyModel::data(proxyIndex, role);
+}

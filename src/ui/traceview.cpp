@@ -32,6 +32,11 @@
 #include <QUrl>
 #include <QFileInfo>
 #include <QThread>
+#include <QShortcut>
+#include <QComboBox>
+#include <QFrame>
+#include <QTimer>
+#include <QKeySequence>
 #include "core/canfileio/canfileio.h"
 #include "core/canfileio/canfileio_factory.h"
 
@@ -43,6 +48,19 @@ TraceView::TraceView(QWidget *parent)
     : QTableView(parent)
 {
     setupAppearance();
+
+    // Wireshark 风格快捷键
+    auto addShortcut = [this](const QKeySequence &key, void (TraceView::*slot)()) {
+        auto *sc = new QShortcut(key, this);
+        sc->setContext(Qt::WidgetWithChildrenShortcut);
+        connect(sc, &QShortcut::activated, this, slot);
+    };
+    addShortcut(QKeySequence("Ctrl+G"),       &TraceView::onGoToPacket);
+    addShortcut(QKeySequence("Ctrl+F"),       &TraceView::onFind);
+    addShortcut(QKeySequence("F3"),           &TraceView::onFindNext);
+    addShortcut(QKeySequence("Shift+F3"),     &TraceView::onFindPrevious);
+    addShortcut(QKeySequence("Ctrl+Down"),    &TraceView::goToNextSameId);
+    addShortcut(QKeySequence("Ctrl+Up"),      &TraceView::goToPrevSameId);
 }
 
 void TraceView::setupAppearance()
@@ -126,6 +144,8 @@ const CanFrame *TraceView::selectedFrame() const
         return nullptr;
 
     QModelIndex sourceIndex = proxy ? proxy->mapToSource(rows.first()) : rows.first();
+    if (!sourceIndex.isValid() || sourceIndex.row() < 0 || sourceIndex.row() >= source->rowCount())
+        return nullptr;
     return &source->frameAt(sourceIndex.row());
 }
 
@@ -169,6 +189,38 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
         connect(&clearMarkAct, &QAction::triggered, this, &TraceView::onClearMarks);
         connect(&clearColorAct, &QAction::triggered, this, &TraceView::onClearColors);
     }
+
+    // ---- Wireshark 风格导航 ----
+    menu.addSeparator();
+    QMenu *navMenu = menu.addMenu(QStringLiteral("导航"));
+
+    QAction goToAct(QStringLiteral("转到分组...  (Ctrl+G)"), this);
+    QAction findAct(QStringLiteral("查找...  (Ctrl+F)"), this);
+    QAction findNextAct(QStringLiteral("查找下一个  (F3)"), this);
+    QAction findPrevAct(QStringLiteral("查找上一个  (Shift+F3)"), this);
+    QAction nextSameIdAct(QStringLiteral("下一个相同 ID  (Ctrl+Down)"), this);
+    QAction prevSameIdAct(QStringLiteral("上一个相同 ID  (Ctrl+Up)"), this);
+
+    navMenu->addAction(&goToAct);
+    navMenu->addSeparator();
+    navMenu->addAction(&findAct);
+    navMenu->addAction(&findNextAct);
+    navMenu->addAction(&findPrevAct);
+    navMenu->addSeparator();
+    navMenu->addAction(&nextSameIdAct);
+    navMenu->addAction(&prevSameIdAct);
+
+    findNextAct.setEnabled(!m_lastFindText.isEmpty());
+    findPrevAct.setEnabled(!m_lastFindText.isEmpty());
+    nextSameIdAct.setEnabled(index.isValid());
+    prevSameIdAct.setEnabled(index.isValid());
+
+    connect(&goToAct, &QAction::triggered, this, &TraceView::onGoToPacket);
+    connect(&findAct, &QAction::triggered, this, &TraceView::onFind);
+    connect(&findNextAct, &QAction::triggered, this, &TraceView::onFindNext);
+    connect(&findPrevAct, &QAction::triggered, this, &TraceView::onFindPrevious);
+    connect(&nextSameIdAct, &QAction::triggered, this, &TraceView::goToNextSameId);
+    connect(&prevSameIdAct, &QAction::triggered, this, &TraceView::goToPrevSameId);
 
     menu.addSeparator();
     QAction clearAction(QStringLiteral("清空所有"), this);
@@ -296,11 +348,11 @@ void TraceView::showHeaderMenu(int column, const QPoint &pos)
         menu.addAction(&txOnly);
         connect(&rxOnly, &QAction::triggered, this, [this, column]() {
             auto *p = qobject_cast<CanFilterProxyModel *>(model());
-            if (p) p->setColumnFilter(column, "rx");
+            if (p) { pinSelection(); p->setColumnFilter(column, "rx"); restoreSelection(); }
         });
         connect(&txOnly, &QAction::triggered, this, [this, column]() {
             auto *p = qobject_cast<CanFilterProxyModel *>(model());
-            if (p) p->setColumnFilter(column, "tx");
+            if (p) { pinSelection(); p->setColumnFilter(column, "tx"); restoreSelection(); }
         });
     }
 
@@ -325,7 +377,7 @@ void TraceView::showHeaderMenu(int column, const QPoint &pos)
                 auto *act = menu.addAction(idStr);
                 connect(act, &QAction::triggered, this, [this, column, idStr]() {
                     auto *p = qobject_cast<CanFilterProxyModel *>(model());
-                    if (p) p->setColumnFilter(column, idStr);
+                    if (p) { pinSelection(); p->setColumnFilter(column, idStr); restoreSelection(); }
                 });
             }
         }
@@ -379,25 +431,31 @@ void TraceView::onColumnFilter(int column)
         QLineEdit::Normal, current, &ok);
 
     if (ok) {
+        pinSelection();
         if (text.trimmed().isEmpty())
             proxy->clearColumnFilter(column);
         else
             proxy->setColumnFilter(column, text);
+        restoreSelection();
     }
 }
 
 void TraceView::onClearColumnFilter(int column)
 {
     auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-    if (proxy)
-        proxy->clearColumnFilter(column);
+    if (!proxy) return;
+    pinSelection();
+    proxy->clearColumnFilter(column);
+    restoreSelection();
 }
 
 void TraceView::onClearAllFilters()
 {
     auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-    if (proxy)
-        proxy->clearAllColumnFilters();
+    if (!proxy) return;
+    pinSelection();
+    proxy->clearAllColumnFilters();
+    restoreSelection();
 }
 
 // ============================================================
@@ -474,6 +532,208 @@ void TraceView::onClearColors()
     auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel()) : nullptr;
     if (source)
         source->clearColors();
+}
+
+// ============================================================
+//  选中行保持 — 过滤变化后恢复定位
+// ============================================================
+
+void TraceView::pinSelection()
+{
+    m_pinnedSourceRow = -1;
+    auto rows = selectedSourceRows();
+    if (!rows.isEmpty())
+        m_pinnedSourceRow = rows.first();
+}
+
+void TraceView::restoreSelection()
+{
+    if (m_pinnedSourceRow < 0)
+        return;
+    selectSourceRow(m_pinnedSourceRow);
+    m_pinnedSourceRow = -1;
+}
+
+void TraceView::selectSourceRow(int sourceRow)
+{
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel())
+                         : qobject_cast<CanTraceModel *>(model());
+    if (!source || sourceRow < 0 || sourceRow >= source->rowCount())
+        return;
+
+    QModelIndex sourceIdx = source->index(sourceRow, 0);
+    QModelIndex proxyIdx = proxy ? proxy->mapFromSource(sourceIdx) : sourceIdx;
+    if (!proxyIdx.isValid())
+        return;  // 该行被过滤隐藏
+
+    selectionModel()->select(proxyIdx,
+        QItemSelectionModel::Select | QItemSelectionModel::Rows | QItemSelectionModel::Clear);
+    setCurrentIndex(proxyIdx);
+    scrollTo(proxyIdx, QAbstractItemView::EnsureVisible);
+}
+
+// ============================================================
+//  Wireshark 风格导航
+// ============================================================
+
+void TraceView::goToPacket(int frameNumber)
+{
+    selectSourceRow(frameNumber - 1);  // 1-based → 0-based
+}
+
+bool TraceView::findNext(const QString &text)
+{
+    if (text.isEmpty()) return false;
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel())
+                         : qobject_cast<CanTraceModel *>(model());
+    if (!source) return false;
+
+    int startRow = 0;
+    auto rows = selectedSourceRows();
+    if (!rows.isEmpty())
+        startRow = rows.first() + 1;
+
+    QString needle = text.toLower();
+    for (int r = startRow; r < source->frameCount(); ++r) {
+        const CanFrame &f = source->frameAt(r);
+        QString hay = QString("%1 %2 %3 %4")
+            .arg(CanUtils::formatId(f.id, f.extended))
+            .arg(CanUtils::formatData(f.data))
+            .arg(f.direction == CanFrame::Rx ? "Rx" : "Tx")
+            .arg(CanUtils::formatFlags(f))
+            .toLower();
+        if (hay.contains(needle)) {
+            selectSourceRow(r);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TraceView::findPrevious(const QString &text)
+{
+    if (text.isEmpty()) return false;
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel())
+                         : qobject_cast<CanTraceModel *>(model());
+    if (!source) return false;
+
+    int startRow = source->frameCount() - 1;
+    auto rows = selectedSourceRows();
+    if (!rows.isEmpty())
+        startRow = rows.first() - 1;
+
+    QString needle = text.toLower();
+    for (int r = startRow; r >= 0; --r) {
+        const CanFrame &f = source->frameAt(r);
+        QString hay = QString("%1 %2 %3 %4")
+            .arg(CanUtils::formatId(f.id, f.extended))
+            .arg(CanUtils::formatData(f.data))
+            .arg(f.direction == CanFrame::Rx ? "Rx" : "Tx")
+            .arg(CanUtils::formatFlags(f))
+            .toLower();
+        if (hay.contains(needle)) {
+            selectSourceRow(r);
+            return true;
+        }
+    }
+    return false;
+}
+
+void TraceView::goToNextSameId()
+{
+    const CanFrame *frame = selectedFrame();
+    if (!frame) return;
+    quint32 targetId = frame->id;
+
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel())
+                         : qobject_cast<CanTraceModel *>(model());
+    if (!source) return;
+
+    auto rows = selectedSourceRows();
+    if (rows.isEmpty()) return;
+    int curRow = rows.first();
+
+    for (int r = curRow + 1; r < source->frameCount(); ++r) {
+        if (source->frameAt(r).id == targetId) {
+            selectSourceRow(r);
+            return;
+        }
+    }
+}
+
+void TraceView::goToPrevSameId()
+{
+    const CanFrame *frame = selectedFrame();
+    if (!frame) return;
+    quint32 targetId = frame->id;
+
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel())
+                         : qobject_cast<CanTraceModel *>(model());
+    if (!source) return;
+
+    auto rows = selectedSourceRows();
+    if (rows.isEmpty()) return;
+    int curRow = rows.first();
+
+    for (int r = curRow - 1; r >= 0; --r) {
+        if (source->frameAt(r).id == targetId) {
+            selectSourceRow(r);
+            return;
+        }
+    }
+}
+
+// ============================================================
+//  转到 / 查找 — 对话框入口
+// ============================================================
+
+void TraceView::onGoToPacket()
+{
+    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel())
+                         : qobject_cast<CanTraceModel *>(model());
+    if (!source || source->frameCount() == 0) return;
+
+    bool ok = false;
+    int num = QInputDialog::getInt(this, QStringLiteral("转到分组"),
+        QStringLiteral("帧编号 (1-%1):").arg(source->frameCount()),
+        1, 1, source->frameCount(), 1, &ok);
+    if (ok)
+        goToPacket(num);
+}
+
+void TraceView::onFind()
+{
+    bool ok = false;
+    QString text = QInputDialog::getText(this, QStringLiteral("查找"),
+        QStringLiteral("查找内容 (匹配 ID / 数据 / 方向 / 标志):"),
+        QLineEdit::Normal, m_lastFindText, &ok);
+    if (!ok || text.isEmpty()) return;
+    m_lastFindText = text;
+    if (!findNext(text))
+        QMessageBox::information(this, QStringLiteral("查找"),
+            QStringLiteral("未找到匹配: %1").arg(text));
+}
+
+void TraceView::onFindNext()
+{
+    if (m_lastFindText.isEmpty()) return;
+    if (!findNext(m_lastFindText))
+        QMessageBox::information(this, QStringLiteral("查找"),
+            QStringLiteral("已到末尾，未找到更多匹配: %1").arg(m_lastFindText));
+}
+
+void TraceView::onFindPrevious()
+{
+    if (m_lastFindText.isEmpty()) return;
+    if (!findPrevious(m_lastFindText))
+        QMessageBox::information(this, QStringLiteral("查找"),
+            QStringLiteral("已到开头，未找到更多匹配: %1").arg(m_lastFindText));
 }
 
 // ============================================================
@@ -624,6 +884,44 @@ TraceTab::TraceTab(QWidget *parent)
     m_filterBar = new FilterBar(this);
     layout->addWidget(m_filterBar);
 
+    // ---- Wireshark 风格工具条（时间戳模式 + 分组统计） ----
+    auto *toolBar = new QHBoxLayout;
+    toolBar->setContentsMargins(6, 1, 6, 1);
+    toolBar->setSpacing(6);
+
+    auto *tsLabel = new QLabel(QStringLiteral("时间格式:"), this);
+    tsLabel->setStyleSheet("font-size: 11px;");
+    m_tsModeCombo = new QComboBox(this);
+    m_tsModeCombo->addItem(QStringLiteral("绝对时间戳"), CanFilterProxyModel::Absolute);
+    m_tsModeCombo->addItem(QStringLiteral("自上一捕获分组"), CanFilterProxyModel::SinceCapture);
+    m_tsModeCombo->addItem(QStringLiteral("自上一显示分组"), CanFilterProxyModel::SinceDisplay);
+    m_tsModeCombo->setCurrentIndex(0);
+    m_tsModeCombo->setFixedHeight(22);
+    m_tsModeCombo->setStyleSheet("font-size: 11px;");
+    m_tsModeCombo->setToolTip(QStringLiteral(
+        "时间戳显示模式:\n"
+        "  绝对时间戳 — 自捕获开始的相对时间\n"
+        "  自上一捕获分组 — 与前一帧的时间差\n"
+        "  自上一显示分组 — 与前一可见帧的时间差 (Wireshark 风格)"));
+    toolBar->addWidget(tsLabel);
+    toolBar->addWidget(m_tsModeCombo);
+
+    // 分隔线
+    auto *sep1 = new QFrame(this);
+    sep1->setFrameShape(QFrame::VLine);
+    sep1->setFrameShadow(QFrame::Sunken);
+    toolBar->addWidget(sep1);
+
+    // 分组统计
+    m_packetCountLabel = new QLabel(this);
+    m_packetCountLabel->setStyleSheet("font-size: 11px; color: #666;");
+    m_packetCountLabel->setText(QStringLiteral("捕获: 0 | 显示: 0"));
+    toolBar->addWidget(m_packetCountLabel);
+
+    toolBar->addStretch(1);
+
+    layout->addLayout(toolBar);
+
     // 垂直分割: TraceView (上) | 底部信息 (下)
     m_vSplitter = new QSplitter(Qt::Vertical, this);
     m_vSplitter->setHandleWidth(2);
@@ -659,6 +957,25 @@ TraceTab::TraceTab(QWidget *parent)
     connect(m_filterBar, &FilterBar::overwriteModeToggled,
             m_traceModel, &CanTraceModel::setOverwriteMode);
 
+    // 时间戳模式切换
+    connect(m_tsModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &TraceTab::onTimestampModeChanged);
+
+    // 分组计数防抖 — 高频帧到达时最多每 100ms 刷新一次
+    m_packetCountTimer = new QTimer(this);
+    m_packetCountTimer->setSingleShot(false);
+    m_packetCountTimer->setInterval(100);
+    connect(m_packetCountTimer, &QTimer::timeout, this, &TraceTab::onPacketCountTimer);
+    m_packetCountTimer->start();
+
+    // 过滤条件变化时立即更新（不防抖）
+    connect(m_proxyModel, &CanFilterProxyModel::packetCountChanged,
+            this, [this](int captured, int displayed) {
+        m_packetCountLabel->setText(
+            QStringLiteral("捕获: %1 | 显示: %2").arg(captured).arg(displayed));
+        m_packetCountDirty = false;
+    });
+
     // 启用拖放
     setAcceptDrops(true);
 }
@@ -681,16 +998,19 @@ bool TraceTab::isOverwriteMode() const
 void TraceTab::appendFrame(const CanFrame &frame)
 {
     m_traceModel->appendFrame(frame);
+    m_packetCountDirty = true;  // 由防抖定时器批量刷新
 }
 
 void TraceTab::appendFrames(const QVector<CanFrame> &frames)
 {
     m_traceModel->appendFrames(frames);
+    m_packetCountDirty = true;
 }
 
 void TraceTab::clearTrace()
 {
     m_traceModel->clear();
+    m_packetCountDirty = true;  // 防抖定时器会处理
 }
 
 int TraceTab::frameCount() const
@@ -700,17 +1020,53 @@ int TraceTab::frameCount() const
 
 bool TraceTab::setFilterExpression(const QString &expr)
 {
-    return m_proxyModel->setFilterExpression(expr);
+    m_traceView->pinSelection();
+    bool ok = m_proxyModel->setFilterExpression(expr);
+    m_traceView->restoreSelection();
+    return ok;
 }
 
 void TraceTab::clearFilter()
 {
+    m_traceView->pinSelection();
+    m_proxyModel->clearFilter();  // 仅清除主表达式，保留列过滤
+    m_traceView->restoreSelection();
+}
+
+void TraceTab::clearAllFilters()
+{
+    m_traceView->pinSelection();
     m_proxyModel->clearFilter();
+    m_proxyModel->clearAllColumnFilters();
+    m_traceView->restoreSelection();
 }
 
 QString TraceTab::filterExpression() const
 {
     return m_proxyModel->filterExpression();
+}
+
+void TraceTab::updatePacketCount()
+{
+    m_proxyModel->emitPacketCount();
+}
+
+void TraceTab::onTimestampModeChanged(int index)
+{
+    auto mode = static_cast<CanFilterProxyModel::TimestampMode>(
+        m_tsModeCombo->itemData(index).toInt());
+    m_proxyModel->setTimestampMode(mode);
+}
+
+void TraceTab::onPacketCountTimer()
+{
+    if (!m_packetCountDirty)
+        return;
+    m_packetCountDirty = false;
+    m_packetCountLabel->setText(
+        QStringLiteral("捕获: %1 | 显示: %2")
+            .arg(m_proxyModel->capturedCount())
+            .arg(m_proxyModel->displayedCount()));
 }
 
 void TraceTab::onSelectionChanged()

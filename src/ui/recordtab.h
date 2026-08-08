@@ -10,11 +10,13 @@ class QCheckBox;
 class QLabel;
 class QRadioButton;
 class QSpinBox;
+class QGroupBox;
+class QDoubleSpinBox;
 
 /**
  * @brief 录制控制标签页 — 中央区域
  *
- * 包含录制按钮、文件路径/前缀/格式、文件分割、缓冲区、录制过滤
+ * 包含录制按钮、文件路径/前缀/格式、文件分割、缓冲区、录制过滤、触发录制
  */
 class RecordTab : public QWidget
 {
@@ -29,10 +31,17 @@ signals:
     void recordToggled(bool on);
     void clearRequested();
     void autoScrollToggled(bool on);
+    void triggerRecordingRequested(
+        const QString &dir, const QString &prefix, const QString &format,
+        bool splitBySize, int sizeMb, bool splitByTime, int timeSec,
+        bool ringMode, int maxFiles,
+        const QString &triggerExpr, double preTriggerSec, double postTriggerSec,
+        bool repeatTrigger);
 
 private slots:
     void onBrowse();
     void onRecord();
+    void onTriggerRecord();
 
 private:
     QPushButton *m_recordBtn;
@@ -52,6 +61,15 @@ private:
     QCheckBox *m_filterFd;
     QLineEdit *m_idFilterEdit;
     QLabel *m_statusLabel;
+
+    // 触发录制
+    QGroupBox *m_triggerGroup;
+    QCheckBox *m_triggerEnable;
+    QLineEdit *m_triggerExprEdit;
+    QDoubleSpinBox *m_preTriggerSpin;
+    QDoubleSpinBox *m_postTriggerSpin;
+    QCheckBox *m_repeatTriggerChk;
+    QPushButton *m_triggerRecordBtn;
 };
 
 #endif // RECORDTAB_H

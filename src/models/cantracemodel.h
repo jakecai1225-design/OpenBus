@@ -8,6 +8,8 @@
 #include <QColor>
 #include "core/canframe.h"
 
+class FilterEngine;
+
 /**
  * @brief CAN 报文追踪数据模型
  *
@@ -94,6 +96,23 @@ public:
     /// 清除所有自定义颜色
     void clearColors();
 
+    // ---- 着色规则 ----
+
+    /// 着色规则结构
+    struct ColorRule {
+        QString expr;         ///< 条件表达式 (FilterEngine 语法)
+        QColor background;    ///< 背景色
+        QColor foreground;    ///< 前景色
+        bool enabled = true;  ///< 是否启用
+    };
+
+    /// 设置着色规则列表（规则按顺序匹配，首个命中生效）
+    void setColorRules(const QVector<ColorRule> &rules);
+    /// 获取当前着色规则
+    const QVector<ColorRule> &colorRules() const { return m_colorRules; }
+    /// 清除着色规则
+    void clearColorRules();
+
     // ---- 覆盖模式 ----
 
     /// 设置覆盖模式：同 CAN ID 的帧只保留一行，刷新数据和帧数
@@ -114,6 +133,13 @@ private:
 
     QSet<int> m_markedRows;        ///< 被标记的源模型行号集合
     QHash<int, QColor> m_rowColors; ///< 行号 → 自定义背景色
+
+    // ---- 着色规则 ----
+    QVector<ColorRule> m_colorRules;
+    QVector<FilterEngine *> m_colorFilters;  ///< 每条规则对应的编译后的 FilterEngine
+
+    /// 对帧执行着色规则匹配，返回背景色（无效色表示无匹配）
+    QColor evaluateColorRules(const CanFrame &frame) const;
 };
 
 #endif // CANTRACEMODEL_H

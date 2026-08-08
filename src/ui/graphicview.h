@@ -17,6 +17,7 @@ class QCPAxisRect;
 class QCPItemStraightLine;
 class QToolBar;
 class QToolButton;
+class QLabel;
 
 /**
  * @brief CANoe 风格 Graphic 信号图形视图 — 基于 QCustomPlot
@@ -98,6 +99,7 @@ private:
     QTreeWidget *m_signalTree = nullptr;
     QCustomPlot *m_plot = nullptr;
     QToolBar *m_toolbar = nullptr;
+    QLabel *m_cursorInfoLabel = nullptr;  ///< 卡尺信息面板 (ΔT/ΔY/frequency)
 
     // --- 工具栏按钮 ---
     QToolButton *m_cursorSingleBtn = nullptr;

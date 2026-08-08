@@ -1,8 +1,10 @@
 #include "cantracemodel.h"
 #include "utils/canutils.h"
+#include "core/filter_engine.h"
 #include <QColor>
 #include <QList>
 #include <algorithm>
+#include <memory>
 
 CanTraceModel::CanTraceModel(QObject *parent)
     : QAbstractTableModel(parent)
@@ -84,6 +86,12 @@ QVariant CanTraceModel::data(const QModelIndex &index, int role) const
         auto colorIt = m_rowColors.find(index.row());
         if (colorIt != m_rowColors.end())
             return colorIt.value();
+        // 着色规则求值
+        if (!m_colorFilters.isEmpty()) {
+            QColor ruleColor = evaluateColorRules(f);
+            if (ruleColor.isValid())
+                return ruleColor;
+        }
         // 标记行用浅黄色高亮
         if (m_markedRows.contains(index.row()))
             return QColor(0xFF, 0xF3, 0xB0);
@@ -288,4 +296,61 @@ void CanTraceModel::setOverwriteMode(bool mode)
     m_markedRows.clear();
     m_rowColors.clear();
     endResetModel();
+}
+
+// ============================================================
+//  着色规则
+// ============================================================
+
+void CanTraceModel::setColorRules(const QVector<ColorRule> &rules)
+{
+    // 清理旧的 FilterEngine
+    for (auto *fe : m_colorFilters)
+        delete fe;
+    m_colorFilters.clear();
+
+    m_colorRules = rules;
+
+    // 为每条启用的规则编译 FilterEngine
+    for (const auto &rule : m_colorRules) {
+        if (!rule.enabled || rule.expr.trimmed().isEmpty()) {
+            m_colorFilters.append(nullptr);
+            continue;
+        }
+        auto *fe = new FilterEngine();
+        fe->compile(rule.expr);
+        m_colorFilters.append(fe);
+    }
+
+    // 刷新所有可见行的背景色
+    if (!m_frames.isEmpty())
+        emit dataChanged(index(0, 0), index(m_frames.size() - 1, ColCount - 1),
+                         {Qt::BackgroundRole, Qt::ForegroundRole});
+}
+
+void CanTraceModel::clearColorRules()
+{
+    for (auto *fe : m_colorFilters)
+        delete fe;
+    m_colorFilters.clear();
+    m_colorRules.clear();
+
+    if (!m_frames.isEmpty())
+        emit dataChanged(index(0, 0), index(m_frames.size() - 1, ColCount - 1),
+                         {Qt::BackgroundRole, Qt::ForegroundRole});
+}
+
+QColor CanTraceModel::evaluateColorRules(const CanFrame &frame) const
+{
+    for (int i = 0; i < m_colorFilters.size() && i < m_colorRules.size(); ++i) {
+        const auto &rule = m_colorRules[i];
+        if (!rule.enabled) continue;
+
+        const auto *fe = m_colorFilters[i];
+        if (!fe) continue;
+
+        if (fe->evaluate(frame))
+            return rule.background;
+    }
+    return QColor();  // 无匹配
 }

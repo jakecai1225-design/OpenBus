@@ -31,6 +31,12 @@
 #include "ui/tools/dbctoolview.h"
 #include "ui/tools/loganalysisview.h"
 #include "ui/tools/dbcsignallistview.h"
+#include "ui/datawindow.h"
+#include "ui/colorruleeditor.h"
+#include "core/busstatistics.h"
+#include "core/filterpresetmanager.h"
+#include "core/bookmarkmanager.h"
+#include "core/triggerrecorder.h"
 #include "utils/canutils.h"
 #include "core/appconfig.h"
 #include "core/projectmanager.h"
@@ -86,6 +92,11 @@ MainWindow::MainWindow(QWidget *parent)
     m_player    = new Player(this);
     m_simulator = new CanSimulator(this);
     m_deviceManager = new CanDeviceManager(this);
+
+    // ---- P0/P1 核心服务 ----
+    m_busStats = new BusStatistics(this);
+    m_filterPresets = new FilterPresetManager(this);
+    m_bookmarkMgr = new BookmarkManager(this);
 
     // ---- UI 构建 ----
     createMenuBar();
@@ -213,6 +224,20 @@ MainWindow::MainWindow(QWidget *parent)
     m_sideBar->graphicConfigPanel()->setGraphicView(m_graphicView);
     m_sideBar->devicePanel()->setSimulator(m_simulator);
     m_sideBar->devicePanel()->setDeviceManager(m_deviceManager);
+
+    // P0/P1: 连接过滤预设管理器到 FilterBar
+    if (m_filterPresets && m_traceTab) {
+        auto *filterBar = m_traceTab->filterBar();
+        if (filterBar)
+            filterBar->setPresetManager(m_filterPresets);
+    }
+
+    // P0/P1: 连接书签管理器到 RightPanel
+    if (m_bookmarkMgr && m_rightPanel) {
+        m_rightPanel->setBookmarkManager(m_bookmarkMgr);
+        connect(m_rightPanel, &RightPanel::bookmarkJumped,
+                this, &MainWindow::onBookmarkJumped);
+    }
 
     // 标签页变化 → 刷新侧边栏面板列表
     connect(m_editorArea, &SplitEditorArea::tabListChanged,
@@ -915,6 +940,12 @@ void MainWindow::onFrameReceived(const CanFrame &frame)
     }
     if (m_recording)
         m_recorder->recordFrame(frame);
+    // 发送到总线统计引擎
+    if (m_busStats)
+        m_busStats->onFrame(frame);
+    // 发送到 Data Window
+    if (m_dataWindow)
+        m_dataWindow->onFrame(frame);
     // 更新活跃标签页的统计
     auto *active = qobject_cast<TraceTab *>(m_editorArea->currentWidget());
     int count = active ? active->frameCount() : 0;
@@ -1196,7 +1227,7 @@ void MainWindow::setupTraceTab(TraceTab *tab)
     });
     connect(traceView, &TraceView::clearFilterRequested,
             this, [tab]() {
-        tab->clearFilter();
+        tab->clearAllFilters();  // 右键清除 = 主过滤 + 列过滤全部清除
     });
 
     // 文件拖放加载完成
@@ -1394,6 +1425,10 @@ void MainWindow::setupRecordTab(RecordTab *tab)
             m_recorder->stop();
         }
     });
+
+    // P1: 触发录制
+    connect(tab, &RecordTab::triggerRecordingRequested,
+            this, &MainWindow::onTriggerRecording);
 }
 
 void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName)
@@ -1877,7 +1912,113 @@ void MainWindow::onToolOpened(const QString &toolKey)
         openTab(view, QStringLiteral("DBC 工具"));
     } else if (toolKey == "bus_analysis") {
         auto *view = new FrameStatisticsView(this);
+        view->setBusStatistics(m_busStats);
         openTab(view, QStringLiteral("总线统计分析"));
+    } else if (toolKey == "data_window") {
+        onOpenDataWindow();
+    } else if (toolKey == "color_rules") {
+        onOpenColorRuleEditor();
+    }
+}
+
+// ============================================================
+//  P0/P1 新增功能实现
+// ============================================================
+
+void MainWindow::onOpenDataWindow()
+{
+    if (!m_dataWindow) {
+        m_dataWindow = new DataWindow(this);
+        m_dataWindow->setDbcManager(m_dbcManager);
+    }
+    openTab(m_dataWindow, QStringLiteral("Data Window"));
+}
+
+void MainWindow::onOpenColorRuleEditor()
+{
+    ColorRuleEditor dlg(this);
+    // 加载当前规则
+    if (m_traceTab) {
+        auto *model = m_traceTab->traceModel();
+        if (model)
+            dlg.setRules(model->colorRules());
+    }
+
+    if (dlg.exec() == QDialog::Accepted) {
+        auto rules = dlg.rules();
+        // 应用到所有 Trace 标签页
+        const auto allTabs = m_editorArea->allTabWidgets();
+        for (auto *tw : allTabs) {
+            for (int i = 0; i < tw->count(); ++i) {
+                auto *tt = qobject_cast<TraceTab *>(tw->widget(i));
+                if (tt) {
+                    auto *model = tt->traceModel();
+                    if (model)
+                        model->setColorRules(rules);
+                }
+            }
+        }
+    }
+}
+
+void MainWindow::onBookmarkJumped(int frameIndex)
+{
+    // 跳转到指定帧
+    auto *traceTab = qobject_cast<TraceTab *>(m_editorArea->currentWidget());
+    if (traceTab) {
+        auto *view = traceTab->traceView();
+        if (view) {
+            QModelIndex idx = view->model()->index(frameIndex, 0);
+            if (idx.isValid()) {
+                view->scrollTo(idx, QAbstractItemView::PositionAtCenter);
+                view->selectRow(frameIndex);
+            }
+        }
+    }
+}
+
+void MainWindow::onTriggerRecording(
+    const QString &dir, const QString &prefix, const QString &format,
+    bool splitBySize, int sizeMb, bool splitByTime, int timeSec,
+    bool ringMode, int maxFiles,
+    const QString &triggerExpr, double preTriggerSec, double postTriggerSec,
+    bool repeatTrigger)
+{
+    static TriggerRecorder *triggerRec = nullptr;
+
+    if (!triggerRec) {
+        triggerRec = new TriggerRecorder(this);
+        connect(m_simulator, &CanSimulator::frameGenerated,
+                triggerRec, &TriggerRecorder::onFrame);
+        connect(m_deviceManager, &CanDeviceManager::frameGenerated,
+                triggerRec, &TriggerRecorder::onFrame);
+    }
+
+    TriggerRecorder::Config config;
+    config.logConfig.directory = dir;
+    config.logConfig.prefix = prefix;
+    config.logConfig.format = format;
+    config.logConfig.splitBySize = splitBySize;
+    config.logConfig.maxSizeBytes = static_cast<quint64>(sizeMb) * 1024 * 1024;
+    config.logConfig.splitByTime = splitByTime;
+    config.logConfig.maxTimeSeconds = static_cast<double>(timeSec);
+    config.logConfig.ringMode = ringMode;
+    config.logConfig.maxFiles = maxFiles;
+    config.triggerExpr = triggerExpr;
+    config.preTriggerSeconds = preTriggerSec;
+    config.postTriggerSeconds = postTriggerSec;
+    config.repeatTrigger = repeatTrigger;
+
+    if (!triggerRec->isRunning()) {
+        if (!triggerRec->start(config)) {
+            QMessageBox::warning(this, "触发录制",
+                "触发条件表达式编译失败，请检查表达式语法。");
+            return;
+        }
+        m_statusLabel->setText("触发录制中... 等待触发条件");
+    } else {
+        triggerRec->stop();
+        m_statusLabel->setText("触发录制已停止");
     }
 }
 
