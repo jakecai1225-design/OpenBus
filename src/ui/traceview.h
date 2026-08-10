@@ -5,10 +5,12 @@
 #include <QWidget>
 #include <QPlainTextEdit>
 #include <QList>
+#include <QScrollBar>
 #include "core/canframe.h"
 
 class CanTraceModel;
 class CanFilterProxyModel;
+class ViewportProxyModel;
 class FilterBar;
 class QSplitter;
 class QLabel;
@@ -68,6 +70,15 @@ signals:
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
+
+private:
+    /// 获取视窗代理模型 (如有)
+    ViewportProxyModel *viewportProxy() const;
+    /// 获取过滤代理模型 (穿越视窗代理层)
+    CanFilterProxyModel *filterProxy() const;
+    /// 获取源数据模型 (穿越代理层)
+    CanTraceModel *traceSource() const;
 
 private slots:
     void onHeaderClicked(int column);
@@ -176,6 +187,7 @@ public:
     SignalDecodeWidget *signalDecode() const { return m_signalDecode; }
     CanTraceModel *traceModel() const { return m_traceModel; }
     CanFilterProxyModel *proxyModel() const { return m_proxyModel; }
+    ViewportProxyModel *viewportProxy() const { return m_viewportProxy; }
 
     void setDbcManager(DbcManager *mgr);
 
@@ -215,6 +227,8 @@ private slots:
     void onPacketCountTimer();
 
 private:
+    /// 更新视窗滚动条的范围和位置
+    void updateViewportScrollBar();
     FilterBar *m_filterBar = nullptr;
     TraceView *m_traceView = nullptr;
     QSplitter *m_vSplitter = nullptr;
@@ -224,6 +238,9 @@ private:
 
     CanTraceModel *m_traceModel = nullptr;
     CanFilterProxyModel *m_proxyModel = nullptr;
+    ViewportProxyModel *m_viewportProxy = nullptr;
+    QScrollBar *m_viewportScrollBar = nullptr;
+    bool m_autoScrollViewport = true;  ///< 视窗自动跟随新数据
     bool m_running = false;
 
     // ---- 设置菜单 ----

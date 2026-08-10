@@ -85,6 +85,8 @@ set(SRC_MODELS
     models/cantracemodel.cpp
     models/canfilterproxymodel.h
     models/canfilterproxymodel.cpp
+    models/viewportproxy.h
+    models/viewportproxy.cpp
 )
 
 # utils 层 — 工具函数

@@ -1,0 +1,7 @@
+schema_version: 1
+module_path: ""
+title: CAN 报文发送与 DBC 导入界面（SignalSendTab & DbcImportDialog）
+scope: []
+source_files: []
+depends_on: []
+related_to: []

@@ -49,11 +49,13 @@
 - [src/models/canfilterproxymodel.h](file://src/models/canfilterproxymodel.h)
 - [src/models/canfilterproxymodel.cpp](file://src/models/canfilterproxymodel.cpp)
 - [third_party/qcustomplot/qcustomplot.h](file://third_party/qcustomplot/qcustomplot.h)
+- [src/core/canframe.h](file://src/core/canframe.h)
+- [src/core/dbcdata.h](file://src/core/dbcdata.h)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- 增强了GraphicView组件，集成QCustomPlot实现专业级信号可视化
+- 完全重构了GraphicView组件，集成了QCustomPlot实现专业级CAN总线信号可视化
 - 实现了多轴信号绘图系统，支持独立Y轴和共享X轴的时间序列显示
 - 添加了交互式光标系统，支持单卡尺和双卡尺模式进行精确测量
 - 实现了实时数据流处理，支持高性能的CAN信号波形绘制

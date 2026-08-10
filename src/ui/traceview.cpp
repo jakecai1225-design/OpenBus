@@ -3,6 +3,7 @@
 #include "filterheaderview.h"
 #include "models/cantracemodel.h"
 #include "models/canfilterproxymodel.h"
+#include "models/viewportproxy.h"
 #include "core/dbcmanager.h"
 #include "core/dbcdata.h"
 #include "utils/canutils.h"
@@ -15,6 +16,7 @@
 #include <QScrollBar>
 #include <QFontDatabase>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QMessageBox>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -115,16 +117,26 @@ void TraceView::setupAppearance()
 void TraceView::setModel(QAbstractItemModel *model)
 {
     QTableView::setModel(model);
-    // 自动将代理模型传递给 FilterHeaderView
+    // 自动将过滤代理模型传递给 FilterHeaderView
     auto *fh = qobject_cast<FilterHeaderView *>(horizontalHeader());
     if (fh) {
-        auto *proxy = qobject_cast<CanFilterProxyModel *>(model);
-        fh->setProxyModel(proxy);
+        // 穿越视窗代理层找到 CanFilterProxyModel
+        auto *fp = filterProxy();
+        fh->setProxyModel(fp);
     }
 }
 
 void TraceView::scrollToBottom()
 {
+    auto *vp = viewportProxy();
+    if (vp) {
+        // CANoe 视窗模式: 移动视窗到末尾
+        vp->scrollToEnd();
+        // 视窗内滚动到底部
+        if (model() && model()->rowCount() > 0)
+            scrollTo(model()->index(model()->rowCount() - 1, 0));
+        return;
+    }
     if (model() && model()->rowCount() > 0)
         scrollTo(model()->index(model()->rowCount() - 1, 0));
 }
@@ -137,16 +149,19 @@ const CanFrame *TraceView::selectedFrame() const
     if (rows.isEmpty())
         return nullptr;
 
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-    auto *source = qobject_cast<CanTraceModel *>(
-        proxy ? proxy->sourceModel() : qobject_cast<CanTraceModel *>(model()));
+    auto *vp = viewportProxy();
+    auto *fp = filterProxy();
+    auto *source = traceSource();
     if (!source)
         return nullptr;
 
-    QModelIndex sourceIndex = proxy ? proxy->mapToSource(rows.first()) : rows.first();
-    if (!sourceIndex.isValid() || sourceIndex.row() < 0 || sourceIndex.row() >= source->rowCount())
+    // 穿越视窗代理 → 过滤代理 → 源模型
+    QModelIndex proxyIdx = rows.first();
+    QModelIndex filterIdx = vp ? vp->mapToSource(proxyIdx) : proxyIdx;
+    QModelIndex sourceIdx = fp ? fp->mapToSource(filterIdx) : filterIdx;
+    if (!sourceIdx.isValid() || sourceIdx.row() < 0 || sourceIdx.row() >= source->rowCount())
         return nullptr;
-    return &source->frameAt(sourceIndex.row());
+    return &source->frameAt(sourceIdx.row());
 }
 
 void TraceView::contextMenuEvent(QContextMenuEvent *event)
@@ -266,9 +281,7 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
     } else if (selected == &clearFilterAction) {
         emit clearFilterRequested();
     } else if (selected == &clearAction) {
-        auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-        auto *source = qobject_cast<CanTraceModel *>(
-            proxy ? proxy->sourceModel() : qobject_cast<CanTraceModel *>(model()));
+        auto *source = traceSource();
         if (source)
             source->clear();
     }
@@ -283,6 +296,31 @@ void TraceView::mouseDoubleClickEvent(QMouseEvent *event)
             emit frameDoubleClicked(*frame);
     }
     QTableView::mouseDoubleClickEvent(event);
+}
+
+void TraceView::wheelEvent(QWheelEvent *event)
+{
+    // CANoe 风格: 鼠标滑轮只在当前视窗内滚动，不移动视窗
+    QTableView::wheelEvent(event);
+}
+
+ViewportProxyModel *TraceView::viewportProxy() const
+{
+    return qobject_cast<ViewportProxyModel *>(model());
+}
+
+CanFilterProxyModel *TraceView::filterProxy() const
+{
+    auto *vp = viewportProxy();
+    if (vp)
+        return qobject_cast<CanFilterProxyModel *>(vp->sourceModel());
+    return qobject_cast<CanFilterProxyModel *>(model());
+}
+
+CanTraceModel *TraceView::traceSource() const
+{
+    auto *fp = filterProxy();
+    return fp ? qobject_cast<CanTraceModel *>(fp->sourceModel()) : nullptr;
 }
 
 // ============================================================
@@ -321,7 +359,7 @@ QString TraceView::columnFilterHint(int column) const
 
 void TraceView::showHeaderMenu(int column, const QPoint &pos)
 {
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    auto *proxy = filterProxy();
     if (!proxy) return;
 
     QMenu menu(this);
@@ -347,11 +385,11 @@ void TraceView::showHeaderMenu(int column, const QPoint &pos)
         menu.addAction(&rxOnly);
         menu.addAction(&txOnly);
         connect(&rxOnly, &QAction::triggered, this, [this, column]() {
-            auto *p = qobject_cast<CanFilterProxyModel *>(model());
+            auto *p = filterProxy();
             if (p) { pinSelection(); p->setColumnFilter(column, "rx"); restoreSelection(); }
         });
         connect(&txOnly, &QAction::triggered, this, [this, column]() {
-            auto *p = qobject_cast<CanFilterProxyModel *>(model());
+            auto *p = filterProxy();
             if (p) { pinSelection(); p->setColumnFilter(column, "tx"); restoreSelection(); }
         });
     }
@@ -376,7 +414,7 @@ void TraceView::showHeaderMenu(int column, const QPoint &pos)
                 QString idStr = CanUtils::formatId(id, id > 0x7FF);
                 auto *act = menu.addAction(idStr);
                 connect(act, &QAction::triggered, this, [this, column, idStr]() {
-                    auto *p = qobject_cast<CanFilterProxyModel *>(model());
+                    auto *p = filterProxy();
                     if (p) { pinSelection(); p->setColumnFilter(column, idStr); restoreSelection(); }
                 });
             }
@@ -417,7 +455,7 @@ void TraceView::showHeaderMenu(int column, const QPoint &pos)
 
 void TraceView::onColumnFilter(int column)
 {
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    auto *proxy = filterProxy();
     if (!proxy) return;
 
     QString colName = model()->headerData(column, Qt::Horizontal).toString();
@@ -442,7 +480,7 @@ void TraceView::onColumnFilter(int column)
 
 void TraceView::onClearColumnFilter(int column)
 {
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    auto *proxy = filterProxy();
     if (!proxy) return;
     pinSelection();
     proxy->clearColumnFilter(column);
@@ -451,7 +489,7 @@ void TraceView::onClearColumnFilter(int column)
 
 void TraceView::onClearAllFilters()
 {
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
+    auto *proxy = filterProxy();
     if (!proxy) return;
     pinSelection();
     proxy->clearAllColumnFilters();
@@ -475,10 +513,12 @@ int TraceView::toSourceRow(const QModelIndex &proxyIndex) const
 {
     if (!proxyIndex.isValid())
         return -1;
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-    if (proxy)
-        return proxy->mapToSource(proxyIndex).row();
-    return proxyIndex.row();
+    auto *vp = viewportProxy();
+    auto *fp = filterProxy();
+    // 穿越视窗代理 → 过滤代理 → 源模型
+    QModelIndex filterIdx = vp ? vp->mapToSource(proxyIndex) : proxyIndex;
+    QModelIndex sourceIdx = fp ? fp->mapToSource(filterIdx) : filterIdx;
+    return sourceIdx.isValid() ? sourceIdx.row() : -1;
 }
 
 QList<int> TraceView::selectedSourceRows() const
@@ -497,8 +537,7 @@ QList<int> TraceView::selectedSourceRows() const
 
 void TraceView::onToggleMarkSelected()
 {
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel()) : nullptr;
+    auto *source = traceSource();
     if (!source)
         return;
     for (int row : selectedSourceRows())
@@ -507,8 +546,7 @@ void TraceView::onToggleMarkSelected()
 
 void TraceView::onColorSelected()
 {
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel()) : nullptr;
+    auto *source = traceSource();
     if (!source)
         return;
     QColor color = QColorDialog::getColor(Qt::yellow, this, QStringLiteral("选择行颜色"));
@@ -520,16 +558,14 @@ void TraceView::onColorSelected()
 
 void TraceView::onClearMarks()
 {
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel()) : nullptr;
+    auto *source = traceSource();
     if (source)
         source->clearMarks();
 }
 
 void TraceView::onClearColors()
 {
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel()) : nullptr;
+    auto *source = traceSource();
     if (source)
         source->clearColors();
 }
@@ -556,21 +592,34 @@ void TraceView::restoreSelection()
 
 void TraceView::selectSourceRow(int sourceRow)
 {
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel())
-                         : qobject_cast<CanTraceModel *>(model());
+    auto *fp = filterProxy();
+    auto *source = traceSource();
     if (!source || sourceRow < 0 || sourceRow >= source->rowCount())
         return;
 
+    // 源模型 → 过滤代理行号
     QModelIndex sourceIdx = source->index(sourceRow, 0);
-    QModelIndex proxyIdx = proxy ? proxy->mapFromSource(sourceIdx) : sourceIdx;
-    if (!proxyIdx.isValid())
+    QModelIndex filterIdx = fp ? fp->mapFromSource(sourceIdx) : sourceIdx;
+    if (!filterIdx.isValid())
         return;  // 该行被过滤隐藏
 
-    selectionModel()->select(proxyIdx,
-        QItemSelectionModel::Select | QItemSelectionModel::Rows | QItemSelectionModel::Clear);
-    setCurrentIndex(proxyIdx);
-    scrollTo(proxyIdx, QAbstractItemView::EnsureVisible);
+    auto *vp = viewportProxy();
+    if (vp) {
+        // 确保过滤代理行号在视窗内
+        vp->ensureVisible(filterIdx.row());
+        QModelIndex viewIdx = vp->mapFromSource(filterIdx);
+        if (!viewIdx.isValid())
+            return;
+        selectionModel()->select(viewIdx,
+            QItemSelectionModel::Select | QItemSelectionModel::Rows | QItemSelectionModel::Clear);
+        setCurrentIndex(viewIdx);
+        scrollTo(viewIdx, QAbstractItemView::EnsureVisible);
+    } else {
+        selectionModel()->select(filterIdx,
+            QItemSelectionModel::Select | QItemSelectionModel::Rows | QItemSelectionModel::Clear);
+        setCurrentIndex(filterIdx);
+        scrollTo(filterIdx, QAbstractItemView::EnsureVisible);
+    }
 }
 
 // ============================================================
@@ -585,9 +634,7 @@ void TraceView::goToPacket(int frameNumber)
 bool TraceView::findNext(const QString &text)
 {
     if (text.isEmpty()) return false;
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel())
-                         : qobject_cast<CanTraceModel *>(model());
+    auto *source = traceSource();
     if (!source) return false;
 
     int startRow = 0;
@@ -615,9 +662,7 @@ bool TraceView::findNext(const QString &text)
 bool TraceView::findPrevious(const QString &text)
 {
     if (text.isEmpty()) return false;
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel())
-                         : qobject_cast<CanTraceModel *>(model());
+    auto *source = traceSource();
     if (!source) return false;
 
     int startRow = source->frameCount() - 1;
@@ -648,9 +693,7 @@ void TraceView::goToNextSameId()
     if (!frame) return;
     quint32 targetId = frame->id;
 
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel())
-                         : qobject_cast<CanTraceModel *>(model());
+    auto *source = traceSource();
     if (!source) return;
 
     auto rows = selectedSourceRows();
@@ -671,9 +714,7 @@ void TraceView::goToPrevSameId()
     if (!frame) return;
     quint32 targetId = frame->id;
 
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel())
-                         : qobject_cast<CanTraceModel *>(model());
+    auto *source = traceSource();
     if (!source) return;
 
     auto rows = selectedSourceRows();
@@ -694,9 +735,7 @@ void TraceView::goToPrevSameId()
 
 void TraceView::onGoToPacket()
 {
-    auto *proxy = qobject_cast<CanFilterProxyModel *>(model());
-    auto *source = proxy ? qobject_cast<CanTraceModel *>(proxy->sourceModel())
-                         : qobject_cast<CanTraceModel *>(model());
+    auto *source = traceSource();
     if (!source || source->frameCount() == 0) return;
 
     bool ok = false;
@@ -872,9 +911,13 @@ TraceTab::TraceTab(QWidget *parent)
     : QWidget(parent)
 {
     // 每个标签页拥有独立的数据模型
+    // 模型链: CanTraceModel → CanFilterProxyModel → ViewportProxyModel → TraceView
     m_traceModel = new CanTraceModel(this);
     m_proxyModel = new CanFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_traceModel);
+    m_viewportProxy = new ViewportProxyModel(this);
+    m_viewportProxy->setSourceModel(m_proxyModel);
+    m_viewportProxy->setViewportSize(500);  // CANoe 风格: 固定 500 行视窗
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -966,10 +1009,26 @@ TraceTab::TraceTab(QWidget *parent)
     m_vSplitter = new QSplitter(Qt::Vertical, this);
     m_vSplitter->setHandleWidth(2);
 
-    // TraceView — 使用自己的代理模型
+    // CANoe 风格: TraceView + 视窗滚动条 (右侧)
+    auto *viewportContainer = new QWidget(this);
+    auto *hLayout = new QHBoxLayout(viewportContainer);
+    hLayout->setContentsMargins(0, 0, 0, 0);
+    hLayout->setSpacing(0);
+
     m_traceView = new TraceView(this);
-    m_traceView->setModel(m_proxyModel);
-    m_vSplitter->addWidget(m_traceView);
+    m_traceView->setModel(m_viewportProxy);
+    hLayout->addWidget(m_traceView, 1);
+
+    // 视窗滚动条 — 在全部数据中拖动视窗
+    m_viewportScrollBar = new QScrollBar(Qt::Vertical, viewportContainer);
+    m_viewportScrollBar->setMinimum(0);
+    m_viewportScrollBar->setMaximum(0);
+    m_viewportScrollBar->setPageStep(500);
+    m_viewportScrollBar->setSingleStep(1);
+    m_viewportScrollBar->setToolTip(QStringLiteral("视窗导航 — 拖动可移动视窗在全部数据中的位置"));
+    hLayout->addWidget(m_viewportScrollBar);
+
+    m_vSplitter->addWidget(viewportContainer);
 
     // 水平分割: 帧结构 (左) | 信号解析 (右)
     m_hSplitter = new QSplitter(Qt::Horizontal, this);
@@ -997,20 +1056,46 @@ TraceTab::TraceTab(QWidget *parent)
     connect(m_filterBar, &FilterBar::overwriteModeToggled,
             m_traceModel, &CanTraceModel::setOverwriteMode);
 
+    // CANoe 风格: 视窗滚动条 ↔ 视窗位置
+    connect(m_viewportScrollBar, &QScrollBar::valueChanged,
+            this, [this](int value) {
+        m_viewportProxy->setViewportStart(value);
+        // 用户手动拖动视窗 → 取消自动跟随
+        m_autoScrollViewport = false;
+    });
+
+    // 视窗位置变化 → 更新视窗滚动条
+    connect(m_viewportProxy, &ViewportProxyModel::modelReset,
+            this, [this]() {
+        updateViewportScrollBar();
+    });
+
     // Phase 1: 可见行范围 → CanTraceModel 行缓存淘汰
     connect(m_traceView->verticalScrollBar(), &QScrollBar::valueChanged,
             this, [this]() {
         auto *sb = m_traceView->verticalScrollBar();
-        int first = sb->value();
+        int first = m_viewportProxy->viewportStart() + sb->value();
         int pageHeight = m_traceView->viewport()->height() / 22; // 行高 22px
         int last = first + pageHeight + 5;
         m_traceModel->setVisibleRange(first, last);
     });
 
-    // Phase 2: 帧提交后更新分组统计
+    // Phase 2: 帧提交后更新分组统计 + 视窗自动跟随
     connect(m_traceModel, &CanTraceModel::framesCommitted,
             this, [this](int) {
         m_packetCountDirty = true;
+        // 自动跟随: 视窗滚动到末尾显示最新数据
+        if (m_autoScrollViewport && m_traceView->autoScrollEnabled())
+            m_viewportProxy->scrollToEnd();
+        updateViewportScrollBar();
+    });
+
+    // 过滤/排序变化后重置视窗到开头
+    connect(m_proxyModel, &CanFilterProxyModel::layoutAboutToBeChanged,
+            this, [this]() { m_autoScrollViewport = true; });
+    connect(m_proxyModel, &CanFilterProxyModel::packetCountChanged,
+            this, [this](int, int) {
+        updateViewportScrollBar();
     });
 
     // 分组计数防抖 — 高频帧到达时最多每 100ms 刷新一次
@@ -1063,6 +1148,8 @@ void TraceTab::clearTrace()
 {
     m_traceModel->clear();
     m_packetCountDirty = true;  // 防抖定时器会处理
+    m_autoScrollViewport = true;
+    updateViewportScrollBar();
 }
 
 int TraceTab::frameCount() const
@@ -1075,6 +1162,8 @@ bool TraceTab::setFilterExpression(const QString &expr)
     m_traceView->pinSelection();
     bool ok = m_proxyModel->setFilterExpression(expr);
     m_traceView->restoreSelection();
+    m_autoScrollViewport = true;
+    updateViewportScrollBar();
     return ok;
 }
 
@@ -1083,6 +1172,8 @@ void TraceTab::clearFilter()
     m_traceView->pinSelection();
     m_proxyModel->clearFilter();  // 仅清除主表达式，保留列过滤
     m_traceView->restoreSelection();
+    m_autoScrollViewport = true;
+    updateViewportScrollBar();
 }
 
 void TraceTab::clearAllFilters()
@@ -1091,6 +1182,8 @@ void TraceTab::clearAllFilters()
     m_proxyModel->clearFilter();
     m_proxyModel->clearAllColumnFilters();
     m_traceView->restoreSelection();
+    m_autoScrollViewport = true;
+    updateViewportScrollBar();
 }
 
 QString TraceTab::filterExpression() const
@@ -1101,6 +1194,23 @@ QString TraceTab::filterExpression() const
 void TraceTab::updatePacketCount()
 {
     m_proxyModel->emitPacketCount();
+}
+
+void TraceTab::updateViewportScrollBar()
+{
+    if (!m_viewportScrollBar || !m_viewportProxy)
+        return;
+    int total = m_viewportProxy->sourceRowCount();
+    int vpSize = m_viewportProxy->viewportSize();
+    int maxVal = qMax(0, total - qMin(vpSize, total));
+    // 阻止信号以避免回调循环 (valueChanged → setViewportStart)
+    m_viewportScrollBar->blockSignals(true);
+    m_viewportScrollBar->setRange(0, maxVal);
+    m_viewportScrollBar->setPageStep(qMin(vpSize, qMax(1, total)));
+    m_viewportScrollBar->setValue(m_viewportProxy->viewportStart());
+    m_viewportScrollBar->blockSignals(false);
+    // 没有足够数据时隐藏视窗滚动条
+    m_viewportScrollBar->setVisible(total > vpSize);
 }
 
 void TraceTab::onPacketCountTimer()
