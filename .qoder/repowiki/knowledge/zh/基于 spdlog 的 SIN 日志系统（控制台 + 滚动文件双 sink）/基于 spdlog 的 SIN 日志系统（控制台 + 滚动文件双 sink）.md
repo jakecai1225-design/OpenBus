@@ -1,6 +1,6 @@
 ---
 kind: logging_system
-name: 基于 spdlog 的 SIN 日志系统（控制台 + 滚动文件双 sink）
+name: 基于 spdlog 的 sin 日志系统（控制台 + 滚动文件双 sink）
 category: logging_system
 scope:
     - '**'
@@ -9,78 +9,41 @@ source_files:
     - src/core/logging.cpp
     - src/utils/logging.h
     - src/main.cpp
-    - src/core/candevice_kvaser.cpp
-    - src/core/candevice_peak.cpp
-    - src/core/candevice_zlg.cpp
 ---
 
-## 1. 使用的系统与框架
+## 1. 使用的框架与工具
+- 日志后端：第三方库 `spdlog`（位于 `third_party/spdlog/`），通过 CMake 集成。
+- 格式化：使用 `fmt::format` 进行参数化格式化，宏内部调用 `SPDLOG_*` 系列 API。
+- 输出目标（sink）：
+  - 控制台彩色输出：`spdlog::sinks::stdout_color_sink_mt`，级别设为 `debug`。
+  - 滚动文件输出：`spdlog::sinks::rotating_file_sink_mt`，单文件上限 5MB，最多保留 3 个轮转文件，级别为 `trace`。
+- Qt 集成：日志目录默认使用 `QStandardPaths::AppDataLocation/logs`；若不可写则回退到当前工作目录下的 `./logs`。
 
-- **底层库**：`spdlog`（位于 `third_party/spdlog/`），通过 CMake 作为第三方依赖引入。
-- **格式化**：使用 `fmt::format`（C++23-like 风格占位符 `{}`）对消息进行格式化，而非 Qt 的 `%1` 语法。
-- **Qt 集成**：通过 `QStandardPaths::AppDataLocation` 定位跨平台用户数据目录；日志目录为 `<AppData>/logs/sin.log`；若不可写则回退到当前工作目录下的 `./logs/sin.log`。
-- **线程模型**：控制台 sink 使用 `stdout_color_sink_mt`（多线程安全），文件 sink 使用 `rotating_file_sink_mt`（多线程安全）。全局 logger 为单例式共享指针。
+## 2. 核心文件
+- `src/core/logging.h`：定义 `logging` 命名空间及 `SIN_LOG_DEBUG/INFO/WARN/ERROR` 四个宏，声明 `init()`、`shutdown()`、`logger()`。
+- `src/core/logging.cpp`：实现双 sink 初始化、默认 logger 注册、pattern 设置、flush 策略与关闭逻辑。
+- `src/utils/logging.h`：薄包装头，重新 include `core/logging.h`，作为统一入口。
+- `src/main.cpp`：在 `QApplication` 创建后调用 `logging::init()`，应用退出前调用 `logging::shutdown()`。
 
-## 2. 核心文件与入口
+## 3. 架构与设计约定
+- **全局单例式 logger**：`s_logger` 为静态 `std::shared_ptr<spdlog::logger>`，通过 `spdlog::set_default_logger` 注册为全局默认 logger，所有 `SPDLOG_*` 调用均路由到该实例。
+- **初始化时机**：必须在 `QApplication` 构造之后、业务模块加载之前调用 `logging::init()`，以便 `QStandardPaths` 能正确解析 AppData 路径。
+- **日志格式**：pattern 为 `[YYYY-MM-DD HH:MM:SS.mmm] [level] message`，由 `s_logger->set_pattern` 设定；宏中额外以 `[tag]` 形式包裹模块名，形成 `[时间] [级别] [模块] 消息` 的三段式结构。
+- **级别策略**：
+  - 控制台 sink 最低记录 `debug`，便于调试时观察。
+  - 文件 sink 最低记录 `trace`，保留最详细轨迹供离线分析。
+  - 默认 logger 级别设为 `debug`，并通过 `flush_on(info)` 在 info 及以上级别立即落盘。
+- **容错回退**：当 `QStandardPaths::AppDataLocation/logs` 不可写时，捕获 `spdlog_ex` 并回退到 `./logs/sin.log`；若仍失败则仅保留控制台输出。
+- **模块标识**：每个 `SIN_LOG_*` 调用必须传入第一个字符串参数作为 `tag`（如 `CanDeviceZLG`、`CanDeviceKvaser`、`CanDevicePEAK`），用于区分来源模块。
+- **线程模型**：两个 sink 均为 `_mt`（多线程安全）版本，适合 Qt 多事件循环场景。
 
-| 文件 | 职责 |
-|---|---|
-| `src/core/logging.h` | 定义 `logging` 命名空间、`init()` / `shutdown()` / `logger()` API，以及 `SIN_LOG_*` 宏 |
-| `src/core/logging.cpp` | 实现双 sink 初始化、默认 logger 创建、模式设置、错误回退 |
-| `src/utils/logging.h` | 薄包装头，重新包含 `core/logging.h`，作为统一入口 |
-| `src/main.cpp` | 在 `QApplication` 构造后调用 `logging::init()`，退出前调用 `logging::shutdown()` |
+## 4. 使用约定与约束
+- **统一入口**：业务代码应包含 `core/logging.h`（或通过 `utils/logging.h` 间接包含），禁止直接依赖 `spdlog` 原始头。
+- **宏用法**：`SIN_LOG_INFO("模块名", "格式化字符串{}", 变量)`，内部委托给 `SPDLOG_INFO`，使用 `fmt::format` 风格占位符。
+- **生命周期**：应用启动时调用 `logging::init()`，退出时调用 `logging::shutdown()`；`main.cpp` 已保证这一顺序。
+- **日志位置**：默认写入 `<AppData>/sin/logs/sin.log`；可通过 `logging::init(logDir)` 指定自定义目录。
+- **扩展点**：如需新增 sink（如网络/数据库），应在 `logging::init` 中追加到 `sinks` 向量并重新构建默认 logger。
+- **现有使用范围**：目前主要在 `src/core/candevice*.cpp`（CAN 设备驱动层）中使用 `SIN_LOG_*` 记录设备打开/关闭、错误码等关键路径；UI 层尚未发现直接使用，表明日志主要服务于底层 CAN 通信与设备管理模块。
 
-## 3. 架构与约定
-
-### 3.1 初始化流程
-1. `main()` 中先创建 `QApplication`，再调用 `logging::init()`。
-2. `init()` 确定日志目录：优先使用 `QStandardPaths::writableLocation(AppDataLocation) + "/logs"`；为空或不可写时回退到 `./logs`。
-3. 创建两个 sink：
-   - **控制台 sink**：`stdout_color_sink_mt`，级别设为 `debug`。
-   - **文件 sink**：`rotating_file_sink_mt`，轮转策略为 5MB × 3 个文件，级别设为 `trace`。
-4. 创建名为 `sin` 的全局 logger，设置全局级别为 `debug`，并在 `info` 及以上级别自动 flush。
-5. 通过 `spdlog::set_default_logger` 注册为默认 logger，使 `SPDLOG_*` 宏可直接使用。
-6. 启动时输出一条 INFO 日志记录日志目录路径。
-
-### 3.2 输出格式
-默认 pattern：`[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v`
-即：`[2026-07-29 14:30:00.123] [info] message`。
-
-### 3.3 模块标签约定
-所有 `SIN_LOG_*` 宏的第一个参数是 **tag**（字符串字面量），用于标识模块来源，例如：
-- `SIN_LOG_INFO("CanDeviceKvaser", "...")`
-- `SIN_LOG_ERROR("CanDevicePEAK", "...")`
-- `SIN_LOG_WARN("CanDeviceZLG", "...")`
-- `SIN_LOG_DEBUG("DbcManager", "...")`
-
-该 tag 会被写入日志消息的 `[{}]` 位置，便于按模块过滤。
-
-### 3.4 日志级别策略
-- **全局级别**：`debug`（由 `s_logger->set_level` 和 `spdlog::set_level` 双重设置）。
-- **控制台级别**：`debug`。
-- **文件级别**：`trace`（文件记录更详细，便于离线分析）。
-- 应用关闭时调用 `logging::shutdown()` 确保缓冲刷新并释放资源。
-
-## 4. 使用方式与约束
-
-### 4.1 推荐用法
-```cpp
-#include "core/logging.h"
-// 或 #include "utils/logging.h"（等价）
-
-SIN_LOG_DEBUG("ModuleTag", "解析文件: {}", fileName.toStdString());
-SIN_LOG_INFO("ModuleTag", "设备已打开: {}, baud={}", name, baud);
-SIN_LOG_WARN("ModuleTag", "品牌 {} 尚未实现", brand);
-SIN_LOG_ERROR("ModuleTag", "canOpenChannel failed: {}", h);
-```
-
-### 4.2 约束与约定
-- **必须在 `QApplication` 之后初始化**：`main.cpp` 注释明确要求“需在 QApplication 设置名称之后”调用 `logging::init()`。
-- **必须配对调用 shutdown**：`main()` 在 `app.exec()` 返回后调用 `logging::shutdown()`，避免析构顺序问题。
-- **禁止直接使用 `qDebug()`**：代码注释明确说明“提供控制台 + 滚动文件双 sink。使用 SIN_LOG_* 系列宏替代 qDebug”，且各模块均通过 `SIN_LOG_*` 输出。
-- **字符串参数需转为 std::string**：由于底层走 `spdlog` + `fmt`，Qt 字符串需调用 `.toStdString()` 传入（如 `fileName.toStdString()`）。
-- **文件写入失败会静默降级**：当 AppData 目录不可写时，自动回退到 `./logs`；若仍失败，仅保留控制台输出，不抛异常。
-- **日志轮转固定**：文件大小上限 5MB，最多保留 3 个历史文件，无配置开关。
-
-### 4.3 当前覆盖范围
-经搜索，`SIN_LOG_*` 宏已在以下核心模块中使用：`candevice_kvaser.cpp`、`candevice_peak.cpp`、`candevice_zlg.cpp`、`candevice.cpp` 等 CAN 设备驱动层，用于记录 DLL 加载、通道打开/关闭、读取状态等关键事件。UI 层暂未发现直接使用该日志系统的调用。
+## 5. 与 Qt 原生日志的关系
+项目未启用 `QtMessageHandler` 重定向，也未看到 `qDebug()` 被替换；日志体系完全独立于 Qt 的消息系统，通过 `spdlog` 直接输出。这避免了 Qt 日志与自定义 sink 之间的冲突，但也意味着 `qDebug()` 不会自动进入 `sin.log`。

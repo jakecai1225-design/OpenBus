@@ -1937,24 +1937,44 @@ void MainWindow::onOpenDataWindow()
 void MainWindow::onOpenColorRuleEditor()
 {
     ColorRuleEditor dlg(this);
-    // 加载当前规则
+    // 加载当前规则 — CanTraceModel::ColorRule → ColorRuleEditor::ColorRule
     if (m_traceTab) {
         auto *model = m_traceTab->traceModel();
-        if (model)
-            dlg.setRules(model->colorRules());
+        if (model) {
+            QVector<ColorRuleEditor::ColorRule> editorRules;
+            for (const auto &r : model->colorRules()) {
+                ColorRuleEditor::ColorRule er;
+                er.expr = r.expr;
+                er.background = r.background;
+                er.foreground = r.foreground;
+                er.enabled = r.enabled;
+                editorRules.append(er);
+            }
+            dlg.setRules(editorRules);
+        }
     }
 
     if (dlg.exec() == QDialog::Accepted) {
         auto rules = dlg.rules();
-        // 应用到所有 Trace 标签页
+        // 应用到所有 Trace 标签页 — ColorRuleEditor::ColorRule → CanTraceModel::ColorRule
         const auto allTabs = m_editorArea->allTabWidgets();
         for (auto *tw : allTabs) {
             for (int i = 0; i < tw->count(); ++i) {
                 auto *tt = qobject_cast<TraceTab *>(tw->widget(i));
                 if (tt) {
                     auto *model = tt->traceModel();
-                    if (model)
-                        model->setColorRules(rules);
+                    if (model) {
+                        QVector<CanTraceModel::ColorRule> modelRules;
+                        for (const auto &r : rules) {
+                            CanTraceModel::ColorRule mr;
+                            mr.expr = r.expr;
+                            mr.background = r.background;
+                            mr.foreground = r.foreground;
+                            mr.enabled = r.enabled;
+                            modelRules.append(mr);
+                        }
+                        model->setColorRules(modelRules);
+                    }
                 }
             }
         }

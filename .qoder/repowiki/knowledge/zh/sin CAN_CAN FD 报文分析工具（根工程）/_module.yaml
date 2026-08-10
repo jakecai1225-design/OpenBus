@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: ""
+title: sin CAN/CAN FD 报文分析工具（根工程）
+scope:
+    - README.md
+    - README.en.md
+    - .gitignore
+    - CMakeLists.txt
+    - EngineAnalysis.sinproj
+source_files: []
+depends_on: []
+related_to: []

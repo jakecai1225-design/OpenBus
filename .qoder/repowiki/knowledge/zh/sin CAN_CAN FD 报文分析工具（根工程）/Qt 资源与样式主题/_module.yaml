@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: resources_and_assets
+title: Qt 资源与样式主题
+scope:
+    - resources/
+    - styles/
+source_files: []
+depends_on: []
+related_to: []
