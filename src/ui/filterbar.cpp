@@ -54,12 +54,27 @@ FilterBar::FilterBar(QWidget *parent)
     m_presetBtn->setToolTip("过滤预设");
     m_presetBtn->setPopupMode(QToolButton::InstantPopup);
 
+    // 设置按钮（齿轮图标，弹出菜单由外部设置）
+    m_settingsBtn = new QToolButton(this);
+    m_settingsBtn->setText("⚙");
+    m_settingsBtn->setToolTip("设置（时间格式等）");
+    m_settingsBtn->setPopupMode(QToolButton::InstantPopup);
+    m_settingsBtn->setAutoRaise(true);
+    m_settingsBtn->setFixedSize(26, 22);
+
+    // 分组统计标签
+    m_packetCountLabel = new QLabel(this);
+    m_packetCountLabel->setStyleSheet("font-size: 11px; color: #666;");
+    m_packetCountLabel->setText(QStringLiteral("捕获: 0 | 显示: 0"));
+
     layout->addWidget(m_statusIcon);
     layout->addWidget(m_edit, 1);
     layout->addWidget(m_presetBtn);
     layout->addWidget(m_applyBtn);
     layout->addWidget(m_clearBtn);
     layout->addWidget(m_helpBtn);
+    layout->addWidget(m_settingsBtn);
+    layout->addWidget(m_packetCountLabel);
 
     connect(m_overwriteBtn, &QPushButton::toggled, this, &FilterBar::overwriteModeToggled);
     connect(m_applyBtn, &QPushButton::clicked, this, &FilterBar::onApply);
@@ -92,6 +107,11 @@ void FilterBar::refreshPresets()
     auto *saveAction = menu->addAction("保存当前表达式为预设...");
     connect(saveAction, &QAction::triggered, this, &FilterBar::onSaveAsPreset);
     m_presetBtn->setMenu(menu);
+}
+
+void FilterBar::setPacketCountText(const QString &text)
+{
+    m_packetCountLabel->setText(text);
 }
 
 void FilterBar::onPresetMenu()

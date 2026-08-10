@@ -257,13 +257,12 @@ void CanFilterProxyModel::recomputeDisplayDeltas()
     if (!model)
         return;
 
+    // Phase 3: 使用 filterAcceptsRow 替代 mapFromSource，避免 O(log n) 映射开销
     double prevTime = 0.0;
     bool first = true;
     int total = model->rowCount();
     for (int i = 0; i < total; ++i) {
-        // 利用 mapFromSource 判断该行是否通过过滤（避免重复 filterAcceptsRow）
-        QModelIndex proxyIdx = mapFromSource(model->index(i, 0));
-        if (proxyIdx.isValid()) {
+        if (filterAcceptsRow(i, QModelIndex())) {
             double t = model->frameAt(i).timestamp;
             m_displayDeltas[i] = first ? t : (t - prevTime);
             prevTime = t;
@@ -298,16 +297,19 @@ QVariant CanFilterProxyModel::data(const QModelIndex &proxyIndex, int role) cons
             auto it = m_displayDeltas.find(sourceIdx.row());
             if (it != m_displayDeltas.end())
                 return CanUtils::formatTime(it.value());
-            // 未命中缓存（例如模式刚切换），实时计算
+            // Phase 3: 未命中缓存，实时计算并缓存（避免重复计算）
             double prevTime = 0.0;
+            bool found = false;
             for (int r = sourceIdx.row() - 1; r >= 0; --r) {
-                QModelIndex prevProxy = mapFromSource(model->index(r, 0));
-                if (prevProxy.isValid()) {
+                if (filterAcceptsRow(r, QModelIndex())) {
                     prevTime = model->frameAt(r).timestamp;
+                    found = true;
                     break;
                 }
             }
-            return CanUtils::formatTime(f.timestamp - prevTime);
+            double delta = found ? (f.timestamp - prevTime) : f.timestamp;
+            m_displayDeltas[sourceIdx.row()] = delta;
+            return CanUtils::formatTime(delta);
         }
     }
     return QSortFilterProxyModel::data(proxyIndex, role);

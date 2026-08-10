@@ -1935,4 +1935,150 @@ private:
 5. **多工程内存** — 每个工程的 Trace 数据可能很大（万帧级），Phase 4 前需评估内存上限，必要时仅活跃工程加载数据，非活跃工程仅加载配置
 6. **文件格式版本号** — 所有文件格式（.sinproj / .sinws / sessions.json）都带 `version` 字段，为未来格式升级预留
 
+---
+
+## Trace 高性能优化方案
+
+> 参考 Wireshark Packet List 优化经验、CANoe Trace Window 机制、TSMaster 显示刷新率策略，解决万帧以上实时捕获和百万帧离线加载的卡顿问题。
+
+### 一、问题分析
+
+#### 当前架构瓶颈
+
+| # | 瓶颈点 | 现状 | 影响 |
+|---|--------|------|------|
+| P1 | **data() 逐次格式化** | 每次绘制单元格都调用 `CanUtils::formatTime/formatId/formatData` 重新生成字符串 | 10万行×10列 = 100万次 `data()` 调用，每次都做字符串分配+格式化 |
+| P2 | **逐帧 beginInsertRows** | `appendFrame()` 每帧触发 `beginInsertRows/endInsertRows` | 高频报文（如 5000帧/s）每秒 5000 次模型布局更新，UI 线程过载 |
+| P3 | **QSortFilterProxyModel 全量重算** | 新增帧时 `invalidateFilter()` 重新评估所有行 | 过滤状态下持续捕获，每帧导致 O(n) 重新过滤 |
+| P4 | **recomputeDisplayDeltas O(n)** | SinceDisplay 模式切换时遍历全部行计算增量 | 10万帧需 10万次 `mapFromSource` 调用，耗时数秒 |
+| P5 | **着色规则逐行求值** | `evaluateColorRules()` 在 `data(BackgroundRole)` 中被每次调用 | 滚动时每个可见行都执行 FilterEngine::evaluate()，含正则匹配 |
+| P6 | **QVector 滚动开销** | `m_maxFrames=100000`，超限时 `removeFirst()` 导致全量内存移动 | 高频场景下每帧都要移动 10万个 CanFrame（含 QByteArray 堆对象） |
+| P7 | **无显示刷新率控制** | 帧到达即追加到模型并触发 UI 更新 | 无类似 TSMaster 的可调刷新率，CPU 占用不受控 |
+
+#### 参考方案对比
+
+| 工具 | 核心策略 | 效果 |
+|------|---------|------|
+| **Wireshark** | 延迟格式化（callback 按需生成列文本）+ 仅对可见行执行着色规则 | 20万帧加载 14s→4s，内存 170MB→113MB，着色 22s→<1s，时间格式切换 4.5min→<1s |
+| **TSMaster** | 可调显示刷新率（高/中/低/暂停）+ 批量缓冲 | 降低 CPU 占用，老式电脑可选低刷新率 |
+| **CANoe** | 环形缓冲区 + 后台线程解码 + 窗口化渲染 | 实时百万帧不卡顿 |
+
+### 二、优化方案（4 个阶段）
+
+#### Phase 1 — 延迟格式化 + 可见行缓存（核心，优先实施）
+
+**原理**：借鉴 Wireshark，`data()` 返回时不每次都格式化字符串，而是缓存已格式化的结果。缓存以行号为 key，格式化字符串数组为 value，仅缓存可见行区域（±50 行）。
+
+**实施要点**：
+1. 在 `CanTraceModel` 中增加 `QHash<int, RowCache>` 成员，`RowCache` 存储 10 列的格式化字符串
+2. `data(DisplayRole)` 先查缓存，命中则直接返回，未命中才调用 `CanUtils::formatXxx()` 并写入缓存
+3. 滚动时通过 `QTableView::scrollContentsBy()` 或 `QAbstractItemView` 信号感知可见行变化，淘汰不可见行的缓存
+4. 时间格式切换、行删除（ring buffer 滚动）、数据修改（覆盖模式刷新行）时使对应行缓存失效
+5. 着色规则求值结果同样缓存到 `RowCache`，避免每次 `BackgroundRole` 重新匹配
+
+**预期收益**：滚动和绘制性能提升 10-50 倍（从全量格式化降至仅可见行格式化）
+
+**新增文件**：
+- `src/models/rowcachetablemodel.h` — 带行缓存的 QAbstractTableModel 基类，可复用
+
+#### Phase 2 — 批量更新 + 可调刷新率（高频实时场景）
+
+**原理**：借鉴 TSMaster 显示刷新率机制，将逐帧追加改为批量缓冲 + 定时刷新。
+
+**实施要点**：
+1. `CanTraceModel` 增加 `m_pendingFrames` 缓冲队列和 `m_flushTimer`（默认 50ms 间隔）
+2. `appendFrame()` 不立即调用 `beginInsertRows`，而是追加到 `m_pendingFrames`
+3. 定时器触发时，如果有 pending 帧，执行一次 `beginInsertRows(first, last)` + `m_frames.append(batch)` + `endInsertRows()`
+4. FilterBar 设置按钮菜单增加"刷新率"子菜单：高(50ms) / 中(100ms) / 低(200ms) / 暂停(不刷新)
+5. 暂停刷新时数据仍写入 `m_pendingFrames`，恢复后一次性 flush
+6. 离线文件加载（`appendFrames`）不受刷新率限制，直接批量追加
+
+**预期收益**：5000 帧/s 实时捕获时 UI 帧数从 5000 降至 20（每 50ms 一次），CPU 占用降低 90%+
+
+**修改文件**：
+- `src/models/cantracemodel.h/cpp` — 增加 pending 队列和 flush 逻辑
+- `src/ui/filterbar.h/cpp` — 设置按钮菜单增加刷新率选项
+- `src/ui/traceview.h/cpp` — TraceTab 连接刷新率到 CanTraceModel
+
+#### Phase 3 — 增量过滤代理（替代 QSortFilterProxyModel）
+
+**原理**：Qt 的 `QSortFilterProxyModel` 在 `invalidateFilter()` 时重新评估全部行。自定义代理模型仅评估新增行，已有行的过滤结果通过 `QVector<int>` 映射表保留。
+
+**实施要点**：
+1. 新建 `CanTraceProxyModel`（替代 `CanFilterProxyModel`，不继承 `QSortFilterProxyModel`）
+2. 维护 `QVector<int> m_sourceToProxy` 和 `QVector<int> m_proxyToSource` 映射数组
+3. 新增行：只评估新行的过滤条件，append 到映射表尾部（O(1) 每行）
+4. 过滤条件变化：全量重新评估（但仍只做一次遍历，不依赖 `QSortFilterProxyModel` 的排序/过滤重算开销）
+5. 排序：维护独立的排序索引数组，不修改源模型行号
+6. `recomputeDisplayDeltas()` 改为增量计算：新增行只与上一个显示行比较，不全量重算
+
+**预期收益**：过滤状态下持续捕获，新增行过滤开销从 O(n) 降至 O(1)；SinceDisplay 模式切换从 O(n) 降至 O(1) 增量
+
+**新增文件**：
+- `src/models/cantraceproxymodel.h/cpp` — 自定义代理模型
+
+#### Phase 4 — 环形缓冲区存储（百万帧支持）
+
+**原理**：借鉴 CANoe 环形缓冲区，用固定大小数组 + 头尾指针替代 `QVector::removeFirst()`，避免全量内存移动。
+
+**实施要点**：
+1. `CanTraceModel` 内部存储从 `QVector<CanFrame>` 改为 `RingBuffer<CanFrame>`
+2. 环形缓冲区固定容量（默认 100 万帧，可配置），到满时头指针前进覆盖最旧帧
+3. `frameAt(row)` 通过 `(head + row) % capacity` 映射，O(1) 随机访问
+4. `beginRemoveRows`/`endRemoveRows` 不再需要（覆盖而非删除）
+5. 行号映射：`data(ColNo)` 返回 `seqCounter`（永不回退），与环形缓冲区物理位置解耦
+6. 行标记和着色 `m_markedRows`/`m_rowColors` 的 key 改用 `seqCounter` 而非行号，避免覆盖时错位
+
+**预期收益**：百万帧场景内存占用从 O(n·sizeof(QByteArray)) 降至 O(capacity·sizeof(CanFrame))；消除 `removeFirst()` 的 O(n) 内存移动
+
+**修改文件**：
+- `src/models/cantracemodel.h/cpp` — 存储改用环形缓冲区
+- 新增 `src/utils/ringbuffer.h` — 泛型环形缓冲区模板
+
+### 三、开源组件与技术参考
+
+| 组件/技术 | 来源 | 用途 |
+|-----------|------|------|
+| **Qt fetchMore/canFetchMore 模式** | [Qt 官方示例](https://doc.qt.io/qt-6/qtwidgets-itemviews-fetchmore-example.html) | 增量加载参考（主要应用于 Phase 1 缓存淘汰逻辑） |
+| **Wireshark 延迟格式化** | [Wireshark Wiki: OptimizePacketList](https://wiki.wireshark.org/Development/OptimizePacketList) | Phase 1 的设计灵感来源 — callback 按需生成列文本 |
+| **TSMaster 显示刷新率** | [TSMaster 文档](https://www.tosunai.com) | Phase 2 的设计灵感来源 — 可调刷新率降低 CPU |
+| **moodycamel::ConcurrentQueue** | 已集成（third_party/concurrentqueue） | Phase 2 中 pending 帧队列的线程安全实现 |
+| **spdlog** | 已集成 | 性能日志：记录 flush 耗时、缓存命中率等指标 |
+
+> **不引入新第三方依赖**。Phase 1-4 全部基于 Qt6 原生 API 和已有第三方库实现。
+
+### 四、实施顺序与优先级
+
+```
+Phase 1 (延迟格式化)  ████████████  ← 最高优先级，解决最核心的 data() 瓶颈
+Phase 2 (批量刷新)    ████████      ← 高优先级，解决实时捕获卡顿
+Phase 3 (增量过滤)    ██████        ← 中优先级，解决过滤状态下的性能
+Phase 4 (环形缓冲区)  ████          ← 低优先级，解决百万帧内存优化
+```
+
+### 五、性能目标
+
+| 场景 | 当前 | 目标 |
+|------|------|------|
+| 10万帧离线加载 | 数秒卡顿 | <1s |
+| 10万帧滚动浏览 | 明显卡顿 | 流畅 60fps |
+| 5000帧/s 实时捕获 | UI 冻结 | 流畅，CPU <20% |
+| 过滤条件切换（10万帧）| 数秒 | <500ms |
+| 时间格式切换（10万帧）| 数秒 | <100ms |
+| 百万帧加载 | 不支持 | <5s 加载，内存 <500MB |
+| 着色规则应用（10万帧）| 数秒 | <200ms |
+
+### 六、验证方法
+
+1. **基准测试脚本** — 生成 1万/10万/100万帧测试数据（BLF/ASC），使用 `python scripts/build.py run` 加载并计时
+2. **性能日志** — 通过 spdlog 记录 `data()` 调用次数、缓存命中率、flush 耗时
+3. **实际场景** — 连接 ZLG 设备 5000帧/s 实时捕获，观察 UI 流畅度和 CPU 占用
+4. **回归测试** — 确保 Delta 时间、覆盖模式、着色规则等已有功能不受影响
+
+### 七、实施说明
+
+- 不考虑向后兼容，直接替换现有实现
+- Phase 3 直接用 `CanTraceProxyModel` 替代 `CanFilterProxyModel`，删除旧文件
+- Phase 4 直接用 `RingBuffer` 替代 `QVector` 存储，行标记/着色 key 直接改用 seqCounter
+
 

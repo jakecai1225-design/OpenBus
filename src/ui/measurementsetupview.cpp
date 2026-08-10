@@ -1126,8 +1126,15 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
     else
         m_rightMenu->clear();
 
+    // 按值拷贝关键属性，避免 lambda 捕获裸指针在块被删除后成为悬空指针
+    const QString blockId = block->id;
+    const QString blockTitle = block->title;
+    const QString blockCategory = block->category;
+    const QString blockModule = block->moduleName;
+    const bool blockEnabled = block->enabled;
+
     // -- 标题动作（不可点）--
-    auto *titleAct = m_rightMenu->addAction(QString("【 %1 】").arg(block->title));
+    auto *titleAct = m_rightMenu->addAction(QString("【 %1 】").arg(blockTitle));
     titleAct->setEnabled(false);
     QFont titleFont = titleAct->font();
     titleFont.setBold(true);
@@ -1135,9 +1142,9 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
     m_rightMenu->addSeparator();
 
     // ---- 数据源块 ----
-    if (block->category == "source") {
+    if (blockCategory == "source") {
         // 切换数据源
-        if (block->id == "source_real") {
+        if (blockId == "source_real") {
             auto *actSwitch = m_rightMenu->addAction(QStringLiteral("切换到 File 文件回放"));
             actSwitch->setStatusTip(QStringLiteral("切换到文件回放模式"));
             connect(actSwitch, &QAction::triggered, this, [this]() {
@@ -1155,10 +1162,10 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
         m_rightMenu->addSeparator();
         auto *actCfg = m_rightMenu->addAction(
-            block->id == "source_real" ? QStringLiteral("设备参数配置...")
+            blockId == "source_real" ? QStringLiteral("设备参数配置...")
                                        : QStringLiteral("选择回放文件..."));
-        connect(actCfg, &QAction::triggered, this, [this, block]() {
-            if (block->id == "source_real")
+        connect(actCfg, &QAction::triggered, this, [this, blockId]() {
+            if (blockId == "source_real")
                 emit realBlockClicked();
             else
                 showFileConfigDialog();
@@ -1166,18 +1173,18 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
     }
 
     // ---- 通道块 ----
-    else if (block->category == "channel") {
+    else if (blockCategory == "channel") {
         auto *actFilter = m_rightMenu->addAction("配置过滤条件...");
         actFilter->setStatusTip("设置 CAN ID 范围、扩展帧、CAN FD 等过滤参数");
-        connect(actFilter, &QAction::triggered, this, [this, block]() {
-            showChannelFilterDialog(block->id);
+        connect(actFilter, &QAction::triggered, this, [this, blockId]() {
+            showChannelFilterDialog(blockId);
         });
 
         m_rightMenu->addSeparator();
 
-        auto *actToggle = m_rightMenu->addAction(block->enabled ? "⛔ 禁用通道" : "✅ 启用通道");
-        connect(actToggle, &QAction::triggered, this, [this, block]() {
-            toggleBlock(block->id);
+        auto *actToggle = m_rightMenu->addAction(blockEnabled ? "⛔ 禁用通道" : "✅ 启用通道");
+        connect(actToggle, &QAction::triggered, this, [this, blockId]() {
+            toggleBlock(blockId);
         });
 
         m_rightMenu->addSeparator();
@@ -1193,13 +1200,13 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
             if (it.value().category == "channel") channelCount++;
         }
         actDelCh->setEnabled(channelCount > 1);
-        connect(actDelCh, &QAction::triggered, this, [this, block]() {
-            removeChannelBlock(block->id);
+        connect(actDelCh, &QAction::triggered, this, [this, blockId]() {
+            removeChannelBlock(blockId);
         });
     }
 
     // ---- 数据库块 ----
-    else if (block->category == "database") {
+    else if (blockCategory == "database") {
         auto *actDbc = m_rightMenu->addAction("选择 DBC 文件...");
         actDbc->setStatusTip("在当前工程已加载的 DBC 文件中选择");
         connect(actDbc, &QAction::triggered, this, [this]() {
@@ -1227,28 +1234,28 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
     }
 
     // ---- 模块块 ----
-    else if (block->category == "module") {
+    else if (blockCategory == "module") {
         // 模块类型对应的添加实例动作
-        if (block->moduleName == "trace") {
+        if (blockModule == "trace") {
             // Trace 独立块: 跳转 + 删除（不提供添加，添加在空白区菜单）
             auto *actAdd = m_rightMenu->addAction("+ 添加 Trace 视图");
             actAdd->setStatusTip("新建一个 Trace 报文列表块");
             connect(actAdd, &QAction::triggered, this, [this]() {
                 emit moduleOpened("trace", "");
             });
-        } else if (block->moduleName == "graphic") {
+        } else if (blockModule == "graphic") {
             auto *actAdd = m_rightMenu->addAction("添加 Graphic 波形");
             actAdd->setStatusTip("新建一个 Graphic 波形图标签页");
             connect(actAdd, &QAction::triggered, this, [this]() {
                 emit moduleOpened("graphic", "");
             });
-        } else if (block->id == "data") {
+        } else if (blockId == "data") {
             auto *actCfg = m_rightMenu->addAction("配置统计参数...");
             actCfg->setStatusTip("配置总线负载率、报文频率等统计项");
             connect(actCfg, &QAction::triggered, this, []() {
                 // 占位：实际实现需要 Data 模块视图
             });
-        } else if (block->id == "record") {
+        } else if (blockId == "record") {
             auto *actCfg = m_rightMenu->addAction(" 配置录制参数...");
             actCfg->setStatusTip("设置录制文件路径和格式");
             connect(actCfg, &QAction::triggered, this, [this]() {
@@ -1261,32 +1268,32 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
         // Trace 块: 跳转到对应标签页; 其他模块: 跳转（新建）
         auto *actOpen = m_rightMenu->addAction("🔗 跳转到对应标签页");
         actOpen->setStatusTip("在中心区域打开/切换到该模块的标签页");
-        connect(actOpen, &QAction::triggered, this, [this, block]() {
-            if (block->moduleName == "trace" || block->moduleName == "graphic")
-                emit moduleOpened(block->moduleName, block->id);
+        connect(actOpen, &QAction::triggered, this, [this, blockModule, blockId]() {
+            if (blockModule == "trace" || blockModule == "graphic")
+                emit moduleOpened(blockModule, blockId);
             else
-                emit moduleOpened(block->id, "");
+                emit moduleOpened(blockId, "");
         });
 
         m_rightMenu->addSeparator();
 
-        auto *actToggle = m_rightMenu->addAction(block->enabled ? "⛔ 禁用模块" : "✅ 启用模块");
-        connect(actToggle, &QAction::triggered, this, [this, block]() {
-            toggleBlock(block->id);
+        auto *actToggle = m_rightMenu->addAction(blockEnabled ? "⛔ 禁用模块" : "✅ 启用模块");
+        connect(actToggle, &QAction::triggered, this, [this, blockId]() {
+            toggleBlock(blockId);
         });
 
         m_rightMenu->addSeparator();
 
         // Trace / Graphic 块: 删除实例; 其他模块: 删除块
         auto *actDelMod = m_rightMenu->addAction(
-            block->moduleName == "trace"   ? "删除此 Trace" :
-            block->moduleName == "graphic" ? "删除此 Graphic" :
+            blockModule == "trace"   ? "删除此 Trace" :
+            blockModule == "graphic" ? "删除此 Graphic" :
                                               "删除此模块块");
-        connect(actDelMod, &QAction::triggered, this, [this, block]() {
-            if (block->moduleName == "trace" || block->moduleName == "graphic")
-                emit moduleInstanceClosed(block->moduleName, block->id);
+        connect(actDelMod, &QAction::triggered, this, [this, blockModule, blockId]() {
+            if (blockModule == "trace" || blockModule == "graphic")
+                emit moduleInstanceClosed(blockModule, blockId);
             else
-                removeModuleBlock(block->id);
+                removeModuleBlock(blockId);
         });
     }
 }

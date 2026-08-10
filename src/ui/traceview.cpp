@@ -12,6 +12,7 @@
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QHeaderView>
+#include <QScrollBar>
 #include <QFontDatabase>
 #include <QMouseEvent>
 #include <QMessageBox>
@@ -33,8 +34,7 @@
 #include <QFileInfo>
 #include <QThread>
 #include <QShortcut>
-#include <QComboBox>
-#include <QFrame>
+#include <QActionGroup>
 #include <QTimer>
 #include <QKeySequence>
 #include "core/canfileio/canfileio.h"
@@ -880,47 +880,87 @@ TraceTab::TraceTab(QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    // 过滤栏（含 Start/Stop 按钮）
+    // 过滤栏（含覆盖模式、过滤输入、设置按钮、分组统计）
     m_filterBar = new FilterBar(this);
     layout->addWidget(m_filterBar);
 
-    // ---- Wireshark 风格工具条（时间戳模式 + 分组统计） ----
-    auto *toolBar = new QHBoxLayout;
-    toolBar->setContentsMargins(6, 1, 6, 1);
-    toolBar->setSpacing(6);
+    // ---- 设置菜单（时间格式等，挂载到 FilterBar 的设置按钮上） ----
+    auto *settingsMenu = new QMenu(m_filterBar->settingsButton());
+    m_timeFormatGroup = new QActionGroup(settingsMenu);
+    m_timeFormatGroup->setExclusive(true);
 
-    auto *tsLabel = new QLabel(QStringLiteral("时间格式:"), this);
-    tsLabel->setStyleSheet("font-size: 11px;");
-    m_tsModeCombo = new QComboBox(this);
-    m_tsModeCombo->addItem(QStringLiteral("绝对时间戳"), CanFilterProxyModel::Absolute);
-    m_tsModeCombo->addItem(QStringLiteral("自上一捕获分组"), CanFilterProxyModel::SinceCapture);
-    m_tsModeCombo->addItem(QStringLiteral("自上一显示分组"), CanFilterProxyModel::SinceDisplay);
-    m_tsModeCombo->setCurrentIndex(0);
-    m_tsModeCombo->setFixedHeight(22);
-    m_tsModeCombo->setStyleSheet("font-size: 11px;");
-    m_tsModeCombo->setToolTip(QStringLiteral(
-        "时间戳显示模式:\n"
+    auto *tsTitle = settingsMenu->addAction(QStringLiteral("时间格式"));
+    tsTitle->setEnabled(false);
+    settingsMenu->addSeparator();
+
+    auto *actAbs = settingsMenu->addAction(QStringLiteral("绝对时间戳"));
+    actAbs->setCheckable(true);
+    actAbs->setChecked(true);
+    actAbs->setData(CanFilterProxyModel::Absolute);
+    m_timeFormatGroup->addAction(actAbs);
+
+    auto *actSinceCap = settingsMenu->addAction(QStringLiteral("自上一捕获分组"));
+    actSinceCap->setCheckable(true);
+    actSinceCap->setData(CanFilterProxyModel::SinceCapture);
+    m_timeFormatGroup->addAction(actSinceCap);
+
+    auto *actSinceDisp = settingsMenu->addAction(QStringLiteral("自上一显示分组"));
+    actSinceDisp->setCheckable(true);
+    actSinceDisp->setData(CanFilterProxyModel::SinceDisplay);
+    m_timeFormatGroup->addAction(actSinceDisp);
+
+    settingsMenu->addSeparator();
+    settingsMenu->addAction(QStringLiteral("说明:\n"
         "  绝对时间戳 — 自捕获开始的相对时间\n"
         "  自上一捕获分组 — 与前一帧的时间差\n"
-        "  自上一显示分组 — 与前一可见帧的时间差 (Wireshark 风格)"));
-    toolBar->addWidget(tsLabel);
-    toolBar->addWidget(m_tsModeCombo);
+        "  自上一显示分组 — 与前一可见帧的时间差"))->setEnabled(false);
 
-    // 分隔线
-    auto *sep1 = new QFrame(this);
-    sep1->setFrameShape(QFrame::VLine);
-    sep1->setFrameShadow(QFrame::Sunken);
-    toolBar->addWidget(sep1);
+    // ---- Phase 2: 刷新率设置 ----
+    settingsMenu->addSeparator();
+    auto *rrTitle = settingsMenu->addAction(QStringLiteral("刷新率"));
+    rrTitle->setEnabled(false);
+    settingsMenu->addSeparator();
 
-    // 分组统计
-    m_packetCountLabel = new QLabel(this);
-    m_packetCountLabel->setStyleSheet("font-size: 11px; color: #666;");
-    m_packetCountLabel->setText(QStringLiteral("捕获: 0 | 显示: 0"));
-    toolBar->addWidget(m_packetCountLabel);
+    auto *rrGroup = new QActionGroup(settingsMenu);
+    rrGroup->setExclusive(true);
 
-    toolBar->addStretch(1);
+    auto *rrHigh = settingsMenu->addAction(QStringLiteral("高 (50ms)"));
+    rrHigh->setCheckable(true);
+    rrHigh->setChecked(true);
+    rrHigh->setData(50);
+    rrGroup->addAction(rrHigh);
 
-    layout->addLayout(toolBar);
+    auto *rrMed = settingsMenu->addAction(QStringLiteral("中 (100ms)"));
+    rrMed->setCheckable(true);
+    rrMed->setData(100);
+    rrGroup->addAction(rrMed);
+
+    auto *rrLow = settingsMenu->addAction(QStringLiteral("低 (200ms)"));
+    rrLow->setCheckable(true);
+    rrLow->setData(200);
+    rrGroup->addAction(rrLow);
+
+    auto *rrPause = settingsMenu->addAction(QStringLiteral("暂停刷新"));
+    rrPause->setCheckable(true);
+    rrPause->setData(0);
+    rrGroup->addAction(rrPause);
+
+    m_filterBar->settingsButton()->setMenu(settingsMenu);
+
+    connect(m_timeFormatGroup, &QActionGroup::triggered, this,
+            [this](QAction *act) {
+        int mode = act->data().toInt();
+        m_proxyModel->setTimestampMode(
+            static_cast<CanFilterProxyModel::TimestampMode>(mode));
+    });
+
+    // Phase 2: 刷新率切换 → CanTraceModel
+    connect(rrGroup, &QActionGroup::triggered, this,
+            [this](QAction *act) {
+        int interval = act->data().toInt();
+        m_traceModel->setRefreshRate(
+            static_cast<CanTraceModel::RefreshRate>(interval));
+    });
 
     // 垂直分割: TraceView (上) | 底部信息 (下)
     m_vSplitter = new QSplitter(Qt::Vertical, this);
@@ -957,9 +997,21 @@ TraceTab::TraceTab(QWidget *parent)
     connect(m_filterBar, &FilterBar::overwriteModeToggled,
             m_traceModel, &CanTraceModel::setOverwriteMode);
 
-    // 时间戳模式切换
-    connect(m_tsModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &TraceTab::onTimestampModeChanged);
+    // Phase 1: 可见行范围 → CanTraceModel 行缓存淘汰
+    connect(m_traceView->verticalScrollBar(), &QScrollBar::valueChanged,
+            this, [this]() {
+        auto *sb = m_traceView->verticalScrollBar();
+        int first = sb->value();
+        int pageHeight = m_traceView->viewport()->height() / 22; // 行高 22px
+        int last = first + pageHeight + 5;
+        m_traceModel->setVisibleRange(first, last);
+    });
+
+    // Phase 2: 帧提交后更新分组统计
+    connect(m_traceModel, &CanTraceModel::framesCommitted,
+            this, [this](int) {
+        m_packetCountDirty = true;
+    });
 
     // 分组计数防抖 — 高频帧到达时最多每 100ms 刷新一次
     m_packetCountTimer = new QTimer(this);
@@ -971,7 +1023,7 @@ TraceTab::TraceTab(QWidget *parent)
     // 过滤条件变化时立即更新（不防抖）
     connect(m_proxyModel, &CanFilterProxyModel::packetCountChanged,
             this, [this](int captured, int displayed) {
-        m_packetCountLabel->setText(
+        m_filterBar->setPacketCountText(
             QStringLiteral("捕获: %1 | 显示: %2").arg(captured).arg(displayed));
         m_packetCountDirty = false;
     });
@@ -1051,19 +1103,12 @@ void TraceTab::updatePacketCount()
     m_proxyModel->emitPacketCount();
 }
 
-void TraceTab::onTimestampModeChanged(int index)
-{
-    auto mode = static_cast<CanFilterProxyModel::TimestampMode>(
-        m_tsModeCombo->itemData(index).toInt());
-    m_proxyModel->setTimestampMode(mode);
-}
-
 void TraceTab::onPacketCountTimer()
 {
     if (!m_packetCountDirty)
         return;
     m_packetCountDirty = false;
-    m_packetCountLabel->setText(
+    m_filterBar->setPacketCountText(
         QStringLiteral("捕获: %1 | 显示: %2")
             .arg(m_proxyModel->capturedCount())
             .arg(m_proxyModel->displayedCount()));

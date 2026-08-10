@@ -95,7 +95,8 @@ private:
     TimestampMode m_timestampMode = Absolute;
 
     /// SinceDisplay 模式：源模型行号 → 与上一个显示帧的时间增量
-    QHash<int, double> m_displayDeltas;
+    /// mutable 允许 data() const 中懒计算并缓存
+    mutable QHash<int, double> m_displayDeltas;
 
     bool matchColumnFilter(int sourceRow, int column) const;
     /// 重新计算 SinceDisplay 模式下每个显示帧的增量

@@ -12,8 +12,8 @@ class CanFilterProxyModel;
 class FilterBar;
 class QSplitter;
 class QLabel;
+class QActionGroup;
 class DbcManager;
-class QComboBox;
 class QTimer;
 
 /**
@@ -212,7 +212,6 @@ protected:
 
 private slots:
     void onSelectionChanged();
-    void onTimestampModeChanged(int index);
     void onPacketCountTimer();
 
 private:
@@ -227,9 +226,8 @@ private:
     CanFilterProxyModel *m_proxyModel = nullptr;
     bool m_running = false;
 
-    // ---- Wireshark 风格工具条 ----
-    QComboBox *m_tsModeCombo = nullptr;   ///< 时间戳显示模式
-    QLabel *m_packetCountLabel = nullptr;  ///< 捕获/显示分组计数
+    // ---- 设置菜单 ----
+    QActionGroup *m_timeFormatGroup = nullptr;  ///< 时间格式互斥动作组
     QTimer *m_packetCountTimer = nullptr;  ///< 分组计数防抖定时器
     bool m_packetCountDirty = false;       ///< 分组计数待更新标记
 };

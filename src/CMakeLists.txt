@@ -91,6 +91,7 @@ set(SRC_MODELS
 set(SRC_UTILS
     utils/canutils.h
     utils/canutils.cpp
+    utils/ringbuffer.h
     utils/message_queue.h
     utils/logging.h
 )

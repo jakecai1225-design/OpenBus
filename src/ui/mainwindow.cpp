@@ -1,4 +1,5 @@
 ﻿#include "mainwindow.h"
+#include <QTimer>
 #include "core/canframe.h"
 #include "core/recorder.h"
 #include "core/player.h"
@@ -1745,8 +1746,11 @@ void MainWindow::onOpenMeasurementSetup()
                 view->addModuleInstance("trace", id, title);
                 connect(newTab, &QObject::destroyed, this, [this, id](QObject *) {
                     m_traceInstances.remove(id);
-                    if (m_setupView)
-                        m_setupView->removeModuleInstance("trace", id);
+                    // 延迟到下一轮事件循环，避免在析构链中同步修改场景导致崩溃
+                    QMetaObject::invokeMethod(this, [this, id]() {
+                        if (m_setupView)
+                            m_setupView->removeModuleInstance("trace", id);
+                    }, Qt::QueuedConnection);
                 });
             }
         } else if (moduleId == "graphic") {
@@ -1784,8 +1788,11 @@ void MainWindow::onOpenMeasurementSetup()
                 view->addModuleInstance("graphic", id, title);
                 connect(newGv, &QObject::destroyed, this, [this, id](QObject *) {
                     m_graphicInstances.remove(id);
-                    if (m_setupView)
-                        m_setupView->removeModuleInstance("graphic", id);
+                    // 延迟到下一轮事件循环，避免在析构链中同步修改场景导致崩溃
+                    QMetaObject::invokeMethod(this, [this, id]() {
+                        if (m_setupView)
+                            m_setupView->removeModuleInstance("graphic", id);
+                    }, Qt::QueuedConnection);
                 });
             }
         } else if (moduleId == "record") {
@@ -1796,35 +1803,40 @@ void MainWindow::onOpenMeasurementSetup()
     });
 
     // 关闭模块实例请求
+    // 使用 QTimer::singleShot(0) 延迟到下一轮事件循环，避免在右键菜单 exec() 的
+    // 本地事件循环中触发 deleteLater() → destroyed → removeModuleInstance → rebuildScene()
+    // 导致场景重建在 mousePressEvent 调用栈中执行而崩溃
     connect(view, &MeasurementSetupView::moduleInstanceClosed,
             this, [this](const QString &moduleId, const QString &instanceId) {
-        if (moduleId == "trace") {
-            auto *tab = m_traceInstances.value(instanceId);
-            if (tab) {
-                const auto allTabs = m_editorArea->allTabWidgets();
-                for (auto *tw : allTabs) {
-                    int idx = tw->indexOf(tab);
-                    if (idx >= 0) {
-                        tw->removeTab(idx);
-                        break;
+        QTimer::singleShot(0, this, [this, moduleId, instanceId]() {
+            if (moduleId == "trace") {
+                auto *tab = m_traceInstances.value(instanceId);
+                if (tab) {
+                    const auto allTabs = m_editorArea->allTabWidgets();
+                    for (auto *tw : allTabs) {
+                        int idx = tw->indexOf(tab);
+                        if (idx >= 0) {
+                            tw->removeTab(idx);
+                            break;
+                        }
                     }
+                    tab->deleteLater();  // destroyed 信号会自动清理 map 和通知 view
                 }
-                tab->deleteLater();  // destroyed 信号会自动清理 map 和通知 view
-            }
-        } else if (moduleId == "graphic") {
-            auto *gv = m_graphicInstances.value(instanceId);
-            if (gv) {
-                const auto allTabs = m_editorArea->allTabWidgets();
-                for (auto *tw : allTabs) {
-                    int idx = tw->indexOf(gv);
-                    if (idx >= 0) {
-                        tw->removeTab(idx);
-                        break;
+            } else if (moduleId == "graphic") {
+                auto *gv = m_graphicInstances.value(instanceId);
+                if (gv) {
+                    const auto allTabs = m_editorArea->allTabWidgets();
+                    for (auto *tw : allTabs) {
+                        int idx = tw->indexOf(gv);
+                        if (idx >= 0) {
+                            tw->removeTab(idx);
+                            break;
+                        }
                     }
+                    gv->deleteLater();
                 }
-                gv->deleteLater();
             }
-        }
+        });
     });
 
     // DBC 选择请求 → 打开 DBC 导入对话框
@@ -1878,8 +1890,10 @@ void MainWindow::onOpenMeasurementSetup()
             m_traceInstances["trace1"] = m_traceTab;
             connect(m_traceTab, &QObject::destroyed, this, [this](QObject *) {
                 m_traceInstances.remove("trace1");
-                if (m_setupView)
-                    m_setupView->removeModuleInstance("trace", "trace1");
+                QMetaObject::invokeMethod(this, [this]() {
+                    if (m_setupView)
+                        m_setupView->removeModuleInstance("trace", "trace1");
+                }, Qt::QueuedConnection);
             });
         }
         view->addModuleInstance("trace", "trace1", "Trace1");
@@ -1891,8 +1905,10 @@ void MainWindow::onOpenMeasurementSetup()
             m_graphicInstances["graphic1"] = m_graphicView;
             connect(m_graphicView, &QObject::destroyed, this, [this](QObject *) {
                 m_graphicInstances.remove("graphic1");
-                if (m_setupView)
-                    m_setupView->removeModuleInstance("graphic", "graphic1");
+                QMetaObject::invokeMethod(this, [this]() {
+                    if (m_setupView)
+                        m_setupView->removeModuleInstance("graphic", "graphic1");
+                }, Qt::QueuedConnection);
             });
         }
         view->addModuleInstance("graphic", "graphic1", "Graphic1");
