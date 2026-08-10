@@ -25,6 +25,7 @@
 #include <QStyle>
 #include <QInputDialog>
 #include <QMessageBox>
+#include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
 #include <QMouseEvent>
@@ -674,19 +675,25 @@ TracePanel::TracePanel(QWidget *parent)
     auto *cl = contentLayout();
 
     m_traceList = new QListWidget(this);
+    m_traceList->setContextMenuPolicy(Qt::CustomContextMenu);
     cl->addWidget(m_traceList, 1);
 
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(8, 6, 8, 6);
     btnBar->setSpacing(4);
     auto *newBtn = new QPushButton("+ 新建 Trace", this);
+    m_delBtn = new QPushButton("− 删除", this);
     btnBar->addWidget(newBtn);
+    btnBar->addWidget(m_delBtn);
     btnBar->addStretch();
     cl->addLayout(btnBar);
 
     connect(newBtn, &QPushButton::clicked, this, &TracePanel::onTraceClicked);
+    connect(m_delBtn, &QPushButton::clicked, this, &TracePanel::onDeleteTrace);
     connect(m_traceList, &QListWidget::currentRowChanged,
             this, &TracePanel::onPageSelected);
+    connect(m_traceList, &QWidget::customContextMenuRequested,
+            this, &TracePanel::onContextMenu);
 }
 
 void TracePanel::refreshList(const QStringList &names)
@@ -712,6 +719,30 @@ void TracePanel::onPageSelected(int row)
         emit tracePageSelected(row);
 }
 
+void TracePanel::onDeleteTrace()
+{
+    int row = m_traceList->currentRow();
+    if (row >= 0)
+        emit traceDeleteRequested(row);
+}
+
+void TracePanel::onContextMenu(const QPoint &pos)
+{
+    auto *item = m_traceList->itemAt(pos);
+    if (!item) return;
+    int row = m_traceList->row(item);
+
+    QMenu menu(this);
+    auto *actJump = menu.addAction(QStringLiteral("跳转到此标签页"));
+    auto *actDel = menu.addAction(QStringLiteral("删除此 Trace"));
+    QAction *chosen = menu.exec(m_traceList->viewport()->mapToGlobal(pos));
+    if (chosen == actJump) {
+        emit tracePageSelected(row);
+    } else if (chosen == actDel) {
+        emit traceDeleteRequested(row);
+    }
+}
+
 // ============================================================
 //  GraphicConfigPanel — Graphic 页面列表
 // ============================================================
@@ -722,19 +753,25 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
     auto *cl = contentLayout();
 
     m_pageList = new QListWidget(this);
+    m_pageList->setContextMenuPolicy(Qt::CustomContextMenu);
     cl->addWidget(m_pageList, 1);
 
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(8, 6, 8, 6);
     btnBar->setSpacing(4);
     auto *newBtn = new QPushButton("+ 新建 Graphic", this);
+    m_delBtn = new QPushButton("− 删除", this);
     btnBar->addWidget(newBtn);
+    btnBar->addWidget(m_delBtn);
     btnBar->addStretch();
     cl->addLayout(btnBar);
 
     connect(newBtn, &QPushButton::clicked, this, &GraphicConfigPanel::onNewGraphic);
+    connect(m_delBtn, &QPushButton::clicked, this, &GraphicConfigPanel::onDeleteGraphic);
     connect(m_pageList, &QListWidget::currentRowChanged,
             this, &GraphicConfigPanel::onPageSelected);
+    connect(m_pageList, &QWidget::customContextMenuRequested,
+            this, &GraphicConfigPanel::onContextMenu);
 }
 
 void GraphicConfigPanel::setGraphicView(GraphicView *view)
@@ -751,6 +788,30 @@ void GraphicConfigPanel::onPageSelected(int row)
 {
     if (row >= 0)
         emit graphicPageSelected(row);
+}
+
+void GraphicConfigPanel::onDeleteGraphic()
+{
+    int row = m_pageList->currentRow();
+    if (row >= 0)
+        emit graphicDeleteRequested(row);
+}
+
+void GraphicConfigPanel::onContextMenu(const QPoint &pos)
+{
+    auto *item = m_pageList->itemAt(pos);
+    if (!item) return;
+    int row = m_pageList->row(item);
+
+    QMenu menu(this);
+    auto *actJump = menu.addAction(QStringLiteral("跳转到此标签页"));
+    auto *actDel = menu.addAction(QStringLiteral("删除此 Graphic"));
+    QAction *chosen = menu.exec(m_pageList->viewport()->mapToGlobal(pos));
+    if (chosen == actJump) {
+        emit graphicPageSelected(row);
+    } else if (chosen == actDel) {
+        emit graphicDeleteRequested(row);
+    }
 }
 
 void GraphicConfigPanel::refreshList(const QStringList &names)

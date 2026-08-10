@@ -154,13 +154,18 @@ public:
 signals:
     void openTraceRequested();
     void tracePageSelected(int row);
+    /// 请求删除指定行对应的 Trace 实例
+    void traceDeleteRequested(int row);
 
 private slots:
     void onTraceClicked();
     void onPageSelected(int row);
+    void onDeleteTrace();
+    void onContextMenu(const QPoint &pos);
 
 private:
     QListWidget *m_traceList;
+    QPushButton *m_delBtn = nullptr;
 };
 
 // ============================================================
@@ -178,13 +183,18 @@ public:
 signals:
     void graphicPageSelected(int index);
     void newGraphicRequested();
+    /// 请求删除指定行对应的 Graphic 实例
+    void graphicDeleteRequested(int row);
 
 private slots:
     void onNewGraphic();
     void onPageSelected(int row);
+    void onDeleteGraphic();
+    void onContextMenu(const QPoint &pos);
 
 private:
     QListWidget *m_pageList;
+    QPushButton *m_delBtn = nullptr;
     GraphicView *m_graphicView = nullptr;
 };
 

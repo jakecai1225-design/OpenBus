@@ -64,6 +64,9 @@ public:
     /// 将独立窗口中的 widget 重新放回标签页
     void reattachTab(QWidget *widget, const QString &label);
 
+    /// 关闭指定标签页（外部调用入口：移除标签 + deleteLater + 清理空组 + 发 tabListChanged）
+    void closeTab(QTabWidget *tabs, int index);
+
 signals:
     void currentChanged(int index);
     void tabCloseRequested(int index);
@@ -89,7 +92,6 @@ private:
 
     // Pin / 关闭操作
     void togglePin(QTabWidget *tabs, int index);
-    void closeTab(QTabWidget *tabs, int index);
     void closeOthers(QTabWidget *tabs, int keepIndex);
     void closeRight(QTabWidget *tabs, int startIndex);
     void closeAll(QTabWidget *tabs);

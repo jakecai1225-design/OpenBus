@@ -9,17 +9,21 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QPushButton>
+#include <QCheckBox>
 #include <QMenu>
 #include <QAction>
 #include <QHeaderView>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
 #include <QUrl>
 #include <QFileInfo>
 #include <QThread>
+#include <QFileDialog>
+#include <QElapsedTimer>
 #include <cmath>
 #include <algorithm>
 #include <functional>
@@ -29,7 +33,7 @@
 #include "core/canfileio/canfileio_factory.h"
 
 // ============================================================
-//  辅助：QCustomPlot 子类 — 支持卡尺拖动
+//  辅助：QCustomPlot 子类 — 支持卡尺拖动 + 鼠标滚轮缩放
 // ============================================================
 
 class CursorPlot : public QCustomPlot
@@ -40,6 +44,8 @@ public:
     std::function<void(QMouseEvent*)> onMousePress;
     std::function<void(QMouseEvent*)> onMouseMove;
     std::function<void(QMouseEvent*)> onMouseRelease;
+    std::function<void(QWheelEvent*)> onWheel;
+    std::function<void(QContextMenuEvent*)> onContextMenu;
 
 protected:
     void mousePressEvent(QMouseEvent *event) override
@@ -60,6 +66,18 @@ protected:
         if (!event->isAccepted())
             QCustomPlot::mouseReleaseEvent(event);
     }
+    void wheelEvent(QWheelEvent *event) override
+    {
+        if (onWheel) onWheel(event);
+        if (!event->isAccepted())
+            QCustomPlot::wheelEvent(event);
+    }
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        if (onContextMenu) onContextMenu(event);
+        else
+            QCustomPlot::contextMenuEvent(event);
+    }
 };
 
 // ============================================================
@@ -71,6 +89,18 @@ GraphicView::GraphicView(QWidget *parent)
 {
     setupUi();
     setAcceptDrops(true);
+
+    // 性能节流：50ms 定时批量重绘
+    m_replotTimer.setInterval(REPLOT_INTERVAL_MS);
+    m_replotTimer.setSingleShot(true);
+    connect(&m_replotTimer, &QTimer::timeout, this, [this]() { onReplotTimeout(); });
+
+    // 信号列表值刷新：200ms
+    m_valueTimer.setInterval(VALUE_UPDATE_MS);
+    connect(&m_valueTimer, &QTimer::timeout, this, [this]() { updateSignalValues(); });
+    m_valueTimer.start();
+
+    ensureCurrentTimeLine();
 }
 
 QColor GraphicView::autoColor(int index)
@@ -102,37 +132,56 @@ void GraphicView::setupUi()
     auto *zoomInBtn = new QToolButton(m_toolbar);
     zoomInBtn->setText("🔍+");
     zoomInBtn->setToolTip("放大");
+    zoomInBtn->setMinimumWidth(36);
     auto *zoomOutBtn = new QToolButton(m_toolbar);
     zoomOutBtn->setText("🔍-");
     zoomOutBtn->setToolTip("缩小");
+    zoomOutBtn->setMinimumWidth(36);
     auto *fitBtn = new QToolButton(m_toolbar);
-    fitBtn->setText("📐");
+    fitBtn->setText("适应");
     fitBtn->setToolTip("适应窗口");
+    fitBtn->setMinimumWidth(40);
+
+    auto *exportBtn = new QToolButton(m_toolbar);
+    exportBtn->setText("导出");
+    exportBtn->setToolTip("导出为图片");
+    exportBtn->setMinimumWidth(40);
+
+    m_pointsToggle = new QCheckBox("采样点", m_toolbar);
+    m_pointsToggle->setToolTip("显示/隐藏采样点");
+    m_pointsToggle->setChecked(m_showPoints);
 
     m_cursorSingleBtn = new QToolButton(m_toolbar);
     m_cursorSingleBtn->setText("┊");
     m_cursorSingleBtn->setToolTip("单卡尺");
     m_cursorSingleBtn->setCheckable(true);
-    m_cursorSingleBtn->setMinimumWidth(28);
+    m_cursorSingleBtn->setMinimumWidth(36);
 
     m_cursorDoubleBtn = new QToolButton(m_toolbar);
     m_cursorDoubleBtn->setText("┊┊");
     m_cursorDoubleBtn->setToolTip("双卡尺");
     m_cursorDoubleBtn->setCheckable(true);
-    m_cursorDoubleBtn->setMinimumWidth(36);
+    m_cursorDoubleBtn->setMinimumWidth(44);
 
     m_cursorClearBtn = new QToolButton(m_toolbar);
     m_cursorClearBtn->setText("✕");
     m_cursorClearBtn->setToolTip("清除卡尺");
-    m_cursorClearBtn->setMinimumWidth(28);
+    m_cursorClearBtn->setMinimumWidth(36);
 
     m_toolbar->addWidget(zoomInBtn);
     m_toolbar->addWidget(zoomOutBtn);
     m_toolbar->addWidget(fitBtn);
     m_toolbar->addSeparator();
+    m_toolbar->addWidget(m_pointsToggle);
+    m_toolbar->addSeparator();
     m_toolbar->addWidget(m_cursorSingleBtn);
     m_toolbar->addWidget(m_cursorDoubleBtn);
     m_toolbar->addWidget(m_cursorClearBtn);
+    m_toolbar->addSeparator();
+    m_toolbar->addWidget(exportBtn);
+    auto *spacer = new QWidget(m_toolbar);
+    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    m_toolbar->addWidget(spacer);
     mainLayout->addWidget(m_toolbar);
 
     // ---- 分割器: 信号列表 | 波形区 ----
@@ -145,16 +194,14 @@ void GraphicView::setupUi()
     leftLayout->setSpacing(0);
 
     m_signalTree = new QTreeWidget(leftWidget);
-    m_signalTree->setColumnCount(5);
-    m_signalTree->setHeaderLabels({"信号", "原始值", "物理值", "单位", "ID"});
+    m_signalTree->setColumnCount(6);
+    m_signalTree->setHeaderLabels({"信号", "原始值", "物理值", "单位", "ID", "点数"});
     m_signalTree->setRootIsDecorated(false);
     m_signalTree->setAlternatingRowColors(true);
-    m_signalTree->setMinimumWidth(280);
+    m_signalTree->setMinimumWidth(300);
     m_signalTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    m_signalTree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    m_signalTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    m_signalTree->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-    m_signalTree->header()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    for (int c = 1; c < 6; ++c)
+        m_signalTree->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
     leftLayout->addWidget(m_signalTree, 1);
 
     auto *btnBar = new QHBoxLayout;
@@ -169,31 +216,32 @@ void GraphicView::setupUi()
     auto *cursorPlot = new CursorPlot(m_splitter);
     m_plot = cursorPlot;
     m_plot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom);
-    m_plot->setSelectionRectMode(QCP::srmZoom);
+    m_plot->setSelectionRectMode(QCP::srmNone);  // 默认拖拽模式, 非选区缩放
     m_plot->setAntialiasedElements(QCP::aeAll);
     // 清除默认 axisRect，后面按信号数量动态创建
-    // 使用 clear() 而非 while+takeAt：takeAt 只置空 cell 不缩小 grid，
-    // elementCount() 返回 rowCount*columnCount 仍 > 0，会导致死循环。
-    // clear() 会检查 elementAt(i) 非空才移除，并调用 simplify() 收缩 grid。
     m_plot->plotLayout()->clear();
+
+    // 深色画布背景（CANoe 风格）
+    m_plot->setBackground(QColor(0x1e, 0x1e, 0x1e));
 
     m_splitter->addWidget(leftWidget);
     m_splitter->addWidget(m_plot);
     m_splitter->setStretchFactor(0, 0);
     m_splitter->setStretchFactor(1, 1);
-    m_splitter->setSizes({300, 600});
+    m_splitter->setSizes({300, 700});
 
     // ---- 卡尺信息面板 ----
     m_cursorInfoLabel = new QLabel(this);
     m_cursorInfoLabel->setObjectName("CursorInfoLabel");
     m_cursorInfoLabel->setStyleSheet(
         "QLabel { padding: 4px 8px; background: #1e1e1e; color: #cccccc; "
-        "border-top: 1px solid #333; font-family: monospace; }");
+        "border-top: 1px solid #333; font-family: Consolas, monospace; font-size: 12px; }");
     m_cursorInfoLabel->setVisible(false);
     mainLayout->addWidget(m_cursorInfoLabel);
 
     mainLayout->addWidget(m_splitter, 1);
 
+    // ---- 信号添加/删除 ----
     connect(addBtn, &QPushButton::clicked, this, [this]() {
         SignalConfigDialog dlg(this);
         if (dlg.exec() == QDialog::Accepted) {
@@ -236,11 +284,21 @@ void GraphicView::setupUi()
         }
         m_plot->replot();
     });
-    connect(fitBtn, &QToolButton::clicked, this, [this]() {
-        refreshTimeAxis();
+    connect(fitBtn, &QToolButton::clicked, this, [this]() { fitAll(); });
+    connect(exportBtn, &QToolButton::clicked, this, [this]() { exportPlot(); });
+
+    // ---- 采样点开关 ----
+    connect(m_pointsToggle, &QCheckBox::toggled, this, [this](bool on) {
+        m_showPoints = on;
         for (auto &sd : m_signals) {
-            if (sd.graph)
-                sd.graph->rescaleValueAxis(true);
+            if (sd.graph) {
+                if (on) {
+                    sd.graph->setScatterStyle(
+                        QCPScatterStyle(QCPScatterStyle::ssCircle, sd.config.color, 3));
+                } else {
+                    sd.graph->setScatterStyle(QCPScatterStyle::ssNone);
+                }
+            }
         }
         m_plot->replot();
     });
@@ -276,9 +334,21 @@ void GraphicView::setupUi()
         int row = m_signalTree->indexOfTopLevelItem(item);
         QMenu menu(this);
         auto *rmAction = menu.addAction("删除信号");
+        auto *clrAction = menu.addAction("清空数据");
+        auto *fitAction = menu.addAction("Y 轴适应");
         auto *sel = menu.exec(m_signalTree->mapToGlobal(pos));
-        if (sel == rmAction)
+        if (sel == rmAction) {
             removeSignal(row);
+        } else if (sel == clrAction) {
+            if (row >= 0 && row < m_signals.size() && m_signals[row].graph)
+                m_signals[row].graph->data()->clear();
+            m_plot->replot();
+        } else if (sel == fitAction) {
+            if (row >= 0 && row < m_signals.size() && m_signals[row].graph) {
+                m_signals[row].graph->rescaleValueAxis(true);
+                m_plot->replot();
+            }
+        }
     });
 
     // ---- 信号列表 checkbox → show/hide ----
@@ -294,8 +364,82 @@ void GraphicView::setupUi()
         }
     });
 
+    // ---- 鼠标滚轮缩放 (同步所有 axisRect 的 X 轴) ----
+    cursorPlot->onWheel = [this](QWheelEvent *event) {
+        // 找到鼠标位置对应的 axisRect
+        QPoint pos = event->position().toPoint();
+        QCPAxisRect *targetAr = nullptr;
+        for (auto &sd : m_signals) {
+            if (sd.axisRect && sd.axisRect->visible() && sd.axisRect->rect().contains(pos)) {
+                targetAr = sd.axisRect;
+                break;
+            }
+        }
+        if (!targetAr) return;
+
+        double factor = (event->angleDelta().y() > 0) ? 0.8 : 1.25;
+        QCPAxis *xAxis = targetAr->axis(QCPAxis::atBottom);
+
+        // 以鼠标位置为中心缩放
+        double center = xAxis->pixelToCoord(pos.x());
+        double newRange = xAxis->range().size() * factor;
+        QCPRange newXR(center - newRange / 2, center + newRange / 2);
+
+        // 同步到所有 axisRect 的 X 轴
+        for (auto &sd : m_signals) {
+            if (sd.axisRect && sd.axisRect->visible()) {
+                auto *xa = sd.axisRect->axis(QCPAxis::atBottom);
+                QSignalBlocker blocker(xa);
+                xa->setRange(newXR);
+            }
+        }
+
+        // Y 轴也缩放（仅目标 axisRect）
+        QCPAxis *yAxis = targetAr->axis(QCPAxis::atLeft);
+        double yCenter = yAxis->pixelToCoord(pos.y());
+        double newYRange = yAxis->range().size() * factor;
+        yAxis->setRange(yCenter - newYRange / 2, yCenter + newYRange / 2);
+
+        m_plot->replot();
+        event->accept();
+    };
+
+    // ---- 右键菜单 (波形区) ----
+    cursorPlot->onContextMenu = [this](QContextMenuEvent *event) {
+        QMenu menu(this);
+        auto *fitAction = menu.addAction("适应窗口");
+        menu.addSeparator();
+        auto *togglePoints = menu.addAction(m_showPoints ? "隐藏采样点" : "显示采样点");
+        menu.addSeparator();
+        auto *singleCursorAction = menu.addAction("单卡尺");
+        singleCursorAction->setCheckable(true);
+        singleCursorAction->setChecked(m_cursorMode == CursorMode::Single);
+        auto *doubleCursorAction = menu.addAction("双卡尺");
+        doubleCursorAction->setCheckable(true);
+        doubleCursorAction->setChecked(m_cursorMode == CursorMode::Double);
+        auto *clearCursorAction = menu.addAction("清除卡尺");
+        menu.addSeparator();
+        auto *exportAction = menu.addAction("导出图片...");
+
+        auto *sel = menu.exec(event->globalPos());
+        if (sel == fitAction) {
+            fitAll();
+        } else if (sel == togglePoints) {
+            m_pointsToggle->setChecked(!m_showPoints);
+        } else if (sel == singleCursorAction) {
+            m_cursorSingleBtn->setChecked(true);
+            m_cursorSingleBtn->click();
+        } else if (sel == doubleCursorAction) {
+            m_cursorDoubleBtn->setChecked(true);
+            m_cursorDoubleBtn->click();
+        } else if (sel == clearCursorAction) {
+            m_cursorClearBtn->click();
+        } else if (sel == exportAction) {
+            exportPlot();
+        }
+    };
+
     // ---- 卡尺拖动 ----
-    // 辅助 lambda：获取第一个可见信号的 X 轴（不能用 m_plot->xAxis，默认 axisRect 已删除）
     auto getPrimaryXAxis = [this]() -> QCPAxis* {
         for (auto &sd : m_signals) {
             if (sd.axisRect && sd.axisRect->visible())
@@ -312,8 +456,7 @@ void GraphicView::setupUi()
         if (!xAxis) return;
 
         double x = xAxis->pixelToCoord(event->pos().x());
-        // 判断点击在哪个卡尺附近
-        double tolerance = (xAxis->range().size()) / 50.0;  // 2% 范围
+        double tolerance = (xAxis->range().size()) / 50.0;
 
         if (m_cursorMode == CursorMode::Double && m_cursor2) {
             if (std::abs(x - m_cursor2Time) < tolerance) {
@@ -327,13 +470,11 @@ void GraphicView::setupUi()
             event->accept();
             return;
         }
-        // 否则移动最近的卡尺（单卡尺模式）或 cursor1（双卡尺模式）
         if (m_cursorMode == CursorMode::Single) {
             moveCursor(1, x);
             m_draggingCursor = 1;
             event->accept();
         } else if (m_cursorMode == CursorMode::Double) {
-            // 移动较近的那个
             if (m_cursor2 && std::abs(x - m_cursor2Time) < std::abs(x - m_cursor1Time)) {
                 moveCursor(2, x);
                 m_draggingCursor = 2;
@@ -358,7 +499,58 @@ void GraphicView::setupUi()
         m_draggingCursor = 0;
         event->accept();
     };
+}
 
+// ============================================================
+//  样式配置
+// ============================================================
+
+void GraphicView::styleAxisRect(QCPAxisRect *ar, const QColor &color, const QString &name)
+{
+    // 网格
+    ar->axis(QCPAxis::atBottom)->grid()->setVisible(true);
+    ar->axis(QCPAxis::atBottom)->grid()->setPen(QPen(QColor(0x3a, 0x3a, 0x3a), 1, Qt::DotLine));
+    ar->axis(QCPAxis::atLeft)->grid()->setVisible(true);
+    ar->axis(QCPAxis::atLeft)->grid()->setPen(QPen(QColor(0x3a, 0x3a, 0x3a), 1, Qt::DotLine));
+
+    // 子网格
+    ar->axis(QCPAxis::atBottom)->grid()->setSubGridVisible(true);
+    ar->axis(QCPAxis::atBottom)->grid()->setSubGridPen(QPen(QColor(0x2a, 0x2a, 0x2a), 1, Qt::DotLine));
+    ar->axis(QCPAxis::atLeft)->grid()->setSubGridVisible(true);
+    ar->axis(QCPAxis::atLeft)->grid()->setSubGridPen(QPen(QColor(0x2a, 0x2a, 0x2a), 1, Qt::DotLine));
+
+    // X 轴样式
+    auto *xAxis = ar->axis(QCPAxis::atBottom);
+    xAxis->setBasePen(QPen(QColor(0x55, 0x55, 0x55), 1));
+    xAxis->setTickPen(QPen(QColor(0x55, 0x55, 0x55), 1));
+    xAxis->setSubTickPen(QPen(QColor(0x44, 0x44, 0x44), 1));
+    xAxis->setTickLabelColor(QColor(0xcc, 0xcc, 0xcc));
+    xAxis->setLabelColor(QColor(0xcc, 0xcc, 0xcc));
+    xAxis->setNumberFormat("f");
+    xAxis->setNumberPrecision(2);
+    xAxis->setRange(0, m_timeWindow);
+
+    // Y 轴样式
+    auto *yAxis = ar->axis(QCPAxis::atLeft);
+    yAxis->setBasePen(QPen(color, 1));
+    yAxis->setTickPen(QPen(color, 1));
+    yAxis->setSubTickPen(QPen(color.darker(150), 1));
+    yAxis->setTickLabelColor(color);
+    yAxis->setLabelColor(color);
+    yAxis->setLabel(name);
+
+    // 右侧 Y 轴（镜像刻度）
+    ar->axis(QCPAxis::atRight)->setVisible(true);
+    ar->axis(QCPAxis::atRight)->setTickLabels(false);
+    ar->axis(QCPAxis::atRight)->setBasePen(QPen(QColor(0x55, 0x55, 0x55), 1));
+
+    // 顶部 X 轴（镜像刻度）
+    ar->axis(QCPAxis::atTop)->setVisible(true);
+    ar->axis(QCPAxis::atTop)->setTickLabels(false);
+    ar->axis(QCPAxis::atTop)->setBasePen(QPen(QColor(0x55, 0x55, 0x55), 1));
+
+    // 边距
+    ar->setMargins(QMargins(60, 2, 60, 2));
 }
 
 // ============================================================
@@ -369,17 +561,13 @@ void GraphicView::layoutAxisRects()
 {
     auto *layout = m_plot->plotLayout();
 
-    // 用 takeAt 逐个取出元素（不删除），切勿用 clear() ——
-    // clear() 内部调用 removeAt → takeAt + delete，会删除所有元素，
-    // 导致 m_signals 中的 axisRect 指针悬空（use-after-free）。
     QList<QCPLayoutElement*> taken;
     for (int i = layout->elementCount() - 1; i >= 0; --i) {
         if (auto *el = layout->takeAt(i))
             taken.prepend(el);
     }
-    layout->simplify();  // 收缩空行空列
+    layout->simplify();
 
-    // 重新添加可见信号的 axisRect
     int visibleCount = 0;
     for (auto &sd : m_signals) {
         if (sd.axisRect && sd.axisRect->visible()) {
@@ -388,7 +576,6 @@ void GraphicView::layoutAxisRects()
         }
     }
 
-    // 删除未被重新添加的元素（即占位用的空 axisRect）
     for (auto *el : taken) {
         bool stillUsed = false;
         for (auto &sd : m_signals) {
@@ -401,7 +588,6 @@ void GraphicView::layoutAxisRects()
             delete el;
     }
 
-    // 如果没有信号，添加一个空的 axisRect 作为占位
     if (visibleCount == 0) {
         auto *ar = new QCPAxisRect(m_plot);
         layout->addElement(0, 0, ar);
@@ -419,19 +605,11 @@ void GraphicView::addSignal(const Signal &sig)
 
     // 创建独立的 axisRect
     sd.axisRect = new QCPAxisRect(m_plot);
-    sd.axisRect->setMargins(QMargins(50, 2, 50, 2));
 
-    // X 轴 (时间) — 仅最底部的显示刻度标签
-    QCPAxis *xAxis = sd.axisRect->axis(QCPAxis::atBottom);
-    xAxis->setNumberFormat("f");
-    xAxis->setNumberPrecision(1);
-    xAxis->setRange(0, m_timeWindow);
+    // 样式配置
+    styleAxisRect(sd.axisRect, sd.config.color, sig.name);
 
-    // Y 轴
     sd.yAxis = sd.axisRect->axis(QCPAxis::atLeft);
-    sd.yAxis->setLabel(sig.name);
-    sd.yAxis->setLabelColor(sd.config.color);
-    sd.yAxis->setTickLabelColor(sd.config.color);
 
     // 默认 Y 轴范围
     double yMin = sig.dbcSig.minimum;
@@ -444,7 +622,17 @@ void GraphicView::addSignal(const Signal &sig)
     sd.graph->setName(sig.name);
     sd.graph->setPen(QPen(sd.config.color, 1.5));
 
-    // X 轴联动：当任一 axisRect 的 X 轴范围变化时，同步所有
+    // 采样点样式
+    if (m_showPoints) {
+        sd.graph->setScatterStyle(
+            QCPScatterStyle(QCPScatterStyle::ssCircle, sd.config.color, 3));
+    }
+
+    // 线条样式：阶梯线（CANoe 风格：值保持到下一个采样点）
+    sd.graph->setLineStyle(QCPGraph::lsStepLeft);
+
+    // X 轴联动
+    QCPAxis *xAxis = sd.axisRect->axis(QCPAxis::atBottom);
     connect(xAxis, static_cast<void(QCPAxis::*)(const QCPRange&)>(&QCPAxis::rangeChanged),
         this, [this](const QCPRange &range) {
         for (auto &s : m_signals) {
@@ -474,7 +662,6 @@ void GraphicView::removeSignal(int index)
     auto &sd = m_signals[index];
     if (sd.graph)
         m_plot->removeGraph(sd.graph);
-    // axisRect 由 plotLayout 管理，removeElement 后会被删除
     if (sd.axisRect)
         m_plot->plotLayout()->remove(sd.axisRect);
 
@@ -490,7 +677,6 @@ void GraphicView::clearSignals()
         if (sd.graph)
             m_plot->removeGraph(sd.graph);
     }
-    // 用 takeAt 逐个取出并删除 axisRect（clear() 也能删除，但这里显式做更安全）
     auto *layout = m_plot->plotLayout();
     for (int i = layout->elementCount() - 1; i >= 0; --i) {
         if (auto *el = layout->takeAt(i))
@@ -518,7 +704,7 @@ void GraphicView::loadSignalConfigs(const QVector<Signal> &configs)
 }
 
 // ============================================================
-//  数据更新
+//  数据更新（性能优化：批量 replot）
 // ============================================================
 
 void GraphicView::clearData()
@@ -536,6 +722,7 @@ void GraphicView::onFrame(const CanFrame &frame)
 {
     m_currentTime = frame.timestamp;
 
+    bool hasData = false;
     for (auto &sd : m_signals) {
         if ((frame.id & 0x1FFFFFFF) == sd.config.canId &&
             frame.extended == sd.config.extended) {
@@ -543,31 +730,70 @@ void GraphicView::onFrame(const CanFrame &frame)
             if (!std::isnan(val)) {
                 sd.graph->addData(frame.timestamp, val);
 
-                // 裁剪旧数据
-                double cutoff = frame.timestamp - m_timeWindow;
+                // 裁剪旧数据（超过显示窗口 + 10% 缓冲）
+                double cutoff = frame.timestamp - m_timeWindow * 1.1;
                 sd.graph->data()->removeBefore(cutoff);
 
-                // 自动调整 Y 轴范围
-                if (sd.graph->data()->size() > 0) {
-                    double curMin = sd.yAxis->range().lower;
-                    double curMax = sd.yAxis->range().upper;
-                    bool needUpdate = false;
-                    if (val < curMin) { curMin = val; needUpdate = true; }
-                    if (val > curMax) { curMax = val; needUpdate = true; }
-                    if (needUpdate) {
-                        double range = curMax - curMin;
-                        if (range < 1) { curMin -= 1; curMax += 1; }
-                        sd.yAxis->setRange(curMin, curMax);
-                    }
+                // 数据量超过上限时降采样
+                if (sd.graph->data()->size() > MAX_DISPLAY_POINTS) {
+                    // 移除最早 10% 的数据点
+                    int removeCount = sd.graph->data()->size() - MAX_DISPLAY_POINTS;
+                    auto it = sd.graph->data()->constBegin();
+                    for (int i = 0; i < removeCount && it != sd.graph->data()->constEnd(); ++i)
+                        ++it;
+                    sd.graph->data()->removeBefore(it->key);
                 }
+
+                // 自动调整 Y 轴范围（仅在数据超出当前范围时扩展）
+                double curMin = sd.yAxis->range().lower;
+                double curMax = sd.yAxis->range().upper;
+                if (val < curMin) {
+                    double range = curMax - curMin;
+                    sd.yAxis->setRange(val, curMax + (curMin - val) * 0.1 + range * 0.05);
+                }
+                if (val > curMax) {
+                    double range = curMax - curMin;
+                    sd.yAxis->setRange(curMin - (val - curMax) * 0.1 - range * 0.05, val);
+                }
+
+                hasData = true;
             }
         }
     }
 
-    refreshTimeAxis();
+    if (hasData) {
+        // 刷新时间轴范围（不触发 replot，由定时器处理）
+        double tEnd = m_currentTime;
+        double tStart = std::max(0.0, tEnd - m_timeWindow);
+        QCPRange range(tStart, tEnd);
+        for (auto &sd : m_signals) {
+            if (sd.axisRect) {
+                auto *xa = sd.axisRect->axis(QCPAxis::atBottom);
+                QSignalBlocker blocker(xa);
+                xa->setRange(range);
+            }
+        }
+
+        // 更新当前时间指示线
+        if (m_currentTimeLine) {
+            m_currentTimeLine->point1->setCoords(m_currentTime, 0);
+            m_currentTimeLine->point2->setCoords(m_currentTime, 1);
+        }
+
+        // 标记需要重绘
+        m_replotPending = true;
+        // 启动定时器（如果未运行）
+        if (!m_replotTimer.isActive())
+            m_replotTimer.start();
+    }
+}
+
+void GraphicView::onReplotTimeout()
+{
+    if (!m_replotPending) return;
+    m_replotPending = false;
     m_plot->replot(QCustomPlot::rpQueuedReplot);
 
-    // 更新卡尺值
     if (m_cursorMode != CursorMode::None)
         updateCursorValues();
 }
@@ -619,7 +845,6 @@ void GraphicView::loadFile(const QString &path)
 {
     clearData();
 
-    // 后台加载文件
     auto *thread = QThread::create([this, path]() {
         QVector<CanFrame> frames;
         auto reader = CanFileIOFactory::createReader(path);
@@ -634,7 +859,6 @@ void GraphicView::loadFile(const QString &path)
 
         QMetaObject::invokeMethod(this, [this, frames, count]() {
             if (count > 0) {
-                // 批量添加数据点（不逐帧 replot）
                 for (const auto &frame : frames) {
                     m_currentTime = frame.timestamp;
                     for (auto &sd : m_signals) {
@@ -646,9 +870,8 @@ void GraphicView::loadFile(const QString &path)
                         }
                     }
                 }
-                // 最终一次 replot
                 refreshTimeAxis();
-                m_plot->replot();
+                fitAll();
             }
             emit fileLoaded(count);
         }, Qt::QueuedConnection);
@@ -701,6 +924,7 @@ void GraphicView::updateSignalList()
         item->setText(2, "—");
         item->setText(3, sd.config.dbcSig.unit);
         item->setText(4, QString("0x%1").arg(sd.config.canId, 0, 16).toUpper());
+        item->setText(5, "0");
         item->setCheckState(0, Qt::Checked);
         item->setData(0, Qt::UserRole, i);
         m_signalTree->addTopLevelItem(item);
@@ -708,10 +932,37 @@ void GraphicView::updateSignalList()
     m_signalTree->blockSignals(false);
 }
 
+void GraphicView::updateSignalValues()
+{
+    for (int i = 0; i < m_signals.size() && i < m_signalTree->topLevelItemCount(); ++i) {
+        auto *item = m_signalTree->topLevelItem(i);
+        auto &sd = m_signals[i];
+
+        if (!sd.graph || sd.graph->data()->isEmpty()) {
+            item->setText(1, "—");
+            item->setText(2, "—");
+            item->setText(5, "0");
+            continue;
+        }
+
+        // 获取最后一个数据点
+        auto it = std::prev(sd.graph->data()->constEnd());
+        double physVal = it->value;
+
+        // 原始值
+        double factor = sd.config.dbcSig.factor;
+        if (factor == 0) factor = 1.0;
+        quint64 rawVal = static_cast<quint64>((physVal - sd.config.dbcSig.offset) / factor + 0.5);
+
+        item->setText(1, QString::number(rawVal));
+        item->setText(2, QString::number(physVal, 'f', 3));
+        item->setText(5, QString::number(sd.graph->data()->size()));
+    }
+}
+
 void GraphicView::updateCursorValues()
 {
     if (m_cursorMode == CursorMode::None) {
-        // 清空值列
         for (int i = 0; i < m_signalTree->topLevelItemCount(); ++i) {
             auto *item = m_signalTree->topLevelItem(i);
             item->setText(1, "—");
@@ -724,10 +975,8 @@ void GraphicView::updateCursorValues()
         auto *item = m_signalTree->topLevelItem(i);
         auto &sd = m_signals[i];
 
-        // 卡尺 1 的值
         double physVal;
         if (sd.graph && valueAtTime(sd.graph, m_cursor1Time, physVal)) {
-            // 原始值 = (physVal - offset) / factor
             double factor = sd.config.dbcSig.factor;
             if (factor == 0) factor = 1.0;
             quint64 rawVal = static_cast<quint64>((physVal - sd.config.dbcSig.offset) / factor + 0.5);
@@ -738,7 +987,6 @@ void GraphicView::updateCursorValues()
             item->setText(2, "—");
         }
 
-        // 双卡尺模式：在物理值列显示 Δ 值
         if (m_cursorMode == CursorMode::Double && m_cursor2) {
             double physVal2;
             if (sd.graph && valueAtTime(sd.graph, m_cursor2Time, physVal2)) {
@@ -751,7 +999,6 @@ void GraphicView::updateCursorValues()
         }
     }
 
-    // ---- 卡尺信息面板 ----
     if (m_cursorMode == CursorMode::None || !m_cursorInfoLabel) {
         if (m_cursorInfoLabel) m_cursorInfoLabel->setVisible(false);
         return;
@@ -774,7 +1021,6 @@ void GraphicView::updateCursorValues()
         if (freq > 0)
             info += QString("  f ≈ %1 Hz").arg(freq, 0, 'f', 2);
 
-        // 添加每个信号的 ΔY
         for (int i = 0; i < m_signals.size(); ++i) {
             double v1, v2;
             if (m_signals[i].graph &&
@@ -810,6 +1056,16 @@ void GraphicView::ensureCursors()
     }
 }
 
+void GraphicView::ensureCurrentTimeLine()
+{
+    if (!m_currentTimeLine) {
+        m_currentTimeLine = new QCPItemStraightLine(m_plot);
+        m_currentTimeLine->setPen(QPen(QColor(0xFF, 0xFF, 0x00), 1, Qt::DotLine));
+        m_currentTimeLine->point1->setCoords(0, 0);
+        m_currentTimeLine->point2->setCoords(0, 1);
+    }
+}
+
 void GraphicView::setCursorMode(CursorMode mode)
 {
     m_cursorMode = mode;
@@ -825,7 +1081,6 @@ void GraphicView::setCursorMode(CursorMode mode)
 
     ensureCursors();
 
-    // 初始化卡尺位置
     double center = m_currentTime > 0 ? m_currentTime - m_timeWindow / 2 : 0;
     if (mode == CursorMode::Single) {
         m_cursor1->setVisible(true);
@@ -865,20 +1120,17 @@ bool GraphicView::valueAtTime(QCPGraph *graph, double time, double &outVal) cons
     if (!graph || graph->data()->size() == 0)
         return false;
 
-    // 找到 >= time 的第一个点
     auto it = graph->data()->findBegin(time);
     if (it == graph->data()->end())
         return false;
 
     if (it == graph->data()->begin()) {
-        // time 在数据范围之前
         if (it->key >= time) {
             outVal = it->value;
             return true;
         }
     }
 
-    // 线性插值
     if (it != graph->data()->begin()) {
         auto prev = std::prev(it);
         double t0 = prev->key;
@@ -896,4 +1148,33 @@ bool GraphicView::valueAtTime(QCPGraph *graph, double time, double &outVal) cons
 
     outVal = it->value;
     return true;
+}
+
+// ============================================================
+//  适应窗口 & 导出
+// ============================================================
+
+void GraphicView::fitAll()
+{
+    double tEnd = m_currentTime;
+    double tStart = std::max(0.0, tEnd - m_timeWindow);
+    QCPRange range(tStart, tEnd);
+    for (auto &sd : m_signals) {
+        if (sd.axisRect) {
+            auto *xa = sd.axisRect->axis(QCPAxis::atBottom);
+            QSignalBlocker blocker(xa);
+            xa->setRange(range);
+        }
+        if (sd.graph)
+            sd.graph->rescaleValueAxis(true);
+    }
+    m_plot->replot();
+}
+
+void GraphicView::exportPlot()
+{
+    QString path = QFileDialog::getSaveFileName(
+        this, "导出图表", "graphic.png", "PNG 图片 (*.png);;所有文件 (*.*)");
+    if (path.isEmpty()) return;
+    m_plot->savePng(path, 0, 0, 2.0, -1);
 }

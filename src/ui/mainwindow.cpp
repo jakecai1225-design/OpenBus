@@ -178,6 +178,23 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onOpenTraceTab);
     connect(m_sideBar->tracePanel(), &TracePanel::tracePageSelected,
             this, &MainWindow::onTracePageSelected);
+    connect(m_sideBar->tracePanel(), &TracePanel::traceDeleteRequested,
+            this, [this](int row) {
+        // 侧边栏删除 Trace → 找到对应标签页并关闭（触发完整清理链）
+        const auto allTabs = m_editorArea->allTabWidgets();
+        int traceIdx = 0;
+        for (auto *tw : allTabs) {
+            for (int i = 0; i < tw->count(); ++i) {
+                if (tw->tabText(i).contains("Trace")) {
+                    if (traceIdx == row) {
+                        m_editorArea->closeTab(tw, i);
+                        return;
+                    }
+                    traceIdx++;
+                }
+            }
+        }
+    });
     connect(m_sideBar->sendPanel(), &SendPanel::openSendRequested,
             this, &MainWindow::onOpenSendTab);
     connect(m_sideBar->sendPanel(), &SendPanel::openPlaybackRequested,
@@ -188,6 +205,23 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onNewGraphicRequested);
     connect(m_sideBar->graphicConfigPanel(), &GraphicConfigPanel::graphicPageSelected,
             this, &MainWindow::onGraphicPageSelected);
+    connect(m_sideBar->graphicConfigPanel(), &GraphicConfigPanel::graphicDeleteRequested,
+            this, [this](int row) {
+        // 侧边栏删除 Graphic → 找到对应标签页并关闭（触发完整清理链）
+        const auto allTabs = m_editorArea->allTabWidgets();
+        int graphicIdx = 0;
+        for (auto *tw : allTabs) {
+            for (int i = 0; i < tw->count(); ++i) {
+                if (tw->tabText(i).contains("Graphic")) {
+                    if (graphicIdx == row) {
+                        m_editorArea->closeTab(tw, i);
+                        return;
+                    }
+                    graphicIdx++;
+                }
+            }
+        }
+    });
     connect(m_sideBar->settingsPanel(), &SettingsPanel::settingsRequested,
             this, &MainWindow::onSettingsRequested);
     connect(m_sideBar->protocolPanel(), &ProtocolPanel::protocolOpened,
@@ -407,47 +441,39 @@ void MainWindow::createMenuBar()
     viewMenu->addSeparator();
     viewMenu->addAction("重置布局", this, &MainWindow::resetLayout);
 
-    // ---- 工具 ----
-    auto *toolsMenu = menuBar()->addMenu("工具(&T)");
-
+    // ---- 工具操作 (不创建菜单, QAction 挂到主窗口, 快捷键仍然生效) ----
     m_recordAction = new QAction("录制", this);
     m_recordAction->setCheckable(true);
     m_recordAction->setShortcut(QKeySequence("Ctrl+R"));
-    toolsMenu->addAction(m_recordAction);
+    addAction(m_recordAction);
     connect(m_recordAction, &QAction::triggered, this, &MainWindow::onRecord);
-
-    toolsMenu->addSeparator();
 
     m_playAction = new QAction("播放", this);
     m_playAction->setShortcut(QKeySequence(Qt::Key_Space));
-    toolsMenu->addAction(m_playAction);
+    addAction(m_playAction);
     connect(m_playAction, &QAction::triggered, this, &MainWindow::onPlay);
 
     m_pauseAction = new QAction("暂停", this);
-    toolsMenu->addAction(m_pauseAction);
+    addAction(m_pauseAction);
     connect(m_pauseAction, &QAction::triggered, this, &MainWindow::onPause);
 
     m_stopAction = new QAction("停止", this);
-    toolsMenu->addAction(m_stopAction);
+    addAction(m_stopAction);
     connect(m_stopAction, &QAction::triggered, this, &MainWindow::onStop);
 
-    toolsMenu->addSeparator();
-
     m_clearAction = new QAction("清空 Trace", this);
-    toolsMenu->addAction(m_clearAction);
+    addAction(m_clearAction);
     connect(m_clearAction, &QAction::triggered, this, &MainWindow::onClear);
 
     m_autoScrollAction = new QAction("自动滚动", this);
     m_autoScrollAction->setCheckable(true);
     m_autoScrollAction->setChecked(true);
-    toolsMenu->addAction(m_autoScrollAction);
+    addAction(m_autoScrollAction);
     connect(m_autoScrollAction, &QAction::toggled, this, &MainWindow::onAutoScrollToggled);
-
-    toolsMenu->addSeparator();
 
     m_simAction = new QAction("模拟器开关", this);
     m_simAction->setCheckable(true);
-    toolsMenu->addAction(m_simAction);
+    addAction(m_simAction);
     connect(m_simAction, &QAction::toggled, this, [this](bool on) {
         if (on) m_simulator->start();
         else    m_simulator->stop();
@@ -1816,11 +1842,10 @@ void MainWindow::onOpenMeasurementSetup()
                     for (auto *tw : allTabs) {
                         int idx = tw->indexOf(tab);
                         if (idx >= 0) {
-                            tw->removeTab(idx);
+                            m_editorArea->closeTab(tw, idx);  // 同步关闭标签页 + 刷新侧边栏
                             break;
                         }
                     }
-                    tab->deleteLater();  // destroyed 信号会自动清理 map 和通知 view
                 }
             } else if (moduleId == "graphic") {
                 auto *gv = m_graphicInstances.value(instanceId);
@@ -1829,11 +1854,10 @@ void MainWindow::onOpenMeasurementSetup()
                     for (auto *tw : allTabs) {
                         int idx = tw->indexOf(gv);
                         if (idx >= 0) {
-                            tw->removeTab(idx);
+                            m_editorArea->closeTab(tw, idx);
                             break;
                         }
                     }
-                    gv->deleteLater();
                 }
             }
         });
@@ -1884,12 +1908,16 @@ void MainWindow::onOpenMeasurementSetup()
         m_bottomPanel->appendOutput(QString("通道 %1 过滤条件已配置").arg(channelId));
     });
 
+    // 先打开 Flow 标签页，确保标签页顺序为 Flow → Trace1 → Graphic1
+    openTab(view, "Flow");
+
     // 注册默认 Trace 实例到 flow 画布
     if (m_traceTab) {
         if (!m_traceInstances.contains("trace1")) {
             m_traceInstances["trace1"] = m_traceTab;
             connect(m_traceTab, &QObject::destroyed, this, [this](QObject *) {
                 m_traceInstances.remove("trace1");
+                m_traceTab = nullptr;
                 QMetaObject::invokeMethod(this, [this]() {
                     if (m_setupView)
                         m_setupView->removeModuleInstance("trace", "trace1");
@@ -1897,6 +1925,28 @@ void MainWindow::onOpenMeasurementSetup()
             });
         }
         view->addModuleInstance("trace", "trace1", "Trace1");
+    } else if (!m_traceInstances.contains("trace1")) {
+        // 首次启动 — 创建默认 Trace1 标签页
+        auto *tab = new TraceTab(this);
+        setupTraceTab(tab);
+        if (m_filterPresets) {
+            auto *filterBar = tab->filterBar();
+            if (filterBar)
+                filterBar->setPresetManager(m_filterPresets);
+        }
+        openTab(tab, "Trace1");
+        m_traceCount = qMax(m_traceCount, 1);
+        m_traceTab = tab;
+        m_traceInstances["trace1"] = tab;
+        view->addModuleInstance("trace", "trace1", "Trace1");
+        connect(tab, &QObject::destroyed, this, [this](QObject *) {
+            m_traceInstances.remove("trace1");
+            m_traceTab = nullptr;
+            QMetaObject::invokeMethod(this, [this]() {
+                if (m_setupView)
+                    m_setupView->removeModuleInstance("trace", "trace1");
+            }, Qt::QueuedConnection);
+        });
     }
 
     // 注册默认 Graphic 实例到 flow 画布
@@ -1905,6 +1955,7 @@ void MainWindow::onOpenMeasurementSetup()
             m_graphicInstances["graphic1"] = m_graphicView;
             connect(m_graphicView, &QObject::destroyed, this, [this](QObject *) {
                 m_graphicInstances.remove("graphic1");
+                m_graphicView = nullptr;
                 QMetaObject::invokeMethod(this, [this]() {
                     if (m_setupView)
                         m_setupView->removeModuleInstance("graphic", "graphic1");
@@ -1912,9 +1963,24 @@ void MainWindow::onOpenMeasurementSetup()
             });
         }
         view->addModuleInstance("graphic", "graphic1", "Graphic1");
+    } else if (!m_graphicInstances.contains("graphic1")) {
+        // 首次启动 — 创建默认 Graphic1 标签页
+        auto *gv = new GraphicView(this);
+        openTab(gv, "Graphic1");
+        m_graphicCount = qMax(m_graphicCount, 1);
+        m_graphicView = gv;
+        m_graphicInstances["graphic1"] = gv;
+        view->addModuleInstance("graphic", "graphic1", "Graphic1");
+        m_sideBar->graphicConfigPanel()->setGraphicView(gv);
+        connect(gv, &QObject::destroyed, this, [this](QObject *) {
+            m_graphicInstances.remove("graphic1");
+            m_graphicView = nullptr;
+            QMetaObject::invokeMethod(this, [this]() {
+                if (m_setupView)
+                    m_setupView->removeModuleInstance("graphic", "graphic1");
+            }, Qt::QueuedConnection);
+        });
     }
-
-    openTab(view, "Flow");
 }
 
 void MainWindow::onToolOpened(const QString &toolKey)
