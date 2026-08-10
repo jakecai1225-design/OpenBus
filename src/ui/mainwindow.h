@@ -105,7 +105,7 @@ private slots:
     void onOpenRecordTab();
     void onNewGraphicRequested();
     void onOpenMeasurementSetup();
-    void onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName);
+    void onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName, int deviceType);
     void onToolOpened(const QString &toolKey);
     void onSettingsRequested(const QString &section);
     void onProtocolOpened(const QString &protocolName);

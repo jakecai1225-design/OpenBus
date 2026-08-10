@@ -24,6 +24,9 @@
 #include <QThread>
 #include <QFileDialog>
 #include <QElapsedTimer>
+#include <QComboBox>
+#include <QColorDialog>
+#include <QPixmap>
 #include <cmath>
 #include <algorithm>
 #include <functional>
@@ -81,6 +84,28 @@ protected:
 };
 
 // ============================================================
+//  时间轴 Ticker — mm:ss.ms 格式 (CANoe 风格)
+// ============================================================
+class TimeTicker : public QCPAxisTicker
+{
+public:
+    QString getTickLabel(double tick, const QLocale &locale, QChar formatChar, int precision) override
+    {
+        Q_UNUSED(locale); Q_UNUSED(formatChar); Q_UNUSED(precision);
+        if (tick < 0) return {};
+        int totalMs = static_cast<int>(tick * 1000 + 0.5);
+        int ms = totalMs % 1000;
+        int totalSec = totalMs / 1000;
+        int sec = totalSec % 60;
+        int min = totalSec / 60;
+        if (min > 0)
+            return QString("%1:%2.%3")
+                .arg(min).arg(sec, 2, 10, QChar('0')).arg(ms / 100);
+        return QString("%1.%2").arg(sec).arg(ms / 100, 1, 10, QChar('0'));
+    }
+};
+
+// ============================================================
 //  GraphicView 实现
 // ============================================================
 
@@ -128,49 +153,68 @@ void GraphicView::setupUi()
     m_toolbar = new QToolBar(this);
     m_toolbar->setMovable(false);
     m_toolbar->setIconSize(QSize(16, 16));
+    m_toolbar->setStyleSheet(
+        "QToolBar { background: #2d2d2d; border: none; border-bottom: 1px solid #3d3d3d; spacing: 2px; padding: 2px; }"
+        "QToolButton { background: transparent; border: 1px solid transparent; border-radius: 3px; "
+        "padding: 3px 8px; color: #cccccc; font-size: 12px; min-width: 28px; }"
+        "QToolButton:hover { background: #3d3d3d; border-color: #555; }"
+        "QToolButton:checked { background: #0c5d8f; border-color: #1a8dcc; color: #fff; }"
+        "QCheckBox { color: #cccccc; font-size: 12px; padding: 2px 6px; }"
+        "QCheckBox::indicator { width: 14px; height: 14px; }"
+        "QComboBox { background: #3d3d3d; border: 1px solid #555; border-radius: 3px; "
+        "padding: 2px 6px; color: #cccccc; font-size: 12px; min-width: 60px; }"
+        "QComboBox:hover { border-color: #777; }"
+        "QComboBox QAbstractItemView { background: #2d2d2d; border: 1px solid #555; "
+        "selection-background-color: #0c5d8f; color: #cccccc; }"
+    );
 
-    auto *zoomInBtn = new QToolButton(m_toolbar);
-    zoomInBtn->setText("🔍+");
-    zoomInBtn->setToolTip("放大");
-    zoomInBtn->setMinimumWidth(36);
-    auto *zoomOutBtn = new QToolButton(m_toolbar);
-    zoomOutBtn->setText("🔍-");
-    zoomOutBtn->setToolTip("缩小");
-    zoomOutBtn->setMinimumWidth(36);
-    auto *fitBtn = new QToolButton(m_toolbar);
-    fitBtn->setText("适应");
-    fitBtn->setToolTip("适应窗口");
-    fitBtn->setMinimumWidth(40);
+    auto makeBtn = [this](const QString &text, const QString &tip) -> QToolButton* {
+        auto *btn = new QToolButton(m_toolbar);
+        btn->setText(text);
+        btn->setToolTip(tip);
+        btn->setAutoRaise(true);
+        return btn;
+    };
 
-    auto *exportBtn = new QToolButton(m_toolbar);
-    exportBtn->setText("导出");
-    exportBtn->setToolTip("导出为图片");
-    exportBtn->setMinimumWidth(40);
+    // 暂停/继续
+    m_pauseBtn = makeBtn("⏸", "暂停/继续采集");
+    m_pauseBtn->setCheckable(true);
+
+    auto *zoomInBtn = makeBtn("＋", "放大");
+    auto *zoomOutBtn = makeBtn("－", "缩小");
+    auto *fitBtn = makeBtn("⤢", "适应窗口");
+    auto *clearDataBtn = makeBtn("⟲", "清空数据");
+    auto *exportBtn = makeBtn("📷", "导出为图片");
+
+    // 时间窗口选择
+    m_timeWindowCombo = new QComboBox(m_toolbar);
+    m_timeWindowCombo->setToolTip("时间窗口");
+    for (int sec : {1, 2, 5, 10, 30, 60, 120, 300, 600})
+        m_timeWindowCombo->addItem(QString("%1s").arg(sec), sec);
+    m_timeWindowCombo->setCurrentIndex(4); // 默认 30s
 
     m_pointsToggle = new QCheckBox("采样点", m_toolbar);
     m_pointsToggle->setToolTip("显示/隐藏采样点");
     m_pointsToggle->setChecked(m_showPoints);
 
-    m_cursorSingleBtn = new QToolButton(m_toolbar);
-    m_cursorSingleBtn->setText("┊");
-    m_cursorSingleBtn->setToolTip("单卡尺");
+    m_cursorSingleBtn = makeBtn("┊", "单卡尺");
     m_cursorSingleBtn->setCheckable(true);
-    m_cursorSingleBtn->setMinimumWidth(36);
-
-    m_cursorDoubleBtn = new QToolButton(m_toolbar);
-    m_cursorDoubleBtn->setText("┊┊");
-    m_cursorDoubleBtn->setToolTip("双卡尺");
+    m_cursorDoubleBtn = makeBtn("┊┊", "双卡尺");
     m_cursorDoubleBtn->setCheckable(true);
-    m_cursorDoubleBtn->setMinimumWidth(44);
+    m_cursorClearBtn = makeBtn("✕", "清除卡尺");
 
-    m_cursorClearBtn = new QToolButton(m_toolbar);
-    m_cursorClearBtn->setText("✕");
-    m_cursorClearBtn->setToolTip("清除卡尺");
-    m_cursorClearBtn->setMinimumWidth(36);
-
+    m_toolbar->addWidget(m_pauseBtn);
+    m_toolbar->addSeparator();
     m_toolbar->addWidget(zoomInBtn);
     m_toolbar->addWidget(zoomOutBtn);
     m_toolbar->addWidget(fitBtn);
+    m_toolbar->addWidget(clearDataBtn);
+    m_toolbar->addSeparator();
+    // 时间窗口标签 + 下拉框
+    auto *twLabel = new QLabel("窗口:", m_toolbar);
+    twLabel->setStyleSheet("color: #aaa; font-size: 12px; padding-left: 4px;");
+    m_toolbar->addWidget(twLabel);
+    m_toolbar->addWidget(m_timeWindowCombo);
     m_toolbar->addSeparator();
     m_toolbar->addWidget(m_pointsToggle);
     m_toolbar->addSeparator();
@@ -194,20 +238,34 @@ void GraphicView::setupUi()
     leftLayout->setSpacing(0);
 
     m_signalTree = new QTreeWidget(leftWidget);
-    m_signalTree->setColumnCount(6);
-    m_signalTree->setHeaderLabels({"信号", "原始值", "物理值", "单位", "ID", "点数"});
+    m_signalTree->setColumnCount(8);
+    m_signalTree->setHeaderLabels({"信号", "原始值", "物理值", "单位", "Min", "Max", "ID", "点数"});
     m_signalTree->setRootIsDecorated(false);
     m_signalTree->setAlternatingRowColors(true);
-    m_signalTree->setMinimumWidth(300);
+    m_signalTree->setMinimumWidth(320);
+    m_signalTree->setStyleSheet(
+        "QTreeWidget { background: #1e1e1e; color: #ccc; border: none; font-size: 12px; }"
+        "QTreeWidget::item { padding: 2px 4px; }"
+        "QTreeWidget::item:selected { background: #0c5d8f; color: #fff; }"
+        "QHeaderView::section { background: #2d2d2d; color: #aaa; border: none; "
+        "border-bottom: 1px solid #3d3d3d; padding: 3px 4px; font-size: 11px; }"
+    );
     m_signalTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    for (int c = 1; c < 6; ++c)
+    for (int c = 1; c < 8; ++c)
         m_signalTree->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
     leftLayout->addWidget(m_signalTree, 1);
 
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(4, 4, 4, 4);
+    btnBar->setSpacing(4);
     auto *addBtn = new QPushButton("+ 添加信号", leftWidget);
+    addBtn->setStyleSheet("QPushButton { background: #2d5a2d; color: #ccc; border: 1px solid #3d7a3d; "
+                          "border-radius: 3px; padding: 4px 8px; font-size: 12px; }"
+                          "QPushButton:hover { background: #3d7a3d; }");
     auto *removeBtn = new QPushButton("- 删除信号", leftWidget);
+    removeBtn->setStyleSheet("QPushButton { background: #5a2d2d; color: #ccc; border: 1px solid #7a3d3d; "
+                              "border-radius: 3px; padding: 4px 8px; font-size: 12px; }"
+                              "QPushButton:hover { background: #7a3d3d; }");
     btnBar->addWidget(addBtn);
     btnBar->addWidget(removeBtn);
     leftLayout->addLayout(btnBar);
@@ -230,16 +288,24 @@ void GraphicView::setupUi()
     m_splitter->setStretchFactor(1, 1);
     m_splitter->setSizes({300, 700});
 
-    // ---- 卡尺信息面板 ----
+    // ---- 卡尺信息面板（底部，可隐藏） ----
     m_cursorInfoLabel = new QLabel(this);
     m_cursorInfoLabel->setObjectName("CursorInfoLabel");
     m_cursorInfoLabel->setStyleSheet(
         "QLabel { padding: 4px 8px; background: #1e1e1e; color: #cccccc; "
         "border-top: 1px solid #333; font-family: Consolas, monospace; font-size: 12px; }");
     m_cursorInfoLabel->setVisible(false);
-    mainLayout->addWidget(m_cursorInfoLabel);
+
+    // ---- 底部状态栏 ----
+    m_statusLabel = new QLabel(this);
+    m_statusLabel->setStyleSheet(
+        "QLabel { padding: 3px 8px; background: #252525; color: #999; "
+        "border-top: 1px solid #333; font-family: Consolas, monospace; font-size: 11px; }");
+    m_statusLabel->setText("就绪 — 请添加信号或拖入文件");
 
     mainLayout->addWidget(m_splitter, 1);
+    mainLayout->addWidget(m_cursorInfoLabel);
+    mainLayout->addWidget(m_statusLabel);
 
     // ---- 信号添加/删除 ----
     connect(addBtn, &QPushButton::clicked, this, [this]() {
@@ -285,7 +351,27 @@ void GraphicView::setupUi()
         m_plot->replot();
     });
     connect(fitBtn, &QToolButton::clicked, this, [this]() { fitAll(); });
+    connect(clearDataBtn, &QToolButton::clicked, this, [this]() { clearData(); });
     connect(exportBtn, &QToolButton::clicked, this, [this]() { exportPlot(); });
+
+    // ---- 暂停/继续 ----
+    connect(m_pauseBtn, &QToolButton::toggled, this, [this](bool checked) {
+        m_paused = checked;
+        m_pauseBtn->setText(checked ? "▶" : "⏸");
+        m_pauseBtn->setToolTip(checked ? "继续采集" : "暂停采集");
+        updateStatusBar();
+    });
+
+    // ---- 时间窗口 ----
+    connect(m_timeWindowCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int idx) {
+        int sec = m_timeWindowCombo->itemData(idx).toInt();
+        if (sec > 0) {
+            m_timeWindow = sec;
+            refreshTimeAxis();
+            updateStatusBar();
+        }
+    });
 
     // ---- 采样点开关 ----
     connect(m_pointsToggle, &QCheckBox::toggled, this, [this](bool on) {
@@ -333,9 +419,17 @@ void GraphicView::setupUi()
         if (!item) return;
         int row = m_signalTree->indexOfTopLevelItem(item);
         QMenu menu(this);
-        auto *rmAction = menu.addAction("删除信号");
-        auto *clrAction = menu.addAction("清空数据");
+        menu.setStyleSheet(
+            "QMenu { background: #2d2d2d; color: #ccc; border: 1px solid #555; padding: 4px; }"
+            "QMenu::item { padding: 4px 20px; }"
+            "QMenu::item:selected { background: #0c5d8f; }"
+            "QMenu::separator { height: 1px; background: #444; margin: 4px 8px; }");
+        auto *colorAction = menu.addAction("更改颜色...");
+        menu.addSeparator();
         auto *fitAction = menu.addAction("Y 轴适应");
+        auto *clrAction = menu.addAction("清空数据");
+        menu.addSeparator();
+        auto *rmAction = menu.addAction("删除信号");
         auto *sel = menu.exec(m_signalTree->mapToGlobal(pos));
         if (sel == rmAction) {
             removeSignal(row);
@@ -347,6 +441,27 @@ void GraphicView::setupUi()
             if (row >= 0 && row < m_signals.size() && m_signals[row].graph) {
                 m_signals[row].graph->rescaleValueAxis(true);
                 m_plot->replot();
+            }
+        } else if (sel == colorAction) {
+            if (row >= 0 && row < m_signals.size()) {
+                QColor newColor = QColorDialog::getColor(
+                    m_signals[row].config.color, this, "选择信号颜色");
+                if (newColor.isValid()) {
+                    m_signals[row].config.color = newColor;
+                    if (m_signals[row].graph)
+                        m_signals[row].graph->setPen(QPen(newColor, 1.5));
+                    if (m_signals[row].yAxis) {
+                        m_signals[row].yAxis->setBasePen(QPen(newColor, 1));
+                        m_signals[row].yAxis->setTickPen(QPen(newColor, 1));
+                        m_signals[row].yAxis->setSubTickPen(QPen(newColor.darker(150), 1));
+                        m_signals[row].yAxis->setTickLabelColor(newColor);
+                        m_signals[row].yAxis->setLabelColor(newColor);
+                    }
+                    if (m_signals[row].nameLabel)
+                        m_signals[row].nameLabel->setColor(newColor);
+                    updateSignalList();
+                    m_plot->replot();
+                }
             }
         }
     });
@@ -519,15 +634,20 @@ void GraphicView::styleAxisRect(QCPAxisRect *ar, const QColor &color, const QStr
     ar->axis(QCPAxis::atLeft)->grid()->setSubGridVisible(true);
     ar->axis(QCPAxis::atLeft)->grid()->setSubGridPen(QPen(QColor(0x2a, 0x2a, 0x2a), 1, Qt::DotLine));
 
-    // X 轴样式
+    // 信号色微染背景 (CANoe 风格：每行有淡淡的信号色调)
+    ar->setBackground(QBrush(QColor(
+        color.red() * 0.08 + 0x1e * 0.92,
+        color.green() * 0.08 + 0x1e * 0.92,
+        color.blue() * 0.08 + 0x1e * 0.92)));
+
+    // X 轴样式 — 使用 TimeTicker (mm:ss.ms 格式)
     auto *xAxis = ar->axis(QCPAxis::atBottom);
     xAxis->setBasePen(QPen(QColor(0x55, 0x55, 0x55), 1));
     xAxis->setTickPen(QPen(QColor(0x55, 0x55, 0x55), 1));
     xAxis->setSubTickPen(QPen(QColor(0x44, 0x44, 0x44), 1));
     xAxis->setTickLabelColor(QColor(0xcc, 0xcc, 0xcc));
     xAxis->setLabelColor(QColor(0xcc, 0xcc, 0xcc));
-    xAxis->setNumberFormat("f");
-    xAxis->setNumberPrecision(2);
+    xAxis->setTicker(QSharedPointer<TimeTicker>::create());
     xAxis->setRange(0, m_timeWindow);
 
     // Y 轴样式
@@ -537,6 +657,7 @@ void GraphicView::styleAxisRect(QCPAxisRect *ar, const QColor &color, const QStr
     yAxis->setSubTickPen(QPen(color.darker(150), 1));
     yAxis->setTickLabelColor(color);
     yAxis->setLabelColor(color);
+    // 标签：信号名 + 单位 (如果 DBC 中有定义)
     yAxis->setLabel(name);
 
     // 右侧 Y 轴（镜像刻度）
@@ -549,8 +670,12 @@ void GraphicView::styleAxisRect(QCPAxisRect *ar, const QColor &color, const QStr
     ar->axis(QCPAxis::atTop)->setTickLabels(false);
     ar->axis(QCPAxis::atTop)->setBasePen(QPen(QColor(0x55, 0x55, 0x55), 1));
 
-    // 边距
-    ar->setMargins(QMargins(60, 2, 60, 2));
+    // 行间分隔线 (顶部边框)
+    ar->axis(QCPAxis::atTop)->setTickPen(QPen(QColor(0x3a, 0x3a, 0x3a), 1));
+    ar->axis(QCPAxis::atBottom)->setTickPen(QPen(QColor(0x3a, 0x3a, 0x3a), 1));
+
+    // 边距 (行间距: 顶部 4px, 底部 4px — CANoe 风格行分离)
+    ar->setMargins(QMargins(60, 4, 60, 4));
 }
 
 // ============================================================
@@ -631,6 +756,23 @@ void GraphicView::addSignal(const Signal &sig)
     // 线条样式：阶梯线（CANoe 风格：值保持到下一个采样点）
     sd.graph->setLineStyle(QCPGraph::lsStepLeft);
 
+    // 信号名叠加文本（CANoe 风格：左上角显示信号名+单位）
+    sd.nameLabel = new QCPItemText(m_plot);
+    sd.nameLabel->position->setType(QCPItemPosition::ptAxisRectRatio);
+    sd.nameLabel->position->setAxisRect(sd.axisRect);
+    sd.nameLabel->position->setCoords(0.01, 0.02);
+    sd.nameLabel->setPositionAlignment(Qt::AlignLeft | Qt::AlignTop);
+    QString labelText = sig.name;
+    if (!sig.dbcSig.unit.isEmpty())
+        labelText += " [" + sig.dbcSig.unit + "]";
+    sd.nameLabel->setText(labelText);
+    sd.nameLabel->setColor(sd.config.color);
+    sd.nameLabel->setBrush(QBrush(QColor(0, 0, 0, 160)));
+    sd.nameLabel->setPadding(QMargins(4, 2, 4, 2));
+    QFont labelFont("Consolas", 8);
+    labelFont.setBold(true);
+    sd.nameLabel->setFont(labelFont);
+
     // X 轴联动
     QCPAxis *xAxis = sd.axisRect->axis(QCPAxis::atBottom);
     connect(xAxis, static_cast<void(QCPAxis::*)(const QCPRange&)>(&QCPAxis::rangeChanged),
@@ -660,6 +802,8 @@ void GraphicView::removeSignal(int index)
         return;
 
     auto &sd = m_signals[index];
+    if (sd.nameLabel)
+        m_plot->removeItem(sd.nameLabel);
     if (sd.graph)
         m_plot->removeGraph(sd.graph);
     if (sd.axisRect)
@@ -712,14 +856,24 @@ void GraphicView::clearData()
     for (auto &sd : m_signals) {
         if (sd.graph)
             sd.graph->data()->clear();
+        sd.hasMinMax = false;
+        sd.dataMin = 0.0;
+        sd.dataMax = 0.0;
     }
     m_currentTime = 0.0;
     refreshTimeAxis();
     m_plot->replot();
+    updateStatusBar();
 }
 
 void GraphicView::onFrame(const CanFrame &frame)
 {
+    // 暂停时仅更新当前时间，不添加数据
+    if (m_paused) {
+        m_currentTime = frame.timestamp;
+        return;
+    }
+
     m_currentTime = frame.timestamp;
 
     bool hasData = false;
@@ -729,6 +883,16 @@ void GraphicView::onFrame(const CanFrame &frame)
             double val = extractValue(frame, sd.config);
             if (!std::isnan(val)) {
                 sd.graph->addData(frame.timestamp, val);
+
+                // 跟踪 min/max
+                if (!sd.hasMinMax) {
+                    sd.dataMin = val;
+                    sd.dataMax = val;
+                    sd.hasMinMax = true;
+                } else {
+                    if (val < sd.dataMin) sd.dataMin = val;
+                    if (val > sd.dataMax) sd.dataMax = val;
+                }
 
                 // 裁剪旧数据（超过显示窗口 + 10% 缓冲）
                 double cutoff = frame.timestamp - m_timeWindow * 1.1;
@@ -796,6 +960,7 @@ void GraphicView::onReplotTimeout()
 
     if (m_cursorMode != CursorMode::None)
         updateCursorValues();
+    updateStatusBar();
 }
 
 // ============================================================
@@ -918,18 +1083,32 @@ void GraphicView::updateSignalList()
     for (int i = 0; i < m_signals.size(); ++i) {
         const auto &sd = m_signals[i];
         auto *item = new QTreeWidgetItem();
+        // 列 0: 信号名 + 色块图标 (CANoe 风格)
+        QPixmap colorPix(14, 14);
+        colorPix.fill(sd.config.color);
+        item->setIcon(0, QIcon(colorPix));
         item->setText(0, sd.config.name);
         item->setForeground(0, sd.config.color);
+        // 列 1: 原始值
         item->setText(1, "—");
+        // 列 2: 物理值
         item->setText(2, "—");
+        // 列 3: 单位
         item->setText(3, sd.config.dbcSig.unit);
-        item->setText(4, QString("0x%1").arg(sd.config.canId, 0, 16).toUpper());
-        item->setText(5, "0");
+        // 列 4: Min
+        item->setText(4, sd.hasMinMax ? QString::number(sd.dataMin, 'f', 2) : "—");
+        // 列 5: Max
+        item->setText(5, sd.hasMinMax ? QString::number(sd.dataMax, 'f', 2) : "—");
+        // 列 6: ID
+        item->setText(6, QString("0x%1").arg(sd.config.canId, 0, 16).toUpper());
+        // 列 7: 点数
+        item->setText(7, "0");
         item->setCheckState(0, Qt::Checked);
         item->setData(0, Qt::UserRole, i);
         m_signalTree->addTopLevelItem(item);
     }
     m_signalTree->blockSignals(false);
+    updateStatusBar();
 }
 
 void GraphicView::updateSignalValues()
@@ -941,7 +1120,7 @@ void GraphicView::updateSignalValues()
         if (!sd.graph || sd.graph->data()->isEmpty()) {
             item->setText(1, "—");
             item->setText(2, "—");
-            item->setText(5, "0");
+            item->setText(7, "0");
             continue;
         }
 
@@ -956,7 +1135,10 @@ void GraphicView::updateSignalValues()
 
         item->setText(1, QString::number(rawVal));
         item->setText(2, QString::number(physVal, 'f', 3));
-        item->setText(5, QString::number(sd.graph->data()->size()));
+        // Min/Max 列也更新
+        item->setText(4, sd.hasMinMax ? QString::number(sd.dataMin, 'f', 2) : "—");
+        item->setText(5, sd.hasMinMax ? QString::number(sd.dataMax, 'f', 2) : "—");
+        item->setText(7, QString::number(sd.graph->data()->size()));
     }
 }
 
@@ -1177,4 +1359,42 @@ void GraphicView::exportPlot()
         this, "导出图表", "graphic.png", "PNG 图片 (*.png);;所有文件 (*.*)");
     if (path.isEmpty()) return;
     m_plot->savePng(path, 0, 0, 2.0, -1);
+}
+
+// ============================================================
+//  时间格式化 & 状态栏
+// ============================================================
+
+QString GraphicView::formatTime(double seconds)
+{
+    if (seconds < 0) return "0.000s";
+    int totalMs = static_cast<int>(seconds * 1000 + 0.5);
+    int ms = totalMs % 1000;
+    int totalSec = totalMs / 1000;
+    int sec = totalSec % 60;
+    int min = totalSec / 60;
+    if (min > 0)
+        return QString("%1:%2.%3s")
+            .arg(min).arg(sec, 2, 10, QChar('0')).arg(ms, 3, 10, QChar('0'));
+    return QString("%1.%2s").arg(sec).arg(ms, 3, 10, QChar('0'));
+}
+
+void GraphicView::updateStatusBar()
+{
+    QStringList parts;
+    parts << QString("信号: %1").arg(m_signals.size());
+
+    int totalPoints = 0;
+    for (const auto &sd : m_signals) {
+        if (sd.graph)
+            totalPoints += sd.graph->data()->size();
+    }
+    parts << QString("采样点: %1").arg(totalPoints);
+    parts << QString("时间: %1").arg(formatTime(m_currentTime));
+    parts << QString("窗口: %1s").arg(m_timeWindow);
+
+    if (m_paused)
+        parts << "[已暂停]";
+
+    m_statusLabel->setText(parts.join("  |  "));
 }

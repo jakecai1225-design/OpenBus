@@ -7,73 +7,82 @@ scope:
 source_files:
     - src/core/appconfig.h
     - src/core/appconfig.cpp
-    - src/core/sessionmanager.h
-    - src/core/sessionmanager.cpp
     - src/ui/settingsdialog.h
     - src/ui/settingsdialog.cpp
+    - src/main.cpp
+    - src/core/projectmanager.cpp
+    - src/core/sessionmanager.cpp
+    - src/ui/mainwindow.cpp
 ---
 
-## 1. 使用的系统与框架
+## 1. 系统/方案概述
 
-- **持久化格式**：纯 JSON 文件，使用 `nlohmann::json`（third_party 引入）进行读写。
-- **存储位置**：通过 Qt `QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)` 定位用户 AppData 目录，再拼接子路径：
-  - 全局应用设置：`settings.json`
-  - 个人会话状态：`sessions.json`
-- **单例模式**：`AppConfig`、`SessionManager` 均以静态 `instance()` 暴露全局访问点。
-- **UI 层**：`SettingsDialog` 提供 VS Code 风格的图形化设置界面，同时支持直接编辑底层 `settings.json` 文本。
+本仓库采用自实现的 `AppConfig` 单例作为统一配置中心，以 VS Code 风格的 `settings.json` 文件持久化用户设置。核心思路：
+- 使用 `nlohmann::json` 作为底层存储格式（键值对 JSON）。
+- 通过 `QStandardPaths::AppDataLocation` 定位配置文件路径 `%APPDATA%/sin/sin/settings.json`。
+- 提供 typed getter/setter（`getString/getInt/getBool/getDouble` / `set(key, value)`），缺失键时回退到 `defaultConfig()` 中的默认值。
+- 启动时调用 `load()` 加载；修改后调用 `save()` 持久化；也支持析构前自动保存（由调用方显式 `save()` 触发）。
+- 暴露 `changed(key)` Qt 信号，供 UI 监听单项变更。
+- 提供 `toJsonString()` / `fromJsonString()` 用于 Settings 对话框的“JSON 编辑器”模式。
 
-## 2. 核心文件与职责
+该方案不依赖 Qt 的 `QSettings` 进行持久化（CMakeLists 中仅声明了 `<QSettings>` 头文件，但实际代码未使用），而是完全基于 JSON 文件 + Qt 文件系统 API。
 
-| 文件 | 职责 |
+## 2. 关键文件与包
+
+| 文件 | 作用 |
 |---|---|
-| `src/core/appconfig.h/.cpp` | 全局应用配置：加载/保存 `settings.json`，typed getter/setter，默认值注入，`changed` 信号 |
-| `src/core/sessionmanager.h/.cpp` | 个人会话状态：管理 `sessions.json`（最近工程、UI 几何、侧边栏状态等），首次启动时从 `AppConfig` 迁移旧数据 |
-| `src/ui/settingsdialog.h/.cpp` | 设置对话框：按元数据驱动 UI，支持分类树、搜索、JSON 直编、重置为默认 |
-| `resources/styles/theme.qss` / `styles/theme.qss` | 主题样式资源（由 `theme` 配置项驱动） |
+| `src/core/appconfig.h` / `src/core/appconfig.cpp` | 配置单例、默认值、JSON 读写、typed 存取 |
+| `src/ui/settingsdialog.h` / `src/ui/settingsdialog.cpp` | VS Code 风格设置界面（分类树 + 搜索 + JSON 编辑器） |
+| `src/main.cpp` | 应用启动时调用 `AppConfig::instance()->load()` |
+| `src/core/projectmanager.cpp` | 写入 `project.lastPath`、`project.recentMax` 等工程相关配置 |
+| `src/core/sessionmanager.cpp` | 读取/维护 `project.recent` 最近项目列表 |
+| `src/ui/mainwindow.cpp` | 读取 `project.autoSaveOnClose`、`project.lastPath` 等 |
+| `third_party/nlohmann_json` | 第三方 JSON 库（已 vendored） |
 
-## 3. 架构与设计约定
+## 3. 架构与约定
 
-### 3.1 配置分层
+### 3.1 配置项命名空间约定
+所有配置键采用 **点号分隔的命名空间** 形式，在 `defaultConfig()` 和 `SettingsDialog::setupMetas()` 中保持一致：
+- `theme`, `font.family`, `font.size`, `window.*` — 通用/窗口
+- `trace.*` — Trace 视图行为
+- `graphic.*` — 波形图渲染参数
+- `record.*` — 录制行为
+- `filter.*` — 过滤器相关
+- `log.*` — spdlog 日志级别与轮转
+- `project.*` — 工程最近打开记录、自动保存开关
 
-- **全局应用设置（`AppConfig`）**：跨会话生效的用户偏好，如主题、字体、Trace 行为、录制格式、日志级别、工程最近列表上限等。位于 `AppData/sin/settings.json`。
-- **个人会话状态（`SessionManager`）**：仅当前用户会话内有效的状态，如窗口 geometry、活跃面板、最近打开记录、固定标记等。位于 `AppData/sessions.json`。
-- 两者解耦：`SessionManager` 在 `load()` 中检测 `sessions.json` 不存在时，会读取 `AppConfig` 中的 `project.recent` 并迁移到新的 `recent` 数组结构，然后删除旧键。
+这种命名方式既是文档（通过 key 前缀表达类别），也是 Settings 对话框分类树的数据源（从 `SettingMeta.category` 聚合去重生成左侧分类）。
 
-### 3.2 默认值与回退机制
+### 3.2 默认值集中管理
+`AppConfig::defaultConfig()` 是唯一默认值来源。首次运行或解析失败时回退到此 JSON。`SettingsDialog::onReset()` 通过重新 `fromJsonString(defaultConfig().dump(4))` 实现“重置为默认”。新增配置项必须同时出现在 `defaultConfig()` 和 `setupMetas()` 中，否则无法在 UI 中编辑。
 
-- `AppConfig::defaultConfig()` 集中声明所有键及其默认值（字符串、整数、布尔、浮点、数组），覆盖 theme/font/window/trace/graphic/record/filter/log/project 等分组。
-- 首次运行或 JSON 解析失败时，自动写入默认配置并记录日志。
-- typed getter（`getString/getInt/getBool/getDouble`）在 key 不存在或类型不匹配时返回传入的默认值，保证调用方无需判空。
+### 3.3 加载/保存流程
+1. 应用启动 → `main.cpp` 调用 `AppConfig::instance()->load()`。
+2. `load()` 确保目录存在；若文件不存在则写入默认配置并返回；若存在则解析 JSON，解析失败则降级到默认值并记录错误日志。
+3. 运行时通过 `set()` 修改内存中的 `m_data`，并发出 `changed(key)`。
+4. 通过 `save()` 将 `m_data` dump 为带缩进的 JSON 写入磁盘。
+5. Settings 对话框支持两种编辑模式：
+   - “设置列表”页：按类型动态创建控件（bool→QCheckBox、int→QSpinBox、double→QDoubleSpinBox、combo→QComboBox、string→QLineEdit），实时调用 `cfg->set(key, value)`。
+   - “编辑 JSON”页：直接编辑原始 JSON 文本，点击“保存”时调用 `fromJsonString()` 再 `save()`。
 
-### 3.3 键命名约定
+### 3.4 与主题系统的集成
+`theme` 配置项通过 `ThemeManager::instance()->themeNames()` 提供下拉选项，UI 层负责把主题名写回 AppConfig，再由主题管理器读取生效。
 
-- 采用 `category.key` 形式的点号分隔命名空间（如 `window.width`、`trace.maxFrames`、`log.level`、`project.lastPath`），便于在 SettingsDialog 中按 category 分组展示。
-- 新增配置项需同时在 `defaultConfig()` 和 `SettingsDialog::setupMetas()` 中注册元数据（label、category、type、desc、可选 comboChoices），否则不会出现在图形界面中。
-
-### 3.4 变更通知
-
-- 每次 `set(key, value)` 后 emit `changed(key)` 信号，供订阅者响应配置变化（例如 ThemeManager 可监听 `theme` 键切换主题）。
-- `SessionManager` 修改后直接 `save()` 并 emit `recentChanged()` 等语义化信号。
-
-### 3.5 迁移策略
-
-- `SessionManager::migrateFromAppConfig()` 将旧版 `project.recent`（字符串数组）迁移为新版 `recent`（对象数组，含 path/type/name/modified/pinned 字段），同时将 `project.lastPath` 迁移到 `lastOpened`，最后清理 AppConfig 中的旧键并保存。
-- 迁移过程对异常容错：解析失败时跳过并继续。
+### 3.5 与工程/会话管理的集成
+- `ProjectManager` 在打开/保存工程时更新 `project.lastPath`。
+- `SessionManager` 维护 `project.recent` 数组（限制长度由 `project.recentMax` 控制），并在清理过期条目后调用 `save()` 持久化。
+- `MainWindow` 在关闭时根据 `project.autoSaveOnClose` 决定是否自动保存工程。
 
 ## 4. 约定与约束
 
-- **配置文件位置不可自定义**：路径由 `QStandardPaths::AppDataLocation` + 文件名硬编码生成，无命令行参数或环境变量覆盖机制。
-- **JSON 必须合法**：读写均依赖 `nlohmann::json::parse/dump`，解析失败会记录错误并使用默认值；SettingsDialog 的 JSON 编辑页保存时会校验语法，非法则提示“JSON 解析失败”。
-- **目录自动创建**：`QDir().mkpath(...)` 确保父目录存在后再写文件。
-- **线程模型**：代码未显式加锁，`AppConfig`/`SessionManager` 以单例形式被多处调用，应假设调用方串行访问或在 Qt 事件循环上下文中使用。
-- **配置项扩展方式**：新增一个配置项需要三处改动——`defaultConfig()` 添加默认值、`SettingsDialog::setupMetas()` 注册元数据、必要时在业务逻辑中添加 typed getter/setter 调用。
-- **无环境变量/命令行配置**：未发现 `.env`、`.ini`、`--config` 等外部配置入口，所有运行时配置均来自 `settings.json` 及内存默认值。
-- **无加密/密钥管理**：配置文件中不包含敏感信息（密码、令牌等），如需扩展应自行增加加密层。
-- **日志级别受配置驱动**：`log.level` 对应 spdlog 的输出级别（trace/debug/info/warn/error/critical），由 SettingsDialog 的 combo 限定枚举值。
+- **配置文件位置固定**：`%APPDATA%/sin/sin/settings.json`，由 `QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/settings.json"` 计算，不可由外部覆盖。
+- **JSON 格式要求**：必须是合法 JSON；非法 JSON 会被捕获并降级到默认值，同时记录 `spdlog::error`。
+- **键类型安全**：getter 会检查值的 JSON 类型（`is_string/is_number_integer/is_boolean/is_number`），类型不符时返回传入的默认值，不会抛异常。
+- **新增配置项的契约**：必须在 `defaultConfig()` 定义默认值，并在 `SettingsDialog::setupMetas()` 注册元数据（key、label、category、type、desc、可选 comboChoices），否则不会出现在设置界面。
+- **线程模型**：`AppConfig` 继承 `QObject` 并通过 Qt 信号 `changed(key)` 通知变更；当前所有访问均发生在 GUI 线程（Qt 事件循环内），未见跨线程并发访问保护。
+- **不使用环境变量或命令行参数注入配置**：整个应用配置仅来源于 `settings.json` 文件，未发现从 `QCoreApplication::arguments()` 或环境变量读取配置的逻辑。
+- **未使用 Qt 的 QSettings**：尽管 CMakeLists 包含 `<QSettings>` 头，但全部配置读写走的是自定义 JSON 路径，`QSettings` 未被调用。
 
-## 5. 与其他子系统交互
+## 5. 适用范围说明
 
-- `ThemeManager` 通过读取 `theme` 配置项切换 QSS 样式。
-- `SessionManager` 依赖 `AppConfig` 读取 `project.recentMax` 限制最近列表长度。
-- 录制模块使用 `record.defaultFormat` 决定新文件的默认导出格式（sin/asc/blf）。
-- Trace/Graphic/Filter 等 UI 行为均通过 `AppConfig` 的 typed getter 获取运行时开关。
+该配置系统覆盖应用级偏好（主题、字体、窗口尺寸）、功能开关（Trace/Graphic/Record/Filter/Log/Project），但不涉及设备驱动配置（如 `driver/kerneldlls/dll_cfg.ini` 属于 ZLG CAN 驱动的外部配置）、DBC 导入时的临时参数（这些由 `DbcImportDialog` 内部状态管理，不持久化）。

@@ -3,58 +3,12 @@ schema_version: 1
 locale: zh-CN
 branch: master
 nodes_managed: true
-exported_at: "2026-08-10T06:08:36Z"
+exported_at: "2026-08-10T09:23:32Z"
 modules:
     "":
-        dir_name: sin CAN_CAN FD 报文分析工具（根工程）
-        title: sin CAN/CAN FD 报文分析工具（根工程）
-        scope:
-            - README.md
-            - README.en.md
-            - .gitignore
-            - CMakeLists.txt
-            - EngineAnalysis.sinproj
-        source_files: []
-        children:
-            - resources_and_assets
-            - third_party_deps
-            - web_prototype
-            - zlg_driver
-        depends_on: []
-        related_to: []
-    resources_and_assets:
-        dir_name: Qt 资源与样式主题
-        title: Qt 资源与样式主题
-        scope:
-            - resources/
-            - styles/
-        source_files: []
-        children: []
-        depends_on: []
-        related_to: []
-    third_party_deps:
-        dir_name: 第三方依赖库集成层
-        title: 第三方依赖库集成层
-        scope:
-            - third_party/
-        source_files: []
-        children: []
-        depends_on: []
-        related_to: []
-    web_prototype:
-        dir_name: sin 软件 UI 浏览器原型
-        title: sin 软件 UI 浏览器原型
-        scope:
-            - UI/
-        source_files: []
-        children: []
-        depends_on: []
-        related_to: []
-    zlg_driver:
-        dir_name: ZLG CAN_CANFD_LIN 驱动封装库
-        title: ZLG CAN/CANFD/LIN 驱动封装库
-        scope:
-            - driver/
+        dir_name: 信号发送标签页与 DBC 导入对话框
+        title: 信号发送标签页与 DBC 导入对话框
+        scope: []
         source_files: []
         children: []
         depends_on: []

@@ -44,16 +44,22 @@
 - [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
 - [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
 - [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
+- [src/models/cantracemodel.h](file://src/models/cantracemodel.h)
+- [src/models/cantracemodel.cpp](file://src/models/cantracemodel.cpp)
+- [src/models/canfilterproxymodel.h](file://src/models/canfilterproxymodel.h)
+- [src/models/canfilterproxymodel.cpp](file://src/models/canfilterproxymodel.cpp)
+- [third_party/qcustomplot/qcustomplot.h](file://third_party/qcustomplot/qcustomplot.h)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- 更新了活动栏按钮组织结构，将'Flow'按钮移动到更显眼的位置（第二个位置）
-- 标准化了'Flow'按钮的标签文本和工具提示，符合CANoe Measurement Setup行业标准
-- 完善了工具集系统，通过onToolOpened槽函数支持多种总线分析工具的动态加载
-- 改进了输出消息格式化，底部面板使用统一的timestamp格式
-- 增强了widget生命周期管理，特别是设备连接等组件的资源清理机制
-- 优化了侧边栏面板系统的Flow功能，MeasurementSetupPanel标题已更新为'Flow'
+- 增强了GraphicView组件，集成QCustomPlot实现专业级信号可视化
+- 实现了多轴信号绘图系统，支持独立Y轴和共享X轴的时间序列显示
+- 添加了交互式光标系统，支持单卡尺和双卡尺模式进行精确测量
+- 实现了实时数据流处理，支持高性能的CAN信号波形绘制
+- 增强了主题管理系统，支持7种内置主题和运行时动态切换
+- 改进了样式系统，使用@变量占位符实现灵活的样式定制
+- 优化了性能节流机制，通过定时器批量重绘提升渲染效率
 
 ## 目录
 1. [简介](#简介)
@@ -75,11 +81,14 @@
 
 **更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新针对UI系统进行了全面增强，包括SVG图标支持系统、样式系统重构、现代化界面设计改进，以及设备连接界面的优化。新增的ThemeManager主题管理器支持多种内置主题和运行时切换，SVG图标系统提供动态颜色替换功能，设备连接界面提供了完整的CAN/CAN FD配置选项和时序预设管理。活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置，反映了其在测量设置工作流程中的重要性。各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。**
 
+**最新增强** GraphicView组件现已完全重构，集成了QCustomPlot库，提供了专业的信号可视化功能。支持多轴信号绘图、实时数据流处理、交互式光标系统和高性能的批处理渲染。主题管理系统得到了显著增强，支持7种内置主题（Light、Dark、VS Code Dark+、VS Code Light+、Monokai、Solarized Light、Solarized Dark）和运行时动态切换。
+
 ## 项目结构
 本项目采用分层与按功能划分的组织方式，结合了传统Qt Widgets架构和现代Web前端技术：
 - src: Qt C++源代码目录，包含应用入口、主窗口实现与UI描述文件
 - UI: Web前端原型目录，包含HTML模板、JavaScript模块和CSS样式
 - resources: 静态资源目录，包含QSS样式与Qt资源清单
+- third_party: 第三方库目录，包含QCustomPlot等依赖库
 - CMakeLists.txt: 顶层构建配置，定义目标、链接库与资源集成
 
 ```mermaid
@@ -102,19 +111,23 @@ B --> P["src/ui/recordtab.h/.cpp"]
 B --> Q["src/ui/deviceconnectiontab.h/.cpp"]
 B --> R["src/ui/thememanager.h/.cpp"]
 B --> S["src/utils/svg_icon.h"]
-A --> T["resources/resources.qrc"]
-T --> U["resources/styles/default.qss"]
-T --> V["resources/styles/theme.qss"]
-A --> W["UI/ui-prototype.html"]
-W --> X["UI/js/ui-loader.js"]
-W --> Y["UI/js/ui-prototype.js"]
-W --> Z["UI/css/ui-prototype.css"]
-X --> AA["UI/partials/*.html"]
-Y --> AA
-Z --> AA
+B --> T["src/models/cantracemodel.h/.cpp"]
+B --> U["src/models/canfilterproxymodel.h/.cpp"]
+A --> V["resources/resources.qrc"]
+V --> W["resources/styles/default.qss"]
+V --> X["resources/styles/theme.qss"]
+A --> Y["UI/ui-prototype.html"]
+Y --> Z["UI/js/ui-loader.js"]
+Y --> AA["UI/js/ui-prototype.js"]
+Y --> AB["UI/css/ui-prototype.css"]
+Z --> AC["UI/partials/*.html"]
+AA --> AC
+AB --> AC
+B --> AD["third_party/qcustomplot"]
+AD --> AE["qcustomplot.h"]
 ```
 
-图表来源
+**图表来源**
 - [CMakeLists.txt](file://CMakeLists.txt)
 - [src/CMakeLists.txt](file://src/CMakeLists.txt)
 - [src/main.cpp](file://src/main.cpp)
@@ -124,6 +137,7 @@ Z --> AA
 - [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
 - [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
 - [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
+- [third_party/qcustomplot/qcustomplot.h](file://third_party/qcustomplot/qcustomplot.h)
 
 章节来源
 - [CMakeLists.txt](file://CMakeLists.txt)
@@ -139,8 +153,9 @@ Z --> AA
 - Web前端原型 ui-prototype.html: 基于HTML的现代化界面原型，支持动态内容加载
 - JavaScript模块系统: 包含ui-loader.js和ui-prototype.js，实现模块化功能组织
 - CSS样式系统: 提供统一的样式规范和响应式设计支持
+- **新增** QCustomPlot集成: 专业级的信号可视化和图表绘制引擎
 
-**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过ActivityBar的工具集按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -164,6 +179,7 @@ Z --> AA
 - 样式通过ThemeManager集中管理，支持运行时切换
 - 资源通过qrc统一打包，避免路径问题
 - Web前端提供现代化界面原型和动态内容加载能力
+- **新增** QCustomPlot集成提供专业的信号可视化能力
 
 **更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
 
@@ -194,22 +210,28 @@ subgraph "专用Tab组件层"
 DBCT["DBCDetailTab<br/>DBC详情标签页"]
 PB["PlaybackTab<br/>播放控制标签页"]
 RT["RecordTab<br/>录制标签页"]
+TT["TraceTab<br/>跟踪标签页<br/>刷新率控制增强"]
 end
 subgraph "工具集系统层"
 TP["ToolsPanel<br/>工具集面板"]
 TR["ToolRouter<br/>工具路由器"]
 end
 subgraph "专业组件层"
-FB["FilterBar<br/>过滤器栏"]
-GV["GraphicView<br/>图形视图"]
+FB["FilterBar<br/>过滤器栏<br/>刷新率控制增强"]
+GV["GraphicView<br/>图形视图<br/>QCustomPlot集成"]
 TV["TraceView<br/>跟踪视图"]
 SCD["SignalConfigDialog<br/>信号配置对话框"]
+end
+subgraph "数据模型层"
+CTM["CanTraceModel<br/>追踪数据模型<br/>批量处理增强"]
+CFPM["CanFilterProxyModel<br/>过滤代理模型"]
 end
 subgraph "样式与资源层"
 QSS["default.qss<br/>样式表"]
 THEME["theme.qss<br/>主题模板"]
 QRC["resources.qrc<br/>资源清单"]
 SVG["SVG图标系统<br/>动态颜色替换"]
+QCP["QCustomPlot<br/>图表引擎"]
 end
 M --> MW
 M --> TM
@@ -226,6 +248,7 @@ MW --> DCT
 MW --> DBCT
 MW --> PB
 MW --> RT
+MW --> TT
 MW --> TP
 SEA --> FB
 SEA --> GV
@@ -237,9 +260,13 @@ QRC --> QSS
 QRC --> THEME
 QRC --> SVG
 TP --> TR
+TT --> CTM
+TT --> CFPM
+FB --> CTM
+GV --> QCP
 ```
 
-图表来源
+**图表来源**
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
@@ -249,6 +276,7 @@ TP --> TR
 - [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
 - [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
 - [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
+- [third_party/qcustomplot/qcustomplot.h](file://third_party/qcustomplot/qcustomplot.h)
 
 ## 详细组件分析
 
@@ -284,7 +312,7 @@ Main->>Win : 显示窗口
 App->>App : 进入事件循环
 ```
 
-图表来源
+**图表来源**
 - [src/main.cpp](file://src/main.cpp)
 
 章节来源
@@ -396,7 +424,7 @@ MainWindow --> PlaybackTab : "管理"
 MainWindow --> RecordTab : "管理"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 - [src/ui/activitybar.h](file://src/ui/activitybar.h)
@@ -441,7 +469,7 @@ Refresh --> UpdateWeb["更新Web前端样式"]
 UpdateWeb --> End
 ```
 
-图表来源
+**图表来源**
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/styles/theme.qss](file://resources/styles/theme.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
@@ -491,7 +519,7 @@ SvgIconSystem --> ActivityIcon : "创建"
 SvgIconSystem --> ThemeIntegration : "集成"
 ```
 
-图表来源
+**图表来源**
 - [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
 - [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
 
@@ -536,6 +564,10 @@ SvgIconSystem --> ThemeIntegration : "集成"
 - 支持实时波形绘制与缩放
 - 多通道信号对比显示
 - 交互式数据点标注
+- **增强** 基于QCustomPlot的专业级图表引擎
+- **增强** 多轴信号绘图，每个信号拥有独立的Y轴
+- **增强** 交互式光标系统，支持单卡尺和双卡尺模式
+- **增强** 实时数据流处理，支持高性能的批量渲染
 - **增强** 优化的渲染引擎和内存管理
 - **增强** 改进的缩放和平移交互
 - **增强** 支持更多数据类型和格式
@@ -543,11 +575,14 @@ SvgIconSystem --> ThemeIntegration : "集成"
 - **最新改进** 优化了对新测试数据集的支持能力
 
 技术实现
-- 基于QGraphicsView框架
-- 自定义QGraphicsItem实现信号绘制
-- 高性能的实时更新机制
+- 基于QCustomPlot框架的专业图表引擎
+- 自定义CursorPlot类扩展鼠标事件处理
+- 多轴AxisRect布局，每个信号独立显示
+- 高性能的实时更新机制，使用定时器批量重绘
 - **增强** 双缓冲渲染减少闪烁
 - **增强** 增量更新避免全量重绘
+- **增强** 智能数据裁剪，超过显示窗口的数据自动清理
+- **增强** 插值算法支持精确的卡尺测量
 - **最新改进** 增强的错误处理和异常恢复机制
 - **最新改进** 优化的内存管理和资源清理
 
@@ -566,6 +601,24 @@ class GraphicView {
 +handleCrashRecovery()
 +validateTestDataDataset(dataset)
 +enhanceStability()
++onFrame(frame)
++clearData()
++loadFile(path)
++fitAll()
++exportPlot()
+}
+class CursorPlot {
++CursorPlot(parent)
++mousePressEvent(event)
++mouseMoveEvent(event)
++mouseReleaseEvent(event)
++wheelEvent(event)
++contextMenuEvent(event)
++onMousePress function
++onMouseMove function
++onMouseRelease function
++onWheel function
++onContextMenu function
 }
 class SignalChannel {
 +name string
@@ -583,6 +636,9 @@ class RenderEngine {
 +clearCache()
 +handleExceptions()
 +manageMemory()
++replotTimer QTimer
++valueTimer QTimer
++MAX_DISPLAY_POINTS int
 }
 class TestDataSupport {
 +datasetType string
@@ -592,14 +648,27 @@ class TestDataSupport {
 +adaptToDataset()
 +ensureStability()
 }
+class CursorSystem {
++cursorMode CursorMode
++cursor1 QCPItemStraightLine
++cursor2 QCPItemStraightLine
++currentDateTimeLine QCPItemStraightLine
++moveCursor(which, time)
++setCursorMode(mode)
++updateCursorValues()
++valueAtTime(graph, time, outVal)
+}
+GraphicView --> CursorPlot : "使用"
 GraphicView --> SignalChannel : "管理"
 GraphicView --> RenderEngine : "使用"
 GraphicView --> TestDataSupport : "支持"
+GraphicView --> CursorSystem : "集成"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/graphicview.h](file://src/ui/graphicview.h)
 - [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
+- [third_party/qcustomplot/qcustomplot.h](file://third_party/qcustomplot/qcustomplot.h)
 
 章节来源
 - [src/ui/graphicview.h](file://src/ui/graphicview.h)
@@ -658,7 +727,7 @@ TraceView --> CANPacket : "显示"
 TraceView --> DataCache : "管理"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/traceview.h](file://src/ui/traceview.h)
 - [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
 
@@ -724,7 +793,7 @@ DeviceConnectionTab --> TimingPreset : "管理"
 DeviceConnectionTab --> CanConfiguration : "配置"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/deviceconnectiontab.h](file://src/ui/deviceconnectiontab.h)
 - [src/ui/deviceconnectiontab.cpp](file://src/ui/deviceconnectiontab.cpp)
 
@@ -792,7 +861,7 @@ SidebarPanels --> BasePanel : "管理"
 SidebarPanels --> PanelStateManager : "使用"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
 - [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
 
@@ -800,17 +869,23 @@ SidebarPanels --> PanelStateManager : "使用"
 - [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
 - [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
 
-### 过滤器栏（FilterBar）
+### 过滤器栏（FilterBar）增强
 功能特性
 - 提供CAN总线数据的实时过滤功能
 - 支持多种过滤条件组合
 - 动态更新过滤规则
 - 与数据模型无缝集成
+- **增强** 刷新率控制功能，支持高(50ms)、中(100ms)、低(200ms)、暂停四种模式
+- **增强** 批处理模型集成，优化大量数据处理性能
+- **增强** 覆盖模式切换，支持固定行显示和滚动模式
+
+**更新** 过滤器栏得到了显著增强，新增了刷新率控制功能，通过refreshRateChanged信号与CanTraceModel集成，实现了可配置的刷新频率控制。覆盖模式按钮允许用户在固定行显示和滚动模式之间切换，提高了大数据集的处理效率。
 
 架构设计
 - 继承自QWidget，提供独立的过滤界面
 - 通过信号槽机制与主窗口通信
 - 支持自定义过滤算法扩展
+- **增强** 与批处理模型的深度集成
 
 ```mermaid
 classDiagram
@@ -825,6 +900,9 @@ class FilterBar {
 +importRules()
 +optimizeFilterPerformance()
 +handleInvalidRules()
++setRefreshRate(intervalMs)
++setOverwriteMode(enabled)
++setPresetManager(manager)
 }
 class FilterRule {
 +type string
@@ -835,10 +913,19 @@ class FilterRule {
 +fromExpression(expr)
 +compileRule()
 }
+class BatchProcessor {
++pendingFrames QVector<CanFrame>
++flushTimer QTimer
++refreshRate RefreshRate
++commitBatch(frames)
++flushPending()
++setRefreshRate(rate)
+}
 FilterBar --> FilterRule : "管理"
+FilterBar --> BatchProcessor : "集成"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/filterbar.h](file://src/ui/filterbar.h)
 - [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
 
@@ -888,7 +975,7 @@ class SignalDefinition {
 SignalConfigDialog --> SignalDefinition : "管理"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
 - [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
 
@@ -897,6 +984,80 @@ SignalConfigDialog --> SignalDefinition : "管理"
 - [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
 
 ## 专用Tab组件系统
+
+### 跟踪标签页（TraceTab）增强
+功能特性
+- 提供CAN总线数据的跟踪显示界面
+- 支持Wireshark风格的三栏布局
+- 集成过滤器栏和跟踪视图
+- 帧结构面板和信号解析面板
+- **增强** 刷新率控制设置菜单，支持高、中、低、暂停四种模式
+- **增强** 时间格式设置，支持绝对时间戳、自捕获分组、自显示分组
+- **增强** 批量数据处理优化，提高大数据集处理能力
+
+**更新** 跟踪标签页得到了显著增强，新增了刷新率控制功能。通过设置菜单中的刷新率选项，用户可以调节数据更新的频率，从高频(50ms)到低频(200ms)再到暂停刷新，有效平衡了实时性和性能需求。时间格式设置也得到完善，支持多种时间戳显示模式。
+
+技术实现
+- 基于QVBoxLayout的垂直布局
+- QSplitter实现可调整的分割面板
+- QActionGroup管理互斥的时间格式和刷新率选项
+- 定时器驱动的数据统计更新
+
+```mermaid
+classDiagram
+class TraceTab {
++TraceTab(parent)
++setDbcManager(mgr)
++setRunning(running)
++isOverwriteMode() bool
++appendFrame(frame)
++appendFrames(frames)
++clearTrace()
++frameCount() int
++setFilterExpression(expr) bool
++clearFilter()
++clearAllFilters()
++filterExpression() QString
++updatePacketCount()
++onSelectionChanged()
++onPacketCountTimer()
++setRefreshRate(rate)
++setTimeFormat(mode)
++optimizeBatchProcessing()
+}
+class SettingsMenu {
++timeFormatGroup QActionGroup
++refreshRateGroup QActionGroup
++absoluteTime QAction
++sinceCapture QAction
++sinceDisplay QAction
++highRefresh QAction
++mediumRefresh QAction
++lowRefresh QAction
++pauseRefresh QAction
++connectToModels()
++handleSettingsChange()
+}
+class BatchProcessing {
++pendingFrames QVector<CanFrame>
++flushTimer QTimer
++packetCountTimer QTimer
++commitBatch()
++flushPending()
++updateStatistics()
++optimizePerformance()
+}
+TraceTab --> SettingsMenu : "管理"
+TraceTab --> BatchProcessing : "使用"
+```
+
+**图表来源**
+- [src/ui/traceview.h](file://src/ui/traceview.h)
+- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
+
+章节来源
+- [src/ui/traceview.h](file://src/ui/traceview.h)
+- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
 
 ### DBC详情标签页（DBCDetailTab）
 功能特性
@@ -954,7 +1115,7 @@ DBCDetailTab --> SignalProperty : "管理"
 DBCDetailTab --> DBCManager : "使用"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
 - [src/ui/dbcdetailtab.cpp](file://src/ui/dbcdetailtab.cpp)
 
@@ -1023,7 +1184,7 @@ PlaybackTab --> PlaybackControl : "控制"
 PlaybackTab --> Player : "调用"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/playbacktab.h](file://src/ui/playbacktab.h)
 - [src/ui/playbacktab.cpp](file://src/ui/playbacktab.cpp)
 
@@ -1089,7 +1250,7 @@ RecordTab --> RecordingConfig : "配置"
 RecordTab --> Recorder : "控制"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/recordtab.h](file://src/ui/recordtab.h)
 - [src/ui/recordtab.cpp](file://src/ui/recordtab.cpp)
 
@@ -1151,7 +1312,7 @@ TabManager --> TabComponent : "管理"
 TabManager --> TabStateManager : "使用"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 
@@ -1217,7 +1378,7 @@ ActivityBar --> ToolsPanel : "触发"
 SideBar --> ToolsPanel : "包含"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/activitybar.h](file://src/ui/activitybar.h)
 - [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
 - [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
@@ -1286,7 +1447,7 @@ ToolsPanel --> ToolItem : "管理"
 ToolsPanel --> ToolCategory : "分类"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
 - [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
 
@@ -1317,7 +1478,7 @@ ToolReady --> End(["结束"])
 ShowError --> End
 ```
 
-图表来源
+**图表来源**
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 - [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
 
@@ -1360,7 +1521,7 @@ class ToolRouter {
 MainWindow --> ToolRouter : "使用"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 
 章节来源
@@ -1421,7 +1582,7 @@ DbcPanel --> DatabaseEntry : "管理"
 DbcPanel --> CategoryNode : "使用"
 ```
 
-图表来源
+**图表来源**
 - [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
 - [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
 
@@ -1450,10 +1611,11 @@ MW --> DCT["DeviceConnectionTab<br/>设备连接界面"]
 MW --> DBCT["DBCDetailTab"]
 MW --> PB["PlaybackTab"]
 MW --> RT["RecordTab"]
+MW --> TT["TraceTab<br/>刷新率控制增强"]
 MW --> TP["ToolsPanel"]
 MW --> TM["ThemeManager<br/>主题管理器"]
-SEA --> FB["FilterBar"]
-SEA --> GV["GraphicView"]
+SEA --> FB["FilterBar<br/>刷新率控制增强"]
+SEA --> GV["GraphicView<br/>QCustomPlot集成"]
 SEA --> TV["TraceView"]
 MW --> SCD["SignalConfigDialog"]
 MW --> QSS["QSS样式"]
@@ -1470,12 +1632,16 @@ DCT --> Config["配置管理"]
 DBCT --> DBC["DBC管理"]
 PB --> Player["播放器"]
 RT --> Recorder["录制器"]
+TT --> CTM["CanTraceModel<br/>批量处理增强"]
+TT --> CFPM["CanFilterProxyModel"]
+FB --> CTM
 MW --> Web["Web前端原型"]
 Web --> HTML["HTML模板"]
 Web --> JS["JavaScript模块"]
 Web --> CSS["CSS样式"]
 GV --> Graphics["图形引擎"]
 GV --> TestData["测试数据集支持"]
+GV --> QCP["QCustomPlot<br/>图表引擎"]
 TV --> DataCache["数据缓存"]
 SBP --> Accessibility["可访问性"]
 GV --> Stability["稳定性增强"]
@@ -1489,7 +1655,7 @@ TM --> ThemeVars["@变量替换"]
 SVG --> IconSystem["图标渲染"]
 ```
 
-图表来源
+**图表来源**
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
@@ -1500,6 +1666,7 @@ SVG --> IconSystem["图标渲染"]
 - [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
 - [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
 - [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
+- [third_party/qcustomplot/qcustomplot.h](file://third_party/qcustomplot/qcustomplot.h)
 
 章节来源
 - [src/CMakeLists.txt](file://src/CMakeLists.txt)
@@ -1568,6 +1735,20 @@ SVG --> IconSystem["图标渲染"]
   - 增强的测试数据集支持提高了数据处理效率
   - SVG图标系统使用QSvgRenderer提高渲染性能
   - 设备连接界面使用延迟初始化减少启动时间
+- **批处理模型性能优化**
+  - CanTraceModel使用环形缓冲区存储，支持最大帧数限制
+  - 批量追加frames()方法优化大数据集处理
+  - 可配置刷新率控制，平衡实时性和性能
+  - 可见行范围缓存减少不必要的格式化计算
+  - 防抖定时器优化统计更新频率
+  - 覆盖模式支持固定行显示，提高大数据集浏览效率
+- **QCustomPlot性能优化**
+  - 使用rpQueuedReplot进行异步重绘
+  - 定时器批量重绘，50ms间隔达到20fps
+  - 数据点数量限制，超过50000点自动降采样
+  - 旧数据自动清理，保持内存使用稳定
+  - 多轴布局优化，减少重绘范围
+  - 插值算法优化，提高卡尺测量精度
 
 [本节为通用指导，无需特定文件引用]
 
@@ -1648,6 +1829,19 @@ SVG --> IconSystem["图标渲染"]
   - DatabaseEntry结构数据丢失需要检查序列化机制
   - 树形结构展开异常需要检查节点父子关系
   - 重复文件检测失效需要检查路径比较逻辑
+- **批处理模型问题**
+  - 刷新率控制无效需要检查CanTraceModel连接
+  - 批量数据处理卡顿需要检查pending队列管理
+  - 覆盖模式切换异常需要检查ID到行号映射
+  - 统计信息显示不准确需要检查防抖定时器
+  - 可见行缓存失效需要检查范围更新逻辑
+- **QCustomPlot相关问题**
+  - 图表渲染失败需要检查QCustomPlot库链接
+  - 多轴布局异常需要检查AxisRect配置
+  - 光标交互不响应需要检查鼠标事件处理
+  - 实时数据更新卡顿需要检查定时器配置
+  - 内存溢出需要检查数据点数量限制
+  - 插值计算错误需要检查valueAtTime算法
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
@@ -1666,7 +1860,9 @@ SVG --> IconSystem["图标渲染"]
 ## 结论
 本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面，**特别是侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件。**
 
-**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性，工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理器，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过ActivityBar的工具集按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案，包括BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析、ID频率分析、总线负载计算等多种实用工具。主窗口组件通过新增的onToolOpened槽函数实现了工具激活请求的统一处理，支持多种不同的总线分析工具动态加载和管理，大大增强了UI系统的工具管理能力。**遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
+**更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性，工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理器，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过ActivityBar的工具集按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案，包括BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析、ID频率分析、总线负载计算等多种实用工具。主窗口组件通过新增的onToolOpened槽函数实现了工具激活请求的统一处理，支持多种不同的总线分析工具动态加载和管理，大大增强了UI系统的工具管理能力。**
+
+**最新增强** GraphicView组件现已完全重构，集成了QCustomPlot库，提供了专业的信号可视化功能。支持多轴信号绘图、实时数据流处理、交互式光标系统和高性能的批处理渲染。主题管理系统得到了显著增强，支持7种内置主题和运行时动态切换。跟踪视图组件也得到了显著增强，新增了刷新率控制功能，支持高(50ms)、中(100ms)、低(200ms)、暂停四种刷新模式，有效平衡了实时性和性能需求。过滤器栏集成了批处理模型，通过CanTraceModel的批量数据处理能力，大幅提升了大数据集的处理效率。覆盖模式切换功能允许用户在固定行显示和滚动模式之间灵活切换，进一步优化了用户体验。这些增强功能通过完善的设置菜单和信号槽机制实现，确保了系统的可扩展性和可维护性。遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -1690,7 +1886,7 @@ SVG --> IconSystem["图标渲染"]
   - 使用有意义的对象名称，便于样式和脚本访问
   - 充分利用布局管理器的自适应特性
 - **专业组件规范**
-  - 过滤器组件应支持链式过滤规则
+  - 过滤器组件应支持动态规则添加与删除
   - 图形视图需实现高性能的实时更新
   - 跟踪视图应具备大数据处理能力
   - 配置对话框需提供完善的验证机制
@@ -1739,6 +1935,11 @@ SVG --> IconSystem["图标渲染"]
   - 性能监控需集成到组件的生命周期管理中
   - 主题切换需支持平滑过渡和状态保持
   - 设备连接需支持多种设备类型和配置选项
+  - 批处理模型需支持可配置刷新率和覆盖模式
+  - 过滤器栏需集成刷新率控制和批处理接口
+  - QCustomPlot集成需遵循异步重绘和数据限制原则
+  - 多轴图表需确保轴联动和同步缩放
+  - 光标系统需支持精确的数值插值和测量
 
 ### 样式定制指南
 - 主题设计
@@ -1831,6 +2032,11 @@ SVG --> IconSystem["图标渲染"]
   - 主题切换需支持平滑过渡和用户状态保持
   - 设备连接需支持多种设备类型和配置选项
   - SVG图标需支持动态颜色替换和主题适配
+  - 批处理模型需实现可配置刷新率和覆盖模式
+  - 过滤器栏需支持刷新率控制和批处理集成
+  - QCustomPlot集成需遵循异步重绘和数据限制原则
+  - 多轴图表需确保轴联动和同步缩放
+  - 光标系统需支持精确的数值插值和测量
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -1862,6 +2068,13 @@ SVG --> IconSystem["图标渲染"]
 25. **SVG图标测试**：验证SVG图标的动态颜色替换和主题适配
 26. **设备连接测试**：验证DeviceConnectionTab的CAN/CAN FD配置功能
 27. **性能基准测试**：建立性能基准并进行持续监控
+28. **刷新率控制测试**：验证跟踪视图的刷新率控制功能
+29. **批处理模型测试**：测试过滤器栏与批处理模型的集成
+30. **覆盖模式测试**：验证覆盖模式切换和固定行显示功能
+31. **QCustomPlot集成测试**：验证多轴图表和光标系统的正常工作
+32. **实时数据流测试**：测试图形视图的实时数据更新性能
+33. **插值算法验证**：确保光标测量的数值准确性
+34. **内存管理测试**：验证大数据集处理的内存使用情况
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)

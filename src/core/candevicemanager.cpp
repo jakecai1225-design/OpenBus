@@ -232,6 +232,8 @@ void CanDeviceManager::recvLoop()
                 // 入队（无锁，不阻塞主线程 UI）
                 m_queue.enqueue(frame);
             }
+            // 清空缓冲区，防止下一轮 recv 重复入队旧帧
+            recvBuf.clear();
         }
         // 超时无数据时短暂休眠，避免 CPU 空转
         if (got == 0)

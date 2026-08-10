@@ -930,6 +930,7 @@ void DevicePanel::populateTree()
                 dev->setText(0, QStringLiteral("  ") + d.name);
                 dev->setData(0, Qt::UserRole, static_cast<int>(kind));
                 dev->setData(0, Qt::UserRole + 1, d.deviceIndex);
+                dev->setData(0, Qt::UserRole + 2, d.deviceType);
             }
         }
         parent->setExpanded(true);
@@ -964,7 +965,8 @@ void DevicePanel::onItemClicked(QTreeWidgetItem *item, int /*column*/)
     // 叶子节点 → 发出打开请求
     int deviceKind = item->data(0, Qt::UserRole).toInt();
     int devIndex = item->data(0, Qt::UserRole + 1).toInt();
-    emit deviceOpenRequested(deviceKind, devIndex, item->text(0).trimmed());
+    int deviceType = item->data(0, Qt::UserRole + 2).toInt();
+    emit deviceOpenRequested(deviceKind, devIndex, item->text(0).trimmed(), deviceType);
 }
 
 void DevicePanel::onItemDoubleClicked(QTreeWidgetItem *item, int /*column*/)
@@ -973,7 +975,8 @@ void DevicePanel::onItemDoubleClicked(QTreeWidgetItem *item, int /*column*/)
         return;
     int deviceKind = item->data(0, Qt::UserRole).toInt();
     int devIndex = item->data(0, Qt::UserRole + 1).toInt();
-    emit deviceOpenRequested(deviceKind, devIndex, item->text(0).trimmed());
+    int deviceType = item->data(0, Qt::UserRole + 2).toInt();
+    emit deviceOpenRequested(deviceKind, devIndex, item->text(0).trimmed(), deviceType);
 }
 
 // ============================================================

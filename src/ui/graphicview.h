@@ -16,10 +16,12 @@ class QCPGraph;
 class QCPAxis;
 class QCPAxisRect;
 class QCPItemStraightLine;
+class QCPItemText;
 class QToolBar;
 class QToolButton;
 class QLabel;
 class QCheckBox;
+class QComboBox;
 
 /**
  * @brief CANoe 风格 Graphic 信号图形视图 — 基于 QCustomPlot
@@ -95,6 +97,10 @@ private:
         QCPGraph *graph = nullptr;
         QCPAxis *yAxis = nullptr;
         QCPAxisRect *axisRect = nullptr;
+        QCPItemText *nameLabel = nullptr;  ///< 信号名叠加文本
+        double dataMin = 0.0;             ///< 数据最小值
+        double dataMax = 0.0;             ///< 数据最大值
+        bool hasMinMax = false;           ///< 是否已计算 min/max
     };
 
     // --- UI ---
@@ -104,6 +110,9 @@ private:
     QToolBar *m_toolbar = nullptr;
     QLabel *m_cursorInfoLabel = nullptr;  ///< 卡尺信息面板 (ΔT/ΔY/frequency)
     QCheckBox *m_pointsToggle = nullptr;   ///< 采样点显示开关
+    QComboBox *m_timeWindowCombo = nullptr; ///< 时间窗口选择
+    QToolButton *m_pauseBtn = nullptr;      ///< 暂停/继续
+    QLabel *m_statusLabel = nullptr;        ///< 底部状态栏
 
     // --- 工具栏按钮 ---
     QToolButton *m_cursorSingleBtn = nullptr;
@@ -125,6 +134,9 @@ private:
 
     // --- 采样点 ---
     bool m_showPoints = true;
+
+    // --- 暂停 ---
+    bool m_paused = false;
 
     // --- 当前时间指示线 ---
     QCPItemStraightLine *m_currentTimeLine = nullptr;
@@ -192,6 +204,12 @@ private:
 
     /// 导出图表为图片
     void exportPlot();
+
+    /// 格式化时间 (mm:ss.ms)
+    static QString formatTime(double seconds);
+
+    /// 更新底部状态栏
+    void updateStatusBar();
 };
 
 #endif // GRAPHICVIEW_H

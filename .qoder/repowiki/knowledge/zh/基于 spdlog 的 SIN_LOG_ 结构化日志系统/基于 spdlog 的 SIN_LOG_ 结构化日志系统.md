@@ -11,61 +11,48 @@ source_files:
     - src/main.cpp
 ---
 
-## 1. 使用的系统与框架
+## 1. 使用的框架与工具
 
-本项目采用 **spdlog**（位于 `third_party/spdlog/`）作为底层日志库，通过自定义封装提供统一的 `SIN_LOG_*` 宏接口。日志输出同时写入控制台与滚动文件两个 sink，形成“控制台 + 文件”双通道输出。
-
-- 格式化引擎：使用 `fmt::format`（spdlog 依赖的 fmt 库）进行参数化消息格式化。
-- 线程模型：控制台 sink 使用 `stdout_color_sink_mt`（多线程安全），文件 sink 使用 `rotating_file_sink_mt`（多线程安全）。
+- **底层库**：`spdlog`（位于 `third_party/spdlog/`），通过 CMake 集成。
+- **输出格式化工具**：`fmt::format`，用于在宏中格式化消息体。
+- **Qt 集成**：使用 `QStandardPaths::AppDataLocation` 定位用户可写目录，`QString` 路径经 `.toStdString()` 传递给 spdlog。
 
 ## 2. 核心文件与位置
 
 | 文件 | 作用 |
 |---|---|
-| `src/core/logging.h` | 定义 `logging` 命名空间、`init()` / `shutdown()` / `logger()` 接口及 `SIN_LOG_DEBUG/INFO/WARN/ERROR` 四个宏 |
-| `src/core/logging.cpp` | 实现 spdlog logger 初始化、sink 配置、日志目录解析与回退逻辑 |
-| `src/utils/logging.h` | 重包含 `core/logging.h`，作为统一入口供 UI 层等模块引用 |
-| `src/main.cpp` | 在 `QApplication` 启动后调用 `logging::init()`，应用退出前调用 `logging::shutdown()` |
+| `src/core/logging.h` | 定义 `logging` 命名空间、`init/shutdown/logger()` API 以及 `SIN_LOG_DEBUG/INFO/WARN/ERROR` 四个宏 |
+| `src/core/logging.cpp` | 实现双 sink 初始化（控制台彩色 + 滚动文件）、默认 logger 创建、模式设置 |
+| `src/utils/logging.h` | 薄包装，重新 include `core/logging.h`，作为统一入口 |
+| `src/main.cpp` | 调用 `logging::init()` 启动、`logging::shutdown()` 关闭 |
 
-## 3. 架构与设计约定
+## 3. 架构与约定
 
-### 3.1 初始化流程
-- 调用 `logging::init(logDir)`：若未指定目录，则使用 Qt 的 `QStandardPaths::AppDataLocation/logs`；创建目录失败时回退到当前工作目录下的 `./logs`。
+### 初始化流程
+- `logging::init(logDir)` 在应用启动时调用。若未指定目录，则写入 `<AppData>/logs/sin.log`；不可写时回退到当前工作目录下的 `./logs/sin.log`。
 - 创建两个 sink：
-  - 控制台：`stdout_color_sink_mt`，级别设为 `debug`。
-  - 文件：`rotating_file_sink_mt`，单文件上限 5MB，保留 3 个滚动文件，级别设为 `trace`（比默认 logger 更细粒度）。
-- 默认 logger 名称为 `sin`，全局级别 `debug`，flush 策略为 `info` 及以上级别自动 flush。
-- 日志格式模式：`[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v`，即 `[时间戳] [级别] 消息`。
+  - `stdout_color_sink_mt`：控制台彩色输出，level 设为 `debug`。
+  - `rotating_file_sink_mt`：滚动文件，单文件上限 5 MB，保留 3 个历史文件，level 设为 `trace`（比控制台更详细）。
+- 默认 logger 名为 `sin`，全局级别 `debug`，按 `info` 及以上自动 flush，pattern 为 `[时间] [级别] 消息`。
+- 异常处理：文件 sink 创建失败时捕获 `spdlog_ex`，降级为仅控制台输出。
 
-### 3.2 调用约定
-- 所有模块通过 `#include "core/logging.h"`（或 `utils/logging.h`）引入，使用 `SIN_LOG_*` 宏而非直接调用 spdlog。
-- 每个日志调用必须传入第一个参数 `tag` 标识模块名（如 `CanDeviceKvaser`、`CanDevicePEAK`、`CanDeviceZLG`、`ICanDevice` 等），便于按模块筛选日志。
-- 消息体使用 `fmt::format` 风格的 `{}` 占位符，支持类型安全的参数拼接。
+### 调用约定
+- 所有模块通过 `SIN_LOG_<LEVEL>(tag, fmt_args...)` 宏记录日志，第一个参数是**模块标签**（如 `CanDeviceKvaser`、`CanDevicePEAK`、`CanDeviceZLG`），第二个参数开始是 `fmt::format` 风格的占位符。
+- 日志格式示例：`[2026-07-29 14:30:00.123] [info] [DbcManager] 解析文件: xxx.dbc`
+- 日志器可通过 `logging::logger()` 获取原始 `spdlog::logger*` 指针以进行高级配置。
 
-### 3.3 生命周期管理
-- 在 `main.cpp` 中，`QApplication` 构造完成后立即调用 `logging::init()`，确保 Qt 元对象系统已就绪。
-- 应用退出时 `app.exec()` 返回后调用 `logging::shutdown()`，刷新缓冲并释放资源。
+### 生命周期管理
+- 应用入口 `main.cpp` 在 Qt 事件循环前调用 `logging::init()`，退出前调用 `logging::shutdown()` 刷新缓冲并释放资源。
 
 ## 4. 约定与约束
 
-- **统一入口**：禁止各模块自行创建 spdlog logger，必须通过 `logging::init()` 初始化的全局 logger 和 `SIN_LOG_*` 宏输出。
-- **模块标签**：所有日志调用必须携带 `tag` 参数用于区分来源模块，这是宏签名强制要求的。
-- **级别策略**：控制台输出最低显示 `debug`，文件记录最低显示 `trace`，错误及以上级别会触发 flush 保证落盘。
-- **日志路径回退**：当用户可写目录不可用时自动降级到 `./logs`，避免程序因无法写日志而崩溃。
-- **Qt 集成**：日志目录借助 `QStandardPaths` 定位跨平台应用数据目录，体现 Qt 项目风格。
-- **不直接使用 qDebug**：代码注释明确说明用 `SIN_LOG_*` 替代 `qDebug`，保持日志体系一致。
+- **禁止直接使用 `qDebug()` / `std::cout`**：项目注释明确说明“提供控制台 + 滚动文件双 sink”，并通过 `SIN_LOG_*` 系列宏替代 `qDebug`，所有业务代码均通过该宏输出。
+- **模块标识强制**：每个日志调用必须传入 tag 字符串，用于区分来源模块（observed tags 包括 `ICanDevice`、`CanDeviceKvaser`、`CanDevicePEAK`、`CanDeviceZLG` 等）。
+- **级别策略**：控制台最低 `debug`，文件最低 `trace`；info 及以上自动 flush，保证关键信息不丢失。
+- **日志轮转策略**：固定 5 MB × 3 文件的滚动策略，避免磁盘占用无限增长。
+- **容错设计**：当用户数据目录不可写时自动回退到当前目录，再失败则仅保留控制台输出，确保应用不因日志问题崩溃。
+- **线程模型**：两个 sink 均为 `_mt`（多线程安全）版本，适合多线程 CAN 设备读取场景。
 
-## 5. 使用示例（来自实际代码）
+## 5. 使用范围
 
-```cpp
-SIN_LOG_INFO("CanDeviceKvaser", "canlib32.dll loaded successfully");
-SIN_LOG_ERROR("CanDevicePEAK", "CAN_Initialize failed: status=0x{:08X}", status);
-SIN_LOG_WARN("ICanDevice", "brand {} not implemented yet", brand);
-SIN_LOG_DEBUG("CanDeviceKvaser", "canReadWait: {}", result);
-```
-
-## 6. 第三方依赖
-
-- `third_party/spdlog/`：spdlog 源码，提供高性能异步/同步日志能力。
-- `third_party/nlohmann_json/`：JSON 库（非日志相关，但随 spdlog 一同引入）。
-- 项目通过 CMake 将 spdlog 作为静态/头文件依赖集成。
+目前已在 `src/core/candevice*.cpp`（Kvaser、PEAK、ZLG 驱动加载与操作）中广泛使用，覆盖设备发现、DLL 加载、通道打开/关闭、报文收发等关键路径，形成统一的诊断输出。

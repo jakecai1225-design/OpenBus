@@ -1,8 +1,0 @@
-schema_version: 1
-module_path: zlg_driver
-title: ZLG CAN/CANFD/LIN 驱动封装库
-scope:
-    - driver/
-source_files: []
-depends_on: []
-related_to: []

@@ -222,7 +222,8 @@ signals:
     /// @param deviceKind 0=模拟器, 1=ZLG
     /// @param devIndex 设备序号
     /// @param deviceName 设备显示名称
-    void deviceOpenRequested(int deviceKind, int devIndex, const QString &deviceName);
+    /// @param deviceType 厂商设备子类型（如 ZLG DEV_USBCANFD_200U=41）
+    void deviceOpenRequested(int deviceKind, int devIndex, const QString &deviceName, int deviceType);
 
 private slots:
     void onItemClicked(QTreeWidgetItem *item, int column);

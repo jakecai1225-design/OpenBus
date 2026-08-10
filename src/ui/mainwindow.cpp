@@ -377,6 +377,33 @@ MainWindow::MainWindow(QWidget *parent)
             }
         }
     }
+
+    // 兜底：如果未加载工程（首次启动 / lastPath 为空），applyProjectState 未被调用，
+    // 需确保 Trace1/Graphic1 默认标签页和 Flow 实例块存在，否则硬件连接后数据无处可去。
+    if (m_traceInstances.isEmpty()) {
+        auto *tab = new TraceTab(this);
+        setupTraceTab(tab);
+        openTab(tab, QStringLiteral("Trace1"));
+        m_traceInstances["trace1"] = tab;
+        m_traceTab = tab;
+        m_traceCount = qMax(m_traceCount, 1);
+        // Flow 视图中添加 trace1 实例块
+        if (m_setupView)
+            m_setupView->addModuleInstance("trace", "trace1", "Trace1");
+    }
+    if (m_graphicInstances.isEmpty()) {
+        auto *gv = new GraphicView(this);
+        openTab(gv, QStringLiteral("Graphic1"));
+        m_graphicInstances["graphic1"] = gv;
+        m_graphicView = gv;
+        m_sideBar->graphicConfigPanel()->setGraphicView(gv);
+        m_graphicCount = qMax(m_graphicCount, 1);
+        // Flow 视图中添加 graphic1 实例块
+        if (m_setupView)
+            m_setupView->addModuleInstance("graphic", "graphic1", "Graphic1");
+    }
+    if (m_setupView)
+        m_setupView->rebuildScene();
 }
 
 MainWindow::~MainWindow() = default;
@@ -1458,7 +1485,7 @@ void MainWindow::setupRecordTab(RecordTab *tab)
             this, &MainWindow::onTriggerRecording);
 }
 
-void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName)
+void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName, int deviceType)
 {
     // 查找已有的设备连接标签页
     const auto allTabs = m_editorArea->allTabWidgets();
@@ -1468,7 +1495,7 @@ void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &de
                 tw->setCurrentIndex(i);
                 m_tabLabel->setText(tw->tabText(i));
                 if (m_deviceTab)
-                    m_deviceTab->setDevice(deviceKind, devIndex, deviceName);
+                    m_deviceTab->setDevice(deviceKind, devIndex, deviceName, deviceType);
                 return;
             }
         }
@@ -1482,7 +1509,7 @@ void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &de
         setupDeviceTab(m_deviceTab);
         connect(m_deviceTab, &QObject::destroyed, this, [this]() { m_deviceTab = nullptr; });
     }
-    m_deviceTab->setDevice(deviceKind, devIndex, deviceName);
+    m_deviceTab->setDevice(deviceKind, devIndex, deviceName, deviceType);
     openTab(m_deviceTab, QStringLiteral("设备连接"));
 }
 
@@ -1491,10 +1518,10 @@ void MainWindow::setupDeviceTab(DeviceConnectionTab *tab)
     // V2 信号 — 真实硬件连接
     connect(tab, &DeviceConnectionTab::deviceConnectRequestedV2,
             this, [this](int devKind, int devIndex, int channel,
-                         int arbBaud, int dataBaud, bool canFd) {
+                         int arbBaud, int dataBaud, bool canFd, int devSubType) {
         auto kind = static_cast<CanDeviceManager::DeviceKind>(devKind);
         m_deviceManager->configure(kind, devIndex, channel,
-                                   arbBaud, dataBaud, canFd);
+                                   arbBaud, dataBaud, canFd, devSubType);
         m_deviceManager->start();
     });
 
@@ -2770,37 +2797,41 @@ void MainWindow::captureProjectState()
             st.dbcFiles << f.filePath;
     }
 
-    // Trace 实例
+    // Trace 实例 — 只保存 trace1 (默认实例)
     st.traces.clear();
-    for (auto it = m_traceInstances.begin(); it != m_traceInstances.end(); ++it) {
-        ProjectTraceInstance ti;
-        ti.id = it.key();
-        ti.title = it.key();
-        ti.title[0] = ti.title[0].toUpper();
-        auto *tab = qobject_cast<TraceTab*>(it.value());
-        if (tab)
-            ti.filterExpression = tab->filterExpression();
-        st.traces.append(ti);
+    {
+        auto it = m_traceInstances.find("trace1");
+        if (it != m_traceInstances.end()) {
+            ProjectTraceInstance ti;
+            ti.id = "trace1";
+            ti.title = "Trace1";
+            auto *tab = qobject_cast<TraceTab*>(it.value());
+            if (tab)
+                ti.filterExpression = tab->filterExpression();
+            st.traces.append(ti);
+        }
     }
 
-    // Graphic 实例
+    // Graphic 实例 — 只保存 graphic1 (默认实例)
     st.graphics.clear();
-    for (auto it = m_graphicInstances.begin(); it != m_graphicInstances.end(); ++it) {
-        ProjectGraphicInstance gi;
-        gi.id = it.key();
-        gi.title = it.key();
-        gi.title[0] = gi.title[0].toUpper();
-        auto *gv = qobject_cast<GraphicView*>(it.value());
-        if (gv) {
-            for (const auto &sig : gv->signalConfigs()) {
-                ProjectSigCfg sc;
-                sc.canId = sig.canId;
-                sc.name = sig.name;
-                sc.extended = sig.extended;
-                gi.sigList.append(sc);
+    {
+        auto it = m_graphicInstances.find("graphic1");
+        if (it != m_graphicInstances.end()) {
+            ProjectGraphicInstance gi;
+            gi.id = "graphic1";
+            gi.title = "Graphic1";
+            auto *gv = qobject_cast<GraphicView*>(it.value());
+            if (gv) {
+                for (const auto &sig : gv->signalConfigs()) {
+                    ProjectSigCfg sc;
+                    sc.canId = sig.canId;
+                    sc.name = sig.name;
+                    sc.extended = sig.extended;
+                    gi.sigList.append(sc);
+                }
             }
+            st.graphics.append(gi);
         }
-        st.graphics.append(gi);
     }
 
     // 标签页顺序
@@ -2882,27 +2913,33 @@ void MainWindow::applyProjectState()
             m_deviceTab->setDataBaudrate(st.deviceConfig.fdBaudrate);
     }
 
-    // 6. 创建 Trace 实例
+    // 6. 创建 Trace 实例 — 只恢复 trace1
     for (const auto &t : st.traces) {
+        if (t.id != "trace1")
+            continue;  // 忽略多余的 Trace 实例
         auto *tab = new TraceTab(this);
         setupTraceTab(tab);
         if (!t.filterExpression.isEmpty())
             tab->setFilterExpression(t.filterExpression);
-        openTab(tab, t.title);
-        m_traceInstances[t.id] = tab;
-        if (t.id == "trace1")
-            m_traceTab = tab;
-        // 更新计数器
-        int n = 0;
-        QRegularExpression re("trace(\\d+)", QRegularExpression::CaseInsensitiveOption);
-        auto m = re.match(t.id);
-        if (m.hasMatch())
-            n = m.captured(1).toInt();
-        m_traceCount = qMax(m_traceCount, n);
+        openTab(tab, "Trace1");
+        m_traceInstances["trace1"] = tab;
+        m_traceTab = tab;
+        m_traceCount = qMax(m_traceCount, 1);
+    }
+    // 若保存状态中没有 trace1，则创建默认的
+    if (!m_traceInstances.contains("trace1")) {
+        auto *tab = new TraceTab(this);
+        setupTraceTab(tab);
+        openTab(tab, "Trace1");
+        m_traceInstances["trace1"] = tab;
+        m_traceTab = tab;
+        m_traceCount = qMax(m_traceCount, 1);
     }
 
-    // 7. 创建 Graphic 实例
+    // 7. 创建 Graphic 实例 — 只恢复 graphic1
     for (const auto &g : st.graphics) {
+        if (g.id != "graphic1")
+            continue;  // 忽略多余的 Graphic 实例
         auto *gv = new GraphicView(this);
         // 重建信号配置
         QVector<GraphicView::Signal> sigConfigs;
@@ -2921,16 +2958,20 @@ void MainWindow::applyProjectState()
         }
         if (!sigConfigs.isEmpty())
             gv->loadSignalConfigs(sigConfigs);
-        openTab(gv, g.title);
-        m_graphicInstances[g.id] = gv;
-        if (g.id == "graphic1")
-            m_graphicView = gv;
-        int n = 0;
-        QRegularExpression re("graphic(\\d+)", QRegularExpression::CaseInsensitiveOption);
-        auto m = re.match(g.id);
-        if (m.hasMatch())
-            n = m.captured(1).toInt();
-        m_graphicCount = qMax(m_graphicCount, n);
+        openTab(gv, "Graphic1");
+        m_graphicInstances["graphic1"] = gv;
+        m_graphicView = gv;
+        m_sideBar->graphicConfigPanel()->setGraphicView(gv);
+        m_graphicCount = qMax(m_graphicCount, 1);
+    }
+    // 若保存状态中没有 graphic1，则创建默认的
+    if (!m_graphicInstances.contains("graphic1")) {
+        auto *gv = new GraphicView(this);
+        openTab(gv, "Graphic1");
+        m_graphicInstances["graphic1"] = gv;
+        m_graphicView = gv;
+        m_sideBar->graphicConfigPanel()->setGraphicView(gv);
+        m_graphicCount = qMax(m_graphicCount, 1);
     }
 
     // 8. 更新 flow 视图

@@ -233,17 +233,19 @@ bool parse(const QString &filePath, DbcFile &out)
     SIN_LOG_INFO("DBC", "Parsing: {} lines: {}",
                  out.fileName.toStdString(), mergedLines.size());
 
-    // 正则表达式
-    QRegularExpression boRe(R"(BO_\s+(\d+)\s+(\w+)\s*:\s*(\d+)\s+(\w+))");
+    // 正则表达式 — 消息 ID 支持负数（扩展帧 signed 表示，如 -2147483648）
+    QRegularExpression boRe(R"(BO_\s+(-?\d+)\s+(\w+)\s*:\s*(\d+)\s+(\w+))");
     QRegularExpression buRe(R"(BU_\s*:\s*(.+))");
     QRegularExpression valTableRe(R"re(VAL_TABLE_\s+(\w+)\s+(.*);)re");
-    QRegularExpression valRe(R"re(VAL_\s+(\d+)\s+(\w+)\s+(.*);)re");
+    // 支持 VAL_ 中负数消息 ID（扩展帧 signed 表示）
+    QRegularExpression valRe(R"re(VAL_\s+(-?\d+)\s+(\w+)\s+(.*);)re");
     QRegularExpression baDefRe(R"re(BA_DEF_\s+(BU_|BO_|SG_)?\s*"([^"]+)"\s+(\w+)\s*(.*);)re");
     QRegularExpression baDefDefRe(R"re(BA_DEF_DEF_\s*"([^"]+)"\s+(.*);)re");
     QRegularExpression baRe(R"re(BA_\s*"([^"]+)"\s+(BO_|SG_|BU_)?\s*(.*);)re");
-    QRegularExpression sigValTypeRe(R"re(SIG_VALTYPE_\s+(\d+)\s+(\w+)\s+(\d+))re");
-    QRegularExpression boTxBuRe(R"re(BO_TX_BU_\s+(\d+)\s*:\s*(.+);)re");
-    QRegularExpression pairRe(R"re((\d+)\s+"([^"]*)")re");
+    QRegularExpression sigValTypeRe(R"re(SIG_VALTYPE_\s+(-?\d+)\s+(\w+)\s+(\d+))re");
+    QRegularExpression boTxBuRe(R"re(BO_TX_BU_\s+(-?\d+)\s*:\s*(.+);)re");
+    // 支持 VAL_ / VAL_TABLE_ 中的负数值（如 -1 "Error"）
+    QRegularExpression pairRe(R"re((-?\d+)\s+"([^"]*)")re");
 
     DbcMessage *currentMsg = nullptr;
 
@@ -274,7 +276,7 @@ bool parse(const QString &filePath, DbcFile &out)
             auto m = boRe.match(line);
             if (m.hasMatch()) {
                 DbcMessage msg;
-                msg.id = m.captured(1).toUInt();
+                msg.id = static_cast<quint32>(m.captured(1).toInt());
                 msg.name = m.captured(2);
                 msg.dlc = m.captured(3).toInt();
                 msg.sender = m.captured(4);
@@ -295,8 +297,8 @@ bool parse(const QString &filePath, DbcFile &out)
         // CM_ — comments
         if (line.startsWith("CM_")) {
             QRegularExpression cmBuRe(R"re(CM_\s+BU_\s+(\w+)\s+"(.*)"\s*;)re");
-            QRegularExpression cmBoRe(R"re(CM_\s+BO_\s+(\d+)\s+"(.*)"\s*;)re");
-            QRegularExpression cmSgRe(R"re(CM_\s+SG_\s+(\d+)\s+(\w+)\s+"(.*)"\s*;)re");
+            QRegularExpression cmBoRe(R"re(CM_\s+BO_\s+(-?\d+)\s+"(.*)"\s*;)re");
+            QRegularExpression cmSgRe(R"re(CM_\s+SG_\s+(-?\d+)\s+(\w+)\s+"(.*)"\s*;)re");
 
             auto cmBu = cmBuRe.match(line);
             if (cmBu.hasMatch()) {
@@ -309,7 +311,7 @@ bool parse(const QString &filePath, DbcFile &out)
             }
             auto cmBo = cmBoRe.match(line);
             if (cmBo.hasMatch()) {
-                auto *msg = out.findMessage(cmBo.captured(1).toUInt());
+                auto *msg = out.findMessage(static_cast<quint32>(cmBo.captured(1).toInt()));
                 if (msg) {
                     QString text = cmBo.captured(2);
                     text.replace("\\\"", "\"");
@@ -319,7 +321,7 @@ bool parse(const QString &filePath, DbcFile &out)
             }
             auto cmSg = cmSgRe.match(line);
             if (cmSg.hasMatch()) {
-                auto *msg = out.findMessage(cmSg.captured(1).toUInt());
+                auto *msg = out.findMessage(static_cast<quint32>(cmSg.captured(1).toInt()));
                 if (msg) {
                     auto *sig = msg->findSignal(cmSg.captured(2));
                     if (sig) {
@@ -415,7 +417,7 @@ bool parse(const QString &filePath, DbcFile &out)
                 } else if (scopeStr == "BO_") {
                     auto parts = rest.split(' ', Qt::SkipEmptyParts);
                     if (parts.size() >= 2) {
-                        av.canId = parts[0].toUInt();
+                        av.canId = static_cast<quint32>(parts[0].toInt());
                         QString v = parts[1];
                         if (v.startsWith('"') && v.endsWith('"')) v = v.mid(1, v.size() - 2);
                         bool ok; int iv = v.toInt(&ok);
@@ -424,7 +426,7 @@ bool parse(const QString &filePath, DbcFile &out)
                 } else if (scopeStr == "SG_") {
                     auto parts = rest.split(' ', Qt::SkipEmptyParts);
                     if (parts.size() >= 3) {
-                        av.canId = parts[0].toUInt();
+                        av.canId = static_cast<quint32>(parts[0].toInt());
                         av.signalName = parts[1];
                         QString v = parts[2];
                         if (v.startsWith('"') && v.endsWith('"')) v = v.mid(1, v.size() - 2);
@@ -461,7 +463,7 @@ bool parse(const QString &filePath, DbcFile &out)
         if (line.startsWith("VAL_")) {
             auto m = valRe.match(line);
             if (m.hasMatch()) {
-                auto *msg = out.findMessage(m.captured(1).toUInt());
+                auto *msg = out.findMessage(static_cast<quint32>(m.captured(1).toInt()));
                 if (msg) {
                     auto *sig = msg->findSignal(m.captured(2));
                     if (sig) {
@@ -480,7 +482,7 @@ bool parse(const QString &filePath, DbcFile &out)
         if (line.startsWith("SIG_VALTYPE_")) {
             auto m = sigValTypeRe.match(line);
             if (m.hasMatch()) {
-                quint32 id = m.captured(1).toUInt();
+                quint32 id = static_cast<quint32>(m.captured(1).toInt());
                 QString sigName = m.captured(2);
                 int valType = m.captured(3).toInt();
                 auto *msg = out.findMessage(id);
@@ -501,7 +503,7 @@ bool parse(const QString &filePath, DbcFile &out)
         if (line.startsWith("BO_TX_BU_")) {
             auto m = boTxBuRe.match(line);
             if (m.hasMatch()) {
-                auto *msg = out.findMessage(m.captured(1).toUInt());
+                auto *msg = out.findMessage(static_cast<quint32>(m.captured(1).toInt()));
                 if (msg) {
                     for (auto &n : m.captured(2).split(',', Qt::SkipEmptyParts))
                         msg->txNodes.append(n.trimmed());

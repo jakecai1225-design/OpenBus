@@ -17,7 +17,11 @@
 #include <QScrollArea>
 #include <QMenu>
 #include <QAction>
+#include <QFont>
+#include <QBrush>
 #include <QDebug>
+#include <QStyleFactory>
+#include <QStyle>
 
 // 树节点 UserRole
 static const int RoleNodeType = Qt::UserRole;       // int -> NodeType
@@ -77,7 +81,21 @@ void DbcDetailTab::buildLeftPane(QSplitter *splitter)
 
     m_tree = new QTreeWidget(this);
     m_tree->setHeaderHidden(true);
-    m_tree->setIndentation(16);
+    m_tree->setRootIsDecorated(true);
+    m_tree->setIndentation(18);
+    m_tree->setAlternatingRowColors(true);
+    m_tree->setUniformRowHeights(true);
+    m_tree->setAnimated(true);
+    m_tree->setExpandsOnDoubleClick(true);
+    // CANdb++ 风格: 经典 +/- 折叠按钮 + 树形连接线
+    m_tree->setStyle(QStyleFactory::create("Windows"));
+    // 局部样式: 配色与整体 VS Code 风格主题一致
+    m_tree->setStyleSheet(
+        "QTreeWidget { background-color: #f8f8f8; border: none; outline: none; font-size: 12px; }"
+        "QTreeWidget::item { padding: 3px 2px; min-height: 20px; }"
+        "QTreeWidget::item:hover { background-color: #e8e8e8; }"
+        "QTreeWidget::item:selected { background-color: #c5d9f1; color: #000; }"
+    );
     leftLayout->addWidget(m_tree, 1);
 
     splitter->addWidget(leftWidget);
@@ -294,36 +312,110 @@ void DbcDetailTab::refreshTree()
     // 顶层: 网络
     auto *netItem = new QTreeWidgetItem(m_tree, {file->fileName});
     netItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Network));
-    netItem->setExpanded(true);
+    netItem->setExpanded(true);  // 仅顶层网络节点默认展开
+    {
+        QFont f = netItem->font(0);
+        f.setBold(true);
+        f.setPointSize(f.pointSize() + 1);
+        netItem->setFont(0, f);
+    }
+
+    // 辅助：给分类节点设置加粗字体
+    auto makeCategoryBold = [](QTreeWidgetItem *item) {
+        QFont f = item->font(0);
+        f.setBold(true);
+        item->setFont(0, f);
+    };
+
+    // 辅助：给信号节点设置稍微淡化的颜色
+    auto makeSignalItalic = [](QTreeWidgetItem *item) {
+        QFont f = item->font(0);
+        f.setItalic(false);
+        item->setFont(0, f);
+        // 值表条目用斜体灰色
+        QBrush brush(Qt::darkGray);
+        for (int i = 0; i < item->childCount(); ++i) {
+            QTreeWidgetItem *child = item->child(i);
+            QFont cf = child->font(0);
+            cf.setItalic(true);
+            child->setFont(0, cf);
+            child->setForeground(0, brush);
+        }
+    };
+
+    // ---- 辅助 lambda：为信号节点创建子项（值表条目） ----
+    auto buildSignalChildren = [&](QTreeWidgetItem *sigItem, const DbcSignal &sig) {
+        if (!sig.valueTable.isEmpty()) {
+            for (const auto &vd : sig.valueTable) {
+                auto *vtEntry = new QTreeWidgetItem(sigItem,
+                    {QString("%1 = %2").arg(vd.value).arg(vd.description)});
+                vtEntry->setData(0, RoleNodeType, static_cast<int>(NodeType::Signal));
+                vtEntry->setData(0, RoleCanId, sigItem->data(0, RoleCanId).toUInt());
+                vtEntry->setData(0, RoleName, sig.name);
+            }
+        }
+    };
+
+    // ---- 辅助 lambda：创建信号节点（带属性信息） ----
+    auto createSignalItem = [&](QTreeWidgetItem *parent, const DbcMessage &msg, const DbcSignal &sig) {
+        // 信号名 + 属性信息（对齐 CANdb++ 显示风格）
+        QString sigText = sig.name;
+        // 多路复用标记
+        if (sig.muxType == DbcSignal::MuxType::Multiplexor)
+            sigText += "  [M]";
+        else if (sig.muxType == DbcSignal::MuxType::Multiplexed)
+            sigText += QString("  [m%1]").arg(sig.muxValue);
+        // 起始位/长度/字节序
+        sigText += QString("  [%1|%2 %3]")
+            .arg(sig.startBit)
+            .arg(sig.bitLength)
+            .arg(sig.littleEndian ? QStringLiteral("Intel") : QStringLiteral("Motorola"));
+        // 单位
+        if (!sig.unit.isEmpty())
+            sigText += QString("  %1").arg(sig.unit);
+
+        auto *sigItem = new QTreeWidgetItem(parent, {sigText});
+        sigItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Signal));
+        sigItem->setData(0, RoleCanId, msg.id);
+        sigItem->setData(0, RoleName, sig.name);
+        // 值表条目作为子项
+        buildSignalChildren(sigItem, sig);
+        // 值表条目用斜体灰色
+        makeSignalItalic(sigItem);
+        return sigItem;
+    };
 
     // ---- Category: Network Nodes ----
-    auto *catNodes = new QTreeWidgetItem(netItem, {"Network Nodes"});
+    auto *catNodes = new QTreeWidgetItem(netItem,
+        {QString("Network Nodes (%1)").arg(file->nodes.size())});
     catNodes->setData(0, RoleNodeType, static_cast<int>(NodeType::CategoryNodes));
-    catNodes->setExpanded(true);
+    catNodes->setExpanded(false);  // 默认折叠
+    makeCategoryBold(catNodes);
     for (const auto &node : file->nodes) {
         auto *nodeItem = new QTreeWidgetItem(catNodes, {node.name});
         nodeItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Node));
         nodeItem->setData(0, RoleName, node.name);
-
-        // TX 子分类
+        nodeItem->setExpanded(false);
         if (!node.txMessageIds.isEmpty()) {
             auto *txCat = new QTreeWidgetItem(nodeItem, {QString("TX (%1)").arg(node.txMessageIds.size())});
+            txCat->setExpanded(false);
             for (quint32 txId : node.txMessageIds) {
                 const DbcMessage *msg = file->findMessage(txId);
                 QString text = QString("0x%1  %2")
                     .arg(txId, 0, 16).toUpper()
                     .arg(msg ? msg->name : "?");
+                if (msg && msg->dlc > 0)
+                    text += QString("  [DLC=%1]").arg(msg->dlc);
+                if (msg && msg->cycleTime > 0)
+                    text += QString("  [%1ms]").arg(msg->cycleTime);
                 auto *txItem = new QTreeWidgetItem(txCat, {text});
                 txItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Message));
                 txItem->setData(0, RoleCanId, txId);
+                txItem->setExpanded(false);
                 // 信号子项
                 if (msg) {
-                    for (const auto &sig : msg->signalList) {
-                        auto *sigItem = new QTreeWidgetItem(txItem, {sig.name});
-                        sigItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Signal));
-                        sigItem->setData(0, RoleCanId, txId);
-                        sigItem->setData(0, RoleName, sig.name);
-                    }
+                    for (const auto &sig : msg->signalList)
+                        createSignalItem(txItem, *msg, sig);
                 }
             }
         }
@@ -336,22 +428,27 @@ void DbcDetailTab::refreshTree()
                 rxById[rx.first].append(rx.second);
 
             auto *rxCat = new QTreeWidgetItem(nodeItem, {QString("RX (%1)").arg(rxById.size())});
+            rxCat->setExpanded(false);
             for (auto it = rxById.constBegin(); it != rxById.constEnd(); ++it) {
                 quint32 rxId = it.key();
                 const DbcMessage *msg = file->findMessage(rxId);
                 QString text = QString("0x%1  %2")
                     .arg(rxId, 0, 16).toUpper()
                     .arg(msg ? msg->name : "?");
+                if (msg && msg->dlc > 0)
+                    text += QString("  [DLC=%1]").arg(msg->dlc);
+                if (msg && msg->cycleTime > 0)
+                    text += QString("  [%1ms]").arg(msg->cycleTime);
                 auto *rxMsgItem = new QTreeWidgetItem(rxCat, {text});
                 rxMsgItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Message));
                 rxMsgItem->setData(0, RoleCanId, rxId);
-                // 信号子项
+                rxMsgItem->setExpanded(false);
+                // 信号子项 — 只显示该节点接收的信号
                 if (msg) {
-                    for (const auto &sig : msg->signalList) {
-                        auto *sigItem = new QTreeWidgetItem(rxMsgItem, {sig.name});
-                        sigItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Signal));
-                        sigItem->setData(0, RoleCanId, rxId);
-                        sigItem->setData(0, RoleName, sig.name);
+                    for (const auto &sigName : it.value()) {
+                        const DbcSignal *sig = msg->findSignal(sigName);
+                        if (sig)
+                            createSignalItem(rxMsgItem, *msg, *sig);
                     }
                 }
             }
@@ -359,39 +456,57 @@ void DbcDetailTab::refreshTree()
     }
 
     // ---- Category: Messages ----
-    auto *catMsgs = new QTreeWidgetItem(netItem, {"Messages"});
+    auto *catMsgs = new QTreeWidgetItem(netItem,
+        {QString("Messages (%1)").arg(file->messages.size())});
     catMsgs->setData(0, RoleNodeType, static_cast<int>(NodeType::CategoryMessages));
-    catMsgs->setExpanded(true);
+    catMsgs->setExpanded(false);
+    makeCategoryBold(catMsgs);
     for (const auto &msg : file->messages) {
+        // 报文名 + DLC + 周期信息（对齐 CANdb++）
         QString msgText = QString("0x%1  %2")
             .arg(msg.id, 0, 16).toUpper()
             .arg(msg.name);
+        if (msg.dlc > 0)
+            msgText += QString("  [DLC=%1]").arg(msg.dlc);
+        if (msg.cycleTime > 0)
+            msgText += QString("  [%1ms]").arg(msg.cycleTime);
+        if (!msg.sender.isEmpty())
+            msgText += QString("  <%1>").arg(msg.sender);
+
         auto *msgItem = new QTreeWidgetItem(catMsgs, {msgText});
         msgItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Message));
         msgItem->setData(0, RoleCanId, msg.id);
+        msgItem->setExpanded(false);
 
-        for (const auto &sig : msg.signalList) {
-            QString sigText = sig.name;
-            if (sig.muxType == DbcSignal::MuxType::Multiplexor)
-                sigText += "  [M]";
-            else if (sig.muxType == DbcSignal::MuxType::Multiplexed)
-                sigText += QString("  [m%1]").arg(sig.muxValue);
-            auto *sigItem = new QTreeWidgetItem(msgItem, {sigText});
-            sigItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Signal));
-            sigItem->setData(0, RoleCanId, msg.id);
-            sigItem->setData(0, RoleName, sig.name);
-        }
+        for (const auto &sig : msg.signalList)
+            createSignalItem(msgItem, msg, sig);
     }
 
     // ---- Category: Value Tables ----
     if (!file->valueTables.isEmpty()) {
-        auto *catVT = new QTreeWidgetItem(netItem, {"Value Tables"});
+        auto *catVT = new QTreeWidgetItem(netItem,
+            {QString("Value Tables (%1)").arg(file->valueTables.size())});
         catVT->setData(0, RoleNodeType, static_cast<int>(NodeType::CategoryValueTables));
-        catVT->setExpanded(true);
+        catVT->setExpanded(false);
+        makeCategoryBold(catVT);
+        QBrush entryBrush(Qt::darkGray);
         for (const auto &vt : file->valueTables) {
             auto *vtItem = new QTreeWidgetItem(catVT, {vt.name});
             vtItem->setData(0, RoleNodeType, static_cast<int>(NodeType::ValueTable));
             vtItem->setData(0, RoleName, vt.name);
+            vtItem->setExpanded(false);
+            // 值表条目作为子项（对齐 CANdb++）
+            for (const auto &entry : vt.entries) {
+                auto *entryItem = new QTreeWidgetItem(vtItem,
+                    {QString("%1 = %2").arg(entry.value).arg(entry.description)});
+                entryItem->setData(0, RoleNodeType, static_cast<int>(NodeType::ValueTable));
+                entryItem->setData(0, RoleName, vt.name);
+                // 斜体灰色
+                QFont ef = entryItem->font(0);
+                ef.setItalic(true);
+                entryItem->setFont(0, ef);
+                entryItem->setForeground(0, entryBrush);
+            }
         }
     }
 }
@@ -416,6 +531,9 @@ static bool filterTreeItem(QTreeWidgetItem *item, const QString &text)
             anyChildMatch = true;
     }
     item->setHidden(!selfMatch && !anyChildMatch);
+    // 搜索时自动展开包含匹配子项的节点
+    if (anyChildMatch)
+        item->setExpanded(true);
     return selfMatch || anyChildMatch;
 }
 
