@@ -14,7 +14,7 @@ class RingBuffer
 {
 public:
     explicit RingBuffer(int capacity = 1000000)
-        : m_data(capacity), m_capacity(capacity) {}
+        : m_capacity(capacity > 0 ? capacity : 1), m_data(capacity > 0 ? capacity : 1) {}
 
     /// 追加元素。缓冲区满时覆盖最旧元素（返回被覆盖元素的指针，未满时返回 nullptr）
     const T *push(const T &item)
@@ -63,8 +63,8 @@ public:
 
     void reserve(int capacity)
     {
-        m_capacity = capacity;
-        m_data.resize(capacity);
+        m_capacity = capacity > 0 ? capacity : 1;
+        m_data.resize(m_capacity);
         m_head = 0;
         m_count = 0;
     }

@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: ""
-title: CAN 报文发送与 DBC 导入界面（SignalSendTab & DbcImportDialog）
+title: sin CAN 总线分析工具（Qt6 桌面应用）
 scope: []
 source_files: []
 depends_on: []

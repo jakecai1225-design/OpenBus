@@ -39,6 +39,8 @@
 - [src/ui/deviceconnectiontab.cpp](file://src/ui/deviceconnectiontab.cpp)
 - [src/ui/thememanager.h](file://src/ui/thememanager.h)
 - [src/ui/thememanager.cpp](file://src/ui/thememanager.cpp)
+- [src/ui/settingsdialog.h](file://src/ui/settingsdialog.h)
+- [src/ui/settingsdialog.cpp](file://src/ui/settingsdialog.cpp)
 - [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
 - [UI/ui-prototype.html](file://UI/ui-prototype.html)
 - [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
@@ -48,6 +50,8 @@
 - [src/models/cantracemodel.cpp](file://src/models/cantracemodel.cpp)
 - [src/models/canfilterproxymodel.h](file://src/models/canfilterproxymodel.h)
 - [src/models/canfilterproxymodel.cpp](file://src/models/canfilterproxymodel.cpp)
+- [src/models/viewportproxy.h](file://src/models/viewportproxy.h)
+- [src/models/viewportproxy.cpp](file://src/models/viewportproxy.cpp)
 - [third_party/qcustomplot/qcustomplot.h](file://third_party/qcustomplot/qcustomplot.h)
 - [src/core/canframe.h](file://src/core/canframe.h)
 - [src/core/dbcdata.h](file://src/core/dbcdata.h)
@@ -55,13 +59,11 @@
 
 ## 更新摘要
 **所做更改**   
-- 完全重构了GraphicView组件，集成了QCustomPlot实现专业级CAN总线信号可视化
-- 实现了多轴信号绘图系统，支持独立Y轴和共享X轴的时间序列显示
-- 添加了交互式光标系统，支持单卡尺和双卡尺模式进行精确测量
-- 实现了实时数据流处理，支持高性能的CAN信号波形绘制
-- 增强了主题管理系统，支持7种内置主题和运行时动态切换
-- 改进了样式系统，使用@变量占位符实现灵活的样式定制
-- 优化了性能节流机制，通过定时器批量重绘提升渲染效率
+- 新增视口概览组件系统，实现CANoe风格的视窗缩略图导航功能
+- 将覆盖模式功能从过滤器栏迁移到设置菜单，提供更集中的配置管理
+- 设备连接行为升级，采用V2信号接口支持更完整的设备配置参数
+- 增强TraceView组件的交互体验，支持拖拽式视窗导航
+- 优化大数据集处理性能，通过固定行数视窗限制内存占用
 
 ## 目录
 1. [简介](#简介)
@@ -83,7 +85,7 @@
 
 **更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新针对UI系统进行了全面增强，包括SVG图标支持系统、样式系统重构、现代化界面设计改进，以及设备连接界面的优化。新增的ThemeManager主题管理器支持多种内置主题和运行时切换，SVG图标系统提供动态颜色替换功能，设备连接界面提供了完整的CAN/CAN FD配置选项和时序预设管理。活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置，反映了其在测量设置工作流程中的重要性。各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。**
 
-**最新增强** GraphicView组件现已完全重构，集成了QCustomPlot库，提供了专业的信号可视化功能。支持多轴信号绘图、实时数据流处理、交互式光标系统和高性能的批处理渲染。主题管理系统得到了显著增强，支持7种内置主题（Light、Dark、VS Code Dark+、VS Code Light+、Monokai、Solarized Light、Solarized Dark）和运行时动态切换。
+**最新增强** GraphicView组件现已完全重构，集成了QCustomPlot库，提供了专业的信号可视化功能。支持多轴信号绘图、实时数据流处理、交互式光标系统和高性能的批处理渲染。主题管理系统得到了显著增强，支持7种内置主题（Light、Dark、VS Code Dark+、VS Code Light+、Monokai、Solarized Light、Solarized Dark）和运行时动态切换。**新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，支持拖拽式视窗控制和点击跳转功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数和厂商特定设置。**
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式，结合了传统Qt Widgets架构和现代Web前端技术：
@@ -112,21 +114,23 @@ B --> O["src/ui/playbacktab.h/.cpp"]
 B --> P["src/ui/recordtab.h/.cpp"]
 B --> Q["src/ui/deviceconnectiontab.h/.cpp"]
 B --> R["src/ui/thememanager.h/.cpp"]
-B --> S["src/utils/svg_icon.h"]
-B --> T["src/models/cantracemodel.h/.cpp"]
-B --> U["src/models/canfilterproxymodel.h/.cpp"]
-A --> V["resources/resources.qrc"]
-V --> W["resources/styles/default.qss"]
-V --> X["resources/styles/theme.qss"]
-A --> Y["UI/ui-prototype.html"]
-Y --> Z["UI/js/ui-loader.js"]
-Y --> AA["UI/js/ui-prototype.js"]
-Y --> AB["UI/css/ui-prototype.css"]
-Z --> AC["UI/partials/*.html"]
-AA --> AC
-AB --> AC
-B --> AD["third_party/qcustomplot"]
-AD --> AE["qcustomplot.h"]
+B --> S["src/ui/settingsdialog.h/.cpp"]
+B --> T["src/utils/svg_icon.h"]
+B --> U["src/models/cantracemodel.h/.cpp"]
+B --> V["src/models/canfilterproxymodel.h/.cpp"]
+B --> W["src/models/viewportproxy.h/.cpp"]
+A --> X["resources/resources.qrc"]
+X --> Y["resources/styles/default.qss"]
+X --> Z["resources/styles/theme.qss"]
+A --> AA["UI/ui-prototype.html"]
+AA --> AB["UI/js/ui-loader.js"]
+AA --> AC["UI/js/ui-prototype.js"]
+AA --> AD["UI/css/ui-prototype.css"]
+AB --> AE["UI/partials/*.html"]
+AC --> AE
+AD --> AE
+B --> AF["third_party/qcustomplot"]
+AF --> AG["qcustomplot.h"]
 ```
 
 **图表来源**
@@ -156,8 +160,10 @@ AD --> AE["qcustomplot.h"]
 - JavaScript模块系统: 包含ui-loader.js和ui-prototype.js，实现模块化功能组织
 - CSS样式系统: 提供统一的样式规范和响应式设计支持
 - **新增** QCustomPlot集成: 专业级的信号可视化和图表绘制引擎
+- **新增** ViewportProxyModel: CANoe风格的视窗代理模型，提供固定行数视窗限制
+- **新增** ViewportOverview: 视窗缩略图组件，支持拖拽式视窗导航
 
-**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -182,8 +188,9 @@ AD --> AE["qcustomplot.h"]
 - 资源通过qrc统一打包，避免路径问题
 - Web前端提供现代化界面原型和动态内容加载能力
 - **新增** QCustomPlot集成提供专业的信号可视化能力
+- **新增** 视口代理模型提供固定行数视窗限制，优化大数据集处理性能
 
-**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
+**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
 
 ```mermaid
 graph TB
@@ -191,6 +198,7 @@ subgraph "应用层"
 M["main.cpp<br/>应用入口"]
 MW["MainWindow<br/>主窗口"]
 TM["ThemeManager<br/>主题管理器"]
+SD["SettingsDialog<br/>设置对话框"]
 end
 subgraph "Web前端层"
 WPH["ui-prototype.html<br/>主界面"]
@@ -206,7 +214,7 @@ end
 subgraph "编辑区域层"
 SEA["SplitEditorArea<br/>分割编辑器区域"]
 SBP["SidebarPanels<br/>侧边栏面板<br/>DbcPanel支持多协议分类"]
-DCT["DeviceConnectionTab<br/>设备连接界面"]
+DCT["DeviceConnectionTab<br/>设备连接界面<br/>V2接口升级"]
 end
 subgraph "专用Tab组件层"
 DBCT["DBCDetailTab<br/>DBC详情标签页"]
@@ -223,6 +231,8 @@ FB["FilterBar<br/>过滤器栏<br/>刷新率控制增强"]
 GV["GraphicView<br/>图形视图<br/>QCustomPlot集成"]
 TV["TraceView<br/>跟踪视图"]
 SCD["SignalConfigDialog<br/>信号配置对话框"]
+VO["ViewportOverview<br/>视窗缩略图<br/>新增组件"]
+VPM["ViewportProxyModel<br/>视窗代理模型<br/>新增组件"]
 end
 subgraph "数据模型层"
 CTM["CanTraceModel<br/>追踪数据模型<br/>批量处理增强"]
@@ -237,6 +247,7 @@ QCP["QCustomPlot<br/>图表引擎"]
 end
 M --> MW
 M --> TM
+M --> SD
 M --> WPH
 WPH --> WL
 WPH --> WP
@@ -255,6 +266,7 @@ MW --> TP
 SEA --> FB
 SEA --> GV
 SEA --> TV
+SEA --> VO
 MW --> SCD
 MW --> QSS
 TM --> THEME
@@ -264,8 +276,11 @@ QRC --> SVG
 TP --> TR
 TT --> CTM
 TT --> CFPM
+TT --> VPM
+TT --> VO
 FB --> CTM
 GV --> QCP
+VPM --> CFPM
 ```
 
 **图表来源**
@@ -274,6 +289,8 @@ GV --> QCP
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 - [src/ui/thememanager.h](file://src/ui/thememanager.h)
 - [src/ui/thememanager.cpp](file://src/ui/thememanager.cpp)
+- [src/ui/settingsdialog.h](file://src/ui/settingsdialog.h)
+- [src/ui/settingsdialog.cpp](file://src/ui/settingsdialog.cpp)
 - [UI/ui-prototype.html](file://UI/ui-prototype.html)
 - [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
 - [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
@@ -334,7 +351,7 @@ App->>App : 进入事件循环
 - 通过信号槽机制与子控件通信
 - 支持Web前端的原型验证和交互测试
 
-**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，新增了ThemeManager主题管理器的集成，支持运行时主题切换；设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项；侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理。活动栏导航系统已重新组织，'Flow'按钮被移动到更显眼的位置，与CANoe Measurement Setup行业标准保持一致。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。**主窗口作为协调者，统一管理各组件的生命周期和数据流，并支持与Web前端原型的无缝集成。
+**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，新增了ThemeManager主题管理器的集成，支持运行时主题切换；设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项；侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理。活动栏导航系统已重新组织，'Flow'按钮被移动到更显眼的位置，与CANoe Measurement Setup行业标准保持一致。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。设备连接行为已升级为V2接口，支持更完整的设备配置参数。**主窗口作为协调者，统一管理各组件的生命周期和数据流，并支持与Web前端原型的无缝集成。
 
 ```mermaid
 classDiagram
@@ -352,6 +369,7 @@ class MainWindow {
 +initWebPrototype()
 +communicateWithWeb(message)
 +onToolOpened(toolKey)
++setupDeviceTab(tab)
 }
 class ActivityBar {
 +addActivityItem(item)
@@ -395,6 +413,7 @@ class DeviceConnectionTab {
 +onConnect()
 +onDisconnect()
 +onCanFdToggled(enabled)
++deviceConnectRequestedV2(...)
 }
 class DBCDetailTab {
 +loadDBCFile(path)
@@ -558,7 +577,138 @@ SvgIconSystem --> ThemeIntegration : "集成"
 章节来源
 - [README.en.md](file://README.en.md)
 
+### 设置对话框（SettingsDialog）
+功能特性
+- VS Code风格设置界面，左侧分类树 + 右侧设置项列表
+- 支持直接编辑JSON配置文件（类似VS Code的settings.json）
+- 提供搜索功能和分类过滤
+- 支持重置为默认配置
+
+**更新** 设置对话框现在包含了覆盖模式的配置选项，用户可以通过界面或JSON编辑器直接修改trace.overwriteMode设置。新增了对Trace、Graphic、Record等模块的配置项管理。
+
+技术实现
+- 基于QTreeWidget的分类树管理
+- QStackedWidget实现设置页面切换
+- 支持JSON格式的导入导出
+- 实时预览和验证配置
+
+```mermaid
+classDiagram
+class SettingsDialog {
++SettingsDialog(parent)
++onSearchChanged(text)
++onCategorySelected(item)
++onJsonEdited()
++onSave()
++onReset()
++populateCategoryTree()
++populateSettingsTree(category, filter)
++switchToJsonPage()
++switchToSettingsPage()
+}
+class SettingMeta {
++key string
++label string
++category string
++type string
++desc string
++comboChoices list
+}
+class AppConfig {
++getString(key, def) QString
++getInt(key, def) int
++getBool(key, def) bool
++set(key, value)
++save()
++toJsonString() QString
++fromJsonString(json) bool
++defaultConfig() json
+}
+SettingsDialog --> SettingMeta : "管理"
+SettingsDialog --> AppConfig : "操作"
+```
+
+**图表来源**
+- [src/ui/settingsdialog.h](file://src/ui/settingsdialog.h)
+- [src/ui/settingsdialog.cpp](file://src/ui/settingsdialog.cpp)
+
+章节来源
+- [src/ui/settingsdialog.h](file://src/ui/settingsdialog.h)
+- [src/ui/settingsdialog.cpp](file://src/ui/settingsdialog.cpp)
+
 ## 增强图形组件
+
+### 视口概览组件系统
+功能特性
+- **新增** ViewportProxyModel：CANoe风格的视窗代理模型，提供固定行数视窗限制
+- **新增** ViewportOverview：视窗缩略图组件，支持拖拽式视窗导航
+- 固定行数视窗：通过ViewportProxyModel限制显示的行数，优化大数据集处理
+- 拖拽导航：支持拖拽缩略图中的高亮区域移动视窗
+- 点击跳转：点击缩略图任意位置跳转到对应视窗位置
+- 密度缓存：智能缓存缩略图渲染结果，提升性能
+
+技术实现
+- 基于QAbstractProxyModel的视窗代理模型
+- 自定义QWidget实现缩略图绘制和交互
+- 信号槽机制实现视窗位置同步
+- 智能缓存机制减少重复渲染
+
+```mermaid
+classDiagram
+class ViewportProxyModel {
++ViewportProxyModel(parent)
++setViewportStart(start)
++setViewportSize(size)
++viewportStart() int
++viewportSize() int
++sourceRowCount() int
++ensureVisible(row)
++scrollToEnd()
++mapToSource(index) QModelIndex
++mapFromSource(index) QModelIndex
++rowCount(parent) int
++columnCount(parent) int
++index(row, column, parent) QModelIndex
++viewportChanged() signal
+}
+class ViewportOverview {
++ViewportOverview(parent)
++setViewportProxy(proxy)
++setFilterProxy(proxy)
++setTraceSource(model)
++markCacheDirty()
++viewportMoved(start) signal
++paintEvent(event)
++mousePressEvent(event)
++mouseMoveEvent(event)
++mouseReleaseEvent(event)
++wheelEvent(event)
+}
+class TraceTab {
++TraceTab(parent)
++updateViewportOverview()
++appendFrame(frame)
++clearTrace()
++setFilterExpression(expr)
++isOverwriteMode() bool
+}
+ViewportProxyModel --> CanFilterProxyModel : "代理"
+ViewportOverview --> ViewportProxyModel : "控制"
+TraceTab --> ViewportOverview : "集成"
+TraceTab --> ViewportProxyModel : "管理"
+```
+
+**图表来源**
+- [src/models/viewportproxy.h](file://src/models/viewportproxy.h)
+- [src/models/viewportproxy.cpp](file://src/models/viewportproxy.cpp)
+- [src/ui/traceview.h](file://src/ui/traceview.h)
+- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
+
+章节来源
+- [src/models/viewportproxy.h](file://src/models/viewportproxy.h)
+- [src/models/viewportproxy.cpp](file://src/models/viewportproxy.cpp)
+- [src/ui/traceview.h](file://src/ui/traceview.h)
+- [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
 
 ### 图形视图（GraphicView）增强
 功能特性
@@ -685,6 +835,7 @@ GraphicView --> CursorSystem : "集成"
 - **增强** 改进的数据分页和虚拟滚动
 - **增强** 优化的内存使用和缓存机制
 - **增强** 更丰富的过滤和搜索选项
+- **新增** 视口概览组件集成，提供缩略图导航
 
 数据管理
 - 高效的数据存储与检索
@@ -746,7 +897,7 @@ TraceView --> DataCache : "管理"
 - 时序预设管理和详细信息显示
 - 连接/断开控制和状态显示
 
-**更新** 设备连接界面得到了显著增强，提供了完整的CAN/CAN FD配置选项，包括波特率预设、时序预设管理和通道配置。支持模拟器模式和真实硬件设备连接，通过V2接口统一处理设备连接请求。
+**更新** 设备连接界面得到了显著增强，采用了V2信号接口，支持更完整的设备配置参数。新增了设备类型子类型支持，能够处理不同厂商设备的特定配置。连接行为更加稳定，提供了更好的错误处理和状态反馈。
 
 技术实现
 - 基于QVBoxLayout的垂直布局
@@ -754,6 +905,7 @@ TraceView --> DataCache : "管理"
 - QComboBox提供可编辑的波特率输入
 - QCheckBox支持多通道选择
 - 时序预设包含SJW、TSEG1、TSEG2和采样点信息
+- **新增** V2信号接口支持：deviceConnectRequestedV2信号携带完整设备配置参数
 
 ```mermaid
 classDiagram
@@ -770,6 +922,7 @@ class DeviceConnectionTab {
 +updateCanFdVisibility()
 +populateTimingPresets()
 +timingDetailText(preset) QString
++deviceConnectRequestedV2(devKind, devIndex, channel, arbBaud, dataBaud, canFd, deviceType)
 }
 class TimingPreset {
 +name string
@@ -879,9 +1032,9 @@ SidebarPanels --> PanelStateManager : "使用"
 - 与数据模型无缝集成
 - **增强** 刷新率控制功能，支持高(50ms)、中(100ms)、低(200ms)、暂停四种模式
 - **增强** 批处理模型集成，优化大量数据处理性能
-- **增强** 覆盖模式切换，支持固定行显示和滚动模式
+- **更新** 覆盖模式功能已迁移到设置菜单，不再在过滤器栏中显示
 
-**更新** 过滤器栏得到了显著增强，新增了刷新率控制功能，通过refreshRateChanged信号与CanTraceModel集成，实现了可配置的刷新频率控制。覆盖模式按钮允许用户在固定行显示和滚动模式之间切换，提高了大数据集的处理效率。
+**更新** 过滤器栏得到了显著增强，新增了刷新率控制功能，通过refreshRateChanged信号与CanTraceModel集成，实现了可配置的刷新频率控制。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。
 
 架构设计
 - 继承自QWidget，提供独立的过滤界面
@@ -996,14 +1149,16 @@ SignalConfigDialog --> SignalDefinition : "管理"
 - **增强** 刷新率控制设置菜单，支持高、中、低、暂停四种模式
 - **增强** 时间格式设置，支持绝对时间戳、自捕获分组、自显示分组
 - **增强** 批量数据处理优化，提高大数据集处理能力
+- **新增** 视口概览组件集成，提供缩略图导航功能
 
-**更新** 跟踪标签页得到了显著增强，新增了刷新率控制功能。通过设置菜单中的刷新率选项，用户可以调节数据更新的频率，从高频(50ms)到低频(200ms)再到暂停刷新，有效平衡了实时性和性能需求。时间格式设置也得到完善，支持多种时间戳显示模式。
+**更新** 跟踪标签页得到了显著增强，新增了刷新率控制功能和视口概览组件。通过设置菜单中的刷新率选项，用户可以调节数据更新的频率，从高频(50ms)到低频(200ms)再到暂停刷新，有效平衡了实时性和性能需求。时间格式设置也得到完善，支持多种时间戳显示模式。新增的视口概览组件提供了CANoe风格的缩略图导航，大幅提升了大数据集的浏览体验。
 
 技术实现
 - 基于QVBoxLayout的垂直布局
 - QSplitter实现可调整的分割面板
 - QActionGroup管理互斥的时间格式和刷新率选项
 - 定时器驱动的数据统计更新
+- **新增** ViewportProxyModel和ViewportOverview集成
 
 ```mermaid
 classDiagram
@@ -1025,6 +1180,7 @@ class TraceTab {
 +onPacketCountTimer()
 +setRefreshRate(rate)
 +setTimeFormat(mode)
++updateViewportOverview()
 +optimizeBatchProcessing()
 }
 class SettingsMenu {
@@ -1051,6 +1207,8 @@ class BatchProcessing {
 }
 TraceTab --> SettingsMenu : "管理"
 TraceTab --> BatchProcessing : "使用"
+TraceTab --> ViewportOverview : "集成"
+TraceTab --> ViewportProxyModel : "管理"
 ```
 
 **图表来源**
@@ -1512,6 +1670,7 @@ class MainWindow {
 +id_frequency IdFrequencyView
 +bus_load BusLoadView
 +dbc_signal_list DbcSignalListView
++setupDeviceTab(tab)
 }
 class ToolRouter {
 +routeTool(toolKey)
@@ -1598,7 +1757,7 @@ DbcPanel --> CategoryNode : "使用"
 - MainWindow 依赖样式与主题管理
 - 样式与资源通过qrc解耦，降低硬编码路径风险
 
-**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统、设备连接界面和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置，工具提示已增强。新增了ThemeManager主题管理器和SVG图标系统，增强了样式管理和图标渲染能力。设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，包括活动栏工具集按钮、工具集面板、工具路由机制和主窗口的onToolOpened处理函数。**
+**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统、设备连接界面和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置，工具提示已增强。新增了ThemeManager主题管理器和SVG图标系统，增强了样式管理和图标渲染能力。设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，包括活动栏工具集按钮、工具集面板、工具路由机制和主窗口的onToolOpened处理函数。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能。**
 
 ```mermaid
 graph LR
@@ -1609,16 +1768,18 @@ MW --> BP["BottomPanel"]
 MW --> RP["RightPanel"]
 MW --> SEA["SplitEditorArea"]
 MW --> SBP["SidebarPanels<br/>DbcPanel支持多协议分类"]
-MW --> DCT["DeviceConnectionTab<br/>设备连接界面"]
+MW --> DCT["DeviceConnectionTab<br/>设备连接界面<br/>V2接口升级"]
 MW --> DBCT["DBCDetailTab"]
 MW --> PB["PlaybackTab"]
 MW --> RT["RecordTab"]
-MW --> TT["TraceTab<br/>刷新率控制增强"]
+MW --> TT["TraceTab<br/>刷新率控制增强<br/>视口概览集成"]
 MW --> TP["ToolsPanel"]
 MW --> TM["ThemeManager<br/>主题管理器"]
+MW --> SD["SettingsDialog<br/>设置对话框"]
 SEA --> FB["FilterBar<br/>刷新率控制增强"]
 SEA --> GV["GraphicView<br/>QCustomPlot集成"]
 SEA --> TV["TraceView"]
+SEA --> VO["ViewportOverview<br/>视窗缩略图"]
 MW --> SCD["SignalConfigDialog"]
 MW --> QSS["QSS样式"]
 TM --> THEME["theme.qss<br/>主题模板"]
@@ -1636,6 +1797,8 @@ PB --> Player["播放器"]
 RT --> Recorder["录制器"]
 TT --> CTM["CanTraceModel<br/>批量处理增强"]
 TT --> CFPM["CanFilterProxyModel"]
+TT --> VPM["ViewportProxyModel<br/>视窗代理模型"]
+TT --> VO
 FB --> CTM
 MW --> Web["Web前端原型"]
 Web --> HTML["HTML模板"]
@@ -1655,6 +1818,7 @@ SBP --> MultiProtocol["多协议分类管理"]
 MultiProtocol --> DatabaseEntry["DatabaseEntry结构"]
 TM --> ThemeVars["@变量替换"]
 SVG --> IconSystem["图标渲染"]
+SD --> AppConfig["应用配置"]
 ```
 
 **图表来源**
@@ -1663,6 +1827,8 @@ SVG --> IconSystem["图标渲染"]
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 - [src/ui/thememanager.h](file://src/ui/thememanager.h)
 - [src/ui/thememanager.cpp](file://src/ui/thememanager.cpp)
+- [src/ui/settingsdialog.h](file://src/ui/settingsdialog.h)
+- [src/ui/settingsdialog.cpp](file://src/ui/settingsdialog.cpp)
 - [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
 - [UI/ui-prototype.html](file://UI/ui-prototype.html)
 - [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
@@ -1703,6 +1869,8 @@ SVG --> IconSystem["图标渲染"]
   - 分割编辑器区域实现编辑器的按需创建
   - 侧边栏面板系统优化面板切换性能
   - 设备连接界面使用延迟初始化配置选项
+  - **新增** 视口概览组件使用密度缓存减少重复渲染
+  - **新增** 视窗代理模型通过固定行数限制优化内存使用
 - **专用Tab组件性能优化**
   - DBC详情标签页实现大数据集的虚拟滚动
   - 播放控制标签页使用高效的定时器机制
@@ -1737,6 +1905,8 @@ SVG --> IconSystem["图标渲染"]
   - 增强的测试数据集支持提高了数据处理效率
   - SVG图标系统使用QSvgRenderer提高渲染性能
   - 设备连接界面使用延迟初始化减少启动时间
+  - **新增** 视口概览组件的密度缓存机制减少缩略图重绘开销
+  - **新增** 视窗代理模型通过固定行数限制优化大数据集处理
 - **批处理模型性能优化**
   - CanTraceModel使用环形缓冲区存储，支持最大帧数限制
   - 批量追加frames()方法优化大数据集处理
@@ -1785,6 +1955,8 @@ SVG --> IconSystem["图标渲染"]
   - 分割编辑器区域布局错乱需要检查约束设置
   - 侧边栏面板系统面板注册失败需要检查命名冲突
   - 设备连接界面配置验证失败需要检查参数格式
+  - **新增** 视口概览组件缩略图不显示需要检查模型连接
+  - **新增** 视窗代理模型数据映射错误需要检查行号转换
 - **专用Tab组件问题**
   - DBC文件加载失败需要检查文件格式与权限
   - 播放控制标签页时间轴不同步需要检查定时器精度
@@ -1819,6 +1991,7 @@ SVG --> IconSystem["图标渲染"]
   - CAN FD配置无效需要检查波特率和时序参数
   - 时序预设显示异常需要检查预设数据格式
   - 通道选择无效需要检查设备支持情况
+  - **更新** V2接口连接失败需要检查设备类型和子类型参数
 - **最新问题修复**
   - graphicview.cpp崩溃问题已通过增强的错误处理机制解决
   - 测试数据集兼容性问题已通过数据验证和适配层修复
@@ -1826,6 +1999,8 @@ SVG --> IconSystem["图标渲染"]
   - 图形渲染稳定性已通过双缓冲和增量更新技术提升
   - SVG图标渲染问题已通过QSvgRenderer优化解决
   - 主题切换性能问题已通过缓存机制改善
+  - **新增** 视口概览组件缓存失效问题已通过密度缓存机制解决
+  - **新增** 视窗代理模型数据同步问题已通过信号槽机制优化
 - **DbcPanel多协议分类问题**
   - 协议分类节点不显示需要检查文件扩展名识别
   - DatabaseEntry结构数据丢失需要检查序列化机制
@@ -1844,6 +2019,11 @@ SVG --> IconSystem["图标渲染"]
   - 实时数据更新卡顿需要检查定时器配置
   - 内存溢出需要检查数据点数量限制
   - 插值计算错误需要检查valueAtTime算法
+- **设置对话框问题**
+  - 覆盖模式配置无效需要检查AppConfig连接
+  - JSON编辑格式错误需要检查语法验证
+  - 设置项分类显示异常需要检查元数据配置
+  - 配置保存失败需要检查文件权限和路径
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
@@ -1851,6 +2031,8 @@ SVG --> IconSystem["图标渲染"]
 - [resources/resources.qrc](file://resources/resources.qrc)
 - [src/ui/thememanager.h](file://src/ui/thememanager.h)
 - [src/ui/thememanager.cpp](file://src/ui/thememanager.cpp)
+- [src/ui/settingsdialog.h](file://src/ui/settingsdialog.h)
+- [src/ui/settingsdialog.cpp](file://src/ui/settingsdialog.cpp)
 - [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
 - [src/ui/deviceconnectiontab.h](file://src/ui/deviceconnectiontab.h)
 - [src/ui/deviceconnectiontab.cpp](file://src/ui/deviceconnectiontab.cpp)
@@ -1864,7 +2046,7 @@ SVG --> IconSystem["图标渲染"]
 
 **更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性，工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理器，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过ActivityBar的工具集按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案，包括BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析、ID频率分析、总线负载计算等多种实用工具。主窗口组件通过新增的onToolOpened槽函数实现了工具激活请求的统一处理，支持多种不同的总线分析工具动态加载和管理，大大增强了UI系统的工具管理能力。**
 
-**最新增强** GraphicView组件现已完全重构，集成了QCustomPlot库，提供了专业的信号可视化功能。支持多轴信号绘图、实时数据流处理、交互式光标系统和高性能的批处理渲染。主题管理系统得到了显著增强，支持7种内置主题和运行时动态切换。跟踪视图组件也得到了显著增强，新增了刷新率控制功能，支持高(50ms)、中(100ms)、低(200ms)、暂停四种刷新模式，有效平衡了实时性和性能需求。过滤器栏集成了批处理模型，通过CanTraceModel的批量数据处理能力，大幅提升了大数据集的处理效率。覆盖模式切换功能允许用户在固定行显示和滚动模式之间灵活切换，进一步优化了用户体验。这些增强功能通过完善的设置菜单和信号槽机制实现，确保了系统的可扩展性和可维护性。遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
+**最新增强** GraphicView组件现已完全重构，集成了QCustomPlot库，提供了专业的信号可视化功能。支持多轴信号绘图、实时数据流处理、交互式光标系统和高性能的批处理渲染。主题管理系统得到了显著增强，支持7种内置主题和运行时动态切换。**新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数和厂商特定设置。跟踪视图组件也得到了显著增强，新增了刷新率控制功能，支持高(50ms)、中(100ms)、低(200ms)、暂停四种刷新模式，有效平衡了实时性和性能需求。过滤器栏集成了批处理模型，通过CanTraceModel的批量数据处理能力，大幅提升了大数据集的处理效率。这些增强功能通过完善的设置菜单和信号槽机制实现，确保了系统的可扩展性和可维护性。遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。**
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -1899,6 +2081,8 @@ SVG --> IconSystem["图标渲染"]
   - 分割编辑器区域需支持多文档编辑与同步操作
   - 侧边栏面板系统应提供灵活的注册与管理接口
   - 设备连接界面需提供完整的配置验证和错误提示
+  - **新增** 视口概览组件应实现高效的缩略图渲染和缓存机制
+  - **新增** 视窗代理模型应提供稳定的数据映射和性能优化
 - **专用Tab组件规范**
   - DBC详情标签页应支持大数据集的虚拟滚动
   - 播放控制标签页需实现精确的时间轴控制
@@ -1930,6 +2114,8 @@ SVG --> IconSystem["图标渲染"]
   - 所有组件应支持硬件加速渲染
   - 主题管理器应支持运行时主题切换
   - SVG图标系统需提供动态颜色替换功能
+  - **新增** 视口概览组件应实现密度缓存和节流渲染
+  - **新增** 视窗代理模型应提供固定的视窗大小限制
 - **最新规范要求**
   - 图形组件必须包含完善的错误处理和异常恢复机制
   - 所有组件需支持测试数据集的兼容性验证
@@ -1942,6 +2128,9 @@ SVG --> IconSystem["图标渲染"]
   - QCustomPlot集成需遵循异步重绘和数据限制原则
   - 多轴图表需确保轴联动和同步缩放
   - 光标系统需支持精确的数值插值和测量
+  - **新增** 视口概览组件需实现高效的缩略图渲染和缓存机制
+  - **新增** 视窗代理模型需保证数据映射的正确性和性能
+  - **新增** 设置对话框需提供直观的覆盖模式配置界面
 
 ### 样式定制指南
 - 主题设计
@@ -1994,6 +2183,8 @@ SVG --> IconSystem["图标渲染"]
   - 分割编辑器区域需支持编辑器的拖拽重排
   - 侧边栏面板系统应实现面板状态的自动保存
   - 设备连接界面需提供完整的配置验证和错误提示
+  - **新增** 视口概览组件应实现高效的缩略图渲染和缓存机制
+  - **新增** 视窗代理模型应提供稳定的数据映射和性能优化
 - **专用Tab组件最佳实践**
   - DBC详情标签页应实现高效的文件解析与缓存
   - 播放控制标签页需支持精确的时间同步
@@ -2026,6 +2217,8 @@ SVG --> IconSystem["图标渲染"]
   - 所有组件应支持硬件加速渲染
   - 主题管理器应支持平滑的主题切换
   - SVG图标系统应提供高效的渲染性能
+  - **新增** 视口概览组件应实现密度缓存和节流渲染
+  - **新增** 视窗代理模型应提供固定的视窗大小限制
 - **最新最佳实践**
   - 图形组件必须实现健壮的异常处理和崩溃恢复
   - 所有数据处理组件需包含数据验证和完整性检查
@@ -2039,6 +2232,9 @@ SVG --> IconSystem["图标渲染"]
   - QCustomPlot集成需遵循异步重绘和数据限制原则
   - 多轴图表需确保轴联动和同步缩放
   - 光标系统需支持精确的数值插值和测量
+  - **新增** 视口概览组件需实现高效的缩略图渲染和缓存机制
+  - **新增** 视窗代理模型需保证数据映射的正确性和性能
+  - **新增** 设置对话框需提供直观的覆盖模式配置界面
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -2077,12 +2273,18 @@ SVG --> IconSystem["图标渲染"]
 32. **实时数据流测试**：测试图形视图的实时数据更新性能
 33. **插值算法验证**：确保光标测量的数值准确性
 34. **内存管理测试**：验证大数据集处理的内存使用情况
+35. **视口概览组件测试**：验证视窗缩略图的渲染和交互功能
+36. **视窗代理模型测试**：验证固定行数视窗的数据映射和性能
+37. **设置对话框测试**：验证覆盖模式配置和JSON编辑功能
+38. **V2接口测试**：验证设备连接的V2信号接口和参数传递
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 - [src/ui/thememanager.h](file://src/ui/thememanager.h)
 - [src/ui/thememanager.cpp](file://src/ui/thememanager.cpp)
+- [src/ui/settingsdialog.h](file://src/ui/settingsdialog.h)
+- [src/ui/settingsdialog.cpp](file://src/ui/settingsdialog.cpp)
 - [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
 - [src/ui/deviceconnectiontab.h](file://src/ui/deviceconnectiontab.h)
 - [src/ui/deviceconnectiontab.cpp](file://src/ui/deviceconnectiontab.cpp)

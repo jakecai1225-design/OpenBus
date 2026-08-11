@@ -48,6 +48,13 @@ QVariant CanTraceModel::data(const QModelIndex &index, int role) const
         return m_markedRows.contains(seq);
     }
 
+    if (role == Qt::ToolTipRole) {
+        quint64 seq = m_seqCounter - m_ringBuffer.size() + index.row();
+        auto labelIt = m_rowLabels.find(seq);
+        if (labelIt != m_rowLabels.end())
+            return labelIt.value();
+    }
+
     if (role == Qt::TextAlignmentRole) {
         switch (index.column()) {
         case ColNo: case ColTime: case ColDelta:
@@ -359,6 +366,7 @@ void CanTraceModel::clear()
     m_idCount.clear();
     m_markedRows.clear();
     m_rowColors.clear();
+    m_rowLabels.clear();
     m_pendingFrames.clear();
     invalidateRowCache();
     endResetModel();
@@ -374,6 +382,7 @@ void CanTraceModel::setMaxFrames(int max)
     m_idCount.clear();
     m_markedRows.clear();
     m_rowColors.clear();
+    m_rowLabels.clear();
     invalidateRowCache();
     endResetModel();
 }
@@ -478,6 +487,54 @@ void CanTraceModel::clearColors()
     if (m_ringBuffer.size() > 0)
         emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
                          {Qt::BackgroundRole});
+}
+
+// ============================================================
+//  行标签（Notepad++ 风格书签）
+// ============================================================
+
+void CanTraceModel::setRowLabel(int row, const QString &label)
+{
+    if (row < 0 || row >= m_ringBuffer.size())
+        return;
+    quint64 seq = m_seqCounter - m_ringBuffer.size() + row;
+    if (label.isEmpty())
+        m_rowLabels.remove(seq);
+    else
+        m_rowLabels[seq] = label;
+    emit dataChanged(index(row, 0), index(row, ColCount - 1),
+                     {Qt::BackgroundRole, Qt::ToolTipRole});
+}
+
+QString CanTraceModel::rowLabel(int row) const
+{
+    if (row < 0 || row >= m_ringBuffer.size())
+        return {};
+    quint64 seq = m_seqCounter - m_ringBuffer.size() + row;
+    return m_rowLabels.value(seq);
+}
+
+QList<QPair<int, QString>> CanTraceModel::labeledMarks() const
+{
+    QList<QPair<int, QString>> result;
+    int size = m_ringBuffer.size();
+    for (int row = 0; row < size; ++row) {
+        quint64 seq = m_seqCounter - size + row;
+        if (m_markedRows.contains(seq) || m_rowColors.contains(seq) || m_rowLabels.contains(seq)) {
+            QString label = m_rowLabels.value(seq,
+                QString("#%1").arg(row + 1));
+            result.append(qMakePair(row, label));
+        }
+    }
+    return result;
+}
+
+void CanTraceModel::clearLabels()
+{
+    m_rowLabels.clear();
+    if (m_ringBuffer.size() > 0)
+        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
+                         {Qt::BackgroundRole, Qt::ToolTipRole});
 }
 
 // ============================================================

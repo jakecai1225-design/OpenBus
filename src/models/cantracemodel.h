@@ -90,6 +90,14 @@ public:
     QColor rowColor(int row) const;
     void clearColors();
 
+    // ---- 行标签（Notepad++ 风格书签） ----
+
+    void setRowLabel(int row, const QString &label);
+    QString rowLabel(int row) const;
+    /// 获取所有已标记/着色/标签的行及其标签文本（用于跳转菜单）
+    QList<QPair<int, QString>> labeledMarks() const;
+    void clearLabels();
+
     // ---- 着色规则 ----
 
     struct ColorRule {
@@ -134,8 +142,10 @@ public:
 
 private:
     // ---- Phase 4: 环形缓冲区存储 ----
-    RingBuffer<CanFrame> m_ringBuffer;
+    // 注意: m_maxFrames 必须在 m_ringBuffer 之前声明，
+    // 因为 C++ 按声明顺序初始化成员，m_ringBuffer 构造依赖 m_maxFrames 的值。
     int m_maxFrames = 1000000;
+    RingBuffer<CanFrame> m_ringBuffer;
     quint64 m_seqCounter = 0;   ///< 帧序列号（永不回退，用于 No. 列）
 
     bool m_overwriteMode = false;
@@ -145,6 +155,7 @@ private:
     // 行标记/着色 key 改用 seqCounter（Phase 4）
     QSet<quint64> m_markedRows;
     QHash<quint64, QColor> m_rowColors;
+    QHash<quint64, QString> m_rowLabels;  ///< 行标签（自定义文字标记）
 
     // ---- 着色规则 ----
     QVector<ColorRule> m_colorRules;

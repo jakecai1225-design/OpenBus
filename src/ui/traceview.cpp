@@ -17,9 +17,11 @@
 #include <QFontDatabase>
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <QHideEvent>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QResizeEvent>
+#include <QCursor>
 #include <QMessageBox>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -93,17 +95,17 @@ void TraceView::setupAppearance()
     verticalHeader()->setDefaultSectionSize(22);
     verticalHeader()->setVisible(false);
 
-    // 列宽
-    setColumnWidth(CanTraceModel::ColNo, 60);
-    setColumnWidth(CanTraceModel::ColTime, 100);
-    setColumnWidth(CanTraceModel::ColDelta, 90);
-    setColumnWidth(CanTraceModel::ColChannel, 40);
-    setColumnWidth(CanTraceModel::ColDirection, 40);
-    setColumnWidth(CanTraceModel::ColId, 120);
+    // 列宽 — 参照 CANoe 风格，Data 列拉伸填充剩余空间
+    setColumnWidth(CanTraceModel::ColNo, 70);
+    setColumnWidth(CanTraceModel::ColTime, 110);
+    setColumnWidth(CanTraceModel::ColDelta, 100);
+    setColumnWidth(CanTraceModel::ColChannel, 50);
+    setColumnWidth(CanTraceModel::ColDirection, 50);
+    setColumnWidth(CanTraceModel::ColId, 130);
     setColumnWidth(CanTraceModel::ColDlc, 60);
-    setColumnWidth(CanTraceModel::ColData, 300);
-    setColumnWidth(CanTraceModel::ColFlags, 80);
-    setColumnWidth(CanTraceModel::ColFrameCount, 70);
+    setColumnWidth(CanTraceModel::ColData, 400);
+    setColumnWidth(CanTraceModel::ColFlags, 90);
+    setColumnWidth(CanTraceModel::ColFrameCount, 80);
 
     // 默认按帧编号升序排序
     sortByColumn(CanTraceModel::ColNo, Qt::AscendingOrder);
@@ -126,6 +128,8 @@ void TraceView::setModel(QAbstractItemModel *model)
         // 穿越视窗代理层找到 CanFilterProxyModel
         auto *fp = filterProxy();
         fh->setProxyModel(fp);
+        // Data 列自动拉伸填满剩余宽度（需在模型设置后调用）
+        fh->setSectionResizeMode(CanTraceModel::ColData, QHeaderView::Stretch);
     }
 }
 
@@ -191,19 +195,87 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
         menu.addSeparator();
         QMenu *markMenu = menu.addMenu(QStringLiteral("标记与着色"));
 
-        QAction toggleMarkAct(QStringLiteral("标记/取消标记选中行"), this);
-        QAction colorAct(QStringLiteral("着色选中行..."), this);
-        QAction clearMarkAct(QStringLiteral("清除所有标记"), this);
-        QAction clearColorAct(QStringLiteral("清除所有自定义颜色"), this);
+        // ---- 快速着色（Notepad++ 风格预设色） ----
+        QMenu *colorMenu = markMenu->addMenu(QStringLiteral("着色选中行"));
+        struct PresetColor { const char *name; QColor color; };
+        static const PresetColor presetColors[] = {
+            { "红色",   QColor(0xFF, 0xCDD, 0xCD) },
+            { "橙色",   QColor(0xFF, 0xE0, 0xB2) },
+            { "黄色",   QColor(0xFF, 0xF3, 0xB0) },
+            { "绿色",   QColor(0xC8, 0xE6, 0xC9) },
+            { "青色",   QColor(0xB2, 0xDF, 0xDB) },
+            { "蓝色",   QColor(0xBB, 0xDE, 0xFB) },
+            { "紫色",   QColor(0xE1, 0xBE, 0xE7) },
+            { "灰色",   QColor(0xE0, 0xE0, 0xE0) },
+        };
+        for (const auto &pc : presetColors) {
+            auto *act = colorMenu->addAction(QString::fromUtf8(pc.name));
+            connect(act, &QAction::triggered, this, [this, rows, pc]() {
+                auto *source = traceSource();
+                if (!source) return;
+                for (int row : rows)
+                    source->setRowColor(row, pc.color);
+            });
+        }
+        colorMenu->addSeparator();
+        QAction customColorAct(QStringLiteral("自定义颜色..."), this);
+        colorMenu->addAction(&customColorAct);
+        connect(&customColorAct, &QAction::triggered, this, &TraceView::onColorSelected);
 
+        // ---- 标签 ----
+        QAction labelAct(QStringLiteral("设置标签..."), this);
+        markMenu->addAction(&labelAct);
+        connect(&labelAct, &QAction::triggered, this, [this, rows]() {
+            auto *source = traceSource();
+            if (!source) return;
+            bool ok = false;
+            QString text = QInputDialog::getText(
+                this, QStringLiteral("设置标签"),
+                QStringLiteral("标签文字:"), QLineEdit::Normal, {}, &ok);
+            if (!ok) return;
+            for (int row : rows) {
+                source->setRowColor(row, QColor(0xFF, 0xF3, 0xB0));
+                source->setRowLabel(row, text);
+            }
+        });
+
+        markMenu->addSeparator();
+
+        // ---- 跳转到标记 ----
+        auto *source = traceSource();
+        if (source) {
+            auto marks = source->labeledMarks();
+            if (!marks.isEmpty()) {
+                QMenu *jumpMenu = markMenu->addMenu(QStringLiteral("跳转到标记"));
+                for (const auto &mark : marks) {
+                    QString text = QStringLiteral("行 %1: %2")
+                                       .arg(mark.first + 1).arg(mark.second);
+                    auto *act = jumpMenu->addAction(text);
+                    connect(act, &QAction::triggered, this, [this, mark]() {
+                        selectSourceRow(mark.first);
+                    });
+                }
+                jumpMenu->addSeparator();
+                QAction clearLabelsAct(QStringLiteral("清除所有标签"), this);
+                jumpMenu->addAction(&clearLabelsAct);
+                connect(&clearLabelsAct, &QAction::triggered, this, [this]() {
+                    auto *src = traceSource();
+                    if (src) src->clearLabels();
+                });
+            }
+        }
+
+        markMenu->addSeparator();
+
+        QAction toggleMarkAct(QStringLiteral("标记/取消标记"), this);
+        QAction clearMarkAct(QStringLiteral("清除所有标记"), this);
+        QAction clearColorAct(QStringLiteral("清除所有颜色"), this);
         markMenu->addAction(&toggleMarkAct);
-        markMenu->addAction(&colorAct);
         markMenu->addSeparator();
         markMenu->addAction(&clearMarkAct);
         markMenu->addAction(&clearColorAct);
 
         connect(&toggleMarkAct, &QAction::triggered, this, &TraceView::onToggleMarkSelected);
-        connect(&colorAct, &QAction::triggered, this, &TraceView::onColorSelected);
         connect(&clearMarkAct, &QAction::triggered, this, &TraceView::onClearMarks);
         connect(&clearColorAct, &QAction::triggered, this, &TraceView::onClearColors);
     }
@@ -925,6 +997,11 @@ ViewportOverview::ViewportOverview(QWidget *parent)
         m_cacheDirty = true;
         update();
     });
+
+    // 拖拽定时器 — 轮询全局鼠标位置，不依赖隐式鼠标 grab
+    m_dragTimer = new QTimer(this);
+    m_dragTimer->setInterval(16);  // ~60fps
+    connect(m_dragTimer, &QTimer::timeout, this, [this]() { onDragTimer(); });
 }
 
 void ViewportOverview::setViewportProxy(ViewportProxyModel *proxy)
@@ -1139,30 +1216,68 @@ void ViewportOverview::mousePressEvent(QMouseEvent *event)
     if (vpRect.contains(event->pos())) {
         // 点击在视窗区域内 → 开始拖拽
         m_dragging = true;
-        m_dragStartY = event->pos().y();
+        m_dragStartGlobalY = (int)event->globalPosition().y();
         m_dragStartViewport = m_proxy->viewportStart();
-        grabMouse();
         setCursor(Qt::SizeVerCursor);
+        m_dragTimer->start();
     } else {
         // 点击在视窗外 → 跳转到该位置
         int newStart = yToViewportStart(event->pos().y());
         emit viewportMoved(newStart);
         // 立即开始拖拽
         m_dragging = true;
-        m_dragStartY = event->pos().y();
+        m_dragStartGlobalY = (int)event->globalPosition().y();
         m_dragStartViewport = newStart;
-        grabMouse();
         setCursor(Qt::SizeVerCursor);
+        m_dragTimer->start();
     }
 }
 
 void ViewportOverview::mouseMoveEvent(QMouseEvent *event)
 {
+    // 拖拽由定时器处理 — 此处仅接受事件，不重复计算
+    if (m_dragging)
+        event->accept();
+}
+
+void ViewportOverview::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (m_dragging) {
+        m_dragging = false;
+        m_dragTimer->stop();
+        setCursor(Qt::ArrowCursor);
+    }
+    event->accept();
+}
+
+void ViewportOverview::hideEvent(QHideEvent *event)
+{
+    // widget 隐藏时结束拖拽，防止定时器残留
+    if (m_dragging) {
+        m_dragging = false;
+        m_dragTimer->stop();
+        setCursor(Qt::ArrowCursor);
+    }
+    QWidget::hideEvent(event);
+}
+
+void ViewportOverview::onDragTimer()
+{
     if (!m_dragging || !m_proxy)
         return;
 
-    event->accept();
-    int deltaY = event->pos().y() - m_dragStartY;
+    // 左键已释放 → 结束拖拽（兜底，防止 mouseReleaseEvent 未送达）
+    if (!(QGuiApplication::mouseButtons() & Qt::LeftButton)) {
+        m_dragging = false;
+        m_dragTimer->stop();
+        setCursor(Qt::ArrowCursor);
+        return;
+    }
+
+    // 使用全局鼠标坐标计算增量 — 不依赖 widget 内部事件传递
+    int currentGlobalY = QCursor::pos().y();
+    int deltaY = currentGlobalY - m_dragStartGlobalY;
+
     int total = m_proxy->sourceRowCount();
     if (total == 0)
         return;
@@ -1173,12 +1288,10 @@ void ViewportOverview::mouseMoveEvent(QMouseEvent *event)
     int vpSize = m_proxy->viewportSize();
     int dragRange = total - qMin(vpSize, total);  // 可拖拽的行范围
     QRect vpRect = viewportRect();
-    int dragPixels = h - vpRect.height();            // 可拖拽的像素范围
+    int dragPixels = h - vpRect.height();          // 可拖拽的像素范围
 
-    if (dragPixels <= 0) {
-        // 视窗占满整个高度 — 无法拖拽
-        return;
-    }
+    if (dragPixels <= 0)
+        return;  // 视窗占满整个高度 — 无法拖拽
 
     // 像素增量转换为行号增量 — 按可拖拽范围映射
     double rowsPerPixel = (double)dragRange / dragPixels;
@@ -1186,14 +1299,6 @@ void ViewportOverview::mouseMoveEvent(QMouseEvent *event)
     int newStart = m_dragStartViewport + rowDelta;
 
     emit viewportMoved(newStart);
-}
-
-void ViewportOverview::mouseReleaseEvent(QMouseEvent *event)
-{
-    m_dragging = false;
-    releaseMouse();
-    setCursor(Qt::ArrowCursor);
-    event->accept();
 }
 
 void ViewportOverview::wheelEvent(QWheelEvent *event)

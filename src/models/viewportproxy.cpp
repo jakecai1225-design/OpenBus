@@ -129,6 +129,22 @@ QModelIndex ViewportProxyModel::sibling(int row, int column, const QModelIndex &
     return createIndex(row, column);
 }
 
+void ViewportProxyModel::sort(int column, Qt::SortOrder order)
+{
+    // 将排序请求转发给源模型（CanFilterProxyModel），同时通知视图布局即将变化
+    if (!sourceModel())
+        return;
+    m_sorting = true;  // 防止源模型 layoutChanged 信号重复转发
+    emit layoutAboutToBeChanged();
+    sourceModel()->sort(column, order);
+    // 排序后重新钳制视窗位置并同步行数
+    m_viewportStart = clampStart(m_viewportStart);
+    m_lastReportedRowCount = rowCount();
+    emit layoutChanged();
+    m_sorting = false;
+    emit viewportChanged();
+}
+
 void ViewportProxyModel::ensureVisible(int sourceRow)
 {
     if (sourceRow < 0)
@@ -258,10 +274,20 @@ void ViewportProxyModel::setSourceModel(QAbstractItemModel *sourceModel)
             m_lastReportedRowCount = rowCount();
             emit viewportChanged();
         });
+        connect(sourceModel, &QAbstractItemModel::layoutAboutToBeChanged,
+                this, [this]() {
+            if (!m_sorting)
+                emit layoutAboutToBeChanged();
+        });
         connect(sourceModel, &QAbstractItemModel::layoutChanged,
                 this, [this]() {
-            // 排序变化后调整视窗
-            adjustOnStructuralChange();
+            if (m_sorting)
+                return;  // sort() 已处理
+            // 排序/过滤变化后调整视窗
+            m_viewportStart = clampStart(m_viewportStart);
+            m_lastReportedRowCount = rowCount();
+            emit layoutChanged();
+            emit viewportChanged();
         });
     }
 

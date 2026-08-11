@@ -18,6 +18,8 @@ FilterHeaderView::FilterHeaderView(Qt::Orientation orientation, QWidget *parent)
     setStretchLastSection(false);
     setSectionResizeMode(QHeaderView::Interactive);
     setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    // 始终显示排序指示器
+    setSortIndicatorShown(true);
 }
 
 void FilterHeaderView::setProxyModel(CanFilterProxyModel *proxy)
@@ -31,14 +33,14 @@ bool FilterHeaderView::hasFilter(int logicalIndex) const
 }
 
 // ============================================================
-//  漏斗图标区域计算
+//  图标区域计算
 // ============================================================
 
 QRect FilterHeaderView::filterRect(const QRect &sectionRect) const
 {
-    // 漏斗图标放在列右侧，16x16 区域，垂直居中
-    const int iconSize = 14;
-    int x = sectionRect.right() - iconSize - 4;
+    // 漏斗图标放在列最右侧，与排序箭头保持距离
+    const int iconSize = 16;
+    int x = sectionRect.right() - iconSize - 6;
     int y = sectionRect.top() + (sectionRect.height() - iconSize) / 2;
     return QRect(x, y, iconSize, iconSize);
 }
@@ -51,7 +53,6 @@ int FilterHeaderView::sectionAtFilter(const QPoint &pos) const
     int logical = logicalIndex(visual);
     if (logical < 0)
         return -1;
-    // 检查鼠标是否在漏斗图标区域
     QRect secRect = QRect(sectionViewportPosition(logical), 0,
                           sectionSize(logical), height());
     QRect fRect = filterRect(secRect);
@@ -67,8 +68,14 @@ int FilterHeaderView::sectionAtFilter(const QPoint &pos) const
 void FilterHeaderView::paintSection(QPainter *painter, const QRect &rect, int logicalIndex) const
 {
     painter->save();
-    // 先让基类绘制背景和文字
+    // 先让基类绘制背景、文字和排序指示器
     QHeaderView::paintSection(painter, rect, logicalIndex);
+    painter->restore();
+
+    // 绘制列分隔线（右侧）
+    painter->save();
+    painter->setPen(QPen(QColor(0xD8, 0xD8, 0xD8), 1));
+    painter->drawLine(rect.right(), rect.top(), rect.right(), rect.bottom());
     painter->restore();
 
     if (rect.width() < 30)
@@ -77,6 +84,7 @@ void FilterHeaderView::paintSection(QPainter *painter, const QRect &rect, int lo
     bool active = hasFilter(logicalIndex);
     bool hovered = (logicalIndex == m_hoverSection);
 
+    // 活跃时始终显示，悬停时显示
     if (active || hovered) {
         QRect fRect = filterRect(rect);
         drawFilterIcon(painter, fRect, active, hovered);
@@ -98,7 +106,7 @@ void FilterHeaderView::drawFilterIcon(QPainter *painter, const QRect &rect,
     else
         color = QColor(0x90, 0x90, 0x90);
 
-    painter->setPen(QPen(color, 1.2));
+    painter->setPen(QPen(color, 1.5));
     painter->setBrush(Qt::NoBrush);
 
     // 绘制漏斗形状
@@ -118,18 +126,17 @@ void FilterHeaderView::drawFilterIcon(QPainter *painter, const QRect &rect,
     path.closeSubpath();
 
     if (active) {
-        // 激活时用浅色填充
         QColor fill = color;
-        fill.setAlpha(40);
+        fill.setAlpha(50);
         painter->setBrush(fill);
     }
     painter->drawPath(path);
 
-    // 激活时在右下角画一个小点表示有过滤
+    // 激活时在右下角画一个小圆点表示有过滤
     if (active) {
         painter->setPen(Qt::NoPen);
         painter->setBrush(color);
-        painter->drawEllipse(rect.right() - 2, rect.bottom() - 2, 3, 3);
+        painter->drawEllipse(QPointF(rect.right() - 2, rect.bottom() - 1), 2.5, 2.5);
     }
 
     painter->restore();
@@ -149,7 +156,6 @@ void FilterHeaderView::mouseMoveEvent(QMouseEvent *event)
     }
 
     if (newHover != m_hoverSection) {
-        // 通知旧列和新列重绘
         int old = m_hoverSection;
         m_hoverSection = newHover;
         if (old >= 0)

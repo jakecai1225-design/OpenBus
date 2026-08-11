@@ -52,6 +52,7 @@ public:
     QModelIndex index(int row, int column, const QModelIndex &parent = {}) const override;
     QModelIndex parent(const QModelIndex &child) const override;
     QModelIndex sibling(int row, int column, const QModelIndex &idx) const override;
+    void sort(int column, Qt::SortOrder order) override;
 
 signals:
     /// 视窗位置或大小发生变化
@@ -66,6 +67,7 @@ private:
     int m_viewportStart = 0;
     int m_viewportSize = 2000;
     int m_lastReportedRowCount = 0;  ///< 视图已知的行数（用于检测行数变化）
+    bool m_sorting = false;           ///< sort() 执行标记，防止 layout 信号重复转发
 
     /// 将源模型行号限制在有效范围内
     int clampStart(int start) const;

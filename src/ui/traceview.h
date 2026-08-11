@@ -199,6 +199,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
     QSize sizeHint() const override { return {60, 100}; }
     QSize minimumSizeHint() const override { return {60, 50}; }
 
@@ -208,8 +209,10 @@ private:
     CanTraceModel *m_traceModel = nullptr;
 
     bool m_dragging = false;
-    int m_dragStartY = 0;
+    int m_dragStartGlobalY = 0;
     int m_dragStartViewport = 0;
+    QTimer *m_dragTimer = nullptr;
+    void onDragTimer();
 
     // 密度缓存
     QPixmap m_cachePixmap;
