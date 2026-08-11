@@ -106,6 +106,8 @@ set(SRC_UI
     ui/traceview.cpp
     ui/filterheaderview.h
     ui/filterheaderview.cpp
+    ui/columnfilterpopup.h
+    ui/columnfilterpopup.cpp
     ui/graphicview.h
     ui/graphicview.cpp
     ui/filterbar.h

@@ -38,6 +38,7 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include <QUrl>
+#include "columnfilterpopup.h"
 #include <QFileInfo>
 #include <QThread>
 #include <QShortcut>
@@ -664,24 +665,59 @@ void TraceView::onColumnFilter(int column)
     auto *proxy = filterProxy();
     if (!proxy) return;
 
-    QString colName = model()->headerData(column, Qt::Horizontal).toString();
-    QString current = proxy->columnFilter(column);
-    QString hint = columnFilterHint(column);
+    // 获取源模型以收集唯一值
+    auto *traceModel = qobject_cast<CanTraceModel *>(proxy->sourceModel());
+    if (!traceModel)
+        return;
 
-    bool ok = false;
-    QString text = QInputDialog::getText(
-        this, QString("筛选 %1").arg(colName),
-        QString("输入筛选条件:\n  %1").arg(hint),
-        QLineEdit::Normal, current, &ok);
+    // 收集唯一值
+    auto rawValues = traceModel->uniqueValues(column);
 
-    if (ok) {
+    // 转换为 ColumnFilterPopup::ValueItem
+    QList<ColumnFilterPopup::ValueItem> values;
+    for (const auto &p : rawValues)
+        values.append({p.first, p.second});
+
+    // 创建弹出面板
+    auto *popup = new ColumnFilterPopup(column, this);
+    popup->setAttribute(Qt::WA_DeleteOnClose);
+    popup->setValues(values);
+
+    // 恢复已有筛选状态
+    if (proxy->hasColumnFilterValues(column))
+        popup->setSelectedValues(proxy->columnFilterValues(column));
+
+    int totalValues = values.size();
+
+    // 连接信号
+    connect(popup, &ColumnFilterPopup::filterApplied, this, [this, totalValues](int col, const QSet<QString> &selected) {
+        auto *fp = filterProxy();
+        if (!fp) return;
         pinSelection();
-        if (text.trimmed().isEmpty())
-            proxy->clearColumnFilter(column);
+        // 全选 = 无过滤
+        if (selected.size() >= totalValues)
+            fp->clearColumnFilterValues(col);
         else
-            proxy->setColumnFilter(column, text);
+            fp->setColumnFilterValues(col, selected);
         restoreSelection();
-    }
+    });
+
+    connect(popup, &ColumnFilterPopup::filterCleared, this, [this](int col) {
+        auto *fp = filterProxy();
+        if (!fp) return;
+        pinSelection();
+        fp->clearColumnFilterValues(col);
+        fp->clearColumnFilter(col);
+        restoreSelection();
+    });
+
+    // 定位到表头下方
+    auto *header = horizontalHeader();
+    int x = header->sectionPosition(column);
+    int y = header->height();
+    QPoint globalPos = header->mapToGlobal(QPoint(x, y + 2));
+    popup->move(globalPos);
+    popup->show();
 }
 
 void TraceView::onClearColumnFilter(int column)
@@ -690,6 +726,7 @@ void TraceView::onClearColumnFilter(int column)
     if (!proxy) return;
     pinSelection();
     proxy->clearColumnFilter(column);
+    proxy->clearColumnFilterValues(column);
     restoreSelection();
 }
 
@@ -703,7 +740,7 @@ void TraceView::onClearAllFilters()
 }
 
 // ============================================================
-//  漏斗图标点击 → 弹出列筛选
+//  漏斗图标点击 → 弹出 Excel 风格列筛选面板
 // ============================================================
 
 void TraceView::onFilterIconClicked(int column)

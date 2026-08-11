@@ -408,6 +408,58 @@ QVector<CanFrame> CanTraceModel::frames() const
 }
 
 // ============================================================
+//  唯一值收集（Excel 风格筛选面板）
+// ============================================================
+
+QList<QPair<QString, int>> CanTraceModel::uniqueValues(int column) const
+{
+    QList<QPair<QString, int>> result;
+    int total = m_ringBuffer.size();
+    if (total == 0)
+        return result;
+
+    // ID 列：直接利用 m_idCount，效率最高
+    if (column == ColId) {
+        // 需要判断是否为扩展帧——遍历查找第一个匹配帧
+        for (auto it = m_idCount.constBegin(); it != m_idCount.constEnd(); ++it) {
+            bool extended = false;
+            for (int i = 0; i < total; ++i) {
+                if (m_ringBuffer.at(i).id == it.key()) {
+                    extended = m_ringBuffer.at(i).extended;
+                    break;
+                }
+            }
+            result.append({CanUtils::formatId(it.key(), extended), (int)it.value()});
+        }
+        std::sort(result.begin(), result.end(),
+                  [](const QPair<QString, int> &a, const QPair<QString, int> &b) {
+                      return a.first.toLower() < b.first.toLower();
+                  });
+        return result;
+    }
+
+    // 其他列：遍历所有帧，收集唯一值
+    QHash<QString, int> valueCounts;
+    QString tmp;
+    for (int i = 0; i < total; ++i) {
+        const CanFrame &f = m_ringBuffer.at(i);
+        formatCell(i, column, f, tmp);
+        valueCounts[tmp]++;
+    }
+
+    // 转换为列表并排序
+    for (auto it = valueCounts.constBegin(); it != valueCounts.constEnd(); ++it)
+        result.append({it.key(), it.value()});
+
+    std::sort(result.begin(), result.end(),
+              [](const QPair<QString, int> &a, const QPair<QString, int> &b) {
+                  return a.first.toLower() < b.first.toLower();
+              });
+
+    return result;
+}
+
+// ============================================================
 //  行标记与着色
 // ============================================================
 

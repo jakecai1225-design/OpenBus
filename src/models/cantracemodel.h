@@ -82,6 +82,9 @@ public:
     /// 获取所有帧（返回临时 QVector，用于 GraphicView 等）
     QVector<CanFrame> frames() const;
 
+    /// 收集指定列的唯一值及其出现次数（用于 Excel 风格筛选面板）
+    QList<QPair<QString, int>> uniqueValues(int column) const;
+
     // ---- 行标记与着色 ----
 
     void toggleMark(int row);
