@@ -5,7 +5,7 @@
 #include <QWidget>
 #include <QPlainTextEdit>
 #include <QList>
-#include <QScrollBar>
+#include <QPixmap>
 #include "core/canframe.h"
 
 class CanTraceModel;
@@ -159,6 +159,72 @@ private:
 };
 
 /**
+ * @brief CANoe 风格视窗缩略图控件
+ *
+ *   ┌──┐
+ *   │  │ ← 全部数据缩略图 (Rx/Tx 密度)
+ *   │██│ ← 高亮视窗区域 (可拖拽)
+ *   │██│
+ *   │  │
+ *   └──┘
+ *
+ * 不是标准滚动条 — 是一个可视化数据概览:
+ *   - 显示全部帧的密度分布 (Rx=绿色, Tx=蓝色)
+ *   - 高亮矩形表示当前视窗位置
+ *   - 拖拽高亮区域移动视窗
+ *   - 点击任意位置跳转视窗
+ */
+class ViewportOverview : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit ViewportOverview(QWidget *parent = nullptr);
+
+    void setViewportProxy(ViewportProxyModel *proxy);
+    void setFilterProxy(CanFilterProxyModel *proxy);
+    void setTraceSource(CanTraceModel *model);
+
+    /// 标记缓存需要重建
+    void markCacheDirty();
+
+signals:
+    /// 用户拖拽或点击导致视窗位置变化
+    void viewportMoved(int start);
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
+    QSize sizeHint() const override { return {60, 100}; }
+    QSize minimumSizeHint() const override { return {60, 50}; }
+
+private:
+    ViewportProxyModel *m_proxy = nullptr;
+    CanFilterProxyModel *m_filterProxy = nullptr;
+    CanTraceModel *m_traceModel = nullptr;
+
+    bool m_dragging = false;
+    int m_dragStartY = 0;
+    int m_dragStartViewport = 0;
+
+    // 密度缓存
+    QPixmap m_cachePixmap;
+    bool m_cacheDirty = true;
+    int m_cachedTotal = 0;
+    int m_cachedHeight = 0;
+    QTimer *m_rebuildTimer = nullptr;
+
+    void scheduleRebuild();
+    void rebuildCache();
+    QRect viewportRect() const;
+    int yToViewportStart(int y) const;
+};
+
+/**
  * @brief Wireshark 风格 Trace 页面 — 整体三栏
  *
  *   ┌────────────────────────────────┐
@@ -227,8 +293,8 @@ private slots:
     void onPacketCountTimer();
 
 private:
-    /// 更新视窗滚动条的范围和位置
-    void updateViewportScrollBar();
+    /// 更新视窗缩略图控件
+    void updateViewportOverview();
     FilterBar *m_filterBar = nullptr;
     TraceView *m_traceView = nullptr;
     QSplitter *m_vSplitter = nullptr;
@@ -239,7 +305,7 @@ private:
     CanTraceModel *m_traceModel = nullptr;
     CanFilterProxyModel *m_proxyModel = nullptr;
     ViewportProxyModel *m_viewportProxy = nullptr;
-    QScrollBar *m_viewportScrollBar = nullptr;
+    ViewportOverview *m_viewportOverview = nullptr;
     bool m_autoScrollViewport = true;  ///< 视窗自动跟随新数据
     bool m_running = false;
 

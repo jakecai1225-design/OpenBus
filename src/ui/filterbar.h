@@ -27,8 +27,6 @@ public:
     QString filterText() const;
     bool filterActive() const;
 
-    void setOverwriteMode(bool enabled);
-
     /// 设置过滤预设管理器
     void setPresetManager(FilterPresetManager *mgr);
 
@@ -41,7 +39,6 @@ public:
 signals:
     void filterApplied(const QString &filter);
     void filterCleared();
-    void overwriteModeToggled(bool enabled);
     /// 刷新率变化（Phase 2: High=50ms / Medium=100ms / Low=200ms / Paused=0）
     void refreshRateChanged(int intervalMs);
 
@@ -62,7 +59,6 @@ private:
     QToolButton *m_settingsBtn;
     QLabel *m_statusIcon;
     QLabel *m_packetCountLabel;
-    QPushButton *m_overwriteBtn;
     FilterPresetManager *m_presetMgr = nullptr;
 
     void refreshPresets();

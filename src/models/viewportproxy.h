@@ -53,6 +53,10 @@ public:
     QModelIndex parent(const QModelIndex &child) const override;
     QModelIndex sibling(int row, int column, const QModelIndex &idx) const override;
 
+signals:
+    /// 视窗位置或大小发生变化
+    void viewportChanged();
+
 private slots:
     void onSourceDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight,
                             const QVector<int> &roles);
@@ -60,7 +64,8 @@ private slots:
 
 private:
     int m_viewportStart = 0;
-    int m_viewportSize = 500;
+    int m_viewportSize = 2000;
+    int m_lastReportedRowCount = 0;  ///< 视图已知的行数（用于检测行数变化）
 
     /// 将源模型行号限制在有效范围内
     int clampStart(int start) const;

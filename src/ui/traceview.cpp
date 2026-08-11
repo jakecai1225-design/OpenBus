@@ -17,6 +17,9 @@
 #include <QFontDatabase>
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <QPainter>
+#include <QPaintEvent>
+#include <QResizeEvent>
 #include <QMessageBox>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -73,7 +76,7 @@ void TraceView::setupAppearance()
 
     setAlternatingRowColors(true);
     setSelectionBehavior(QAbstractItemView::SelectRows);
-    setSelectionMode(QAbstractItemView::ContiguousSelection);
+    setSelectionMode(QAbstractItemView::ExtendedSelection);
     setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     setSortingEnabled(true);
@@ -904,6 +907,315 @@ void SignalDecodeWidget::clear()
 }
 
 // ============================================================
+//  ViewportOverview — CANoe 风格视窗缩略图控件
+// ============================================================
+
+ViewportOverview::ViewportOverview(QWidget *parent)
+    : QWidget(parent)
+{
+    setAttribute(Qt::WA_OpaquePaintEvent, true);
+    setMouseTracking(true);
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+    setFixedWidth(60);
+
+    m_rebuildTimer = new QTimer(this);
+    m_rebuildTimer->setSingleShot(true);
+    m_rebuildTimer->setInterval(200);
+    connect(m_rebuildTimer, &QTimer::timeout, this, [this]() {
+        m_cacheDirty = true;
+        update();
+    });
+}
+
+void ViewportOverview::setViewportProxy(ViewportProxyModel *proxy)
+{
+    m_proxy = proxy;
+    m_cacheDirty = true;
+    update();
+}
+
+void ViewportOverview::setFilterProxy(CanFilterProxyModel *proxy)
+{
+    m_filterProxy = proxy;
+    m_cacheDirty = true;
+    update();
+}
+
+void ViewportOverview::setTraceSource(CanTraceModel *model)
+{
+    m_traceModel = model;
+    m_cacheDirty = true;
+    update();
+}
+
+void ViewportOverview::markCacheDirty()
+{
+    // 节流: 高频帧到达时最多每 200ms 重建一次缓存
+    m_rebuildTimer->start();
+}
+
+void ViewportOverview::scheduleRebuild()
+{
+    m_rebuildTimer->start();
+}
+
+void ViewportOverview::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    m_cacheDirty = true;
+}
+
+void ViewportOverview::rebuildCache()
+{
+    if (!m_proxy || !m_filterProxy || !m_traceModel) {
+        m_cachePixmap = QPixmap();
+        return;
+    }
+
+    int total = m_proxy->sourceRowCount();
+    m_cachedTotal = total;
+    m_cachedHeight = height();
+    int h = height();
+    if (h < 2 || total == 0) {
+        m_cachePixmap = QPixmap();
+        return;
+    }
+
+    m_cachePixmap = QPixmap(size());
+    m_cachePixmap.fill(QColor(0xf8, 0xf8, 0xf8));
+
+    QPainter p(&m_cachePixmap);
+    p.setRenderHint(QPainter::Antialiasing, false);
+
+    // 每个像素行映射到 total/h 行，采样统计 Rx/Tx 比例
+    double step = (double)total / h;
+    QColor rxColor(76, 175, 80, 200);    // 绿色
+    QColor txColor(33, 150, 243, 200);  // 蓝色
+    int barWidth = width() - 4;
+
+    for (int y = 0; y < h; ++y) {
+        int rowStart = (int)(y * step);
+        int rowEnd = (int)((y + 1) * step);
+        if (rowEnd <= rowStart)
+            rowEnd = rowStart + 1;
+        if (rowEnd > total)
+            rowEnd = total;
+
+        // 直接访问 CanFrame::direction — 避免 data() 字符串格式化开销
+        int rxCount = 0, txCount = 0;
+        int sampleStep = qMax(1, (rowEnd - rowStart) / 10);
+        for (int r = rowStart; r < rowEnd; r += sampleStep) {
+            QModelIndex filterIdx = m_filterProxy->index(r, 0);
+            if (!filterIdx.isValid())
+                continue;
+            QModelIndex sourceIdx = m_filterProxy->mapToSource(filterIdx);
+            if (!sourceIdx.isValid() || sourceIdx.row() >= m_traceModel->frameCount())
+                continue;
+            const CanFrame &frame = m_traceModel->frameAt(sourceIdx.row());
+            if (frame.direction == CanFrame::Rx)
+                rxCount++;
+            else
+                txCount++;
+        }
+
+        int sampled = rxCount + txCount;
+        if (sampled == 0)
+            continue;
+
+        // 按 Rx/Tx 比例绘制水平密度条
+        int rxW = (int)((double)rxCount / sampled * barWidth);
+        int txW = barWidth - rxW;
+        if (rxW > 0)
+            p.fillRect(2, y, rxW, 1, rxColor);
+        if (txW > 0)
+            p.fillRect(2 + rxW, y, txW, 1, txColor);
+    }
+}
+
+void ViewportOverview::paintEvent(QPaintEvent *)
+{
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing, true);
+
+    // 背景
+    p.fillRect(rect(), QColor(0xf8, 0xf8, 0xf8));
+
+    if (!m_proxy)
+        return;
+
+    int total = m_proxy->sourceRowCount();
+    if (total == 0)
+        return;
+
+    // 重建缓存（如有需要）
+    if (m_cacheDirty || m_cachedTotal != total || m_cachedHeight != height()) {
+        rebuildCache();
+        m_cacheDirty = false;
+    }
+
+    // 绘制密度缓存
+    if (!m_cachePixmap.isNull())
+        p.drawPixmap(0, 0, m_cachePixmap);
+
+    // 10% 网格线
+    p.setPen(QPen(QColor(0xd0, 0xd0, 0xd0), 1, Qt::DotLine));
+    for (int i = 1; i < 10; ++i) {
+        int y = height() * i / 10;
+        p.drawLine(0, y, width(), y);
+    }
+
+    // 绘制视窗高亮矩形
+    QRect vpRect = viewportRect();
+    if (!vpRect.isNull() && vpRect.height() > 0) {
+        // 半透明蓝色填充
+        p.fillRect(vpRect, QColor(0x4a, 0x90, 0xd9, 50));
+        // 边框
+        p.setPen(QPen(QColor(0x2a, 0x70, 0xb9), 2));
+        p.setBrush(Qt::NoBrush);
+        p.drawRoundedRect(vpRect.adjusted(0, 0, -1, -1), 3, 3);
+        // 顶部和底部拖拽手柄
+        p.setBrush(QColor(0x2a, 0x70, 0xb9));
+        p.setPen(Qt::NoPen);
+        int cx = width() / 2;
+        p.drawRoundedRect(QRect(cx - 10, vpRect.top(), 20, 5), 2, 2);
+        p.drawRoundedRect(QRect(cx - 10, vpRect.bottom() - 4, 20, 5), 2, 2);
+    }
+
+    // 位置文本
+    int vpStart = m_proxy->viewportStart();
+    int vpSize = m_proxy->viewportSize();
+    QFont smallFont = font();
+    smallFont.setPointSize(7);
+    p.setFont(smallFont);
+    p.setPen(QColor(0x55, 0x55, 0x55));
+    p.drawText(QRect(0, 0, width(), 16), Qt::AlignCenter,
+               QString::number(vpStart + 1));
+    if (total > vpSize) {
+        p.drawText(QRect(0, height() - 16, width(), 16), Qt::AlignCenter,
+                   QString::number(total));
+    }
+}
+
+QRect ViewportOverview::viewportRect() const
+{
+    if (!m_proxy)
+        return {};
+    int total = m_proxy->sourceRowCount();
+    if (total == 0)
+        return {};
+    int vpStart = m_proxy->viewportStart();
+    int vpSize = m_proxy->viewportSize();
+    int h = height();
+    double fracStart = (double)vpStart / total;
+    double fracEnd = (double)(vpStart + qMin(vpSize, total - vpStart)) / total;
+    int y1 = (int)(fracStart * h);
+    int y2 = (int)(fracEnd * h);
+    if (y2 <= y1)
+        y2 = y1 + 1;
+    return QRect(1, y1, width() - 2, y2 - y1);
+}
+
+int ViewportOverview::yToViewportStart(int y) const
+{
+    if (!m_proxy)
+        return 0;
+    int total = m_proxy->sourceRowCount();
+    if (total == 0)
+        return 0;
+    int vpSize = m_proxy->viewportSize();
+    int h = height();
+    double frac = (double)y / h;
+    int start = (int)(frac * total) - vpSize / 2;
+    return qMax(0, qMin(start, total - qMin(vpSize, total)));
+}
+
+void ViewportOverview::mousePressEvent(QMouseEvent *event)
+{
+    if (!m_proxy || event->button() != Qt::LeftButton)
+        return;
+
+    event->accept();
+    QRect vpRect = viewportRect();
+    if (vpRect.contains(event->pos())) {
+        // 点击在视窗区域内 → 开始拖拽
+        m_dragging = true;
+        m_dragStartY = event->pos().y();
+        m_dragStartViewport = m_proxy->viewportStart();
+        grabMouse();
+        setCursor(Qt::SizeVerCursor);
+    } else {
+        // 点击在视窗外 → 跳转到该位置
+        int newStart = yToViewportStart(event->pos().y());
+        emit viewportMoved(newStart);
+        // 立即开始拖拽
+        m_dragging = true;
+        m_dragStartY = event->pos().y();
+        m_dragStartViewport = newStart;
+        grabMouse();
+        setCursor(Qt::SizeVerCursor);
+    }
+}
+
+void ViewportOverview::mouseMoveEvent(QMouseEvent *event)
+{
+    if (!m_dragging || !m_proxy)
+        return;
+
+    event->accept();
+    int deltaY = event->pos().y() - m_dragStartY;
+    int total = m_proxy->sourceRowCount();
+    if (total == 0)
+        return;
+    int h = height();
+    if (h == 0)
+        return;
+
+    int vpSize = m_proxy->viewportSize();
+    int dragRange = total - qMin(vpSize, total);  // 可拖拽的行范围
+    QRect vpRect = viewportRect();
+    int dragPixels = h - vpRect.height();            // 可拖拽的像素范围
+
+    if (dragPixels <= 0) {
+        // 视窗占满整个高度 — 无法拖拽
+        return;
+    }
+
+    // 像素增量转换为行号增量 — 按可拖拽范围映射
+    double rowsPerPixel = (double)dragRange / dragPixels;
+    int rowDelta = (int)(deltaY * rowsPerPixel);
+    int newStart = m_dragStartViewport + rowDelta;
+
+    emit viewportMoved(newStart);
+}
+
+void ViewportOverview::mouseReleaseEvent(QMouseEvent *event)
+{
+    m_dragging = false;
+    releaseMouse();
+    setCursor(Qt::ArrowCursor);
+    event->accept();
+}
+
+void ViewportOverview::wheelEvent(QWheelEvent *event)
+{
+    if (!m_proxy)
+        return;
+
+    int total = m_proxy->sourceRowCount();
+    if (total == 0)
+        return;
+
+    // 滚轮移动视窗
+    int delta = event->angleDelta().y();
+    int step = m_proxy->viewportSize() / 4;  // 每次滚动 1/4 视窗
+    if (step < 1)
+        step = 1;
+    int direction = delta > 0 ? -step : step;
+    int newStart = m_proxy->viewportStart() + direction;
+    emit viewportMoved(newStart);
+}
+
+// ============================================================
 //  TraceTab — Wireshark 风格整体三栏
 // ============================================================
 
@@ -917,7 +1229,7 @@ TraceTab::TraceTab(QWidget *parent)
     m_proxyModel->setSourceModel(m_traceModel);
     m_viewportProxy = new ViewportProxyModel(this);
     m_viewportProxy->setSourceModel(m_proxyModel);
-    m_viewportProxy->setViewportSize(500);  // CANoe 风格: 固定 500 行视窗
+    m_viewportProxy->setViewportSize(2000);  // CANoe 风格: 固定 2000 行视窗
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -988,6 +1300,14 @@ TraceTab::TraceTab(QWidget *parent)
     rrPause->setData(0);
     rrGroup->addAction(rrPause);
 
+    // ---- 覆盖模式 ----
+    settingsMenu->addSeparator();
+    auto *owAct = settingsMenu->addAction(QStringLiteral("覆盖模式"));
+    owAct->setCheckable(true);
+    owAct->setChecked(false);  // 默认不开启
+    owAct->setToolTip(QStringLiteral("开启后每个 CAN ID 固定一行，新帧刷新行数据和帧数\n关闭后为滚动模式，每帧新增一行"));
+    connect(owAct, &QAction::toggled, m_traceModel, &CanTraceModel::setOverwriteMode);
+
     m_filterBar->settingsButton()->setMenu(settingsMenu);
 
     connect(m_timeFormatGroup, &QActionGroup::triggered, this,
@@ -1009,24 +1329,22 @@ TraceTab::TraceTab(QWidget *parent)
     m_vSplitter = new QSplitter(Qt::Vertical, this);
     m_vSplitter->setHandleWidth(2);
 
-    // CANoe 风格: TraceView + 视窗滚动条 (右侧)
+    // CANoe 风格: 视窗缩略图 (左侧) + TraceView (右侧，内置滚动条)
     auto *viewportContainer = new QWidget(this);
     auto *hLayout = new QHBoxLayout(viewportContainer);
     hLayout->setContentsMargins(0, 0, 0, 0);
     hLayout->setSpacing(0);
 
+    // 视窗缩略图 — 可拖拽的缩略图导航条 (左侧)
+    m_viewportOverview = new ViewportOverview(viewportContainer);
+    m_viewportOverview->setViewportProxy(m_viewportProxy);
+    m_viewportOverview->setFilterProxy(m_proxyModel);
+    m_viewportOverview->setTraceSource(m_traceModel);
+    hLayout->addWidget(m_viewportOverview);
+
     m_traceView = new TraceView(this);
     m_traceView->setModel(m_viewportProxy);
     hLayout->addWidget(m_traceView, 1);
-
-    // 视窗滚动条 — 在全部数据中拖动视窗
-    m_viewportScrollBar = new QScrollBar(Qt::Vertical, viewportContainer);
-    m_viewportScrollBar->setMinimum(0);
-    m_viewportScrollBar->setMaximum(0);
-    m_viewportScrollBar->setPageStep(500);
-    m_viewportScrollBar->setSingleStep(1);
-    m_viewportScrollBar->setToolTip(QStringLiteral("视窗导航 — 拖动可移动视窗在全部数据中的位置"));
-    hLayout->addWidget(m_viewportScrollBar);
 
     m_vSplitter->addWidget(viewportContainer);
 
@@ -1052,22 +1370,20 @@ TraceTab::TraceTab(QWidget *parent)
     connect(m_traceView->selectionModel(), &QItemSelectionModel::selectionChanged,
             this, &TraceTab::onSelectionChanged);
 
-    // 覆盖模式切换 → 同步到数据模型
-    connect(m_filterBar, &FilterBar::overwriteModeToggled,
-            m_traceModel, &CanTraceModel::setOverwriteMode);
-
-    // CANoe 风格: 视窗滚动条 ↔ 视窗位置
-    connect(m_viewportScrollBar, &QScrollBar::valueChanged,
-            this, [this](int value) {
-        m_viewportProxy->setViewportStart(value);
+    // CANoe 风格: 视窗缩略图 ↔ 视窗位置
+    connect(m_viewportOverview, &ViewportOverview::viewportMoved,
+            this, [this](int start) {
+        m_viewportProxy->setViewportStart(start);
+        // 视窗切换后重置滚动条到新视窗顶部
+        m_traceView->verticalScrollBar()->setValue(0);
         // 用户手动拖动视窗 → 取消自动跟随
         m_autoScrollViewport = false;
     });
 
-    // 视窗位置变化 → 更新视窗滚动条
-    connect(m_viewportProxy, &ViewportProxyModel::modelReset,
+    // 视窗位置变化 → 更新缩略图
+    connect(m_viewportProxy, &ViewportProxyModel::viewportChanged,
             this, [this]() {
-        updateViewportScrollBar();
+        m_viewportOverview->update();
     });
 
     // Phase 1: 可见行范围 → CanTraceModel 行缓存淘汰
@@ -1086,8 +1402,9 @@ TraceTab::TraceTab(QWidget *parent)
         m_packetCountDirty = true;
         // 自动跟随: 视窗滚动到末尾显示最新数据
         if (m_autoScrollViewport && m_traceView->autoScrollEnabled())
-            m_viewportProxy->scrollToEnd();
-        updateViewportScrollBar();
+            m_traceView->scrollToBottom();
+        // 标记缩略图缓存为脏
+        m_viewportOverview->markCacheDirty();
     });
 
     // 过滤/排序变化后重置视窗到开头
@@ -1095,7 +1412,8 @@ TraceTab::TraceTab(QWidget *parent)
             this, [this]() { m_autoScrollViewport = true; });
     connect(m_proxyModel, &CanFilterProxyModel::packetCountChanged,
             this, [this](int, int) {
-        updateViewportScrollBar();
+        m_viewportOverview->markCacheDirty();
+        m_viewportOverview->update();
     });
 
     // 分组计数防抖 — 高频帧到达时最多每 100ms 刷新一次
@@ -1149,7 +1467,7 @@ void TraceTab::clearTrace()
     m_traceModel->clear();
     m_packetCountDirty = true;  // 防抖定时器会处理
     m_autoScrollViewport = true;
-    updateViewportScrollBar();
+    updateViewportOverview();
 }
 
 int TraceTab::frameCount() const
@@ -1163,7 +1481,7 @@ bool TraceTab::setFilterExpression(const QString &expr)
     bool ok = m_proxyModel->setFilterExpression(expr);
     m_traceView->restoreSelection();
     m_autoScrollViewport = true;
-    updateViewportScrollBar();
+    updateViewportOverview();
     return ok;
 }
 
@@ -1173,7 +1491,7 @@ void TraceTab::clearFilter()
     m_proxyModel->clearFilter();  // 仅清除主表达式，保留列过滤
     m_traceView->restoreSelection();
     m_autoScrollViewport = true;
-    updateViewportScrollBar();
+    updateViewportOverview();
 }
 
 void TraceTab::clearAllFilters()
@@ -1183,7 +1501,7 @@ void TraceTab::clearAllFilters()
     m_proxyModel->clearAllColumnFilters();
     m_traceView->restoreSelection();
     m_autoScrollViewport = true;
-    updateViewportScrollBar();
+    updateViewportOverview();
 }
 
 QString TraceTab::filterExpression() const
@@ -1196,21 +1514,16 @@ void TraceTab::updatePacketCount()
     m_proxyModel->emitPacketCount();
 }
 
-void TraceTab::updateViewportScrollBar()
+void TraceTab::updateViewportOverview()
 {
-    if (!m_viewportScrollBar || !m_viewportProxy)
+    if (!m_viewportOverview || !m_viewportProxy)
         return;
     int total = m_viewportProxy->sourceRowCount();
     int vpSize = m_viewportProxy->viewportSize();
-    int maxVal = qMax(0, total - qMin(vpSize, total));
-    // 阻止信号以避免回调循环 (valueChanged → setViewportStart)
-    m_viewportScrollBar->blockSignals(true);
-    m_viewportScrollBar->setRange(0, maxVal);
-    m_viewportScrollBar->setPageStep(qMin(vpSize, qMax(1, total)));
-    m_viewportScrollBar->setValue(m_viewportProxy->viewportStart());
-    m_viewportScrollBar->blockSignals(false);
-    // 没有足够数据时隐藏视窗滚动条
-    m_viewportScrollBar->setVisible(total > vpSize);
+    // 标记缓存为脏 + 重绘缩略图
+    m_viewportOverview->markCacheDirty();
+    // 数据不足时隐藏缩略图
+    m_viewportOverview->setVisible(total > vpSize);
 }
 
 void TraceTab::onPacketCountTimer()

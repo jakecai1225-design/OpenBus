@@ -13,9 +13,35 @@ void ViewportProxyModel::setViewportStart(int start)
     if (start == m_viewportStart)
         return;
 
-    beginResetModel();
     m_viewportStart = start;
-    endResetModel();
+    int newRowCount = rowCount();
+    int cols = columnCount();
+
+    if (m_lastReportedRowCount == newRowCount && newRowCount > 0) {
+        // 行数不变 — 只发 dataChanged，保持滚动条位置和选中状态
+        emit dataChanged(index(0, 0), index(newRowCount - 1, cols - 1));
+    } else if (newRowCount > m_lastReportedRowCount) {
+        // 行数增加 — 更新已有行 + 插入新行
+        if (m_lastReportedRowCount > 0)
+            emit dataChanged(index(0, 0), index(m_lastReportedRowCount - 1, cols - 1));
+        beginInsertRows({}, m_lastReportedRowCount, newRowCount - 1);
+        endInsertRows();
+    } else if (newRowCount < m_lastReportedRowCount) {
+        // 行数减少 — 更新剩余行 + 移除多余行
+        if (newRowCount > 0)
+            emit dataChanged(index(0, 0), index(newRowCount - 1, cols - 1));
+        if (m_lastReportedRowCount > newRowCount) {
+            beginRemoveRows({}, newRowCount, m_lastReportedRowCount - 1);
+            endRemoveRows();
+        }
+    } else {
+        // newRowCount == 0
+        beginResetModel();
+        endResetModel();
+    }
+
+    m_lastReportedRowCount = newRowCount;
+    emit viewportChanged();
 }
 
 void ViewportProxyModel::setViewportSize(int size)
@@ -29,6 +55,8 @@ void ViewportProxyModel::setViewportSize(int size)
     m_viewportSize = size;
     m_viewportStart = clampStart(m_viewportStart);
     endResetModel();
+    m_lastReportedRowCount = rowCount();
+    emit viewportChanged();
 }
 
 int ViewportProxyModel::sourceRowCount() const
@@ -137,12 +165,32 @@ int ViewportProxyModel::clampStart(int start) const
 
 void ViewportProxyModel::adjustOnStructuralChange()
 {
-    int newStart = clampStart(m_viewportStart);
-    if (newStart != m_viewportStart) {
-        beginResetModel();
-        m_viewportStart = newStart;
-        endResetModel();
+    // 源模型行数变化后，调整视窗位置并同步行数到视图
+    m_viewportStart = clampStart(m_viewportStart);
+    int newRowCount = rowCount();
+    int cols = columnCount();
+
+    if (newRowCount > m_lastReportedRowCount) {
+        // 行数增加 — 更新已有行 + 插入新行
+        if (m_lastReportedRowCount > 0)
+            emit dataChanged(index(0, 0), index(m_lastReportedRowCount - 1, cols - 1));
+        beginInsertRows({}, m_lastReportedRowCount, newRowCount - 1);
+        endInsertRows();
+    } else if (newRowCount < m_lastReportedRowCount) {
+        // 行数减少 — 更新剩余行 + 移除多余行
+        if (newRowCount > 0)
+            emit dataChanged(index(0, 0), index(newRowCount - 1, cols - 1));
+        if (m_lastReportedRowCount > newRowCount) {
+            beginRemoveRows({}, newRowCount, m_lastReportedRowCount - 1);
+            endRemoveRows();
+        }
+    } else if (newRowCount > 0) {
+        // 行数不变但数据可能已变化（排序、覆盖等）
+        emit dataChanged(index(0, 0), index(newRowCount - 1, cols - 1));
     }
+
+    m_lastReportedRowCount = newRowCount;
+    emit viewportChanged();
 }
 
 void ViewportProxyModel::onSourceDataChanged(const QModelIndex &topLeft,
@@ -207,6 +255,8 @@ void ViewportProxyModel::setSourceModel(QAbstractItemModel *sourceModel)
             beginResetModel();
             m_viewportStart = 0;
             endResetModel();
+            m_lastReportedRowCount = rowCount();
+            emit viewportChanged();
         });
         connect(sourceModel, &QAbstractItemModel::layoutChanged,
                 this, [this]() {
@@ -216,4 +266,6 @@ void ViewportProxyModel::setSourceModel(QAbstractItemModel *sourceModel)
     }
 
     endResetModel();
+    m_lastReportedRowCount = rowCount();
+    emit viewportChanged();
 }

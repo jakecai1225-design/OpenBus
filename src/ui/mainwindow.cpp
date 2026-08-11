@@ -971,6 +971,10 @@ void MainWindow::onAutoScrollToggled(bool on)
 
 void MainWindow::onFrameReceived(const CanFrame &frame)
 {
+    // 测量未运行时直接断流 — 不再向任何数据块分发帧
+    if (!m_measurementRunning)
+        return;
+
     // 发送到所有启用的 Graphic 视图，仅向运行中的 Trace 标签页追加帧
     const auto allTabs = m_editorArea->allTabWidgets();
     for (auto *tw : allTabs) {
@@ -1525,7 +1529,7 @@ void MainWindow::setupDeviceTab(DeviceConnectionTab *tab)
         m_deviceManager->start();
     });
 
-    // 连接成功 — 启动数据流到 Trace / Graphic
+    // 连接成功 — 仅连接设备，不启动数据流
     connect(tab, &DeviceConnectionTab::deviceConnectRequested,
             this, [this](const QString &name, int) {
         // 真实设备模式下，检查设备是否成功启动
@@ -1536,16 +1540,9 @@ void MainWindow::setupDeviceTab(DeviceConnectionTab *tab)
         }
         if (!m_deviceManager->isRealDevice())
             m_connLabel->setText(QStringLiteral("🔗 已连接"));
-        // 启动数据流：标记测量运行 + Trace 实例遵循 Flow 块使能状态
-        m_measurementRunning = true;
-        for (auto it = m_traceInstances.begin(); it != m_traceInstances.end(); ++it) {
-            auto *traceTab = qobject_cast<TraceTab *>(it.value());
-            if (!traceTab) continue;
-            bool en = m_setupView ? m_setupView->isBlockEnabled(it.key()) : true;
-            traceTab->setRunning(en);
-        }
+        // 不自动启动数据流 — 需在 Flow 页面点击“开始”后才向 Trace/Graphic 分发数据
         m_bottomPanel->appendOutput(
-            QStringLiteral(" 数据流已启动: %1").arg(name));
+            QStringLiteral("✅ 设备已连接: %1 (请在 Flow 页面点击开始启动数据流)").arg(name));
     });
     // 断开 — 停止数据流
     connect(tab, &DeviceConnectionTab::deviceDisconnectRequested,

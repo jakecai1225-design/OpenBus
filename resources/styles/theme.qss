@@ -96,10 +96,12 @@ QTabBar::tab {
 QTabBar::tab:selected { background-color: @tabActiveBg; color: @text; border-bottom: 3px solid @accent; }
 QTabBar::tab:hover:!selected { background-color: @tabHoverBg; color: @text; }
 QTabBar::close-button {
-    image: none; subcontrol-position: right; border: none;
-    padding: 2px; margin: 2px; border-radius: 2px; background: transparent;
+    subcontrol-position: right; border: 1px solid @borderDim;
+    border-radius: 3px; padding: 1px; margin: 1px;
+    background: @buttonBg; max-width: 16px; max-height: 16px;
 }
-QTabBar::close-button:hover { background-color: @hoverBg; }
+QTabBar::close-button:hover { background-color: @closeBtnHover; border-color: @closeBtnHover; }
+QTabBar::close-button:pressed { background-color: @closeBtnPress; }
 
 /* ---- 底部面板标签 (28px) ---- */
 #BottomPanel { background-color: @sidebarBg; }

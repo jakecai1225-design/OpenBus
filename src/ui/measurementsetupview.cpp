@@ -322,7 +322,7 @@ void MeasurementSetupView::setupUi()
     m_toolbar->setMovable(false);
     m_toolbar->setIconSize(QSize(20, 20));
 
-    m_startAct = m_toolbar->addAction(" 开始测量");
+    m_startAct = m_toolbar->addAction("▶ 开始");
 
     m_stopAct = m_toolbar->addAction("■ 停止");
     m_stopAct->setEnabled(false);
