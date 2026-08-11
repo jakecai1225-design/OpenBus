@@ -7,6 +7,7 @@
 #include <QColor>
 #include <QTimer>
 #include <QVector>
+#include <QDateTime>
 #include "core/canframe.h"
 #include "utils/ringbuffer.h"
 
@@ -74,6 +75,9 @@ public:
 
     /// 当前帧总数
     int frameCount() const { return m_ringBuffer.size(); }
+
+    /// 捕获起始的 wall-clock 时间（用于 DateTimeOfDay / SecondsSinceEpoch 时间戳模式）
+    QDateTime captureStartTime() const { return m_captureStartDateTime; }
 
     /// 获取所有帧（返回临时 QVector，用于 GraphicView 等）
     QVector<CanFrame> frames() const;
@@ -147,6 +151,7 @@ private:
     int m_maxFrames = 1000000;
     RingBuffer<CanFrame> m_ringBuffer;
     quint64 m_seqCounter = 0;   ///< 帧序列号（永不回退，用于 No. 列）
+    QDateTime m_captureStartDateTime;  ///< 捕获起始 wall-clock 时间（首次提交帧时设置）
 
     bool m_overwriteMode = false;
     QHash<quint32, int> m_idToRow;   ///< CAN ID → 逻辑行号（覆盖模式）

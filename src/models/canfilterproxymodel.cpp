@@ -58,12 +58,13 @@ void CanFilterProxyModel::clearColumnFilter(int column)
 void CanFilterProxyModel::clearAllColumnFilters()
 {
     m_columnFilters.clear();
+    m_columnFilterValues.clear();
     invalidateFilter();
 }
 
 bool CanFilterProxyModel::hasColumnFilter(int column) const
 {
-    return m_columnFilters.contains(column);
+    return m_columnFilters.contains(column) || m_columnFilterValues.contains(column);
 }
 
 bool CanFilterProxyModel::matchColumnFilter(int sourceRow, int column) const
@@ -147,6 +148,46 @@ bool CanFilterProxyModel::matchColumnFilter(int sourceRow, int column) const
 }
 
 // ============================================================
+//  值集过滤（Excel 风格复选框）
+// ============================================================
+
+void CanFilterProxyModel::setColumnFilterValues(int column, const QSet<QString> &values)
+{
+    if (values.isEmpty()) {
+        m_columnFilterValues.remove(column);
+    } else {
+        m_columnFilterValues[column] = values;
+    }
+    invalidateFilter();
+}
+
+void CanFilterProxyModel::clearColumnFilterValues(int column)
+{
+    m_columnFilterValues.remove(column);
+    invalidateFilter();
+}
+
+QString CanFilterProxyModel::columnDisplayText(int sourceRow, int column) const
+{
+    auto *model = qobject_cast<CanTraceModel *>(sourceModel());
+    if (!model)
+        return {};
+    // 获取源模型的显示文本（已格式化的文本）
+    QModelIndex idx = model->index(sourceRow, column);
+    return model->data(idx, Qt::DisplayRole).toString();
+}
+
+bool CanFilterProxyModel::matchColumnFilterValues(int sourceRow, int column) const
+{
+    auto it = m_columnFilterValues.find(column);
+    if (it == m_columnFilterValues.end())
+        return true;  // 该列无值集过滤
+
+    QString displayText = columnDisplayText(sourceRow, column);
+    return it.value().contains(displayText);
+}
+
+// ============================================================
 //  行过滤（主表达式 + 列过滤）
 // ============================================================
 
@@ -166,6 +207,12 @@ bool CanFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sou
     // 按列过滤
     for (auto it = m_columnFilters.constBegin(); it != m_columnFilters.constEnd(); ++it) {
         if (!matchColumnFilter(sourceRow, it.key()))
+            return false;
+    }
+
+    // 值集过滤（Excel 风格复选框）
+    for (auto it = m_columnFilterValues.constBegin(); it != m_columnFilterValues.constEnd(); ++it) {
+        if (!matchColumnFilterValues(sourceRow, it.key()))
             return false;
     }
 
@@ -236,6 +283,24 @@ void CanFilterProxyModel::setTimestampMode(TimestampMode mode)
     }
 }
 
+void CanFilterProxyModel::setTimePrecision(int precision)
+{
+    if (m_timePrecision == precision)
+        return;
+    m_timePrecision = precision;
+
+    // 刷新 Time 列和 Delta 列所有可见行
+    int rows = rowCount();
+    if (rows > 0) {
+        emit dataChanged(index(0, CanTraceModel::ColTime),
+                         index(rows - 1, CanTraceModel::ColTime),
+                         {Qt::DisplayRole});
+        emit dataChanged(index(0, CanTraceModel::ColDelta),
+                         index(rows - 1, CanTraceModel::ColDelta),
+                         {Qt::DisplayRole});
+    }
+}
+
 int CanFilterProxyModel::capturedCount() const
 {
     auto *model = qobject_cast<CanTraceModel *>(sourceModel());
@@ -278,8 +343,7 @@ void CanFilterProxyModel::emitPacketCount()
 
 QVariant CanFilterProxyModel::data(const QModelIndex &proxyIndex, int role) const
 {
-    if (role == Qt::DisplayRole && proxyIndex.column() == CanTraceModel::ColTime
-        && m_timestampMode != Absolute) {
+    if (role == Qt::DisplayRole && proxyIndex.column() == CanTraceModel::ColTime) {
         auto *model = qobject_cast<CanTraceModel *>(sourceModel());
         if (!model)
             return {};
@@ -287,17 +351,21 @@ QVariant CanFilterProxyModel::data(const QModelIndex &proxyIndex, int role) cons
         if (!sourceIdx.isValid())
             return {};
         const CanFrame &f = model->frameAt(sourceIdx.row());
+        int prec = m_timePrecision;
 
-        if (m_timestampMode == SinceCapture) {
+        switch (m_timestampMode) {
+        case Absolute:
+            return CanUtils::formatTime(f.timestamp, prec);
+        case SinceCapture: {
             double prev = (sourceIdx.row() > 0)
                 ? model->frameAt(sourceIdx.row() - 1).timestamp : 0.0;
-            return CanUtils::formatTime(f.timestamp - prev);
+            return CanUtils::formatTime(f.timestamp - prev, prec);
         }
-        if (m_timestampMode == SinceDisplay) {
+        case SinceDisplay: {
             auto it = m_displayDeltas.find(sourceIdx.row());
             if (it != m_displayDeltas.end())
-                return CanUtils::formatTime(it.value());
-            // Phase 3: 未命中缓存，实时计算并缓存（避免重复计算）
+                return CanUtils::formatTime(it.value(), prec);
+            // 未命中缓存，实时计算并缓存
             double prevTime = 0.0;
             bool found = false;
             for (int r = sourceIdx.row() - 1; r >= 0; --r) {
@@ -309,7 +377,16 @@ QVariant CanFilterProxyModel::data(const QModelIndex &proxyIndex, int role) cons
             }
             double delta = found ? (f.timestamp - prevTime) : f.timestamp;
             m_displayDeltas[sourceIdx.row()] = delta;
-            return CanUtils::formatTime(delta);
+            return CanUtils::formatTime(delta, prec);
+        }
+        case DateTimeOfDay:
+            return CanUtils::formatDateTime(model->captureStartTime(), f.timestamp, prec);
+        case SecondsSinceEpoch: {
+            QDateTime start = model->captureStartTime();
+            if (start.isValid())
+                return CanUtils::formatTime(start.toMSecsSinceEpoch() / 1000.0 + f.timestamp, prec);
+            return CanUtils::formatTime(f.timestamp, prec);
+        }
         }
     }
     return QSortFilterProxyModel::data(proxyIndex, role);

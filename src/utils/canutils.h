@@ -2,6 +2,7 @@
 #define CANUTILS_H
 
 #include <QString>
+#include <QDateTime>
 #include <functional>
 
 struct CanFrame;
@@ -15,8 +16,15 @@ namespace CanUtils
 {
     // ---- 格式化 ----
 
-    /// 时间戳格式化（秒 -> "0.000123"）
+    /// 时间戳格式化（秒 -> "0.000123"），默认 6 位小数（微秒精度）
     QString formatTime(double seconds);
+    /// 时间戳格式化（带精度控制）
+    /// precision: -1=自动, 0=秒, 3=毫秒, 6=微秒, 9=纳秒
+    QString formatTime(double seconds, int precision);
+
+    /// 日期+时间格式化（从捕获起始的 wall-clock + 偏移秒）
+    /// 返回 "yyyy-MM-dd HH:mm:ss.zzzzzz" 格式
+    QString formatDateTime(const QDateTime &start, double seconds, int precision);
 
     /// CAN ID 格式化（扩展帧 8 位 hex，标准帧 3 位 hex）
     QString formatId(quint32 id, bool extended);

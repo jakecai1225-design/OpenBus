@@ -52,7 +52,7 @@ FilterBar::FilterBar(QWidget *parent)
     // 分组统计标签
     m_packetCountLabel = new QLabel(this);
     m_packetCountLabel->setStyleSheet("font-size: 11px; color: #666;");
-    m_packetCountLabel->setText(QStringLiteral("捕获: 0 | 显示: 0"));
+    m_packetCountLabel->setText(QStringLiteral("捕获: 0 | 显示: 0 | 标记: 0"));
 
     layout->addWidget(m_statusIcon);
     layout->addWidget(m_edit, 1);

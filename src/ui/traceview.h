@@ -101,6 +101,10 @@ private:
     int m_pinnedSourceRow = -1;  ///< 过滤变化前锁定的源模型行号
     QString m_lastFindText;      ///< 上次查找文本
 
+    // ---- 3-state 排序状态 ----
+    int m_sortColumn = -1;              ///< 当前排序列（-1 = 未排序）
+    Qt::SortOrder m_sortOrder = Qt::AscendingOrder;  ///< 当前排序方向
+
     void setupAppearance();
     void showHeaderMenu(int column, const QPoint &pos);
     QString columnFilterHint(int column) const;

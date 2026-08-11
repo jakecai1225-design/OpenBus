@@ -310,6 +310,10 @@ void CanTraceModel::commitBatch(const QVector<CanFrame> &frames)
 
 void CanTraceModel::commitFrame(const CanFrame &frame)
 {
+    // 首帧提交时记录 wall-clock 捕获起始时间
+    if (m_seqCounter == 0)
+        m_captureStartDateTime = QDateTime::currentDateTime();
+
     m_idCount[frame.id]++;
 
     if (m_overwriteMode) {
@@ -362,6 +366,7 @@ void CanTraceModel::clear()
     beginResetModel();
     m_ringBuffer.clear();
     m_seqCounter = 0;
+    m_captureStartDateTime = QDateTime();
     m_idToRow.clear();
     m_idCount.clear();
     m_markedRows.clear();
@@ -378,6 +383,7 @@ void CanTraceModel::setMaxFrames(int max)
     beginResetModel();
     m_ringBuffer.reserve(max);
     m_seqCounter = 0;
+    m_captureStartDateTime = QDateTime();
     m_idToRow.clear();
     m_idCount.clear();
     m_markedRows.clear();

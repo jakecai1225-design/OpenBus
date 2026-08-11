@@ -81,7 +81,7 @@ void TraceView::setupAppearance()
     setSelectionMode(QAbstractItemView::ExtendedSelection);
     setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    setSortingEnabled(true);
+    setSortingEnabled(false);  // 自行处理表头点击排序（3-state）
     setShowGrid(false);
 
     // 替换为 Wireshark 风格漏斗表头
@@ -107,8 +107,12 @@ void TraceView::setupAppearance()
     setColumnWidth(CanTraceModel::ColFlags, 90);
     setColumnWidth(CanTraceModel::ColFrameCount, 80);
 
-    // 默认按帧编号升序排序
-    sortByColumn(CanTraceModel::ColNo, Qt::AscendingOrder);
+    // 默认按帧编号升序排序（实际排序在 setModel 后执行）
+    m_sortColumn = CanTraceModel::ColNo;
+    m_sortOrder = Qt::AscendingOrder;
+    auto *fh = qobject_cast<FilterHeaderView *>(horizontalHeader());
+    if (fh)
+        fh->setSortState(CanTraceModel::ColNo, Qt::AscendingOrder);
 
     // 表头信号
     connect(filterHeader, &QHeaderView::sectionClicked,
@@ -130,6 +134,12 @@ void TraceView::setModel(QAbstractItemModel *model)
         fh->setProxyModel(fp);
         // Data 列自动拉伸填满剩余宽度（需在模型设置后调用）
         fh->setSectionResizeMode(CanTraceModel::ColData, QHeaderView::Stretch);
+    }
+    // 应用初始排序（setupAppearance 中设置的状态）
+    if (m_sortColumn >= 0) {
+        auto *fp = filterProxy();
+        if (fp)
+            fp->sort(m_sortColumn, m_sortOrder);
     }
 }
 
@@ -178,16 +188,77 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
 
     QAction copyAction(QStringLiteral("复制选中行"), this);
     QAction copyDataAction(QStringLiteral("复制数据"), this);
-    QAction filterIdAction(QStringLiteral("按此 ID 过滤"), this);
     QAction addToGraphicAction(QStringLiteral("发送到 Graphic"), this);
     QAction clearFilterAction(QStringLiteral("x 清除过滤"), this);
 
     menu.addAction(&copyAction);
     menu.addAction(&copyDataAction);
     menu.addSeparator();
-    menu.addAction(&filterIdAction);
     menu.addAction(&addToGraphicAction);
     menu.addAction(&clearFilterAction);
+
+    // ---- Wireshark 风格 Apply as Filter ----
+    if (index.isValid()) {
+        int col = index.column();
+        QString cellValue = index.data(Qt::DisplayRole).toString();
+        if (!cellValue.isEmpty()) {
+            menu.addSeparator();
+            QMenu *applyMenu = menu.addMenu(QStringLiteral("应用为过滤"));
+
+            // 根据列类型提供不同的过滤操作
+            bool isNumeric = (col == CanTraceModel::ColNo || col == CanTraceModel::ColTime ||
+                              col == CanTraceModel::ColDelta || col == CanTraceModel::ColId ||
+                              col == CanTraceModel::ColDlc || col == CanTraceModel::ColFrameCount);
+
+            // == (等于 / 包含)
+            auto *actEq = applyMenu->addAction(QStringLiteral("==  (等于)"));
+            connect(actEq, &QAction::triggered, this, [this, col, cellValue]() {
+                auto *p = filterProxy();
+                if (p) { pinSelection(); p->setColumnFilter(col, cellValue); restoreSelection(); }
+            });
+
+            // != (不等于)
+            auto *actNe = applyMenu->addAction(QStringLiteral("!=  (不等于)"));
+            connect(actNe, &QAction::triggered, this, [this, col, cellValue]() {
+                auto *p = filterProxy();
+                if (p) { pinSelection(); p->setColumnFilter(col, "!=" + cellValue); restoreSelection(); }
+            });
+
+            // > 和 < (仅数值列)
+            if (isNumeric) {
+                auto *actGt = applyMenu->addAction(QStringLiteral(">   (大于)"));
+                connect(actGt, &QAction::triggered, this, [this, col, cellValue]() {
+                    auto *p = filterProxy();
+                    if (p) { pinSelection(); p->setColumnFilter(col, ">" + cellValue); restoreSelection(); }
+                });
+
+                auto *actLt = applyMenu->addAction(QStringLiteral("<   (小于)"));
+                connect(actLt, &QAction::triggered, this, [this, col, cellValue]() {
+                    auto *p = filterProxy();
+                    if (p) { pinSelection(); p->setColumnFilter(col, "<" + cellValue); restoreSelection(); }
+                });
+            }
+
+            // contains (包含, 仅文本列)
+            if (!isNumeric && col != CanTraceModel::ColDirection) {
+                auto *actContains = applyMenu->addAction(QStringLiteral("contains  (包含)"));
+                connect(actContains, &QAction::triggered, this, [this, col, cellValue]() {
+                    auto *p = filterProxy();
+                    if (p) { pinSelection(); p->setColumnFilter(col, cellValue); restoreSelection(); }
+                });
+            }
+
+            // 会话过滤: 同 ID
+            if (col == CanTraceModel::ColId) {
+                applyMenu->addSeparator();
+                auto *actConv = applyMenu->addAction(QStringLiteral("同 ID 会话"));
+                connect(actConv, &QAction::triggered, this, [this, col, cellValue]() {
+                    auto *p = filterProxy();
+                    if (p) { pinSelection(); p->setColumnFilter(col, cellValue); restoreSelection(); }
+                });
+            }
+        }
+    }
 
     // 标记与着色子菜单
     auto rows = selectedSourceRows();
@@ -318,7 +389,6 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
 
     copyAction.setEnabled(index.isValid());
     copyDataAction.setEnabled(index.isValid());
-    filterIdAction.setEnabled(index.isValid());
     addToGraphicAction.setEnabled(index.isValid());
     clearFilterAction.setEnabled(true);
 
@@ -345,10 +415,6 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
             text = QString(frame->data.toHex(' '));
         }
         QGuiApplication::clipboard()->setText(text);
-    } else if (selected == &filterIdAction) {
-        const CanFrame *frame = selectedFrame();
-        if (frame)
-            emit frameDoubleClicked(*frame);
     } else if (selected == &addToGraphicAction) {
         const CanFrame *frame = selectedFrame();
         if (frame)
@@ -404,8 +470,34 @@ CanTraceModel *TraceView::traceSource() const
 
 void TraceView::onHeaderClicked(int column)
 {
-    // 点击表头自动切换升/降序（QTableView 内置已处理，这里仅做额外逻辑）
-    Q_UNUSED(column);
+    // Wireshark 风格 3-state 排序: Asc → Desc → No Sort → Asc...
+    auto *fh = qobject_cast<FilterHeaderView *>(horizontalHeader());
+    auto *fp = filterProxy();
+    if (!fp)
+        return;
+    if (column == m_sortColumn) {
+        // 点击当前排序列: Asc → Desc → No Sort
+        if (m_sortOrder == Qt::AscendingOrder) {
+            m_sortOrder = Qt::DescendingOrder;
+            if (fh)
+                fh->setSortState(column, m_sortOrder);
+            fp->sort(column, m_sortOrder);
+        } else if (m_sortOrder == Qt::DescendingOrder) {
+            // 切换到无排序
+            m_sortColumn = -1;
+            m_sortOrder = Qt::AscendingOrder;
+            if (fh)
+                fh->clearSortState();
+            fp->sort(-1, Qt::AscendingOrder);
+        }
+    } else {
+        // 点击新列: 从升序开始
+        m_sortColumn = column;
+        m_sortOrder = Qt::AscendingOrder;
+        if (fh)
+            fh->setSortState(column, m_sortOrder);
+        fp->sort(column, m_sortOrder);
+    }
 }
 
 void TraceView::onHeaderContextMenu(const QPoint &pos)
@@ -439,11 +531,26 @@ void TraceView::showHeaderMenu(int column, const QPoint &pos)
 
     QMenu menu(this);
 
-    // 排序选项
-    QAction sortAsc("↑ 升序排序", this);
-    QAction sortDesc("↓ 降序排序", this);
-    menu.addAction(&sortAsc);
-    menu.addAction(&sortDesc);
+    // 排序子菜单
+    QMenu *sortMenu = menu.addMenu(QStringLiteral("排序"));
+    QAction sortAsc(QStringLiteral("↑ 升序排序"), this);
+    QAction sortDesc(QStringLiteral("↓ 降序排序"), this);
+    QAction sortNone(QStringLiteral("不排序"), this);
+    sortMenu->addAction(&sortAsc);
+    sortMenu->addAction(&sortDesc);
+    sortMenu->addSeparator();
+    sortMenu->addAction(&sortNone);
+    // 根据当前排序状态标记
+    if (m_sortColumn == column && m_sortOrder == Qt::AscendingOrder)
+        sortAsc.setChecked(true);
+    else if (m_sortColumn == column && m_sortOrder == Qt::DescendingOrder)
+        sortDesc.setChecked(true);
+    sortAsc.setCheckable(true);
+    sortDesc.setCheckable(true);
+    sortNone.setCheckable(m_sortColumn < 0);
+    sortNone.setCheckable(true);
+    if (m_sortColumn < 0)
+        sortNone.setChecked(true);
 
     menu.addSeparator();
 
@@ -512,12 +619,36 @@ void TraceView::showHeaderMenu(int column, const QPoint &pos)
     menu.addAction(&clearAllAct);
     connect(&clearAllAct, &QAction::triggered, this, &TraceView::onClearAllFilters);
 
-    // 排序连接
+    // 排序连接 — 使用 3-state 机制
     connect(&sortAsc, &QAction::triggered, this, [this, column]() {
-        sortByColumn(column, Qt::AscendingOrder);
+        m_sortColumn = column;
+        m_sortOrder = Qt::AscendingOrder;
+        auto *fh = qobject_cast<FilterHeaderView *>(horizontalHeader());
+        if (fh)
+            fh->setSortState(column, m_sortOrder);
+        auto *fp = filterProxy();
+        if (fp)
+            fp->sort(column, m_sortOrder);
     });
     connect(&sortDesc, &QAction::triggered, this, [this, column]() {
-        sortByColumn(column, Qt::DescendingOrder);
+        m_sortColumn = column;
+        m_sortOrder = Qt::DescendingOrder;
+        auto *fh = qobject_cast<FilterHeaderView *>(horizontalHeader());
+        if (fh)
+            fh->setSortState(column, m_sortOrder);
+        auto *fp = filterProxy();
+        if (fp)
+            fp->sort(column, m_sortOrder);
+    });
+    connect(&sortNone, &QAction::triggered, this, [this]() {
+        m_sortColumn = -1;
+        m_sortOrder = Qt::AscendingOrder;
+        auto *fh = qobject_cast<FilterHeaderView *>(horizontalHeader());
+        if (fh)
+            fh->clearSortState();
+        auto *fp = filterProxy();
+        if (fp)
+            fp->sort(-1, Qt::AscendingOrder);
     });
 
     // 列筛选对话框
@@ -1353,7 +1484,7 @@ TraceTab::TraceTab(QWidget *parent)
     tsTitle->setEnabled(false);
     settingsMenu->addSeparator();
 
-    auto *actAbs = settingsMenu->addAction(QStringLiteral("绝对时间戳"));
+    auto *actAbs = settingsMenu->addAction(QStringLiteral("自捕获开始"));
     actAbs->setCheckable(true);
     actAbs->setChecked(true);
     actAbs->setData(CanFilterProxyModel::Absolute);
@@ -1369,11 +1500,59 @@ TraceTab::TraceTab(QWidget *parent)
     actSinceDisp->setData(CanFilterProxyModel::SinceDisplay);
     m_timeFormatGroup->addAction(actSinceDisp);
 
+    auto *actDate = settingsMenu->addAction(QStringLiteral("日期和时间"));
+    actDate->setCheckable(true);
+    actDate->setData(CanFilterProxyModel::DateTimeOfDay);
+    m_timeFormatGroup->addAction(actDate);
+
+    auto *actEpoch = settingsMenu->addAction(QStringLiteral("Unix 时间戳"));
+    actEpoch->setCheckable(true);
+    actEpoch->setData(CanFilterProxyModel::SecondsSinceEpoch);
+    m_timeFormatGroup->addAction(actEpoch);
+
     settingsMenu->addSeparator();
-    settingsMenu->addAction(QStringLiteral("说明:\n"
-        "  绝对时间戳 — 自捕获开始的相对时间\n"
+    settingsMenu->addAction(QStringLiteral(
+        "说明:\n"
+        "  自捕获开始 — 自捕获开始的相对时间\n"
         "  自上一捕获分组 — 与前一帧的时间差\n"
-        "  自上一显示分组 — 与前一可见帧的时间差"))->setEnabled(false);
+        "  自上一显示分组 — 与前一可见帧的时间差\n"
+        "  日期和时间 — 完整日期+时间\n"
+        "  Unix 时间戳 — 自 1970-01-01 的秒数"))->setEnabled(false);
+
+    // ---- 时间精度 ----
+    settingsMenu->addSeparator();
+    auto *tpTitle = settingsMenu->addAction(QStringLiteral("时间精度"));
+    tpTitle->setEnabled(false);
+    settingsMenu->addSeparator();
+
+    auto *tpGroup = new QActionGroup(settingsMenu);
+    tpGroup->setExclusive(true);
+
+    auto *tpAuto = settingsMenu->addAction(QStringLiteral("自动"));
+    tpAuto->setCheckable(true);
+    tpAuto->setData(-1);
+    tpGroup->addAction(tpAuto);
+
+    auto *tpSec = settingsMenu->addAction(QStringLiteral("秒 (0)"));
+    tpSec->setCheckable(true);
+    tpSec->setData(0);
+    tpGroup->addAction(tpSec);
+
+    auto *tpMs = settingsMenu->addAction(QStringLiteral("毫秒 (3)"));
+    tpMs->setCheckable(true);
+    tpMs->setData(3);
+    tpGroup->addAction(tpMs);
+
+    auto *tpUs = settingsMenu->addAction(QStringLiteral("微秒 (6)"));
+    tpUs->setCheckable(true);
+    tpUs->setChecked(true);
+    tpUs->setData(6);
+    tpGroup->addAction(tpUs);
+
+    auto *tpNs = settingsMenu->addAction(QStringLiteral("纳秒 (9)"));
+    tpNs->setCheckable(true);
+    tpNs->setData(9);
+    tpGroup->addAction(tpNs);
 
     // ---- Phase 2: 刷新率设置 ----
     settingsMenu->addSeparator();
@@ -1420,6 +1599,12 @@ TraceTab::TraceTab(QWidget *parent)
         int mode = act->data().toInt();
         m_proxyModel->setTimestampMode(
             static_cast<CanFilterProxyModel::TimestampMode>(mode));
+    });
+
+    // 时间精度切换
+    connect(tpGroup, &QActionGroup::triggered, this,
+            [this](QAction *act) {
+        m_proxyModel->setTimePrecision(act->data().toInt());
     });
 
     // Phase 2: 刷新率切换 → CanTraceModel
@@ -1531,8 +1716,9 @@ TraceTab::TraceTab(QWidget *parent)
     // 过滤条件变化时立即更新（不防抖）
     connect(m_proxyModel, &CanFilterProxyModel::packetCountChanged,
             this, [this](int captured, int displayed) {
+        int marked = m_traceModel->markedRows().size();
         m_filterBar->setPacketCountText(
-            QStringLiteral("捕获: %1 | 显示: %2").arg(captured).arg(displayed));
+            QStringLiteral("捕获: %1 | 显示: %2 | 标记: %3").arg(captured).arg(displayed).arg(marked));
         m_packetCountDirty = false;
     });
 
@@ -1636,10 +1822,12 @@ void TraceTab::onPacketCountTimer()
     if (!m_packetCountDirty)
         return;
     m_packetCountDirty = false;
+    int marked = m_traceModel->markedRows().size();
     m_filterBar->setPacketCountText(
-        QStringLiteral("捕获: %1 | 显示: %2")
+        QStringLiteral("捕获: %1 | 显示: %2 | 标记: %3")
             .arg(m_proxyModel->capturedCount())
-            .arg(m_proxyModel->displayedCount()));
+            .arg(m_proxyModel->displayedCount())
+            .arg(marked));
 }
 
 void TraceTab::onSelectionChanged()

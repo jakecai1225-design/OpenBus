@@ -131,9 +131,23 @@ QModelIndex ViewportProxyModel::sibling(int row, int column, const QModelIndex &
 
 void ViewportProxyModel::sort(int column, Qt::SortOrder order)
 {
-    // 将排序请求转发给源模型（CanFilterProxyModel），同时通知视图布局即将变化
     if (!sourceModel())
         return;
+
+    if (column < 0) {
+        // 取消排序 — 恢复原始捕获顺序
+        m_sorting = true;
+        emit layoutAboutToBeChanged();
+        sourceModel()->sort(-1, order);
+        m_viewportStart = clampStart(m_viewportStart);
+        m_lastReportedRowCount = rowCount();
+        emit layoutChanged();
+        m_sorting = false;
+        emit viewportChanged();
+        return;
+    }
+
+    // 将排序请求转发给源模型（CanFilterProxyModel），同时通知视图布局即将变化
     m_sorting = true;  // 防止源模型 layoutChanged 信号重复转发
     emit layoutAboutToBeChanged();
     sourceModel()->sort(column, order);

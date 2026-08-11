@@ -4,6 +4,7 @@
 #include <QPainter>
 #include <QMouseEvent>
 #include <QPainterPath>
+#include <QPalette>
 
 // ============================================================
 //  构造
@@ -18,8 +19,8 @@ FilterHeaderView::FilterHeaderView(Qt::Orientation orientation, QWidget *parent)
     setStretchLastSection(false);
     setSectionResizeMode(QHeaderView::Interactive);
     setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    // 始终显示排序指示器
-    setSortIndicatorShown(true);
+    // 禁用 Qt 内置排序指示器 — 自行绘制以控制位置，避免与过滤图标重叠
+    setSortIndicatorShown(false);
 }
 
 void FilterHeaderView::setProxyModel(CanFilterProxyModel *proxy)
@@ -32,17 +33,45 @@ bool FilterHeaderView::hasFilter(int logicalIndex) const
     return m_proxy && m_proxy->hasColumnFilter(logicalIndex);
 }
 
+void FilterHeaderView::setSortState(int column, Qt::SortOrder order)
+{
+    int oldCol = m_sortColumn;
+    m_sortColumn = column;
+    m_sortOrder = order;
+    // 重绘旧列（移除箭头）和新列（添加箭头）
+    if (oldCol >= 0 && oldCol != column)
+        updateSection(oldCol);
+    if (column >= 0)
+        updateSection(column);
+}
+
+void FilterHeaderView::clearSortState()
+{
+    int oldCol = m_sortColumn;
+    m_sortColumn = -1;
+    m_sortOrder = Qt::AscendingOrder;
+    if (oldCol >= 0)
+        updateSection(oldCol);
+}
+
 // ============================================================
-//  图标区域计算
+//  图标区域计算 — 排序在左，过滤在右，互不重叠
 // ============================================================
 
 QRect FilterHeaderView::filterRect(const QRect &sectionRect) const
 {
-    // 漏斗图标放在列最右侧，与排序箭头保持距离
-    const int iconSize = 16;
-    int x = sectionRect.right() - iconSize - 6;
-    int y = sectionRect.top() + (sectionRect.height() - iconSize) / 2;
-    return QRect(x, y, iconSize, iconSize);
+    // 漏斗图标放在列最右侧
+    int x = sectionRect.right() - kFilterSize - kRightMargin;
+    int y = sectionRect.top() + (sectionRect.height() - kFilterSize) / 2;
+    return QRect(x, y, kFilterSize, kFilterSize);
+}
+
+QRect FilterHeaderView::sortIndicatorRect(const QRect &sectionRect) const
+{
+    // 排序三角形在漏斗图标左侧，保持间距
+    int x = sectionRect.right() - kFilterSize - kRightMargin - kSortSize - kGap;
+    int y = sectionRect.top() + (sectionRect.height() - kSortSize) / 2;
+    return QRect(x, y, kSortSize, kSortSize);
 }
 
 int FilterHeaderView::sectionAtFilter(const QPoint &pos) const
@@ -67,28 +96,86 @@ int FilterHeaderView::sectionAtFilter(const QPoint &pos) const
 
 void FilterHeaderView::paintSection(QPainter *painter, const QRect &rect, int logicalIndex) const
 {
+    if (!rect.isValid())
+        return;
+
+    // 1. 基类绘制背景 + 文字（排序指示器已禁用，不会绘制）
     painter->save();
-    // 先让基类绘制背景、文字和排序指示器
     QHeaderView::paintSection(painter, rect, logicalIndex);
     painter->restore();
 
-    // 绘制列分隔线（右侧）
+    // 2. 列分隔线（右侧）
     painter->save();
-    painter->setPen(QPen(QColor(0xD8, 0xD8, 0xD8), 1));
+    painter->setPen(QPen(QColor(0xD0, 0xD0, 0xD0), 1));
     painter->drawLine(rect.right(), rect.top(), rect.right(), rect.bottom());
     painter->restore();
 
-    if (rect.width() < 30)
-        return;  // 太窄不画漏斗
+    if (rect.width() < 50)
+        return;  // 太窄不画图标
+
+    QRect fRect = filterRect(rect);
+    QRect sRect = sortIndicatorRect(rect);
+
+    // 3. 在图标区域绘制背景遮罩，防止文字渗入图标下方
+    int iconLeft = sRect.left() - 3;
+    QRect maskRect(iconLeft, rect.top() + 1,
+                   rect.right() - iconLeft + 1, rect.height() - 1);
+    painter->save();
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(palette().color(QPalette::Button));
+    painter->drawRect(maskRect);
+    painter->restore();
 
     bool active = hasFilter(logicalIndex);
     bool hovered = (logicalIndex == m_hoverSection);
 
-    // 活跃时始终显示，悬停时显示
-    if (active || hovered) {
-        QRect fRect = filterRect(rect);
-        drawFilterIcon(painter, fRect, active, hovered);
+    // 4. 排序三角形 — 当前排序列绘制实心三角
+    if (m_sortColumn == logicalIndex) {
+        drawSortIndicator(painter, sRect, m_sortOrder == Qt::AscendingOrder);
+    } else if (hovered) {
+        // 非排序列悬停时显示淡灰提示点
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        QColor hint(0xC0, 0xC0, 0xC0);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(hint);
+        int dotSize = 3;
+        int dx = sRect.left() + (sRect.width() - dotSize) / 2;
+        int dy = sRect.top() + (sRect.height() - dotSize) / 2;
+        painter->drawEllipse(QPointF(dx + dotSize / 2.0, dy + dotSize / 2.0),
+                             dotSize / 2.0, dotSize / 2.0);
+        painter->restore();
     }
+
+    // 5. 过滤漏斗图标 — 始终可见
+    drawFilterIcon(painter, fRect, active, hovered);
+}
+
+void FilterHeaderView::drawSortIndicator(QPainter *painter, const QRect &rect, bool ascending) const
+{
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+
+    QColor color(0x1A, 0x73, 0xE8);  // 蓝色实心三角
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(color);
+
+    QPainterPath path;
+    if (ascending) {
+        // 向上三角 ▲
+        path.moveTo(rect.left() + rect.width() / 2.0, rect.top() + 0.5);
+        path.lineTo(rect.right() - 0.5, rect.bottom() - 0.5);
+        path.lineTo(rect.left() + 0.5, rect.bottom() - 0.5);
+    } else {
+        // 向下三角 ▼
+        path.moveTo(rect.left() + rect.width() / 2.0, rect.bottom() - 0.5);
+        path.lineTo(rect.right() - 0.5, rect.top() + 0.5);
+        path.lineTo(rect.left() + 0.5, rect.top() + 0.5);
+    }
+    path.closeSubpath();
+    painter->drawPath(path);
+
+    painter->restore();
 }
 
 void FilterHeaderView::drawFilterIcon(QPainter *painter, const QRect &rect,
@@ -97,14 +184,14 @@ void FilterHeaderView::drawFilterIcon(QPainter *painter, const QRect &rect,
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    // 颜色：激活=蓝色, 悬停=深灰, 否则=中灰
+    // 颜色：激活=蓝色, 悬停=深灰, 否则=浅灰（始终可见）
     QColor color;
     if (active)
-        color = QColor(0x1A, 0x73, 0xE8);   // Google Blue
+        color = QColor(0x1A, 0x73, 0xE8);   // 蓝色
     else if (hovered)
-        color = QColor(0x40, 0x40, 0x40);
+        color = QColor(0x50, 0x50, 0x50);   // 深灰
     else
-        color = QColor(0x90, 0x90, 0x90);
+        color = QColor(0xA8, 0xA8, 0xA8);   // 浅灰 — 始终可见
 
     painter->setPen(QPen(color, 1.5));
     painter->setBrush(Qt::NoBrush);
@@ -116,7 +203,6 @@ void FilterHeaderView::drawFilterIcon(QPainter *painter, const QRect &rect,
     int w = rect.width();
     int h = rect.height();
 
-    // 漏斗顶部宽，底部窄
     path.moveTo(x + 2, y + 2);
     path.lineTo(x + w - 2, y + 2);
     path.lineTo(x + w / 2 + 2, y + h / 2);
@@ -127,7 +213,7 @@ void FilterHeaderView::drawFilterIcon(QPainter *painter, const QRect &rect,
 
     if (active) {
         QColor fill = color;
-        fill.setAlpha(50);
+        fill.setAlpha(60);
         painter->setBrush(fill);
     }
     painter->drawPath(path);
@@ -136,7 +222,7 @@ void FilterHeaderView::drawFilterIcon(QPainter *painter, const QRect &rect,
     if (active) {
         painter->setPen(Qt::NoPen);
         painter->setBrush(color);
-        painter->drawEllipse(QPointF(rect.right() - 2, rect.bottom() - 1), 2.5, 2.5);
+        painter->drawEllipse(QPointF(rect.right() - 1, rect.bottom() - 1), 2.5, 2.5);
     }
 
     painter->restore();

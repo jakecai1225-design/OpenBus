@@ -3,6 +3,7 @@
 
 #include <QSortFilterProxyModel>
 #include <QHash>
+#include <QSet>
 #include <memory>
 #include "core/filter_engine.h"
 
@@ -20,9 +21,11 @@ class CanFilterProxyModel : public QSortFilterProxyModel
 public:
     /// 时间戳显示模式（对标 Wireshark View → Time Display Format）
     enum TimestampMode {
-        Absolute = 0,       ///< 绝对时间戳（自捕获开始）
+        Absolute = 0,       ///< 自捕获开始的秒数
         SinceCapture,       ///< 自上一个捕获分组经过的时间
-        SinceDisplay        ///< 自上一个显示分组经过的时间
+        SinceDisplay,       ///< 自上一个显示分组经过的时间
+        DateTimeOfDay,      ///< 日期+时间 "yyyy-MM-dd HH:mm:ss.zzzzzz"
+        SecondsSinceEpoch   ///< Unix epoch 秒数
     };
     Q_ENUM(TimestampMode)
 
@@ -57,11 +60,29 @@ public:
     /// 获取某列的过滤文本
     QString columnFilter(int column) const { return m_columnFilters.value(column); }
 
+    // ---- 值集过滤（Excel 风格复选框） ----
+
+    /// 设置某列的值集过滤（只显示选中的值）
+    void setColumnFilterValues(int column, const QSet<QString> &values);
+
+    /// 清除某列的值集过滤
+    void clearColumnFilterValues(int column);
+
+    /// 获取某列已选中的值集
+    QSet<QString> columnFilterValues(int column) const { return m_columnFilterValues.value(column); }
+
+    /// 某列是否有值集过滤
+    bool hasColumnFilterValues(int column) const { return m_columnFilterValues.contains(column); }
+
     // ---- 时间戳显示模式 ----
 
     /// 设置时间戳显示模式，切换后自动刷新 Time 列
     void setTimestampMode(TimestampMode mode);
     TimestampMode timestampMode() const { return m_timestampMode; }
+
+    /// 设置时间显示精度（-1=自动, 0=秒, 3=毫秒, 6=微秒, 9=纳秒）
+    void setTimePrecision(int precision);
+    int timePrecision() const { return m_timePrecision; }
 
     // ---- 分组统计 ----
 
@@ -92,13 +113,19 @@ private:
     std::unique_ptr<FilterEngine> m_filterEngine;
 
     QHash<int, QString> m_columnFilters;  // column -> filter text
+    QHash<int, QSet<QString>> m_columnFilterValues;  ///< column -> 选中的值集合（Excel 风格）
     TimestampMode m_timestampMode = Absolute;
+    int m_timePrecision = 6;  ///< 时间显示精度（-1=auto, 0=秒, 3=毫秒, 6=微秒, 9=纳秒）
 
     /// SinceDisplay 模式：源模型行号 → 与上一个显示帧的时间增量
     /// mutable 允许 data() const 中懒计算并缓存
     mutable QHash<int, double> m_displayDeltas;
 
     bool matchColumnFilter(int sourceRow, int column) const;
+    /// 值集过滤：检查行的显示值是否在选中集合中
+    bool matchColumnFilterValues(int sourceRow, int column) const;
+    /// 获取指定行指定列的显示文本
+    QString columnDisplayText(int sourceRow, int column) const;
     /// 重新计算 SinceDisplay 模式下每个显示帧的增量
     void recomputeDisplayDeltas();
 };
