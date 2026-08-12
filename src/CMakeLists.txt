@@ -157,6 +157,8 @@ set(SRC_UI
     ui/measurementsetupview.cpp
     ui/deviceconnectiontab.h
     ui/deviceconnectiontab.cpp
+    ui/extensionstab.h
+    ui/extensionstab.cpp
     # 工具集 — 总线分析工具
     ui/tools/blfasconverter.h
     ui/tools/blfasconverter.cpp
@@ -271,6 +273,11 @@ target_link_libraries(sin_ui PRIVATE
     qcustomplot
     Qt6::Svg
 )
+
+# Windows: psapi 用于进程资源监控 (ExtensionsTab)
+if(WIN32)
+    target_link_libraries(sin_ui PRIVATE psapi)
+endif()
 
 # PCH — UI 层使用完整的 Qt Widget 头列表
 target_precompile_headers(sin_ui PRIVATE

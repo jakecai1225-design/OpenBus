@@ -1197,7 +1197,7 @@ ExtensionsPanel::ExtensionsPanel(QWidget *parent)
     m_tree->setIndentation(12);
     m_tree->setColumnCount(1);
     m_tree->setRootIsDecorated(true);
-    m_tree->setExpandsOnDoubleClick(true);
+    m_tree->setExpandsOnDoubleClick(false);  // 双击不折叠，用于激活插件
     cl->addWidget(m_tree, 1);
 
     // 分区标题字体
@@ -1244,6 +1244,8 @@ ExtensionsPanel::ExtensionsPanel(QWidget *parent)
             this, &ExtensionsPanel::onSearchChanged);
     connect(m_tree, &QTreeWidget::itemClicked,
             this, &ExtensionsPanel::onItemClicked);
+    connect(m_tree, &QTreeWidget::itemDoubleClicked,
+            this, &ExtensionsPanel::onItemDoubleClicked);
 }
 
 void ExtensionsPanel::refreshInstalledPlugins(const QList<ExtensionEntry> &entries)
@@ -1286,6 +1288,12 @@ QWidget *ExtensionsPanel::createPluginWidget(const ExtensionEntry &entry)
     verLabel->setStyleSheet("color: #888;");
     topRow->addWidget(verLabel);
     topRow->addStretch();
+    // 运行状态指示
+    if (entry.activated) {
+        auto *runningLabel = new QLabel(QString::fromUtf8("● 运行中"));
+        runningLabel->setStyleSheet("color: #4ec9b0; font-size: 11px;");
+        topRow->addWidget(runningLabel);
+    }
     layout->addLayout(topRow);
 
     // 描述
@@ -1312,11 +1320,11 @@ QWidget *ExtensionsPanel::createPluginWidget(const ExtensionEntry &entry)
     bottomRow->addStretch();
 
     auto *btn = new QToolButton;
-    btn->setText(entry.activated ? QString::fromUtf8("\u7981\u7528") : QString::fromUtf8("\u542F\u7528"));
+    btn->setText(entry.enabled ? QString::fromUtf8("禁用") : QString::fromUtf8("启用"));
     btn->setAutoRaise(true);
     connect(btn, &QToolButton::clicked, this,
-            [this, name = entry.name, activated = entry.activated]() {
-                emit pluginToggleRequested(name, !activated);
+            [this, name = entry.name, enabled = entry.enabled]() {
+                emit pluginToggleRequested(name, !enabled);
             });
     bottomRow->addWidget(btn);
 
@@ -1381,6 +1389,20 @@ void ExtensionsPanel::onItemClicked(QTreeWidgetItem *item, int column)
     QString cmdId = item->data(0, Qt::UserRole).toString();
     if (!cmdId.isEmpty())
         emit commandTriggered(cmdId);
+}
+
+void ExtensionsPanel::onItemDoubleClicked(QTreeWidgetItem *item, int column)
+{
+    Q_UNUSED(column);
+    if (!item) return;
+
+    // 只处理已安装分区的插件项
+    QTreeWidgetItem *parent = item->parent();
+    if (parent != m_installedHeader) return;
+
+    QString name = item->data(0, Qt::UserRole).toString();
+    if (!name.isEmpty())
+        emit pluginActivated(name);  // 双击 = 激活插件
 }
 
 void ExtensionsPanel::filterPlugins(const QString &text)

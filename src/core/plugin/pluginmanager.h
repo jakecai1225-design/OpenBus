@@ -19,7 +19,7 @@ struct CanFrame;
  *
  * 架构：
  * - discoverPlugins() 扫描 plugins/ 目录，加载所有 plugin.json
- * - initialize() 启动 Python 宿主进程，激活 onStartup 插件
+ * - initialize() 启动 Python 宿主进程（不自动激活插件，由用户双击触发）
  * - onFrameReceived() 将帧转发给已激活的 onFrame 插件
  * - 主程序通过信号接收来自插件的操作请求（发送帧、输出文本等）
  */
@@ -40,7 +40,20 @@ public:
 
     QList<PluginInfo> discoveredPlugins() const;
     bool isPluginEnabled(const QString &name) const;
+    bool isPluginActivated(const QString &name) const;
     void setPluginEnabled(const QString &name, bool enabled);
+
+    /// 双击插件项时调用：已激活则先停用再激活，未激活则直接激活
+    void reactivatePlugin(const QString &name);
+
+    /// 宿主进程是否运行
+    bool isHostRunning() const;
+
+    /// 宿主进程 PID（未运行返回 0）
+    qint64 hostProcessId() const;
+
+    /// Python 解释器路径
+    QString pythonExecutable() const { return m_pythonExe; }
 
     // ---- 激活事件（由 MainWindow 调用）----
 

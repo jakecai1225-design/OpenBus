@@ -178,8 +178,7 @@ void PluginManager::initialize()
     // 启动帧批量定时器（100ms）
     m_frameBatchTimerId = startTimer(100);
 
-    // 激活 onStartup 插件
-    onStartup();
+    // 插件不自动激活，由用户在扩展面板中双击触发
 }
 
 void PluginManager::shutdown()
@@ -211,16 +210,45 @@ bool PluginManager::isPluginEnabled(const QString &name) const
     return !m_disabledPlugins.contains(name);
 }
 
+bool PluginManager::isPluginActivated(const QString &name) const
+{
+    return m_activatedPlugins.contains(name);
+}
+
 void PluginManager::setPluginEnabled(const QString &name, bool enabled)
 {
     if (enabled) {
+        // 仅标记为可用，不自动激活
         m_disabledPlugins.remove(name);
-        activatePlugin(name);
     } else {
+        // 禁用时停用插件
         deactivatePlugin(name);
         m_disabledPlugins.insert(name);
     }
     emit pluginListChanged();
+}
+
+void PluginManager::reactivatePlugin(const QString &name)
+{
+    if (m_disabledPlugins.contains(name))
+        m_disabledPlugins.remove(name);
+
+    // 已激活的插件先停用再激活（重新创建 UI 窗口等）
+    if (m_activatedPlugins.contains(name))
+        deactivatePlugin(name);
+    activatePlugin(name);
+
+    emit pluginListChanged();
+}
+
+bool PluginManager::isHostRunning() const
+{
+    return m_host && m_host->isRunning();
+}
+
+qint64 PluginManager::hostProcessId() const
+{
+    return m_host ? m_host->processId() : 0;
 }
 
 void PluginManager::onStartup()
@@ -371,6 +399,15 @@ void PluginManager::handleHostMessage(const QString &method,
         QString cmdId = params.value("id").toString();
         QString title = params.value("title").toString();
         emit commandRegistered(cmdId, title);
+    }
+    else if (method == "pluginWindowClosed") {
+        // 插件窗口关闭 → 停用插件
+        QString pluginName = params.value("plugin").toString();
+        if (!pluginName.isEmpty()) {
+            spdlog::info("PluginManager: 插件 '{}' 窗口关闭，自动停用", pluginName.toStdString());
+            deactivatePlugin(pluginName);
+            emit pluginListChanged();
+        }
     }
     else if (method == "log") {
         int level = params.value("level").toInt();

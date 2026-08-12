@@ -28,6 +28,7 @@
 #include "ui/canopenview.h"
 #include "ui/measurementsetupview.h"
 #include "ui/deviceconnectiontab.h"
+#include "ui/extensionstab.h"
 #include "ui/tools/blfasconverter.h"
 #include "ui/tools/dbctoolview.h"
 #include "ui/tools/loganalysisview.h"
@@ -142,8 +143,23 @@ MainWindow::MainWindow(QWidget *parent)
                 this, [this](const QString &name, bool enable) {
             if (m_pluginManager) m_pluginManager->setPluginEnabled(name, enable);
         });
+        connect(extPanel, &ExtensionsPanel::pluginActivated,
+                this, [this](const QString &name) {
+            if (m_pluginManager) m_pluginManager->reactivatePlugin(name);
+        });
         connect(m_pluginManager, &PluginManager::pluginListChanged,
                 this, &MainWindow::refreshPluginList);
+    }
+
+    // ExtensionsTab → 插件管理标签页（懒创建，见 setupExtensionsTab）
+    setupExtensionsTab();
+
+    // pluginListChanged → 刷新 ExtensionsTab（连接在 manager 上，标签页删除后仍安全）
+    if (m_pluginManager) {
+        connect(m_pluginManager, &PluginManager::pluginListChanged,
+                this, [this]() {
+            if (m_extensionsTab) m_extensionsTab->refresh();
+        });
     }
 
     // 模拟器 → 帧接收
@@ -333,6 +349,8 @@ MainWindow::MainWindow(QWidget *parent)
                 act = ActivityBar::Transceive;
             else if (text.contains("UDS") || text.contains("CANopen"))
                 act = ActivityBar::Protocol;
+            else if (text == QStringLiteral("扩展"))
+                act = ActivityBar::Extensions;
 
             if (act != ActivityBar::None) {
                 m_activityBar->setCurrentActivity(act);
@@ -812,6 +830,25 @@ void MainWindow::onActivityChanged(int activity)
             if (found) break;
         }
         // 未找到已打开的工具标签页时，仅显示工具集面板供用户选择
+    } else if (activity == ActivityBar::Extensions) {
+        // 扩展管理：打开扩展标签页
+        const auto allTabs = m_editorArea->allTabWidgets();
+        bool found = false;
+        for (auto *tw : allTabs) {
+            for (int i = tw->count() - 1; i >= 0; --i) {
+                if (tw->tabText(i).contains(QStringLiteral("扩展"))) {
+                    tw->setCurrentIndex(i);
+                    m_tabLabel->setText(tw->tabText(i));
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+        if (!found)
+            onOpenExtensionsTab();
+        else if (m_extensionsTab)
+            m_extensionsTab->refresh();
     }
 }
 
@@ -1360,6 +1397,44 @@ void MainWindow::openTab(QWidget *widget, const QString &label)
         tabs->setCurrentIndex(idx);
     if (m_tabLabel)
         m_tabLabel->setText(label);
+}
+
+void MainWindow::setupExtensionsTab()
+{
+    m_extensionsTab = new ExtensionsTab(this);
+
+    connect(m_extensionsTab, &ExtensionsTab::pluginActivateRequested,
+            this, [this](const QString &name) {
+        if (m_pluginManager) m_pluginManager->reactivatePlugin(name);
+    });
+    connect(m_extensionsTab, &ExtensionsTab::pluginDeactivateRequested,
+            this, [this](const QString &name) {
+        if (m_pluginManager) m_pluginManager->deactivatePlugin(name);
+        if (m_pluginManager) emit m_pluginManager->pluginListChanged();
+    });
+    connect(m_extensionsTab, &ExtensionsTab::pluginToggleRequested,
+            this, [this](const QString &name, bool enable) {
+        if (m_pluginManager) m_pluginManager->setPluginEnabled(name, enable);
+    });
+    connect(m_extensionsTab, &ExtensionsTab::hostStopRequested,
+            this, [this]() {
+        if (m_pluginManager) m_pluginManager->shutdown();
+        if (m_extensionsTab) m_extensionsTab->refresh();
+    });
+
+    // 标签页被关闭后 widget 被删除 → 置空指针，避免悬空引用
+    connect(m_extensionsTab, &QObject::destroyed, this, [this]() {
+        m_extensionsTab = nullptr;
+    });
+}
+
+void MainWindow::onOpenExtensionsTab()
+{
+    // 标签页可能已被关闭并删除，需要重建
+    if (!m_extensionsTab)
+        setupExtensionsTab();
+    openTab(m_extensionsTab, QStringLiteral("扩展"));
+    m_extensionsTab->refresh();
 }
 
 void MainWindow::onOpenTraceTab()
@@ -2785,7 +2860,8 @@ void MainWindow::refreshPluginList()
         e.author = info.author;
         e.description = info.description;
         e.installed = true;
-        e.activated = m_pluginManager->isPluginEnabled(info.name);
+        e.enabled = m_pluginManager->isPluginEnabled(info.name);
+        e.activated = m_pluginManager->isPluginActivated(info.name);
         entries.append(e);
     }
     m_sideBar->extensionsPanel()->refreshInstalledPlugins(entries);

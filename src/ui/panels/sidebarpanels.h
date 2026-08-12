@@ -351,7 +351,8 @@ struct ExtensionEntry
     QString author;
     QString description;
     bool installed = false;
-    bool activated = false;
+    bool enabled = true;     // 可用（未禁用）
+    bool activated = false;  // 已激活（正在运行）
     int downloads = 0;
     double rating = 0.0;
 };
@@ -372,11 +373,13 @@ public:
 
 signals:
     void commandTriggered(const QString &id);
-    void pluginToggleRequested(const QString &name, bool enable);
+    void pluginToggleRequested(const QString &name, bool enable);  // 启用/禁用
+    void pluginActivated(const QString &name);                     // 双击激活
 
 private slots:
     void onSearchChanged(const QString &text);
     void onItemClicked(QTreeWidgetItem *item, int column);
+    void onItemDoubleClicked(QTreeWidgetItem *item, int column);
 
 private:
     QLineEdit *m_searchEdit;

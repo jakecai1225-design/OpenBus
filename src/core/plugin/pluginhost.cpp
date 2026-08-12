@@ -103,6 +103,12 @@ bool PluginHost::isRunning() const
     return m_process && m_process->state() == QProcess::Running;
 }
 
+qint64 PluginHost::processId() const
+{
+    return (m_process && m_process->state() == QProcess::Running)
+               ? m_process->processId() : 0;
+}
+
 void PluginHost::sendNotification(const QString &method, const QJsonObject &params)
 {
     QJsonObject msg;

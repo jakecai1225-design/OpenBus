@@ -155,6 +155,13 @@ def activate_plugin(params):
     context = PluginContext(name)
     _plugins[name] = {"module": module, "context": context}
 
+    # 设置当前插件名，供 ui 模块在窗口关闭时通知宿主
+    try:
+        from sin.ui import set_current_plugin
+        set_current_plugin(name)
+    except ImportError:
+        pass
+
     if hasattr(module, "activate"):
         try:
             module.activate(context)
@@ -167,12 +174,25 @@ def deactivate_plugin(params):
     """停用插件"""
     name = params.get("plugin")
     entry = _plugins.pop(name, None)
-    if entry and hasattr(entry["module"], "deactivate"):
+    if entry:
+        # 清除当前插件名，避免 close_all_windows 时发送多余的 pluginWindowClosed
         try:
-            entry["module"].deactivate()
-            log_info(f"插件 {name} 已停用")
-        except Exception:
-            log_error(f"插件 {name} 停用失败:\n{traceback.format_exc()}")
+            from sin.ui import set_current_plugin
+            set_current_plugin(None)
+        except ImportError:
+            pass
+        # 关闭该插件创建的所有窗口
+        try:
+            from sin.ui import close_all_windows
+            close_all_windows()
+        except ImportError:
+            pass
+        if hasattr(entry["module"], "deactivate"):
+            try:
+                entry["module"].deactivate()
+                log_info(f"插件 {name} 已停用")
+            except Exception:
+                log_error(f"插件 {name} 停用失败:\n{traceback.format_exc()}")
 
 
 def dispatch_frames(params):
@@ -346,6 +366,10 @@ def _main_with_qt():
     app = _QApplication.instance()
     if app is None:
         app = _QApplication(sys.argv)
+
+    # 关键：关闭最后一个窗口时不退出 QApplication
+    # 插件窗口关闭后宿主进程必须保持运行，等待用户再次双击激活
+    app.setQuitOnLastWindowClosed(False)
 
     def process_messages():
         """从队列取出消息并在主线程处理"""

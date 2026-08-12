@@ -33,6 +33,7 @@ class BottomPanel;
 class RightPanel;
 class MeasurementSetupView;
 class DeviceConnectionTab;
+class ExtensionsTab;
 class BusStatistics;
 class FilterPresetManager;
 class BookmarkManager;
@@ -163,6 +164,7 @@ private slots:
     void onPluginCommandRegistered(const QString &id, const QString &title);
     void onPluginSendFrame(const CanFrame &frame);
     void onPluginRequestSelectedFrames(const QJsonValue &requestId);
+    void onOpenExtensionsTab();
 
 private:
     void createMenuBar();
@@ -180,6 +182,7 @@ private:
     void openTab(QWidget *widget, const QString &label);
     void refreshPanelLists();
     void refreshPluginList();
+    void setupExtensionsTab();  // 创建/重建 ExtensionsTab 并连接信号
 
     // ---- 布局 ----
     ActivityBar *m_activityBar = nullptr;
@@ -210,6 +213,7 @@ private:
     PlaybackTab *m_playbackTab = nullptr;
     RecordTab *m_recordTab = nullptr;
     DeviceConnectionTab *m_deviceTab = nullptr;
+    ExtensionsTab *m_extensionsTab = nullptr;
 
     // ---- 核心引擎 ----
     Recorder *m_recorder = nullptr;

@@ -41,6 +41,9 @@ public:
     /// 是否正在运行
     bool isRunning() const;
 
+    /// 返回宿主进程 PID（未运行返回 0）
+    qint64 processId() const;
+
     // ---- JSON-RPC 发送 ----
 
     /// 发送通知（无需回复）

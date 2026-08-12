@@ -3,6 +3,8 @@
 创建独立窗口，在插件进程中用 PyQt6 渲染。
 PyQt6 与主程序的 C++ Qt6 共享同一底层库，渲染风格一致。
 
+窗口关闭时自动通知主程序停用插件（关闭窗口 = 退出插件）。
+
 使用方式:
     import sin
     from PyQt6.QtWidgets import QLabel, QVBoxLayout, QPushButton
@@ -19,9 +21,42 @@ PyQt6 与主程序的 C++ Qt6 共享同一底层库，渲染风格一致。
 """
 
 from PyQt6.QtWidgets import QMainWindow, QApplication, QMessageBox
+from PyQt6.QtCore import pyqtSignal
+
+from ._transport import send_notification
 
 # 全局窗口跟踪列表
 _windows = []
+
+# 当前正在激活的插件名（由 sin_host 在 activate 前设置）
+_current_plugin = None
+
+
+def set_current_plugin(name):
+    """设置当前正在激活的插件名（供宿主调用）"""
+    global _current_plugin
+    _current_plugin = name
+
+
+class _PluginWindow(QMainWindow):
+    """QMainWindow 子类 — 关闭时发出 closed 信号
+
+    对插件代码完全透明，用法与 QMainWindow 一致。
+    """
+    closed = pyqtSignal()
+
+    def closeEvent(self, event):
+        super().closeEvent(event)
+        if event.isAccepted():
+            self.closed.emit()
+
+
+def _on_window_closed(win):
+    """窗口关闭回调：从列表移除，若已无窗口则通知宿主停用"""
+    if win in _windows:
+        _windows.remove(win)
+    if not _windows and _current_plugin:
+        send_notification("pluginWindowClosed", {"plugin": _current_plugin})
 
 
 class _UI:
@@ -40,9 +75,11 @@ class _UI:
         if app is None:
             raise RuntimeError("QApplication 未初始化，UI 功能不可用")
 
-        win = QMainWindow()
+        win = _PluginWindow()
         win.setWindowTitle(title)
         _windows.append(win)
+
+        win.closed.connect(lambda w=win: _on_window_closed(w))
         return win
 
     def show_message(self, title, text):
