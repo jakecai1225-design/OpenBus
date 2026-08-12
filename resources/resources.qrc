@@ -12,6 +12,7 @@
         <file>icons/protocol.svg</file>
         <file>icons/flow.svg</file>
         <file>icons/tools.svg</file>
+        <file>icons/extensions.svg</file>
         <file>icons/settings.svg</file>
         <file>icons/file.svg</file>
     </qresource>

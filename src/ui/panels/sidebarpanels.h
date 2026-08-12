@@ -16,6 +16,7 @@ class QComboBox;
 class QCheckBox;
 class QLabel;
 class QPushButton;
+class QLineEdit;
 class DbcManager;
 class GraphicView;
 class CanSimulator;
@@ -341,10 +342,58 @@ private:
 };
 
 // ============================================================
+//  扩展面板数据条目
+// ============================================================
+struct ExtensionEntry
+{
+    QString name;
+    QString version;
+    QString author;
+    QString description;
+    bool installed = false;
+    bool activated = false;
+    int downloads = 0;
+    double rating = 0.0;
+};
+
+// ============================================================
+//  扩展面板 — 插件管理（对标 VSCode Extensions 视图）
+//  搜索栏 + 已安装/市场折叠列表 + 命令列表
+// ============================================================
+class ExtensionsPanel : public SidePanel
+{
+    Q_OBJECT
+public:
+    explicit ExtensionsPanel(QWidget *parent = nullptr);
+
+    void refreshInstalledPlugins(const QList<ExtensionEntry> &entries);
+    void addCommand(const QString &id, const QString &title);
+    void clearCommands();
+
+signals:
+    void commandTriggered(const QString &id);
+    void pluginToggleRequested(const QString &name, bool enable);
+
+private slots:
+    void onSearchChanged(const QString &text);
+    void onItemClicked(QTreeWidgetItem *item, int column);
+
+private:
+    QLineEdit *m_searchEdit;
+    QTreeWidget *m_tree;
+    QTreeWidgetItem *m_installedHeader = nullptr;
+    QTreeWidgetItem *m_marketHeader = nullptr;
+    QTreeWidgetItem *m_commandsHeader = nullptr;
+
+    QWidget *createPluginWidget(const ExtensionEntry &entry);
+    void filterPlugins(const QString &text);
+};
+
+// ============================================================
 //  SideBar — 侧边栏容器（QStackedWidget 切换面板）
 //  索引必须与 ActivityBar::Activity 枚举一致
 //  0=Project 1=Analysis(Flow) 2=Device 3=Trace 4=Graphic
-//  5=Dbc 6=Transceive 7=Protocol 8=Tools 9=Settings
+//  5=Dbc 6=Transceive 7=Protocol 8=Tools 9=Extensions 10=Settings
 // ============================================================
 class SideBar : public QStackedWidget
 {
@@ -361,6 +410,7 @@ public:
     ProtocolPanel *protocolPanel() const { return m_protocol; }
     MeasurementSetupPanel *analysisPanel() const { return m_analysis; }
     ToolsPanel *toolsPanel() const { return m_tools; }
+    ExtensionsPanel *extensionsPanel() const { return m_extensions; }
     SettingsPanel *settingsPanel() const { return m_settings; }
 
     void showPanel(int index);
@@ -376,6 +426,7 @@ private:
     ProtocolPanel *m_protocol;
     MeasurementSetupPanel *m_analysis;
     ToolsPanel *m_tools;
+    ExtensionsPanel *m_extensions;
     SettingsPanel *m_settings;
     int m_lastIndex = 0;
 };

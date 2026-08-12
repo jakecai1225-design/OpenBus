@@ -28,6 +28,7 @@ public:
         Transceive,     // 收发（发送/回放/录制）
         Protocol,
         Tools,
+        Extensions,     // 扩展（插件市场）
         Settings
     };
 

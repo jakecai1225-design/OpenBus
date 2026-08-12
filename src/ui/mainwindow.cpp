@@ -44,6 +44,7 @@
 #include "ui/settingsdialog.h"
 #include "core/file_import/file_importer.h"
 #include "core/plugin/pluginmanager.h"
+#include "core/plugin/plugininfo.h"
 #include "models/viewportproxy.h"
 
 #include <QMenuBar>
@@ -129,6 +130,21 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onActivityChanged);
     connect(m_activityBar, &ActivityBar::activityToggled,
             this, &MainWindow::onActivityToggled);
+
+    // ExtensionsPanel → 插件操作
+    auto *extPanel = m_sideBar->extensionsPanel();
+    if (extPanel) {
+        connect(extPanel, &ExtensionsPanel::commandTriggered,
+                this, [this](const QString &id) {
+            if (m_pluginManager) m_pluginManager->executeCommand(id);
+        });
+        connect(extPanel, &ExtensionsPanel::pluginToggleRequested,
+                this, [this](const QString &name, bool enable) {
+            if (m_pluginManager) m_pluginManager->setPluginEnabled(name, enable);
+        });
+        connect(m_pluginManager, &PluginManager::pluginListChanged,
+                this, &MainWindow::refreshPluginList);
+    }
 
     // 模拟器 → 帧接收
     connect(m_simulator, &CanSimulator::frameGenerated,
@@ -338,6 +354,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_bottomPanel->appendOutput("sin 启动完成");
     updateActions();
     refreshPanelLists();
+    refreshPluginList();
 
     // ---- 工程管理 ----
     connect(m_sideBar->projectPanel(), &ProjectPanel::projectSwitched,
@@ -519,10 +536,7 @@ void MainWindow::createMenuBar()
         else    m_simulator->stop();
     });
 
-    // ---- 插件 ----
-    auto *pluginMenu = menuBar()->addMenu("插件(&P)");
-    pluginMenu->setObjectName("PluginMenu");
-    pluginMenu->addAction(QStringLiteral("暂无插件命令"))->setEnabled(false);
+    // ---- 插件入口已移至侧边栏扩展面板 ----
 
     // ---- 帮助 ----
     auto *helpMenu = menuBar()->addMenu("帮助(&H)");
@@ -2757,6 +2771,26 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr
 //  插件系统集成
 // ============================================================
 
+void MainWindow::refreshPluginList()
+{
+    if (!m_sideBar || !m_sideBar->extensionsPanel() || !m_pluginManager)
+        return;
+
+    QList<ExtensionEntry> entries;
+    const auto plugins = m_pluginManager->discoveredPlugins();
+    for (const auto &info : plugins) {
+        ExtensionEntry e;
+        e.name = info.name;
+        e.version = info.version;
+        e.author = info.author;
+        e.description = info.description;
+        e.installed = true;
+        e.activated = m_pluginManager->isPluginEnabled(info.name);
+        entries.append(e);
+    }
+    m_sideBar->extensionsPanel()->refreshInstalledPlugins(entries);
+}
+
 void MainWindow::onPluginOutput(const QString &text)
 {
     m_bottomPanel->appendPluginOutput(text);
@@ -2764,30 +2798,9 @@ void MainWindow::onPluginOutput(const QString &text)
 
 void MainWindow::onPluginCommandRegistered(const QString &id, const QString &title)
 {
-    // 在"插件"菜单中添加命令
-    auto *pluginMenu = menuBar()->findChild<QMenu *>("PluginMenu");
-    if (!pluginMenu) return;
-
-    // 移除"暂无插件命令"占位项
-    for (auto *act : pluginMenu->actions()) {
-        if (act->text() == QStringLiteral("暂无插件命令")) {
-            pluginMenu->removeAction(act);
-            act->deleteLater();
-            break;
-        }
-    }
-
-    // 避免重复添加
-    if (m_pluginCommandActions.contains(id))
-        return;
-
-    auto *action = new QAction(title, this);
-    pluginMenu->addAction(action);
-    connect(action, &QAction::triggered, this, [this, id]() {
-        if (m_pluginManager)
-            m_pluginManager->executeCommand(id);
-    });
-    m_pluginCommandActions[id] = action;
+    // 添加到侧边栏扩展面板的命令列表
+    if (m_sideBar && m_sideBar->extensionsPanel())
+        m_sideBar->extensionsPanel()->addCommand(id, title);
 }
 
 void MainWindow::onPluginSendFrame(const CanFrame &frame)

@@ -27,7 +27,7 @@ ActivityBar::ActivityBar(QWidget *parent)
 
     // 顶部按钮 — 顺序与 Activity 枚举一致
     // 0=Project 1=Analysis(Flow) 2=Device 3=Trace 4=Graphic
-    // 5=Dbc 6=Transceive(收发) 7=Protocol 8=Tools
+    // 5=Dbc 6=Transceive(收发) 7=Protocol 8=Tools 9=Extensions
     m_buttons.append({createButton(":/icons/project.svg", "工程管理", Project), Project, "工程管理", "工程管理"});
     layout->addWidget(m_buttons.last().btn);
 
@@ -53,6 +53,9 @@ ActivityBar::ActivityBar(QWidget *parent)
     layout->addWidget(m_buttons.last().btn);
 
     m_buttons.append({createButton(":/icons/tools.svg", "工具集", Tools), Tools, "工具集", "总线分析工具集 — 格式转换 / DBC 编辑 / 统计分析"});
+    layout->addWidget(m_buttons.last().btn);
+
+    m_buttons.append({createButton(":/icons/extensions.svg", "扩展", Extensions), Extensions, "扩展", "插件管理 — 安装 / 启用 / 搜索插件"});
     layout->addWidget(m_buttons.last().btn);
 
     layout->addStretch();

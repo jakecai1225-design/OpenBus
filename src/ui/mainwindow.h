@@ -179,6 +179,7 @@ private:
     void processCommand(const QString &cmd);
     void openTab(QWidget *widget, const QString &label);
     void refreshPanelLists();
+    void refreshPluginList();
 
     // ---- 布局 ----
     ActivityBar *m_activityBar = nullptr;
@@ -201,7 +202,6 @@ private:
 
     // ---- 插件系统 ----
     PluginManager *m_pluginManager = nullptr;
-    QHash<QString, QAction *> m_pluginCommandActions;  ///< 插件命令 ID → 菜单 Action
 
     // ---- UI (Main tabs) ----
     TraceTab *m_traceTab = nullptr;
