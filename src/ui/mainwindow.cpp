@@ -43,6 +43,8 @@
 #include "core/projectmanager.h"
 #include "ui/settingsdialog.h"
 #include "core/file_import/file_importer.h"
+#include "core/plugin/pluginmanager.h"
+#include "models/viewportproxy.h"
 
 #include <QMenuBar>
 #include <QMenu>
@@ -99,6 +101,18 @@ MainWindow::MainWindow(QWidget *parent)
     m_busStats = new BusStatistics(this);
     m_filterPresets = new FilterPresetManager(this);
     m_bookmarkMgr = new BookmarkManager(this);
+
+    // ---- 插件系统 ----
+    m_pluginManager = PluginManager::instance();
+    connect(m_pluginManager, &PluginManager::outputMessage,
+            this, &MainWindow::onPluginOutput);
+    connect(m_pluginManager, &PluginManager::commandRegistered,
+            this, &MainWindow::onPluginCommandRegistered);
+    connect(m_pluginManager, &PluginManager::sendFrameRequested,
+            this, &MainWindow::onPluginSendFrame);
+    connect(m_pluginManager, &PluginManager::requestSelectedFrames,
+            this, &MainWindow::onPluginRequestSelectedFrames);
+    m_pluginManager->initialize();
 
     // ---- UI 构建 ----
     createMenuBar();
@@ -504,6 +518,11 @@ void MainWindow::createMenuBar()
         if (on) m_simulator->start();
         else    m_simulator->stop();
     });
+
+    // ---- 插件 ----
+    auto *pluginMenu = menuBar()->addMenu("插件(&P)");
+    pluginMenu->setObjectName("PluginMenu");
+    pluginMenu->addAction(QStringLiteral("暂无插件命令"))->setEnabled(false);
 
     // ---- 帮助 ----
     auto *helpMenu = menuBar()->addMenu("帮助(&H)");
@@ -1014,6 +1033,10 @@ void MainWindow::onFrameReceived(const CanFrame &frame)
     int count = active ? active->frameCount() : 0;
     m_frameCountLabel->setText(QString::number(count) + " 帧");
     m_rowCountLabel->setText(QString::number(count) + "行");
+
+    // 通知插件系统
+    if (m_pluginManager)
+        m_pluginManager->onFrameReceived(frame);
 }
 
 void MainWindow::onFramePlayed(const CanFrame &frame)
@@ -2731,6 +2754,82 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr
 #endif
 
 // ============================================================
+//  插件系统集成
+// ============================================================
+
+void MainWindow::onPluginOutput(const QString &text)
+{
+    m_bottomPanel->appendPluginOutput(text);
+}
+
+void MainWindow::onPluginCommandRegistered(const QString &id, const QString &title)
+{
+    // 在"插件"菜单中添加命令
+    auto *pluginMenu = menuBar()->findChild<QMenu *>("PluginMenu");
+    if (!pluginMenu) return;
+
+    // 移除"暂无插件命令"占位项
+    for (auto *act : pluginMenu->actions()) {
+        if (act->text() == QStringLiteral("暂无插件命令")) {
+            pluginMenu->removeAction(act);
+            act->deleteLater();
+            break;
+        }
+    }
+
+    // 避免重复添加
+    if (m_pluginCommandActions.contains(id))
+        return;
+
+    auto *action = new QAction(title, this);
+    pluginMenu->addAction(action);
+    connect(action, &QAction::triggered, this, [this, id]() {
+        if (m_pluginManager)
+            m_pluginManager->executeCommand(id);
+    });
+    m_pluginCommandActions[id] = action;
+}
+
+void MainWindow::onPluginSendFrame(const CanFrame &frame)
+{
+    if (m_deviceManager)
+        m_deviceManager->sendFrame(frame);
+}
+
+void MainWindow::onPluginRequestSelectedFrames(const QJsonValue &requestId)
+{
+    QList<CanFrame> frames;
+
+    // 获取当前活跃 TraceTab 中选中的帧
+    auto *active = qobject_cast<TraceTab *>(m_editorArea->currentWidget());
+    if (active) {
+        auto *tv = active->traceView();
+        auto *traceModel = active->traceModel();
+        auto *filterProxy = active->proxyModel();
+        auto *viewportProxy = active->viewportProxy();
+        if (tv && traceModel) {
+            auto *sel = tv->selectionModel();
+            if (sel) {
+                for (const auto &idx : sel->selectedRows()) {
+                    // 代理链：View → ViewportProxy → CanFilterProxy → CanTraceModel
+                    QModelIndex sourceIdx = idx;
+                    if (viewportProxy)
+                        sourceIdx = viewportProxy->mapToSource(sourceIdx);
+                    if (filterProxy)
+                        sourceIdx = filterProxy->mapToSource(sourceIdx);
+                    int row = sourceIdx.row();
+                    if (row >= 0 && row < traceModel->frameCount())
+                        frames.append(traceModel->frameAt(row));
+                }
+            }
+        }
+    }
+
+    if (m_pluginManager)
+        m_pluginManager->provideSelectedFrames(requestId, frames);
+}
+
+// ============================================================
 //  关闭
 // ============================================================
 
@@ -2746,6 +2845,10 @@ void MainWindow::closeEvent(QCloseEvent *event)
     m_simulator->stop();
     m_deviceManager->stop();
     m_player->stop();
+
+    // 关闭插件系统
+    if (m_pluginManager)
+        m_pluginManager->shutdown();
 
     // 自动保存工程
     if (AppConfig::instance()->getBool("project.autoSaveOnClose", true)) {

@@ -25,15 +25,17 @@
 - [blf_importer.cpp](file://src/core/file_import/blf_importer.cpp)
 - [csv_importer.h](file://src/core/file_import/csv_importer.h)
 - [csv_importer.cpp](file://src/core/file_import/csv_importer.cpp)
+- [CMakeLists.txt](file://src/CMakeLists.txt)
+- [Dependencies.cmake](file://third_party/Dependencies.cmake)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- BLF解析器已完全重写，从自定义实现迁移到Vector BLF库集成
-- 新增对CAN FD消息类型（CAN_FD_MESSAGE和CAN_FD_MESSAGE_64）的完整支持
-- 改进了时间戳处理和错误处理机制
-- BLF导入器相应简化，移除了冗余的解析逻辑
-- 更新了依赖关系分析以反映新的第三方库集成
+- BLF文件写入功能已完全实现，新增BlfWriter类支持Classic CAN和CAN FD帧的BLF格式输出
+- 使用Vector::BLF库进行文件管理，提供标准化的BLF文件格式支持
+- 更新了构建系统以支持vector_blf库依赖，包括条件链接和头文件路径配置
+- BLF解析器与写入器形成完整的读写解决方案，支持双向数据转换
+- 增强了错误处理和资源管理机制，确保文件操作的可靠性
 
 ## 目录
 1. [简介](#简介)
@@ -50,7 +52,7 @@
 ## 简介
 本文件面向CAN文件IO子系统，系统化梳理其整体架构、模块职责、数据流与关键算法，帮助读者快速理解并扩展支持新的CAN日志格式。该子系统负责读取多种CAN总线日志文件（如ASC、BLF、CSV、PCAP、TRC），将其统一转换为内部帧模型，并通过工厂模式与导入器进行解耦，便于后续播放、记录与分析。
 
-**更新** BLF解析器现已完全基于Vector BLF库实现，提供更高可靠性和更完整的CAN FD支持。
+**更新** BLF文件IO现已实现完整的读写功能，BlfWriter类支持Classic CAN和CAN FD帧的标准BLF格式输出，基于Vector::BLF库提供工业级可靠性。
 
 ## 项目结构
 CAN文件IO子系统位于 src/core/canfileio 目录下，围绕统一的接口抽象与多格式实现组织代码；与之配套的导入器位于 src/core/file_import，用于将底层解析结果映射为应用层可消费的数据流。
@@ -61,7 +63,7 @@ subgraph "CAN文件IO"
 A["canfileio.h/.cpp<br/>统一接口与基类"]
 B["canfileio_factory.h/.cpp<br/>工厂：按后缀选择解析器"]
 C["asc.h/.cpp<br/>ASC文本解析"]
-D["blf.h/.cpp<br/>BLF二进制解析<br/>基于Vector BLF库"]
+D["blf.h/.cpp<br/>BLF读写实现<br/>基于Vector BLF库"]
 E["csv.h/.cpp<br/>CSV文本解析"]
 F["pcap_reader.h/.cpp<br/>PCAP解析"]
 G["trc_reader.h/.cpp<br/>TRC解析"]
@@ -74,6 +76,7 @@ K["csv_importer.h/.cpp"]
 end
 subgraph "第三方库"
 L["vector_blf<br/>Vector BLF库"]
+M["zlib<br/>压缩解压支持"]
 end
 A --> B
 B --> C
@@ -85,6 +88,7 @@ H --> I
 H --> J
 H --> K
 D --> L
+D --> M
 ```
 
 图表来源
@@ -123,7 +127,7 @@ D --> L
 - 导入器：将解析出的原始帧转换为应用层数据结构，并提供进度、错误回调与批量读取能力。
 - 帧模型：统一表示CAN帧（标识符、DLC、数据、时间戳、通道等）。
 
-**更新** BLF解析器现在完全委托给Vector BLF库，提供更强大的功能和更好的错误处理。
+**更新** BLF写入器现已完整实现，支持Classic CAN和CAN FD帧的标准BLF格式输出，与读取器形成完整的读写解决方案。
 
 章节来源
 - [canframe.h](file://src/core/canframe.h)
@@ -142,6 +146,7 @@ sequenceDiagram
 participant App as "应用层"
 participant Factory as "解析器工厂"
 participant Reader as "具体解析器(ASC/BLF/CSV/PCAP/TRC)"
+participant Writer as "BLF写入器"
 participant VectorBLF as "Vector BLF库"
 participant Importer as "导入器"
 participant Model as "帧模型"
@@ -161,6 +166,10 @@ Importer->>Model : "转换为统一帧模型"
 Model-->>Importer : "标准化帧对象"
 Importer-->>App : "批量帧+进度/状态"
 end
+App->>Writer : "打开BLF文件写入"
+Writer->>VectorBLF : "写入CAN帧"
+VectorBLF-->>Writer : "确认写入"
+Writer-->>App : "写入完成"
 App->>Reader : "关闭文件"
 Reader-->>App : "释放资源"
 ```
@@ -207,6 +216,13 @@ class BlfReader {
 +readAll(frames) int
 +close() void
 }
+class BlfWriter {
++open(path) bool
++writeFrame(frame) void
++close() void
++isOpen() bool
++frameCount() int
+}
 class CsvReader {
 +open(path) bool
 +readBatch(count) FrameList
@@ -224,6 +240,7 @@ class TrcReader {
 }
 CanFileIO <|-- AscReader
 CanFileIO <|-- BlfReader
+CanFileIO <|-- BlfWriter
 CanFileIO <|-- CsvReader
 CanFileIO <|-- PcapReader
 CanFileIO <|-- TrcReader
@@ -300,26 +317,36 @@ EOF -- 是 --> Close["关闭文件"]
 - [asc.h](file://src/core/canfileio/asc.h)
 - [asc.cpp](file://src/core/canfileio/asc.cpp)
 
-### BLF解析器（blf）— 基于Vector BLF库
-- 职责：解析Vector BLF二进制格式，完全委托给Vector BLF库处理。
-- **更新** 现已完全重写，使用Vector::BLF命名空间下的标准库接口。
+### BLF读写器（blf）— 基于Vector BLF库
+- 职责：提供完整的BLF文件格式读写功能，支持Classic CAN和CAN FD帧。
+- **更新** 现已实现完整的写入功能，与读取器形成完整的BLF解决方案。
 - 关键点：
-  - 支持经典CAN帧（CAN_MESSAGE, type 1 / CAN_MESSAGE2, type 86）
-  - 支持CAN FD帧（CAN_FD_MESSAGE, type 100 / CAN_FD_MESSAGE_64, type 101）
-  - 自动处理zlib压缩的Log Container
-  - 精确的时间戳处理（纳秒精度）
-  - 完善的错误处理与异常捕获
+  - **写入器**：支持Classic CAN帧（CanMessage2, type 86）和CAN FD帧（CanFdMessage64, type 101）
+  - **读取器**：支持经典CAN帧（CAN_MESSAGE, type 1 / CAN_MESSAGE2, type 86）
+  - **CAN FD支持**：支持CAN_FD_MESSAGE (type 100) 和 CAN_FD_MESSAGE_64 (type 101)
+  - **压缩处理**：自动处理zlib压缩的Log Container
+  - **时间戳处理**：精确的纳秒级时间戳处理
+  - **错误处理**：完善的异常捕获和错误恢复机制
 
 ```mermaid
 flowchart TD
-Open(["打开BLF"]) --> Init["初始化Vector BLF File对象"]
-Init --> ReadObj["循环读取对象"]
-ReadObj --> Type{"对象类型"}
-Type --> |CAN_MESSAGE| ParseClassic["解析经典CAN帧"]
-Type --> |CAN_MESSAGE2| ParseClassic2["解析CAN帧2"]
-Type --> |CAN_FD_MESSAGE| ParseFD["解析CAN FD帧"]
-Type --> |CAN_FD_MESSAGE_64| ParseFD64["解析CAN FD 64位帧"]
-Type --> |其他| Skip["跳过非CAN对象"]
+Open(["打开BLF"]) --> Type{"操作类型"}
+Type --> |写入| WriteInit["初始化Vector BLF File对象"]
+Type --> |读取| ReadInit["初始化文件读取"]
+WriteInit --> WriteFrame["写入帧数据"]
+WriteFrame --> Classic{"帧类型?"}
+Classic --> |Classic CAN| WriteClassic["写入CanMessage2"]
+Classic --> |CAN FD| WriteFD["写入CanFdMessage64"]
+WriteClassic --> Count["增加帧计数"]
+WriteFD --> Count
+Count --> WriteClose["关闭文件"]
+ReadInit --> ReadObj["循环读取对象"]
+ReadObj --> ObjType{"对象类型"}
+ObjType --> |CAN_MESSAGE| ParseClassic["解析经典CAN帧"]
+ObjType --> |CAN_MESSAGE2| ParseClassic2["解析CAN帧2"]
+ObjType --> |CAN_FD_MESSAGE| ParseFD["解析CAN FD帧"]
+ObjType --> |CAN_FD_MESSAGE_64| ParseFD64["解析CAN FD 64位帧"]
+ObjType --> |其他| Skip["跳过非CAN对象"]
 ParseClassic --> Convert["转换为CanFrame"]
 ParseClassic2 --> Convert
 ParseFD --> Convert
@@ -329,7 +356,9 @@ Emit --> ReadObj
 Skip --> ReadObj
 ReadObj --> Done{"完成?"}
 Done -- 否 --> ReadObj
-Done -- 是 --> Close["关闭文件"]
+Done -- 是 --> ReadClose["关闭文件"]
+WriteClose --> End(["结束"])
+ReadClose --> End
 ```
 
 图表来源
@@ -481,13 +510,13 @@ FileImporter <|-- CsvImporter
 ## 依赖关系分析
 - 内聚性：每个解析器专注单一格式，职责清晰；导入器与解析器解耦，便于替换与测试。
 - 耦合度：工厂集中管理格式注册，降低调用方与具体实现的耦合；帧模型作为唯一数据契约，避免重复定义。
-- **更新** 外部依赖：BLF解析器现依赖Vector BLF库（third_party/vector_blf），通过PRIVATE链接隔离依赖。
+- **更新** 外部依赖：BLF读写器现依赖Vector BLF库（third_party/vector_blf），通过条件链接隔离依赖；同时需要zlib库支持压缩解压功能。
 
 ```mermaid
 graph LR
 App["应用层"] --> Factory["解析器工厂"]
 Factory --> Asc["ASC解析器"]
-Factory --> Blf["BLF解析器<br/>Vector BLF库"]
+Factory --> Blf["BLF读写器<br/>Vector BLF库"]
 Factory --> Csv["CSV解析器"]
 Factory --> Pcap["PCAP解析器"]
 Factory --> Trc["TRC解析器"]
@@ -498,6 +527,7 @@ Pcap --> Importer
 Trc --> Importer
 Importer --> Model["帧模型"]
 Blf --> VectorBLF["Vector BLF库"]
+Blf --> Zlib["Zlib压缩库"]
 ```
 
 图表来源
@@ -523,12 +553,13 @@ Blf --> VectorBLF["Vector BLF库"]
 - 时间戳处理：尽量在解析阶段完成归一化，避免后续重复计算。
 - 过滤下推：尽可能在解析器侧进行过滤，减少无效数据传输。
 - 并发与线程：导入过程可异步执行，配合消息队列与进度回调，保持UI响应。
-- **更新** Vector BLF库优化：利用库内置的zlib压缩支持和内存映射功能提升大文件处理性能。
+- **更新** Vector BLF库优化：利用库内置的zlib压缩支持和内存映射功能提升大文件处理性能；写入时采用流式模式减少内存占用。
 
 ## 故障排查指南
 - 无法识别格式：检查文件后缀与内容探测逻辑，确认工厂注册表是否包含该格式。
 - 解析失败或乱码：核对编码（UTF-8/ANSI）、列头约定、时间戳单位与精度。
-- **更新** BLF解析问题：检查Vector BLF库是否正确链接，确认文件完整性。
+- **更新** BLF读写问题：检查Vector BLF库是否正确链接，确认文件完整性；验证zlib库可用性。
+- 构建问题：确保vector_blf库存在且可编译，检查CMake配置中的条件链接逻辑。
 - 性能问题：增大批次大小、启用内存映射、减少不必要的字符串拷贝。
 - 内存泄漏：确保所有打开的文件句柄在异常路径也能正确关闭。
 - 进度不更新：检查导入器的回调触发时机与主线程调度。
@@ -540,7 +571,7 @@ Blf --> VectorBLF["Vector BLF库"]
 - [file_importer.cpp](file://src/core/file_import/file_importer.cpp)
 
 ## 结论
-CAN文件IO子系统通过统一的接口抽象、工厂模式与导入器机制，实现了多格式解析的高内聚、低耦合与可扩展性。**更新** BLF解析器的Vector BLF库集成显著提升了稳定性和功能完整性，特别是对CAN FD格式的支持。建议在新增格式时优先完善内容探测与时间戳归一化，并在导入器中提供完善的错误与进度反馈，以提升用户体验与系统稳定性。
+CAN文件IO子系统通过统一的接口抽象、工厂模式与导入器机制，实现了多格式解析的高内聚、低耦合与可扩展性。**更新** BLF文件的完整读写功能现已实现，BlfWriter类基于Vector::BLF库提供工业级的BLF格式支持，包括Classic CAN和CAN FD帧的读写。建议在新增格式时优先完善内容探测与时间戳归一化，并在导入器中提供完善的错误与进度反馈，以提升用户体验与系统稳定性。
 
 ## 附录
 - 术语说明：
@@ -553,3 +584,5 @@ CAN文件IO子系统通过统一的接口抽象、工厂模式与导入器机制
   - 对异常输入保持健壮性，记录统计信息以便定位问题。
   - 为大文件提供断点续读与增量导入能力。
   - 充分利用第三方库的功能而非重复实现。
+  - BLF写入时使用流式模式，避免大量数据累积在内存中。
+  - 正确处理时间戳转换，确保纳秒级精度的准确性。

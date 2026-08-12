@@ -2087,8 +2087,185 @@ Phase 4 (环形缓冲区)  ████          ← 低优先级，解决百万
 
 
 问题：
-排序：当修改了时间显示格式后，排序方式还是按照老的时间格式进行排序。
-需要支持blf格式的文件录制啊。
-​README.md​ 规划一套类似于vscode的插件扩展机制，允许安装插件，请帮我参考vscode的实现方式，帮我规划一套插件扩展机制，要求插件不会影响主体的稳定性。方案也要求简单，用户编写插件简单，插件编写语言支持python，
+排序：当修改了时间显示格式后，排序方式还是按照老的时间格式进行排序。 ✓ 已修复
+需要支持blf格式的文件录制啊。 ✓ 已实现
 
+
+# 插件扩展机制
+
+参考 VSCode 的 Extension Host 架构，采用 **子进程隔离 + JSON-RPC** 方案。插件用 Python 编写，崩溃不影响主程序。
+
+## 一、架构
+
+```
+┌─ sin 主程序 (C++/Qt) ──────────────┐
+│  PluginManager ── PluginHost(QProcess) │
+│       ↕ JSON-RPC over stdin/stdout       │
+└─────────────────────────────────────┘
+          ↕
+┌─ Python 插件宿主 (sin_host.py) ───┐
+│  sin SDK 模块  │  插件 A  │  插件 B  │
+└───────────────────────────────────┘
+```
+
+**核心设计**：
+- 插件运行在独立 Python 子进程中，崩溃不影响主程序
+- 主程序与插件通过 newline-delimited JSON-RPC 2.0 通信
+- 用户只需写 `plugin.json` + `main.py`，导入 `sin` 模块即可
+- 按 activationEvents 激活（onStartup / onFrame / onCommand:id / onFileOpen:ext）
+- 崩溃后指数退避自动重启（1s→2s→4s，超过 3 次放弃）
+
+## 二、目录结构
+
+```
+sin/
+├─ src/core/plugin/          # C++ 插件核心
+│  ├─ plugininfo.h/cpp        #   插件清单解析
+│  ├─ pluginhost.h/cpp        #   QProcess + JSON-RPC
+│  └─ pluginmanager.h/cpp     #   发现/激活/消息分发
+├─ scripts/sin_host.py       # Python 插件宿主
+├─ sdk/sin/                  # Python SDK
+│  ├─ _transport.py           #   通信层（共享 stdout 锁）
+│  ├─ output.py               #   输出面板 API
+│  ├─ frames.py               #   CAN 帧操作 API
+│  ├─ commands.py             #   命令 API
+│  ├─ workspace.py            #   工程上下文 API
+│  └─ signals.py              #   DBC 信号解码 API
+└─ plugins/                  # 用户插件目录
+   ├─ hello-world/            #   最简示例
+   └─ frame-counter/          #   帧统计示例
+```
+
+## 三、插件清单 (plugin.json)
+
+```json
+{
+    "name": "j1939-decoder",
+    "version": "1.0.0",
+    "description": "J1939 协议解码插件",
+    "main": "main.py",
+    "activationEvents": ["onStartup", "onCommand:j1939.decode"],
+    "contributes": {
+        "commands": [{ "id": "j1939.decode", "title": "J1939: 解码" }]
+    }
+}
+```
+
+## 四、Python SDK API
+
+```python
+import sin
+
+def activate(context):
+    sin.output.append("插件已加载")          # 输出到面板
+    context.register_command("my.cmd", handler) # 注册命令
+    context.on_frame(on_frame)                 # 订阅帧
+    frames = sin.frames.get_selected()         # 获取选中帧
+    sin.frames.send(0x123, b'\x01\x02')        # 发送帧
+    val = sin.signals.decode(0x123, data)       # 解码信号
+
+def on_frame(frame):
+    sin.output.append(f"ID=0x{frame.id:X} data={frame.data.hex()}")
+```
+
+## 五、通信协议
+
+JSON-RPC 2.0，每行一条 JSON，`\n` 分隔。帧数据用 hex 字符串。
+
+主程序→插件：`activate` / `deactivate` / `frameReceived` / `executeCommand` / `fileOpened`
+插件→主程序：`output.append` / `sendFrame` / `registerCommand` / `frames.getSelected` / `log`
+
+帧批量发送：每 100ms 或 100 帧批量一次，避免高频帧淹没 Python。
+
+## 六、集成点
+
+| 现有组件 | 集成方式 |
+|----------|----------|
+| MainWindow::onFrameReceived() | 末尾调用 PluginManager::onFrameReceived() |
+| 菜单栏 | 新增「插件」菜单，动态填充已注册命令 |
+| BottomPanel | 新增「插件」标签页显示输出 |
+| CanDeviceManager::sendFrame() | 转发插件的 sendFrame 请求 |
+| CanTraceModel | 响应 frames.getSelected 请求 |
+| closeEvent() | 调用 PluginManager::shutdown() |
+
+
+# 插件 UI 能力（方案 A — PyQt6 独立窗口）
+
+已实现。插件在 Python 子进程中用 PyQt6 创建独立窗口，崩溃不影响主程序。
+
+## 方案对比（选型过程）
+
+| 方案 | 复杂度 | 插件开发难度 | 嵌入主窗口 | 独立窗口 | 稳定性 |
+|------|--------|-------------|-----------|---------|--------|
+| **A. PyQt6 子进程独立窗口** | **低** | **低** | ✗ | **✓** | **✓ 进程隔离** |
+| B. PyQt6 + 原生窗口嵌入 | 中 | 低 | ✓ | ✓ | ✓ 但有焦点/resize 问题 |
+| C. QML 动态加载 | 高 | 中 | ✓ | ✓ | ✗ 需同进程 |
+| D. HTML/QWebEngineView | 高 | 低 | ✓ | ✓ | ✓ 但依赖重 |
+| E. JSON 声明式 UI | 高 | 低 | ✓ | ✗ | ✓ 最安全 |
+
+**选择方案 A 的原因**：实现简单、全平台支持（含 Wayland）、无焦点/resize/输入法问题、崩溃行为干净（窗口直接消失，无黑矩形）。方案 B 的 `createWindowContainer` 嵌入跨进程窗口在 Qt 官方文档中标注“可能无法在所有平台完美工作”，风险较高。
+
+## 实现原理
+
+PyQt6/PySide6 是 Qt6 的 Python 绑定，与主程序的 C++ Qt6 共享同一底层 Qt 库，渲染风格一致。
+插件在 Python 子进程中用 PyQt6 创建 QMainWindow，窗口独立浮动在桌面上。
+
+```
+主程序 (C++/Qt6)                    Python 子进程 (PyQt6)
+┌─────────────────────┐            ┌─────────────────────┐
+│  无需任何 UI 改动     │            │  QApplication         │
+│  仅 JSON-RPC 通信     │ ←───────→  │  QMainWindow (独立)   │
+│                     │  JSON-RPC  │  (PyQt6 渲染)         │
+└─────────────────────┘            └─────────────────────┘
+```
+
+### 关键实现
+
+1. **sin_host.py 双模式启动**：检测 PyQt6 是否可用，可用则启动 QApplication 事件循环，否则退回简单循环
+2. **后台线程读 stdin**：独立线程持续读取 stdin，响应消息直接分发（`deliver_response`），请求/通知放入队列
+3. **QTimer 轮询**：主线程 QTimer 每 10ms 从队列取消息处理（Qt 要求 widget 操作在主线程）
+4. **SDK ui 模块**：`sin.ui.create_window(title)` 返回 QMainWindow 供插件自定义
+
+### sin_host.py 事件循环
+
+```
+stdin → 后台线程 → ┬─ 响应 → deliver_response()（直接分发，修复原有死锁）
+                    └─ 请求/通知 → Queue → QTimer(10ms) → handle_message()（主线程）
+
+QApplication.exec() 驱动 PyQt6 窗口事件
+```
+
+### Python SDK API
+
+```python
+import sin
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QPushButton
+
+def activate(context):
+    win = sin.ui.create_window("我的工具")      # 创建独立窗口
+    win.resize(400, 300)
+    layout = QVBoxLayout(win.centralWidget())
+    layout.addWidget(QLabel("Hello!"))
+    btn = QPushButton("发送帧")
+    btn.clicked.connect(lambda: sin.frames.send(0x123, b'\x01\x02'))
+    layout.addWidget(btn)
+    win.show()                                    # 显示窗口
+
+    sin.ui.show_message("提示", "窗口已创建")     # 消息对话框
+```
+
+### 优势
+
+- **PyQt6 与 C++ Qt6 共享底层库**：渲染一致，主题一致，无视觉割裂
+- **进程隔离**：PyQt6 崩溃只影响插件进程，主程序不受影响
+- **开发简单**：插件开发者用标准 PyQt6 API，`pip install PyQt6` 即可
+- **全平台支持**：Windows / macOS / Linux (X11 + Wayland) 均可
+- **无嵌入风险**：无焦点/resize/输入法问题，无黑矩形崩溃
+
+### 注意事项
+
+- **PyQt6 安装**：插件开发者需 `pip install PyQt6`（或 PySide6）
+- **版本匹配**：PyQt6 的 Qt 版本应与主程序的 Qt6 版本一致（6.x 系列）
+- **send_request 阻塞**：SDK 的 `send_request()` 会短暂阻塞 Qt 事件循环（主程序通常毫秒级响应，实际无感知）
+- **窗口独立**：插件窗口浮动在桌面上，用户用 Alt+Tab 切换，不嵌入主窗口
 

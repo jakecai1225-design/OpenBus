@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QLabel>
+#include <QJsonValue>
 #include "core/canframe.h"
 
 class CanTraceModel;
@@ -36,6 +37,7 @@ class BusStatistics;
 class FilterPresetManager;
 class BookmarkManager;
 class DataWindow;
+class PluginManager;
 struct DbcFile;
 class QAction;
 class QSlider;
@@ -156,6 +158,12 @@ private slots:
     void showCheckUpdate();
     void showBusinessCoop();
 
+    // 插件
+    void onPluginOutput(const QString &text);
+    void onPluginCommandRegistered(const QString &id, const QString &title);
+    void onPluginSendFrame(const CanFrame &frame);
+    void onPluginRequestSelectedFrames(const QJsonValue &requestId);
+
 private:
     void createMenuBar();
     void createLayout();
@@ -190,6 +198,10 @@ private:
     FilterPresetManager *m_filterPresets = nullptr;
     BookmarkManager *m_bookmarkMgr = nullptr;
     DataWindow *m_dataWindow = nullptr;
+
+    // ---- 插件系统 ----
+    PluginManager *m_pluginManager = nullptr;
+    QHash<QString, QAction *> m_pluginCommandActions;  ///< 插件命令 ID → 菜单 Action
 
     // ---- UI (Main tabs) ----
     TraceTab *m_traceTab = nullptr;

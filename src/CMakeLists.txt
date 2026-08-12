@@ -77,6 +77,13 @@ set(SRC_CORE
     core/canfileio/pcap_reader.cpp
     core/canfileio/trc_reader.h
     core/canfileio/trc_reader.cpp
+    # 插件系统
+    core/plugin/plugininfo.h
+    core/plugin/plugininfo.cpp
+    core/plugin/pluginhost.h
+    core/plugin/pluginhost.cpp
+    core/plugin/pluginmanager.h
+    core/plugin/pluginmanager.cpp
 )
 
 # models 层 — Qt 数据模型

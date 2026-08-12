@@ -1,7 +1,7 @@
 # 播放控制Tab组件
 
 <cite>
-**本文档引用的文件**   
+**本文引用的文件**   
 - [playbacktab.h](file://src/ui/playbacktab.h)
 - [playbacktab.cpp](file://src/ui/playbacktab.cpp)
 - [player.h](file://src/core/player.h)
@@ -14,6 +14,7 @@
 - [mainwindow.cpp](file://src/ui/mainwindow.cpp)
 - [signalsendtab.h](file://src/ui/signalsendtab.h)
 - [signalsendtab.cpp](file://src/ui/signalsendtab.cpp)
+- [traceview.h](file://src/ui/traceview.h)
 </cite>
 
 ## 更新摘要
@@ -22,6 +23,8 @@
 - 添加了行标记和自定义着色功能，支持toggleMark()、setMarked()、isMarked()方法
 - 实现了自定义行颜色设置功能，通过setRowColor()方法实现
 - 改进了过滤系统，支持比较运算符（>、<、>=、<=）和范围过滤语法（如'0.3~0.8'）
+- **新增**：实现了完整的循环回放功能，播放器在到达文件末尾时自动重置到开头继续播放
+- **新增**：增强了自动滚动功能的信号连接，支持全局控制所有Trace视图的自动滚动行为
 - 更新了播放控制Tab组件以支持新的Trace模型功能和增强的过滤能力
 
 ## 目录
@@ -38,7 +41,7 @@
 11. [附录](#附录)
 
 ## 简介
-本文件聚焦于"播放控制Tab组件"的设计与实现，围绕播放/暂停、进度控制、速度调节、循环播放等交互能力展开。该组件位于UI层，负责用户操作与底层播放器、数据模型之间的协调，确保CAN Trace数据的回放体验流畅且可配置。**最新更新**：CAN Trace模型得到了显著增强，新增了帧编号和增量时间显示功能，同时提供了强大的行标记和自定义着色能力，以及改进的过滤系统支持多种比较运算符和范围过滤语法。
+本文件聚焦于"播放控制Tab组件"的设计与实现，围绕播放/暂停、进度控制、速度调节、循环播放等交互能力展开。该组件位于UI层，负责用户操作与底层播放器、数据模型之间的协调，确保CAN Trace数据的回放体验流畅且可配置。**最新更新**：CAN Trace模型得到了显著增强，新增了帧编号和增量时间显示功能，同时提供了强大的行标记和自定义着色能力，以及改进的过滤系统支持多种比较运算符和范围过滤语法。**重要更新**：播放系统新增了完整的循环回放功能，当启用循环模式时，播放器在到达文件末尾时会重置到开头继续播放；同时增强了自动滚动功能的信号连接，支持全局控制所有Trace视图的自动滚动行为。
 
 ## 项目结构
 播放控制Tab组件属于UI模块，与核心播放器（core）、数据模型（models）和过滤引擎紧密协作。整体结构如下：
@@ -52,6 +55,7 @@ subgraph "UI层"
 PlaybackTab["播放控制Tab<br/>playbacktab.*"]
 SignalSendTab["信号发送Tab<br/>signalsendtab.*"]
 MainWindow["主窗口<br/>mainwindow.*"]
+TraceView["Trace视图<br/>traceview.*"]
 end
 subgraph "核心层"
 Player["播放器<br/>player.*"]
@@ -66,8 +70,10 @@ PlaybackTab --> TraceModel
 SignalSendTab --> PlaybackTab
 MainWindow --> PlaybackTab
 MainWindow --> SignalSendTab
+MainWindow --> TraceView
 Player --> TraceModel
 FilterEngine --> TraceModel
+TraceView --> TraceModel
 ```
 
 **图表来源**
@@ -83,6 +89,7 @@ FilterEngine --> TraceModel
 - [filter_engine.cpp](file://src/core/filter_engine.cpp)
 - [mainwindow.h](file://src/ui/mainwindow.h)
 - [mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [traceview.h](file://src/ui/traceview.h)
 
 ## 核心组件
 - 播放控制Tab（UI）
@@ -92,6 +99,7 @@ FilterEngine --> TraceModel
 - 播放器（Core）
   - 职责：维护播放状态（空闲/播放/暂停/结束）、基于定时器推进时间轴、从Trace模型读取帧并触发信号通知UI刷新。
   - 关键能力：开始/暂停/停止、设置目标时间或帧索引、按时间步长推进、边界处理（首尾循环、越界保护）。
+  - **新增能力**：完整的循环回放功能，当到达文件末尾时自动重置到开头继续播放。
 - CAN Trace模型（Models）
   - 职责：提供帧序列、按时间或索引访问、支持过滤后的视图、计算总时长与帧率统计。
   - **新增能力**：支持帧编号（No.）列显示、增量时间（Delta）计算、行标记管理、自定义背景色设置、覆盖模式支持。
@@ -100,6 +108,9 @@ FilterEngine --> TraceModel
   - **新增能力**：支持比较运算符（>、<、>=、<=）、id in语法、data contains语法、裸十六进制自动转换。
 - 信号发送Tab（UI）
   - 职责：与播放控制Tab协同工作，提供信号发送功能，支持在播放过程中动态发送CAN信号。
+- Trace视图（UI）
+  - 职责：提供CAN帧数据的可视化展示，支持自动滚动、选择、导航等功能。
+  - **新增能力**：增强的自动滚动控制，支持全局开关控制所有Trace视图的滚动行为。
 
 **章节来源**
 - [playbacktab.h](file://src/ui/playbacktab.h)
@@ -112,6 +123,7 @@ FilterEngine --> TraceModel
 - [cantracemodel.cpp](file://src/models/cantracemodel.cpp)
 - [filter_engine.h](file://src/core/filter_engine.h)
 - [filter_engine.cpp](file://src/core/filter_engine.cpp)
+- [traceview.h](file://src/ui/traceview.h)
 
 ## 架构总览
 播放控制Tab通过信号槽机制与播放器通信，播放器再访问Trace模型以获取数据。过滤引擎独立工作，为Trace模型提供过滤能力。UI仅做展示与输入，核心逻辑集中在播放器、过滤引擎与模型中，保证高内聚低耦合。
@@ -123,6 +135,7 @@ participant Tab as "播放控制Tab"
 participant Filter as "过滤引擎"
 participant Player as "播放器"
 participant Model as "CAN Trace模型"
+participant MainWindow as "主窗口"
 User->>Tab : 点击"播放"
 Tab->>Player : 启动播放(设置速度/循环)
 loop 定时推进
@@ -130,12 +143,17 @@ Player->>Model : 请求下一帧
 Model->>Filter : 应用过滤条件
 Filter-->>Model : 返回过滤结果
 Model-->>Player : 返回帧数据如果通过过滤
-Player-->>Tab : 发送"帧已更新"信号
+Player-->>MainWindow : 发送"帧已播放"信号
+MainWindow->>MainWindow : onFramePlayed()
+MainWindow->>MainWindow : onFrameReceived()
+MainWindow->>MainWindow : 检查自动滚动状态
+alt 自动滚动启用
+MainWindow->>MainWindow : scrollToBottom()
+end
+Player-->>Tab : 发送"进度更新"信号
 Tab->>Tab : 刷新进度条/时间显示
 end
-User->>Tab : 设置过滤表达式
-Tab->>Filter : 编译过滤表达式
-Filter-->>Tab : 返回编译结果
+Note over Player : 循环回放功能：到达末尾时自动重置到开头
 ```
 
 **图表来源**
@@ -147,6 +165,8 @@ Filter-->>Tab : 返回编译结果
 - [player.cpp](file://src/core/player.cpp)
 - [cantracemodel.h](file://src/models/cantracemodel.h)
 - [cantracemodel.cpp](file://src/models/cantracemodel.cpp)
+- [mainwindow.h](file://src/ui/mainwindow.h)
+- [mainwindow.cpp](file://src/ui/mainwindow.cpp)
 
 ## 详细组件分析
 
@@ -197,6 +217,15 @@ class FilterEngine {
 +isEmpty() bool
 +errorString() QString
 }
+class Player {
++play()
++pause()
++stop()
++seekTo(seconds)
++setSpeed(speed)
++setLoop(on)
++loop() bool
+}
 PlaybackTab --> Player : "控制播放"
 PlaybackTab --> CanTraceModel : "读取范围/总数"
 PlaybackTab --> FilterEngine : "过滤表达式"
@@ -211,10 +240,71 @@ CanTraceModel --> FilterEngine : "应用过滤"
 - [cantracemodel.cpp](file://src/models/cantracemodel.cpp)
 - [filter_engine.h](file://src/core/filter_engine.h)
 - [filter_engine.cpp](file://src/core/filter_engine.cpp)
+- [player.h](file://src/core/player.h)
+- [player.cpp](file://src/core/player.cpp)
 
 **章节来源**
 - [playbacktab.h](file://src/ui/playbacktab.h)
 - [playbacktab.cpp](file://src/ui/playbacktab.cpp)
+
+### 播放器（Core）- 增强版本
+- 播放状态管理
+  - 维护播放状态（m_playing）、循环模式（m_loop）、当前帧索引（m_currentIndex）。
+  - 精确的时间控制：使用高精度定时器（Qt::PreciseTimer）和毫秒级时间戳。
+- 循环回放功能
+  - **新增**：完整的循环回放逻辑，当播放到达文件末尾时自动重置到开头继续播放。
+  - 循环模式下，重置时间基准和当前索引，确保持续播放的连续性。
+  - 非循环模式下，正常结束播放并触发finished信号。
+- 时间推进算法
+  - 基于实际经过时间和播放速度计算目标时间戳。
+  - 批量发射所有时间戳小于等于目标时间的帧，提高播放效率。
+- 边界处理
+  - 播放开始时自动定位到第一帧。
+  - seek操作支持二分查找，快速定位到指定时间点。
+  - 速度调整时保持播放连续性，重新计算基准时间。
+
+```mermaid
+flowchart TD
+A[播放开始] --> B{是否循环模式?}
+B --> |是| C[设置循环标志]
+B --> |否| D[正常播放模式]
+C --> E[开始定时器]
+D --> E
+E --> F[定时器触发onTick]
+F --> G[计算目标时间]
+G --> H{是否到达末尾?}
+H --> |是| I{循环模式?}
+I --> |是| J[重置到开头]
+J --> K[重置时间基准]
+K --> L[继续播放]
+I --> |否| M[停止播放]
+M --> N[触发finished信号]
+H --> |否| O[发射帧数据]
+O --> P[更新索引]
+P --> Q[更新进度]
+Q --> F
+```
+
+**图表来源**
+- [player.h](file://src/core/player.h)
+- [player.cpp](file://src/core/player.cpp)
+
+**章节来源**
+- [player.h](file://src/core/player.h)
+- [player.cpp](file://src/core/player.cpp)
+
+### 主窗口集成 - 自动滚动功能增强
+- 角色：承载播放控制Tab与其他面板，管理生命周期与布局。
+- 交互：将播放控制Tab实例化并嵌入主界面；转发部分全局动作（如快捷键）至Tab。
+- **新增功能**：增强的自动滚动功能信号连接，支持全局控制所有Trace视图的滚动行为。
+- 自动滚动控制
+  - `onAutoScrollToggled(bool on)`方法接收来自播放控制Tab的信号。
+  - 遍历所有打开的Trace标签页，统一设置自动滚动状态。
+  - 在数据接收时根据自动滚动状态决定是否滚动到底部。
+
+**章节来源**
+- [mainwindow.h](file://src/ui/mainwindow.h)
+- [mainwindow.cpp](file://src/ui/mainwindow.cpp)
 
 ### CAN Trace模型（Models）- 增强版本
 - 数据结构
@@ -312,15 +402,19 @@ G --> |否| I[隐藏帧]
 - [filter_engine.h](file://src/core/filter_engine.h)
 - [filter_engine.cpp](file://src/core/filter_engine.cpp)
 
-### 主窗口集成
-- 角色：承载播放控制Tab与其他面板，管理生命周期与布局。
-- 交互：将播放控制Tab实例化并嵌入主界面；转发部分全局动作（如快捷键）至Tab。
-
-**章节来源**
-- [mainwindow.h](file://src/ui/mainwindow.h)
-- [mainwindow.cpp](file://src/ui/mainwindow.cpp)
-
 ## 新增功能特性
+
+### 循环回放功能
+- **完整实现**：播放器在到达文件末尾时自动重置到开头继续播放
+- **无缝循环**：重置时间基准和当前索引，确保播放连续性
+- **模式切换**：支持在播放过程中动态切换循环模式
+- **状态同步**：循环模式下不触发finished信号，直到手动停止
+
+### 自动滚动功能增强
+- **全局控制**：通过单一开关控制所有Trace视图的自动滚动行为
+- **实时响应**：自动滚动状态改变立即应用到所有打开的Trace标签页
+- **智能判断**：仅在非覆盖模式下自动滚动，避免数据丢失
+- **信号连接**：播放控制Tab与主窗口的自动滚动信号连接
 
 ### CAN Trace模型增强
 - **帧编号列（No.）**：显示每帧的序号，从1开始的连续编号
@@ -344,6 +438,10 @@ G --> |否| I[隐藏帧]
 - **内存管理**：智能的内存分配和回收策略
 
 **章节来源**
+- [player.h](file://src/core/player.h)
+- [player.cpp](file://src/core/player.cpp)
+- [mainwindow.h](file://src/ui/mainwindow.h)
+- [mainwindow.cpp](file://src/ui/mainwindow.cpp)
 - [cantracemodel.h](file://src/models/cantracemodel.h)
 - [cantracemodel.cpp](file://src/models/cantracemodel.cpp)
 - [filter_engine.h](file://src/core/filter_engine.h)
@@ -355,6 +453,7 @@ G --> |否| I[隐藏帧]
   - 播放器依赖Trace模型进行数据读取，不感知UI细节。
   - 过滤引擎独立工作，为Trace模型提供过滤能力。
   - **新增**：Trace模型内部维护行标记和颜色状态，与UI层松耦合。
+  - **新增**：主窗口统一管理自动滚动状态，向所有Trace视图广播状态变化。
 - 外部依赖
   - Qt框架（信号槽、定时器、UI控件）。
   - 可能的第三方库用于DBC解析或CAN协议处理（不在本组件范围内）。
@@ -368,6 +467,10 @@ PlaybackTab --> TraceModel["CAN Trace模型"]
 Player --> TraceModel
 FilterEngine --> TraceModel
 TraceModel --> FilterEngine
+MainWindow --> PlaybackTab
+MainWindow --> TraceView
+MainWindow --> Player
+TraceView --> TraceModel
 ```
 
 **图表来源**
@@ -379,6 +482,9 @@ TraceModel --> FilterEngine
 - [player.cpp](file://src/core/player.cpp)
 - [cantracemodel.h](file://src/models/cantracemodel.h)
 - [cantracemodel.cpp](file://src/models/cantracemodel.cpp)
+- [mainwindow.h](file://src/ui/mainwindow.h)
+- [mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [traceview.h](file://src/ui/traceview.h)
 
 **章节来源**
 - [playbacktab.h](file://src/ui/playbacktab.h)
@@ -389,10 +495,14 @@ TraceModel --> FilterEngine
 - [player.cpp](file://src/core/player.cpp)
 - [cantracemodel.h](file://src/models/cantracemodel.h)
 - [cantracemodel.cpp](file://src/models/cantracemodel.cpp)
+- [mainwindow.h](file://src/ui/mainwindow.h)
+- [mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [traceview.h](file://src/ui/traceview.h)
 
 ## 性能考虑
 - 定时器精度与UI刷新
   - 合理设置定时器周期，避免过高频率导致CPU占用；UI刷新采用节流或合并更新。
+  - **新增**：循环回放模式下避免频繁的边界检查和状态重置开销。
 - 数据访问优化
   - 按时间取帧使用二分查找或时间-索引映射，减少线性扫描开销。
   - **新增**：覆盖模式下的高效行更新机制，避免不必要的重绘。
@@ -405,6 +515,7 @@ TraceModel --> FilterEngine
   - 过滤表达式的预编译和缓存，避免重复解析。
   - 增量更新机制，只更新变化的UI元素。
   - 智能的内存池管理，减少频繁的内存分配。
+  - **新增**：自动滚动功能的批量更新，避免逐个视图更新的开销。
 
 ## 故障排查指南
 - 播放无响应
@@ -415,11 +526,14 @@ TraceModel --> FilterEngine
   - 减少每帧UI更新量；批量更新标签与进度条；避免在定时器回调中进行重计算。
 - 循环异常
   - 校验循环标志位；确认到达末尾时的重置逻辑；防止无限循环导致的资源耗尽。
+  - **新增**：检查循环模式下的时间基准重置逻辑，确保播放连续性。
 - **新增故障排查项**
   - 过滤表达式错误：检查语法是否正确，查看错误提示信息。
   - 行标记失效：验证行号是否在有效范围内，检查标记状态是否正确更新。
   - 颜色显示异常：确认颜色对象是否有效，检查覆盖模式的设置。
   - 内存泄漏：监控内存使用趋势，及时释放不再使用的资源。
+  - **新增**：自动滚动功能异常：检查信号连接是否正确，验证所有Trace视图的状态同步。
+  - **新增**：循环回放中断：检查循环标志位设置，确认时间基准重置逻辑。
 
 **章节来源**
 - [playbacktab.h](file://src/ui/playbacktab.h)
@@ -428,11 +542,17 @@ TraceModel --> FilterEngine
 - [cantracemodel.cpp](file://src/models/cantracemodel.cpp)
 - [filter_engine.h](file://src/core/filter_engine.h)
 - [filter_engine.cpp](file://src/core/filter_engine.cpp)
+- [player.h](file://src/core/player.h)
+- [player.cpp](file://src/core/player.cpp)
+- [mainwindow.h](file://src/ui/mainwindow.h)
+- [mainwindow.cpp](file://src/ui/mainwindow.cpp)
 
 ## 结论
-播放控制Tab组件通过清晰的职责划分与信号槽机制，实现了用户交互与底层播放逻辑的有效解耦。播放器负责状态管理与时间推进，Trace模型提供高效的数据访问，过滤引擎提供灵活的过滤能力。**最新更新**：CAN Trace模型得到了显著增强，新增了帧编号和增量时间显示功能，提供了强大的行标记和自定义着色能力，以及改进的过滤系统支持多种比较运算符和范围过滤语法。这些增强功能使得播放控制Tab组件更加强大和易用，为CAN数据分析提供了更好的工具支持。
+播放控制Tab组件通过清晰的职责划分与信号槽机制，实现了用户交互与底层播放逻辑的有效解耦。播放器负责状态管理与时间推进，Trace模型提供高效的数据访问，过滤引擎提供灵活的过滤能力。**最新更新**：CAN Trace模型得到了显著增强，新增了帧编号和增量时间显示功能，提供了强大的行标记和自定义着色能力，以及改进的过滤系统支持多种比较运算符和范围过滤语法。**重要更新**：播放系统新增了完整的循环回放功能，当启用循环模式时，播放器在到达文件末尾时会重置到开头继续播放；同时增强了自动滚动功能的信号连接，支持全局控制所有Trace视图的自动滚动行为。这些增强功能使得播放控制Tab组件更加强大和易用，为CAN数据分析提供了更好的工具支持。
 
 新增的核心功能包括：
+- **循环回放功能**：完整的循环播放逻辑，支持无缝循环和模式切换
+- **自动滚动增强**：全局控制的自动滚动功能，支持批量更新所有Trace视图
 - CAN Trace模型的全面增强：帧编号列、增量时间列、行标记管理、自定义着色、覆盖模式
 - 过滤系统的重大改进：完整的比较运算符、id in语法、data contains语法、裸十六进制支持
 - 用户体验的显著提升：实时过滤、错误提示、性能监控、内存管理优化
@@ -447,6 +567,8 @@ TraceModel --> FilterEngine
   - 过滤引擎：解析和执行复杂过滤表达式的核心模块。
   - 行标记：对特定行进行标记的功能，便于后续分析和定位。
   - 覆盖模式：同CAN ID的帧只保留一行的显示模式。
+  - 循环回放：播放到达末尾时自动回到开头继续播放的模式。
+  - 自动滚动：新数据到达时自动滚动到视图底部的功能。
 - 最佳实践
   - 使用信号槽进行跨层通信，避免强耦合。
   - 在大数据集场景下优先采用懒加载与缓存策略。
@@ -454,8 +576,12 @@ TraceModel --> FilterEngine
   - **新增**：合理使用行标记和颜色功能进行数据标注和分析。
   - **新增**：利用过滤表达式进行精确的数据筛选和分析。
   - **新增**：在覆盖模式下注意行号的稳定性，避免引用失效。
+  - **新增**：合理使用循环回放功能进行长时间数据分析。
+  - **新增**：根据数据量大小合理设置自动滚动开关，避免性能问题。
 - **新增API参考**
   - 行标记API：toggleMark()、setMarked()、isMarked()、clearMarks()、markedRows()
   - 颜色管理API：setRowColor()、rowColor()、clearColors()
   - 覆盖模式API：setOverwriteMode()、isOverwriteMode()
   - 过滤表达式语法：完整的表达式语法说明和使用示例
+  - **新增**：循环回放API：setLoop()、loop()方法的使用说明
+  - **新增**：自动滚动API：setAutoScrollEnabled()、autoScrollEnabled()方法的使用说明
