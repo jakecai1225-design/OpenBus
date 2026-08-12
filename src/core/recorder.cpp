@@ -45,13 +45,14 @@ void Recorder::stop()
     m_writer.reset();
 
     m_recording = false;
+    m_paused = false;
     emit recordingStopped(m_filePath, m_frameCount);
     m_filePath.clear();
 }
 
 void Recorder::recordFrame(const CanFrame &frame)
 {
-    if (!m_recording || !m_writer)
+    if (!m_recording || !m_writer || m_paused)
         return;
 
     m_writer->writeFrame(frame);

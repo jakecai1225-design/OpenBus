@@ -27,10 +27,17 @@ public:
 
     void setRecording(bool recording);
 
+    /// 录制文件设置访问器
+    QString directory() const { return m_dirEdit->text(); }
+    QString prefix() const { return m_prefixEdit->text(); }
+    QString format() const { return m_formatCombo->currentData().toString(); }
+
 signals:
     void recordToggled(bool on);
-    void clearRequested();
-    void autoScrollToggled(bool on);
+    /// 暂停状态变化：true=已暂停, false=已恢复
+    void pauseRequested(bool paused);
+    /// 请求停止触发录制（与 recordToggled 区分）
+    void triggerRecordingStopped();
     void triggerRecordingRequested(
         const QString &dir, const QString &prefix, const QString &format,
         bool splitBySize, int sizeMb, bool splitByTime, int timeSec,
@@ -42,6 +49,8 @@ private slots:
     void onBrowse();
     void onRecord();
     void onTriggerRecord();
+    void onPauseClicked();
+    void onStopClicked();
 
 private:
     QPushButton *m_recordBtn;
@@ -54,6 +63,7 @@ private:
     QSpinBox *m_sizeSpin;
     QCheckBox *m_splitByTime;
     QSpinBox *m_timeSpin;
+    QCheckBox *m_ringChk;
     QComboBox *m_bufferCombo;
     QCheckBox *m_filterAll;
     QCheckBox *m_filterRx;

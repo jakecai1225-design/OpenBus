@@ -44,8 +44,11 @@ QString displayName(Format fmt);
 QString fileFilter(Format fmt);
 
 /// 获取所有支持格式的文件过滤器（用于 QFileDialog）
-/// @param includeAll 是否包含"所有文件 (*.*)"
+/// @param includeAll 是否包含“所有文件 (*.*)”
 QString allFileFilters(bool includeAll = true);
+
+/// 获取可写入格式的文件过滤器（BLF 写入暂未实现，不包含）
+QString writableFileFilters();
 
 } // namespace CanFileIO
 

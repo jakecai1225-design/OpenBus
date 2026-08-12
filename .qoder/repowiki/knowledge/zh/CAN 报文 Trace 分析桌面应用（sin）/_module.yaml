@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: ""
-title: sin CAN 总线分析工具（Qt6 桌面应用）
+title: CAN 报文 Trace 分析桌面应用（sin）
 scope: []
 source_files: []
 depends_on: []

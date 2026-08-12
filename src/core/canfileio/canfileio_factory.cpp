@@ -55,9 +55,9 @@ std::unique_ptr<CanFileReader> CanFileIOFactory::createReader(const QString &fil
 bool CanFileIOFactory::canWrite(const QString &suffix)
 {
     CanFileIO::Format fmt = CanFileIO::formatFromSuffix(suffix);
-    return fmt == CanFileIO::Format::BLF ||
-           fmt == CanFileIO::Format::ASC ||
-           fmt == CanFileIO::Format::CSV;
+    return fmt == CanFileIO::Format::ASC ||
+           fmt == CanFileIO::Format::CSV ||
+           fmt == CanFileIO::Format::BLF;
 }
 
 bool CanFileIOFactory::canRead(const QString &suffix)

@@ -25,8 +25,7 @@ public:
         Trace,
         Graphic,
         Dbc,
-        Send,
-        Record,
+        Transceive,     // 收发（发送/回放/录制）
         Protocol,
         Tools,
         Settings

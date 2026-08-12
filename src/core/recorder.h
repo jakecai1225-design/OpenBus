@@ -26,6 +26,9 @@ public:
     bool start(const QString &filePath);
     void stop();
     bool isRecording() const { return m_recording; }
+    void pause() { m_paused = true; }
+    void resume() { m_paused = false; }
+    bool isPaused() const { return m_paused; }
     QString currentFile() const { return m_filePath; }
     int frameCount() const { return m_frameCount; }
 
@@ -39,6 +42,7 @@ signals:
 
 private:
     bool m_recording = false;
+    bool m_paused = false;
     std::unique_ptr<CanFileWriter> m_writer;
     QString m_filePath;
     int m_frameCount = 0;

@@ -48,7 +48,10 @@ QString LogSplitter::generateFileName(int seq) const
 bool LogSplitter::openNewFile()
 {
     m_currentSeq++;
-    m_currentPath = QDir(m_config.directory).filePath(generateFileName(m_currentSeq));
+
+    m_currentPath = QDir(m_config.directory).filePath(
+        QString("%1_%2.%3").arg(m_config.prefix)
+            .arg(m_currentSeq, 3, 10, QChar('0')).arg(m_config.format));
     m_currentSize = 0;
 
     m_writer = CanFileIOFactory::createWriter(m_currentPath);

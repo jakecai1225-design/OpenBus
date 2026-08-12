@@ -141,6 +141,8 @@ PlaybackTab::PlaybackTab(QWidget *parent)
     connect(m_removeFileBtn, &QPushButton::clicked, this, &PlaybackTab::onRemoveFile);
     connect(m_fileList, &QTableWidget::cellDoubleClicked,
             this, &PlaybackTab::onFileListDoubleClicked);
+    connect(m_loopChk, &QCheckBox::toggled, this, &PlaybackTab::loopToggled);
+    connect(m_autoScrollChk, &QCheckBox::toggled, this, &PlaybackTab::autoScrollToggled);
 }
 
 void PlaybackTab::onPlay() { emit playRequested(); }

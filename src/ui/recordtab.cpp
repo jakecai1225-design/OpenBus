@@ -90,8 +90,8 @@ RecordTab::RecordTab(QWidget *parent)
     splitLayout->addWidget(m_timeSpin, 1, 2);
 
     // ---- 环形模式 ----
-    auto *ringChk = new QCheckBox("环形模式 (覆盖最旧文件)", splitGroup);
-    splitLayout->addWidget(ringChk, 2, 0, 1, 3);
+    m_ringChk = new QCheckBox("环形模式 (覆盖最旧文件)", splitGroup);
+    splitLayout->addWidget(m_ringChk, 2, 0, 1, 3);
 
     connect(m_splitByTime, &QCheckBox::toggled, m_timeSpin, &QWidget::setEnabled);
 
@@ -183,6 +183,8 @@ RecordTab::RecordTab(QWidget *parent)
     connect(browseBtn, &QPushButton::clicked, this, &RecordTab::onBrowse);
     connect(m_recordBtn, &QPushButton::toggled, this, &RecordTab::onRecord);
     connect(m_triggerRecordBtn, &QPushButton::toggled, this, &RecordTab::onTriggerRecord);
+    connect(m_pauseBtn, &QPushButton::clicked, this, &RecordTab::onPauseClicked);
+    connect(m_stopBtn, &QPushButton::clicked, this, &RecordTab::onStopClicked);
 }
 
 void RecordTab::onBrowse()
@@ -221,6 +223,15 @@ void RecordTab::onTriggerRecord()
     m_triggerRecordBtn->setText(on ? "停止触发录制" : "开始触发录制");
 
     if (on) {
+        // 检查是否启用了触发录制
+        if (!m_triggerEnable->isChecked()) {
+            // 未启用触发录制，回退为普通录制
+            m_triggerRecordBtn->blockSignals(true);
+            m_triggerRecordBtn->setChecked(false);
+            m_triggerRecordBtn->setText("开始触发录制");
+            m_triggerRecordBtn->blockSignals(false);
+            return;
+        }
         // 发送触发录制配置
         emit triggerRecordingRequested(
             m_dirEdit->text(),
@@ -230,13 +241,31 @@ void RecordTab::onTriggerRecord()
             m_sizeSpin->value(),
             m_splitByTime->isChecked(),
             m_timeSpin->value(),
-            false,  // ringMode - could add UI later
+            m_ringChk->isChecked(),
             10,     // maxFiles
             m_triggerExprEdit->text(),
             m_preTriggerSpin->value(),
             m_postTriggerSpin->value(),
             m_repeatTriggerChk->isChecked());
     } else {
-        emit recordToggled(false);
+        // 停止触发录制器（而非普通录制器）
+        emit triggerRecordingStopped();
     }
+}
+
+void RecordTab::onPauseClicked()
+{
+    bool nowPaused = (m_pauseBtn->text() == "暂停");
+    m_pauseBtn->setText(nowPaused ? "继续" : "暂停");
+    m_statusLabel->setText(nowPaused ? "状态: 已暂停" : "状态: 录制中...");
+    emit pauseRequested(nowPaused);
+}
+
+void RecordTab::onStopClicked()
+{
+    // 停止录制 = 取消录制按钮的选中状态（触发 onRecord → emit recordToggled(false)）
+    m_recordBtn->setChecked(false);
+    m_pauseBtn->setText("暂停");
+    m_pauseBtn->setEnabled(false);
+    m_stopBtn->setEnabled(false);
 }

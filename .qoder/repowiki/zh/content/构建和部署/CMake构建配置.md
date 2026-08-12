@@ -8,25 +8,30 @@
 - [resources/resources.qrc](file://resources/resources.qrc)
 - [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
 - [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
+- [src/ui/columnfilterpopup.h](file://src/ui/columnfilterpopup.h)
+- [src/ui/columnfilterpopup.cpp](file://src/ui/columnfilterpopup.cpp)
+- [src/ui/filterheaderview.h](file://src/ui/filterheaderview.h)
+- [src/ui/filterheaderview.cpp](file://src/ui/filterheaderview.cpp)
 </cite>
 
 ## 更新摘要
 **所做更改**
-- 新增Qt6 Svg组件支持以启用SVG图标系统功能
-- 改进构建配置以支持新的设备驱动和资源文件管理
-- 增强SVG图标渲染系统的集成和依赖管理
-- 优化驱动DLL的自动复制和安装流程
+- 新增Excel风格列筛选弹出面板组件，提供强大的数据过滤功能
+- 更新UI层源文件列表以包含columnfilterpopup.cpp和columnfilterpopup.h
+- 增强表头视图支持，集成漏斗图标和排序指示器
+- 改进用户界面交互体验，支持实时搜索和批量操作
 
 ## 目录
 1. [项目概述](#项目概述)
 2. [根目录CMakeLists.txt配置](#根目录cmakeliststxt配置)
 3. [src/CMakeLists.txt核心配置](#srccmakeliststxt核心配置)
-4. [SVG图标系统集成](#svg图标系统集成)
-5. [设备驱动支持配置](#设备驱动支持配置)
-6. [第三方库依赖管理](#第三方库依赖管理)
-7. [平台特定配置](#平台特定配置)
-8. [构建优化配置](#构建优化配置)
-9. [安装目标配置](#安装目标配置)
+4. [Excel风格列筛选系统](#excel风格列筛选系统)
+5. [SVG图标系统集成](#svg图标系统集成)
+6. [设备驱动支持配置](#设备驱动支持配置)
+7. [第三方库依赖管理](#第三方库依赖管理)
+8. [平台特定配置](#平台特定配置)
+9. [构建优化配置](#构建优化配置)
+10. [安装目标配置](#安装目标配置)
 
 ## 项目概述
 
@@ -129,6 +134,8 @@ Qt数据模型实现：
 - 特殊视图: udsview.h/cpp, canopenview.h/cpp
 - 主题管理: thememanager.h/cpp
 - 测量设置: measurementsetupview.h/cpp
+- **列筛选**: columnfilterpopup.h/cpp (新增)
+- **表头视图**: filterheaderview.h/cpp (增强)
 
 **章节来源**
 - [src/CMakeLists.txt:5-62](file://src/CMakeLists.txt#L5-L62)
@@ -174,6 +181,85 @@ add_library(sin_ui STATIC
 - [src/CMakeLists.txt:210-212](file://src/CMakeLists.txt#L210-L212)
 - [src/CMakeLists.txt:167-172](file://src/CMakeLists.txt#L167-L172)
 - [src/CMakeLists.txt:222-225](file://src/CMakeLists.txt#L222-L225)
+
+## Excel风格列筛选系统
+
+### ColumnFilterPopup组件架构
+
+**新增** 实现了完整的Excel风格列筛选弹出面板，提供强大的数据过滤功能：
+
+```mermaid
+graph TD
+A[ColumnFilterPopup] --> B[搜索框]
+A --> C[操作按钮组]
+A --> D[值列表]
+A --> E[确认取消按钮]
+B --> F[实时搜索过滤]
+C --> G[全选/清除/反选]
+D --> H[复选框列表]
+E --> I[应用筛选/清除筛选]
+H --> J[显示值和计数]
+```
+
+### 核心功能特性
+
+#### 搜索功能
+- 实时搜索：输入时立即过滤显示结果
+- 大小写不敏感搜索
+- 支持部分匹配
+
+#### 批量操作
+- **全选**：选择所有当前可见项
+- **清除**：取消选择所有当前可见项  
+- **反选**：切换当前可见项的选择状态
+
+#### 值显示
+- 显示原始值文本
+- 显示出现次数统计
+- 支持复选框状态管理
+
+### 信号与槽机制
+
+**已更新** ColumnFilterPopup提供了完整的信号接口：
+
+```cpp
+signals:
+    void filterApplied(int column, const QSet<QString> &selected);
+    void filterCleared(int column);
+```
+
+### FilterHeaderView集成
+
+**已更新** 表头视图集成了漏斗图标和排序指示器：
+
+```cpp
+// 自定义绘制漏斗图标
+void drawFilterIcon(QPainter *painter, const QRect &rect,
+                    bool active, bool hovered) const;
+
+// 检测漏斗图标点击区域
+int sectionAtFilter(const QPoint &pos) const;
+```
+
+### 用户界面设计
+
+#### 布局结构
+- **顶部**：搜索框，支持清空按钮
+- **中部**：全选/清除/反选按钮行
+- **主体**：可滚动的值列表，最大高度300px
+- **底部**：清除筛选和确定按钮
+
+#### 视觉样式
+- 白色背景，灰色边框
+- 激活状态蓝色高亮
+- 悬停状态深灰色提示
+- 始终可见的浅灰色漏斗图标
+
+**章节来源**
+- [src/ui/columnfilterpopup.h:15-85](file://src/ui/columnfilterpopup.h#L15-L85)
+- [src/ui/columnfilterpopup.cpp:18-79](file://src/ui/columnfilterpopup.cpp#L18-L79)
+- [src/ui/filterheaderview.h:8-69](file://src/ui/filterheaderview.h#L8-L69)
+- [src/ui/filterheaderview.cpp:181-229](file://src/ui/filterheaderview.cpp#L181-L229)
 
 ## SVG图标系统集成
 
@@ -561,13 +647,15 @@ H --> I[zlib]
 H --> J[Threads]
 B --> K[qcustomplot]
 B --> L[Qt6::Svg]
+B --> M[columnfilterpopup组件]
+M --> N[FilterHeaderView]
 ```
 
 ### 构建步骤
 1. **配置阶段**: CMake检查依赖项并生成构建系统
 2. **编译阶段**: 
    - 先编译sin_core核心库
-   - 再编译sin_ui界面库
+   - 再编译sin_ui界面库（包含新的columnfilterpopup组件）
    - 最后链接sin可执行文件
 3. **链接阶段**: 链接所有依赖库生成最终可执行文件
 4. **安装阶段**: 将可执行文件和驱动文件安装到指定目录
@@ -577,7 +665,9 @@ B --> L[Qt6::Svg]
 - **链接时间**: 使用默认链接器确保稳定性
 - **内存占用**: 精简调试信息减少内存占用
 - **启动时间**: 优化的二进制文件提升应用程序启动速度
+- **用户体验**: 新增的列筛选功能提供更高效的数据过滤能力
 
 **章节来源**
 - [src/CMakeLists.txt:141-145](file://src/CMakeLists.txt#L141-L145)
 - [src/CMakeLists.txt:274-281](file://src/CMakeLists.txt#L274-L281)
+- [src/CMakeLists.txt:102-162](file://src/CMakeLists.txt#L102-L162)

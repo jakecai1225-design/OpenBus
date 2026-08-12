@@ -240,36 +240,22 @@ private:
 };
 
 // ============================================================
-//  发送面板 — 仅入口
+//  收发面板 — 发送 / 回放 / 录制 三个入口
 // ============================================================
-class SendPanel : public SidePanel
+class TransceivePanel : public SidePanel
 {
     Q_OBJECT
 public:
-    explicit SendPanel(QWidget *parent = nullptr);
+    explicit TransceivePanel(QWidget *parent = nullptr);
 
 signals:
     void openSendRequested();
     void openPlaybackRequested();
+    void openRecordRequested();
 
 private slots:
     void onSendClicked();
     void onPlaybackClicked();
-};
-
-// ============================================================
-//  录制面板 — 仅入口
-// ============================================================
-class RecordPanel : public SidePanel
-{
-    Q_OBJECT
-public:
-    explicit RecordPanel(QWidget *parent = nullptr);
-
-signals:
-    void openRecordRequested();
-
-private slots:
     void onRecordClicked();
 };
 
@@ -358,7 +344,7 @@ private:
 //  SideBar — 侧边栏容器（QStackedWidget 切换面板）
 //  索引必须与 ActivityBar::Activity 枚举一致
 //  0=Project 1=Analysis(Flow) 2=Device 3=Trace 4=Graphic
-//  5=Dbc 6=Send 7=Record 8=Protocol 9=Tools 10=Settings
+//  5=Dbc 6=Transceive 7=Protocol 8=Tools 9=Settings
 // ============================================================
 class SideBar : public QStackedWidget
 {
@@ -370,8 +356,7 @@ public:
     TracePanel *tracePanel() const { return m_trace; }
     GraphicConfigPanel *graphicConfigPanel() const { return m_graphicConfig; }
     DbcPanel *dbcPanel() const { return m_dbc; }
-    SendPanel *sendPanel() const { return m_send; }
-    RecordPanel *recordPanel() const { return m_record; }
+    TransceivePanel *transceivePanel() const { return m_transceive; }
     DevicePanel *devicePanel() const { return m_device; }
     ProtocolPanel *protocolPanel() const { return m_protocol; }
     MeasurementSetupPanel *analysisPanel() const { return m_analysis; }
@@ -386,8 +371,7 @@ private:
     TracePanel *m_trace;
     GraphicConfigPanel *m_graphicConfig;
     DbcPanel *m_dbc;
-    SendPanel *m_send;
-    RecordPanel *m_record;
+    TransceivePanel *m_transceive;
     DevicePanel *m_device;
     ProtocolPanel *m_protocol;
     MeasurementSetupPanel *m_analysis;

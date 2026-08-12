@@ -24,6 +24,7 @@ class Recorder;
 class Player;
 class CanSimulator;
 class CanDeviceManager;
+class TriggerRecorder;
 class DbcManager;
 class ActivityBar;
 class SideBar;
@@ -42,6 +43,7 @@ class QComboBox;
 class QTabWidget;
 class QDockWidget;
 class QToolButton;
+class QTimer;
 
 /**
  * @brief 主窗口 — 菜单栏 + QDockWidget 可停靠布局
@@ -200,8 +202,12 @@ private:
     // ---- 核心引擎 ----
     Recorder *m_recorder = nullptr;
     Player *m_player = nullptr;
+    TriggerRecorder *m_triggerRecorder = nullptr;
     CanSimulator *m_simulator = nullptr;
     CanDeviceManager *m_deviceManager = nullptr;  ///< 硬件设备管理器（ZLG/PEAK/...）
+
+    // ---- 周期发送 ----
+    QHash<int, QTimer *> m_periodicSenders;  ///< 行号 → 周期发送定时器
 
     // ---- 菜单 Action ----
     QAction *m_recordAction = nullptr;

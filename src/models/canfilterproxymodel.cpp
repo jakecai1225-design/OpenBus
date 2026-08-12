@@ -236,7 +236,24 @@ bool CanFilterProxyModel::lessThan(const QModelIndex &left, const QModelIndex &r
     case CanTraceModel::ColNo:
         return left.row() < right.row();
     case CanTraceModel::ColTime:
-        return fl.timestamp < fr.timestamp;
+        // 排序键须与 data() 显示值一致
+        switch (m_timestampMode) {
+        case SinceCapture: {
+            double prevL = (left.row() > 0) ? model->frameAt(left.row() - 1).timestamp : 0.0;
+            double prevR = (right.row() > 0) ? model->frameAt(right.row() - 1).timestamp : 0.0;
+            return (fl.timestamp - prevL) < (fr.timestamp - prevR);
+        }
+        case SinceDisplay: {
+            auto itL = m_displayDeltas.constFind(left.row());
+            auto itR = m_displayDeltas.constFind(right.row());
+            double dl = (itL != m_displayDeltas.constEnd()) ? itL.value() : fl.timestamp;
+            double dr = (itR != m_displayDeltas.constEnd()) ? itR.value() : fr.timestamp;
+            return dl < dr;
+        }
+        default:
+            // Absolute / DateTimeOfDay / SecondsSinceEpoch: 仅显示格式不同，值仍为绝对时间戳
+            return fl.timestamp < fr.timestamp;
+        }
     case CanTraceModel::ColDelta: {
         double dl = (left.row() > 0) ? fl.timestamp - model->frameAt(left.row() - 1).timestamp : 0.0;
         double dr = (right.row() > 0) ? fr.timestamp - model->frameAt(right.row() - 1).timestamp : 0.0;
@@ -281,6 +298,11 @@ void CanFilterProxyModel::setTimestampMode(TimestampMode mode)
                          index(rows - 1, CanTraceModel::ColTime),
                          {Qt::DisplayRole});
     }
+
+    // 切换显示模式后排序键可能变化（SinceCapture/SinceDisplay 显示的是增量），
+    // 若当前按 Time 列排序则需重新排序
+    if (sortColumn() == CanTraceModel::ColTime)
+        sort(CanTraceModel::ColTime, sortOrder());
 }
 
 void CanFilterProxyModel::setTimePrecision(int precision)

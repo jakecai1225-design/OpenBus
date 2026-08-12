@@ -6,6 +6,7 @@
 #include <QDebug>
 #include <QtEndian>
 #include <zlib.h>
+#include <Vector/BLF.h>
 
 // ============================================================
 //  BLF 格式常量
@@ -100,11 +101,12 @@ static QByteArray zlibInflate(const QByteArray &compressed, quint32 expectedSize
 }
 
 // ============================================================
-//  BlfWriter — 暂不支持（返回 false）
-//  BLF 写入需要完整的 BLF 文件结构构造，后续版本实现
+//  BlfWriter — 基于 vector_blf 库写入 BLF 文件
+//  支持 Classic CAN (CanMessage2) 和 CAN FD (CanFdMessage64)
 // ============================================================
 
 struct BlfWriter::Impl {
+    Vector::BLF::File file;
     int frameCount = 0;
 };
 
@@ -118,23 +120,74 @@ BlfWriter::~BlfWriter()
     close();
 }
 
-bool BlfWriter::open(const QString &/*filePath*/)
+bool BlfWriter::open(const QString &filePath)
 {
-    qWarning() << "BLF writer: 暂不支持 BLF 写入，请使用 ASC 或 CSV 格式";
-    return false;
+    m_impl->file.open(filePath.toStdString(), std::ios_base::out);
+    if (!m_impl->file.is_open()) {
+        qWarning() << "BLF writer: 无法打开文件" << filePath;
+        return false;
+    }
+    m_impl->frameCount = 0;
+    qDebug() << "BLF writer: 文件已打开" << filePath;
+    return true;
 }
 
-void BlfWriter::writeFrame(const CanFrame &/*frame*/)
+void BlfWriter::writeFrame(const CanFrame &frame)
 {
+    if (!isOpen())
+        return;
+
+    // 时间戳：秒 → 纳秒
+    uint64_t timestampNs = static_cast<uint64_t>(frame.timestamp * 1e9);
+
+    if (frame.fd) {
+        // CAN FD → CanFdMessage64
+        auto *msg = new Vector::BLF::CanFdMessage64();
+        msg->objectFlags = Vector::BLF::ObjectHeader::ObjectFlags::TimeOneNans;
+        msg->objectTimeStamp = timestampNs;
+        msg->channel = frame.channel;
+        msg->dlc = frame.dlc;
+        msg->id = frame.id;
+        if (frame.extended)
+            msg->id |= 0x80000000;  // CAN_EFF_FLAG
+        // flags: Bit 6=TX, Bit 12=EDL, Bit 13=BRS, Bit 14=ESI
+        msg->flags = 0x1000;  // EDL
+        if (frame.direction == CanFrame::Tx)
+            msg->flags |= 0x40;
+        if (frame.bitrateSwitch)
+            msg->flags |= 0x2000;
+        if (frame.errorState)
+            msg->flags |= 0x4000;
+        msg->dir = (frame.direction == CanFrame::Tx) ? 1 : 0;
+        msg->data.assign(frame.data.constBegin(), frame.data.constEnd());
+        m_impl->file.write(msg);
+    } else {
+        // Classic CAN → CanMessage2
+        auto *msg = new Vector::BLF::CanMessage2();
+        msg->objectFlags = Vector::BLF::ObjectHeader::ObjectFlags::TimeOneNans;
+        msg->objectTimeStamp = timestampNs;
+        msg->channel = frame.channel;
+        msg->flags = (frame.direction == CanFrame::Tx) ? 0x01 : 0x00;  // Bit 0 = TX
+        msg->dlc = frame.dlc;
+        msg->id = frame.id;
+        if (frame.extended)
+            msg->id |= 0x80000000;  // CAN_EFF_FLAG
+        msg->data.assign(frame.data.constBegin(), frame.data.constEnd());
+        m_impl->file.write(msg);
+    }
+
+    ++m_impl->frameCount;
 }
 
 void BlfWriter::close()
 {
+    if (m_impl->file.is_open())
+        m_impl->file.close();
 }
 
 bool BlfWriter::isOpen() const
 {
-    return false;
+    return m_impl && m_impl->file.is_open();
 }
 
 int BlfWriter::frameCount() const

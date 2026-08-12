@@ -27,7 +27,7 @@ ActivityBar::ActivityBar(QWidget *parent)
 
     // 顶部按钮 — 顺序与 Activity 枚举一致
     // 0=Project 1=Analysis(Flow) 2=Device 3=Trace 4=Graphic
-    // 5=Dbc 6=Send 7=Record 8=Protocol 9=Tools
+    // 5=Dbc 6=Transceive(收发) 7=Protocol 8=Tools
     m_buttons.append({createButton(":/icons/project.svg", "工程管理", Project), Project, "工程管理", "工程管理"});
     layout->addWidget(m_buttons.last().btn);
 
@@ -46,10 +46,7 @@ ActivityBar::ActivityBar(QWidget *parent)
     m_buttons.append({createButton(":/icons/database.svg", "数据库", Dbc), Dbc, "数据库", "数据库 — 多协议解析文件管理"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/send.svg", "发送", Send), Send, "发送", "发送"});
-    layout->addWidget(m_buttons.last().btn);
-
-    m_buttons.append({createButton(":/icons/record.svg", "录制", Record), Record, "录制", "录制"});
+    m_buttons.append({createButton(":/icons/send.svg", "收发", Transceive), Transceive, "收发", "收发 — 发送 / 回放 / 录制"});
     layout->addWidget(m_buttons.last().btn);
 
     m_buttons.append({createButton(":/icons/protocol.svg", "协议", Protocol), Protocol, "协议", "上层协议分析"});

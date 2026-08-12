@@ -59,6 +59,7 @@
 #include <QStatusBar>
 #include <QApplication>
 #include <QFileInfo>
+#include <QDir>
 #include <QPlainTextEdit>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -195,11 +196,11 @@ MainWindow::MainWindow(QWidget *parent)
             }
         }
     });
-    connect(m_sideBar->sendPanel(), &SendPanel::openSendRequested,
+    connect(m_sideBar->transceivePanel(), &TransceivePanel::openSendRequested,
             this, &MainWindow::onOpenSendTab);
-    connect(m_sideBar->sendPanel(), &SendPanel::openPlaybackRequested,
+    connect(m_sideBar->transceivePanel(), &TransceivePanel::openPlaybackRequested,
             this, &MainWindow::onOpenPlaybackTab);
-    connect(m_sideBar->recordPanel(), &RecordPanel::openRecordRequested,
+    connect(m_sideBar->transceivePanel(), &TransceivePanel::openRecordRequested,
             this, &MainWindow::onOpenRecordTab);
     connect(m_sideBar->graphicConfigPanel(), &GraphicConfigPanel::newGraphicRequested,
             this, &MainWindow::onNewGraphicRequested);
@@ -298,10 +299,8 @@ MainWindow::MainWindow(QWidget *parent)
                 act = ActivityBar::Tools;
             else if (text.contains("DBC"))
                 act = ActivityBar::Dbc;
-            else if (text.contains("发送") || text.contains("回放"))
-                act = ActivityBar::Send;
-            else if (text.contains("录制"))
-                act = ActivityBar::Record;
+            else if (text.contains("发送") || text.contains("回放") || text.contains("录制"))
+                act = ActivityBar::Transceive;
             else if (text.contains("UDS") || text.contains("CANopen"))
                 act = ActivityBar::Protocol;
 
@@ -741,10 +740,9 @@ void MainWindow::onActivityChanged(int activity)
         }
         if (!found)
             onNewGraphicRequested();
-    } else if (activity == ActivityBar::Send) {
-        onOpenSendTab();
-    } else if (activity == ActivityBar::Record) {
-        onOpenRecordTab();
+    } else if (activity == ActivityBar::Transceive) {
+        // 收发面板：只切换侧边栏显示，不自动打开标签页
+        // 用户点击侧边栏内的按钮才打开对应标签页
     } else if (activity == ActivityBar::Device) {
         // 切换到已存在的设备连接标签页
         const auto allTabs = m_editorArea->allTabWidgets();
@@ -810,15 +808,22 @@ void MainWindow::onRecord()
     if (m_recording) {
         m_recorder->stop();
     } else {
-        QString defaultName = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + ".blf";
+        QString defaultName = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + ".asc";
         QString path = QFileDialog::getSaveFileName(
-            this, "录制文件", defaultName, CanFileIO::allFileFilters(false));
+            this, "录制文件", defaultName, CanFileIO::writableFileFilters());
         if (path.isEmpty()) {
             m_recordAction->setChecked(false);
             return;
         }
+        if (!CanFileIOFactory::canWrite(QFileInfo(path).suffix())) {
+            QMessageBox::warning(this, "录制",
+                "不支持的录制格式: ." + QFileInfo(path).suffix() + "\n请使用 ASC 或 CSV 格式。");
+            m_recordAction->setChecked(false);
+            return;
+        }
         if (!m_recorder->start(path)) {
-            QMessageBox::warning(this, "录制", "无法创建文件: " + path);
+            QMessageBox::warning(this, "录制", "无法创建文件: " + path +
+                "\n请检查路径是否有效、磁盘空间是否足够。");
             m_recordAction->setChecked(false);
             m_bottomPanel->addProblem(1, "Recorder", "无法创建录制文件: " + path);
             return;
@@ -1410,23 +1415,96 @@ void MainWindow::onOpenRecordTab()
 
 void MainWindow::setupSendTab(SignalSendTab *tab)
 {
-    connect(tab, &SignalSendTab::sendAllRequested, this, [this]() {
-        m_bottomPanel->appendOutput("全部发送 (待实现)");
-    });
-    connect(tab, &SignalSendTab::stopAllRequested, this, [this]() {
-        m_bottomPanel->appendOutput("全部停止 (待实现)");
-    });
+    // 发送单帧
     connect(tab, &SignalSendTab::sendSingleRequested, this, [this](quint32 id, const QByteArray &data) {
-        m_bottomPanel->appendOutput(QString("发送单帧: ID=0x%1, DLC=%2")
-            .arg(id, 0, 16).toUpper().arg(data.size()));
+        CanFrame frame;
+        frame.id = id;
+        frame.dlc = CanFrame::lengthToDlc(data.size());
+        frame.data = data;
+        frame.direction = CanFrame::Tx;
+
+        if (m_deviceManager->sendFrame(frame)) {
+            m_bottomPanel->appendOutput(QString("发送: ID=0x%1, DLC=%2")
+                .arg(id, 0, 16).toUpper().arg(data.size()));
+        } else {
+            m_bottomPanel->appendOutput(QString("发送失败 (设备未连接或为模拟器): ID=0x%1")
+                .arg(id, 0, 16).toUpper());
+        }
     });
+
+    // 发送行（单次或周期）
     connect(tab, &SignalSendTab::sendRowRequested, this,
         [this](int row, quint32 id, const QByteArray &data, int period, int count) {
-        m_bottomPanel->appendOutput(QString("发送行%1: ID=0x%2, DLC=%3, 周期=%4ms")
-            .arg(row + 1).arg(id, 0, 16).toUpper().arg(data.size()).arg(period));
+        CanFrame frame;
+        frame.id = id;
+        frame.dlc = CanFrame::lengthToDlc(data.size());
+        frame.data = data;
+        frame.direction = CanFrame::Tx;
+
+        // 先发送一帧
+        if (m_deviceManager->sendFrame(frame)) {
+            m_bottomPanel->appendOutput(QString("发送行%1: ID=0x%2, DLC=%3")
+                .arg(row + 1).arg(id, 0, 16).toUpper().arg(data.size()));
+        } else {
+            m_bottomPanel->appendOutput(QString("发送失败 (设备未连接或为模拟器): ID=0x%1")
+                .arg(id, 0, 16).toUpper());
+        }
+
+        // 周期发送
+        if (period > 0) {
+            // 停止该行已有的定时器
+            auto it = m_periodicSenders.find(row);
+            if (it != m_periodicSenders.end()) {
+                it.value()->stop();
+                it.value()->deleteLater();
+                m_periodicSenders.erase(it);
+            }
+
+            auto *timer = new QTimer(this);
+            timer->setInterval(period);
+            int remaining = count;  // 0 = 无限
+            connect(timer, &QTimer::timeout, this, [this, id, data, row, count, timer, remaining]() mutable {
+                CanFrame f;
+                f.id = id;
+                f.dlc = CanFrame::lengthToDlc(data.size());
+                f.data = data;
+                f.direction = CanFrame::Tx;
+                m_deviceManager->sendFrame(f);
+
+                if (count > 0) {
+                    --remaining;
+                    if (remaining <= 0) {
+                        timer->stop();
+                        timer->deleteLater();
+                        m_periodicSenders.remove(row);
+                        m_bottomPanel->appendOutput(
+                            QString("行%1 周期发送完成 (%2 次)").arg(row + 1).arg(count));
+                    }
+                }
+            });
+            timer->start();
+            m_periodicSenders[row] = timer;
+        }
     });
+
+    // 停止单行
     connect(tab, &SignalSendTab::stopRowRequested, this, [this](int row) {
-        m_bottomPanel->appendOutput(QString("停止行%1").arg(row + 1));
+        auto it = m_periodicSenders.find(row);
+        if (it != m_periodicSenders.end()) {
+            it.value()->stop();
+            it.value()->deleteLater();
+            m_periodicSenders.erase(it);
+            m_bottomPanel->appendOutput(QString("停止行%1 周期发送").arg(row + 1));
+        }
+    });
+
+    // 全部停止（安全网：确保所有定时器都停止）
+    connect(tab, &SignalSendTab::stopAllRequested, this, [this]() {
+        for (auto *t : m_periodicSenders) {
+            t->stop();
+            t->deleteLater();
+        }
+        m_periodicSenders.clear();
     });
 }
 
@@ -1437,6 +1515,8 @@ void MainWindow::setupPlaybackTab(PlaybackTab *tab)
     connect(tab, &PlaybackTab::stopRequested, this, &MainWindow::onStop);
     connect(tab, &PlaybackTab::speedChanged, this, &MainWindow::onSpeedChanged);
     connect(tab, &PlaybackTab::seekChanged, this, &MainWindow::onSeekChanged);
+    connect(tab, &PlaybackTab::loopToggled, m_player, &Player::setLoop);
+    connect(tab, &PlaybackTab::autoScrollToggled, this, &MainWindow::onAutoScrollToggled);
     connect(tab, &PlaybackTab::fileLoaded, this, [this, tab](const QString &path) {
         QFileInfo fi(path);
         if (!m_player->load(path)) {
@@ -1466,27 +1546,52 @@ void MainWindow::setupRecordTab(RecordTab *tab)
 {
     connect(tab, &RecordTab::recordToggled, this, [this, tab](bool on) {
         if (on) {
-            QString defaultName = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + ".blf";
-            QString path = QFileDialog::getSaveFileName(
-                this, "录制文件", defaultName, CanFileIO::allFileFilters(false));
-            if (path.isEmpty()) {
-                tab->setRecording(false);
-                return;
-            }
+            // 使用 RecordTab 面板设置自动生成文件路径
+            QString dir = tab->directory();
+            if (dir.isEmpty()) dir = ".";
+            QDir().mkpath(dir);
+            QString prefix = tab->prefix();
+            if (prefix.isEmpty()) prefix = "rec";
+            QString fmt = tab->format();
+            if (!CanFileIOFactory::canWrite(fmt)) fmt = "asc";
+            QString fileName = prefix + "_" +
+                QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") +
+                "." + fmt;
+            QString path = QDir(dir).filePath(fileName);
+
             if (!m_recorder->start(path)) {
-                QMessageBox::warning(this, "录制", "无法创建文件: " + path);
+                QMessageBox::warning(this, "录制", "无法创建文件: " + path +
+                    "\n请检查路径是否有效、磁盘空间是否足够。");
                 tab->setRecording(false);
                 m_bottomPanel->addProblem(1, "Recorder", "无法创建录制文件: " + path);
                 return;
             }
+            m_bottomPanel->appendOutput("开始录制: " + path);
         } else {
             m_recorder->stop();
+        }
+    });
+
+    // 暂停/恢复录制
+    connect(tab, &RecordTab::pauseRequested, this, [this, tab](bool paused) {
+        if (paused) {
+            m_recorder->pause();
+            m_bottomPanel->appendOutput("录制已暂停");
+        } else {
+            m_recorder->resume();
+            m_bottomPanel->appendOutput("录制已恢复");
         }
     });
 
     // P1: 触发录制
     connect(tab, &RecordTab::triggerRecordingRequested,
             this, &MainWindow::onTriggerRecording);
+
+    // 触发录制停止
+    connect(tab, &RecordTab::triggerRecordingStopped, this, [this]() {
+        if (m_triggerRecorder)
+            m_triggerRecorder->stop();
+    });
 }
 
 void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName, int deviceType)
@@ -2110,14 +2215,12 @@ void MainWindow::onTriggerRecording(
     const QString &triggerExpr, double preTriggerSec, double postTriggerSec,
     bool repeatTrigger)
 {
-    static TriggerRecorder *triggerRec = nullptr;
-
-    if (!triggerRec) {
-        triggerRec = new TriggerRecorder(this);
+    if (!m_triggerRecorder) {
+        m_triggerRecorder = new TriggerRecorder(this);
         connect(m_simulator, &CanSimulator::frameGenerated,
-                triggerRec, &TriggerRecorder::onFrame);
+                m_triggerRecorder, &TriggerRecorder::onFrame);
         connect(m_deviceManager, &CanDeviceManager::frameGenerated,
-                triggerRec, &TriggerRecorder::onFrame);
+                m_triggerRecorder, &TriggerRecorder::onFrame);
     }
 
     TriggerRecorder::Config config;
@@ -2135,15 +2238,15 @@ void MainWindow::onTriggerRecording(
     config.postTriggerSeconds = postTriggerSec;
     config.repeatTrigger = repeatTrigger;
 
-    if (!triggerRec->isRunning()) {
-        if (!triggerRec->start(config)) {
+    if (!m_triggerRecorder->isRunning()) {
+        if (!m_triggerRecorder->start(config)) {
             QMessageBox::warning(this, "触发录制",
                 "触发条件表达式编译失败，请检查表达式语法。");
             return;
         }
         m_statusLabel->setText("触发录制中... 等待触发条件");
     } else {
-        triggerRec->stop();
+        m_triggerRecorder->stop();
         m_statusLabel->setText("触发录制已停止");
     }
 }

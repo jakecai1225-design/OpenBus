@@ -39,6 +39,8 @@ signals:
     void speedChanged(double speed);
     void seekChanged(double ratio);
     void fileLoaded(const QString &path);
+    void loopToggled(bool on);
+    void autoScrollToggled(bool on);
 
 private slots:
     void onPlay();

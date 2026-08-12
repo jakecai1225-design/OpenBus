@@ -980,11 +980,11 @@ void DevicePanel::onItemDoubleClicked(QTreeWidgetItem *item, int /*column*/)
 }
 
 // ============================================================
-//  SendPanel — 仅入口
+//  TransceivePanel — 收发面板（发送 / 回放 / 录制）
 // ============================================================
 
-SendPanel::SendPanel(QWidget *parent)
-    : SidePanel("发送", parent)
+TransceivePanel::TransceivePanel(QWidget *parent)
+    : SidePanel("收发", parent)
 {
     auto *cl = contentLayout();
 
@@ -996,40 +996,28 @@ SendPanel::SendPanel(QWidget *parent)
     playbackBtn->setObjectName("SidePanelButton");
     cl->addWidget(playbackBtn);
 
+    auto *recordBtn = new QPushButton("录制  →  点击打开录制标签页", this);
+    recordBtn->setObjectName("SidePanelButton");
+    cl->addWidget(recordBtn);
+
     cl->addStretch();
 
-    connect(sendBtn, &QPushButton::clicked, this, &SendPanel::onSendClicked);
-    connect(playbackBtn, &QPushButton::clicked, this, &SendPanel::onPlaybackClicked);
+    connect(sendBtn, &QPushButton::clicked, this, &TransceivePanel::onSendClicked);
+    connect(playbackBtn, &QPushButton::clicked, this, &TransceivePanel::onPlaybackClicked);
+    connect(recordBtn, &QPushButton::clicked, this, &TransceivePanel::onRecordClicked);
 }
 
-void SendPanel::onSendClicked()
+void TransceivePanel::onSendClicked()
 {
     emit openSendRequested();
 }
 
-void SendPanel::onPlaybackClicked()
+void TransceivePanel::onPlaybackClicked()
 {
     emit openPlaybackRequested();
 }
 
-// ============================================================
-//  RecordPanel — 仅入口
-// ============================================================
-
-RecordPanel::RecordPanel(QWidget *parent)
-    : SidePanel("录制", parent)
-{
-    auto *cl = contentLayout();
-
-    auto *btn = new QPushButton("录制  →  点击打开录制标签页", this);
-    btn->setObjectName("SidePanelButton");
-    cl->addWidget(btn);
-    cl->addStretch();
-
-    connect(btn, &QPushButton::clicked, this, &RecordPanel::onRecordClicked);
-}
-
-void RecordPanel::onRecordClicked()
+void TransceivePanel::onRecordClicked()
 {
     emit openRecordRequested();
 }
@@ -1191,8 +1179,7 @@ SideBar::SideBar(QWidget *parent)
     m_trace        = new TracePanel(this);
     m_graphicConfig = new GraphicConfigPanel(this);
     m_dbc          = new DbcPanel(this);
-    m_send         = new SendPanel(this);
-    m_record       = new RecordPanel(this);
+    m_transceive   = new TransceivePanel(this);
     m_device       = new DevicePanel(this);
     m_protocol     = new ProtocolPanel(this);
     m_analysis     = new MeasurementSetupPanel(this);
@@ -1205,11 +1192,10 @@ SideBar::SideBar(QWidget *parent)
     addWidget(m_trace);          // 3 = Trace
     addWidget(m_graphicConfig);  // 4 = Graphic
     addWidget(m_dbc);            // 5 = Dbc
-    addWidget(m_send);           // 6 = Send
-    addWidget(m_record);         // 7 = Record
-    addWidget(m_protocol);       // 8 = Protocol
-    addWidget(m_tools);          // 9 = Tools
-    addWidget(m_settings);       // 10 = Settings
+    addWidget(m_transceive);     // 6 = Transceive (收发)
+    addWidget(m_protocol);       // 7 = Protocol
+    addWidget(m_tools);          // 8 = Tools
+    addWidget(m_settings);       // 9 = Settings
 
     setCurrentIndex(0);
     setMinimumWidth(240);

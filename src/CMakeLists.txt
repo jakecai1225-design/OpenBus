@@ -199,9 +199,13 @@ endif()
 target_link_libraries(sin_core PUBLIC Qt6::Widgets)
 
 # zlib: blf.cpp 手动解析 BLF 文件需要 zlib 解压 (MinGW 自带 libz.a)
+# vector_blf: BlfWriter 使用 Vector::BLF::File 写入 BLF 文件
 target_link_libraries(sin_core PRIVATE
     z
 )
+if(TARGET vector_blf)
+    target_link_libraries(sin_core PRIVATE vector_blf)
+endif()
 
 # pugixml: arxml_importer.cpp 使用 (如果存在 pugixml 目标)
 if(TARGET pugixml)
