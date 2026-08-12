@@ -17,6 +17,7 @@ class SignalDecodeWidget;
 class SplitEditorArea;
 class SignalSendTab;
 class PlaybackTab;
+class OfflineAnalysisTab;
 class RecordTab;
 class DbcDetailTab;
 class UdsView;
@@ -107,6 +108,7 @@ private slots:
     void onGraphicPageSelected(int row);
     void onOpenSendTab();
     void onOpenPlaybackTab();
+    void onOpenOfflineAnalysisTab();
     void onOpenRecordTab();
     void onNewGraphicRequested();
     void onOpenMeasurementSetup();
@@ -176,6 +178,7 @@ private:
     void setupTraceTab(TraceTab *tab);
     void setupSendTab(SignalSendTab *tab);
     void setupPlaybackTab(PlaybackTab *tab);
+    void setupOfflineAnalysisTab(OfflineAnalysisTab *tab);
     void setupRecordTab(RecordTab *tab);
     void setupDeviceTab(DeviceConnectionTab *tab);
     void processCommand(const QString &cmd);
@@ -211,6 +214,7 @@ private:
     GraphicView *m_graphicView = nullptr;
     SignalSendTab *m_sendTab = nullptr;
     PlaybackTab *m_playbackTab = nullptr;
+    OfflineAnalysisTab *m_offlineTab = nullptr;
     RecordTab *m_recordTab = nullptr;
     DeviceConnectionTab *m_deviceTab = nullptr;
     ExtensionsTab *m_extensionsTab = nullptr;
@@ -254,6 +258,7 @@ private:
     int m_savedDockWidth = 300;
     int m_traceCount = 0;
     int m_graphicCount = 0;
+    int m_receivedFrameCount = 0;  ///< 测量期间累计接收的帧数（状态栏显示）
 
     // ---- 实例跟踪（flow 页面模块实例）----
     QMap<QString, QWidget*> m_traceInstances;    // "trace1" → TraceTab*

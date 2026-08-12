@@ -26,6 +26,8 @@ QDockWidget::title { background-color: @panelBg; padding: 0; border: none; }
 #LeftDock { background-color: @sidebarBg; border: none; }
 #BottomDock { background-color: @sidebarBg; border: none; }
 #RightDock { background-color: @sidebarBg; border: none; }
+#SideBar { background-color: @sidebarBg; }
+SidePanel { background-color: @sidebarBg; }
 
 /* ---- 面板标题 (统一: 30px 高) ---- */
 #CollapsibleTitle, #DockPanelTitle, #SidePanelTitle, #DbcDetailTitle {

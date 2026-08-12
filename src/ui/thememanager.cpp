@@ -27,7 +27,7 @@ void ThemeManager::initThemes()
     light.panelBg = "#ececec";
     light.barBg = "#dddddd";      light.barFg = "#333333";      light.barHover = "#d0d0d0";
     light.barBorder = "#c4c4c4";
-    light.activityBarBg = "#2c2c2c";  light.activityBarFg = "#cccccc";  light.activityBarHover = "#3c3c3c";
+    light.activityBarBg = "#dcdcdc";  light.activityBarFg = "#5c5c5c";  light.activityBarHover = "#cfcfcf";
     light.text = "#3b3b3b";      light.textDim = "#6c6c6c";
     light.accent = "#0066b8";     light.accentHover = "#1f7ad3"; light.accentBorder = "#005a9e";
     light.border = "#d0d0d0";    light.borderDim = "#e4e4e4";
@@ -96,7 +96,7 @@ void ThemeManager::initThemes()
     vscLight.panelBg = "#e8e8e8";
     vscLight.barBg = "#dddddd";   vscLight.barFg = "#333333";    vscLight.barHover = "#d0d0d0";
     vscLight.barBorder = "#c4c4c4";
-    vscLight.activityBarBg = "#2c2c2c";  vscLight.activityBarFg = "#cccccc";  vscLight.activityBarHover = "#3c3c3c";
+    vscLight.activityBarBg = "#d8d8d8";  vscLight.activityBarFg = "#5c5c5c";  vscLight.activityBarHover = "#cccccc";
     vscLight.text = "#333333";    vscLight.textDim = "#6c6c6c";
     vscLight.accent = "#0066b8";  vscLight.accentHover = "#1f7ad3"; vscLight.accentBorder = "#005a9e";
     vscLight.border = "#c4c4c4"; vscLight.borderDim = "#d4d4d4";
@@ -142,7 +142,7 @@ void ThemeManager::initThemes()
     solLight.panelBg = "#ddd6c1";
     solLight.barBg = "#ddd6c1";   solLight.barFg = "#586e75";    solLight.barHover = "#cdc6b1";
     solLight.barBorder = "#b8b098";
-    solLight.activityBarBg = "#073642";  solLight.activityBarFg = "#93a1a1";  solLight.activityBarHover = "#0a4858";
+    solLight.activityBarBg = "#cdc6b1";  solLight.activityBarFg = "#586e75";  solLight.activityBarHover = "#bdb6a1";
     solLight.text = "#586e75";    solLight.textDim = "#93a1a1";
     solLight.accent = "#268bd2";  solLight.accentHover = "#3a9ee3"; solLight.accentBorder = "#1a6da8";
     solLight.border = "#c8c0a8"; solLight.borderDim = "#d8d2c0";
@@ -192,12 +192,23 @@ QStringList ThemeManager::themeNames() const
     return names;
 }
 
+const Theme &ThemeManager::currentTheme() const
+{
+    static Theme fallback;
+    for (const auto &p : m_themes) {
+        if (p.first == m_currentName)
+            return p.second;
+    }
+    return fallback;
+}
+
 void ThemeManager::applyTheme(const QString &name)
 {
     for (const auto &p : m_themes) {
         if (p.first == name) {
             m_currentName = name;
             qApp->setStyleSheet(generateQss(p.second));
+            emit themeChanged(name);
             return;
         }
     }

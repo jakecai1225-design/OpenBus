@@ -22,6 +22,7 @@
 #include "ui/spliteditorarea.h"
 #include "ui/signalsendtab.h"
 #include "ui/playbacktab.h"
+#include "ui/offlineanalysistab.h"
 #include "ui/recordtab.h"
 #include "ui/dbcdetailtab.h"
 #include "ui/udsview.h"
@@ -246,6 +247,8 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onOpenSendTab);
     connect(m_sideBar->transceivePanel(), &TransceivePanel::openPlaybackRequested,
             this, &MainWindow::onOpenPlaybackTab);
+    connect(m_sideBar->transceivePanel(), &TransceivePanel::openOfflineAnalysisRequested,
+            this, &MainWindow::onOpenOfflineAnalysisTab);
     connect(m_sideBar->transceivePanel(), &TransceivePanel::openRecordRequested,
             this, &MainWindow::onOpenRecordTab);
     connect(m_sideBar->graphicConfigPanel(), &GraphicConfigPanel::newGraphicRequested,
@@ -277,6 +280,9 @@ MainWindow::MainWindow(QWidget *parent)
             this, [](const QString &name) {
         ThemeManager::instance()->applyTheme(name);
     });
+    // 主题切换后刷新 ActivityBar 图标颜色
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+            m_activityBar, &ActivityBar::refreshIcons);
     // 设备连接面板 — 点击设备条目打开标签页
     connect(m_sideBar->devicePanel(), &DevicePanel::deviceOpenRequested,
             this, &MainWindow::onOpenDeviceTab);
@@ -345,7 +351,8 @@ MainWindow::MainWindow(QWidget *parent)
                 act = ActivityBar::Tools;
             else if (text.contains("DBC"))
                 act = ActivityBar::Dbc;
-            else if (text.contains("发送") || text.contains("回放") || text.contains("录制"))
+            else if (text.contains("发送") || text.contains("回放") ||
+                     text.contains("录制") || text.contains("离线分析"))
                 act = ActivityBar::Transceive;
             else if (text.contains("UDS") || text.contains("CANopen"))
                 act = ActivityBar::Protocol;
@@ -904,7 +911,28 @@ void MainWindow::onRecord()
 void MainWindow::onPlay()
 {
     if (!m_player->isLoaded()) {
-        onOpenFile();
+        // 优先从离线分析标签页加载
+        if (m_offlineTab && !m_offlineTab->isEmpty()) {
+            QStringList paths = m_offlineTab->filePaths();
+            QVector<CanFrame> allFrames;
+            for (const auto &path : paths) {
+                auto reader = CanFileIOFactory::createReader(path);
+                if (!reader || !reader->open(path)) continue;
+                QVector<CanFrame> frames;
+                reader->readAll(frames);
+                reader->close();
+                allFrames += frames;
+            }
+            if (!allFrames.isEmpty()) {
+                std::sort(allFrames.begin(), allFrames.end(),
+                          [](const CanFrame &a, const CanFrame &b) {
+                              return a.timestamp < b.timestamp;
+                          });
+                m_player->loadFrames(allFrames);
+            }
+        }
+        if (!m_player->isLoaded())
+            onOpenFile();
         if (!m_player->isLoaded()) return;
     }
     m_player->play();
@@ -1079,11 +1107,20 @@ void MainWindow::onFrameReceived(const CanFrame &frame)
     // 发送到 Data Window
     if (m_dataWindow)
         m_dataWindow->onFrame(frame);
-    // 更新活跃标签页的统计
-    auto *active = qobject_cast<TraceTab *>(m_editorArea->currentWidget());
-    int count = active ? active->frameCount() : 0;
-    m_frameCountLabel->setText(QString::number(count) + " 帧");
-    m_rowCountLabel->setText(QString::number(count) + "行");
+    // 更新状态栏帧数（使用独立计数器，不依赖当前标签页类型）
+    m_receivedFrameCount++;
+    if (m_player->isLoaded()) {
+        // 文件回放模式：显示 "当前 / 总数"
+        int total = m_player->totalFrames();
+        m_frameCountLabel->setText(
+            QString::number(m_receivedFrameCount) + " / " +
+            QString::number(total) + " 帧");
+        m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
+    } else {
+        // 硬件实时模式：仅显示当前计数
+        m_frameCountLabel->setText(QString::number(m_receivedFrameCount) + " 帧");
+        m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
+    }
 
     // 通知插件系统
     if (m_pluginManager)
@@ -1502,6 +1539,25 @@ void MainWindow::onOpenPlaybackTab()
     openTab(m_playbackTab, "回放");
 }
 
+void MainWindow::onOpenOfflineAnalysisTab()
+{
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains(QStringLiteral("离线分析"))) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
+                return;
+            }
+        }
+    }
+    // 未找到则创建新的
+    m_offlineTab = new OfflineAnalysisTab(this);
+    setupOfflineAnalysisTab(m_offlineTab);
+    connect(m_offlineTab, &QObject::destroyed, this, [this]() { m_offlineTab = nullptr; });
+    openTab(m_offlineTab, QStringLiteral("离线分析"));
+}
+
 void MainWindow::onOpenRecordTab()
 {
     const auto allTabs = m_editorArea->allTabWidgets();
@@ -1652,6 +1708,13 @@ void MainWindow::setupPlaybackTab(PlaybackTab *tab)
         tab->setFileInfo(fi.fileName(), m_player->totalFrames(), m_player->totalTime());
         updateActions();
     });
+}
+
+void MainWindow::setupOfflineAnalysisTab(OfflineAnalysisTab *tab)
+{
+    // 离线分析标签页是纯文件列表管理，不直接加载文件
+    // 文件加载由 Flow 界面点击"开始"时统一处理（measurementToggled）
+    Q_UNUSED(tab);
 }
 
 void MainWindow::setupRecordTab(RecordTab *tab)
@@ -1830,86 +1893,22 @@ void MainWindow::onOpenMeasurementSetup()
         if (src == static_cast<int>(MeasurementSetupView::Source::File)) {
             m_simulator->stop();
             m_deviceManager->stop();
-            m_bottomPanel->appendOutput("数据源切换：文件回放");
+            m_bottomPanel->appendOutput("数据源切换：离线分析");
         } else {
             m_player->stop();
             m_bottomPanel->appendOutput("数据源切换：硬件实时");
         }
     });
     connect(view, &MeasurementSetupView::fileBrowseRequested,
-            this, [this, view]() {
-        // 支持多文件选择
-        const auto filters = FileImportFactory::fileFilters();
-        QStringList paths = QFileDialog::getOpenFileNames(
-            this, QStringLiteral("选择回放文件（可多选）"), {},
-            filters.join(QStringLiteral(";;")));
-        if (paths.isEmpty()) return;
-
-        QVector<CanFrame> allFrames;
-        QStringList loadedNames;
-        int totalFiles = paths.size();
-
-        QProgressDialog progress(QStringLiteral("正在导入回放文件..."),
-                                 QStringLiteral("取消"), 0, totalFiles * 100, this);
-        progress.setWindowModality(Qt::WindowModal);
-        progress.setMinimumDuration(500);
-
-        for (int fi_idx = 0; fi_idx < paths.size(); ++fi_idx) {
-            const auto &path = paths[fi_idx];
-            QFileInfo fi(path);
-            QString suffix = fi.suffix().toLower();
-
-            auto importer = FileImportFactory::create(path);
-            if (!importer) {
-                m_bottomPanel->appendOutput(
-                    QStringLiteral("不支持的格式: %1").arg(suffix));
-                continue;
-            }
-
-            int baseProgress = fi_idx * 100;
-            auto frames = importer->importFile(path, [&, baseProgress](double pct) {
-                progress.setValue(baseProgress + static_cast<int>(pct * 100));
-                QApplication::processEvents();
-            });
-
-            if (progress.wasCanceled()) break;
-
-            if (frames.isEmpty()) {
-                m_bottomPanel->appendOutput(
-                    QStringLiteral("文件为空或解析失败: %1").arg(fi.fileName()));
-                continue;
-            }
-
-            allFrames += frames;
-            loadedNames << fi.fileName();
-            m_bottomPanel->appendOutput(
-                QStringLiteral("已加载: %1 (%2 帧)")
-                    .arg(fi.fileName()).arg(frames.size()));
-        }
-
-        if (progress.wasCanceled() || allFrames.isEmpty()) {
-            if (allFrames.isEmpty())
-                QMessageBox::warning(this, QStringLiteral("回放"),
-                    QStringLiteral("所有文件解析失败或为空"));
-            return;
-        }
-
-        // 按时间戳排序合并的帧
-        std::sort(allFrames.begin(), allFrames.end(),
-                  [](const CanFrame &a, const CanFrame &b) {
-                      return a.timestamp < b.timestamp;
-                  });
-
-        m_player->loadFrames(allFrames);
-        view->setFilePath(paths.first());
-        m_bottomPanel->appendOutput(
-            QStringLiteral("✅ 共加载 %1 个文件, %2 帧")
-                .arg(loadedNames.size()).arg(allFrames.size()));
+            this, [this]() {
+        // 打开离线分析标签页（文件选择在该标签页内完成）
+        onOpenOfflineAnalysisTab();
     });
     connect(view, &MeasurementSetupView::measurementToggled,
             this, [this, view](bool running) {
         m_measurementRunning = running;
         if (running) {
+            m_receivedFrameCount = 0;  // 重置帧计数器
             m_bottomPanel->appendOutput(" 测量开始");
             if (view->currentSource() == MeasurementSetupView::Source::Hardware) {
                 // 硬件模式：根据 DevicePanel 选中设备决定数据源
@@ -1919,8 +1918,63 @@ void MainWindow::onOpenMeasurementSetup()
                     m_simulator->start();
                 }
             } else {
-                if (!m_player->isLoaded())
+                // 离线分析模式：从离线分析标签页加载所有文件，合并后送入 Player
+                m_player->stop();
+                QStringList paths = (m_offlineTab && !m_offlineTab->isEmpty())
+                                    ? m_offlineTab->filePaths() : QStringList{};
+
+                if (paths.isEmpty()) {
+                    // 无文件 → 回退到文件选择框
                     onOpenFile();
+                    if (!m_player->isLoaded()) return;
+                } else {
+                    // 逐个文件加载帧并合并
+                    QVector<CanFrame> allFrames;
+                    QStringList loadedNames;
+                    for (const auto &path : paths) {
+                        auto reader = CanFileIOFactory::createReader(path);
+                        if (!reader || !reader->open(path)) {
+                            m_bottomPanel->appendOutput(
+                                QStringLiteral("解析失败: %1").arg(QFileInfo(path).fileName()));
+                            continue;
+                        }
+                        QVector<CanFrame> frames;
+                        int count = reader->readAll(frames);
+                        reader->close();
+                        if (count > 0) {
+                            allFrames += frames;
+                            loadedNames << QFileInfo(path).fileName();
+                            m_bottomPanel->appendOutput(
+                                QStringLiteral("已加载: %1 (%2 帧)")
+                                    .arg(QFileInfo(path).fileName()).arg(count));
+                        }
+                    }
+                    if (allFrames.isEmpty()) {
+                        QMessageBox::warning(this, QStringLiteral("离线分析"),
+                            QStringLiteral("所有文件解析失败或为空"));
+                        return;
+                    }
+                    // 按时间戳排序合并帧
+                    std::sort(allFrames.begin(), allFrames.end(),
+                              [](const CanFrame &a, const CanFrame &b) {
+                                  return a.timestamp < b.timestamp;
+                              });
+                    m_player->loadFrames(allFrames);
+                    m_bottomPanel->appendOutput(
+                        QStringLiteral("✅ 共加载 %1 个文件, %2 帧")
+                            .arg(loadedNames.size()).arg(allFrames.size()));
+                }
+
+                // 清除所有 Trace 和 Graphic 视图
+                const auto allTabs = m_editorArea->allTabWidgets();
+                for (auto *tw : allTabs) {
+                    for (int i = 0; i < tw->count(); ++i) {
+                        auto *gv = qobject_cast<GraphicView *>(tw->widget(i));
+                        if (gv) gv->clearData();
+                        auto *tt = qobject_cast<TraceTab *>(tw->widget(i));
+                        if (tt) tt->clearTrace();
+                    }
+                }
                 m_player->play();
             }
             // 所有已启用的 Trace 实例自动开始接收数据（遵循 Flow 块使能状态）
@@ -1974,6 +2028,11 @@ void MainWindow::onOpenMeasurementSetup()
             connect(m_deviceTab, &QObject::destroyed, this, [this]() { m_deviceTab = nullptr; });
         }
         openTab(m_deviceTab, QStringLiteral("设备连接"));
+    });
+    connect(view, &MeasurementSetupView::fileBlockClicked,
+            this, [this]() {
+        // 双击 File 块 → 跳转到离线分析标签页
+        onOpenOfflineAnalysisTab();
     });
     connect(view, &MeasurementSetupView::moduleOpened,
             this, [this, view](const QString &moduleId, const QString &instanceId) {
@@ -2558,6 +2617,22 @@ void MainWindow::processCommand(const QString &cmd)
 
 void MainWindow::updateStatistics()
 {
+    if (m_measurementRunning) {
+        // 测量运行中：显示统一计数
+        if (m_player->isLoaded()) {
+            int total = m_player->totalFrames();
+            m_frameCountLabel->setText(
+                QString::number(m_receivedFrameCount) + " / " +
+                QString::number(total) + " 帧");
+        } else {
+            m_frameCountLabel->setText(QString::number(m_receivedFrameCount) + " 帧");
+        }
+        m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
+        m_filterLabel->setText(
+            QString("过滤%1/%2").arg(m_receivedFrameCount).arg(m_receivedFrameCount));
+        return;
+    }
+    // 非测量状态：显示当前 Trace 标签页统计
     auto *active = qobject_cast<TraceTab *>(m_editorArea->currentWidget());
     int total = active ? active->frameCount() : 0;
     m_frameCountLabel->setText(QString::number(total) + " 帧");

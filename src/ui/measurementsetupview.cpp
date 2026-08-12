@@ -329,15 +329,6 @@ void MeasurementSetupView::setupUi()
 
     m_toolbar->addSeparator();
 
-    auto *spacer = new QWidget(m_toolbar);
-    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    m_toolbar->addWidget(spacer);
-
-    m_statusLabel = new QLabel("帧数: 0", m_toolbar);
-    m_statusLabel->setObjectName("DimLabel");
-    m_statusLabel->setContentsMargins(10, 0, 10, 0);
-    m_toolbar->addWidget(m_statusLabel);
-
     layout->addWidget(m_toolbar);
 
     // ---- 画布 ----
@@ -399,10 +390,10 @@ void MeasurementSetupView::buildTopology()
     srcReal.enabled = (m_source == Source::Hardware);
     m_blocks["source_real"] = srcReal;
 
-    // File (文件回放)
+    // 离线分析（文件数据源）
     BlockItem srcFile;
     srcFile.id = "source_file";
-    srcFile.title = m_filePath.isEmpty() ? "File 回放" : QFileInfo(m_filePath).fileName();
+    srcFile.title = QStringLiteral("离线分析");
     srcFile.icon = "";
     srcFile.category = "source";
     srcFile.moduleName = "file";
@@ -543,10 +534,8 @@ void MeasurementSetupView::rebuildScene()
         if (b.category == "source") {
             bool isReal = (b.id == "source_real");
             b.color = isReal ? QColor(0x4a, 0x90, 0xd9) : QColor(0x4C, 0xAF, 0x50);
-            if (!isReal) {
-                b.title = m_filePath.isEmpty() ? QStringLiteral("File 回放")
-                                               : QFileInfo(m_filePath).fileName();
-            }
+            if (!isReal)
+                b.title = QStringLiteral("离线分析");
             // 活跃数据源高亮，非活跃灰显
             active = (b.id == activeSourceId());
         }
@@ -668,8 +657,7 @@ void MeasurementSetupView::updateBlockVisual(const QString &id)
                 if (b.id == "source_real") {
                     gfx->setTitle(QStringLiteral("Real 实时"));
                 } else {
-                    gfx->setTitle(m_filePath.isEmpty() ? QStringLiteral("File 回放")
-                                                       : QFileInfo(m_filePath).fileName());
+                    gfx->setTitle(QStringLiteral("离线分析"));
                 }
                 active = (b.id == activeSourceId());
             }
@@ -1008,7 +996,7 @@ void MeasurementSetupView::onSceneDoubleClicked(const QPointF &scenePos)
         if (b->id == "source_real")
             emit realBlockClicked();
         else
-            showFileConfigDialog();
+            emit fileBlockClicked();
     } else if (b->category == "channel") {
         // 双击通道 → 配置过滤条件
         showChannelFilterDialog(b->id);
@@ -1044,9 +1032,7 @@ void MeasurementSetupView::setFilePath(const QString &path)
 
 void MeasurementSetupView::onFrame(const CanFrame &)
 {
-    m_frameCount++;
-    if (m_frameCount % 100 == 0)
-        m_statusLabel->setText(QString("帧数: %1").arg(m_frameCount));
+    // 帧数统计由 MainWindow 状态栏统一显示，此处无需处理
 }
 
 void MeasurementSetupView::onStartClicked()
@@ -1054,8 +1040,6 @@ void MeasurementSetupView::onStartClicked()
     m_running = true;
     m_startAct->setEnabled(false);
     m_stopAct->setEnabled(true);
-    m_statusLabel->setText(" 测量运行中...");
-    m_frameCount = 0;
     emit measurementToggled(true);
 }
 
@@ -1064,7 +1048,6 @@ void MeasurementSetupView::onStopClicked()
     m_running = false;
     m_startAct->setEnabled(true);
     m_stopAct->setEnabled(false);
-    m_statusLabel->setText(QString("■ 已停止 (帧数: %1)").arg(m_frameCount));
     emit measurementToggled(false);
 }
 
@@ -1145,8 +1128,8 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
     if (blockCategory == "source") {
         // 切换数据源
         if (blockId == "source_real") {
-            auto *actSwitch = m_rightMenu->addAction(QStringLiteral("切换到 File 文件回放"));
-            actSwitch->setStatusTip(QStringLiteral("切换到文件回放模式"));
+            auto *actSwitch = m_rightMenu->addAction(QStringLiteral("切换到离线分析"));
+            actSwitch->setStatusTip(QStringLiteral("切换到离线分析模式"));
             connect(actSwitch, &QAction::triggered, this, [this]() {
                 setSource(Source::File);
                 emit sourceChanged(static_cast<int>(Source::File));
@@ -1163,12 +1146,12 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
         m_rightMenu->addSeparator();
         auto *actCfg = m_rightMenu->addAction(
             blockId == "source_real" ? QStringLiteral("设备参数配置...")
-                                       : QStringLiteral("选择回放文件..."));
+                                       : QStringLiteral("打开离线分析..."));
         connect(actCfg, &QAction::triggered, this, [this, blockId]() {
             if (blockId == "source_real")
                 emit realBlockClicked();
             else
-                showFileConfigDialog();
+                emit fileBlockClicked();
         });
     }
 

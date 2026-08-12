@@ -139,6 +139,8 @@ set(SRC_UI
     ui/signalsendtab.cpp
     ui/playbacktab.h
     ui/playbacktab.cpp
+    ui/offlineanalysistab.h
+    ui/offlineanalysistab.cpp
     ui/recordtab.h
     ui/recordtab.cpp
     ui/datawindow.h

@@ -42,6 +42,7 @@
 SidePanel::SidePanel(const QString &title, QWidget *parent)
     : QWidget(parent), m_contentLayout(nullptr)
 {
+    setAttribute(Qt::WA_StyledBackground, true);
     setupTitle(title);
 }
 
@@ -982,7 +983,7 @@ void DevicePanel::onItemDoubleClicked(QTreeWidgetItem *item, int /*column*/)
 }
 
 // ============================================================
-//  TransceivePanel — 收发面板（发送 / 回放 / 录制）
+//  TransceivePanel — 收发面板（发送 / 回放 / 离线分析 / 录制）
 // ============================================================
 
 TransceivePanel::TransceivePanel(QWidget *parent)
@@ -998,6 +999,10 @@ TransceivePanel::TransceivePanel(QWidget *parent)
     playbackBtn->setObjectName("SidePanelButton");
     cl->addWidget(playbackBtn);
 
+    auto *offlineBtn = new QPushButton("离线分析  →  点击打开离线分析标签页", this);
+    offlineBtn->setObjectName("SidePanelButton");
+    cl->addWidget(offlineBtn);
+
     auto *recordBtn = new QPushButton("录制  →  点击打开录制标签页", this);
     recordBtn->setObjectName("SidePanelButton");
     cl->addWidget(recordBtn);
@@ -1006,6 +1011,7 @@ TransceivePanel::TransceivePanel(QWidget *parent)
 
     connect(sendBtn, &QPushButton::clicked, this, &TransceivePanel::onSendClicked);
     connect(playbackBtn, &QPushButton::clicked, this, &TransceivePanel::onPlaybackClicked);
+    connect(offlineBtn, &QPushButton::clicked, this, &TransceivePanel::onOfflineAnalysisClicked);
     connect(recordBtn, &QPushButton::clicked, this, &TransceivePanel::onRecordClicked);
 }
 
@@ -1017,6 +1023,11 @@ void TransceivePanel::onSendClicked()
 void TransceivePanel::onPlaybackClicked()
 {
     emit openPlaybackRequested();
+}
+
+void TransceivePanel::onOfflineAnalysisClicked()
+{
+    emit openOfflineAnalysisRequested();
 }
 
 void TransceivePanel::onRecordClicked()
@@ -1428,6 +1439,9 @@ void ExtensionsPanel::filterPlugins(const QString &text)
 SideBar::SideBar(QWidget *parent)
     : QStackedWidget(parent)
 {
+    setObjectName("SideBar");
+    setAttribute(Qt::WA_StyledBackground, true);
+
     m_project      = new ProjectPanel(this);
     m_trace        = new TracePanel(this);
     m_graphicConfig = new GraphicConfigPanel(this);

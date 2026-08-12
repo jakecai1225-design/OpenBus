@@ -1,9 +1,12 @@
 #include "playbacktab.h"
 
 #include "core/canfileio/canfileio.h"
+#include "core/canfileio/canfileio_factory.h"
+#include "core/canframe.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QPushButton>
 #include <QSlider>
@@ -13,6 +16,7 @@
 #include <QLineEdit>
 #include <QTableWidget>
 #include <QTableWidgetItem>
+#include <QProgressBar>
 #include <QHeaderView>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -30,7 +34,7 @@ PlaybackTab::PlaybackTab(QWidget *parent)
 
     // Play / Pause / Stop
     auto *btnLayout = new QHBoxLayout;
-    m_playBtn = new QPushButton(" 播放", ctrlGroup);
+    m_playBtn = new QPushButton("▶ 播放", ctrlGroup);
     m_pauseBtn = new QPushButton("⏸ 暂停", ctrlGroup);
     m_stopBtn = new QPushButton("⏹ 停止", ctrlGroup);
     m_playBtn->setEnabled(false);
@@ -89,19 +93,28 @@ PlaybackTab::PlaybackTab(QWidget *parent)
     auto *listGroup = new QGroupBox("回放文件列表", this);
     auto *listLayout = new QVBoxLayout(listGroup);
 
-    m_fileList = new QTableWidget(0, 5, listGroup);
-    m_fileList->setHorizontalHeaderLabels({"#", "文件名", "帧数", "时长", "状态"});
-    m_fileList->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_fileList = new QTableWidget(0, 6, listGroup);
+    m_fileList->setHorizontalHeaderLabels({"#", "文件名", "帧数", "时长", "进度", "状态"});
     m_fileList->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_fileList->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_fileList->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_fileList->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    m_fileList->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
+    m_fileList->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
     m_fileList->verticalHeader()->setVisible(false);
     m_fileList->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_fileList->setEditTriggers(QAbstractItemView::NoEditTriggers);
     listLayout->addWidget(m_fileList);
 
     auto *listBtnLayout = new QHBoxLayout;
     m_addFileBtn = new QPushButton("+ 添加文件", listGroup);
     m_removeFileBtn = new QPushButton("- 删除文件", listGroup);
+    m_moveUpBtn = new QPushButton("▲ 上移", listGroup);
+    m_moveDownBtn = new QPushButton("▼ 下移", listGroup);
     listBtnLayout->addWidget(m_addFileBtn);
     listBtnLayout->addWidget(m_removeFileBtn);
+    listBtnLayout->addWidget(m_moveUpBtn);
+    listBtnLayout->addWidget(m_moveDownBtn);
     listBtnLayout->addStretch();
     listLayout->addLayout(listBtnLayout);
 
@@ -126,6 +139,12 @@ PlaybackTab::PlaybackTab(QWidget *parent)
 
     mainLayout->addWidget(miscGroup);
 
+    // ---- 异步文件解析定时器 ----
+    m_parseTimer = new QTimer(this);
+    m_parseTimer->setInterval(50);
+    m_parseTimer->setSingleShot(false);
+    connect(m_parseTimer, &QTimer::timeout, this, &PlaybackTab::onParseTimer);
+
     // ---- 信号连接 ----
     connect(m_playBtn, &QPushButton::clicked, this, &PlaybackTab::onPlay);
     connect(m_pauseBtn, &QPushButton::clicked, this, &PlaybackTab::onPause);
@@ -139,6 +158,8 @@ PlaybackTab::PlaybackTab(QWidget *parent)
     });
     connect(m_addFileBtn, &QPushButton::clicked, this, &PlaybackTab::onAddFile);
     connect(m_removeFileBtn, &QPushButton::clicked, this, &PlaybackTab::onRemoveFile);
+    connect(m_moveUpBtn, &QPushButton::clicked, this, &PlaybackTab::onMoveUp);
+    connect(m_moveDownBtn, &QPushButton::clicked, this, &PlaybackTab::onMoveDown);
     connect(m_fileList, &QTableWidget::cellDoubleClicked,
             this, &PlaybackTab::onFileListDoubleClicked);
     connect(m_loopChk, &QCheckBox::toggled, this, &PlaybackTab::loopToggled);
@@ -167,19 +188,122 @@ void PlaybackTab::onAddFile()
 
         auto *nameItem = new QTableWidgetItem(fi.fileName());
         nameItem->setData(Qt::UserRole, path);  // 存储完整路径
+        nameItem->setToolTip(path);
         m_fileList->setItem(row, 1, nameItem);
 
-        m_fileList->setItem(row, 2, new QTableWidgetItem("-"));
+        m_fileList->setItem(row, 2, new QTableWidgetItem("解析中..."));
         m_fileList->setItem(row, 3, new QTableWidgetItem("-"));
-        m_fileList->setItem(row, 4, new QTableWidgetItem("就绪"));
+        m_fileList->setItem(row, 5, new QTableWidgetItem("就绪"));
+
+        // 进度条
+        auto *bar = new QProgressBar();
+        bar->setRange(0, 100);
+        bar->setValue(0);
+        bar->setFormat("—");
+        bar->setAlignment(Qt::AlignCenter);
+        m_fileList->setCellWidget(row, 4, bar);
+
+        // 加入解析队列
+        m_parseQueue.enqueue(row);
     }
+
+    if (!m_parseTimer->isActive())
+        m_parseTimer->start();
 }
 
 void PlaybackTab::onRemoveFile()
 {
     int row = m_fileList->currentRow();
-    if (row >= 0)
-        m_fileList->removeRow(row);
+    if (row < 0) return;
+
+    // 从解析队列中移除
+    m_parseQueue.removeOne(row);
+    // 调整队列中大于该行的行号
+    for (int i = 0; i < m_parseQueue.size(); ++i) {
+        if (m_parseQueue[i] > row)
+            m_parseQueue[i] = m_parseQueue[i] - 1;
+    }
+
+    m_fileList->removeRow(row);
+
+    if (m_currentLoadedRow == row)
+        m_currentLoadedRow = -1;
+    else if (m_currentLoadedRow > row)
+        m_currentLoadedRow--;
+
+    renumberRows();
+}
+
+void PlaybackTab::onMoveUp()
+{
+    int row = m_fileList->currentRow();
+    if (row <= 0) return;
+
+    // 交换 row 和 row-1 的所有 cell 内容
+    for (int col = 0; col < m_fileList->columnCount(); ++col) {
+        if (col == 4) {
+            // 进度列是 widget，需要交换 widget
+            auto *w1 = m_fileList->cellWidget(row, col);
+            auto *w2 = m_fileList->cellWidget(row - 1, col);
+            m_fileList->removeCellWidget(row, col);
+            m_fileList->removeCellWidget(row - 1, col);
+            if (w1) m_fileList->setCellWidget(row - 1, col, w1);
+            if (w2) m_fileList->setCellWidget(row, col, w2);
+        } else {
+            auto *item1 = m_fileList->takeItem(row, col);
+            auto *item2 = m_fileList->takeItem(row - 1, col);
+            if (item2) m_fileList->setItem(row, col, item2);
+            if (item1) m_fileList->setItem(row - 1, col, item1);
+        }
+    }
+
+    renumberRows();
+    m_fileList->setCurrentCell(row - 1, 0);
+
+    if (m_currentLoadedRow == row)
+        m_currentLoadedRow = row - 1;
+    else if (m_currentLoadedRow == row - 1)
+        m_currentLoadedRow = row;
+}
+
+void PlaybackTab::onMoveDown()
+{
+    int row = m_fileList->currentRow();
+    if (row < 0 || row >= m_fileList->rowCount() - 1) return;
+
+    // 交换 row 和 row+1 的所有 cell 内容
+    for (int col = 0; col < m_fileList->columnCount(); ++col) {
+        if (col == 4) {
+            auto *w1 = m_fileList->cellWidget(row, col);
+            auto *w2 = m_fileList->cellWidget(row + 1, col);
+            m_fileList->removeCellWidget(row, col);
+            m_fileList->removeCellWidget(row + 1, col);
+            if (w1) m_fileList->setCellWidget(row + 1, col, w1);
+            if (w2) m_fileList->setCellWidget(row, col, w2);
+        } else {
+            auto *item1 = m_fileList->takeItem(row, col);
+            auto *item2 = m_fileList->takeItem(row + 1, col);
+            if (item2) m_fileList->setItem(row, col, item2);
+            if (item1) m_fileList->setItem(row + 1, col, item1);
+        }
+    }
+
+    renumberRows();
+    m_fileList->setCurrentCell(row + 1, 0);
+
+    if (m_currentLoadedRow == row)
+        m_currentLoadedRow = row + 1;
+    else if (m_currentLoadedRow == row + 1)
+        m_currentLoadedRow = row;
+}
+
+void PlaybackTab::renumberRows()
+{
+    for (int i = 0; i < m_fileList->rowCount(); ++i) {
+        auto *item = m_fileList->item(i, 0);
+        if (item)
+            item->setText(QString::number(i + 1));
+    }
 }
 
 void PlaybackTab::onFileListDoubleClicked(int row, int col)
@@ -196,16 +320,79 @@ void PlaybackTab::onFileListDoubleClicked(int row, int col)
 
     // 更新列表中所有行的状态
     for (int i = 0; i < m_fileList->rowCount(); ++i) {
-        auto *statusItem = m_fileList->item(i, 4);
+        auto *statusItem = m_fileList->item(i, 5);
         if (statusItem) {
             if (i == row)
                 statusItem->setText("加载中");
             else if (statusItem->text() == "已加载" || statusItem->text() == "加载中")
                 statusItem->setText("就绪");
         }
+        // 重置非当前行的进度条
+        if (i != row) {
+            auto *bar = qobject_cast<QProgressBar*>(m_fileList->cellWidget(i, 4));
+            if (bar && bar->value() >= 100)
+                bar->setValue(0);
+        }
     }
 
+    m_currentLoadedRow = row;
     emit fileLoaded(path);
+}
+
+void PlaybackTab::onParseTimer()
+{
+    if (m_parseQueue.isEmpty()) {
+        m_parseTimer->stop();
+        return;
+    }
+
+    int row = m_parseQueue.dequeue();
+    if (row >= m_fileList->rowCount())
+        return;
+
+    parseFileInfo(row);
+}
+
+void PlaybackTab::parseFileInfo(int row)
+{
+    if (row < 0 || row >= m_fileList->rowCount())
+        return;
+
+    auto *nameItem = m_fileList->item(row, 1);
+    if (!nameItem) return;
+
+    QString path = nameItem->data(Qt::UserRole).toString();
+    if (path.isEmpty()) return;
+
+    // 使用工厂创建读取器，读取帧数和时长
+    auto reader = CanFileIOFactory::createReader(path);
+    if (!reader || !reader->open(path)) {
+        auto *framesItem = m_fileList->item(row, 2);
+        if (framesItem) framesItem->setText("解析失败");
+        auto *durItem = m_fileList->item(row, 3);
+        if (durItem) durItem->setText("-");
+        return;
+    }
+
+    QVector<CanFrame> frames;
+    int count = reader->readAll(frames);
+    reader->close();
+
+    double duration = 0.0;
+    if (count > 0 && !frames.isEmpty())
+        duration = frames.last().timestamp;
+
+    auto *framesItem = m_fileList->item(row, 2);
+    if (framesItem)
+        framesItem->setText(QString::number(count));
+
+    auto *durItem = m_fileList->item(row, 3);
+    if (durItem) {
+        if (duration > 0)
+            durItem->setText(QString::number(duration, 'f', 3) + "s");
+        else
+            durItem->setText("0.000s");
+    }
 }
 
 void PlaybackTab::setPlayerLoaded(bool loaded, bool playing)
@@ -226,6 +413,25 @@ void PlaybackTab::setProgress(int cur, int total, double curTime, double totalTi
             .arg(curTime, 0, 'f', 3).arg(totalTime, 0, 'f', 3));
     else
         m_posLabel->setText(QString("位置: %1s").arg(curTime, 0, 'f', 3));
+
+    // 更新文件列表中当前播放文件的进度条
+    if (m_currentLoadedRow >= 0 && m_currentLoadedRow < m_fileList->rowCount()) {
+        auto *bar = qobject_cast<QProgressBar*>(m_fileList->cellWidget(m_currentLoadedRow, 4));
+        if (bar) {
+            if (total > 0) {
+                int pct = static_cast<int>(cur * 100.0 / total);
+                bar->setValue(pct);
+                bar->setFormat(QString("%1% (%2/%3)").arg(pct).arg(cur).arg(total));
+            } else {
+                bar->setValue(0);
+                bar->setFormat("—");
+            }
+        }
+
+        auto *statusItem = m_fileList->item(m_currentLoadedRow, 5);
+        if (statusItem && statusItem->text() != "播放中")
+            statusItem->setText("播放中");
+    }
 }
 
 void PlaybackTab::setFileInfo(const QString &fileName, int frames, double duration)
@@ -239,13 +445,14 @@ void PlaybackTab::setFileInfo(const QString &fileName, int frames, double durati
         if (nameItem && nameItem->text() == fileName) {
             auto *framesItem = m_fileList->item(i, 2);
             auto *durItem = m_fileList->item(i, 3);
-            auto *statusItem = m_fileList->item(i, 4);
+            auto *statusItem = m_fileList->item(i, 5);
             if (framesItem)
                 framesItem->setText(QString::number(frames));
             if (durItem)
                 durItem->setText(QString::number(duration, 'f', 3) + "s");
             if (statusItem)
                 statusItem->setText("已加载");
+            m_currentLoadedRow = i;
             break;
         }
     }

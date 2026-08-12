@@ -241,7 +241,7 @@ private:
 };
 
 // ============================================================
-//  收发面板 — 发送 / 回放 / 录制 三个入口
+//  收发面板 — 发送 / 回放 / 离线分析 / 录制 入口
 // ============================================================
 class TransceivePanel : public SidePanel
 {
@@ -252,11 +252,13 @@ public:
 signals:
     void openSendRequested();
     void openPlaybackRequested();
+    void openOfflineAnalysisRequested();
     void openRecordRequested();
 
 private slots:
     void onSendClicked();
     void onPlaybackClicked();
+    void onOfflineAnalysisClicked();
     void onRecordClicked();
 };
 

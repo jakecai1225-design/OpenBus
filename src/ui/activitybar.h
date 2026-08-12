@@ -37,6 +37,8 @@ public:
     Activity currentActivity() const { return m_current; }
     void setCurrentActivity(Activity act);
 
+    void refreshIcons();
+
 signals:
     void activityChanged(int activity);
     void activityToggled(int activity); // 同一按钮再次点击
@@ -50,6 +52,7 @@ private:
         Activity activity;
         QString text;
         QString tooltip;
+        QString iconPath;
     };
 
     QList<BtnInfo> m_buttons;

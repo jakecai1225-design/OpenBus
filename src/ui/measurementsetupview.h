@@ -80,13 +80,14 @@ signals:
     void channelFilterRequested(const QString &channelId);
     /// 请求跳转到设备连接界面（点击 Real 块时触发）
     void realBlockClicked();
+    /// 请求跳转到离线分析标签页（双击离线分析块时触发）
+    void fileBlockClicked();
 
 private:
     // ---- UI ----
     QToolBar *m_toolbar = nullptr;
     QGraphicsScene *m_scene = nullptr;
     QGraphicsView *m_view = nullptr;
-    QLabel *m_statusLabel = nullptr;
 
     // 工具栏控件
     QToolButton *m_hwBtn = nullptr;
@@ -141,9 +142,6 @@ private:
         QGraphicsPathItem *pathItem = nullptr;
     };
     QList<Connection> m_connections;
-
-    // ---- 统计 ----
-    int m_frameCount = 0;
 
     // ---- 方法 ----
     void setupUi();

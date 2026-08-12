@@ -1,16 +1,19 @@
 #include "activitybar.h"
+#include "thememanager.h"
 #include "utils/svg_icon.h"
 
 #include <QToolButton>
 #include <QVBoxLayout>
 
-// 为 ActivityBar 按钮创建双状态图标 (未选中灰色 / 选中白色)
+// 为 ActivityBar 按钮创建主题感知图标
+// 未选中 → textDim 色 / 悬停 → text 色 / 选中 → accent 色
 static QIcon makeActivityIcon(const QString &resourcePath)
 {
+    const Theme &t = ThemeManager::instance()->currentTheme();
     QIcon icon;
-    icon.addPixmap(renderSvgPixmap(resourcePath, "#858585", 24), QIcon::Normal, QIcon::Off);
-    icon.addPixmap(renderSvgPixmap(resourcePath, "#c8c8c8", 24), QIcon::Active, QIcon::Off);
-    icon.addPixmap(renderSvgPixmap(resourcePath, "#ffffff", 24), QIcon::Normal, QIcon::On);
+    icon.addPixmap(renderSvgPixmap(resourcePath, t.textDim, 24), QIcon::Normal, QIcon::Off);
+    icon.addPixmap(renderSvgPixmap(resourcePath, t.text, 24), QIcon::Active, QIcon::Off);
+    icon.addPixmap(renderSvgPixmap(resourcePath, t.accent, 24), QIcon::Normal, QIcon::On);
     return icon;
 }
 
@@ -28,34 +31,34 @@ ActivityBar::ActivityBar(QWidget *parent)
     // 顶部按钮 — 顺序与 Activity 枚举一致
     // 0=Project 1=Analysis(Flow) 2=Device 3=Trace 4=Graphic
     // 5=Dbc 6=Transceive(收发) 7=Protocol 8=Tools 9=Extensions
-    m_buttons.append({createButton(":/icons/project.svg", "工程管理", Project), Project, "工程管理", "工程管理"});
+    m_buttons.append({createButton(":/icons/project.svg", "工程管理", Project), Project, "工程管理", "工程管理", ":/icons/project.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/flow.svg", "Flow", Analysis), Analysis, "Flow", "flow — CANoe Measurement Setup 风格"});
+    m_buttons.append({createButton(":/icons/flow.svg", "Flow", Analysis), Analysis, "Flow", "flow — CANoe Measurement Setup 风格", ":/icons/flow.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/device.svg", "设备连接", Device), Device, "设备连接", "设备连接"});
+    m_buttons.append({createButton(":/icons/device.svg", "设备连接", Device), Device, "设备连接", "设备连接", ":/icons/device.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/trace.svg", "Trace", Trace), Trace, "Trace", "Trace"});
+    m_buttons.append({createButton(":/icons/trace.svg", "Trace", Trace), Trace, "Trace", "Trace", ":/icons/trace.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/graphic.svg", "Graphic", Graphic), Graphic, "Graphic", "Graphic"});
+    m_buttons.append({createButton(":/icons/graphic.svg", "Graphic", Graphic), Graphic, "Graphic", "Graphic", ":/icons/graphic.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/database.svg", "数据库", Dbc), Dbc, "数据库", "数据库 — 多协议解析文件管理"});
+    m_buttons.append({createButton(":/icons/database.svg", "数据库", Dbc), Dbc, "数据库", "数据库 — 多协议解析文件管理", ":/icons/database.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/send.svg", "收发", Transceive), Transceive, "收发", "收发 — 发送 / 回放 / 录制"});
+    m_buttons.append({createButton(":/icons/send.svg", "收发", Transceive), Transceive, "收发", "收发 — 发送 / 回放 / 录制", ":/icons/send.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/protocol.svg", "协议", Protocol), Protocol, "协议", "上层协议分析"});
+    m_buttons.append({createButton(":/icons/protocol.svg", "协议", Protocol), Protocol, "协议", "上层协议分析", ":/icons/protocol.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/tools.svg", "工具集", Tools), Tools, "工具集", "总线分析工具集 — 格式转换 / DBC 编辑 / 统计分析"});
+    m_buttons.append({createButton(":/icons/tools.svg", "工具集", Tools), Tools, "工具集", "总线分析工具集 — 格式转换 / DBC 编辑 / 统计分析", ":/icons/tools.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/extensions.svg", "扩展", Extensions), Extensions, "扩展", "插件管理 — 安装 / 启用 / 搜索插件"});
+    m_buttons.append({createButton(":/icons/extensions.svg", "扩展", Extensions), Extensions, "扩展", "插件管理 — 安装 / 启用 / 搜索插件", ":/icons/extensions.svg"});
     layout->addWidget(m_buttons.last().btn);
 
     layout->addStretch();
@@ -63,6 +66,7 @@ ActivityBar::ActivityBar(QWidget *parent)
     // 底部按钮
     auto *settingsBtn = createButton(":/icons/settings.svg", "配置", Settings, true);
     layout->addWidget(settingsBtn);
+    m_buttons.append({settingsBtn, Settings, "配置", "配置", ":/icons/settings.svg"});
 
     // 默认选中工程
     m_buttons[0].btn->setChecked(true);
@@ -114,4 +118,10 @@ void ActivityBar::onButtonClicked()
         m_current = clicked;
         emit activityChanged(static_cast<int>(clicked));
     }
+}
+
+void ActivityBar::refreshIcons()
+{
+    for (const auto &info : m_buttons)
+        info.btn->setIcon(makeActivityIcon(info.iconPath));
 }
