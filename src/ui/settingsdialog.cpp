@@ -192,7 +192,7 @@ void SettingsDialog::setupMetas()
     add("graphic.fps", "刷新率 (FPS)", "Graphic", "int", "波形图刷新帧率");
 
     // ---- Record ----
-    add("record.defaultFormat", "默认录制格式", "Record", "combo", "新录制文件的默认格式", {"sin", "asc", "blf"});
+    add("record.defaultFormat", "默认录制格式", "Record", "combo", "新录制文件的默认格式", {"openbus", "asc", "blf"});
     add("record.autoSave", "自动保存", "Record", "bool", "停止录制时自动保存文件");
 
     // ---- 日志 ----

@@ -192,7 +192,7 @@ json ProjectManager::stateToJson(const ProjectState &st,
     j["device"]["fd"] = st.deviceConfig.fd;
     j["device"]["fdBaudrate"] = st.deviceConfig.fdBaudrate;
 
-    // ---- 以下为 v1 兼容字段（绝对路径），旧版 sin 仍可读取 ----
+    // ---- 以下为 v1 兼容字段（绝对路径），旧版 openbus 仍可读取 ----
     j["source"]["mode"] = st.sourceMode;
     j["source"]["filePath"] = st.filePath.toStdString();
     j["source"]["baudrate"] = st.baudrate;

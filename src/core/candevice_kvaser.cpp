@@ -46,11 +46,11 @@ bool CanDeviceKvaser::loadDll()
 
     m_dll.setFileName(QStringLiteral("canlib32"));
     if (!m_dll.load()) {
-        SIN_LOG_DEBUG("CanDeviceKvaser", "canlib32.dll not found");
+        OPENBUS_LOG_DEBUG("CanDeviceKvaser", "canlib32.dll not found");
         return false;
     }
 
-    SIN_LOG_INFO("CanDeviceKvaser", "canlib32.dll loaded successfully");
+    OPENBUS_LOG_INFO("CanDeviceKvaser", "canlib32.dll loaded successfully");
     return true;
 }
 
@@ -68,7 +68,7 @@ bool CanDeviceKvaser::open(int devIndex, int channel, int arbBaud, int dataBaud,
         return true;
 
     if (!loadDll()) {
-        SIN_LOG_ERROR("CanDeviceKvaser", "Cannot open: canlib32.dll not available");
+        OPENBUS_LOG_ERROR("CanDeviceKvaser", "Cannot open: canlib32.dll not available");
         return false;
     }
 
@@ -88,7 +88,7 @@ bool CanDeviceKvaser::open(int devIndex, int channel, int arbBaud, int dataBaud,
         // canOpenChannel 返回 handle (>=0) 或负值 (错误)
         int h = canOpen(canlibChannel, CANLIB_CAN_INIT_FLAG | CANLIB_CAN_EXCLUSIVE);
         if (h < 0) {
-            SIN_LOG_ERROR("CanDeviceKvaser", "canOpenChannel failed: {}", h);
+            OPENBUS_LOG_ERROR("CanDeviceKvaser", "canOpenChannel failed: {}", h);
             return false;
         }
         m_canlibHandle = h;
@@ -98,7 +98,7 @@ bool CanDeviceKvaser::open(int devIndex, int channel, int arbBaud, int dataBaud,
         // 简化: 用 canSetBusParamsTiming
         // 实际实现需要根据 arbBaud 计算 BTR 参数
         // 暂时只记录打开成功
-        SIN_LOG_INFO("CanDeviceKvaser", "canlib handle={} opened, arbBaud={}", h, arbBaud);
+        OPENBUS_LOG_INFO("CanDeviceKvaser", "canlib handle={} opened, arbBaud={}", h, arbBaud);
 
         // canBusOn
         using fn_canBusOn = int (__stdcall *)(int handle);
@@ -106,13 +106,13 @@ bool CanDeviceKvaser::open(int devIndex, int channel, int arbBaud, int dataBaud,
         if (busOn)
             busOn(m_canlibHandle);
     } else {
-        SIN_LOG_ERROR("CanDeviceKvaser", "canOpenChannel not resolved");
+        OPENBUS_LOG_ERROR("CanDeviceKvaser", "canOpenChannel not resolved");
         return false;
     }
 
     m_opened = true;
     m_deviceName = QStringLiteral("Kvaser Ch%1").arg(channel + 1);
-    SIN_LOG_INFO("CanDeviceKvaser", "Device opened: {}", m_deviceName.toStdString());
+    OPENBUS_LOG_INFO("CanDeviceKvaser", "Device opened: {}", m_deviceName.toStdString());
     return true;
 }
 
@@ -134,7 +134,7 @@ void CanDeviceKvaser::close()
     }
 
     m_opened = false;
-    SIN_LOG_INFO("CanDeviceKvaser", "Device closed");
+    OPENBUS_LOG_INFO("CanDeviceKvaser", "Device closed");
 }
 
 int CanDeviceKvaser::send(const CanFrame &frame)
@@ -181,7 +181,7 @@ int CanDeviceKvaser::recv(int timeoutMs, std::vector<CanFrame> &outFrames)
         int result = canReadWait(m_canlibHandle, &id, data, &dlc, &flag, &time, timeoutMs);
         if (result != CANLIB_OK) {
             if (result != CANERR_NOMSG)
-                SIN_LOG_DEBUG("CanDeviceKvaser", "canReadWait: {}", result);
+                OPENBUS_LOG_DEBUG("CanDeviceKvaser", "canReadWait: {}", result);
             break;
         }
 

@@ -758,14 +758,14 @@ bool FilterEngine::compile(const QString &expr)
 
     if (!m_impl->ast) {
         m_impl->errorMsg = parser.error();
-        SIN_LOG_WARN("FilterEngine", "compile failed: '{}' -> '{}', error: {}",
+        OPENBUS_LOG_WARN("FilterEngine", "compile failed: '{}' -> '{}', error: {}",
                      expr.toStdString(), processed.toStdString(),
                      parser.error().toStdString());
         return false;
     }
 
     m_impl->compiled = true;
-    SIN_LOG_DEBUG("FilterEngine", "compiled: {}", processed.toStdString());
+    OPENBUS_LOG_DEBUG("FilterEngine", "compiled: {}", processed.toStdString());
     return true;
 }
 

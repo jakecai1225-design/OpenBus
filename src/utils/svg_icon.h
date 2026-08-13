@@ -1,5 +1,5 @@
-#ifndef SIN_SVG_ICON_H
-#define SIN_SVG_ICON_H
+#ifndef OPENBUS_SVG_ICON_H
+#define OPENBUS_SVG_ICON_H
 
 #include <QIcon>
 #include <QSvgRenderer>
@@ -30,4 +30,4 @@ inline QIcon svgIcon(const QString &resourcePath, const QString &color, int size
     return QIcon(renderSvgPixmap(resourcePath, color, size));
 }
 
-#endif // SIN_SVG_ICON_H
+#endif // OPENBUS_SVG_ICON_H

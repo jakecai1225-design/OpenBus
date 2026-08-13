@@ -1,4 +1,4 @@
-# sin — CAN/CAN FD Bus Analyzer
+# openbus — CAN/CAN FD Bus Analyzer
 
 <p align="center">
   <strong>Professional CAN/CAN FD bus message recording, playback, parsing & analysis tool</strong>
@@ -16,13 +16,13 @@
 
 ## Overview
 
-**sin** is a CAN/CAN FD bus message analysis tool inspired by [Wireshark](https://www.wireshark.org/), [CANoe](https://www.vector.com/canoe), and [Ozone](https://www.segger.com/products/development-tools/ozone-debugger/). It features a modern VS Code-style UI and provides a complete workflow from message recording to signal-level parsing, suitable for automotive electronics development, bus debugging, and protocol reverse engineering.
+**openbus** is a CAN/CAN FD bus message analysis tool inspired by [Wireshark](https://www.wireshark.org/), [CANoe](https://www.vector.com/canoe), and [Ozone](https://www.segger.com/products/development-tools/ozone-debugger/). It features a modern VS Code-style UI and provides a complete workflow from message recording to signal-level parsing, suitable for automotive electronics development, bus debugging, and protocol reverse engineering.
 
 ## Features
 
 ### Recording & Playback
 - **Live Recording** — Capture bus messages in real-time from CAN devices; supports CAN 2.0A/B and CAN FD
-- **File Playback** — Load `.sin` recording files with timestamp-accurate playback and variable speed (0.1x ~ 10x)
+- **File Playback** — Load `.openbus` recording files with timestamp-accurate playback and variable speed (0.1x ~ 10x)
 - **Seekable Progress** — Drag the progress bar to jump to any point in the timeline
 
 ### Trace View
@@ -47,7 +47,7 @@
 ### Project Context Management
 - **Multi-project** — Create multiple analysis projects, each managing its own CAN config, DBC files, and layout
 - **Quick Switching** — One-click project context switching without reloading files
-- **Persistence** — Project configs saved as `.sinproj` files for session restoration
+- **Persistence** — Project configs saved as `.openbusproj` files for session restoration
 
 ### VS Code-style UI
 - **Frameless Window** — Native title bar removed; menu bar at top with minimize/maximize/close buttons in the top-right corner
@@ -65,7 +65,7 @@
 ## Architecture
 
 ```
-sin/
+openbus/
 ├── CMakeLists.txt              # Top-level CMake config
 ├── src/
 │   ├── main.cpp                # Entry point
@@ -121,19 +121,19 @@ cmake -B build -S . -G "MinGW Makefiles" \
 cmake --build build
 
 # 3. Deploy (Windows)
-windeployqt build/bin/sin.exe
+windeployqt build/bin/openbus.exe
 
 # 4. Run
-./build/bin/sin.exe
+./build/bin/openbus.exe
 ```
 
 > Alternatively, use the built-in Python build script: `python scripts/build.py all`
 
 ## Usage
 
-1. **Launch** — Open sin; the interface is divided into a left sidebar, central editor area, right properties panel, and bottom output panel
+1. **Launch** — Open openbus; the interface is divided into a left sidebar, central editor area, right properties panel, and bottom output panel
 2. **Load DBC** — Use `File → Open File` to load a `.dbc` signal definition file
-3. **Load Recording** — Open a `.sin` recording file; messages populate the Trace list automatically
+3. **Load Recording** — Open a `.openbus` recording file; messages populate the Trace list automatically
 4. **Playback** — Click play in the left "Playback Control" collapsible section; adjust speed via the dropdown
 5. **Filter** — Enter an expression in the filter bar (e.g., `id == 0x123`), or right-click a column header for per-column filtering
 6. **View Signals** — Select a Trace message; the bottom Frame Info panel auto-displays decoded signal values
@@ -176,7 +176,7 @@ windeployqt build/bin/sin.exe
 **Cai Kejie (Jake.cai)**
 
 - GitHub: [https://github.com/JakeCai](https://github.com/JakeCai)
-- Project: [https://github.com/JakeCai/sin](https://github.com/JakeCai/sin)
+- Project: [https://github.com/JakeCai/openbus](https://github.com/JakeCai/openbus)
 - Email: 929168503@qq.com
 
 ## Business Cooperation
@@ -185,7 +185,7 @@ For commercial licensing, custom development, technical support, or business par
 
 - **Email**: 929168503@qq.com
 - **WeChat**: 13368295840
-- **GitHub Issues**: [https://github.com/JakeCai/sin/issues](https://github.com/JakeCai/sin/issues)
+- **GitHub Issues**: [https://github.com/JakeCai/openbus/issues](https://github.com/JakeCai/openbus/issues)
 
 ## License
 

@@ -9,7 +9,7 @@
  * @brief 书签管理器（对标 CANoe Trace Bookmarks）
  *
  * 管理报文行书签：{frameIndex, note, timestamp, color}
- * 书签保存在 .sbm 文件中（JSON 格式），也可嵌入 .sinproj 工程文件。
+ * 书签保存在 .sbm 文件中（JSON 格式），也可嵌入 .openbusproj 工程文件。
  */
 class BookmarkManager : public QObject
 {

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-sin 项目构建脚本
+openbus 项目构建脚本
 
 支持命令:
   configure  - CMake 配置
@@ -58,7 +58,7 @@ if sys.platform == "win32":
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BUILD_DIR = PROJECT_ROOT / "build"
-EXECUTABLE = BUILD_DIR / "bin" / "sin.exe"
+EXECUTABLE = BUILD_DIR / "bin" / "openbus.exe"
 TOOLS_DIR = PROJECT_ROOT / "tools"
 
 # 默认工具路径 (可通过环境变量或 --qt-dir / --mingw-dir / --cmake-dir 覆盖)
@@ -246,16 +246,16 @@ def cmd_configure(env, args):
 
 
 def kill_running_executable():
-    """编译前自动终止正在运行的 sin.exe，避免文件锁导致链接失败"""
+    """编译前自动终止正在运行的 openbus.exe，避免文件锁导致链接失败"""
     if sys.platform != "win32":
         return
     try:
         result = subprocess.run(
-            ["taskkill", "/F", "/IM", "sin.exe"],
+            ["taskkill", "/F", "/IM", "openbus.exe"],
             capture_output=True, text=True
         )
         if result.returncode == 0:
-            warn("检测到 sin.exe 正在运行，已自动终止")
+            warn("检测到 openbus.exe 正在运行，已自动终止")
             # 等待进程完全退出、文件锁释放
             import time
             for _ in range(20):
@@ -429,7 +429,7 @@ def cmd_open(env, args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="sin 项目构建脚本",
+        description="openbus 项目构建脚本",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 常用命令:

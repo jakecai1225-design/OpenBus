@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(sin
+project(openbus
     VERSION 0.1.0
     DESCRIPTION "报文解析、分析、回放、录制、trace、graphic 桌面软件"
     LANGUAGES CXX
@@ -57,6 +57,6 @@ add_subdirectory(src)
 # ============================================================
 #  安装规则
 # ============================================================
-install(TARGETS sin
+install(TARGETS openbus
     RUNTIME DESTINATION bin
 )

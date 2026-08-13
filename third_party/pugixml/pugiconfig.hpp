@@ -2,7 +2,7 @@
 #define PUGICONFIG_HPP
 
 // pugixml configuration header
-// This is a minimal config for sin project usage.
+// This is a minimal config for openbus project usage.
 // Download pugixml.hpp and pugixml.cpp from https://github.com/zeux/pugixml
 // and place them in this directory before building.
 

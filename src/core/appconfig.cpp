@@ -180,7 +180,7 @@ json AppConfig::defaultConfig()
         {"graphic.fps", 30},
 
         // ---- Record ----
-        {"record.defaultFormat", "sin"},
+        {"record.defaultFormat", "openbus"},
         {"record.autoSave", false},
 
         // ---- Filter ----

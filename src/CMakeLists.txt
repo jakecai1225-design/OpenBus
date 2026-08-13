@@ -157,54 +157,54 @@ set(SRC_UI
 )
 
 # ============================================================
-#  sin_core — 核心静态库 (数据结构、录制、回放、DBC、过滤引擎)
+#  openbus_core — 核心静态库 (数据结构、录制、回放、DBC、过滤引擎)
 #  拆分为静态库后，改 UI 代码不会触发 core 重编译
 # ============================================================
-add_library(sin_core STATIC
+add_library(openbus_core STATIC
     ${SRC_CORE}
     ${SRC_MODELS}
     ${SRC_UTILS}
 )
 
-# PUBLIC: UI 层通过链接 sin_core 获得这些头文件路径
+# PUBLIC: UI 层通过链接 openbus_core 获得这些头文件路径
 #   - spdlog: core/logging.h (公共头) 包含 <spdlog/spdlog.h>
 #   - nlohmann_json: core/appconfig.h (公共头) 包含 <nlohmann/json.hpp>
 #   - concurrentqueue: core/cansimulator.h (公共头) → utils/message_queue.h → <concurrentqueue.h>
-target_include_directories(sin_core PUBLIC
+target_include_directories(openbus_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/spdlog/include")
-    target_include_directories(sin_core PUBLIC ${CMAKE_SOURCE_DIR}/third_party/spdlog/include)
+    target_include_directories(openbus_core PUBLIC ${CMAKE_SOURCE_DIR}/third_party/spdlog/include)
 endif()
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/nlohmann_json/nlohmann/json.hpp")
-    target_include_directories(sin_core PUBLIC ${CMAKE_SOURCE_DIR}/third_party/nlohmann_json)
+    target_include_directories(openbus_core PUBLIC ${CMAKE_SOURCE_DIR}/third_party/nlohmann_json)
 endif()
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/concurrentqueue/concurrentqueue.h")
-    target_include_directories(sin_core PUBLIC ${CMAKE_SOURCE_DIR}/third_party/concurrentqueue)
+    target_include_directories(openbus_core PUBLIC ${CMAKE_SOURCE_DIR}/third_party/concurrentqueue)
 endif()
 
 # pugixml include path (for arxml_importer.h which includes "pugixml.hpp")
 if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/pugixml/pugixml.hpp")
-    target_include_directories(sin_core PUBLIC ${CMAKE_SOURCE_DIR}/third_party/pugixml)
+    target_include_directories(openbus_core PUBLIC ${CMAKE_SOURCE_DIR}/third_party/pugixml)
 endif()
 
-target_link_libraries(sin_core PUBLIC Qt6::Widgets)
+target_link_libraries(openbus_core PUBLIC Qt6::Widgets)
 
 # zlib: blf.cpp 手动解析 BLF 文件需要 zlib 解压 (MinGW 自带 libz.a)
-target_link_libraries(sin_core PRIVATE
+target_link_libraries(openbus_core PRIVATE
     z
 )
 
 # pugixml: arxml_importer.cpp 使用 (如果存在 pugixml 目标)
 if(TARGET pugixml)
-    target_link_libraries(sin_core PRIVATE pugixml)
+    target_link_libraries(openbus_core PRIVATE pugixml)
 endif()
 
 # PCH — 核心层使用精简的 Qt 头（无 Widget），编译更快
-target_precompile_headers(sin_core PRIVATE
+target_precompile_headers(openbus_core PRIVATE
     <QObject>
     <QString>
     <QStringList>
@@ -236,28 +236,28 @@ target_precompile_headers(sin_core PRIVATE
 )
 
 # ============================================================
-#  sin_ui — UI 静态库 (所有界面组件)
+#  openbus_ui — UI 静态库 (所有界面组件)
 #  改 UI 代码时只需重编译此库 + 最终链接，不影响 core
 # ============================================================
-add_library(sin_ui STATIC
+add_library(openbus_ui STATIC
     ${SRC_UI}
 )
 
-# PUBLIC: 可执行文件通过链接 sin_ui 获得 sin_core 的头文件路径
-target_link_libraries(sin_ui PUBLIC
-    sin_core
+# PUBLIC: 可执行文件通过链接 openbus_ui 获得 openbus_core 的头文件路径
+target_link_libraries(openbus_ui PUBLIC
+    openbus_core
     Qt6::Widgets
 )
 
 # qcustomplot: 仅 graphicview.cpp 使用，graphicview.h 用前向声明 → PRIVATE
 # Qt6::Svg: SVG 线条图标渲染 (activitybar / sidebarpanels)
-target_link_libraries(sin_ui PRIVATE
+target_link_libraries(openbus_ui PRIVATE
     qcustomplot
     Qt6::Svg
 )
 
 # PCH — UI 层使用完整的 Qt Widget 头列表
-target_precompile_headers(sin_ui PRIVATE
+target_precompile_headers(openbus_ui PRIVATE
     <QWidget>
     <QMainWindow>
     <QVBoxLayout>
@@ -301,22 +301,22 @@ target_precompile_headers(sin_ui PRIVATE
 )
 
 # ============================================================
-#  sin — 可执行目标
+#  openbus — 可执行目标
 # ============================================================
-qt_add_executable(sin
+qt_add_executable(openbus
     main.cpp
     ../resources/resources.qrc
 )
 
-target_link_libraries(sin PRIVATE
-    sin_ui
+target_link_libraries(openbus PRIVATE
+    openbus_ui
 )
 
 # ============================================================
 #  Windows: 以 GUI 程序方式运行 (不弹出控制台窗口)
 # ============================================================
 if(WIN32)
-    set_target_properties(sin PROPERTIES
+    set_target_properties(openbus PROPERTIES
         WIN32_EXECUTABLE TRUE
     )
 endif()
@@ -327,10 +327,10 @@ endif()
 #  driver/ 目录是项目中的存储位置，编译时拷贝到 exe 同级目录
 # ============================================================
 if(EXISTS "${CMAKE_SOURCE_DIR}/driver")
-    add_custom_command(TARGET sin POST_BUILD
+    add_custom_command(TARGET openbus POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_SOURCE_DIR}/driver"
-                "$<TARGET_FILE_DIR:sin>"
+                "$<TARGET_FILE_DIR:openbus>"
         COMMENT "Copying driver DLLs to output directory"
     )
     # 安装规则 — 安装包包含驱动 DLL
@@ -343,6 +343,6 @@ endif()
 # ============================================================
 #  安装规则
 # ============================================================
-install(TARGETS sin
+install(TARGETS openbus
     RUNTIME DESTINATION bin
 )

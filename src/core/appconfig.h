@@ -12,7 +12,7 @@ using json = nlohmann::json;
 /**
  * @brief 基于 nlohmann/json 的应用配置管理（类似 VS Code settings.json）
  *
- * 配置文件路径: %APPDATA%/sin/sin/settings.json
+ * 配置文件路径: %APPDATA%/openbus/openbus/settings.json
  * 提供 typed getter/setter，支持默认值回退。
  * 修改后调用 save() 持久化，或由析构时自动保存。
  */

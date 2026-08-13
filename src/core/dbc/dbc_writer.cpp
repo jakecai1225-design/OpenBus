@@ -55,7 +55,7 @@ bool write(const QString &filePath, const DbcFile &file)
 
     // VERSION
     ts << "VERSION \""
-       << (file.version.isEmpty() ? QStringLiteral("sin DBC editor") : escString(file.version))
+       << (file.version.isEmpty() ? QStringLiteral("openbus DBC editor") : escString(file.version))
        << "\"\n";
 
     // NS_ (new symbols)

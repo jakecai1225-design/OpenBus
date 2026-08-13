@@ -230,7 +230,7 @@ bool parse(const QString &filePath, DbcFile &out)
         }
     }
 
-    SIN_LOG_INFO("DBC", "Parsing: {} lines: {}",
+    OPENBUS_LOG_INFO("DBC", "Parsing: {} lines: {}",
                  out.fileName.toStdString(), mergedLines.size());
 
     // 正则表达式
@@ -511,7 +511,7 @@ bool parse(const QString &filePath, DbcFile &out)
         }
     }
 
-    SIN_LOG_INFO("DBC", "Parsed: {} messages, {} nodes, {} valueTables, {} attrDefs, {} attrValues",
+    OPENBUS_LOG_INFO("DBC", "Parsed: {} messages, {} nodes, {} valueTables, {} attrDefs, {} attrValues",
                  out.messages.size(), out.nodes.size(),
                  out.valueTables.size(), out.attributeDefs.size(),
                  out.attributeValues.size());

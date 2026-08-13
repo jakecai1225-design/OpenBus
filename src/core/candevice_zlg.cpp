@@ -191,12 +191,12 @@ static QString findZlgDllPath()
             continue;
         // 通过 PE 头判断位数，不加载 DLL（避免 DllMain 副作用）
         if (!isDll64Bit(path)) {
-            SIN_LOG_WARN("CanDeviceZLG",
+            OPENBUS_LOG_WARN("CanDeviceZLG",
                          "DLL found but 32-bit (skipped): {}",
                          path.toStdString());
             continue;
         }
-        SIN_LOG_INFO("CanDeviceZLG", "DLL found: {}", path.toStdString());
+        OPENBUS_LOG_INFO("CanDeviceZLG", "DLL found: {}", path.toStdString());
         return path;
     }
     // 回退到系统 PATH
@@ -212,7 +212,7 @@ bool CanDeviceZLG::loadDll()
     m_dll.load();
 
     if (!m_dll.isLoaded()) {
-        SIN_LOG_ERROR("CanDeviceZLG", "Failed to load zlgcan.dll: {}",
+        OPENBUS_LOG_ERROR("CanDeviceZLG", "Failed to load zlgcan.dll: {}",
                        m_dll.errorString().toStdString());
         return false;
     }
@@ -235,14 +235,14 @@ bool CanDeviceZLG::loadDll()
 
     if (!m_fn_open || !m_fn_close || !m_fn_init || !m_fn_start ||
         !m_fn_send || !m_fn_recvNum || !m_fn_recv || !m_fn_setVal) {
-        SIN_LOG_ERROR("CanDeviceZLG", "Missing required ZLG SDK functions");
+        OPENBUS_LOG_ERROR("CanDeviceZLG", "Missing required ZLG SDK functions");
         unloadDll();
         return false;
     }
 
     // CAN FD 函数为可选（Classic CAN 设备可能不导出）
     if (!m_fn_sendFD || !m_fn_recvFD) {
-        SIN_LOG_INFO("CanDeviceZLG", "CAN FD functions not available (Classic CAN only)");
+        OPENBUS_LOG_INFO("CanDeviceZLG", "CAN FD functions not available (Classic CAN only)");
     }
 
     return true;
@@ -277,7 +277,7 @@ bool CanDeviceZLG::open(int devIndex, int channel, int arbBaud, int dataBaud, bo
         return true;
 
     if (!loadDll()) {
-        SIN_LOG_ERROR("CanDeviceZLG", "Cannot open: zlgcan.dll not available");
+        OPENBUS_LOG_ERROR("CanDeviceZLG", "Cannot open: zlgcan.dll not available");
         return false;
     }
 
@@ -287,7 +287,7 @@ bool CanDeviceZLG::open(int devIndex, int channel, int arbBaud, int dataBaud, bo
     m_devHandle = m_fn_open(static_cast<unsigned int>(m_devType),
                              static_cast<unsigned int>(devIndex), 0);
     if (!m_devHandle) {
-        SIN_LOG_ERROR("CanDeviceZLG", "ZCAN_OpenDevice failed: type={}, index={}",
+        OPENBUS_LOG_ERROR("CanDeviceZLG", "ZCAN_OpenDevice failed: type={}, index={}",
                        static_cast<int>(m_devType), devIndex);
         return false;
     }
@@ -337,7 +337,7 @@ bool CanDeviceZLG::open(int devIndex, int channel, int arbBaud, int dataBaud, bo
     m_channelHandle = m_fn_init(m_devHandle,
                                  static_cast<unsigned int>(channel), &cfg);
     if (!m_channelHandle) {
-        SIN_LOG_ERROR("CanDeviceZLG", "ZCAN_InitCAN failed: ch={}", channel);
+        OPENBUS_LOG_ERROR("CanDeviceZLG", "ZCAN_InitCAN failed: ch={}", channel);
         m_fn_close(m_devHandle);
         m_devHandle = nullptr;
         return false;
@@ -345,7 +345,7 @@ bool CanDeviceZLG::open(int devIndex, int channel, int arbBaud, int dataBaud, bo
 
     // 启动 CAN — ZCAN_StartCAN(channelHandle)
     if (m_fn_start(m_channelHandle) != STATUS_OK) {
-        SIN_LOG_ERROR("CanDeviceZLG", "ZCAN_StartCAN failed: ch={}", channel);
+        OPENBUS_LOG_ERROR("CanDeviceZLG", "ZCAN_StartCAN failed: ch={}", channel);
         m_fn_close(m_devHandle);
         m_devHandle = nullptr;
         m_channelHandle = nullptr;
@@ -353,7 +353,7 @@ bool CanDeviceZLG::open(int devIndex, int channel, int arbBaud, int dataBaud, bo
     }
 
     m_opened = true;
-    SIN_LOG_INFO("CanDeviceZLG", "Device opened: type={}, index={}, ch={}, baud={}, fd={}",
+    OPENBUS_LOG_INFO("CanDeviceZLG", "Device opened: type={}, index={}, ch={}, baud={}, fd={}",
                  static_cast<int>(m_devType), devIndex, channel, arbBaud, canFd);
     return true;
 }
@@ -373,7 +373,7 @@ void CanDeviceZLG::close()
     m_channelHandle = nullptr;
 
     m_opened = false;
-    SIN_LOG_INFO("CanDeviceZLG", "Device closed");
+    OPENBUS_LOG_INFO("CanDeviceZLG", "Device closed");
 }
 
 int CanDeviceZLG::send(const CanFrame &frame)
@@ -583,7 +583,7 @@ static QLibrary& sharedZlgDll()
         initialized = true;
         dll.setFileName(findZlgDllPath());
         if (!dll.load())
-            SIN_LOG_ERROR("CanDeviceZLG", "sharedZlgDll: load failed: {}",
+            OPENBUS_LOG_ERROR("CanDeviceZLG", "sharedZlgDll: load failed: {}",
                          dll.errorString().toStdString());
     }
     return dll;
@@ -593,7 +593,7 @@ bool CanDeviceZLG::isAvailable()
 {
     QLibrary& dll = sharedZlgDll();
     bool ok = dll.isLoaded() && dll.resolve("ZCAN_OpenDevice") != nullptr;
-    SIN_LOG_INFO("CanDeviceZLG", "isAvailable: {}", ok ? "true" : "false");
+    OPENBUS_LOG_INFO("CanDeviceZLG", "isAvailable: {}", ok ? "true" : "false");
     return ok;
 }
 
@@ -625,7 +625,7 @@ std::vector<ICanDevice::DeviceInfo> CanDeviceZLG::enumerate()
         { DEV_USBCAN_2,      2 },
     };
 
-    SIN_LOG_INFO("CanDeviceZLG", "enumerate: scanning {} device types",
+    OPENBUS_LOG_INFO("CanDeviceZLG", "enumerate: scanning {} device types",
                  (int)(sizeof(types) / sizeof(types[0])));
 
     for (const auto &e : types) {
@@ -642,10 +642,10 @@ std::vector<ICanDevice::DeviceInfo> CanDeviceZLG::enumerate()
             //     但实际可以正常 InitCAN + StartCAN, 因此不依赖此判断
             if (fn_isOnline) {
                 int online = fn_isOnline(h);
-                SIN_LOG_INFO("CanDeviceZLG", "  Opened: type={} idx={} online={}",
+                OPENBUS_LOG_INFO("CanDeviceZLG", "  Opened: type={} idx={} online={}",
                              static_cast<int>(e.type), idx, online);
             } else {
-                SIN_LOG_INFO("CanDeviceZLG", "  Opened: type={} idx={}",
+                OPENBUS_LOG_INFO("CanDeviceZLG", "  Opened: type={} idx={}",
                              static_cast<int>(e.type), idx);
             }
     
@@ -661,6 +661,6 @@ std::vector<ICanDevice::DeviceInfo> CanDeviceZLG::enumerate()
         }
     }
 
-    SIN_LOG_INFO("CanDeviceZLG", "enumerate: found {} devices", (int)list.size());
+    OPENBUS_LOG_INFO("CanDeviceZLG", "enumerate: found {} devices", (int)list.size());
     return list;
 }

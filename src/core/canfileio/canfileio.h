@@ -16,7 +16,7 @@ struct CanFrame;
  * - PCAP (libpcap Network Capture) — 标准网络捕获格式，Linux SocketCAN/Wireshark
  * - TRC (Trace Format)            — Vector 旧版文本格式
  *
- * 已移除 .sin 专有格式支持，全面转向行业主流格式。
+ * 已移除 .openbus 专有格式支持，全面转向行业主流格式。
  */
 
 namespace CanFileIO {

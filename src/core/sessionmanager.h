@@ -13,7 +13,7 @@ using json = nlohmann::json;
 /**
  * @brief 会话管理器 — 管理 sessions.json（个人会话状态）
  *
- * 存储位置: AppDataLocation/sin/sessions.json
+ * 存储位置: AppDataLocation/openbus/sessions.json
  *
  * 职责：
  *   - 最近打开的工程/工作区列表（含元数据：名称、修改时间、固定标记）

@@ -1,4 +1,4 @@
-﻿#include "sidebarpanels.h"
+﻿﻿#include "sidebarpanels.h"
 #include "utils/svg_icon.h"
 #include "core/dbcmanager.h"
 #include "core/cansimulator.h"
@@ -223,8 +223,8 @@ void ProjectPanel::onSaveProject()
     QString path = m_projects[m_currentIndex].filePath;
     if (path.isEmpty()) {
         path = QFileDialog::getSaveFileName(
-            this, "保存工程", m_projects[m_currentIndex].name + ".sinproj",
-            "sin 工程文件 (*.sinproj);;所有文件 (*.*)");
+            this, "保存工程", m_projects[m_currentIndex].name + ".openbusproj",
+            "openbus 工程文件 (*.openbusproj);;所有文件 (*.*)");
         if (path.isEmpty()) return;
     }
 
@@ -237,7 +237,7 @@ void ProjectPanel::onOpenProject()
 {
     QString path = QFileDialog::getOpenFileName(
         this, "打开工程", {},
-        "sin 工程文件 (*.sinproj);;所有文件 (*.*)");
+        "openbus 工程文件 (*.openbusproj);;所有文件 (*.*)");
     if (path.isEmpty()) return;
 
     // 添加到工程列表

@@ -7,7 +7,7 @@
 /**
  * @brief 相对路径解析器 — 工程资源路径与绝对路径互转
  *
- * 以 .sinproj 所在目录为基准，将外部资源（DBC、日志、过滤器）
+ * 以 .openbusproj 所在目录为基准，将外部资源（DBC、日志、过滤器）
  * 在保存时转为相对路径，加载时转回绝对路径。
  *
  * Windows 跨盘符路径（如 D: 工程引用 C: 文件）无法相对化，
@@ -30,7 +30,7 @@ public:
     QStringList resolveList(const QStringList &paths) const;
     QStringList relativizeList(const QStringList &paths) const;
 
-    /// .sinproj 所在目录（绝对路径，末尾无分隔符）
+    /// .openbusproj 所在目录（绝对路径，末尾无分隔符）
     QString projectDir() const { return m_projDir; }
 
 private:

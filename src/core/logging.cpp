@@ -32,7 +32,7 @@ void init(const QString& logDir)
 
     // 滚动文件 sink（5MB x 3 个文件）
     // 若指定目录不可写，回退到当前目录下的 logs/
-    QString logFile = dir + "/sin.log";
+    QString logFile = dir + "/openbus.log";
     try {
         auto fileSink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
             logFile.toStdString(),
@@ -45,7 +45,7 @@ void init(const QString& logDir)
         // 回退到当前目录
         dir = "./logs";
         QDir().mkpath(dir);
-        logFile = dir + "/sin.log";
+        logFile = dir + "/openbus.log";
         try {
             auto fileSink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
                 logFile.toStdString(),
@@ -60,7 +60,7 @@ void init(const QString& logDir)
     }
 
     // 创建默认日志器
-    s_logger = std::make_shared<spdlog::logger>("sin", sinks.begin(), sinks.end());
+    s_logger = std::make_shared<spdlog::logger>("openbus", sinks.begin(), sinks.end());
     s_logger->set_level(spdlog::level::debug);
     s_logger->flush_on(spdlog::level::info);
     s_logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v");

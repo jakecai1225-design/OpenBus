@@ -35,7 +35,7 @@ void CanSimulator::start()
     m_workerThread = QThread::create([this]() { workerLoop(); });
     if (m_workerThread) {
         m_workerThread->start();
-        SIN_LOG_DEBUG("CanSimulator", "worker thread started, interval={}ms", m_intervalMs);
+        OPENBUS_LOG_DEBUG("CanSimulator", "worker thread started, interval={}ms", m_intervalMs);
     }
 
     // 启动主线程消费定时器
@@ -51,7 +51,7 @@ void CanSimulator::stop()
         m_workerThread->wait(1000); // 等待最多 1 秒
         m_workerThread->deleteLater();
         m_workerThread = nullptr;
-        SIN_LOG_DEBUG("CanSimulator", "worker thread stopped");
+        OPENBUS_LOG_DEBUG("CanSimulator", "worker thread stopped");
     }
 
     // 排空队列中残留帧

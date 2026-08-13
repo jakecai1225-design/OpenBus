@@ -40,7 +40,7 @@ struct ProjectGraphicInstance {
 /**
  * @brief 工程元数据 — 标签、备注、时间戳（v2 新增）
  *
- * 存储在 .sinproj 的 meta 节点中，不包含运行时路径信息。
+ * 存储在 .openbusproj 的 meta 节点中，不包含运行时路径信息。
  */
 struct ProjectMeta {
     QString created;           // ISO 8601 创建时间

@@ -13,8 +13,8 @@ int main(int argc, char *argv[])
     qRegisterMetaType<CanFrame>("CanFrame");
 
     QApplication app(argc, argv);
-    app.setApplicationName("sin");
-    app.setOrganizationName("sin");
+    app.setApplicationName("openbus");
+    app.setOrganizationName("openbus");
     app.setApplicationVersion("0.1.0");
 
     // 初始化日志系统（需在 QApplication 设置名称之后）

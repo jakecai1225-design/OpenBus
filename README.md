@@ -1,4 +1,4 @@
-# sin — CAN/CAN FD 报文分析工具
+# openbus — CAN/CAN FD 报文分析工具
 
 <p align="center">
   <strong>专业的 CAN/CAN FD 总线报文录制、回放、解析与分析桌面软件</strong>
@@ -16,7 +16,7 @@
 
 ## 简介
 
-**sin** 是一款灵感来源于 [Wireshark](https://www.wireshark.org/)、[CANoe](https://www.vector.com/canoe)、[Ozone](https://www.segger.com/products/development-tools/ozone-debugger/) 等优秀软件的 CAN/CAN FD 总线报文分析工具。采用 VS Code 风格的现代化 UI 设计，提供从报文录制到信号级解析的完整工作流，适用于汽车电子开发、总线调试、协议逆向等场景。
+**openbus** 是一款灵感来源于 [Wireshark](https://www.wireshark.org/)、[CANoe](https://www.vector.com/canoe)、[Ozone](https://www.segger.com/products/development-tools/ozone-debugger/) 等优秀软件的 CAN/CAN FD 总线报文分析工具。采用 VS Code 风格的现代化 UI 设计，提供从报文录制到信号级解析的完整工作流，适用于汽车电子开发、总线调试、协议逆向等场景。
 ![alt text](image.png)
 ## 功能特性
 
@@ -61,7 +61,7 @@
 ### 工程上下文管理
 - **多工程并行** — 创建多个分析工程，每个工程独立管理 CAN 配置、DBC 文件、布局
 - **快速切换** — 一键切换工程上下文，无需重新加载文件
-- **工程持久化** — 工程配置保存为 `.sinproj` 文件，下次打开即恢复工作状态
+- **工程持久化** — 工程配置保存为 `.openbusproj` 文件，下次打开即恢复工作状态
 
 ### 工具集
 - **侧边栏工具集入口** — ActivityBar 中的工具集图标，点击展开工具列表面板
@@ -90,7 +90,7 @@
 
 ## 对标分析：CANoe & TSMaster 核心 20% 功能
 
-> 帕累托法则：20% 的功能覆盖 80% 的日常使用场景。以下梳理 CANoe（Vector）和 TSMaster（TOSUN）最核心的功能，逐项对标 sin 当前状态与实施方案。
+> 帕累托法则：20% 的功能覆盖 80% 的日常使用场景。以下梳理 CANoe（Vector）和 TSMaster（TOSUN）最核心的功能，逐项对标 openbus 当前状态与实施方案。
 
 ### 一、竞品核心功能矩阵
 
@@ -98,7 +98,7 @@
 
 CANoe 是 Vector 旗舰级 CAN 总线开发工具，覆盖测量、分析、仿真、测试全流程。其核心 20% 功能如下：
 
-| # | 功能模块 | CANoe 能力 | sin 状态 | 差距分析 |
+| # | 功能模块 | CANoe 能力 | openbus 状态 | 差距分析 |
 |---|---------|-----------|---------|--------|
 | C1 | **Trace Window** | 实时报文列表：Delta 时间、行着色、表达式过滤、预定义过滤器、快速搜索、书签标记 | ✅ 基础已实现 | 缺少预定义过滤器集、书签持久化、动态着色规则编辑器 |
 | C2 | **Graphics Window** | 信号曲线：多 Y 轴、双游标测量、视口降采样、信号数学运算、导出图片 | ✅ 基础已实现 | 缺少游标测量、多 Y 轴、视口降采样、信号数学运算 |
@@ -115,7 +115,7 @@ CANoe 是 Vector 旗舰级 CAN 总线开发工具，覆盖测量、分析、仿�
 
 TSMaster 是 TOSUN 推出的开放总线工具平台，支持多厂商硬件，免费用于科研教育。其核心 20% 功能如下：
 
-| # | 功能模块 | TSMaster 能力 | sin 状态 | 差距分析 |
+| # | 功能模块 | TSMaster 能力 | openbus 状态 | 差距分析 |
 |---|---------|-------------|---------|--------|
 | T1 | **Trace Window** | 报文列表：覆盖模式、行着色、列筛选、实时刷新 | ✅ 已实现 | 功能基本对齐 |
 | T2 | **Graphics** | 信号曲线：多通道叠加、缩放平移 | ✅ 基础已实现 | 缺少多 Y 轴和游标联动 |
@@ -325,7 +325,7 @@ TSMaster 是 TOSUN 推出的开放总线工具平台，支持多厂商硬件，�
 **书签持久化**：
 - 右键报文行 → 「添加书签」→ 输入备注
 - 书签数据结构：`{frameIndex, note, timestamp, color}`
-- 书签保存在 `.sinproj` 工程文件中（或独立的 `.sbm` 书签文件）
+- 书签保存在 `.openbusproj` 工程文件中（或独立的 `.sbm` 书签文件）
 - 右侧面板增加「书签」标签页，点击跳转到对应帧
 
 **着色规则编辑器**：
@@ -333,7 +333,7 @@ TSMaster 是 TOSUN 推出的开放总线工具平台，支持多厂商硬件，�
 - 规则列表：每条规则 = 条件表达式 + 背景色 + 前景色
 - 条件复用 `FilterEngine`（如 `id == 0x123` → 黄色背景）
 - 规则优先级：从上到下匹配，首个命中规则的着色生效
-- 规则保存在 `.sinproj` 中
+- 规则保存在 `.openbusproj` 中
 
 **UI**：
 ```
@@ -451,43 +451,43 @@ TSMaster 是 TOSUN 推出的开放总线工具平台，支持多厂商硬件，�
 
 **CAPL 能力对标**：
 
-| CAPL 能力 | sin Lua 等价实现 | 说明 |
+| CAPL 能力 | openbus Lua 等价实现 | 说明 |
 |---------|-----------------|------|
-| `on message CAN1.0x123` | `sin.on_message(0x123, function(msg) ... end)` | 报文事件回调 |
-| `on key 'a'` | `sin.on_key('a', function() ... end)` | 按键事件回调 |
-| `on timer T1` | `sin.on_timer(1000, function() ... end)` | 定时器事件 |
-| `output(0x456, ...)` | `sin.send(0x456, {0x01, 0x02})` | 发送报文 |
-| `$Signal::RPM` | `sin.signal("RPM").value` | 读写信号值 |
-| `write("...")` | `sin.log("...")` | 日志输出 |
+| `on message CAN1.0x123` | `openbus.on_message(0x123, function(msg) ... end)` | 报文事件回调 |
+| `on key 'a'` | `openbus.on_key('a', function() ... end)` | 按键事件回调 |
+| `on timer T1` | `openbus.on_timer(1000, function() ... end)` | 定时器事件 |
+| `output(0x456, ...)` | `openbus.send(0x456, {0x01, 0x02})` | 发送报文 |
+| `$Signal::RPM` | `openbus.signal("RPM").value` | 读写信号值 |
+| `write("...")` | `openbus.log("...")` | 日志输出 |
 | `if (this.id == 0x123)` | `if msg.id == 0x123 then` | 条件判断 |
 
 **Lua 脚本示例**：
 ```lua
 -- 自动制动测试用例
-sin.on_message(0x100, function(msg)
-  local rpm = sin.signal("EngineRPM").value
+openbus.on_message(0x100, function(msg)
+  local rpm = openbus.signal("EngineRPM").value
   if rpm > 5000 then
-    sin.log("WARN: RPM 过高: " .. rpm)
-    sin.send(0x1A5, {0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
+    openbus.log("WARN: RPM 过高: " .. rpm)
+    openbus.send(0x1A5, {0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
   end
 end)
 
-sin.on_timer(1000, function()
-  sin.log("当前总线负载: " .. sin.bus_load() .. "%")
+openbus.on_timer(1000, function()
+  openbus.log("当前总线负载: " .. openbus.bus_load() .. "%")
 end)
 
-sin.on_key('F5', function()
-  sin.log("开始测试序列...")
-  sin.send(0x200, {0x01})
-  sin.wait(100)
-  sin.send(0x200, {0x00})
+openbus.on_key('F5', function()
+  openbus.log("开始测试序列...")
+  openbus.send(0x200, {0x01})
+  openbus.wait(100)
+  openbus.send(0x200, {0x00})
 end)
 ```
 
 **实现方案**：
 - 引入 `sol2`（MIT）到 `third_party/sol2/`
 - 引入 `lua`（MIT）到 `third_party/lua/`（预编译 Windows DLL + 源码）
-- 新增 `ScriptEngine` 类：封装 sol2 state，注册 sin API 绑定
+- 新增 `ScriptEngine` 类：封装 sol2 state，注册 openbus API 绑定
 - 新增 `ScriptEditor` 类：内嵌代码编辑器（语法高亮可选，先做纯文本 + 行号）
 - 脚本以标签页方式打开，F5 执行，底部输出窗口显示日志
 - 事件绑定：`ScriptEngine` 订阅 `DataCore` 报文流，匹配 Lua 回调
@@ -573,7 +573,7 @@ Phase 3 (长期 1-2 月) — P2 高级能力
 
 ### 五、对标总结
 
-| 维度 | CANoe | TSMaster | sin (当前) | sin (Phase 3 后) |
+| 维度 | CANoe | TSMaster | openbus (当前) | openbus (Phase 3 后) |
 |------|-------|---------|-----------|-----------------|
 | 报文追踪 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 | 信号图形 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
@@ -588,10 +588,10 @@ Phase 3 (长期 1-2 月) — P2 高级能力
 | UI 灵活性 | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 | 开源/免费 | ❌ | 🔄 部分 | ✅ | ✅ |
 
-**sin 差异化优势**：
-1. **VS Code 式自由布局** — CANoe/TSMaster 布局固定，sin 全面板可拖拽停靠
+**openbus 差异化优势**：
+1. **VS Code 式自由布局** — CANoe/TSMaster 布局固定，openbus 全面板可拖拽停靠
 2. **Wireshark 风格过滤引擎** — 自研递归下降解析器，语法更直观
-3. **开源 MIT 协议** — CANoe 年费数万，sin 完全免费
+3. **开源 MIT 协议** — CANoe 年费数万，openbus 完全免费
 4. **跨平台潜力** — Qt 天然支持 Linux/macOS，CANoe 仅 Windows
 5. **现代化 UI** — VS Code 风格暗色主题，视觉体验优于 CANoe 传统界面
 
@@ -683,7 +683,7 @@ end Triggerblock
 - **书签**：
   - 右键报文行 → 「添加书签」/「移除书签」
   - 书签列表在右侧面板显示，点击跳转
-  - 书签数据保存在 `.sin` 录制文件中
+  - 书签数据保存在 `.openbus` 录制文件中
 
 #### 5. Hex Dump 增强（低优先级）
 
@@ -744,7 +744,7 @@ end Triggerblock
 ## 软件架构
 
 ```
-sin/
+openbus/
 ├── CMakeLists.txt              # 顶层 CMake 构建配置
 ├── src/
 │   ├── main.cpp                # 程序入口
@@ -807,17 +807,17 @@ cmake -B build -S . -G "MinGW Makefiles" \
 cmake --build build
 
 # 3. 部署（Windows）
-D:/Qt/6.8.3/mingw_64/bin/windeployqt.exe build/bin/sin.exe
+D:/Qt/6.8.3/mingw_64/bin/windeployqt.exe build/bin/openbus.exe
 
 # 4. 运行
-./build/bin/sin.exe
+./build/bin/openbus.exe
 ```
 
 > 也可使用项目内置的 Python 构建脚本：`python scripts/build.py all`
 
 ## 使用说明
 
-1. **启动程序** — 打开 sin，界面分为左侧边栏、中央编辑区、右侧属性面板、底部输出面板
+1. **启动程序** — 打开 openbus，界面分为左侧边栏、中央编辑区、右侧属性面板、底部输出面板
 2. **加载 DBC** — 通过「文件 → 打开文件」加载 `.dbc` 信号定义文件
 3. **加载报文文件** — 打开 BLF/ASC/CSV/PCAP/TRC 等格式的报文文件，报文自动填充到 Trace 列表
 4. **回放分析** — 在左侧「回放控制」折叠栏点击播放，使用速度下拉框调节回放速率
@@ -862,7 +862,7 @@ D:/Qt/6.8.3/mingw_64/bin/windeployqt.exe build/bin/sin.exe
 **蔡可杰 (Jake.cai)**
 
 - GitHub: [https://github.com/JakeCai](https://github.com/JakeCai)
-- 项目地址: [https://github.com/JakeCai/sin](https://github.com/JakeCai/sin)
+- 项目地址: [https://github.com/JakeCai/openbus](https://github.com/JakeCai/openbus)
 - 邮箱: 929168503@qq.com
 
 ## 商业合作
@@ -871,7 +871,7 @@ D:/Qt/6.8.3/mingw_64/bin/windeployqt.exe build/bin/sin.exe
 
 - **邮箱**: 929168503@qq.com
 - **微信**: 13368295840
-- **GitHub Issues**: [https://github.com/JakeCai/sin/issues](https://github.com/JakeCai/sin/issues)
+- **GitHub Issues**: [https://github.com/JakeCai/openbus/issues](https://github.com/JakeCai/openbus/issues)
 
 ## 开源协议
 
@@ -904,7 +904,7 @@ D:/Qt/6.8.3/mingw_64/bin/windeployqt.exe build/bin/sin.exe
 **集成计划**:
 - [x] 源码引入 spdlog v1.14.1（header-only 模式）→ `third_party/spdlog/`
 - [x] 创建 `src/core/logging.h/cpp` 封装 spdlog API
-- [x] 定义宏 `SIN_LOG_DEBUG/INFO/WARN/ERROR`
+- [x] 定义宏 `OPENBUS_LOG_DEBUG/INFO/WARN/ERROR`
 - [ ] 迁移关键模块（DBC 解析、Trace 过滤、回放引擎）
 - [ ] 移除调试代码中的 `qDebug()`
 
@@ -920,12 +920,12 @@ D:/Qt/6.8.3/mingw_64/bin/windeployqt.exe build/bin/sin.exe
 
 **协议**: MIT  
 **GitHub**: https://github.com/nlohmann/json  
-**用途**: 项目配置文件、工程文件 (.sinproj)、UI 布局配置保存与加载。
+**用途**: 项目配置文件、工程文件 (.openbusproj)、UI 布局配置保存与加载。
 
 **集成计划**:
 - [ ] 单头文件引入（无需编译）
 - [ ] 创建 `src/utils/config.cpp` 序列化/反序列化 API
-- [ ] 实现 `.sinproj` 工程文件 JSON 格式转换（原纯文本解析 → JSON）
+- [ ] 实现 `.openbusproj` 工程文件 JSON 格式转换（原纯文本解析 → JSON）
 - [ ] UI 布局配置 JSON 化（Tab 位置、大小、Dock 窗口状态）
 
 **预期收益**:
@@ -1470,17 +1470,17 @@ ICanDevice (src/core/candevice.h)
 
 > **状态：方案评审中，待确认后实施**
 >
-> 参照 VS Code（Multi-root Workspace）、IAR Embedded Workbench（.eww/.ewp 分层）、CANoe（.cfg 配置体系）、Qt Creator（Session 会话管理）的工程化思路，为 sin 设计一套完整的工程管理框架，实现不同工程互相独立、归档、快速打开历史工程、同时管理多个工程。
+> 参照 VS Code（Multi-root Workspace）、IAR Embedded Workbench（.eww/.ewp 分层）、CANoe（.cfg 配置体系）、Qt Creator（Session 会话管理）的工程化思路，为 openbus 设计一套完整的工程管理框架，实现不同工程互相独立、归档、快速打开历史工程、同时管理多个工程。
 
 ### 一、现状分析与问题
 
 | 维度 | 当前实现 | 痛点 |
 |------|---------|------|
 | **单/多工程** | `ProjectManager` 单例管理一个工程，侧边栏列表可切换 | 切换时需保存当前→加载目标，状态恢复不完整；无法同时查看两个工程的 Trace 对比 |
-| **工程文件** | `.sinproj`（JSON，已有） | 文件格式可用，但 DBC/日志等外部资源使用绝对路径，工程文件移动后路径失效 |
+| **工程文件** | `.openbusproj`（JSON，已有） | 文件格式可用，但 DBC/日志等外部资源使用绝对路径，工程文件移动后路径失效 |
 | **最近工程** | AppConfig `settings.json` 中的 `project.recent` 数组 | 仅存文件路径，无元数据（修改时间、设备类型、备注）；无法搜索/筛选 |
 | **归档** | 无 | 项目完成后无法一键打包归档，历史数据散落各处 |
-| **会话状态** | `ProjectState` 内嵌在 .sinproj 中 | UI 状态（窗口布局、断点、书签）与工程配置耦合，不适合多工程场景 |
+| **会话状态** | `ProjectState` 内嵌在 .openbusproj 中 | UI 状态（窗口布局、断点、书签）与工程配置耦合，不适合多工程场景 |
 | **工程隔离** | 切换时 `captureProjectState()` + `applyProjectState()` | 数据模型全局单例，切换工程时需清空/重建，无法并行运行 |
 
 ### 二、设计目标
@@ -1488,7 +1488,7 @@ ICanDevice (src/core/candevice.h)
 1. **工程独立** — 每个工程拥有独立的 DBC、设备配置、Trace 数据、Graphic 视图，互不干扰
 2. **工作区聚合** — 将相关工程组织到工作区中，一键恢复整组工程上下文（对标 VS Code `.code-workspace`）
 3. **快速访问** — 启动页/欢迎页展示最近工程与工作区，搜索/标签/排序快速定位
-4. **归档冷存储** — 完成的工程一键归档为 `.sinarch`（ZIP），包含 .sinproj + 关联 DBC + 日志快照
+4. **归档冷存储** — 完成的工程一键归档为 `.openbusarch`（ZIP），包含 .openbusproj + 关联 DBC + 日志快照
 5. **并行管理** — 侧边栏工程面板展示多工程列表，支持同时打开多个工程的 Trace/Graphic 对比
 6. **少重复造轮子** — 序列化用已集成的 nlohmann/json；压缩归档用 zlib（已通过 vector_blf 间接引入）；文件监控用 Qt `QFileSystemWatcher`；不做自研 IDE 框架
 
@@ -1502,11 +1502,11 @@ ICanDevice (src/core/candevice.h)
 | **IAR EW** | `.eww`（XML，引用多个 .ewp） | `.ewp`（XML，编译配置） | `.eww` 内联（个人状态） | 无 |
 | **Qt Creator** | Session（`.qts` 隐式） | `.pro` / `CMakeLists.txt` | Session 文件（个人状态） | 无 |
 | **CANoe** | 无工作区概念 | `.cfg`（可读文本） | `.cfg` 内联 | 无 |
-| **sin（本方案）** | `.sinws`（JSON，引用多个 .sinproj） | `.sinproj`（JSON，已有） | `sessions.json`（个人 UI 状态） | `.sinarch`（ZIP） |
+| **openbus（本方案）** | `.openbusws`（JSON，引用多个 .openbusproj） | `.openbusproj`（JSON，已有） | `sessions.json`（个人 UI 状态） | `.openbusarch`（ZIP） |
 
 #### 文件格式定义
 
-**1. 工程文件 `.sinproj`（已有，需增强）**
+**1. 工程文件 `.openbusproj`（已有，需增强）**
 
 ```jsonc
 {
@@ -1519,7 +1519,7 @@ ICanDevice (src/core/candevice.h)
     "tags": ["制动", "CAN-FD"],  // 用户自定义标签
     "notes": ""                  // 用户备注
   },
-  // 资源引用 — 改为相对路径（相对于 .sinproj 所在目录）
+  // 资源引用 — 改为相对路径（相对于 .openbusproj 所在目录）
   "resources": {
     "dbc": ["configs/brake.dbc", "configs/steering.dbc"],
     "logs": ["data/20260807_session1.blf"],
@@ -1543,7 +1543,7 @@ ICanDevice (src/core/candevice.h)
 
 **核心改动**：外部资源路径从绝对路径改为相对路径，工程文件移动/拷贝后仍然有效。
 
-**2. 工作区文件 `.sinws`（新增）**
+**2. 工作区文件 `.openbusws`（新增）**
 
 ```jsonc
 {
@@ -1554,9 +1554,9 @@ ICanDevice (src/core/candevice.h)
     "modified": "2026-08-07T14:30:00"
   },
   "projects": [
-    {"path": "brake/brake.sinproj", "active": true},
-    {"path": "steering/steering.sinproj"},
-    {"path": "suspension/suspension.sinproj"}
+    {"path": "brake/brake.openbusproj", "active": true},
+    {"path": "steering/steering.openbusproj"},
+    {"path": "suspension/suspension.openbusproj"}
   ],
   "shared": {
     "dbc": ["shared/J1939.dbc"],  // 工作区级共享 DBC
@@ -1567,23 +1567,23 @@ ICanDevice (src/core/candevice.h)
 
 - 工作区文件与工程文件放在同一根目录下，工程路径为相对路径
 - `shared.dbc` 下的 DBC 在工作区内所有工程中自动可用（对标 VS Code workspace settings）
-- 打开 `.sinws` 等于一次性恢复整组工程上下文
+- 打开 `.openbusws` 等于一次性恢复整组工程上下文
 
 **3. 会话文件 `sessions.json`（新增，个人状态）**
 
 ```jsonc
 {
-  "lastWorkspace": "D:/projects/chassis/chassis.sinws",
+  "lastWorkspace": "D:/projects/chassis/chassis.openbusws",
   "recent": [
     {
-      "path": "D:/projects/chassis/chassis.sinws",
+      "path": "D:/projects/chassis/chassis.openbusws",
       "type": "workspace",
       "name": "底盘域测试套件",
       "modified": "2026-08-07T14:30:00",
       "pinned": true
     },
     {
-      "path": "D:/projects/brake/brake.sinproj",
+      "path": "D:/projects/brake/brake.openbusproj",
       "type": "project",
       "name": "制动系统测试",
       "modified": "2026-08-07T10:00:00",
@@ -1598,16 +1598,16 @@ ICanDevice (src/core/candevice.h)
 }
 ```
 
-- 存储位置：`QStandardPaths::AppDataLocation/sin/sessions.json`（与 `settings.json` 同目录）
-- 个人状态不进入 .sinproj / .sinws，保持工程文件可分享（对标 Qt Creator Session 设计）
+- 存储位置：`QStandardPaths::AppDataLocation/openbus/sessions.json`（与 `settings.json` 同目录）
+- 个人状态不进入 .openbusproj / .openbusws，保持工程文件可分享（对标 Qt Creator Session 设计）
 
-**4. 归档文件 `.sinarch`（新增）**
+**4. 归档文件 `.openbusarch`（新增）**
 
-- 实质上是 ZIP 压缩包，扩展名 `.sinarch`
+- 实质上是 ZIP 压缩包，扩展名 `.openbusarch`
 - 内容：
   ```
-  brake.sinarch
-  ├── brake.sinproj
+  brake.openbusarch
+  ├── brake.openbusproj
   ├── configs/          # DBC 文件
   │   ├── brake.dbc
   │   └── steering.dbc
@@ -1623,8 +1623,8 @@ ICanDevice (src/core/candevice.h)
 ```
 src/core/
 ├── projectmanager.h/cpp        # 已有 — 升级为多工程管理
-├── workspacemanager.h/cpp      # 新增 — .sinws 工作区文件管理
-├── projectarchive.h/cpp        # 新增 — .sinarch 归档打包/解包
+├── workspacemanager.h/cpp      # 新增 — .openbusws 工作区文件管理
+├── projectarchive.h/cpp        # 新增 — .openbusarch 归档打包/解包
 ├── sessionmanager.h/cpp        # 新增 — sessions.json 会话状态管理
 ├── resourceresolver.h/cpp      # 新增 — 相对路径→绝对路径解析器
 └── ...（已有模块）
@@ -1669,7 +1669,7 @@ signals:
 
 - 不持有 ProjectState 数据，仅管理工作区文件 I/O 和工程引用列表
 - 工程数据的加载/保存仍由 `ProjectManager` 负责
-- 支持无工作区模式（直接打开单个 .sinproj，隐式创建临时工作区）
+- 支持无工作区模式（直接打开单个 .openbusproj，隐式创建临时工作区）
 
 #### 4.2 ProjectManager — 升级为多工程
 
@@ -1743,7 +1743,7 @@ signals:
 };
 ```
 
-- 存储位置：`AppDataLocation/sin/sessions.json`
+- 存储位置：`AppDataLocation/openbus/sessions.json`
 - 与 `AppConfig` 解耦：AppConfig 管理全局应用设置，SessionManager 管理会话状态
 
 #### 4.4 ProjectArchive — 归档器
@@ -1752,13 +1752,13 @@ signals:
 class ProjectArchive : public QObject {
     Q_OBJECT
 public:
-    // 归档：将 .sinproj + 关联资源打包为 .sinarch
+    // 归档：将 .openbusproj + 关联资源打包为 .openbusarch
     static bool archive(const QString &projFilePath,
                         const QString &outputPath,
                         bool includeLogs = false,
                         QWidget *parent = nullptr);  // 用于进度对话框
 
-    // 解档：从 .sinarch 恢复工程
+    // 解档：从 .openbusarch 恢复工程
     static bool extract(const QString &archPath,
                         const QString &outputDir,
                         QWidget *parent = nullptr);
@@ -1769,7 +1769,7 @@ public:
 ```
 
 - 压缩实现：优先复用 zlib（vector_blf 已依赖），或引入 miniz（单文件 ~3000 行，MIT 协议）
-- 归档前自动将绝对路径转为相对路径写入 .sinproj
+- 归档前自动将绝对路径转为相对路径写入 .openbusproj
 - 解档后自动将相对路径转回绝对路径
 - 大文件日志（.blf）归档可选（`includeLogs` 参数），避免归档包过大
 
@@ -1781,7 +1781,7 @@ public:
 
 ```
 ┌──────────────────────────────────────────┐
-│  sin — CAN/CAN FD 报文分析工具              │
+│  openbus — CAN/CAN FD 报文分析工具              │
 │                                          │
 │  ┌─ 新建 ─────────────────────────────┐  │
 │  │  [新建工程]  [新建工作区]           │  │
@@ -1829,8 +1829,8 @@ public:
 
 ```
 ┌─ 归档工程 ──────────────────────┐
-│  源工程: D:/projects/brake/brake.sinproj  │
-│  归档到: D:/archive/brake_20260807.sinarch │
+│  源工程: D:/projects/brake/brake.openbusproj  │
+│  归档到: D:/archive/brake_20260807.openbusarch │
 │  ☑ 包含 DBC 文件 (2 个, 1.2 MB)            │
 │  ☐ 包含日志文件 (1 个, 45 MB)             │
 │  ☑ 归档后标记源工程为「已归档」             │
@@ -1843,8 +1843,8 @@ public:
 
 #### 6.1 路径策略：绝对→相对
 
-当前 .sinproj 中的 DBC 路径、日志路径为绝对路径（如 `D:/projects/brake/configs/brake.dbc`）。
-新方案改为相对于 .sinproj 所在目录的路径（如 `configs/brake.dbc`）。
+当前 .openbusproj 中的 DBC 路径、日志路径为绝对路径（如 `D:/projects/brake/configs/brake.dbc`）。
+新方案改为相对于 .openbusproj 所在目录的路径（如 `configs/brake.dbc`）。
 
 ```cpp
 // ResourceResolver — 路径解析器
@@ -1859,7 +1859,7 @@ public:
     QString relativize(const QString &absolutePath) const;
 
 private:
-    QString m_projDir;  // .sinproj 所在目录
+    QString m_projDir;  // .openbusproj 所在目录
 };
 ```
 
@@ -1893,7 +1893,7 @@ private:
 
 **不引入的组件及理由**：
 - **SQLite** — 工程数量在百级以内，JSON 文件 + 内存遍历完全够用，引入数据库增加部署复杂度
-- **自研 IDE 框架** — sin 不是 IDE，不需要代码索引/构建系统/调试器等通用 IDE 能力
+- **自研 IDE 框架** — openbus 不是 IDE，不需要代码索引/构建系统/调试器等通用 IDE 能力
 - **Libarchive** — 归档需求仅限 ZIP 格式，miniz 足够，libarchive 引入 10+ 文件过重
 
 ### 八、实施计划
@@ -1907,7 +1907,7 @@ private:
 
 #### Phase 2 — 工作区（2-3 天）
 
-1. **WorkspaceManager** — .sinws 文件读写
+1. **WorkspaceManager** — .openbusws 文件读写
 2. **ProjectManager 多工程** — `QList<ProjectState>` 替换单实例，`m_activeIndex` 跟踪
 3. **ProjectPanel UI 升级** — 工作区工程树 + 切换 + 右键菜单
 4. **欢迎页** — 最近列表 + 新建/打开入口
@@ -1928,11 +1928,11 @@ private:
 
 ### 九、风险与注意事项
 现在的软件版本还没有发布过，不存在兼容性问题，可以不考虑兼容问题。
-1. **路径迁移** — 从绝对路径迁移到相对路径时，如果 DBC 文件不在 .sinproj 同目录下（如 `D:/Qt/...`），保持绝对路径，不做错误的相对化
-2. **文件锁** — Windows 上 .sinproj 被外部编辑器打开时保存可能失败，需 try-catch + 友好提示
+1. **路径迁移** — 从绝对路径迁移到相对路径时，如果 DBC 文件不在 .openbusproj 同目录下（如 `D:/Qt/...`），保持绝对路径，不做错误的相对化
+2. **文件锁** — Windows 上 .openbusproj 被外部编辑器打开时保存可能失败，需 try-catch + 友好提示
 3. **归档大小** — BLF 日志可能数百 MB，归档时默认不包含日志，用户显式勾选
 4. **miniz vs zlib** — miniz 更简单但功能较少（无 ZIP64 支持，单文件 < 4GB 足够）；zlib 已引入但需手动实现 ZIP 容器逻辑
 5. **多工程内存** — 每个工程的 Trace 数据可能很大（万帧级），Phase 4 前需评估内存上限，必要时仅活跃工程加载数据，非活跃工程仅加载配置
-6. **文件格式版本号** — 所有文件格式（.sinproj / .sinws / sessions.json）都带 `version` 字段，为未来格式升级预留
+6. **文件格式版本号** — 所有文件格式（.openbusproj / .openbusws / sessions.json）都带 `version` 字段，为未来格式升级预留
 
 

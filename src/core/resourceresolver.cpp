@@ -26,7 +26,7 @@ QString ResourceResolver::resolve(const QString &relativeOrAbsPath) const
     if (m_projDir.isEmpty())
         return relativeOrAbsPath;
 
-    // 相对路径 — 基于 .sinproj 所在目录拼接
+    // 相对路径 — 基于 .openbusproj 所在目录拼接
     return QDir::cleanPath(m_projDir + '/' + relativeOrAbsPath);
 }
 

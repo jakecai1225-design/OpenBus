@@ -39,7 +39,7 @@ RightPanel::RightPanel(QWidget *parent)
     addTab(chatWidget, "AI 对话");
 
     // 初始消息
-    appendAiMessage("AI", "你好，我是 sin AI 助手，可以帮你分析 CAN 报文。");
+    appendAiMessage("AI", "你好，我是 openbus AI 助手，可以帮你分析 CAN 报文。");
 
     connect(sendBtn, &QPushButton::clicked, this, [this]() {
         QString text = m_chatInput->text().trimmed();

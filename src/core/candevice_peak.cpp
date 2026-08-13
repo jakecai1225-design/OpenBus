@@ -54,7 +54,7 @@ bool CanDevicePEAK::loadDll()
         // 尝试常见路径
         m_dll.setFileName(QStringLiteral("PCANUSB.dll"));
         if (!m_dll.load()) {
-            SIN_LOG_DEBUG("CanDevicePEAK", "PCANUSB.dll not found");
+            OPENBUS_LOG_DEBUG("CanDevicePEAK", "PCANUSB.dll not found");
             return false;
         }
     }
@@ -70,12 +70,12 @@ bool CanDevicePEAK::loadDll()
     m_fn_status  = (fn_GetStatus)    m_dll.resolve("CAN_GetStatus");
 
     if (!m_fn_init || !m_fn_read || !m_fn_write || !m_fn_uninit) {
-        SIN_LOG_ERROR("CanDevicePEAK", "Failed to resolve core functions");
+        OPENBUS_LOG_ERROR("CanDevicePEAK", "Failed to resolve core functions");
         unloadDll();
         return false;
     }
 
-    SIN_LOG_INFO("CanDevicePEAK", "PCANUSB.dll loaded successfully");
+    OPENBUS_LOG_INFO("CanDevicePEAK", "PCANUSB.dll loaded successfully");
     return true;
 }
 
@@ -103,7 +103,7 @@ bool CanDevicePEAK::open(int devIndex, int channel, int arbBaud, int dataBaud, b
         return true;
 
     if (!loadDll()) {
-        SIN_LOG_ERROR("CanDevicePEAK", "Cannot open: PCANUSB.dll not available");
+        OPENBUS_LOG_ERROR("CanDevicePEAK", "Cannot open: PCANUSB.dll not available");
         return false;
     }
 
@@ -139,7 +139,7 @@ bool CanDevicePEAK::open(int devIndex, int channel, int arbBaud, int dataBaud, b
     }
 
     if (status != PCAN_OK) {
-        SIN_LOG_ERROR("CanDevicePEAK", "CAN_Initialize failed: status=0x{:08X}",
+        OPENBUS_LOG_ERROR("CanDevicePEAK", "CAN_Initialize failed: status=0x{:08X}",
                       status);
         return false;
     }
@@ -155,7 +155,7 @@ bool CanDevicePEAK::open(int devIndex, int channel, int arbBaud, int dataBaud, b
         m_deviceName = QStringLiteral("PCAN-USB FD Ch%1").arg(channel + 1);
 
     m_opened = true;
-    SIN_LOG_INFO("CanDevicePEAK", "Device opened: {}, baud={}, fd={}",
+    OPENBUS_LOG_INFO("CanDevicePEAK", "Device opened: {}, baud={}, fd={}",
                  m_deviceName.toStdString(), arbBaud, canFd);
     return true;
 }
@@ -169,7 +169,7 @@ void CanDevicePEAK::close()
         m_fn_uninit(m_pcanHandle);
 
     m_opened = false;
-    SIN_LOG_INFO("CanDevicePEAK", "Device closed");
+    OPENBUS_LOG_INFO("CanDevicePEAK", "Device closed");
 }
 
 int CanDevicePEAK::send(const CanFrame &frame)
@@ -227,7 +227,7 @@ int CanDevicePEAK::recv(int timeoutMs, std::vector<CanFrame> &outFrames)
             TPCANStatus status = m_fn_readFD(m_pcanHandle, &msg, &ts);
             if (status != PCAN_OK) {
                 if (status != PCAN_ERROR_QRCVEMPTY)
-                    SIN_LOG_DEBUG("CanDevicePEAK", "CAN_ReadFD status=0x{:08X}", status);
+                    OPENBUS_LOG_DEBUG("CanDevicePEAK", "CAN_ReadFD status=0x{:08X}", status);
                 break;
             }
 
@@ -249,7 +249,7 @@ int CanDevicePEAK::recv(int timeoutMs, std::vector<CanFrame> &outFrames)
             TPCANStatus status = m_fn_read(m_pcanHandle, &msg, &ts);
             if (status != PCAN_OK) {
                 if (status != PCAN_ERROR_QRCVEMPTY)
-                    SIN_LOG_DEBUG("CanDevicePEAK", "CAN_Read status=0x{:08X}", status);
+                    OPENBUS_LOG_DEBUG("CanDevicePEAK", "CAN_Read status=0x{:08X}", status);
                 break;
             }
 

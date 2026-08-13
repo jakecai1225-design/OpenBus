@@ -1,22 +1,22 @@
-<mxfile host="app.diagrams.net" modified="2026-08-06T01:00:00.000Z" agent="sin-project" version="24.0.0" type="device">
-  <diagram name="架构图" id="sin-architecture">
+<mxfile host="app.diagrams.net" modified="2026-08-06T01:00:00.000Z" agent="openbus-project" version="24.0.0" type="device">
+  <diagram name="架构图" id="openbus-architecture">
     <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
 
         <!-- ==================== 标题 ==================== -->
-        <mxCell id="title" value="sin — CAN 报文分析工具 · 整体架构图" style="text;html=1;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;fontColor=#333333;" vertex="1" parent="1">
+        <mxCell id="title" value="openbus — CAN 报文分析工具 · 整体架构图" style="text;html=1;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;fontColor=#333333;" vertex="1" parent="1">
           <mxGeometry x="450" y="10" width="600" height="40" as="geometry" />
         </mxCell>
 
-        <!-- ==================== sin.exe ==================== -->
-        <mxCell id="app" value="sin.exe&#10;main.cpp&#10;&#10;(WIN32 GUI 可执行文件)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=13;verticalAlign=middle;" vertex="1" parent="1">
+        <!-- ==================== openbus.exe ==================== -->
+        <mxCell id="app" value="openbus.exe&#10;main.cpp&#10;&#10;(WIN32 GUI 可执行文件)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=13;verticalAlign=middle;" vertex="1" parent="1">
           <mxGeometry x="680" y="60" width="160" height="60" as="geometry" />
         </mxCell>
 
         <!-- ==================== UI 层 容器 ==================== -->
-        <mxCell id="ui_layer" value="UI 层 — sin_ui 静态库" style="swimlane;horizontal=1;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=15;swimlaneFillColor=#ffffff;collapsible=0;" vertex="1" parent="1">
+        <mxCell id="ui_layer" value="UI 层 — openbus_ui 静态库" style="swimlane;horizontal=1;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=15;swimlaneFillColor=#ffffff;collapsible=0;" vertex="1" parent="1">
           <mxGeometry x="30" y="150" width="1640" height="310" as="geometry" />
         </mxCell>
 
@@ -110,7 +110,7 @@
         </mxCell>
 
         <!-- ==================== Core 层 容器 ==================== -->
-        <mxCell id="core_layer" value="Core 层 — sin_core 静态库" style="swimlane;horizontal=1;startSize=30;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=15;swimlaneFillColor=#ffffff;collapsible=0;" vertex="1" parent="1">
+        <mxCell id="core_layer" value="Core 层 — openbus_core 静态库" style="swimlane;horizontal=1;startSize=30;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=15;swimlaneFillColor=#ffffff;collapsible=0;" vertex="1" parent="1">
           <mxGeometry x="30" y="490" width="1640" height="280" as="geometry" />
         </mxCell>
 
@@ -285,17 +285,17 @@
         </mxCell>
 
         <!-- ==================== 层间连接 ==================== -->
-        <!-- sin.exe → sin_ui -->
+        <!-- openbus.exe → openbus_ui -->
         <mxCell id="edge_app_ui" value="links" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;strokeColor=#d6b656;strokeWidth=2;fontSize=10;fontColor=#d6b656;" edge="1" parent="1" source="app" target="ui_layer">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
-        <!-- sin_ui → sin_core -->
+        <!-- openbus_ui → openbus_core -->
         <mxCell id="edge_ui_core" value="links" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;strokeColor=#6c8ebf;strokeWidth=2;fontSize=10;fontColor=#6c8ebf;" edge="1" parent="1" source="ui_layer" target="core_layer">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
-        <!-- sin_core → third-party -->
+        <!-- openbus_core → third-party -->
         <mxCell id="edge_core_tp" value="depends on" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;strokeColor=#82b366;strokeWidth=2;fontSize=10;fontColor=#82b366;dashed=1;" edge="1" parent="1" source="core_layer" target="thirdparty">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>

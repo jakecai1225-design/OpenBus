@@ -19,7 +19,7 @@ class Player : public QObject
 public:
     explicit Player(QObject *parent = nullptr);
 
-    /// 从文件加载帧序列（.sin 格式）
+    /// 从文件加载帧序列（.openbus 格式）
     bool load(const QString &filePath);
 
     /// 从帧序列直接加载（用于 ASC/BLF/CSV 等外部格式导入）

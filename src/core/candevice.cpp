@@ -72,7 +72,7 @@ std::unique_ptr<ICanDevice> ICanDevice::create(Brand brand, int subType)
         return std::make_unique<CanDeviceKvaser>(subType);
 
     default:
-        SIN_LOG_WARN("ICanDevice", "brand {} not implemented yet",
+        OPENBUS_LOG_WARN("ICanDevice", "brand {} not implemented yet",
                      static_cast<int>(brand));
         return nullptr;
     }

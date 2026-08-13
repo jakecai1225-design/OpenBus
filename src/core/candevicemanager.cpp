@@ -102,7 +102,7 @@ void CanDeviceManager::start()
     m_recvThread = QThread::create([this]() { recvLoop(); });
     if (m_recvThread) {
         m_recvThread->start();
-        SIN_LOG_INFO("CanDeviceManager", "recv thread started: {}",
+        OPENBUS_LOG_INFO("CanDeviceManager", "recv thread started: {}",
                      m_device->deviceName().toStdString());
     }
 

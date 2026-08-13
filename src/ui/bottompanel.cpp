@@ -29,7 +29,7 @@ BottomPanel::BottomPanel(QWidget *parent)
     m_terminal->setObjectName("TerminalOutput");
     m_terminal->setReadOnly(true);
     m_terminal->setFont(mono);
-    m_terminal->appendPlainText("sin 终端 v1.0.0");
+    m_terminal->appendPlainText("openbus 终端 v1.0.0");
     m_terminal->appendPlainText("输入命令后按 Enter 执行 (输入 help 查看帮助)");
     termLayout->addWidget(m_terminal, 1);
 

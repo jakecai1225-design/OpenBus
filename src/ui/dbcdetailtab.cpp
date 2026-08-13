@@ -1,4 +1,4 @@
-﻿#include "dbcdetailtab.h"
+﻿﻿#include "dbcdetailtab.h"
 #include "core/dbcmanager.h"
 #include "core/logging.h"
 
@@ -283,11 +283,11 @@ void DbcDetailTab::refreshTree()
     m_tree->clear();
     const DbcFile *file = currentDbcFile();
     if (!file) {
-        SIN_LOG_WARN("DbcDetailTab", "currentDbcFile() returned nullptr for {}",
+        OPENBUS_LOG_WARN("DbcDetailTab", "currentDbcFile() returned nullptr for {}",
                      m_dbcFileName.toStdString());
         return;
     }
-    SIN_LOG_DEBUG("DbcDetailTab", "refreshTree: {} messages: {} nodes: {} valueTables: {}",
+    OPENBUS_LOG_DEBUG("DbcDetailTab", "refreshTree: {} messages: {} nodes: {} valueTables: {}",
                   file->fileName.toStdString(), file->messages.size(),
                   file->nodes.size(), file->valueTables.size());
 

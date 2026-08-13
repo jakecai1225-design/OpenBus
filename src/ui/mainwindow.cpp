@@ -1,4 +1,4 @@
-﻿#include "mainwindow.h"
+﻿﻿#include "mainwindow.h"
 #include "core/canframe.h"
 #include "core/recorder.h"
 #include "core/player.h"
@@ -82,7 +82,7 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
-    setWindowTitle("sin - CAN/CAN FD 报文分析工具");
+    setWindowTitle("openbus - CAN/CAN FD 报文分析工具");
     resize(1400, 900);
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
 
@@ -287,7 +287,7 @@ MainWindow::MainWindow(QWidget *parent)
         m_bottomPanel->appendOutput("DBC 已加载: " + name);
     });
 
-    m_bottomPanel->appendOutput("sin 启动完成");
+    m_bottomPanel->appendOutput("openbus 启动完成");
     updateActions();
     refreshPanelLists();
 
@@ -455,20 +455,20 @@ void MainWindow::createMenuBar()
     // ---- 帮助 ----
     auto *helpMenu = menuBar()->addMenu("帮助(&H)");
 
-    helpMenu->addAction("关于 sin", this, &MainWindow::showAboutDialog);
+    helpMenu->addAction("关于 openbus", this, &MainWindow::showAboutDialog);
     helpMenu->addSeparator();
     helpMenu->addAction("文档", this, []() {
-        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/sin"));
+        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus"));
     });
     helpMenu->addAction("官方网站", this, []() {
-        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/sin"));
+        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus"));
     });
     helpMenu->addAction("Gitee 仓库", this, []() {
-        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/sin"));
+        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus"));
     });
     helpMenu->addSeparator();
     helpMenu->addAction("报告问题", this, []() {
-        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/sin/issues"));
+        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus/issues"));
     });
     helpMenu->addAction("检查更新", this, &MainWindow::showCheckUpdate);
     helpMenu->addAction("发版记录", this, &MainWindow::showReleaseNotes);
@@ -2271,15 +2271,15 @@ void MainWindow::resetLayout()
 void MainWindow::showAboutDialog()
 {
     QDialog dlg(this);
-    dlg.setWindowTitle("关于 sin");
+    dlg.setWindowTitle("关于 openbus");
     dlg.setFixedWidth(380);
     auto *layout = new QVBoxLayout(&dlg);
 
-    auto *title = new QLabel("<b style='font-size:24px;color:#4a90d9'>sin</b>", &dlg);
+    auto *title = new QLabel("<b style='font-size:24px;color:#4a90d9'>openbus</b>", &dlg);
     auto *desc = new QLabel("CAN/CAN FD 报文分析工具", &dlg);
     auto *ver = new QLabel("版本: 1.0.0", &dlg);
     auto *author = new QLabel("作者: 蔡可杰 (Jake.cai)", &dlg);
-    auto *github = new QLabel("Gitee: <a href='https://gitee.com/jake_cai/sin'>https://gitee.com/jake_cai/sin</a>", &dlg);
+    auto *github = new QLabel("Gitee: <a href='https://gitee.com/jake_cai/openbus'>https://gitee.com/jake_cai/openbus</a>", &dlg);
     github->setTextInteractionFlags(Qt::TextBrowserInteraction);
     github->setOpenExternalLinks(true);
     auto *email = new QLabel("邮箱: 929168503@qq.com", &dlg);
@@ -2416,7 +2416,7 @@ void MainWindow::showBusinessCoop()
     auto *author = new QLabel("作者: 蔡可杰 (Jake.cai)", &dlg);
     auto *email = new QLabel("邮箱: 929168503@qq.com", &dlg);
     auto *wechat = new QLabel("微信: 13368295840", &dlg);
-    auto *github = new QLabel("Gitee: <a href='https://gitee.com/jake_cai/sin'>https://gitee.com/jake_cai/sin</a>", &dlg);
+    auto *github = new QLabel("Gitee: <a href='https://gitee.com/jake_cai/openbus'>https://gitee.com/jake_cai/openbus</a>", &dlg);
     github->setTextInteractionFlags(Qt::TextBrowserInteraction);
     github->setOpenExternalLinks(true);
     auto *note = new QLabel("本项目基于 MIT License 开源，商业使用请联系作者获取授权。", &dlg);
@@ -2537,7 +2537,7 @@ void MainWindow::onOpenProject()
 {
     QString path = QFileDialog::getOpenFileName(
         this, QStringLiteral("打开工程"), {},
-        QStringLiteral("sin 工程文件 (*.sinproj);;所有文件 (*.*)"));
+        QStringLiteral("openbus 工程文件 (*.openbusproj);;所有文件 (*.*)"));
     if (path.isEmpty()) return;
 
     // 先保存当前工程状态
@@ -2561,8 +2561,8 @@ void MainWindow::onSaveProject()
     if (path.isEmpty()) {
         path = QFileDialog::getSaveFileName(
             this, QStringLiteral("保存工程"),
-            ProjectManager::instance()->currentProjectName() + ".sinproj",
-            QStringLiteral("sin 工程文件 (*.sinproj);;所有文件 (*.*)"));
+            ProjectManager::instance()->currentProjectName() + ".openbusproj",
+            QStringLiteral("openbus 工程文件 (*.openbusproj);;所有文件 (*.*)"));
         if (path.isEmpty()) return;
     }
 
@@ -2857,7 +2857,7 @@ void MainWindow::applyProjectState()
     }
 
     // 10. 更新窗口标题
-    setWindowTitle(QStringLiteral("sin - %1").arg(st.name));
+    setWindowTitle(QStringLiteral("openbus - %1").arg(st.name));
 
     m_bottomPanel->appendOutput(QStringLiteral("工程现场已恢复: %1").arg(st.name));
 }
@@ -2902,7 +2902,7 @@ void MainWindow::onFilePreviewRequested(const QString &filePath)
                     .arg(data.size()));
         } else {
             QString ext = fi.suffix().toLower();
-            if (ext == "sinproj" || ext == "json") {
+            if (ext == "openbusproj" || ext == "json") {
                 // JSON 文件 — 格式化输出
                 try {
                     auto j = nlohmann::json::parse(data.toStdString());
