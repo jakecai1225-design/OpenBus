@@ -1,4 +1,4 @@
-﻿#ifndef GRAPHICVIEW_H
+#ifndef GRAPHICVIEW_H
 #define GRAPHICVIEW_H
 
 #include <QWidget>

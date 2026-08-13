@@ -1,4 +1,4 @@
-﻿#include "canopenview.h"
+#include "canopenview.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>

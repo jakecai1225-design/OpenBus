@@ -214,7 +214,8 @@ target_link_libraries(openbus_core PRIVATE
     z
 )
 if(TARGET vector_blf)
-    target_link_libraries(sin_core PRIVATE vector_blf)
+    target_link_libraries(openbus_core PRIVATE vector_blf)
+    target_compile_definitions(openbus_core PRIVATE HAS_VECTOR_BLF)
 endif()
 
 # pugixml: arxml_importer.cpp 使用 (如果存在 pugixml 目标)
@@ -277,7 +278,7 @@ target_link_libraries(openbus_ui PRIVATE
 
 # Windows: psapi 用于进程资源监控 (ExtensionsTab)
 if(WIN32)
-    target_link_libraries(sin_ui PRIVATE psapi)
+    target_link_libraries(openbus_ui PRIVATE psapi)
 endif()
 
 # PCH — UI 层使用完整的 Qt Widget 头列表

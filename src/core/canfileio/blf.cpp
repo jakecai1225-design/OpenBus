@@ -6,7 +6,10 @@
 #include <QDebug>
 #include <QtEndian>
 #include <zlib.h>
+
+#ifdef HAS_VECTOR_BLF
 #include <Vector/BLF.h>
+#endif
 
 // ============================================================
 //  BLF 格式常量
@@ -103,7 +106,10 @@ static QByteArray zlibInflate(const QByteArray &compressed, quint32 expectedSize
 // ============================================================
 //  BlfWriter — 基于 vector_blf 库写入 BLF 文件
 //  支持 Classic CAN (CanMessage2) 和 CAN FD (CanFdMessage64)
+//  当未链接 vector_blf 库时，提供 stub 实现
 // ============================================================
+
+#ifdef HAS_VECTOR_BLF
 
 struct BlfWriter::Impl {
     Vector::BLF::File file;
@@ -181,7 +187,7 @@ void BlfWriter::writeFrame(const CanFrame &frame)
 
 void BlfWriter::close()
 {
-    if (m_impl->file.is_open())
+    if (m_impl && m_impl->file.is_open())
         m_impl->file.close();
 }
 
@@ -194,6 +200,52 @@ int BlfWriter::frameCount() const
 {
     return m_impl ? m_impl->frameCount : 0;
 }
+
+#else  // !HAS_VECTOR_BLF — stub 实现
+
+struct BlfWriter::Impl {
+    int frameCount = 0;
+    bool opened = false;
+};
+
+BlfWriter::BlfWriter()
+    : m_impl(std::make_unique<Impl>())
+{
+}
+
+BlfWriter::~BlfWriter()
+{
+    close();
+}
+
+bool BlfWriter::open(const QString &filePath)
+{
+    qWarning() << "BLF writer: 未链接 vector_blf 库，BLF 写入不可用" << filePath;
+    return false;
+}
+
+void BlfWriter::writeFrame(const CanFrame &)
+{
+    // stub — 需要链接 vector_blf 库才能写入 BLF
+}
+
+void BlfWriter::close()
+{
+    if (m_impl)
+        m_impl->opened = false;
+}
+
+bool BlfWriter::isOpen() const
+{
+    return m_impl && m_impl->opened;
+}
+
+int BlfWriter::frameCount() const
+{
+    return m_impl ? m_impl->frameCount : 0;
+}
+
+#endif // HAS_VECTOR_BLF
 
 // ============================================================
 //  BlfReader — 手动解析 BLF 文件

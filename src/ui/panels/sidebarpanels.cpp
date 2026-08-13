@@ -1,4 +1,4 @@
-﻿﻿#include "sidebarpanels.h"
+﻿#include "sidebarpanels.h"
 #include "utils/svg_icon.h"
 #include "core/dbcmanager.h"
 #include "core/cansimulator.h"
