@@ -5,15 +5,17 @@
 #include <QWidget>
 #include <QPlainTextEdit>
 #include <QList>
+#include <QPixmap>
 #include "core/canframe.h"
 
 class CanTraceModel;
 class CanFilterProxyModel;
+class ViewportProxyModel;
 class FilterBar;
 class QSplitter;
 class QLabel;
+class QActionGroup;
 class DbcManager;
-class QComboBox;
 class QTimer;
 
 /**
@@ -68,6 +70,15 @@ signals:
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
+
+private:
+    /// 获取视窗代理模型 (如有)
+    ViewportProxyModel *viewportProxy() const;
+    /// 获取过滤代理模型 (穿越视窗代理层)
+    CanFilterProxyModel *filterProxy() const;
+    /// 获取源数据模型 (穿越代理层)
+    CanTraceModel *traceSource() const;
 
 private slots:
     void onHeaderClicked(int column);
@@ -89,6 +100,10 @@ private:
     bool m_autoScroll = true;
     int m_pinnedSourceRow = -1;  ///< 过滤变化前锁定的源模型行号
     QString m_lastFindText;      ///< 上次查找文本
+
+    // ---- 3-state 排序状态 ----
+    int m_sortColumn = -1;              ///< 当前排序列（-1 = 未排序）
+    Qt::SortOrder m_sortOrder = Qt::AscendingOrder;  ///< 当前排序方向
 
     void setupAppearance();
     void showHeaderMenu(int column, const QPoint &pos);
@@ -148,6 +163,75 @@ private:
 };
 
 /**
+ * @brief CANoe 风格视窗缩略图控件
+ *
+ *   ┌──┐
+ *   │  │ ← 全部数据缩略图 (Rx/Tx 密度)
+ *   │██│ ← 高亮视窗区域 (可拖拽)
+ *   │██│
+ *   │  │
+ *   └──┘
+ *
+ * 不是标准滚动条 — 是一个可视化数据概览:
+ *   - 显示全部帧的密度分布 (Rx=绿色, Tx=蓝色)
+ *   - 高亮矩形表示当前视窗位置
+ *   - 拖拽高亮区域移动视窗
+ *   - 点击任意位置跳转视窗
+ */
+class ViewportOverview : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit ViewportOverview(QWidget *parent = nullptr);
+
+    void setViewportProxy(ViewportProxyModel *proxy);
+    void setFilterProxy(CanFilterProxyModel *proxy);
+    void setTraceSource(CanTraceModel *model);
+
+    /// 标记缓存需要重建
+    void markCacheDirty();
+
+signals:
+    /// 用户拖拽或点击导致视窗位置变化
+    void viewportMoved(int start);
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
+    QSize sizeHint() const override { return {60, 100}; }
+    QSize minimumSizeHint() const override { return {60, 50}; }
+
+private:
+    ViewportProxyModel *m_proxy = nullptr;
+    CanFilterProxyModel *m_filterProxy = nullptr;
+    CanTraceModel *m_traceModel = nullptr;
+
+    bool m_dragging = false;
+    int m_dragStartGlobalY = 0;
+    int m_dragStartViewport = 0;
+    QTimer *m_dragTimer = nullptr;
+    void onDragTimer();
+
+    // 密度缓存
+    QPixmap m_cachePixmap;
+    bool m_cacheDirty = true;
+    int m_cachedTotal = 0;
+    int m_cachedHeight = 0;
+    QTimer *m_rebuildTimer = nullptr;
+
+    void scheduleRebuild();
+    void rebuildCache();
+    QRect viewportRect() const;
+    int yToViewportStart(int y) const;
+};
+
+/**
  * @brief Wireshark 风格 Trace 页面 — 整体三栏
  *
  *   ┌────────────────────────────────┐
@@ -176,6 +260,7 @@ public:
     SignalDecodeWidget *signalDecode() const { return m_signalDecode; }
     CanTraceModel *traceModel() const { return m_traceModel; }
     CanFilterProxyModel *proxyModel() const { return m_proxyModel; }
+    ViewportProxyModel *viewportProxy() const { return m_viewportProxy; }
 
     void setDbcManager(DbcManager *mgr);
 
@@ -212,10 +297,11 @@ protected:
 
 private slots:
     void onSelectionChanged();
-    void onTimestampModeChanged(int index);
     void onPacketCountTimer();
 
 private:
+    /// 更新视窗缩略图控件
+    void updateViewportOverview();
     FilterBar *m_filterBar = nullptr;
     TraceView *m_traceView = nullptr;
     QSplitter *m_vSplitter = nullptr;
@@ -225,11 +311,13 @@ private:
 
     CanTraceModel *m_traceModel = nullptr;
     CanFilterProxyModel *m_proxyModel = nullptr;
+    ViewportProxyModel *m_viewportProxy = nullptr;
+    ViewportOverview *m_viewportOverview = nullptr;
+    bool m_autoScrollViewport = true;  ///< 视窗自动跟随新数据
     bool m_running = false;
 
-    // ---- Wireshark 风格工具条 ----
-    QComboBox *m_tsModeCombo = nullptr;   ///< 时间戳显示模式
-    QLabel *m_packetCountLabel = nullptr;  ///< 捕获/显示分组计数
+    // ---- 设置菜单 ----
+    QActionGroup *m_timeFormatGroup = nullptr;  ///< 时间格式互斥动作组
     QTimer *m_packetCountTimer = nullptr;  ///< 分组计数防抖定时器
     bool m_packetCountDirty = false;       ///< 分组计数待更新标记
 };

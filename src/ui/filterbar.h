@@ -27,15 +27,20 @@ public:
     QString filterText() const;
     bool filterActive() const;
 
-    void setOverwriteMode(bool enabled);
-
     /// 设置过滤预设管理器
     void setPresetManager(FilterPresetManager *mgr);
+
+    /// 返回设置按钮，外部可设置其弹出菜单
+    QToolButton *settingsButton() const { return m_settingsBtn; }
+
+    /// 更新分组统计标签
+    void setPacketCountText(const QString &text);
 
 signals:
     void filterApplied(const QString &filter);
     void filterCleared();
-    void overwriteModeToggled(bool enabled);
+    /// 刷新率变化（Phase 2: High=50ms / Medium=100ms / Low=200ms / Paused=0）
+    void refreshRateChanged(int intervalMs);
 
 private slots:
     void onApply();
@@ -51,8 +56,9 @@ private:
     QPushButton *m_clearBtn;
     QToolButton *m_helpBtn;
     QToolButton *m_presetBtn;
+    QToolButton *m_settingsBtn;
     QLabel *m_statusIcon;
-    QPushButton *m_overwriteBtn;
+    QLabel *m_packetCountLabel;
     FilterPresetManager *m_presetMgr = nullptr;
 
     void refreshPresets();

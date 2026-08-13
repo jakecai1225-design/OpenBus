@@ -1,9 +1,26 @@
 #include "arxml_importer.h"
 #include <QFile>
 #include <QFileInfo>
+#include <QString>
 
 // pugixml for XML parsing
 #include "pugixml.hpp"
+
+/// 从 xml_node 的文本内容解析为 int（兼容 stub 版 pugixml 的 const char* text()）
+static int xmlToInt(const pugi::xml_node &node, int defVal)
+{
+    const char *txt = node.text();
+    if (!txt || !*txt) return defVal;
+    return QString::fromUtf8(txt).toInt();
+}
+
+/// 从 xml_node 的文本内容解析为 unsigned（兼容 stub 版 pugixml 的 const char* text()）
+static unsigned xmlToUInt(const pugi::xml_node &node, unsigned defVal)
+{
+    const char *txt = node.text();
+    if (!txt || !*txt) return defVal;
+    return QString::fromUtf8(txt).toUInt();
+}
 
 ArxmlImporter::ArxmlImporter()
 {
@@ -110,12 +127,12 @@ void ArxmlImporter::parseISignal(const void *nodePtr, DbcSignal &outSig)
     // LENGTH → bitLength
     pugi::xml_node len = node->child("LENGTH");
     if (!len.empty())
-        outSig.bitLength = len.text().as_int(1);
+        outSig.bitLength = xmlToInt(len, 1);
 
     // BIT-POSITION → startBit
     pugi::xml_node bp = node->child("BIT-POSITION");
     if (!bp.empty())
-        outSig.startBit = bp.text().as_int(0);
+        outSig.startBit = xmlToInt(bp, 0);
 
     // DATA-TYPE → factor/offset/min/max
     pugi::xml_node dtRef = node->child("DATATYPE-REF");
@@ -136,7 +153,7 @@ void ArxmlImporter::parsePdu(const void *nodePtr, DbcMessage &outMsg)
     // LENGTH → DLC
     pugi::xml_node len = node->child("LENGTH");
     if (!len.empty())
-        outMsg.dlc = len.text().as_int(8);
+        outMsg.dlc = xmlToInt(len, 8);
 
     // SIGNAL-TO-PDU-MAPPINGS → 信号映射
     pugi::xml_node mappings = node->child("SIGNAL-TO-PDU-MAPPINGS");
@@ -161,7 +178,7 @@ void ArxmlImporter::parsePdu(const void *nodePtr, DbcMessage &outMsg)
         // BIT-POSITION
         pugi::xml_node bp = mapping.child("BIT-POSITION");
         if (!bp.empty())
-            sig.startBit = bp.text().as_int(0);
+            sig.startBit = xmlToInt(bp, 0);
 
         // 默认值
         if (sig.bitLength == 0) sig.bitLength = 1;
@@ -185,12 +202,12 @@ void ArxmlImporter::parseCanFrame(const void *nodePtr, DbcMessage &outMsg)
     // IDENTIFIER → CAN ID
     pugi::xml_node id = node->child("IDENTIFIER");
     if (!id.empty())
-        outMsg.id = id.text().as_uint(0);
+        outMsg.id = xmlToUInt(id, 0);
 
     // FRAME-LENGTH → DLC
     pugi::xml_node len = node->child("FRAME-LENGTH");
     if (!len.empty())
-        outMsg.dlc = len.text().as_int(8);
+        outMsg.dlc = xmlToInt(len, 8);
 }
 
 void ArxmlImporter::parseCanCluster(const void *nodePtr)

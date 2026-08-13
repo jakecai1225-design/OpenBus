@@ -77,6 +77,13 @@ set(SRC_CORE
     core/canfileio/pcap_reader.cpp
     core/canfileio/trc_reader.h
     core/canfileio/trc_reader.cpp
+    # 插件系统
+    core/plugin/plugininfo.h
+    core/plugin/plugininfo.cpp
+    core/plugin/pluginhost.h
+    core/plugin/pluginhost.cpp
+    core/plugin/pluginmanager.h
+    core/plugin/pluginmanager.cpp
 )
 
 # models 层 — Qt 数据模型
@@ -85,12 +92,15 @@ set(SRC_MODELS
     models/cantracemodel.cpp
     models/canfilterproxymodel.h
     models/canfilterproxymodel.cpp
+    models/viewportproxy.h
+    models/viewportproxy.cpp
 )
 
 # utils 层 — 工具函数
 set(SRC_UTILS
     utils/canutils.h
     utils/canutils.cpp
+    utils/ringbuffer.h
     utils/message_queue.h
     utils/logging.h
 )
@@ -103,6 +113,8 @@ set(SRC_UI
     ui/traceview.cpp
     ui/filterheaderview.h
     ui/filterheaderview.cpp
+    ui/columnfilterpopup.h
+    ui/columnfilterpopup.cpp
     ui/graphicview.h
     ui/graphicview.cpp
     ui/filterbar.h
@@ -127,6 +139,8 @@ set(SRC_UI
     ui/signalsendtab.cpp
     ui/playbacktab.h
     ui/playbacktab.cpp
+    ui/offlineanalysistab.h
+    ui/offlineanalysistab.cpp
     ui/recordtab.h
     ui/recordtab.cpp
     ui/datawindow.h
@@ -145,6 +159,8 @@ set(SRC_UI
     ui/measurementsetupview.cpp
     ui/deviceconnectiontab.h
     ui/deviceconnectiontab.cpp
+    ui/extensionstab.h
+    ui/extensionstab.cpp
     # 工具集 — 总线分析工具
     ui/tools/blfasconverter.h
     ui/tools/blfasconverter.cpp
@@ -197,6 +213,9 @@ target_link_libraries(openbus_core PUBLIC Qt6::Widgets)
 target_link_libraries(openbus_core PRIVATE
     z
 )
+if(TARGET vector_blf)
+    target_link_libraries(sin_core PRIVATE vector_blf)
+endif()
 
 # pugixml: arxml_importer.cpp 使用 (如果存在 pugixml 目标)
 if(TARGET pugixml)
@@ -255,6 +274,11 @@ target_link_libraries(openbus_ui PRIVATE
     qcustomplot
     Qt6::Svg
 )
+
+# Windows: psapi 用于进程资源监控 (ExtensionsTab)
+if(WIN32)
+    target_link_libraries(sin_ui PRIVATE psapi)
+endif()
 
 # PCH — UI 层使用完整的 Qt Widget 头列表
 target_precompile_headers(openbus_ui PRIVATE

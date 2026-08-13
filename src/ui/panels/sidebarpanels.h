@@ -16,6 +16,7 @@ class QComboBox;
 class QCheckBox;
 class QLabel;
 class QPushButton;
+class QLineEdit;
 class DbcManager;
 class GraphicView;
 class CanSimulator;
@@ -154,13 +155,18 @@ public:
 signals:
     void openTraceRequested();
     void tracePageSelected(int row);
+    /// 请求删除指定行对应的 Trace 实例
+    void traceDeleteRequested(int row);
 
 private slots:
     void onTraceClicked();
     void onPageSelected(int row);
+    void onDeleteTrace();
+    void onContextMenu(const QPoint &pos);
 
 private:
     QListWidget *m_traceList;
+    QPushButton *m_delBtn = nullptr;
 };
 
 // ============================================================
@@ -178,13 +184,18 @@ public:
 signals:
     void graphicPageSelected(int index);
     void newGraphicRequested();
+    /// 请求删除指定行对应的 Graphic 实例
+    void graphicDeleteRequested(int row);
 
 private slots:
     void onNewGraphic();
     void onPageSelected(int row);
+    void onDeleteGraphic();
+    void onContextMenu(const QPoint &pos);
 
 private:
     QListWidget *m_pageList;
+    QPushButton *m_delBtn = nullptr;
     GraphicView *m_graphicView = nullptr;
 };
 
@@ -212,7 +223,8 @@ signals:
     /// @param deviceKind 0=模拟器, 1=ZLG
     /// @param devIndex 设备序号
     /// @param deviceName 设备显示名称
-    void deviceOpenRequested(int deviceKind, int devIndex, const QString &deviceName);
+    /// @param deviceType 厂商设备子类型（如 ZLG DEV_USBCANFD_200U=41）
+    void deviceOpenRequested(int deviceKind, int devIndex, const QString &deviceName, int deviceType);
 
 private slots:
     void onItemClicked(QTreeWidgetItem *item, int column);
@@ -229,36 +241,24 @@ private:
 };
 
 // ============================================================
-//  发送面板 — 仅入口
+//  收发面板 — 发送 / 回放 / 离线分析 / 录制 入口
 // ============================================================
-class SendPanel : public SidePanel
+class TransceivePanel : public SidePanel
 {
     Q_OBJECT
 public:
-    explicit SendPanel(QWidget *parent = nullptr);
+    explicit TransceivePanel(QWidget *parent = nullptr);
 
 signals:
     void openSendRequested();
     void openPlaybackRequested();
+    void openOfflineAnalysisRequested();
+    void openRecordRequested();
 
 private slots:
     void onSendClicked();
     void onPlaybackClicked();
-};
-
-// ============================================================
-//  录制面板 — 仅入口
-// ============================================================
-class RecordPanel : public SidePanel
-{
-    Q_OBJECT
-public:
-    explicit RecordPanel(QWidget *parent = nullptr);
-
-signals:
-    void openRecordRequested();
-
-private slots:
+    void onOfflineAnalysisClicked();
     void onRecordClicked();
 };
 
@@ -344,10 +344,61 @@ private:
 };
 
 // ============================================================
+//  扩展面板数据条目
+// ============================================================
+struct ExtensionEntry
+{
+    QString name;
+    QString version;
+    QString author;
+    QString description;
+    bool installed = false;
+    bool enabled = true;     // 可用（未禁用）
+    bool activated = false;  // 已激活（正在运行）
+    int downloads = 0;
+    double rating = 0.0;
+};
+
+// ============================================================
+//  扩展面板 — 插件管理（对标 VSCode Extensions 视图）
+//  搜索栏 + 已安装/市场折叠列表 + 命令列表
+// ============================================================
+class ExtensionsPanel : public SidePanel
+{
+    Q_OBJECT
+public:
+    explicit ExtensionsPanel(QWidget *parent = nullptr);
+
+    void refreshInstalledPlugins(const QList<ExtensionEntry> &entries);
+    void addCommand(const QString &id, const QString &title);
+    void clearCommands();
+
+signals:
+    void commandTriggered(const QString &id);
+    void pluginToggleRequested(const QString &name, bool enable);  // 启用/禁用
+    void pluginActivated(const QString &name);                     // 双击激活
+
+private slots:
+    void onSearchChanged(const QString &text);
+    void onItemClicked(QTreeWidgetItem *item, int column);
+    void onItemDoubleClicked(QTreeWidgetItem *item, int column);
+
+private:
+    QLineEdit *m_searchEdit;
+    QTreeWidget *m_tree;
+    QTreeWidgetItem *m_installedHeader = nullptr;
+    QTreeWidgetItem *m_marketHeader = nullptr;
+    QTreeWidgetItem *m_commandsHeader = nullptr;
+
+    QWidget *createPluginWidget(const ExtensionEntry &entry);
+    void filterPlugins(const QString &text);
+};
+
+// ============================================================
 //  SideBar — 侧边栏容器（QStackedWidget 切换面板）
 //  索引必须与 ActivityBar::Activity 枚举一致
 //  0=Project 1=Analysis(Flow) 2=Device 3=Trace 4=Graphic
-//  5=Dbc 6=Send 7=Record 8=Protocol 9=Tools 10=Settings
+//  5=Dbc 6=Transceive 7=Protocol 8=Tools 9=Extensions 10=Settings
 // ============================================================
 class SideBar : public QStackedWidget
 {
@@ -359,12 +410,12 @@ public:
     TracePanel *tracePanel() const { return m_trace; }
     GraphicConfigPanel *graphicConfigPanel() const { return m_graphicConfig; }
     DbcPanel *dbcPanel() const { return m_dbc; }
-    SendPanel *sendPanel() const { return m_send; }
-    RecordPanel *recordPanel() const { return m_record; }
+    TransceivePanel *transceivePanel() const { return m_transceive; }
     DevicePanel *devicePanel() const { return m_device; }
     ProtocolPanel *protocolPanel() const { return m_protocol; }
     MeasurementSetupPanel *analysisPanel() const { return m_analysis; }
     ToolsPanel *toolsPanel() const { return m_tools; }
+    ExtensionsPanel *extensionsPanel() const { return m_extensions; }
     SettingsPanel *settingsPanel() const { return m_settings; }
 
     void showPanel(int index);
@@ -375,12 +426,12 @@ private:
     TracePanel *m_trace;
     GraphicConfigPanel *m_graphicConfig;
     DbcPanel *m_dbc;
-    SendPanel *m_send;
-    RecordPanel *m_record;
+    TransceivePanel *m_transceive;
     DevicePanel *m_device;
     ProtocolPanel *m_protocol;
     MeasurementSetupPanel *m_analysis;
     ToolsPanel *m_tools;
+    ExtensionsPanel *m_extensions;
     SettingsPanel *m_settings;
     int m_lastIndex = 0;
 };

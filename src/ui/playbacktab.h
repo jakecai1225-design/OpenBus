@@ -2,6 +2,8 @@
 #define PLAYBACKTAB_H
 
 #include <QWidget>
+#include <QQueue>
+#include <QTimer>
 
 class QPushButton;
 class QSlider;
@@ -10,6 +12,7 @@ class QCheckBox;
 class QLabel;
 class QLineEdit;
 class QTableWidget;
+class QProgressBar;
 
 /**
  * @brief 回放标签页 — 中央区域
@@ -17,7 +20,9 @@ class QTableWidget;
  * 独立的回放控制界面，包含：
  * - 播放/暂停/停止、进度条、速度
  * - 循环回放、自动滚动
- * - 回放文件列表（多文件管理，双击加载）
+ * - 回放文件列表（多文件管理，上移/下移排序，双击加载）
+ * - 文件信息自动解析（帧数、时长）
+ * - 每文件回放进度显示
  * - 指定回放通道
  * - 回放过滤
  */
@@ -39,6 +44,8 @@ signals:
     void speedChanged(double speed);
     void seekChanged(double ratio);
     void fileLoaded(const QString &path);
+    void loopToggled(bool on);
+    void autoScrollToggled(bool on);
 
 private slots:
     void onPlay();
@@ -46,9 +53,15 @@ private slots:
     void onStop();
     void onAddFile();
     void onRemoveFile();
+    void onMoveUp();
+    void onMoveDown();
     void onFileListDoubleClicked(int row, int col);
+    void onParseTimer();
 
 private:
+    void parseFileInfo(int row);
+    void renumberRows();
+
     // 回放控制
     QPushButton *m_playBtn;
     QPushButton *m_pauseBtn;
@@ -66,10 +79,17 @@ private:
     QTableWidget *m_fileList;
     QPushButton *m_addFileBtn;
     QPushButton *m_removeFileBtn;
+    QPushButton *m_moveUpBtn;
+    QPushButton *m_moveDownBtn;
 
     // 通道 & 过滤
     QComboBox *m_channelCombo;
     QLineEdit *m_filterEdit;
+
+    // 异步文件解析
+    QTimer *m_parseTimer;
+    QQueue<int> m_parseQueue;
+    int m_currentLoadedRow = -1;  // 当前已加载到 Player 的文件行
 };
 
 #endif // PLAYBACKTAB_H

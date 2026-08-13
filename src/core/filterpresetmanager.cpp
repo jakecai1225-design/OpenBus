@@ -79,12 +79,12 @@ void FilterPresetManager::loadDefault()
     } else {
         // 初始化内置默认预设
         m_presets.clear();
-        m_presets.append({"仅 Rx 帧", "rx"});
-        m_presets.append({"仅 Tx 帧", "tx"});
-        m_presets.append({"仅 CAN FD", "fd"});
-        m_presets.append({"仅扩展帧", "ext"});
-        m_presets.append({"错误帧", "error"});
-        m_presets.append({"标准帧", "std"});
+        m_presets.append(Preset{"仅 Rx 帧", "rx"});
+        m_presets.append(Preset{"仅 Tx 帧", "tx"});
+        m_presets.append(Preset{"仅 CAN FD", "fd"});
+        m_presets.append(Preset{"仅扩展帧", "ext"});
+        m_presets.append(Preset{"错误帧", "error"});
+        m_presets.append(Preset{"标准帧", "std"});
         saveDefault();
     }
 }

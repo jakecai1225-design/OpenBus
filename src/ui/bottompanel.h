@@ -23,13 +23,15 @@ public:
     enum TabIndex {
         TabTerminal = 0,
         TabOutput = 1,
-        TabProblems = 2
+        TabProblems = 2,
+        TabPlugin = 3
     };
 
 public slots:
     void addProblem(int severity, const QString &source, const QString &message);
     void appendOutput(const QString &text);
     void appendTerminal(const QString &text);
+    void appendPluginOutput(const QString &text);
     void clearProblems();
 
 signals:
@@ -41,6 +43,7 @@ private slots:
 private:
     QPlainTextEdit *m_terminal;
     QPlainTextEdit *m_output;
+    QPlainTextEdit *m_pluginOutput;  ///< 插件输出文本框
     QTableWidget *m_problemsTable;
     QLineEdit *m_cmdInput;
     QLabel *m_problemCount;

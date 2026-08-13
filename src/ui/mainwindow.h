@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QLabel>
+#include <QJsonValue>
 #include "core/canframe.h"
 
 class CanTraceModel;
@@ -16,6 +17,7 @@ class SignalDecodeWidget;
 class SplitEditorArea;
 class SignalSendTab;
 class PlaybackTab;
+class OfflineAnalysisTab;
 class RecordTab;
 class DbcDetailTab;
 class UdsView;
@@ -24,6 +26,7 @@ class Recorder;
 class Player;
 class CanSimulator;
 class CanDeviceManager;
+class TriggerRecorder;
 class DbcManager;
 class ActivityBar;
 class SideBar;
@@ -31,10 +34,12 @@ class BottomPanel;
 class RightPanel;
 class MeasurementSetupView;
 class DeviceConnectionTab;
+class ExtensionsTab;
 class BusStatistics;
 class FilterPresetManager;
 class BookmarkManager;
 class DataWindow;
+class PluginManager;
 struct DbcFile;
 class QAction;
 class QSlider;
@@ -42,6 +47,7 @@ class QComboBox;
 class QTabWidget;
 class QDockWidget;
 class QToolButton;
+class QTimer;
 
 /**
  * @brief 主窗口 — 菜单栏 + QDockWidget 可停靠布局
@@ -102,10 +108,11 @@ private slots:
     void onGraphicPageSelected(int row);
     void onOpenSendTab();
     void onOpenPlaybackTab();
+    void onOpenOfflineAnalysisTab();
     void onOpenRecordTab();
     void onNewGraphicRequested();
     void onOpenMeasurementSetup();
-    void onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName);
+    void onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName, int deviceType);
     void onToolOpened(const QString &toolKey);
     void onSettingsRequested(const QString &section);
     void onProtocolOpened(const QString &protocolName);
@@ -154,6 +161,13 @@ private slots:
     void showCheckUpdate();
     void showBusinessCoop();
 
+    // 插件
+    void onPluginOutput(const QString &text);
+    void onPluginCommandRegistered(const QString &id, const QString &title);
+    void onPluginSendFrame(const CanFrame &frame);
+    void onPluginRequestSelectedFrames(const QJsonValue &requestId);
+    void onOpenExtensionsTab();
+
 private:
     void createMenuBar();
     void createLayout();
@@ -164,11 +178,14 @@ private:
     void setupTraceTab(TraceTab *tab);
     void setupSendTab(SignalSendTab *tab);
     void setupPlaybackTab(PlaybackTab *tab);
+    void setupOfflineAnalysisTab(OfflineAnalysisTab *tab);
     void setupRecordTab(RecordTab *tab);
     void setupDeviceTab(DeviceConnectionTab *tab);
     void processCommand(const QString &cmd);
     void openTab(QWidget *widget, const QString &label);
     void refreshPanelLists();
+    void refreshPluginList();
+    void setupExtensionsTab();  // 创建/重建 ExtensionsTab 并连接信号
 
     // ---- 布局 ----
     ActivityBar *m_activityBar = nullptr;
@@ -189,19 +206,28 @@ private:
     BookmarkManager *m_bookmarkMgr = nullptr;
     DataWindow *m_dataWindow = nullptr;
 
+    // ---- 插件系统 ----
+    PluginManager *m_pluginManager = nullptr;
+
     // ---- UI (Main tabs) ----
     TraceTab *m_traceTab = nullptr;
     GraphicView *m_graphicView = nullptr;
     SignalSendTab *m_sendTab = nullptr;
     PlaybackTab *m_playbackTab = nullptr;
+    OfflineAnalysisTab *m_offlineTab = nullptr;
     RecordTab *m_recordTab = nullptr;
     DeviceConnectionTab *m_deviceTab = nullptr;
+    ExtensionsTab *m_extensionsTab = nullptr;
 
     // ---- 核心引擎 ----
     Recorder *m_recorder = nullptr;
     Player *m_player = nullptr;
+    TriggerRecorder *m_triggerRecorder = nullptr;
     CanSimulator *m_simulator = nullptr;
     CanDeviceManager *m_deviceManager = nullptr;  ///< 硬件设备管理器（ZLG/PEAK/...）
+
+    // ---- 周期发送 ----
+    QHash<int, QTimer *> m_periodicSenders;  ///< 行号 → 周期发送定时器
 
     // ---- 菜单 Action ----
     QAction *m_recordAction = nullptr;
@@ -232,6 +258,7 @@ private:
     int m_savedDockWidth = 300;
     int m_traceCount = 0;
     int m_graphicCount = 0;
+    int m_receivedFrameCount = 0;  ///< 测量期间累计接收的帧数（状态栏显示）
 
     // ---- 实例跟踪（flow 页面模块实例）----
     QMap<QString, QWidget*> m_traceInstances;    // "trace1" → TraceTab*

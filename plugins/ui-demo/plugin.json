@@ -1,0 +1,13 @@
+{
+    "name": "ui-demo",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "PyQt6 独立窗口 UI 演示插件",
+    "main": "main.py",
+    "activationEvents": [],
+    "contributes": {
+        "commands": [
+            { "id": "uidemo.clear", "title": "UI 演示: 清空输出" }
+        ]
+    }
+}

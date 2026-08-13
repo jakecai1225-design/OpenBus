@@ -35,7 +35,8 @@ public:
     /// @param deviceKind 0=模拟器, 1=ZLG, 2=PEAK, 3=Kvaser, 4=CandleLight
     /// @param devIndex 设备序号
     /// @param deviceName 设备显示名称
-    void setDevice(int deviceKind, int devIndex, const QString &deviceName);
+    /// @param deviceType 厂商设备子类型（如 ZLG DEV_USBCANFD_200U=41）
+    void setDevice(int deviceKind, int devIndex, const QString &deviceName, int deviceType);
 
     // ---- 工程切换：配置捕获/恢复 ----
     int  baudrate() const;             ///< 仲裁段波特率
@@ -52,8 +53,9 @@ signals:
     void deviceConnectRequested(const QString &device, int baudrate);
     void deviceDisconnectRequested();
     /// 设备连接请求（携带完整参数）
+    /// @param deviceType 厂商设备子类型（0=使用默认）
     void deviceConnectRequestedV2(int deviceKind, int devIndex, int channel,
-                                  int arbBaud, int dataBaud, bool canFd);
+                                  int arbBaud, int dataBaud, bool canFd, int deviceType);
 
 private slots:
     void onConnect();
@@ -78,6 +80,7 @@ private:
     QLabel *m_deviceLabel;
     int m_deviceKind = 0;
     int m_devIndex = 0;
+    int m_devSubType = 0;  ///< 厂商设备子类型（如 ZLG DEV_USBCANFD_200U=41）
     QString m_deviceName;
 
     // 基本配置

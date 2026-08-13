@@ -10,7 +10,7 @@
  * @brief 报文回放器
  *
  * 从 BLF/ASC/CSV/PCAP/TRC 文件加载帧序列，按原始时间戳回放。
- * 支持 play / pause / stop / seek / setSpeed。
+ * 支持 play / pause / stop / seek / setSpeed / setLoop。
  */
 class Player : public QObject
 {
@@ -38,6 +38,7 @@ public:
     double currentTime() const;
 
     double speed() const { return m_speed; }
+    bool loop() const { return m_loop; }
 
 public slots:
     void play();
@@ -45,6 +46,7 @@ public slots:
     void stop();
     void seekTo(double seconds);
     void setSpeed(double speed);
+    void setLoop(bool on) { m_loop = on; }
 
 signals:
     void framePlayed(const CanFrame &frame);
@@ -59,6 +61,7 @@ private slots:
 private:
     QVector<CanFrame> m_frames;
     bool m_playing = false;
+    bool m_loop = false;
     int m_currentIndex = 0;
     double m_speed = 1.0;
 

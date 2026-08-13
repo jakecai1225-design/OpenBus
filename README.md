@@ -1935,4 +1935,337 @@ private:
 5. **多工程内存** — 每个工程的 Trace 数据可能很大（万帧级），Phase 4 前需评估内存上限，必要时仅活跃工程加载数据，非活跃工程仅加载配置
 6. **文件格式版本号** — 所有文件格式（.openbusproj / .openbusws / sessions.json）都带 `version` 字段，为未来格式升级预留
 
+---
+
+## Trace 高性能优化方案
+
+> 参考 Wireshark Packet List 优化经验、CANoe Trace Window 机制、TSMaster 显示刷新率策略，解决万帧以上实时捕获和百万帧离线加载的卡顿问题。
+
+### 一、问题分析
+
+#### 当前架构瓶颈
+
+| # | 瓶颈点 | 现状 | 影响 |
+|---|--------|------|------|
+| P1 | **data() 逐次格式化** | 每次绘制单元格都调用 `CanUtils::formatTime/formatId/formatData` 重新生成字符串 | 10万行×10列 = 100万次 `data()` 调用，每次都做字符串分配+格式化 |
+| P2 | **逐帧 beginInsertRows** | `appendFrame()` 每帧触发 `beginInsertRows/endInsertRows` | 高频报文（如 5000帧/s）每秒 5000 次模型布局更新，UI 线程过载 |
+| P3 | **QSortFilterProxyModel 全量重算** | 新增帧时 `invalidateFilter()` 重新评估所有行 | 过滤状态下持续捕获，每帧导致 O(n) 重新过滤 |
+| P4 | **recomputeDisplayDeltas O(n)** | SinceDisplay 模式切换时遍历全部行计算增量 | 10万帧需 10万次 `mapFromSource` 调用，耗时数秒 |
+| P5 | **着色规则逐行求值** | `evaluateColorRules()` 在 `data(BackgroundRole)` 中被每次调用 | 滚动时每个可见行都执行 FilterEngine::evaluate()，含正则匹配 |
+| P6 | **QVector 滚动开销** | `m_maxFrames=100000`，超限时 `removeFirst()` 导致全量内存移动 | 高频场景下每帧都要移动 10万个 CanFrame（含 QByteArray 堆对象） |
+| P7 | **无显示刷新率控制** | 帧到达即追加到模型并触发 UI 更新 | 无类似 TSMaster 的可调刷新率，CPU 占用不受控 |
+
+#### 参考方案对比
+
+| 工具 | 核心策略 | 效果 |
+|------|---------|------|
+| **Wireshark** | 延迟格式化（callback 按需生成列文本）+ 仅对可见行执行着色规则 | 20万帧加载 14s→4s，内存 170MB→113MB，着色 22s→<1s，时间格式切换 4.5min→<1s |
+| **TSMaster** | 可调显示刷新率（高/中/低/暂停）+ 批量缓冲 | 降低 CPU 占用，老式电脑可选低刷新率 |
+| **CANoe** | 环形缓冲区 + 后台线程解码 + 窗口化渲染 | 实时百万帧不卡顿 |
+
+### 二、优化方案（4 个阶段）
+
+#### Phase 1 — 延迟格式化 + 可见行缓存（核心，优先实施）
+
+**原理**：借鉴 Wireshark，`data()` 返回时不每次都格式化字符串，而是缓存已格式化的结果。缓存以行号为 key，格式化字符串数组为 value，仅缓存可见行区域（±50 行）。
+
+**实施要点**：
+1. 在 `CanTraceModel` 中增加 `QHash<int, RowCache>` 成员，`RowCache` 存储 10 列的格式化字符串
+2. `data(DisplayRole)` 先查缓存，命中则直接返回，未命中才调用 `CanUtils::formatXxx()` 并写入缓存
+3. 滚动时通过 `QTableView::scrollContentsBy()` 或 `QAbstractItemView` 信号感知可见行变化，淘汰不可见行的缓存
+4. 时间格式切换、行删除（ring buffer 滚动）、数据修改（覆盖模式刷新行）时使对应行缓存失效
+5. 着色规则求值结果同样缓存到 `RowCache`，避免每次 `BackgroundRole` 重新匹配
+
+**预期收益**：滚动和绘制性能提升 10-50 倍（从全量格式化降至仅可见行格式化）
+
+**新增文件**：
+- `src/models/rowcachetablemodel.h` — 带行缓存的 QAbstractTableModel 基类，可复用
+
+#### Phase 2 — 批量更新 + 可调刷新率（高频实时场景）
+
+**原理**：借鉴 TSMaster 显示刷新率机制，将逐帧追加改为批量缓冲 + 定时刷新。
+
+**实施要点**：
+1. `CanTraceModel` 增加 `m_pendingFrames` 缓冲队列和 `m_flushTimer`（默认 50ms 间隔）
+2. `appendFrame()` 不立即调用 `beginInsertRows`，而是追加到 `m_pendingFrames`
+3. 定时器触发时，如果有 pending 帧，执行一次 `beginInsertRows(first, last)` + `m_frames.append(batch)` + `endInsertRows()`
+4. FilterBar 设置按钮菜单增加"刷新率"子菜单：高(50ms) / 中(100ms) / 低(200ms) / 暂停(不刷新)
+5. 暂停刷新时数据仍写入 `m_pendingFrames`，恢复后一次性 flush
+6. 离线文件加载（`appendFrames`）不受刷新率限制，直接批量追加
+
+**预期收益**：5000 帧/s 实时捕获时 UI 帧数从 5000 降至 20（每 50ms 一次），CPU 占用降低 90%+
+
+**修改文件**：
+- `src/models/cantracemodel.h/cpp` — 增加 pending 队列和 flush 逻辑
+- `src/ui/filterbar.h/cpp` — 设置按钮菜单增加刷新率选项
+- `src/ui/traceview.h/cpp` — TraceTab 连接刷新率到 CanTraceModel
+
+#### Phase 3 — 增量过滤代理（替代 QSortFilterProxyModel）
+
+**原理**：Qt 的 `QSortFilterProxyModel` 在 `invalidateFilter()` 时重新评估全部行。自定义代理模型仅评估新增行，已有行的过滤结果通过 `QVector<int>` 映射表保留。
+
+**实施要点**：
+1. 新建 `CanTraceProxyModel`（替代 `CanFilterProxyModel`，不继承 `QSortFilterProxyModel`）
+2. 维护 `QVector<int> m_sourceToProxy` 和 `QVector<int> m_proxyToSource` 映射数组
+3. 新增行：只评估新行的过滤条件，append 到映射表尾部（O(1) 每行）
+4. 过滤条件变化：全量重新评估（但仍只做一次遍历，不依赖 `QSortFilterProxyModel` 的排序/过滤重算开销）
+5. 排序：维护独立的排序索引数组，不修改源模型行号
+6. `recomputeDisplayDeltas()` 改为增量计算：新增行只与上一个显示行比较，不全量重算
+
+**预期收益**：过滤状态下持续捕获，新增行过滤开销从 O(n) 降至 O(1)；SinceDisplay 模式切换从 O(n) 降至 O(1) 增量
+
+**新增文件**：
+- `src/models/cantraceproxymodel.h/cpp` — 自定义代理模型
+
+#### Phase 4 — 环形缓冲区存储（百万帧支持）
+
+**原理**：借鉴 CANoe 环形缓冲区，用固定大小数组 + 头尾指针替代 `QVector::removeFirst()`，避免全量内存移动。
+
+**实施要点**：
+1. `CanTraceModel` 内部存储从 `QVector<CanFrame>` 改为 `RingBuffer<CanFrame>`
+2. 环形缓冲区固定容量（默认 100 万帧，可配置），到满时头指针前进覆盖最旧帧
+3. `frameAt(row)` 通过 `(head + row) % capacity` 映射，O(1) 随机访问
+4. `beginRemoveRows`/`endRemoveRows` 不再需要（覆盖而非删除）
+5. 行号映射：`data(ColNo)` 返回 `seqCounter`（永不回退），与环形缓冲区物理位置解耦
+6. 行标记和着色 `m_markedRows`/`m_rowColors` 的 key 改用 `seqCounter` 而非行号，避免覆盖时错位
+
+**预期收益**：百万帧场景内存占用从 O(n·sizeof(QByteArray)) 降至 O(capacity·sizeof(CanFrame))；消除 `removeFirst()` 的 O(n) 内存移动
+
+**修改文件**：
+- `src/models/cantracemodel.h/cpp` — 存储改用环形缓冲区
+- 新增 `src/utils/ringbuffer.h` — 泛型环形缓冲区模板
+
+### 三、开源组件与技术参考
+
+| 组件/技术 | 来源 | 用途 |
+|-----------|------|------|
+| **Qt fetchMore/canFetchMore 模式** | [Qt 官方示例](https://doc.qt.io/qt-6/qtwidgets-itemviews-fetchmore-example.html) | 增量加载参考（主要应用于 Phase 1 缓存淘汰逻辑） |
+| **Wireshark 延迟格式化** | [Wireshark Wiki: OptimizePacketList](https://wiki.wireshark.org/Development/OptimizePacketList) | Phase 1 的设计灵感来源 — callback 按需生成列文本 |
+| **TSMaster 显示刷新率** | [TSMaster 文档](https://www.tosunai.com) | Phase 2 的设计灵感来源 — 可调刷新率降低 CPU |
+| **moodycamel::ConcurrentQueue** | 已集成（third_party/concurrentqueue） | Phase 2 中 pending 帧队列的线程安全实现 |
+| **spdlog** | 已集成 | 性能日志：记录 flush 耗时、缓存命中率等指标 |
+
+> **不引入新第三方依赖**。Phase 1-4 全部基于 Qt6 原生 API 和已有第三方库实现。
+
+### 四、实施顺序与优先级
+
+```
+Phase 1 (延迟格式化)  ████████████  ← 最高优先级，解决最核心的 data() 瓶颈
+Phase 2 (批量刷新)    ████████      ← 高优先级，解决实时捕获卡顿
+Phase 3 (增量过滤)    ██████        ← 中优先级，解决过滤状态下的性能
+Phase 4 (环形缓冲区)  ████          ← 低优先级，解决百万帧内存优化
+```
+
+### 五、性能目标
+
+| 场景 | 当前 | 目标 |
+|------|------|------|
+| 10万帧离线加载 | 数秒卡顿 | <1s |
+| 10万帧滚动浏览 | 明显卡顿 | 流畅 60fps |
+| 5000帧/s 实时捕获 | UI 冻结 | 流畅，CPU <20% |
+| 过滤条件切换（10万帧）| 数秒 | <500ms |
+| 时间格式切换（10万帧）| 数秒 | <100ms |
+| 百万帧加载 | 不支持 | <5s 加载，内存 <500MB |
+| 着色规则应用（10万帧）| 数秒 | <200ms |
+
+### 六、验证方法
+
+1. **基准测试脚本** — 生成 1万/10万/100万帧测试数据（BLF/ASC），使用 `python scripts/build.py run` 加载并计时
+2. **性能日志** — 通过 spdlog 记录 `data()` 调用次数、缓存命中率、flush 耗时
+3. **实际场景** — 连接 ZLG 设备 5000帧/s 实时捕获，观察 UI 流畅度和 CPU 占用
+4. **回归测试** — 确保 Delta 时间、覆盖模式、着色规则等已有功能不受影响
+
+### 七、实施说明
+
+- 不考虑向后兼容，直接替换现有实现
+- Phase 3 直接用 `CanTraceProxyModel` 替代 `CanFilterProxyModel`，删除旧文件
+- Phase 4 直接用 `RingBuffer` 替代 `QVector` 存储，行标记/着色 key 直接改用 seqCounter
+
+
+-------------------------
+视窗滑动条，放到左侧，有个视窗大小在滑动条上面滑动，视窗内滑动条在右侧，把trace页面上方的覆盖模式按钮，放到搜索框右侧的设置按钮的内部选项，默认不开启覆盖模式。支持trace中选中多行，按住ctrl选中任意多行，按照shift选中联系多行，选中后，右键支持进行标记。trace有没有支持虚拟表格，为了克服卡顿。
+
+
+问题：
+排序：当修改了时间显示格式后，排序方式还是按照老的时间格式进行排序。 ✓ 已修复
+需要支持blf格式的文件录制啊。 ✓ 已实现
+
+
+# 插件扩展机制
+
+参考 VSCode 的 Extension Host 架构，采用 **子进程隔离 + JSON-RPC** 方案。插件用 Python 编写，崩溃不影响主程序。
+
+## 一、架构
+
+```
+┌─ sin 主程序 (C++/Qt) ──────────────┐
+│  PluginManager ── PluginHost(QProcess) │
+│       ↕ JSON-RPC over stdin/stdout       │
+└─────────────────────────────────────┘
+          ↕
+┌─ Python 插件宿主 (sin_host.py) ───┐
+│  sin SDK 模块  │  插件 A  │  插件 B  │
+└───────────────────────────────────┘
+```
+
+**核心设计**：
+- 插件运行在独立 Python 子进程中，崩溃不影响主程序
+- 主程序与插件通过 newline-delimited JSON-RPC 2.0 通信
+- 用户只需写 `plugin.json` + `main.py`，导入 `sin` 模块即可
+- 按 activationEvents 激活（onStartup / onFrame / onCommand:id / onFileOpen:ext）
+- 崩溃后指数退避自动重启（1s→2s→4s，超过 3 次放弃）
+
+## 二、目录结构
+
+```
+sin/
+├─ src/core/plugin/          # C++ 插件核心
+│  ├─ plugininfo.h/cpp        #   插件清单解析
+│  ├─ pluginhost.h/cpp        #   QProcess + JSON-RPC
+│  └─ pluginmanager.h/cpp     #   发现/激活/消息分发
+├─ scripts/sin_host.py       # Python 插件宿主
+├─ sdk/sin/                  # Python SDK
+│  ├─ _transport.py           #   通信层（共享 stdout 锁）
+│  ├─ output.py               #   输出面板 API
+│  ├─ frames.py               #   CAN 帧操作 API
+│  ├─ commands.py             #   命令 API
+│  ├─ workspace.py            #   工程上下文 API
+│  └─ signals.py              #   DBC 信号解码 API
+└─ plugins/                  # 用户插件目录
+   ├─ hello-world/            #   最简示例
+   └─ frame-counter/          #   帧统计示例
+```
+
+## 三、插件清单 (plugin.json)
+
+```json
+{
+    "name": "j1939-decoder",
+    "version": "1.0.0",
+    "description": "J1939 协议解码插件",
+    "main": "main.py",
+    "activationEvents": ["onStartup", "onCommand:j1939.decode"],
+    "contributes": {
+        "commands": [{ "id": "j1939.decode", "title": "J1939: 解码" }]
+    }
+}
+```
+
+## 四、Python SDK API
+
+```python
+import sin
+
+def activate(context):
+    sin.output.append("插件已加载")          # 输出到面板
+    context.register_command("my.cmd", handler) # 注册命令
+    context.on_frame(on_frame)                 # 订阅帧
+    frames = sin.frames.get_selected()         # 获取选中帧
+    sin.frames.send(0x123, b'\x01\x02')        # 发送帧
+    val = sin.signals.decode(0x123, data)       # 解码信号
+
+def on_frame(frame):
+    sin.output.append(f"ID=0x{frame.id:X} data={frame.data.hex()}")
+```
+
+## 五、通信协议
+
+JSON-RPC 2.0，每行一条 JSON，`\n` 分隔。帧数据用 hex 字符串。
+
+主程序→插件：`activate` / `deactivate` / `frameReceived` / `executeCommand` / `fileOpened`
+插件→主程序：`output.append` / `sendFrame` / `registerCommand` / `frames.getSelected` / `log`
+
+帧批量发送：每 100ms 或 100 帧批量一次，避免高频帧淹没 Python。
+
+## 六、集成点
+
+| 现有组件 | 集成方式 |
+|----------|----------|
+| MainWindow::onFrameReceived() | 末尾调用 PluginManager::onFrameReceived() |
+| 菜单栏 | 新增「插件」菜单，动态填充已注册命令 |
+| BottomPanel | 新增「插件」标签页显示输出 |
+| CanDeviceManager::sendFrame() | 转发插件的 sendFrame 请求 |
+| CanTraceModel | 响应 frames.getSelected 请求 |
+| closeEvent() | 调用 PluginManager::shutdown() |
+
+
+# 插件 UI 能力（方案 A — PyQt6 独立窗口）
+
+已实现。插件在 Python 子进程中用 PyQt6 创建独立窗口，崩溃不影响主程序。
+
+## 方案对比（选型过程）
+
+| 方案 | 复杂度 | 插件开发难度 | 嵌入主窗口 | 独立窗口 | 稳定性 |
+|------|--------|-------------|-----------|---------|--------|
+| **A. PyQt6 子进程独立窗口** | **低** | **低** | ✗ | **✓** | **✓ 进程隔离** |
+| B. PyQt6 + 原生窗口嵌入 | 中 | 低 | ✓ | ✓ | ✓ 但有焦点/resize 问题 |
+| C. QML 动态加载 | 高 | 中 | ✓ | ✓ | ✗ 需同进程 |
+| D. HTML/QWebEngineView | 高 | 低 | ✓ | ✓ | ✓ 但依赖重 |
+| E. JSON 声明式 UI | 高 | 低 | ✓ | ✗ | ✓ 最安全 |
+
+**选择方案 A 的原因**：实现简单、全平台支持（含 Wayland）、无焦点/resize/输入法问题、崩溃行为干净（窗口直接消失，无黑矩形）。方案 B 的 `createWindowContainer` 嵌入跨进程窗口在 Qt 官方文档中标注“可能无法在所有平台完美工作”，风险较高。
+
+## 实现原理
+
+PyQt6/PySide6 是 Qt6 的 Python 绑定，与主程序的 C++ Qt6 共享同一底层 Qt 库，渲染风格一致。
+插件在 Python 子进程中用 PyQt6 创建 QMainWindow，窗口独立浮动在桌面上。
+
+```
+主程序 (C++/Qt6)                    Python 子进程 (PyQt6)
+┌─────────────────────┐            ┌─────────────────────┐
+│  无需任何 UI 改动     │            │  QApplication         │
+│  仅 JSON-RPC 通信     │ ←───────→  │  QMainWindow (独立)   │
+│                     │  JSON-RPC  │  (PyQt6 渲染)         │
+└─────────────────────┘            └─────────────────────┘
+```
+
+### 关键实现
+
+1. **sin_host.py 双模式启动**：检测 PyQt6 是否可用，可用则启动 QApplication 事件循环，否则退回简单循环
+2. **后台线程读 stdin**：独立线程持续读取 stdin，响应消息直接分发（`deliver_response`），请求/通知放入队列
+3. **QTimer 轮询**：主线程 QTimer 每 10ms 从队列取消息处理（Qt 要求 widget 操作在主线程）
+4. **SDK ui 模块**：`sin.ui.create_window(title)` 返回 QMainWindow 供插件自定义
+
+### sin_host.py 事件循环
+
+```
+stdin → 后台线程 → ┬─ 响应 → deliver_response()（直接分发，修复原有死锁）
+                    └─ 请求/通知 → Queue → QTimer(10ms) → handle_message()（主线程）
+
+QApplication.exec() 驱动 PyQt6 窗口事件
+```
+
+### Python SDK API
+
+```python
+import sin
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QPushButton
+
+def activate(context):
+    win = sin.ui.create_window("我的工具")      # 创建独立窗口
+    win.resize(400, 300)
+    layout = QVBoxLayout(win.centralWidget())
+    layout.addWidget(QLabel("Hello!"))
+    btn = QPushButton("发送帧")
+    btn.clicked.connect(lambda: sin.frames.send(0x123, b'\x01\x02'))
+    layout.addWidget(btn)
+    win.show()                                    # 显示窗口
+
+    sin.ui.show_message("提示", "窗口已创建")     # 消息对话框
+```
+
+### 优势
+
+- **PyQt6 与 C++ Qt6 共享底层库**：渲染一致，主题一致，无视觉割裂
+- **进程隔离**：PyQt6 崩溃只影响插件进程，主程序不受影响
+- **开发简单**：插件开发者用标准 PyQt6 API，`pip install PyQt6` 即可
+- **全平台支持**：Windows / macOS / Linux (X11 + Wayland) 均可
+- **无嵌入风险**：无焦点/resize/输入法问题，无黑矩形崩溃
+
+### 注意事项
+
+- **PyQt6 安装**：插件开发者需 `pip install PyQt6`（或 PySide6）
+- **版本匹配**：PyQt6 的 Qt 版本应与主程序的 Qt6 版本一致（6.x 系列）
+- **send_request 阻塞**：SDK 的 `send_request()` 会短暂阻塞 Qt 事件循环（主程序通常毫秒级响应，实际无感知）
+- **窗口独立**：插件窗口浮动在桌面上，用户用 Alt+Tab 切换，不嵌入主窗口
 

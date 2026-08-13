@@ -65,4 +65,9 @@ QString allFileFilters(bool includeAll)
     return filter;
 }
 
+QString writableFileFilters()
+{
+    return "BLF 文件 (*.blf);;ASC 文件 (*.asc);;CSV 文件 (*.csv)";
+}
+
 } // namespace CanFileIO

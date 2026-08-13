@@ -25,10 +25,10 @@ public:
         Trace,
         Graphic,
         Dbc,
-        Send,
-        Record,
+        Transceive,     // 收发（发送/回放/录制）
         Protocol,
         Tools,
+        Extensions,     // 扩展（插件市场）
         Settings
     };
 
@@ -36,6 +36,8 @@ public:
 
     Activity currentActivity() const { return m_current; }
     void setCurrentActivity(Activity act);
+
+    void refreshIcons();
 
 signals:
     void activityChanged(int activity);
@@ -50,6 +52,7 @@ private:
         Activity activity;
         QString text;
         QString tooltip;
+        QString iconPath;
     };
 
     QList<BtnInfo> m_buttons;

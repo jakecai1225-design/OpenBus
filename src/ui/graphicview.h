@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QVector>
 #include <QColor>
+#include <QTimer>
 #include "core/canframe.h"
 #include "core/dbcdata.h"
 
@@ -15,16 +16,19 @@ class QCPGraph;
 class QCPAxis;
 class QCPAxisRect;
 class QCPItemStraightLine;
+class QCPItemText;
 class QToolBar;
 class QToolButton;
 class QLabel;
+class QCheckBox;
+class QComboBox;
 
 /**
  * @brief CANoe 风格 Graphic 信号图形视图 — 基于 QCustomPlot
  *
  * 布局：
  *   ┌─────────────────────────────────────────────┐
- *   │ 工具栏: 缩放 | 适应 | 单卡尺 | 双卡尺 | 清除 │
+ *   │ 工具栏: 缩放 | 适应 | 采样点 | 单卡尺 | 双卡尺 | 清除 │
  *   ├──────────┬──────────────────────────────────┤
  *   │ 信号列表  │  波形区 (多轴垂直堆叠)           │
  *   │ 名称      │  ┌─ Signal A (独立 Y 轴) ──┐    │
@@ -32,6 +36,7 @@ class QLabel;
  *   │ 物理值    │  ├─ Signal C (独立 Y 轴) ──┤    │
  *   │ 单位      │  └── 共享 X 轴 (时间) ──────┘    │
  *   │          │     卡尺线 (可拖动)              │
+ *   │          │     当前时间指示线 (实时)        │
  *   └──────────┴──────────────────────────────────┘
  */
 class GraphicView : public QWidget
@@ -92,6 +97,10 @@ private:
         QCPGraph *graph = nullptr;
         QCPAxis *yAxis = nullptr;
         QCPAxisRect *axisRect = nullptr;
+        QCPItemText *nameLabel = nullptr;  ///< 信号名叠加文本
+        double dataMin = 0.0;             ///< 数据最小值
+        double dataMax = 0.0;             ///< 数据最大值
+        bool hasMinMax = false;           ///< 是否已计算 min/max
     };
 
     // --- UI ---
@@ -100,6 +109,10 @@ private:
     QCustomPlot *m_plot = nullptr;
     QToolBar *m_toolbar = nullptr;
     QLabel *m_cursorInfoLabel = nullptr;  ///< 卡尺信息面板 (ΔT/ΔY/frequency)
+    QCheckBox *m_pointsToggle = nullptr;   ///< 采样点显示开关
+    QComboBox *m_timeWindowCombo = nullptr; ///< 时间窗口选择
+    QToolButton *m_pauseBtn = nullptr;      ///< 暂停/继续
+    QLabel *m_statusLabel = nullptr;        ///< 底部状态栏
 
     // --- 工具栏按钮 ---
     QToolButton *m_cursorSingleBtn = nullptr;
@@ -110,6 +123,23 @@ private:
     QVector<SignalData> m_signals;
     double m_timeWindow = 30.0;
     double m_currentTime = 0.0;
+
+    // --- 性能节流 ---
+    QTimer m_replotTimer;               ///< 定时批量 replot (50ms = 20fps)
+    bool m_replotPending = false;       ///< 有待重绘的数据
+    QTimer m_valueTimer;                ///< 定时刷新信号列表值 (200ms)
+    static constexpr int REPLOT_INTERVAL_MS = 50;
+    static constexpr int VALUE_UPDATE_MS = 200;
+    static constexpr int MAX_DISPLAY_POINTS = 50000;  ///< 显示上限, 超出则裁剪
+
+    // --- 采样点 ---
+    bool m_showPoints = true;
+
+    // --- 暂停 ---
+    bool m_paused = false;
+
+    // --- 当前时间指示线 ---
+    QCPItemStraightLine *m_currentTimeLine = nullptr;
 
     // --- 卡尺 ---
     CursorMode m_cursorMode = CursorMode::None;
@@ -133,8 +163,14 @@ private:
     /// 构建 UI
     void setupUi();
 
+    /// 配置单个 axisRect 的样式 (网格/坐标轴/字体)
+    void styleAxisRect(QCPAxisRect *ar, const QColor &color, const QString &name);
+
     /// 刷新信号列表（结构）
     void updateSignalList();
+
+    /// 更新信号列表中的实时值
+    void updateSignalValues();
 
     /// 更新信号列表中的卡尺值
     void updateCursorValues();
@@ -148,6 +184,9 @@ private:
     /// 创建/获取卡尺线
     void ensureCursors();
 
+    /// 创建/获取当前时间指示线
+    void ensureCurrentTimeLine();
+
     /// 设置卡尺模式
     void setCursorMode(CursorMode mode);
 
@@ -156,6 +195,21 @@ private:
 
     /// 获取 graph 在指定时间附近的值（插值）
     bool valueAtTime(QCPGraph *graph, double time, double &outVal) const;
+
+    /// 定时批量重绘
+    void onReplotTimeout();
+
+    /// 适应窗口：重缩放所有轴
+    void fitAll();
+
+    /// 导出图表为图片
+    void exportPlot();
+
+    /// 格式化时间 (mm:ss.ms)
+    static QString formatTime(double seconds);
+
+    /// 更新底部状态栏
+    void updateStatusBar();
 };
 
 #endif // GRAPHICVIEW_H

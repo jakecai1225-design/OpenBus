@@ -78,6 +78,13 @@ BottomPanel::BottomPanel(QWidget *parent)
 
     addTab(problemsWidget, "问题");
 
+    // ---- 插件输出标签页 ----
+    m_pluginOutput = new QPlainTextEdit(this);
+    m_pluginOutput->setObjectName("TerminalOutput");
+    m_pluginOutput->setReadOnly(true);
+    m_pluginOutput->setFont(mono);
+    addTab(m_pluginOutput, "插件");
+
     connect(m_cmdInput, &QLineEdit::returnPressed, this, &BottomPanel::onCommandReturnPressed);
 
     setMinimumHeight(120);
@@ -114,6 +121,11 @@ void BottomPanel::appendOutput(const QString &text)
 void BottomPanel::appendTerminal(const QString &text)
 {
     m_terminal->appendPlainText(text);
+}
+
+void BottomPanel::appendPluginOutput(const QString &text)
+{
+    m_pluginOutput->appendPlainText(text);
 }
 
 void BottomPanel::clearProblems()

@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QMessageBox>
 
 #include "ui/mainwindow.h"
 #include "ui/thememanager.h"
@@ -20,6 +21,7 @@ int main(int argc, char *argv[])
     // 初始化日志系统（需在 QApplication 设置名称之后）
     logging::init();
 
+    try {
     // 加载应用配置
     AppConfig::instance()->load();
 
@@ -35,4 +37,17 @@ int main(int argc, char *argv[])
     int ret = app.exec();
     logging::shutdown();
     return ret;
+    } catch (const std::exception &e) {
+        QString msg = QStringLiteral("致命错误: %1").arg(e.what());
+        SIN_LOG_ERROR("main", "uncaught exception: {}", e.what());
+        logging::shutdown();
+        QMessageBox::critical(nullptr, QStringLiteral("致命错误"), msg);
+        return 1;
+    } catch (...) {
+        SIN_LOG_ERROR("main", "unknown uncaught exception");
+        logging::shutdown();
+        QMessageBox::critical(nullptr, QStringLiteral("致命错误"),
+                             QStringLiteral("程序发生未知异常"));
+        return 1;
+    }
 }

@@ -21,19 +21,6 @@ FilterBar::FilterBar(QWidget *parent)
     layout->setContentsMargins(4, 2, 4, 2);
     layout->setSpacing(4);
 
-    // 覆盖模式按钮（checkable）
-    m_overwriteBtn = new QPushButton("覆盖模式", this);
-    m_overwriteBtn->setCheckable(true);
-    m_overwriteBtn->setToolTip("开启后每个 CAN ID 固定一行，新帧刷新行数据和帧数\n"
-                               "关闭后为滚动模式，每帧新增一行");
-    layout->addWidget(m_overwriteBtn);
-
-    // 分隔线
-    auto *sep = new QFrame(this);
-    sep->setFrameShape(QFrame::VLine);
-    sep->setFrameShadow(QFrame::Sunken);
-    layout->addWidget(sep);
-
     m_statusIcon = new QLabel(this);
     m_statusIcon->setFixedSize(20, 20);
     m_statusIcon->setPixmap(style()->standardIcon(QStyle::SP_DialogOkButton).pixmap(16, 16));
@@ -54,14 +41,28 @@ FilterBar::FilterBar(QWidget *parent)
     m_presetBtn->setToolTip("过滤预设");
     m_presetBtn->setPopupMode(QToolButton::InstantPopup);
 
+    // 设置按钮（齿轮图标，弹出菜单由外部设置）
+    m_settingsBtn = new QToolButton(this);
+    m_settingsBtn->setText("⚙");
+    m_settingsBtn->setToolTip("设置（时间格式等）");
+    m_settingsBtn->setPopupMode(QToolButton::InstantPopup);
+    m_settingsBtn->setAutoRaise(true);
+    m_settingsBtn->setFixedSize(26, 22);
+
+    // 分组统计标签
+    m_packetCountLabel = new QLabel(this);
+    m_packetCountLabel->setStyleSheet("font-size: 11px; color: #666;");
+    m_packetCountLabel->setText(QStringLiteral("捕获: 0 | 显示: 0 | 标记: 0"));
+
     layout->addWidget(m_statusIcon);
     layout->addWidget(m_edit, 1);
     layout->addWidget(m_presetBtn);
     layout->addWidget(m_applyBtn);
     layout->addWidget(m_clearBtn);
     layout->addWidget(m_helpBtn);
+    layout->addWidget(m_settingsBtn);
+    layout->addWidget(m_packetCountLabel);
 
-    connect(m_overwriteBtn, &QPushButton::toggled, this, &FilterBar::overwriteModeToggled);
     connect(m_applyBtn, &QPushButton::clicked, this, &FilterBar::onApply);
     connect(m_clearBtn, &QPushButton::clicked, this, &FilterBar::onClear);
     connect(m_helpBtn, &QToolButton::clicked, this, &FilterBar::showHelp);
@@ -92,6 +93,11 @@ void FilterBar::refreshPresets()
     auto *saveAction = menu->addAction("保存当前表达式为预设...");
     connect(saveAction, &QAction::triggered, this, &FilterBar::onSaveAsPreset);
     m_presetBtn->setMenu(menu);
+}
+
+void FilterBar::setPacketCountText(const QString &text)
+{
+    m_packetCountLabel->setText(text);
 }
 
 void FilterBar::onPresetMenu()
@@ -127,11 +133,6 @@ QString FilterBar::filterText() const
 bool FilterBar::filterActive() const
 {
     return !m_edit->text().trimmed().isEmpty();
-}
-
-void FilterBar::setOverwriteMode(bool enabled)
-{
-    m_overwriteBtn->setChecked(enabled);
 }
 
 void FilterBar::onApply()

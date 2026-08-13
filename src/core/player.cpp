@@ -155,10 +155,17 @@ void Player::onTick()
     }
 
     if (m_currentIndex >= m_frames.size()) {
-        m_playing = false;
-        m_timer.stop();
-        emit stateChanged(false);
-        emit finished();
+        if (m_loop) {
+            // 循环回放：重置到开头继续
+            m_currentIndex = 0;
+            m_tickStartMs = QDateTime::currentMSecsSinceEpoch();
+            m_playbackBaseTime = m_frames.at(0).timestamp;
+        } else {
+            m_playing = false;
+            m_timer.stop();
+            emit stateChanged(false);
+            emit finished();
+        }
     }
 
     emitProgress();

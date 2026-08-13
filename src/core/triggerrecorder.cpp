@@ -55,7 +55,7 @@ void TriggerRecorder::onFrame(const CanFrame &frame)
     if (!m_running) return;
 
     switch (m_state) {
-    case State::Idle:
+    case State::Idle: {
         // 缓存前置帧
         m_preBuffer.enqueue(frame);
         while (m_preBuffer.size() > m_preBufferMaxFrames)
@@ -69,8 +69,9 @@ void TriggerRecorder::onFrame(const CanFrame &frame)
         // 检查触发条件
         checkTrigger(frame);
         break;
+    }
 
-    case State::PreTrigger:
+    case State::PreTrigger: {
         // 前置缓冲刷新中 → 直接写入文件
         m_splitter->recordFrame(frame);
         m_frameCount++;
@@ -79,8 +80,9 @@ void TriggerRecorder::onFrame(const CanFrame &frame)
             m_recordEndTime = frame.timestamp + m_config.postTriggerSeconds;
         }
         break;
+    }
 
-    case State::Recording:
+    case State::Recording: {
         m_splitter->recordFrame(frame);
         m_frameCount++;
 
@@ -100,21 +102,22 @@ void TriggerRecorder::onFrame(const CanFrame &frame)
         }
         break;
     }
+    }
 }
 
 void TriggerRecorder::checkTrigger(const CanFrame &frame)
 {
     if (m_state != State::Idle) return;
 
-    bool triggered = false;
+    bool isTriggered = false;
     if (m_triggerFilter.isEmpty()) {
         // 无条件 → 立即触发
-        triggered = true;
+        isTriggered = true;
     } else {
-        triggered = m_triggerFilter.evaluate(frame);
+        isTriggered = m_triggerFilter.evaluate(frame);
     }
 
-    if (triggered) {
+    if (isTriggered) {
         m_triggerTime = frame.timestamp;
         m_state = State::PreTrigger;
         emit triggered(m_config.triggerExpr, frame.timestamp);

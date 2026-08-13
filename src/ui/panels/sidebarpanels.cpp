@@ -25,12 +25,15 @@
 #include <QStyle>
 #include <QInputDialog>
 #include <QMessageBox>
+#include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
 #include <QMouseEvent>
 #include <QLinearGradient>
 #include <QFile>
 #include <QTextStream>
+#include <QLineEdit>
+#include <QToolButton>
 
 // ============================================================
 //  SidePanel 基类
@@ -39,6 +42,7 @@
 SidePanel::SidePanel(const QString &title, QWidget *parent)
     : QWidget(parent), m_contentLayout(nullptr)
 {
+    setAttribute(Qt::WA_StyledBackground, true);
     setupTitle(title);
 }
 
@@ -674,19 +678,25 @@ TracePanel::TracePanel(QWidget *parent)
     auto *cl = contentLayout();
 
     m_traceList = new QListWidget(this);
+    m_traceList->setContextMenuPolicy(Qt::CustomContextMenu);
     cl->addWidget(m_traceList, 1);
 
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(8, 6, 8, 6);
     btnBar->setSpacing(4);
     auto *newBtn = new QPushButton("+ 新建 Trace", this);
+    m_delBtn = new QPushButton("− 删除", this);
     btnBar->addWidget(newBtn);
+    btnBar->addWidget(m_delBtn);
     btnBar->addStretch();
     cl->addLayout(btnBar);
 
     connect(newBtn, &QPushButton::clicked, this, &TracePanel::onTraceClicked);
+    connect(m_delBtn, &QPushButton::clicked, this, &TracePanel::onDeleteTrace);
     connect(m_traceList, &QListWidget::currentRowChanged,
             this, &TracePanel::onPageSelected);
+    connect(m_traceList, &QWidget::customContextMenuRequested,
+            this, &TracePanel::onContextMenu);
 }
 
 void TracePanel::refreshList(const QStringList &names)
@@ -712,6 +722,30 @@ void TracePanel::onPageSelected(int row)
         emit tracePageSelected(row);
 }
 
+void TracePanel::onDeleteTrace()
+{
+    int row = m_traceList->currentRow();
+    if (row >= 0)
+        emit traceDeleteRequested(row);
+}
+
+void TracePanel::onContextMenu(const QPoint &pos)
+{
+    auto *item = m_traceList->itemAt(pos);
+    if (!item) return;
+    int row = m_traceList->row(item);
+
+    QMenu menu(this);
+    auto *actJump = menu.addAction(QStringLiteral("跳转到此标签页"));
+    auto *actDel = menu.addAction(QStringLiteral("删除此 Trace"));
+    QAction *chosen = menu.exec(m_traceList->viewport()->mapToGlobal(pos));
+    if (chosen == actJump) {
+        emit tracePageSelected(row);
+    } else if (chosen == actDel) {
+        emit traceDeleteRequested(row);
+    }
+}
+
 // ============================================================
 //  GraphicConfigPanel — Graphic 页面列表
 // ============================================================
@@ -722,19 +756,25 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
     auto *cl = contentLayout();
 
     m_pageList = new QListWidget(this);
+    m_pageList->setContextMenuPolicy(Qt::CustomContextMenu);
     cl->addWidget(m_pageList, 1);
 
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(8, 6, 8, 6);
     btnBar->setSpacing(4);
     auto *newBtn = new QPushButton("+ 新建 Graphic", this);
+    m_delBtn = new QPushButton("− 删除", this);
     btnBar->addWidget(newBtn);
+    btnBar->addWidget(m_delBtn);
     btnBar->addStretch();
     cl->addLayout(btnBar);
 
     connect(newBtn, &QPushButton::clicked, this, &GraphicConfigPanel::onNewGraphic);
+    connect(m_delBtn, &QPushButton::clicked, this, &GraphicConfigPanel::onDeleteGraphic);
     connect(m_pageList, &QListWidget::currentRowChanged,
             this, &GraphicConfigPanel::onPageSelected);
+    connect(m_pageList, &QWidget::customContextMenuRequested,
+            this, &GraphicConfigPanel::onContextMenu);
 }
 
 void GraphicConfigPanel::setGraphicView(GraphicView *view)
@@ -751,6 +791,30 @@ void GraphicConfigPanel::onPageSelected(int row)
 {
     if (row >= 0)
         emit graphicPageSelected(row);
+}
+
+void GraphicConfigPanel::onDeleteGraphic()
+{
+    int row = m_pageList->currentRow();
+    if (row >= 0)
+        emit graphicDeleteRequested(row);
+}
+
+void GraphicConfigPanel::onContextMenu(const QPoint &pos)
+{
+    auto *item = m_pageList->itemAt(pos);
+    if (!item) return;
+    int row = m_pageList->row(item);
+
+    QMenu menu(this);
+    auto *actJump = menu.addAction(QStringLiteral("跳转到此标签页"));
+    auto *actDel = menu.addAction(QStringLiteral("删除此 Graphic"));
+    QAction *chosen = menu.exec(m_pageList->viewport()->mapToGlobal(pos));
+    if (chosen == actJump) {
+        emit graphicPageSelected(row);
+    } else if (chosen == actDel) {
+        emit graphicDeleteRequested(row);
+    }
 }
 
 void GraphicConfigPanel::refreshList(const QStringList &names)
@@ -869,6 +933,7 @@ void DevicePanel::populateTree()
                 dev->setText(0, QStringLiteral("  ") + d.name);
                 dev->setData(0, Qt::UserRole, static_cast<int>(kind));
                 dev->setData(0, Qt::UserRole + 1, d.deviceIndex);
+                dev->setData(0, Qt::UserRole + 2, d.deviceType);
             }
         }
         parent->setExpanded(true);
@@ -903,7 +968,8 @@ void DevicePanel::onItemClicked(QTreeWidgetItem *item, int /*column*/)
     // 叶子节点 → 发出打开请求
     int deviceKind = item->data(0, Qt::UserRole).toInt();
     int devIndex = item->data(0, Qt::UserRole + 1).toInt();
-    emit deviceOpenRequested(deviceKind, devIndex, item->text(0).trimmed());
+    int deviceType = item->data(0, Qt::UserRole + 2).toInt();
+    emit deviceOpenRequested(deviceKind, devIndex, item->text(0).trimmed(), deviceType);
 }
 
 void DevicePanel::onItemDoubleClicked(QTreeWidgetItem *item, int /*column*/)
@@ -912,15 +978,16 @@ void DevicePanel::onItemDoubleClicked(QTreeWidgetItem *item, int /*column*/)
         return;
     int deviceKind = item->data(0, Qt::UserRole).toInt();
     int devIndex = item->data(0, Qt::UserRole + 1).toInt();
-    emit deviceOpenRequested(deviceKind, devIndex, item->text(0).trimmed());
+    int deviceType = item->data(0, Qt::UserRole + 2).toInt();
+    emit deviceOpenRequested(deviceKind, devIndex, item->text(0).trimmed(), deviceType);
 }
 
 // ============================================================
-//  SendPanel — 仅入口
+//  TransceivePanel — 收发面板（发送 / 回放 / 离线分析 / 录制）
 // ============================================================
 
-SendPanel::SendPanel(QWidget *parent)
-    : SidePanel("发送", parent)
+TransceivePanel::TransceivePanel(QWidget *parent)
+    : SidePanel("收发", parent)
 {
     auto *cl = contentLayout();
 
@@ -932,40 +999,38 @@ SendPanel::SendPanel(QWidget *parent)
     playbackBtn->setObjectName("SidePanelButton");
     cl->addWidget(playbackBtn);
 
+    auto *offlineBtn = new QPushButton("离线分析  →  点击打开离线分析标签页", this);
+    offlineBtn->setObjectName("SidePanelButton");
+    cl->addWidget(offlineBtn);
+
+    auto *recordBtn = new QPushButton("录制  →  点击打开录制标签页", this);
+    recordBtn->setObjectName("SidePanelButton");
+    cl->addWidget(recordBtn);
+
     cl->addStretch();
 
-    connect(sendBtn, &QPushButton::clicked, this, &SendPanel::onSendClicked);
-    connect(playbackBtn, &QPushButton::clicked, this, &SendPanel::onPlaybackClicked);
+    connect(sendBtn, &QPushButton::clicked, this, &TransceivePanel::onSendClicked);
+    connect(playbackBtn, &QPushButton::clicked, this, &TransceivePanel::onPlaybackClicked);
+    connect(offlineBtn, &QPushButton::clicked, this, &TransceivePanel::onOfflineAnalysisClicked);
+    connect(recordBtn, &QPushButton::clicked, this, &TransceivePanel::onRecordClicked);
 }
 
-void SendPanel::onSendClicked()
+void TransceivePanel::onSendClicked()
 {
     emit openSendRequested();
 }
 
-void SendPanel::onPlaybackClicked()
+void TransceivePanel::onPlaybackClicked()
 {
     emit openPlaybackRequested();
 }
 
-// ============================================================
-//  RecordPanel — 仅入口
-// ============================================================
-
-RecordPanel::RecordPanel(QWidget *parent)
-    : SidePanel("录制", parent)
+void TransceivePanel::onOfflineAnalysisClicked()
 {
-    auto *cl = contentLayout();
-
-    auto *btn = new QPushButton("录制  →  点击打开录制标签页", this);
-    btn->setObjectName("SidePanelButton");
-    cl->addWidget(btn);
-    cl->addStretch();
-
-    connect(btn, &QPushButton::clicked, this, &RecordPanel::onRecordClicked);
+    emit openOfflineAnalysisRequested();
 }
 
-void RecordPanel::onRecordClicked()
+void TransceivePanel::onRecordClicked()
 {
     emit openRecordRequested();
 }
@@ -1114,25 +1179,279 @@ void ToolsPanel::onItemClicked(QListWidgetItem *item)
 }
 
 // ============================================================
-//  SideBar — 11 个面板，索引与 ActivityBar 一致
-//  0=Project  1=Trace  2=Graphic  3=DBC
-//  4=Send     5=Record 6=Device   7=Protocol  8=Analysis
-//  9=Tools   10=Settings
+//  ExtensionsPanel — 插件管理面板
+// ============================================================
+
+static QString formatCount(int n)
+{
+    if (n >= 1000000) return QString::number(n / 1000000) + "M";
+    if (n >= 1000) return QString::number(n / 1000) + "K";
+    return QString::number(n);
+}
+
+ExtensionsPanel::ExtensionsPanel(QWidget *parent)
+    : SidePanel("扩展", parent)
+{
+    auto *cl = contentLayout();
+
+    // 搜索栏
+    m_searchEdit = new QLineEdit(this);
+    m_searchEdit->setObjectName("ExtensionSearch");
+    m_searchEdit->setPlaceholderText("搜索插件...");
+    m_searchEdit->setClearButtonEnabled(true);
+    cl->addWidget(m_searchEdit);
+
+    // 插件列表树
+    m_tree = new QTreeWidget(this);
+    m_tree->setObjectName("ExtensionTree");
+    m_tree->setHeaderHidden(true);
+    m_tree->setIndentation(12);
+    m_tree->setColumnCount(1);
+    m_tree->setRootIsDecorated(true);
+    m_tree->setExpandsOnDoubleClick(false);  // 双击不折叠，用于激活插件
+    cl->addWidget(m_tree, 1);
+
+    // 分区标题字体
+    QFont headerFont = font();
+    headerFont.setBold(true);
+    QFont placeholderFont = font();
+    placeholderFont.setItalic(true);
+
+    // 已安装
+    m_installedHeader = new QTreeWidgetItem;
+    m_installedHeader->setText(0, "已安装");
+    m_installedHeader->setFont(0, headerFont);
+    m_installedHeader->setFlags(Qt::ItemIsEnabled);
+    m_tree->addTopLevelItem(m_installedHeader);
+    m_installedHeader->setExpanded(true);
+
+    // 插件市场
+    m_marketHeader = new QTreeWidgetItem;
+    m_marketHeader->setText(0, "插件市场");
+    m_marketHeader->setFont(0, headerFont);
+    m_marketHeader->setFlags(Qt::ItemIsEnabled);
+    m_tree->addTopLevelItem(m_marketHeader);
+    m_marketHeader->setExpanded(true);
+
+    auto *marketHint = new QTreeWidgetItem(m_marketHeader);
+    marketHint->setText(0, "敬请期待");
+    marketHint->setFont(0, placeholderFont);
+    marketHint->setFlags(Qt::ItemIsEnabled);
+
+    // 命令
+    m_commandsHeader = new QTreeWidgetItem;
+    m_commandsHeader->setText(0, "命令");
+    m_commandsHeader->setFont(0, headerFont);
+    m_commandsHeader->setFlags(Qt::ItemIsEnabled);
+    m_tree->addTopLevelItem(m_commandsHeader);
+    m_commandsHeader->setExpanded(true);
+
+    auto *cmdHint = new QTreeWidgetItem(m_commandsHeader);
+    cmdHint->setText(0, "暂无插件命令");
+    cmdHint->setFont(0, placeholderFont);
+    cmdHint->setFlags(Qt::ItemIsEnabled);
+
+    connect(m_searchEdit, &QLineEdit::textChanged,
+            this, &ExtensionsPanel::onSearchChanged);
+    connect(m_tree, &QTreeWidget::itemClicked,
+            this, &ExtensionsPanel::onItemClicked);
+    connect(m_tree, &QTreeWidget::itemDoubleClicked,
+            this, &ExtensionsPanel::onItemDoubleClicked);
+}
+
+void ExtensionsPanel::refreshInstalledPlugins(const QList<ExtensionEntry> &entries)
+{
+    // 清空已安装分区
+    while (m_installedHeader->childCount() > 0) {
+        auto *child = m_installedHeader->child(0);
+        m_installedHeader->removeChild(child);
+        delete child;
+    }
+
+    for (const auto &entry : entries) {
+        auto *item = new QTreeWidgetItem(m_installedHeader);
+        item->setData(0, Qt::UserRole, entry.name);
+        item->setData(0, Qt::UserRole + 1, entry.name + " " + entry.description);
+        item->setSizeHint(0, QSize(0, 72));
+        m_tree->setItemWidget(item, 0, createPluginWidget(entry));
+    }
+
+    m_installedHeader->setExpanded(true);
+}
+
+QWidget *ExtensionsPanel::createPluginWidget(const ExtensionEntry &entry)
+{
+    auto *widget = new QWidget;
+    widget->setObjectName("ExtensionItem");
+    auto *layout = new QVBoxLayout(widget);
+    layout->setContentsMargins(4, 4, 4, 4);
+    layout->setSpacing(2);
+
+    // 名称 + 版本
+    auto *topRow = new QHBoxLayout;
+    topRow->setSpacing(6);
+    auto *nameLabel = new QLabel(entry.name);
+    QFont nameFont = nameLabel->font();
+    nameFont.setBold(true);
+    nameLabel->setFont(nameFont);
+    topRow->addWidget(nameLabel);
+    auto *verLabel = new QLabel(entry.version);
+    verLabel->setStyleSheet("color: #888;");
+    topRow->addWidget(verLabel);
+    topRow->addStretch();
+    // 运行状态指示
+    if (entry.activated) {
+        auto *runningLabel = new QLabel(QString::fromUtf8("● 运行中"));
+        runningLabel->setStyleSheet("color: #4ec9b0; font-size: 11px;");
+        topRow->addWidget(runningLabel);
+    }
+    layout->addLayout(topRow);
+
+    // 描述
+    if (!entry.description.isEmpty()) {
+        auto *descLabel = new QLabel(entry.description);
+        descLabel->setWordWrap(true);
+        descLabel->setStyleSheet("color: #aaa; font-size: 11px;");
+        layout->addWidget(descLabel);
+    }
+
+    // 统计 + 按钮
+    auto *bottomRow = new QHBoxLayout;
+    bottomRow->setSpacing(8);
+    if (entry.downloads > 0) {
+        auto *dl = new QLabel(QString::fromUtf8("\u2B07 %1").arg(formatCount(entry.downloads)));
+        dl->setStyleSheet("color: #888; font-size: 11px;");
+        bottomRow->addWidget(dl);
+    }
+    if (entry.rating > 0) {
+        auto *star = new QLabel(QString::fromUtf8("\u2605 %1").arg(entry.rating, 0, 'f', 1));
+        star->setStyleSheet("color: #e8a824; font-size: 11px;");
+        bottomRow->addWidget(star);
+    }
+    bottomRow->addStretch();
+
+    auto *btn = new QToolButton;
+    btn->setText(entry.enabled ? QString::fromUtf8("禁用") : QString::fromUtf8("启用"));
+    btn->setAutoRaise(true);
+    connect(btn, &QToolButton::clicked, this,
+            [this, name = entry.name, enabled = entry.enabled]() {
+                emit pluginToggleRequested(name, !enabled);
+            });
+    bottomRow->addWidget(btn);
+
+    layout->addLayout(bottomRow);
+    return widget;
+}
+
+void ExtensionsPanel::addCommand(const QString &id, const QString &title)
+{
+    // 移除“暂无插件命令”占位项
+    for (int i = 0; i < m_commandsHeader->childCount(); ++i) {
+        auto *child = m_commandsHeader->child(i);
+        if (child->text(0) == QString::fromUtf8("\u6682\u65E0\u63D2\u4EF6\u547D\u4EE4")) {
+            m_commandsHeader->removeChild(child);
+            delete child;
+            break;
+        }
+    }
+
+    // 避免重复
+    for (int i = 0; i < m_commandsHeader->childCount(); ++i) {
+        if (m_commandsHeader->child(i)->data(0, Qt::UserRole).toString() == id)
+            return;
+    }
+
+    auto *item = new QTreeWidgetItem(m_commandsHeader);
+    item->setText(0, title);
+    item->setData(0, Qt::UserRole, id);
+    m_commandsHeader->setExpanded(true);
+}
+
+void ExtensionsPanel::clearCommands()
+{
+    while (m_commandsHeader->childCount() > 0) {
+        auto *child = m_commandsHeader->child(0);
+        m_commandsHeader->removeChild(child);
+        delete child;
+    }
+
+    auto *cmdHint = new QTreeWidgetItem(m_commandsHeader);
+    cmdHint->setText(0, QString::fromUtf8("\u6682\u65E0\u63D2\u4EF6\u547D\u4EE4"));
+    QFont italicFont = font();
+    italicFont.setItalic(true);
+    cmdHint->setFont(0, italicFont);
+    cmdHint->setFlags(Qt::ItemIsEnabled);
+}
+
+void ExtensionsPanel::onSearchChanged(const QString &text)
+{
+    filterPlugins(text);
+}
+
+void ExtensionsPanel::onItemClicked(QTreeWidgetItem *item, int column)
+{
+    Q_UNUSED(column);
+    if (!item) return;
+
+    // 只处理命令分区的子项
+    QTreeWidgetItem *parent = item->parent();
+    if (parent != m_commandsHeader) return;
+
+    QString cmdId = item->data(0, Qt::UserRole).toString();
+    if (!cmdId.isEmpty())
+        emit commandTriggered(cmdId);
+}
+
+void ExtensionsPanel::onItemDoubleClicked(QTreeWidgetItem *item, int column)
+{
+    Q_UNUSED(column);
+    if (!item) return;
+
+    // 只处理已安装分区的插件项
+    QTreeWidgetItem *parent = item->parent();
+    if (parent != m_installedHeader) return;
+
+    QString name = item->data(0, Qt::UserRole).toString();
+    if (!name.isEmpty())
+        emit pluginActivated(name);  // 双击 = 激活插件
+}
+
+void ExtensionsPanel::filterPlugins(const QString &text)
+{
+    for (int i = 0; i < m_installedHeader->childCount(); ++i) {
+        auto *child = m_installedHeader->child(i);
+        if (text.isEmpty()) {
+            child->setHidden(false);
+        } else {
+            QString haystack = child->data(0, Qt::UserRole + 1).toString().toLower();
+            child->setHidden(!haystack.contains(text.toLower()));
+        }
+    }
+}
+
+// ============================================================
+//  SideBar — 12 个面板，索引与 ActivityBar 一致
+//  0=Project  1=Analysis(Flow)  2=Device   3=Trace  4=Graphic
+//  5=Dbc      6=Transceive      7=Protocol 8=Tools  9=Extensions
+//  10=Settings
 // ============================================================
 
 SideBar::SideBar(QWidget *parent)
     : QStackedWidget(parent)
 {
+    setObjectName("SideBar");
+    setAttribute(Qt::WA_StyledBackground, true);
+
     m_project      = new ProjectPanel(this);
     m_trace        = new TracePanel(this);
     m_graphicConfig = new GraphicConfigPanel(this);
     m_dbc          = new DbcPanel(this);
-    m_send         = new SendPanel(this);
-    m_record       = new RecordPanel(this);
+    m_transceive   = new TransceivePanel(this);
     m_device       = new DevicePanel(this);
     m_protocol     = new ProtocolPanel(this);
     m_analysis     = new MeasurementSetupPanel(this);
     m_tools        = new ToolsPanel(this);
+    m_extensions   = new ExtensionsPanel(this);
     m_settings     = new SettingsPanel(this);
 
     addWidget(m_project);        // 0 = Project
@@ -1141,10 +1460,10 @@ SideBar::SideBar(QWidget *parent)
     addWidget(m_trace);          // 3 = Trace
     addWidget(m_graphicConfig);  // 4 = Graphic
     addWidget(m_dbc);            // 5 = Dbc
-    addWidget(m_send);           // 6 = Send
-    addWidget(m_record);         // 7 = Record
-    addWidget(m_protocol);       // 8 = Protocol
-    addWidget(m_tools);          // 9 = Tools
+    addWidget(m_transceive);     // 6 = Transceive (收发)
+    addWidget(m_protocol);       // 7 = Protocol
+    addWidget(m_tools);          // 8 = Tools
+    addWidget(m_extensions);     // 9 = Extensions
     addWidget(m_settings);       // 10 = Settings
 
     setCurrentIndex(0);

@@ -14,13 +14,13 @@ struct Theme
     QString sidebarBg;   // Sidebar list / tree background
     QString panelBg;     // Panel title / toolbar / tab bar background
 
-    // Menu & Activity bar (often darker even in light themes)
+    // Menu & Activity bar
     QString barBg;       // Menu bar background
     QString barFg;       // Menu bar text
     QString barHover;    // Menu bar hover
     QString barBorder;   // Menu border
 
-    // Activity bar (always dark, even in light themes — VS Code style)
+    // Activity bar
     QString activityBarBg;     // Activity bar background
     QString activityBarFg;     // Activity bar icon/text color
     QString activityBarHover;  // Activity bar hover
@@ -88,9 +88,13 @@ public:
 
     QStringList themeNames() const;
     QString currentThemeName() const { return m_currentName; }
+    const Theme &currentTheme() const;
     void applyTheme(const QString &name);
 
     QString generateQss(const Theme &t) const;
+
+signals:
+    void themeChanged(const QString &name);
 
 private:
     ThemeManager(QObject *parent = nullptr);

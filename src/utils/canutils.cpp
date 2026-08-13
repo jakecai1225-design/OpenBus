@@ -4,6 +4,7 @@
 
 #include <QRegularExpression>
 #include <QStringList>
+#include <QDateTime>
 #include <algorithm>
 #include <memory>
 
@@ -15,7 +16,67 @@ namespace CanUtils {
 
 QString formatTime(double seconds)
 {
-    return QString::number(seconds, 'f', 6);
+    return formatTime(seconds, 6);
+}
+
+QString formatTime(double seconds, int precision)
+{
+    if (precision < 0) {
+        // 自动精度: 根据值大小选择
+        if (seconds >= 1.0)
+            precision = 6;   // 微秒
+        else if (seconds >= 0.001)
+            precision = 9;   // 纳秒
+        else
+            precision = 9;
+    }
+    // 限制到 0-9
+    precision = qBound(0, precision, 9);
+
+    if (precision == 0)
+        return QString::number(seconds, 'f', 0);
+    return QString::number(seconds, 'f', precision);
+}
+
+QString formatDateTime(const QDateTime &start, double seconds, int precision)
+{
+    if (!start.isValid())
+        return formatTime(seconds, precision);
+
+    // 计算绝对时间 = 起始 wall-clock + 偏移秒
+    qint64 msBase = start.toMSecsSinceEpoch();
+    double absMs = msBase + seconds * 1000.0;
+    QDateTime dt = QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(absMs));
+
+    // 精度控制
+    precision = qBound(0, precision, 9);
+    QString fmt;
+    switch (precision) {
+    case 0:  fmt = "yyyy-MM-dd HH:mm:ss"; break;
+    case 3:  fmt = "yyyy-MM-dd HH:mm:ss.zzz"; break;
+    case 6:  fmt = "yyyy-MM-dd HH:mm:ss.zzzzzz"; break;
+    case 9:  fmt = "yyyy-MM-dd HH:mm:ss.zzzzzzzzz"; break;
+    default: fmt = "yyyy-MM-dd HH:mm:ss.zzzzzz"; break;
+    }
+    QString result = dt.toString(fmt);
+
+    // Qt 最多支持毫秒级（3位），需手动补足到微秒/纳秒
+    if (precision > 3) {
+        // 从原始秒值提取微秒/纳秒部分
+        double frac = seconds - static_cast<qint64>(seconds);
+        if (precision == 6) {
+            // 微秒
+            int us = static_cast<int>(frac * 1000000.0) % 1000000;
+            result = dt.toString("yyyy-MM-dd HH:mm:ss");
+            result += QStringLiteral(".%1").arg(us, 6, 10, QChar('0'));
+        } else if (precision == 9) {
+            // 纳秒（近似，double 精度有限）
+            int ns = static_cast<int>(frac * 1000000000.0) % 1000000000;
+            result = dt.toString("yyyy-MM-dd HH:mm:ss");
+            result += QStringLiteral(".%1").arg(ns, 9, 10, QChar('0'));
+        }
+    }
+    return result;
 }
 
 QString formatId(quint32 id, bool extended)

@@ -1,4 +1,5 @@
-﻿﻿#include "mainwindow.h"
+﻿#include "mainwindow.h"
+#include <QTimer>
 #include "core/canframe.h"
 #include "core/recorder.h"
 #include "core/player.h"
@@ -21,12 +22,14 @@
 #include "ui/spliteditorarea.h"
 #include "ui/signalsendtab.h"
 #include "ui/playbacktab.h"
+#include "ui/offlineanalysistab.h"
 #include "ui/recordtab.h"
 #include "ui/dbcdetailtab.h"
 #include "ui/udsview.h"
 #include "ui/canopenview.h"
 #include "ui/measurementsetupview.h"
 #include "ui/deviceconnectiontab.h"
+#include "ui/extensionstab.h"
 #include "ui/tools/blfasconverter.h"
 #include "ui/tools/dbctoolview.h"
 #include "ui/tools/loganalysisview.h"
@@ -42,6 +45,9 @@
 #include "core/projectmanager.h"
 #include "ui/settingsdialog.h"
 #include "core/file_import/file_importer.h"
+#include "core/plugin/pluginmanager.h"
+#include "core/plugin/plugininfo.h"
+#include "models/viewportproxy.h"
 
 #include <QMenuBar>
 #include <QMenu>
@@ -58,6 +64,7 @@
 #include <QStatusBar>
 #include <QApplication>
 #include <QFileInfo>
+#include <QDir>
 #include <QPlainTextEdit>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -98,6 +105,18 @@ MainWindow::MainWindow(QWidget *parent)
     m_filterPresets = new FilterPresetManager(this);
     m_bookmarkMgr = new BookmarkManager(this);
 
+    // ---- 插件系统 ----
+    m_pluginManager = PluginManager::instance();
+    connect(m_pluginManager, &PluginManager::outputMessage,
+            this, &MainWindow::onPluginOutput);
+    connect(m_pluginManager, &PluginManager::commandRegistered,
+            this, &MainWindow::onPluginCommandRegistered);
+    connect(m_pluginManager, &PluginManager::sendFrameRequested,
+            this, &MainWindow::onPluginSendFrame);
+    connect(m_pluginManager, &PluginManager::requestSelectedFrames,
+            this, &MainWindow::onPluginRequestSelectedFrames);
+    m_pluginManager->initialize();
+
     // ---- UI 构建 ----
     createMenuBar();
     createWindowButtons();
@@ -113,6 +132,36 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onActivityChanged);
     connect(m_activityBar, &ActivityBar::activityToggled,
             this, &MainWindow::onActivityToggled);
+
+    // ExtensionsPanel → 插件操作
+    auto *extPanel = m_sideBar->extensionsPanel();
+    if (extPanel) {
+        connect(extPanel, &ExtensionsPanel::commandTriggered,
+                this, [this](const QString &id) {
+            if (m_pluginManager) m_pluginManager->executeCommand(id);
+        });
+        connect(extPanel, &ExtensionsPanel::pluginToggleRequested,
+                this, [this](const QString &name, bool enable) {
+            if (m_pluginManager) m_pluginManager->setPluginEnabled(name, enable);
+        });
+        connect(extPanel, &ExtensionsPanel::pluginActivated,
+                this, [this](const QString &name) {
+            if (m_pluginManager) m_pluginManager->reactivatePlugin(name);
+        });
+        connect(m_pluginManager, &PluginManager::pluginListChanged,
+                this, &MainWindow::refreshPluginList);
+    }
+
+    // ExtensionsTab → 插件管理标签页（懒创建，见 setupExtensionsTab）
+    setupExtensionsTab();
+
+    // pluginListChanged → 刷新 ExtensionsTab（连接在 manager 上，标签页删除后仍安全）
+    if (m_pluginManager) {
+        connect(m_pluginManager, &PluginManager::pluginListChanged,
+                this, [this]() {
+            if (m_extensionsTab) m_extensionsTab->refresh();
+        });
+    }
 
     // 模拟器 → 帧接收
     connect(m_simulator, &CanSimulator::frameGenerated,
@@ -177,16 +226,52 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onOpenTraceTab);
     connect(m_sideBar->tracePanel(), &TracePanel::tracePageSelected,
             this, &MainWindow::onTracePageSelected);
-    connect(m_sideBar->sendPanel(), &SendPanel::openSendRequested,
+    connect(m_sideBar->tracePanel(), &TracePanel::traceDeleteRequested,
+            this, [this](int row) {
+        // 侧边栏删除 Trace → 找到对应标签页并关闭（触发完整清理链）
+        const auto allTabs = m_editorArea->allTabWidgets();
+        int traceIdx = 0;
+        for (auto *tw : allTabs) {
+            for (int i = 0; i < tw->count(); ++i) {
+                if (tw->tabText(i).contains("Trace")) {
+                    if (traceIdx == row) {
+                        m_editorArea->closeTab(tw, i);
+                        return;
+                    }
+                    traceIdx++;
+                }
+            }
+        }
+    });
+    connect(m_sideBar->transceivePanel(), &TransceivePanel::openSendRequested,
             this, &MainWindow::onOpenSendTab);
-    connect(m_sideBar->sendPanel(), &SendPanel::openPlaybackRequested,
+    connect(m_sideBar->transceivePanel(), &TransceivePanel::openPlaybackRequested,
             this, &MainWindow::onOpenPlaybackTab);
-    connect(m_sideBar->recordPanel(), &RecordPanel::openRecordRequested,
+    connect(m_sideBar->transceivePanel(), &TransceivePanel::openOfflineAnalysisRequested,
+            this, &MainWindow::onOpenOfflineAnalysisTab);
+    connect(m_sideBar->transceivePanel(), &TransceivePanel::openRecordRequested,
             this, &MainWindow::onOpenRecordTab);
     connect(m_sideBar->graphicConfigPanel(), &GraphicConfigPanel::newGraphicRequested,
             this, &MainWindow::onNewGraphicRequested);
     connect(m_sideBar->graphicConfigPanel(), &GraphicConfigPanel::graphicPageSelected,
             this, &MainWindow::onGraphicPageSelected);
+    connect(m_sideBar->graphicConfigPanel(), &GraphicConfigPanel::graphicDeleteRequested,
+            this, [this](int row) {
+        // 侧边栏删除 Graphic → 找到对应标签页并关闭（触发完整清理链）
+        const auto allTabs = m_editorArea->allTabWidgets();
+        int graphicIdx = 0;
+        for (auto *tw : allTabs) {
+            for (int i = 0; i < tw->count(); ++i) {
+                if (tw->tabText(i).contains("Graphic")) {
+                    if (graphicIdx == row) {
+                        m_editorArea->closeTab(tw, i);
+                        return;
+                    }
+                    graphicIdx++;
+                }
+            }
+        }
+    });
     connect(m_sideBar->settingsPanel(), &SettingsPanel::settingsRequested,
             this, &MainWindow::onSettingsRequested);
     connect(m_sideBar->protocolPanel(), &ProtocolPanel::protocolOpened,
@@ -195,6 +280,9 @@ MainWindow::MainWindow(QWidget *parent)
             this, [](const QString &name) {
         ThemeManager::instance()->applyTheme(name);
     });
+    // 主题切换后刷新 ActivityBar 图标颜色
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+            m_activityBar, &ActivityBar::refreshIcons);
     // 设备连接面板 — 点击设备条目打开标签页
     connect(m_sideBar->devicePanel(), &DevicePanel::deviceOpenRequested,
             this, &MainWindow::onOpenDeviceTab);
@@ -263,12 +351,13 @@ MainWindow::MainWindow(QWidget *parent)
                 act = ActivityBar::Tools;
             else if (text.contains("DBC"))
                 act = ActivityBar::Dbc;
-            else if (text.contains("发送") || text.contains("回放"))
-                act = ActivityBar::Send;
-            else if (text.contains("录制"))
-                act = ActivityBar::Record;
+            else if (text.contains("发送") || text.contains("回放") ||
+                     text.contains("录制") || text.contains("离线分析"))
+                act = ActivityBar::Transceive;
             else if (text.contains("UDS") || text.contains("CANopen"))
                 act = ActivityBar::Protocol;
+            else if (text == QStringLiteral("扩展"))
+                act = ActivityBar::Extensions;
 
             if (act != ActivityBar::None) {
                 m_activityBar->setCurrentActivity(act);
@@ -290,6 +379,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_bottomPanel->appendOutput("openbus 启动完成");
     updateActions();
     refreshPanelLists();
+    refreshPluginList();
 
     // ---- 工程管理 ----
     connect(m_sideBar->projectPanel(), &ProjectPanel::projectSwitched,
@@ -342,6 +432,33 @@ MainWindow::MainWindow(QWidget *parent)
             }
         }
     }
+
+    // 兜底：如果未加载工程（首次启动 / lastPath 为空），applyProjectState 未被调用，
+    // 需确保 Trace1/Graphic1 默认标签页和 Flow 实例块存在，否则硬件连接后数据无处可去。
+    if (m_traceInstances.isEmpty()) {
+        auto *tab = new TraceTab(this);
+        setupTraceTab(tab);
+        openTab(tab, QStringLiteral("Trace1"));
+        m_traceInstances["trace1"] = tab;
+        m_traceTab = tab;
+        m_traceCount = qMax(m_traceCount, 1);
+        // Flow 视图中添加 trace1 实例块
+        if (m_setupView)
+            m_setupView->addModuleInstance("trace", "trace1", "Trace1");
+    }
+    if (m_graphicInstances.isEmpty()) {
+        auto *gv = new GraphicView(this);
+        openTab(gv, QStringLiteral("Graphic1"));
+        m_graphicInstances["graphic1"] = gv;
+        m_graphicView = gv;
+        m_sideBar->graphicConfigPanel()->setGraphicView(gv);
+        m_graphicCount = qMax(m_graphicCount, 1);
+        // Flow 视图中添加 graphic1 实例块
+        if (m_setupView)
+            m_setupView->addModuleInstance("graphic", "graphic1", "Graphic1");
+    }
+    if (m_setupView)
+        m_setupView->rebuildScene();
 }
 
 MainWindow::~MainWindow() = default;
@@ -406,51 +523,45 @@ void MainWindow::createMenuBar()
     viewMenu->addSeparator();
     viewMenu->addAction("重置布局", this, &MainWindow::resetLayout);
 
-    // ---- 工具 ----
-    auto *toolsMenu = menuBar()->addMenu("工具(&T)");
-
+    // ---- 工具操作 (不创建菜单, QAction 挂到主窗口, 快捷键仍然生效) ----
     m_recordAction = new QAction("录制", this);
     m_recordAction->setCheckable(true);
     m_recordAction->setShortcut(QKeySequence("Ctrl+R"));
-    toolsMenu->addAction(m_recordAction);
+    addAction(m_recordAction);
     connect(m_recordAction, &QAction::triggered, this, &MainWindow::onRecord);
-
-    toolsMenu->addSeparator();
 
     m_playAction = new QAction("播放", this);
     m_playAction->setShortcut(QKeySequence(Qt::Key_Space));
-    toolsMenu->addAction(m_playAction);
+    addAction(m_playAction);
     connect(m_playAction, &QAction::triggered, this, &MainWindow::onPlay);
 
     m_pauseAction = new QAction("暂停", this);
-    toolsMenu->addAction(m_pauseAction);
+    addAction(m_pauseAction);
     connect(m_pauseAction, &QAction::triggered, this, &MainWindow::onPause);
 
     m_stopAction = new QAction("停止", this);
-    toolsMenu->addAction(m_stopAction);
+    addAction(m_stopAction);
     connect(m_stopAction, &QAction::triggered, this, &MainWindow::onStop);
 
-    toolsMenu->addSeparator();
-
     m_clearAction = new QAction("清空 Trace", this);
-    toolsMenu->addAction(m_clearAction);
+    addAction(m_clearAction);
     connect(m_clearAction, &QAction::triggered, this, &MainWindow::onClear);
 
     m_autoScrollAction = new QAction("自动滚动", this);
     m_autoScrollAction->setCheckable(true);
     m_autoScrollAction->setChecked(true);
-    toolsMenu->addAction(m_autoScrollAction);
+    addAction(m_autoScrollAction);
     connect(m_autoScrollAction, &QAction::toggled, this, &MainWindow::onAutoScrollToggled);
-
-    toolsMenu->addSeparator();
 
     m_simAction = new QAction("模拟器开关", this);
     m_simAction->setCheckable(true);
-    toolsMenu->addAction(m_simAction);
+    addAction(m_simAction);
     connect(m_simAction, &QAction::toggled, this, [this](bool on) {
         if (on) m_simulator->start();
         else    m_simulator->stop();
     });
+
+    // ---- 插件入口已移至侧边栏扩展面板 ----
 
     // ---- 帮助 ----
     auto *helpMenu = menuBar()->addMenu("帮助(&H)");
@@ -687,10 +798,9 @@ void MainWindow::onActivityChanged(int activity)
         }
         if (!found)
             onNewGraphicRequested();
-    } else if (activity == ActivityBar::Send) {
-        onOpenSendTab();
-    } else if (activity == ActivityBar::Record) {
-        onOpenRecordTab();
+    } else if (activity == ActivityBar::Transceive) {
+        // 收发面板：只切换侧边栏显示，不自动打开标签页
+        // 用户点击侧边栏内的按钮才打开对应标签页
     } else if (activity == ActivityBar::Device) {
         // 切换到已存在的设备连接标签页
         const auto allTabs = m_editorArea->allTabWidgets();
@@ -727,6 +837,25 @@ void MainWindow::onActivityChanged(int activity)
             if (found) break;
         }
         // 未找到已打开的工具标签页时，仅显示工具集面板供用户选择
+    } else if (activity == ActivityBar::Extensions) {
+        // 扩展管理：打开扩展标签页
+        const auto allTabs = m_editorArea->allTabWidgets();
+        bool found = false;
+        for (auto *tw : allTabs) {
+            for (int i = tw->count() - 1; i >= 0; --i) {
+                if (tw->tabText(i).contains(QStringLiteral("扩展"))) {
+                    tw->setCurrentIndex(i);
+                    m_tabLabel->setText(tw->tabText(i));
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+        if (!found)
+            onOpenExtensionsTab();
+        else if (m_extensionsTab)
+            m_extensionsTab->refresh();
     }
 }
 
@@ -756,15 +885,22 @@ void MainWindow::onRecord()
     if (m_recording) {
         m_recorder->stop();
     } else {
-        QString defaultName = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + ".blf";
+        QString defaultName = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + ".asc";
         QString path = QFileDialog::getSaveFileName(
-            this, "录制文件", defaultName, CanFileIO::allFileFilters(false));
+            this, "录制文件", defaultName, CanFileIO::writableFileFilters());
         if (path.isEmpty()) {
             m_recordAction->setChecked(false);
             return;
         }
+        if (!CanFileIOFactory::canWrite(QFileInfo(path).suffix())) {
+            QMessageBox::warning(this, "录制",
+                "不支持的录制格式: ." + QFileInfo(path).suffix() + "\n请使用 ASC 或 CSV 格式。");
+            m_recordAction->setChecked(false);
+            return;
+        }
         if (!m_recorder->start(path)) {
-            QMessageBox::warning(this, "录制", "无法创建文件: " + path);
+            QMessageBox::warning(this, "录制", "无法创建文件: " + path +
+                "\n请检查路径是否有效、磁盘空间是否足够。");
             m_recordAction->setChecked(false);
             m_bottomPanel->addProblem(1, "Recorder", "无法创建录制文件: " + path);
             return;
@@ -775,7 +911,28 @@ void MainWindow::onRecord()
 void MainWindow::onPlay()
 {
     if (!m_player->isLoaded()) {
-        onOpenFile();
+        // 优先从离线分析标签页加载
+        if (m_offlineTab && !m_offlineTab->isEmpty()) {
+            QStringList paths = m_offlineTab->filePaths();
+            QVector<CanFrame> allFrames;
+            for (const auto &path : paths) {
+                auto reader = CanFileIOFactory::createReader(path);
+                if (!reader || !reader->open(path)) continue;
+                QVector<CanFrame> frames;
+                reader->readAll(frames);
+                reader->close();
+                allFrames += frames;
+            }
+            if (!allFrames.isEmpty()) {
+                std::sort(allFrames.begin(), allFrames.end(),
+                          [](const CanFrame &a, const CanFrame &b) {
+                              return a.timestamp < b.timestamp;
+                          });
+                m_player->loadFrames(allFrames);
+            }
+        }
+        if (!m_player->isLoaded())
+            onOpenFile();
         if (!m_player->isLoaded()) return;
     }
     m_player->play();
@@ -917,6 +1074,10 @@ void MainWindow::onAutoScrollToggled(bool on)
 
 void MainWindow::onFrameReceived(const CanFrame &frame)
 {
+    // 测量未运行时直接断流 — 不再向任何数据块分发帧
+    if (!m_measurementRunning)
+        return;
+
     // 发送到所有启用的 Graphic 视图，仅向运行中的 Trace 标签页追加帧
     const auto allTabs = m_editorArea->allTabWidgets();
     for (auto *tw : allTabs) {
@@ -946,11 +1107,24 @@ void MainWindow::onFrameReceived(const CanFrame &frame)
     // 发送到 Data Window
     if (m_dataWindow)
         m_dataWindow->onFrame(frame);
-    // 更新活跃标签页的统计
-    auto *active = qobject_cast<TraceTab *>(m_editorArea->currentWidget());
-    int count = active ? active->frameCount() : 0;
-    m_frameCountLabel->setText(QString::number(count) + " 帧");
-    m_rowCountLabel->setText(QString::number(count) + "行");
+    // 更新状态栏帧数（使用独立计数器，不依赖当前标签页类型）
+    m_receivedFrameCount++;
+    if (m_player->isLoaded()) {
+        // 文件回放模式：显示 "当前 / 总数"
+        int total = m_player->totalFrames();
+        m_frameCountLabel->setText(
+            QString::number(m_receivedFrameCount) + " / " +
+            QString::number(total) + " 帧");
+        m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
+    } else {
+        // 硬件实时模式：仅显示当前计数
+        m_frameCountLabel->setText(QString::number(m_receivedFrameCount) + " 帧");
+        m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
+    }
+
+    // 通知插件系统
+    if (m_pluginManager)
+        m_pluginManager->onFrameReceived(frame);
 }
 
 void MainWindow::onFramePlayed(const CanFrame &frame)
@@ -1262,6 +1436,44 @@ void MainWindow::openTab(QWidget *widget, const QString &label)
         m_tabLabel->setText(label);
 }
 
+void MainWindow::setupExtensionsTab()
+{
+    m_extensionsTab = new ExtensionsTab(this);
+
+    connect(m_extensionsTab, &ExtensionsTab::pluginActivateRequested,
+            this, [this](const QString &name) {
+        if (m_pluginManager) m_pluginManager->reactivatePlugin(name);
+    });
+    connect(m_extensionsTab, &ExtensionsTab::pluginDeactivateRequested,
+            this, [this](const QString &name) {
+        if (m_pluginManager) m_pluginManager->deactivatePlugin(name);
+        if (m_pluginManager) emit m_pluginManager->pluginListChanged();
+    });
+    connect(m_extensionsTab, &ExtensionsTab::pluginToggleRequested,
+            this, [this](const QString &name, bool enable) {
+        if (m_pluginManager) m_pluginManager->setPluginEnabled(name, enable);
+    });
+    connect(m_extensionsTab, &ExtensionsTab::hostStopRequested,
+            this, [this]() {
+        if (m_pluginManager) m_pluginManager->shutdown();
+        if (m_extensionsTab) m_extensionsTab->refresh();
+    });
+
+    // 标签页被关闭后 widget 被删除 → 置空指针，避免悬空引用
+    connect(m_extensionsTab, &QObject::destroyed, this, [this]() {
+        m_extensionsTab = nullptr;
+    });
+}
+
+void MainWindow::onOpenExtensionsTab()
+{
+    // 标签页可能已被关闭并删除，需要重建
+    if (!m_extensionsTab)
+        setupExtensionsTab();
+    openTab(m_extensionsTab, QStringLiteral("扩展"));
+    m_extensionsTab->refresh();
+}
+
 void MainWindow::onOpenTraceTab()
 {
     auto *tab = new TraceTab(this);
@@ -1327,6 +1539,25 @@ void MainWindow::onOpenPlaybackTab()
     openTab(m_playbackTab, "回放");
 }
 
+void MainWindow::onOpenOfflineAnalysisTab()
+{
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains(QStringLiteral("离线分析"))) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
+                return;
+            }
+        }
+    }
+    // 未找到则创建新的
+    m_offlineTab = new OfflineAnalysisTab(this);
+    setupOfflineAnalysisTab(m_offlineTab);
+    connect(m_offlineTab, &QObject::destroyed, this, [this]() { m_offlineTab = nullptr; });
+    openTab(m_offlineTab, QStringLiteral("离线分析"));
+}
+
 void MainWindow::onOpenRecordTab()
 {
     const auto allTabs = m_editorArea->allTabWidgets();
@@ -1352,23 +1583,96 @@ void MainWindow::onOpenRecordTab()
 
 void MainWindow::setupSendTab(SignalSendTab *tab)
 {
-    connect(tab, &SignalSendTab::sendAllRequested, this, [this]() {
-        m_bottomPanel->appendOutput("全部发送 (待实现)");
-    });
-    connect(tab, &SignalSendTab::stopAllRequested, this, [this]() {
-        m_bottomPanel->appendOutput("全部停止 (待实现)");
-    });
+    // 发送单帧
     connect(tab, &SignalSendTab::sendSingleRequested, this, [this](quint32 id, const QByteArray &data) {
-        m_bottomPanel->appendOutput(QString("发送单帧: ID=0x%1, DLC=%2")
-            .arg(id, 0, 16).toUpper().arg(data.size()));
+        CanFrame frame;
+        frame.id = id;
+        frame.dlc = CanFrame::lengthToDlc(data.size());
+        frame.data = data;
+        frame.direction = CanFrame::Tx;
+
+        if (m_deviceManager->sendFrame(frame)) {
+            m_bottomPanel->appendOutput(QString("发送: ID=0x%1, DLC=%2")
+                .arg(id, 0, 16).toUpper().arg(data.size()));
+        } else {
+            m_bottomPanel->appendOutput(QString("发送失败 (设备未连接或为模拟器): ID=0x%1")
+                .arg(id, 0, 16).toUpper());
+        }
     });
+
+    // 发送行（单次或周期）
     connect(tab, &SignalSendTab::sendRowRequested, this,
         [this](int row, quint32 id, const QByteArray &data, int period, int count) {
-        m_bottomPanel->appendOutput(QString("发送行%1: ID=0x%2, DLC=%3, 周期=%4ms")
-            .arg(row + 1).arg(id, 0, 16).toUpper().arg(data.size()).arg(period));
+        CanFrame frame;
+        frame.id = id;
+        frame.dlc = CanFrame::lengthToDlc(data.size());
+        frame.data = data;
+        frame.direction = CanFrame::Tx;
+
+        // 先发送一帧
+        if (m_deviceManager->sendFrame(frame)) {
+            m_bottomPanel->appendOutput(QString("发送行%1: ID=0x%2, DLC=%3")
+                .arg(row + 1).arg(id, 0, 16).toUpper().arg(data.size()));
+        } else {
+            m_bottomPanel->appendOutput(QString("发送失败 (设备未连接或为模拟器): ID=0x%1")
+                .arg(id, 0, 16).toUpper());
+        }
+
+        // 周期发送
+        if (period > 0) {
+            // 停止该行已有的定时器
+            auto it = m_periodicSenders.find(row);
+            if (it != m_periodicSenders.end()) {
+                it.value()->stop();
+                it.value()->deleteLater();
+                m_periodicSenders.erase(it);
+            }
+
+            auto *timer = new QTimer(this);
+            timer->setInterval(period);
+            int remaining = count;  // 0 = 无限
+            connect(timer, &QTimer::timeout, this, [this, id, data, row, count, timer, remaining]() mutable {
+                CanFrame f;
+                f.id = id;
+                f.dlc = CanFrame::lengthToDlc(data.size());
+                f.data = data;
+                f.direction = CanFrame::Tx;
+                m_deviceManager->sendFrame(f);
+
+                if (count > 0) {
+                    --remaining;
+                    if (remaining <= 0) {
+                        timer->stop();
+                        timer->deleteLater();
+                        m_periodicSenders.remove(row);
+                        m_bottomPanel->appendOutput(
+                            QString("行%1 周期发送完成 (%2 次)").arg(row + 1).arg(count));
+                    }
+                }
+            });
+            timer->start();
+            m_periodicSenders[row] = timer;
+        }
     });
+
+    // 停止单行
     connect(tab, &SignalSendTab::stopRowRequested, this, [this](int row) {
-        m_bottomPanel->appendOutput(QString("停止行%1").arg(row + 1));
+        auto it = m_periodicSenders.find(row);
+        if (it != m_periodicSenders.end()) {
+            it.value()->stop();
+            it.value()->deleteLater();
+            m_periodicSenders.erase(it);
+            m_bottomPanel->appendOutput(QString("停止行%1 周期发送").arg(row + 1));
+        }
+    });
+
+    // 全部停止（安全网：确保所有定时器都停止）
+    connect(tab, &SignalSendTab::stopAllRequested, this, [this]() {
+        for (auto *t : m_periodicSenders) {
+            t->stop();
+            t->deleteLater();
+        }
+        m_periodicSenders.clear();
     });
 }
 
@@ -1379,6 +1683,8 @@ void MainWindow::setupPlaybackTab(PlaybackTab *tab)
     connect(tab, &PlaybackTab::stopRequested, this, &MainWindow::onStop);
     connect(tab, &PlaybackTab::speedChanged, this, &MainWindow::onSpeedChanged);
     connect(tab, &PlaybackTab::seekChanged, this, &MainWindow::onSeekChanged);
+    connect(tab, &PlaybackTab::loopToggled, m_player, &Player::setLoop);
+    connect(tab, &PlaybackTab::autoScrollToggled, this, &MainWindow::onAutoScrollToggled);
     connect(tab, &PlaybackTab::fileLoaded, this, [this, tab](const QString &path) {
         QFileInfo fi(path);
         if (!m_player->load(path)) {
@@ -1404,34 +1710,66 @@ void MainWindow::setupPlaybackTab(PlaybackTab *tab)
     });
 }
 
+void MainWindow::setupOfflineAnalysisTab(OfflineAnalysisTab *tab)
+{
+    // 离线分析标签页是纯文件列表管理，不直接加载文件
+    // 文件加载由 Flow 界面点击"开始"时统一处理（measurementToggled）
+    Q_UNUSED(tab);
+}
+
 void MainWindow::setupRecordTab(RecordTab *tab)
 {
     connect(tab, &RecordTab::recordToggled, this, [this, tab](bool on) {
         if (on) {
-            QString defaultName = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + ".blf";
-            QString path = QFileDialog::getSaveFileName(
-                this, "录制文件", defaultName, CanFileIO::allFileFilters(false));
-            if (path.isEmpty()) {
-                tab->setRecording(false);
-                return;
-            }
+            // 使用 RecordTab 面板设置自动生成文件路径
+            QString dir = tab->directory();
+            if (dir.isEmpty()) dir = ".";
+            QDir().mkpath(dir);
+            QString prefix = tab->prefix();
+            if (prefix.isEmpty()) prefix = "rec";
+            QString fmt = tab->format();
+            if (!CanFileIOFactory::canWrite(fmt)) fmt = "asc";
+            QString fileName = prefix + "_" +
+                QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") +
+                "." + fmt;
+            QString path = QDir(dir).filePath(fileName);
+
             if (!m_recorder->start(path)) {
-                QMessageBox::warning(this, "录制", "无法创建文件: " + path);
+                QMessageBox::warning(this, "录制", "无法创建文件: " + path +
+                    "\n请检查路径是否有效、磁盘空间是否足够。");
                 tab->setRecording(false);
                 m_bottomPanel->addProblem(1, "Recorder", "无法创建录制文件: " + path);
                 return;
             }
+            m_bottomPanel->appendOutput("开始录制: " + path);
         } else {
             m_recorder->stop();
+        }
+    });
+
+    // 暂停/恢复录制
+    connect(tab, &RecordTab::pauseRequested, this, [this, tab](bool paused) {
+        if (paused) {
+            m_recorder->pause();
+            m_bottomPanel->appendOutput("录制已暂停");
+        } else {
+            m_recorder->resume();
+            m_bottomPanel->appendOutput("录制已恢复");
         }
     });
 
     // P1: 触发录制
     connect(tab, &RecordTab::triggerRecordingRequested,
             this, &MainWindow::onTriggerRecording);
+
+    // 触发录制停止
+    connect(tab, &RecordTab::triggerRecordingStopped, this, [this]() {
+        if (m_triggerRecorder)
+            m_triggerRecorder->stop();
+    });
 }
 
-void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName)
+void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName, int deviceType)
 {
     // 查找已有的设备连接标签页
     const auto allTabs = m_editorArea->allTabWidgets();
@@ -1441,7 +1779,7 @@ void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &de
                 tw->setCurrentIndex(i);
                 m_tabLabel->setText(tw->tabText(i));
                 if (m_deviceTab)
-                    m_deviceTab->setDevice(deviceKind, devIndex, deviceName);
+                    m_deviceTab->setDevice(deviceKind, devIndex, deviceName, deviceType);
                 return;
             }
         }
@@ -1455,7 +1793,7 @@ void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &de
         setupDeviceTab(m_deviceTab);
         connect(m_deviceTab, &QObject::destroyed, this, [this]() { m_deviceTab = nullptr; });
     }
-    m_deviceTab->setDevice(deviceKind, devIndex, deviceName);
+    m_deviceTab->setDevice(deviceKind, devIndex, deviceName, deviceType);
     openTab(m_deviceTab, QStringLiteral("设备连接"));
 }
 
@@ -1464,14 +1802,14 @@ void MainWindow::setupDeviceTab(DeviceConnectionTab *tab)
     // V2 信号 — 真实硬件连接
     connect(tab, &DeviceConnectionTab::deviceConnectRequestedV2,
             this, [this](int devKind, int devIndex, int channel,
-                         int arbBaud, int dataBaud, bool canFd) {
+                         int arbBaud, int dataBaud, bool canFd, int devSubType) {
         auto kind = static_cast<CanDeviceManager::DeviceKind>(devKind);
         m_deviceManager->configure(kind, devIndex, channel,
-                                   arbBaud, dataBaud, canFd);
+                                   arbBaud, dataBaud, canFd, devSubType);
         m_deviceManager->start();
     });
 
-    // 连接成功 — 启动数据流到 Trace / Graphic
+    // 连接成功 — 仅连接设备，不启动数据流
     connect(tab, &DeviceConnectionTab::deviceConnectRequested,
             this, [this](const QString &name, int) {
         // 真实设备模式下，检查设备是否成功启动
@@ -1482,16 +1820,9 @@ void MainWindow::setupDeviceTab(DeviceConnectionTab *tab)
         }
         if (!m_deviceManager->isRealDevice())
             m_connLabel->setText(QStringLiteral("🔗 已连接"));
-        // 启动数据流：标记测量运行 + Trace 实例遵循 Flow 块使能状态
-        m_measurementRunning = true;
-        for (auto it = m_traceInstances.begin(); it != m_traceInstances.end(); ++it) {
-            auto *traceTab = qobject_cast<TraceTab *>(it.value());
-            if (!traceTab) continue;
-            bool en = m_setupView ? m_setupView->isBlockEnabled(it.key()) : true;
-            traceTab->setRunning(en);
-        }
+        // 不自动启动数据流 — 需在 Flow 页面点击“开始”后才向 Trace/Graphic 分发数据
         m_bottomPanel->appendOutput(
-            QStringLiteral(" 数据流已启动: %1").arg(name));
+            QStringLiteral("✅ 设备已连接: %1 (请在 Flow 页面点击开始启动数据流)").arg(name));
     });
     // 断开 — 停止数据流
     connect(tab, &DeviceConnectionTab::deviceDisconnectRequested,
@@ -1562,86 +1893,22 @@ void MainWindow::onOpenMeasurementSetup()
         if (src == static_cast<int>(MeasurementSetupView::Source::File)) {
             m_simulator->stop();
             m_deviceManager->stop();
-            m_bottomPanel->appendOutput("数据源切换：文件回放");
+            m_bottomPanel->appendOutput("数据源切换：离线分析");
         } else {
             m_player->stop();
             m_bottomPanel->appendOutput("数据源切换：硬件实时");
         }
     });
     connect(view, &MeasurementSetupView::fileBrowseRequested,
-            this, [this, view]() {
-        // 支持多文件选择
-        const auto filters = FileImportFactory::fileFilters();
-        QStringList paths = QFileDialog::getOpenFileNames(
-            this, QStringLiteral("选择回放文件（可多选）"), {},
-            filters.join(QStringLiteral(";;")));
-        if (paths.isEmpty()) return;
-
-        QVector<CanFrame> allFrames;
-        QStringList loadedNames;
-        int totalFiles = paths.size();
-
-        QProgressDialog progress(QStringLiteral("正在导入回放文件..."),
-                                 QStringLiteral("取消"), 0, totalFiles * 100, this);
-        progress.setWindowModality(Qt::WindowModal);
-        progress.setMinimumDuration(500);
-
-        for (int fi_idx = 0; fi_idx < paths.size(); ++fi_idx) {
-            const auto &path = paths[fi_idx];
-            QFileInfo fi(path);
-            QString suffix = fi.suffix().toLower();
-
-            auto importer = FileImportFactory::create(path);
-            if (!importer) {
-                m_bottomPanel->appendOutput(
-                    QStringLiteral("不支持的格式: %1").arg(suffix));
-                continue;
-            }
-
-            int baseProgress = fi_idx * 100;
-            auto frames = importer->importFile(path, [&, baseProgress](double pct) {
-                progress.setValue(baseProgress + static_cast<int>(pct * 100));
-                QApplication::processEvents();
-            });
-
-            if (progress.wasCanceled()) break;
-
-            if (frames.isEmpty()) {
-                m_bottomPanel->appendOutput(
-                    QStringLiteral("文件为空或解析失败: %1").arg(fi.fileName()));
-                continue;
-            }
-
-            allFrames += frames;
-            loadedNames << fi.fileName();
-            m_bottomPanel->appendOutput(
-                QStringLiteral("已加载: %1 (%2 帧)")
-                    .arg(fi.fileName()).arg(frames.size()));
-        }
-
-        if (progress.wasCanceled() || allFrames.isEmpty()) {
-            if (allFrames.isEmpty())
-                QMessageBox::warning(this, QStringLiteral("回放"),
-                    QStringLiteral("所有文件解析失败或为空"));
-            return;
-        }
-
-        // 按时间戳排序合并的帧
-        std::sort(allFrames.begin(), allFrames.end(),
-                  [](const CanFrame &a, const CanFrame &b) {
-                      return a.timestamp < b.timestamp;
-                  });
-
-        m_player->loadFrames(allFrames);
-        view->setFilePath(paths.first());
-        m_bottomPanel->appendOutput(
-            QStringLiteral("✅ 共加载 %1 个文件, %2 帧")
-                .arg(loadedNames.size()).arg(allFrames.size()));
+            this, [this]() {
+        // 打开离线分析标签页（文件选择在该标签页内完成）
+        onOpenOfflineAnalysisTab();
     });
     connect(view, &MeasurementSetupView::measurementToggled,
             this, [this, view](bool running) {
         m_measurementRunning = running;
         if (running) {
+            m_receivedFrameCount = 0;  // 重置帧计数器
             m_bottomPanel->appendOutput(" 测量开始");
             if (view->currentSource() == MeasurementSetupView::Source::Hardware) {
                 // 硬件模式：根据 DevicePanel 选中设备决定数据源
@@ -1651,8 +1918,63 @@ void MainWindow::onOpenMeasurementSetup()
                     m_simulator->start();
                 }
             } else {
-                if (!m_player->isLoaded())
+                // 离线分析模式：从离线分析标签页加载所有文件，合并后送入 Player
+                m_player->stop();
+                QStringList paths = (m_offlineTab && !m_offlineTab->isEmpty())
+                                    ? m_offlineTab->filePaths() : QStringList{};
+
+                if (paths.isEmpty()) {
+                    // 无文件 → 回退到文件选择框
                     onOpenFile();
+                    if (!m_player->isLoaded()) return;
+                } else {
+                    // 逐个文件加载帧并合并
+                    QVector<CanFrame> allFrames;
+                    QStringList loadedNames;
+                    for (const auto &path : paths) {
+                        auto reader = CanFileIOFactory::createReader(path);
+                        if (!reader || !reader->open(path)) {
+                            m_bottomPanel->appendOutput(
+                                QStringLiteral("解析失败: %1").arg(QFileInfo(path).fileName()));
+                            continue;
+                        }
+                        QVector<CanFrame> frames;
+                        int count = reader->readAll(frames);
+                        reader->close();
+                        if (count > 0) {
+                            allFrames += frames;
+                            loadedNames << QFileInfo(path).fileName();
+                            m_bottomPanel->appendOutput(
+                                QStringLiteral("已加载: %1 (%2 帧)")
+                                    .arg(QFileInfo(path).fileName()).arg(count));
+                        }
+                    }
+                    if (allFrames.isEmpty()) {
+                        QMessageBox::warning(this, QStringLiteral("离线分析"),
+                            QStringLiteral("所有文件解析失败或为空"));
+                        return;
+                    }
+                    // 按时间戳排序合并帧
+                    std::sort(allFrames.begin(), allFrames.end(),
+                              [](const CanFrame &a, const CanFrame &b) {
+                                  return a.timestamp < b.timestamp;
+                              });
+                    m_player->loadFrames(allFrames);
+                    m_bottomPanel->appendOutput(
+                        QStringLiteral("✅ 共加载 %1 个文件, %2 帧")
+                            .arg(loadedNames.size()).arg(allFrames.size()));
+                }
+
+                // 清除所有 Trace 和 Graphic 视图
+                const auto allTabs = m_editorArea->allTabWidgets();
+                for (auto *tw : allTabs) {
+                    for (int i = 0; i < tw->count(); ++i) {
+                        auto *gv = qobject_cast<GraphicView *>(tw->widget(i));
+                        if (gv) gv->clearData();
+                        auto *tt = qobject_cast<TraceTab *>(tw->widget(i));
+                        if (tt) tt->clearTrace();
+                    }
+                }
                 m_player->play();
             }
             // 所有已启用的 Trace 实例自动开始接收数据（遵循 Flow 块使能状态）
@@ -1707,6 +2029,11 @@ void MainWindow::onOpenMeasurementSetup()
         }
         openTab(m_deviceTab, QStringLiteral("设备连接"));
     });
+    connect(view, &MeasurementSetupView::fileBlockClicked,
+            this, [this]() {
+        // 双击 File 块 → 跳转到离线分析标签页
+        onOpenOfflineAnalysisTab();
+    });
     connect(view, &MeasurementSetupView::moduleOpened,
             this, [this, view](const QString &moduleId, const QString &instanceId) {
         if (moduleId == "trace") {
@@ -1745,8 +2072,11 @@ void MainWindow::onOpenMeasurementSetup()
                 view->addModuleInstance("trace", id, title);
                 connect(newTab, &QObject::destroyed, this, [this, id](QObject *) {
                     m_traceInstances.remove(id);
-                    if (m_setupView)
-                        m_setupView->removeModuleInstance("trace", id);
+                    // 延迟到下一轮事件循环，避免在析构链中同步修改场景导致崩溃
+                    QMetaObject::invokeMethod(this, [this, id]() {
+                        if (m_setupView)
+                            m_setupView->removeModuleInstance("trace", id);
+                    }, Qt::QueuedConnection);
                 });
             }
         } else if (moduleId == "graphic") {
@@ -1784,8 +2114,11 @@ void MainWindow::onOpenMeasurementSetup()
                 view->addModuleInstance("graphic", id, title);
                 connect(newGv, &QObject::destroyed, this, [this, id](QObject *) {
                     m_graphicInstances.remove(id);
-                    if (m_setupView)
-                        m_setupView->removeModuleInstance("graphic", id);
+                    // 延迟到下一轮事件循环，避免在析构链中同步修改场景导致崩溃
+                    QMetaObject::invokeMethod(this, [this, id]() {
+                        if (m_setupView)
+                            m_setupView->removeModuleInstance("graphic", id);
+                    }, Qt::QueuedConnection);
                 });
             }
         } else if (moduleId == "record") {
@@ -1796,35 +2129,38 @@ void MainWindow::onOpenMeasurementSetup()
     });
 
     // 关闭模块实例请求
+    // 使用 QTimer::singleShot(0) 延迟到下一轮事件循环，避免在右键菜单 exec() 的
+    // 本地事件循环中触发 deleteLater() → destroyed → removeModuleInstance → rebuildScene()
+    // 导致场景重建在 mousePressEvent 调用栈中执行而崩溃
     connect(view, &MeasurementSetupView::moduleInstanceClosed,
             this, [this](const QString &moduleId, const QString &instanceId) {
-        if (moduleId == "trace") {
-            auto *tab = m_traceInstances.value(instanceId);
-            if (tab) {
-                const auto allTabs = m_editorArea->allTabWidgets();
-                for (auto *tw : allTabs) {
-                    int idx = tw->indexOf(tab);
-                    if (idx >= 0) {
-                        tw->removeTab(idx);
-                        break;
+        QTimer::singleShot(0, this, [this, moduleId, instanceId]() {
+            if (moduleId == "trace") {
+                auto *tab = m_traceInstances.value(instanceId);
+                if (tab) {
+                    const auto allTabs = m_editorArea->allTabWidgets();
+                    for (auto *tw : allTabs) {
+                        int idx = tw->indexOf(tab);
+                        if (idx >= 0) {
+                            m_editorArea->closeTab(tw, idx);  // 同步关闭标签页 + 刷新侧边栏
+                            break;
+                        }
                     }
                 }
-                tab->deleteLater();  // destroyed 信号会自动清理 map 和通知 view
-            }
-        } else if (moduleId == "graphic") {
-            auto *gv = m_graphicInstances.value(instanceId);
-            if (gv) {
-                const auto allTabs = m_editorArea->allTabWidgets();
-                for (auto *tw : allTabs) {
-                    int idx = tw->indexOf(gv);
-                    if (idx >= 0) {
-                        tw->removeTab(idx);
-                        break;
+            } else if (moduleId == "graphic") {
+                auto *gv = m_graphicInstances.value(instanceId);
+                if (gv) {
+                    const auto allTabs = m_editorArea->allTabWidgets();
+                    for (auto *tw : allTabs) {
+                        int idx = tw->indexOf(gv);
+                        if (idx >= 0) {
+                            m_editorArea->closeTab(tw, idx);
+                            break;
+                        }
                     }
                 }
-                gv->deleteLater();
             }
-        }
+        });
     });
 
     // DBC 选择请求 → 打开 DBC 导入对话框
@@ -1872,17 +2208,45 @@ void MainWindow::onOpenMeasurementSetup()
         m_bottomPanel->appendOutput(QString("通道 %1 过滤条件已配置").arg(channelId));
     });
 
+    // 先打开 Flow 标签页，确保标签页顺序为 Flow → Trace1 → Graphic1
+    openTab(view, "Flow");
+
     // 注册默认 Trace 实例到 flow 画布
     if (m_traceTab) {
         if (!m_traceInstances.contains("trace1")) {
             m_traceInstances["trace1"] = m_traceTab;
             connect(m_traceTab, &QObject::destroyed, this, [this](QObject *) {
                 m_traceInstances.remove("trace1");
-                if (m_setupView)
-                    m_setupView->removeModuleInstance("trace", "trace1");
+                m_traceTab = nullptr;
+                QMetaObject::invokeMethod(this, [this]() {
+                    if (m_setupView)
+                        m_setupView->removeModuleInstance("trace", "trace1");
+                }, Qt::QueuedConnection);
             });
         }
         view->addModuleInstance("trace", "trace1", "Trace1");
+    } else if (!m_traceInstances.contains("trace1")) {
+        // 首次启动 — 创建默认 Trace1 标签页
+        auto *tab = new TraceTab(this);
+        setupTraceTab(tab);
+        if (m_filterPresets) {
+            auto *filterBar = tab->filterBar();
+            if (filterBar)
+                filterBar->setPresetManager(m_filterPresets);
+        }
+        openTab(tab, "Trace1");
+        m_traceCount = qMax(m_traceCount, 1);
+        m_traceTab = tab;
+        m_traceInstances["trace1"] = tab;
+        view->addModuleInstance("trace", "trace1", "Trace1");
+        connect(tab, &QObject::destroyed, this, [this](QObject *) {
+            m_traceInstances.remove("trace1");
+            m_traceTab = nullptr;
+            QMetaObject::invokeMethod(this, [this]() {
+                if (m_setupView)
+                    m_setupView->removeModuleInstance("trace", "trace1");
+            }, Qt::QueuedConnection);
+        });
     }
 
     // 注册默认 Graphic 实例到 flow 画布
@@ -1891,14 +2255,32 @@ void MainWindow::onOpenMeasurementSetup()
             m_graphicInstances["graphic1"] = m_graphicView;
             connect(m_graphicView, &QObject::destroyed, this, [this](QObject *) {
                 m_graphicInstances.remove("graphic1");
-                if (m_setupView)
-                    m_setupView->removeModuleInstance("graphic", "graphic1");
+                m_graphicView = nullptr;
+                QMetaObject::invokeMethod(this, [this]() {
+                    if (m_setupView)
+                        m_setupView->removeModuleInstance("graphic", "graphic1");
+                }, Qt::QueuedConnection);
             });
         }
         view->addModuleInstance("graphic", "graphic1", "Graphic1");
+    } else if (!m_graphicInstances.contains("graphic1")) {
+        // 首次启动 — 创建默认 Graphic1 标签页
+        auto *gv = new GraphicView(this);
+        openTab(gv, "Graphic1");
+        m_graphicCount = qMax(m_graphicCount, 1);
+        m_graphicView = gv;
+        m_graphicInstances["graphic1"] = gv;
+        view->addModuleInstance("graphic", "graphic1", "Graphic1");
+        m_sideBar->graphicConfigPanel()->setGraphicView(gv);
+        connect(gv, &QObject::destroyed, this, [this](QObject *) {
+            m_graphicInstances.remove("graphic1");
+            m_graphicView = nullptr;
+            QMetaObject::invokeMethod(this, [this]() {
+                if (m_setupView)
+                    m_setupView->removeModuleInstance("graphic", "graphic1");
+            }, Qt::QueuedConnection);
+        });
     }
-
-    openTab(view, "Flow");
 }
 
 void MainWindow::onToolOpened(const QString &toolKey)
@@ -1937,24 +2319,44 @@ void MainWindow::onOpenDataWindow()
 void MainWindow::onOpenColorRuleEditor()
 {
     ColorRuleEditor dlg(this);
-    // 加载当前规则
+    // 加载当前规则 — CanTraceModel::ColorRule → ColorRuleEditor::ColorRule
     if (m_traceTab) {
         auto *model = m_traceTab->traceModel();
-        if (model)
-            dlg.setRules(model->colorRules());
+        if (model) {
+            QVector<ColorRuleEditor::ColorRule> editorRules;
+            for (const auto &r : model->colorRules()) {
+                ColorRuleEditor::ColorRule er;
+                er.expr = r.expr;
+                er.background = r.background;
+                er.foreground = r.foreground;
+                er.enabled = r.enabled;
+                editorRules.append(er);
+            }
+            dlg.setRules(editorRules);
+        }
     }
 
     if (dlg.exec() == QDialog::Accepted) {
         auto rules = dlg.rules();
-        // 应用到所有 Trace 标签页
+        // 应用到所有 Trace 标签页 — ColorRuleEditor::ColorRule → CanTraceModel::ColorRule
         const auto allTabs = m_editorArea->allTabWidgets();
         for (auto *tw : allTabs) {
             for (int i = 0; i < tw->count(); ++i) {
                 auto *tt = qobject_cast<TraceTab *>(tw->widget(i));
                 if (tt) {
                     auto *model = tt->traceModel();
-                    if (model)
-                        model->setColorRules(rules);
+                    if (model) {
+                        QVector<CanTraceModel::ColorRule> modelRules;
+                        for (const auto &r : rules) {
+                            CanTraceModel::ColorRule mr;
+                            mr.expr = r.expr;
+                            mr.background = r.background;
+                            mr.foreground = r.foreground;
+                            mr.enabled = r.enabled;
+                            modelRules.append(mr);
+                        }
+                        model->setColorRules(modelRules);
+                    }
                 }
             }
         }
@@ -1984,14 +2386,12 @@ void MainWindow::onTriggerRecording(
     const QString &triggerExpr, double preTriggerSec, double postTriggerSec,
     bool repeatTrigger)
 {
-    static TriggerRecorder *triggerRec = nullptr;
-
-    if (!triggerRec) {
-        triggerRec = new TriggerRecorder(this);
+    if (!m_triggerRecorder) {
+        m_triggerRecorder = new TriggerRecorder(this);
         connect(m_simulator, &CanSimulator::frameGenerated,
-                triggerRec, &TriggerRecorder::onFrame);
+                m_triggerRecorder, &TriggerRecorder::onFrame);
         connect(m_deviceManager, &CanDeviceManager::frameGenerated,
-                triggerRec, &TriggerRecorder::onFrame);
+                m_triggerRecorder, &TriggerRecorder::onFrame);
     }
 
     TriggerRecorder::Config config;
@@ -2009,15 +2409,15 @@ void MainWindow::onTriggerRecording(
     config.postTriggerSeconds = postTriggerSec;
     config.repeatTrigger = repeatTrigger;
 
-    if (!triggerRec->isRunning()) {
-        if (!triggerRec->start(config)) {
+    if (!m_triggerRecorder->isRunning()) {
+        if (!m_triggerRecorder->start(config)) {
             QMessageBox::warning(this, "触发录制",
                 "触发条件表达式编译失败，请检查表达式语法。");
             return;
         }
         m_statusLabel->setText("触发录制中... 等待触发条件");
     } else {
-        triggerRec->stop();
+        m_triggerRecorder->stop();
         m_statusLabel->setText("触发录制已停止");
     }
 }
@@ -2217,6 +2617,22 @@ void MainWindow::processCommand(const QString &cmd)
 
 void MainWindow::updateStatistics()
 {
+    if (m_measurementRunning) {
+        // 测量运行中：显示统一计数
+        if (m_player->isLoaded()) {
+            int total = m_player->totalFrames();
+            m_frameCountLabel->setText(
+                QString::number(m_receivedFrameCount) + " / " +
+                QString::number(total) + " 帧");
+        } else {
+            m_frameCountLabel->setText(QString::number(m_receivedFrameCount) + " 帧");
+        }
+        m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
+        m_filterLabel->setText(
+            QString("过滤%1/%2").arg(m_receivedFrameCount).arg(m_receivedFrameCount));
+        return;
+    }
+    // 非测量状态：显示当前 Trace 标签页统计
     auto *active = qobject_cast<TraceTab *>(m_editorArea->currentWidget());
     int total = active ? active->frameCount() : 0;
     m_frameCountLabel->setText(QString::number(total) + " 帧");
@@ -2502,6 +2918,82 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr
 #endif
 
 // ============================================================
+//  插件系统集成
+// ============================================================
+
+void MainWindow::refreshPluginList()
+{
+    if (!m_sideBar || !m_sideBar->extensionsPanel() || !m_pluginManager)
+        return;
+
+    QList<ExtensionEntry> entries;
+    const auto plugins = m_pluginManager->discoveredPlugins();
+    for (const auto &info : plugins) {
+        ExtensionEntry e;
+        e.name = info.name;
+        e.version = info.version;
+        e.author = info.author;
+        e.description = info.description;
+        e.installed = true;
+        e.enabled = m_pluginManager->isPluginEnabled(info.name);
+        e.activated = m_pluginManager->isPluginActivated(info.name);
+        entries.append(e);
+    }
+    m_sideBar->extensionsPanel()->refreshInstalledPlugins(entries);
+}
+
+void MainWindow::onPluginOutput(const QString &text)
+{
+    m_bottomPanel->appendPluginOutput(text);
+}
+
+void MainWindow::onPluginCommandRegistered(const QString &id, const QString &title)
+{
+    // 添加到侧边栏扩展面板的命令列表
+    if (m_sideBar && m_sideBar->extensionsPanel())
+        m_sideBar->extensionsPanel()->addCommand(id, title);
+}
+
+void MainWindow::onPluginSendFrame(const CanFrame &frame)
+{
+    if (m_deviceManager)
+        m_deviceManager->sendFrame(frame);
+}
+
+void MainWindow::onPluginRequestSelectedFrames(const QJsonValue &requestId)
+{
+    QList<CanFrame> frames;
+
+    // 获取当前活跃 TraceTab 中选中的帧
+    auto *active = qobject_cast<TraceTab *>(m_editorArea->currentWidget());
+    if (active) {
+        auto *tv = active->traceView();
+        auto *traceModel = active->traceModel();
+        auto *filterProxy = active->proxyModel();
+        auto *viewportProxy = active->viewportProxy();
+        if (tv && traceModel) {
+            auto *sel = tv->selectionModel();
+            if (sel) {
+                for (const auto &idx : sel->selectedRows()) {
+                    // 代理链：View → ViewportProxy → CanFilterProxy → CanTraceModel
+                    QModelIndex sourceIdx = idx;
+                    if (viewportProxy)
+                        sourceIdx = viewportProxy->mapToSource(sourceIdx);
+                    if (filterProxy)
+                        sourceIdx = filterProxy->mapToSource(sourceIdx);
+                    int row = sourceIdx.row();
+                    if (row >= 0 && row < traceModel->frameCount())
+                        frames.append(traceModel->frameAt(row));
+                }
+            }
+        }
+    }
+
+    if (m_pluginManager)
+        m_pluginManager->provideSelectedFrames(requestId, frames);
+}
+
+// ============================================================
 //  关闭
 // ============================================================
 
@@ -2517,6 +3009,10 @@ void MainWindow::closeEvent(QCloseEvent *event)
     m_simulator->stop();
     m_deviceManager->stop();
     m_player->stop();
+
+    // 关闭插件系统
+    if (m_pluginManager)
+        m_pluginManager->shutdown();
 
     // 自动保存工程
     if (AppConfig::instance()->getBool("project.autoSaveOnClose", true)) {
@@ -2668,37 +3164,41 @@ void MainWindow::captureProjectState()
             st.dbcFiles << f.filePath;
     }
 
-    // Trace 实例
+    // Trace 实例 — 只保存 trace1 (默认实例)
     st.traces.clear();
-    for (auto it = m_traceInstances.begin(); it != m_traceInstances.end(); ++it) {
-        ProjectTraceInstance ti;
-        ti.id = it.key();
-        ti.title = it.key();
-        ti.title[0] = ti.title[0].toUpper();
-        auto *tab = qobject_cast<TraceTab*>(it.value());
-        if (tab)
-            ti.filterExpression = tab->filterExpression();
-        st.traces.append(ti);
+    {
+        auto it = m_traceInstances.find("trace1");
+        if (it != m_traceInstances.end()) {
+            ProjectTraceInstance ti;
+            ti.id = "trace1";
+            ti.title = "Trace1";
+            auto *tab = qobject_cast<TraceTab*>(it.value());
+            if (tab)
+                ti.filterExpression = tab->filterExpression();
+            st.traces.append(ti);
+        }
     }
 
-    // Graphic 实例
+    // Graphic 实例 — 只保存 graphic1 (默认实例)
     st.graphics.clear();
-    for (auto it = m_graphicInstances.begin(); it != m_graphicInstances.end(); ++it) {
-        ProjectGraphicInstance gi;
-        gi.id = it.key();
-        gi.title = it.key();
-        gi.title[0] = gi.title[0].toUpper();
-        auto *gv = qobject_cast<GraphicView*>(it.value());
-        if (gv) {
-            for (const auto &sig : gv->signalConfigs()) {
-                ProjectSigCfg sc;
-                sc.canId = sig.canId;
-                sc.name = sig.name;
-                sc.extended = sig.extended;
-                gi.sigList.append(sc);
+    {
+        auto it = m_graphicInstances.find("graphic1");
+        if (it != m_graphicInstances.end()) {
+            ProjectGraphicInstance gi;
+            gi.id = "graphic1";
+            gi.title = "Graphic1";
+            auto *gv = qobject_cast<GraphicView*>(it.value());
+            if (gv) {
+                for (const auto &sig : gv->signalConfigs()) {
+                    ProjectSigCfg sc;
+                    sc.canId = sig.canId;
+                    sc.name = sig.name;
+                    sc.extended = sig.extended;
+                    gi.sigList.append(sc);
+                }
             }
+            st.graphics.append(gi);
         }
-        st.graphics.append(gi);
     }
 
     // 标签页顺序
@@ -2780,27 +3280,33 @@ void MainWindow::applyProjectState()
             m_deviceTab->setDataBaudrate(st.deviceConfig.fdBaudrate);
     }
 
-    // 6. 创建 Trace 实例
+    // 6. 创建 Trace 实例 — 只恢复 trace1
     for (const auto &t : st.traces) {
+        if (t.id != "trace1")
+            continue;  // 忽略多余的 Trace 实例
         auto *tab = new TraceTab(this);
         setupTraceTab(tab);
         if (!t.filterExpression.isEmpty())
             tab->setFilterExpression(t.filterExpression);
-        openTab(tab, t.title);
-        m_traceInstances[t.id] = tab;
-        if (t.id == "trace1")
-            m_traceTab = tab;
-        // 更新计数器
-        int n = 0;
-        QRegularExpression re("trace(\\d+)", QRegularExpression::CaseInsensitiveOption);
-        auto m = re.match(t.id);
-        if (m.hasMatch())
-            n = m.captured(1).toInt();
-        m_traceCount = qMax(m_traceCount, n);
+        openTab(tab, "Trace1");
+        m_traceInstances["trace1"] = tab;
+        m_traceTab = tab;
+        m_traceCount = qMax(m_traceCount, 1);
+    }
+    // 若保存状态中没有 trace1，则创建默认的
+    if (!m_traceInstances.contains("trace1")) {
+        auto *tab = new TraceTab(this);
+        setupTraceTab(tab);
+        openTab(tab, "Trace1");
+        m_traceInstances["trace1"] = tab;
+        m_traceTab = tab;
+        m_traceCount = qMax(m_traceCount, 1);
     }
 
-    // 7. 创建 Graphic 实例
+    // 7. 创建 Graphic 实例 — 只恢复 graphic1
     for (const auto &g : st.graphics) {
+        if (g.id != "graphic1")
+            continue;  // 忽略多余的 Graphic 实例
         auto *gv = new GraphicView(this);
         // 重建信号配置
         QVector<GraphicView::Signal> sigConfigs;
@@ -2819,16 +3325,20 @@ void MainWindow::applyProjectState()
         }
         if (!sigConfigs.isEmpty())
             gv->loadSignalConfigs(sigConfigs);
-        openTab(gv, g.title);
-        m_graphicInstances[g.id] = gv;
-        if (g.id == "graphic1")
-            m_graphicView = gv;
-        int n = 0;
-        QRegularExpression re("graphic(\\d+)", QRegularExpression::CaseInsensitiveOption);
-        auto m = re.match(g.id);
-        if (m.hasMatch())
-            n = m.captured(1).toInt();
-        m_graphicCount = qMax(m_graphicCount, n);
+        openTab(gv, "Graphic1");
+        m_graphicInstances["graphic1"] = gv;
+        m_graphicView = gv;
+        m_sideBar->graphicConfigPanel()->setGraphicView(gv);
+        m_graphicCount = qMax(m_graphicCount, 1);
+    }
+    // 若保存状态中没有 graphic1，则创建默认的
+    if (!m_graphicInstances.contains("graphic1")) {
+        auto *gv = new GraphicView(this);
+        openTab(gv, "Graphic1");
+        m_graphicInstances["graphic1"] = gv;
+        m_graphicView = gv;
+        m_sideBar->graphicConfigPanel()->setGraphicView(gv);
+        m_graphicCount = qMax(m_graphicCount, 1);
     }
 
     // 8. 更新 flow 视图

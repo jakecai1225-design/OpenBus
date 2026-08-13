@@ -62,20 +62,22 @@ protected:
             updateButtons(idx);
         } else if (event->type() == QEvent::Leave) {
             updateButtons(-1);
+        } else if (event->type() == QEvent::Show || event->type() == QEvent::Resize) {
+            updateButtons(-1);
         }
         return QObject::eventFilter(watched, event);
     }
 
 private:
-    void updateButtons(int visibleIdx)
+    void updateButtons(int /*hoverIdx*/)
     {
         for (int i = 0; i < m_tabs->tabBar()->count(); ++i) {
             auto *btn = m_tabs->tabBar()->tabButton(i, QTabBar::RightSide);
             if (btn) {
-                // 固定标签页不显示关闭按钮
                 QWidget *w = m_tabs->widget(i);
                 bool pinned = w && w->property("pinned").toBool();
-                btn->setVisible(i == visibleIdx && !pinned);
+                // 关闭按钮始终可见（固定标签页除外）
+                btn->setVisible(!pinned);
             }
         }
     }
@@ -216,9 +218,6 @@ int SplitEditorArea::addTab(QWidget *widget, const QString &label)
     if (!target)
         target = m_firstTabs;
     int idx = target->addTab(widget, label);
-    // 隐藏新标签页的关闭按钮（仅悬停时显示）
-    auto *btn = target->tabBar()->tabButton(idx, QTabBar::RightSide);
-    if (btn) btn->setVisible(false);
     emit tabListChanged();
     return idx;
 }

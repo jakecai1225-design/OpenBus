@@ -207,10 +207,11 @@ void DeviceConnectionTab::setDeviceManager(CanDeviceManager *mgr)
     m_deviceMgr = mgr;
 }
 
-void DeviceConnectionTab::setDevice(int deviceKind, int devIndex, const QString &deviceName)
+void DeviceConnectionTab::setDevice(int deviceKind, int devIndex, const QString &deviceName, int deviceType)
 {
     m_deviceKind = deviceKind;
     m_devIndex = devIndex;
+    m_devSubType = deviceType;
     m_deviceName = deviceName;
 
     m_deviceLabel->setText(QStringLiteral("设备: %1").arg(deviceName));
@@ -284,7 +285,7 @@ void DeviceConnectionTab::onConnect()
         // MainWindow → CanDeviceManager::configure(DeviceKind, ...)
         // → ICanDevice::create(Brand, subType) 工厂方法分派
         emit deviceConnectRequestedV2(m_deviceKind, m_devIndex,
-                                       channel, baudrate, dataBaud, canFd);
+                                       channel, baudrate, dataBaud, canFd, m_devSubType);
     }
 
     m_connectBtn->setEnabled(false);
