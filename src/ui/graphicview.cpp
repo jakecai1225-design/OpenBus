@@ -1,4 +1,4 @@
-﻿#include "graphicview.h"
+#include "graphicview.h"
 #include "signalconfigdialog.h"
 
 #include <QSplitter>

@@ -1,4 +1,4 @@
-﻿#include "measurementsetupview.h"
+#include "measurementsetupview.h"
 #include <QToolBar>
 #include <QAction>
 #include <QToolButton>

@@ -39,12 +39,12 @@ int main(int argc, char *argv[])
     return ret;
     } catch (const std::exception &e) {
         QString msg = QStringLiteral("致命错误: %1").arg(e.what());
-        SIN_LOG_ERROR("main", "uncaught exception: {}", e.what());
+        OPENBUS_LOG_ERROR("main", "uncaught exception: {}", e.what());
         logging::shutdown();
         QMessageBox::critical(nullptr, QStringLiteral("致命错误"), msg);
         return 1;
     } catch (...) {
-        SIN_LOG_ERROR("main", "unknown uncaught exception");
+        OPENBUS_LOG_ERROR("main", "unknown uncaught exception");
         logging::shutdown();
         QMessageBox::critical(nullptr, QStringLiteral("致命错误"),
                              QStringLiteral("程序发生未知异常"));

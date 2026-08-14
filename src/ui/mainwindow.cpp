@@ -1,4 +1,4 @@
-﻿#include "mainwindow.h"
+#include "mainwindow.h"
 #include <QTimer>
 #include "core/canframe.h"
 #include "core/recorder.h"
