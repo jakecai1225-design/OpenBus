@@ -39,12 +39,18 @@
 #include <QMimeData>
 #include <QUrl>
 #include "columnfilterpopup.h"
+#include "colorruleeditor.h"
+#include "core/bookmarkmanager.h"
 #include <QFileInfo>
 #include <QThread>
 #include <QShortcut>
 #include <QActionGroup>
 #include <QTimer>
 #include <QKeySequence>
+#include <QSettings>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QProgressDialog>
 #include "core/canfileio/canfileio.h"
 #include "core/canfileio/canfileio_factory.h"
 
@@ -141,6 +147,173 @@ void TraceView::setModel(QAbstractItemModel *model)
         auto *fp = filterProxy();
         if (fp)
             fp->sort(m_sortColumn, m_sortOrder);
+    }
+}
+
+// ============================================================
+//  列布局持久化
+// ============================================================
+
+void TraceView::saveColumnLayout()
+{
+    auto *hdr = horizontalHeader();
+    if (!hdr || !model())
+        return;
+
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("TraceLayout"));
+    int colCount = model()->columnCount();
+    for (int c = 0; c < colCount; ++c) {
+        QString prefix = QStringLiteral("col_%1").arg(c);
+        settings.setValue(prefix + "_width", hdr->sectionSize(c));
+        settings.setValue(prefix + "_hidden", hdr->isSectionHidden(c));
+        settings.setValue(prefix + "_visualIndex", hdr->visualIndex(c));
+    }
+    settings.endGroup();
+}
+
+void TraceView::restoreColumnLayout()
+{
+    auto *hdr = horizontalHeader();
+    if (!hdr || !model())
+        return;
+
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("TraceLayout"));
+    int colCount = model()->columnCount();
+
+    // 先恢复可见性（隐藏的列跳过宽度和位置设置）
+    for (int c = 0; c < colCount; ++c) {
+        QString prefix = QStringLiteral("col_%1").arg(c);
+        if (settings.contains(prefix + "_hidden")) {
+            bool hidden = settings.value(prefix + "_hidden").toBool();
+            // No. 列永远可见
+            if (c == CanTraceModel::ColNo)
+                hidden = false;
+            hdr->setSectionHidden(c, hidden);
+        }
+    }
+
+    // 恢复列顺序（按 visualIndex 排序）
+    for (int c = 0; c < colCount; ++c) {
+        QString prefix = QStringLiteral("col_%1").arg(c);
+        if (settings.contains(prefix + "_visualIndex")) {
+            int visualIndex = settings.value(prefix + "_visualIndex").toInt();
+            int currentVisual = hdr->visualIndex(c);
+            if (visualIndex >= 0 && visualIndex < colCount && visualIndex != currentVisual)
+                hdr->moveSection(currentVisual, visualIndex);
+        }
+    }
+
+    // 恢复列宽（Data 列为 Stretch 模式，跳过宽度设置）
+    for (int c = 0; c < colCount; ++c) {
+        if (c == CanTraceModel::ColData)
+            continue;
+        QString prefix = QStringLiteral("col_%1").arg(c);
+        if (settings.contains(prefix + "_width")) {
+            int width = settings.value(prefix + "_width").toInt();
+            if (width > 0)
+                hdr->resizeSection(c, width);
+        }
+    }
+    settings.endGroup();
+}
+
+// ============================================================
+//  Trace 文件导出
+// ============================================================
+
+void TraceView::exportFrames(ExportMode mode)
+{
+    auto *source = traceSource();
+    if (!source) return;
+    auto *proxy = filterProxy();
+
+    // 收集要导出的帧
+    QVector<CanFrame> framesToExport;
+
+    switch (mode) {
+    case ExportAll:
+        framesToExport = source->frames();
+        break;
+    case ExportFiltered: {
+        if (proxy) {
+            for (int i = 0; i < proxy->rowCount(); ++i) {
+                QModelIndex idx = proxy->index(i, 0);
+                framesToExport.append(source->frameAt(proxy->mapToSource(idx).row()));
+            }
+        } else {
+            framesToExport = source->frames();
+        }
+        break;
+    }
+    case ExportSelected: {
+        auto rows = selectedSourceRows();
+        for (int row : rows)
+            framesToExport.append(source->frameAt(row));
+        break;
+    }
+    case ExportMarked: {
+        auto marks = source->markedRows();
+        for (int row : marks)
+            framesToExport.append(source->frameAt(row));
+        break;
+    }
+    }
+
+    if (framesToExport.isEmpty()) {
+        QMessageBox::information(this, QStringLiteral("导出"),
+                                 QStringLiteral("没有可导出的帧"));
+        return;
+    }
+
+    // 文件对话框
+    QString filter = CanFileIO::writableFileFilters();
+    QString filePath = QFileDialog::getSaveFileName(
+        this, QStringLiteral("导出 Trace 文件"),
+        QStringLiteral("trace_export"), filter);
+    if (filePath.isEmpty())
+        return;
+
+    // 创建写入器
+    auto writer = CanFileIOFactory::createWriter(filePath);
+    if (!writer) {
+        QMessageBox::warning(this, QStringLiteral("导出失败"),
+                             QStringLiteral("不支持的文件格式"));
+        return;
+    }
+
+    if (!writer->open(filePath)) {
+        QMessageBox::warning(this, QStringLiteral("导出失败"),
+                             QStringLiteral("无法打开文件: %1").arg(filePath));
+        return;
+    }
+
+    // 写入帧（带进度对话框）
+    QProgressDialog progress(QStringLiteral("正在导出..."), QStringLiteral("取消"),
+                             0, framesToExport.size(), this);
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(300);
+
+    for (int i = 0; i < framesToExport.size(); ++i) {
+        if (progress.wasCanceled())
+            break;
+        writer->writeFrame(framesToExport[i]);
+        progress.setValue(i + 1);
+        QCoreApplication::processEvents();
+    }
+
+    writer->close();
+    int exported = writer->frameCount();
+
+    if (progress.wasCanceled()) {
+        QMessageBox::information(this, QStringLiteral("导出取消"),
+                                 QStringLiteral("已导出 %1 帧到:\n%2")
+                                     .arg(exported).arg(filePath));
+    } else {
+        QMessageBox::information(this, QStringLiteral("导出完成"),
+                                 QStringLiteral("成功导出 %1 帧到:\n%2")
+                                     .arg(exported).arg(filePath));
     }
 }
 
@@ -384,9 +557,68 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
     connect(&nextSameIdAct, &QAction::triggered, this, &TraceView::goToNextSameId);
     connect(&prevSameIdAct, &QAction::triggered, this, &TraceView::goToPrevSameId);
 
+    // ---- 时间参考点 ----
+    menu.addSeparator();
+    QAction setTimeRefAct(QStringLiteral("设为时间参考点"), this);
+    QAction clearTimeRefAct(QStringLiteral("清除时间参考点"), this);
+    menu.addAction(&setTimeRefAct);
+    menu.addAction(&clearTimeRefAct);
+    setTimeRefAct.setEnabled(index.isValid());
+    {
+        auto *src = traceSource();
+        clearTimeRefAct.setEnabled(src && src->hasTimeReference());
+    }
+    connect(&setTimeRefAct, &QAction::triggered, this, [this, index]() {
+        auto *source = traceSource();
+        if (!source || !index.isValid()) return;
+        // 获取源模型行号
+        QModelIndex sourceIdx = index;
+        auto *vp = viewportProxy();
+        if (vp)
+            sourceIdx = vp->mapToSource(index);
+        auto *fp = filterProxy();
+        if (fp)
+            sourceIdx = fp->mapToSource(sourceIdx);
+        source->setTimeReference(sourceIdx.row());
+    });
+    connect(&clearTimeRefAct, &QAction::triggered, this, [this]() {
+        auto *source = traceSource();
+        if (source) source->clearTimeReference();
+    });
+
     menu.addSeparator();
     QAction clearAction(QStringLiteral("清空所有"), this);
     menu.addAction(&clearAction);
+
+    // ---- 导出子菜单 ----
+    menu.addSeparator();
+    QMenu *exportMenu = menu.addMenu(QStringLiteral("导出"));
+    QAction expAllAct(QStringLiteral("所有帧"), this);
+    QAction expFilteredAct(QStringLiteral("过滤后帧"), this);
+    QAction expSelectedAct(QStringLiteral("选中帧"), this);
+    QAction expMarkedAct(QStringLiteral("标记帧"), this);
+    exportMenu->addAction(&expAllAct);
+    exportMenu->addAction(&expFilteredAct);
+    exportMenu->addSeparator();
+    exportMenu->addAction(&expSelectedAct);
+    exportMenu->addAction(&expMarkedAct);
+
+    connect(&expAllAct, &QAction::triggered, this, [this]() {
+        exportFrames(ExportAll);
+    });
+    connect(&expFilteredAct, &QAction::triggered, this, [this]() {
+        exportFrames(ExportFiltered);
+    });
+    connect(&expSelectedAct, &QAction::triggered, this, [this]() {
+        exportFrames(ExportSelected);
+    });
+    connect(&expMarkedAct, &QAction::triggered, this, [this]() {
+        exportFrames(ExportMarked);
+    });
+
+    expSelectedAct.setEnabled(!rows.isEmpty());
+    auto *srcModel = traceSource();
+    expMarkedAct.setEnabled(srcModel && !srcModel->markedRows().isEmpty());
 
     copyAction.setEnabled(index.isValid());
     copyDataAction.setEnabled(index.isValid());
@@ -521,6 +753,7 @@ QString TraceView::columnFilterHint(int column) const
     case CanTraceModel::ColData:      return QStringLiteral("例如: 01 02  或  FF");
     case CanTraceModel::ColFlags:     return QStringLiteral("例如: FD  或  BRS");
     case CanTraceModel::ColFrameCount: return QStringLiteral("例如: >10  或  50");
+    case CanTraceModel::ColSignal:    return QStringLiteral("信号名或值，如: EngineSpeed");
     }
     return {};
 }
@@ -619,6 +852,25 @@ void TraceView::showHeaderMenu(int column, const QPoint &pos)
     QAction clearAllAct("清除所有筛选", this);
     menu.addAction(&clearAllAct);
     connect(&clearAllAct, &QAction::triggered, this, &TraceView::onClearAllFilters);
+
+    // ---- 列显示/隐藏 ----
+    menu.addSeparator();
+    QMenu *colVisMenu = menu.addMenu(QStringLiteral("列显示/隐藏"));
+    auto *hdr = horizontalHeader();
+    for (int c = 0; c < CanTraceModel::ColCount; ++c) {
+        QString colName = model()->headerData(c, Qt::Horizontal).toString();
+        auto *act = colVisMenu->addAction(colName);
+        act->setCheckable(true);
+        act->setChecked(!hdr->isSectionHidden(c));
+        // No. 列不可隐藏
+        if (c == CanTraceModel::ColNo) {
+            act->setEnabled(false);
+            act->setChecked(true);
+        }
+        connect(act, &QAction::toggled, this, [this, c](bool visible) {
+            horizontalHeader()->setSectionHidden(c, !visible);
+        });
+    }
 
     // 排序连接 — 使用 3-state 机制
     connect(&sortAsc, &QAction::triggered, this, [this, column]() {
@@ -1059,13 +1311,42 @@ void FrameInfoWidget::setFrame(const CanFrame &frame)
     text += fmt("Data",      CanUtils::formatData(frame.data))             + "\n";
     text += fmt("Flags",     CanUtils::formatFlags(frame))                 + "\n";
 
-    // Hex dump (紧凑单行)
-    text += "\nHex:  ";
+    // Hex Dump (Offset + Hex + ASCII 多行格式)
     const auto &data = frame.data;
-    for (int i = 0; i < data.size() && i < 64; ++i)
-        text += QString("%1 ").arg(static_cast<quint8>(data[i]), 2, 16, QChar('0')).toUpper();
-    if (data.size() > 64)
-        text += "...";
+    int dataSize = data.size();
+    if (dataSize > 0) {
+        text += QStringLiteral("\nHex Dump:\n");
+        text += QStringLiteral("Offset  Hex                                             ASCII\n");
+        text += QStringLiteral("------  -----------------------------------------------  ----------------\n");
+        constexpr int bytesPerLine = 16;
+        for (int offset = 0; offset < dataSize; offset += bytesPerLine) {
+            int lineLen = qMin(bytesPerLine, dataSize - offset);
+            // Offset 列
+            QString line = QStringLiteral("%1  ").arg(offset, 4, 16, QChar('0')).toUpper();
+            // Hex 列
+            for (int i = 0; i < bytesPerLine; ++i) {
+                if (i < lineLen) {
+                    quint8 byte = static_cast<quint8>(data[offset + i]);
+                    line += QStringLiteral("%1 ").arg(byte, 2, 16, QChar('0')).toUpper();
+                } else {
+                    line += QStringLiteral("   ");  // 补空格对齐
+                }
+                if (i == 7)
+                    line += ' ';  // 8 字节后额外空格分组
+            }
+            line += ' ';
+            // ASCII 列
+            for (int i = 0; i < bytesPerLine; ++i) {
+                if (i < lineLen) {
+                    char ch = static_cast<char>(data[offset + i]);
+                    line += (ch >= 0x20 && ch <= 0x7E) ? QChar(ch) : QChar('.');
+                } else {
+                    line += ' ';  // 补空格对齐
+                }
+            }
+            text += line + '\n';
+        }
+    }
 
     m_edit->setPlainText(text);
 }
@@ -1503,6 +1784,7 @@ TraceTab::TraceTab(QWidget *parent)
     m_viewportProxy = new ViewportProxyModel(this);
     m_viewportProxy->setSourceModel(m_proxyModel);
     m_viewportProxy->setViewportSize(2000);  // CANoe 风格: 固定 2000 行视窗
+    m_bookmarkManager = new BookmarkManager(this);
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -1629,6 +1911,142 @@ TraceTab::TraceTab(QWidget *parent)
     owAct->setToolTip(QStringLiteral("开启后每个 CAN ID 固定一行，新帧刷新行数据和帧数\n关闭后为滚动模式，每帧新增一行"));
     connect(owAct, &QAction::toggled, m_traceModel, &CanTraceModel::setOverwriteMode);
 
+    // ---- 错误帧高亮 ----
+    settingsMenu->addSeparator();
+    auto *errHlAct = settingsMenu->addAction(QStringLiteral("错误帧高亮"));
+    errHlAct->setCheckable(true);
+    errHlAct->setChecked(true);  // 默认开启
+    errHlAct->setToolTip(QStringLiteral("错误帧整行以浅红色背景高亮显示"));
+    connect(errHlAct, &QAction::toggled, m_traceModel, &CanTraceModel::setErrorFrameHighlight);
+
+    // ---- 着色规则编辑器 ----
+    settingsMenu->addSeparator();
+    auto *colorRuleAct = settingsMenu->addAction(QStringLiteral("着色规则..."));
+    colorRuleAct->setToolTip(QStringLiteral("配置条件着色规则，匹配的帧将自动着色"));
+    connect(colorRuleAct, &QAction::triggered, this, [this]() {
+        ColorRuleEditor editor(this);
+        // 从模型加载当前规则
+        QVector<ColorRuleEditor::ColorRule> editorRules;
+        for (const auto &r : m_traceModel->colorRules()) {
+            ColorRuleEditor::ColorRule er;
+            er.expr = r.expr;
+            er.background = r.background;
+            er.foreground = r.foreground;
+            er.enabled = r.enabled;
+            editorRules.append(er);
+        }
+        editor.setRules(editorRules);
+        if (editor.exec() == QDialog::Accepted) {
+            // 转换回模型规则并应用
+            QVector<CanTraceModel::ColorRule> modelRules;
+            for (const auto &er : editor.rules()) {
+                CanTraceModel::ColorRule mr;
+                mr.expr = er.expr;
+                mr.background = er.background;
+                mr.foreground = er.foreground;
+                mr.enabled = er.enabled;
+                modelRules.append(mr);
+            }
+            m_traceModel->setColorRules(modelRules);
+            // 持久化到 QSettings
+            QSettings settings;
+            settings.beginGroup(QStringLiteral("ColorRules"));
+            settings.setValue(QStringLiteral("count"), modelRules.size());
+            for (int i = 0; i < modelRules.size(); ++i) {
+                QString prefix = QStringLiteral("rule_%1").arg(i);
+                settings.setValue(prefix + "_expr", modelRules[i].expr);
+                settings.setValue(prefix + "_bg", modelRules[i].background.name());
+                settings.setValue(prefix + "_fg", modelRules[i].foreground.name());
+                settings.setValue(prefix + "_enabled", modelRules[i].enabled);
+            }
+            settings.endGroup();
+        }
+    });
+
+    // 启动时从 QSettings 加载着色规则
+    {
+        QSettings settings;
+        settings.beginGroup(QStringLiteral("ColorRules"));
+        int count = settings.value(QStringLiteral("count"), 0).toInt();
+        if (count > 0) {
+            QVector<CanTraceModel::ColorRule> modelRules;
+            for (int i = 0; i < count; ++i) {
+                QString prefix = QStringLiteral("rule_%1").arg(i);
+                CanTraceModel::ColorRule mr;
+                mr.expr = settings.value(prefix + "_expr").toString();
+                mr.background = QColor(settings.value(prefix + "_bg").toString());
+                mr.foreground = QColor(settings.value(prefix + "_fg").toString());
+                mr.enabled = settings.value(prefix + "_enabled", true).toBool();
+                if (!mr.expr.isEmpty())
+                    modelRules.append(mr);
+            }
+            if (!modelRules.isEmpty())
+                m_traceModel->setColorRules(modelRules);
+        }
+        settings.endGroup();
+    }
+
+    // ---- 书签持久化 ----
+    settingsMenu->addSeparator();
+    auto *bmSaveAct = settingsMenu->addAction(QStringLiteral("保存书签..."));
+    auto *bmLoadAct = settingsMenu->addAction(QStringLiteral("加载书签..."));
+    bmSaveAct->setToolTip(QStringLiteral("将当前标记/标签的书签保存到 .sbm 文件"));
+    bmLoadAct->setToolTip(QStringLiteral("从 .sbm 文件加载书签并应用到当前 Trace"));
+    connect(bmSaveAct, &QAction::triggered, this, [this]() {
+        QString path = QFileDialog::getSaveFileName(
+            this, QStringLiteral("保存书签"),
+            QStringLiteral("bookmarks.sbm"),
+            QStringLiteral("书签文件 (*.sbm);;JSON 文件 (*.json);;所有文件 (*.*)"));
+        if (path.isEmpty())
+            return;
+        // 从模型收集标记行作为书签
+        auto marks = m_traceModel->labeledMarks();
+        m_bookmarkManager->clear();
+        for (const auto &mark : marks) {
+            int row = mark.first;
+            const CanFrame &f = m_traceModel->frameAt(row);
+            QColor color = m_traceModel->rowColor(row);
+            if (!color.isValid())
+                color = QColor(0xFF, 0xEB, 0x3B);
+            m_bookmarkManager->addBookmark(row, mark.second, f.timestamp, color);
+        }
+        if (m_bookmarkManager->saveToFile(path))
+            QMessageBox::information(this, QStringLiteral("保存书签"),
+                QStringLiteral("已保存 %1 个书签到:\n%2")
+                    .arg(m_bookmarkManager->bookmarks().size()).arg(path));
+        else
+            QMessageBox::warning(this, QStringLiteral("保存失败"),
+                QStringLiteral("无法保存书签文件"));
+    });
+    connect(bmLoadAct, &QAction::triggered, this, [this]() {
+        QString path = QFileDialog::getOpenFileName(
+            this, QStringLiteral("加载书签"),
+            QString(),
+            QStringLiteral("书签文件 (*.sbm);;JSON 文件 (*.json);;所有文件 (*.*)"));
+        if (path.isEmpty())
+            return;
+        if (!m_bookmarkManager->loadFromFile(path)) {
+            QMessageBox::warning(this, QStringLiteral("加载失败"),
+                QStringLiteral("无法加载书签文件"));
+            return;
+        }
+        // 将书签应用到模型
+        m_traceModel->clearMarks();
+        m_traceModel->clearColors();
+        m_traceModel->clearLabels();
+        for (const auto &bm : m_bookmarkManager->bookmarks()) {
+            if (bm.frameIndex >= 0 && bm.frameIndex < m_traceModel->frameCount()) {
+                m_traceModel->setMarked(bm.frameIndex, true);
+                if (bm.color.isValid())
+                    m_traceModel->setRowColor(bm.frameIndex, bm.color);
+                if (!bm.note.isEmpty())
+                    m_traceModel->setRowLabel(bm.frameIndex, bm.note);
+            }
+        }
+        QMessageBox::information(this, QStringLiteral("加载书签"),
+            QStringLiteral("已加载 %1 个书签").arg(m_bookmarkManager->bookmarks().size()));
+    });
+
     m_filterBar->settingsButton()->setMenu(settingsMenu);
 
     connect(m_timeFormatGroup, &QActionGroup::triggered, this,
@@ -1671,6 +2089,7 @@ TraceTab::TraceTab(QWidget *parent)
 
     m_traceView = new TraceView(this);
     m_traceView->setModel(m_viewportProxy);
+    m_traceView->restoreColumnLayout();
     hLayout->addWidget(m_traceView, 1);
 
     m_vSplitter->addWidget(viewportContainer);
@@ -1763,9 +2182,16 @@ TraceTab::TraceTab(QWidget *parent)
     setAcceptDrops(true);
 }
 
+TraceTab::~TraceTab()
+{
+    if (m_traceView)
+        m_traceView->saveColumnLayout();
+}
+
 void TraceTab::setDbcManager(DbcManager *mgr)
 {
     m_signalDecode->setDbcManager(mgr);
+    m_traceModel->setDbcManager(mgr);
 }
 
 void TraceTab::setRunning(bool running)

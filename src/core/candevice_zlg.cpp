@@ -124,6 +124,56 @@ struct ZCAN_DEVICE_INFO {
     unsigned short reserved[4];
 };
 
+// ---- 动态滤波配置（与官方 zlgcan.h 一致） ----
+#define ZCAN_FILTER_COUNT_MAX 16
+#define ZCAN_DATA_LEN_MAX     64
+
+struct ZCAN_Filter_Rule_Present {
+    unsigned int bChnl       : 1;
+    unsigned int bFD         : 1;
+    unsigned int bEXT        : 1;
+    unsigned int bRTR        : 1;
+    unsigned int bLen        : 1;
+    unsigned int bID         : 1;
+    unsigned int bTime       : 1;
+    unsigned int bFilterMask : 1;
+    unsigned int bErr        : 1;
+    unsigned int nReserved   : 23;
+};
+
+struct ZCAN_Filter_Rule {
+    ZCAN_Filter_Rule_Present presentFlag;
+    int nErr;
+    int nChnl;
+    int nFD;
+    int nExt;
+    int nRtr;
+    int nLen;
+    int nBeginID;
+    int nEndID;
+    int nBeginTime;
+    int nEndTime;
+    int nFilterDataLen;
+    int nMaskDataLen;
+    unsigned char nFilterData[ZCAN_DATA_LEN_MAX];
+    unsigned char nMaskData[ZCAN_DATA_LEN_MAX];
+};
+
+struct ZCAN_Filter_Cfg {
+    int bEnable;
+    unsigned int enBlackWhiteList;  // 0=black list, 1=white list
+    ZCAN_Filter_Rule vecFilters[ZCAN_FILTER_COUNT_MAX];
+};
+
+struct ZCAN_Dynamic_Config {
+    unsigned int dynamicConfigDataType;  // 0=CAN, 1=Filter
+    unsigned int isPersist;
+    union {
+        ZCAN_Filter_Cfg filterCfg;
+        unsigned char reserved[10 * 1024];
+    } data;
+};
+
 } // namespace
 
 // ============================================================
@@ -569,6 +619,58 @@ bool CanDeviceZLG::vendorCtrl(int cmd, void *param)
     default:
         return false;
     }
+}
+
+// ---- 硬件接收滤波器 ----
+
+bool CanDeviceZLG::setAcceptanceFilter(quint32 code, quint32 mask, bool extended)
+{
+    if (!m_opened || !m_channelHandle || !m_fn_setVal)
+        return false;
+
+    // mask == 0 → 接收所有帧
+    if (mask == 0)
+        return clearAcceptanceFilter();
+
+    // 构造 ZLG 动态滤波配置
+    ZCAN_Dynamic_Config dynCfg;
+    std::memset(&dynCfg, 0, sizeof(dynCfg));
+    dynCfg.dynamicConfigDataType = 1;  // DYNAMIC_CONFIG_FILTER
+    dynCfg.isPersist = 0;
+
+    auto &filterCfg = dynCfg.data.filterCfg;
+    filterCfg.bEnable = 1;
+    filterCfg.enBlackWhiteList = 1;  // 白名单模式
+
+    auto &rule = filterCfg.vecFilters[0];
+    rule.presentFlag.bID = 1;
+    rule.presentFlag.bEXT = 1;
+    rule.nExt = extended ? 1 : 0;
+    // ID 范围: code 到 code | ~mask (覆盖所有匹配的 ID)
+    quint32 effectiveCode = code & mask;
+    quint32 endRange = effectiveCode | ~mask;
+    rule.nBeginID = static_cast<int>(effectiveCode);
+    rule.nEndID = static_cast<int>(endRange);
+
+    unsigned int ret = m_fn_setVal(m_channelHandle, "filter", &dynCfg);
+    return ret == STATUS_OK;
+}
+
+bool CanDeviceZLG::clearAcceptanceFilter()
+{
+    if (!m_opened || !m_channelHandle || !m_fn_setVal)
+        return false;
+
+    ZCAN_Dynamic_Config dynCfg;
+    std::memset(&dynCfg, 0, sizeof(dynCfg));
+    dynCfg.dynamicConfigDataType = 1;  // DYNAMIC_CONFIG_FILTER
+    dynCfg.isPersist = 0;
+
+    auto &filterCfg = dynCfg.data.filterCfg;
+    filterCfg.bEnable = 0;  // 禁用滤波器
+
+    unsigned int ret = m_fn_setVal(m_channelHandle, "filter", &dynCfg);
+    return ret == STATUS_OK;
 }
 
 // ---- 静态方法 ----

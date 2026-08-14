@@ -103,6 +103,21 @@ public:
     /// @param param 参数指针
     /// @return true 成功
     virtual bool vendorCtrl(int cmd, void *param) { (void)cmd; (void)param; return false; }
+
+    // ---- 硬件接收滤波器 ----
+
+    /// 设置硬件接收滤波器
+    /// @param code 滤波码（frame_id & mask == code & mask → 接收）
+    /// @param mask 滤波掩码（1=比较, 0=忽略对应位）
+    /// @param extended 是否扩展帧模式
+    /// @return true 成功（不支持时返回 false）
+    virtual bool setAcceptanceFilter(quint32 code, quint32 mask, bool extended) {
+        (void)code; (void)mask; (void)extended; return false;
+    }
+
+    /// 清除硬件接收滤波器（接收所有帧）
+    /// @return true 成功
+    virtual bool clearAcceptanceFilter() { return false; }
 };
 
 #endif // CANDEVICE_H

@@ -175,6 +175,30 @@ bool CanDeviceManager::sendFrame(const CanFrame &frame)
     return m_device->send(frame) > 0;
 }
 
+// ---- 硬件接收滤波器 ----
+
+bool CanDeviceManager::setAcceptanceFilter(quint32 code, quint32 mask, bool extended)
+{
+    if (m_kind == DeviceKind::Simulator)
+        return false;  // 模拟器不支持硬件滤波
+
+    if (!m_device)
+        return false;
+
+    return m_device->setAcceptanceFilter(code, mask, extended);
+}
+
+bool CanDeviceManager::clearAcceptanceFilter()
+{
+    if (m_kind == DeviceKind::Simulator)
+        return false;
+
+    if (!m_device)
+        return false;
+
+    return m_device->clearAcceptanceFilter();
+}
+
 // ---- 设备枚举 ----
 
 QStringList CanDeviceManager::enumerateDevices()

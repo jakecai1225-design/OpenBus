@@ -64,6 +64,10 @@ public:
     QString deviceName() const override;
     bool vendorCtrl(int cmd, void *param) override;
 
+    // ---- 硬件接收滤波器 ----
+    bool setAcceptanceFilter(quint32 code, quint32 mask, bool extended) override;
+    bool clearAcceptanceFilter() override;
+
     /// 检查 zlgcan.dll 是否可加载（不打开设备）
     static bool isAvailable();
 

@@ -1150,6 +1150,11 @@ ToolsPanel::ToolsPanel(QWidget *parent)
     dataItem->setData(Qt::UserRole, "data_window");
     dataItem->setToolTip("信号实时表格：当前值/原始值/物理值/最小值/最大值");
 
+    // P1: I/O Graph
+    auto *ioGraphItem = new QListWidgetItem("I/O Graph", m_list);
+    ioGraphItem->setData(Qt::UserRole, "io_graph");
+    ioGraphItem->setToolTip("帧率/总线负载随时间曲线");
+
     // P1: 着色规则编辑器
     auto *colorItem = new QListWidgetItem("着色规则编辑器", m_list);
     colorItem->setData(Qt::UserRole, "color_rules");

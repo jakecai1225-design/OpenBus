@@ -12,6 +12,7 @@
 #include "utils/ringbuffer.h"
 
 class FilterEngine;
+class DbcManager;
 
 /**
  * @brief CAN 报文追踪数据模型（高性能版）
@@ -37,6 +38,7 @@ public:
         ColData,
         ColFlags,
         ColFrameCount,   ///< 每个 CAN ID 的帧计数
+        ColSignal,       ///< 内联信号值列
         ColCount
     };
 
@@ -78,6 +80,9 @@ public:
 
     /// 捕获起始的 wall-clock 时间（用于 DateTimeOfDay / SecondsSinceEpoch 时间戳模式）
     QDateTime captureStartTime() const { return m_captureStartDateTime; }
+
+    /// 设置 DBC 管理器（用于内联信号值列）
+    void setDbcManager(DbcManager *mgr);
 
     /// 获取所有帧（返回临时 QVector，用于 GraphicView 等）
     QVector<CanFrame> frames() const;
@@ -123,6 +128,24 @@ public:
     void setOverwriteMode(bool mode);
     bool isOverwriteMode() const { return m_overwriteMode; }
 
+    // ---- 错误帧高亮 ----
+
+    void setErrorFrameHighlight(bool enabled);
+    bool errorFrameHighlight() const { return m_errorFrameHighlight; }
+
+    // ---- 时间参考点 ----
+
+    /// 设置时间参考点（指定行号的帧作为 t=0）
+    void setTimeReference(int row);
+    /// 清除时间参考点
+    void clearTimeReference();
+    /// 是否已设置时间参考点
+    bool hasTimeReference() const { return m_hasTimeRef; }
+    /// 时间参考点的行号（-1 表示未设置或已超出范围）
+    int timeReferenceRow() const;
+    /// 时间参考点的时间戳
+    double timeReferenceTimestamp() const { return m_timeRefTimestamp; }
+
     int frameCountForId(quint32 id) const { return m_idCount.value(id, 0); }
 
     // ---- Phase 2: 刷新率控制 ----
@@ -157,6 +180,13 @@ private:
     QDateTime m_captureStartDateTime;  ///< 捕获起始 wall-clock 时间（首次提交帧时设置）
 
     bool m_overwriteMode = false;
+    bool m_errorFrameHighlight = true;  ///< 错误帧整行高亮（默认开启）
+
+    // ---- 时间参考点 ----
+    bool m_hasTimeRef = false;        ///< 是否已设置时间参考点
+    quint64 m_timeRefSeq = 0;         ///< 参考帧的序列号
+    double m_timeRefTimestamp = 0.0;  ///< 参考帧的时间戳
+
     QHash<quint32, int> m_idToRow;   ///< CAN ID → 逻辑行号（覆盖模式）
     QHash<quint32, quint64> m_idCount;  ///< CAN ID → 累计帧数
 
@@ -186,6 +216,8 @@ private:
     QVector<CanFrame> m_pendingFrames;
     QTimer m_flushTimer;
     RefreshRate m_refreshRate = High;
+
+    DbcManager *m_dbcManager = nullptr;  ///< DBC 管理器（用于内联信号值列）
 
     /// 实际将帧写入环形缓冲区（flush 时调用）
     void commitFrame(const CanFrame &frame);

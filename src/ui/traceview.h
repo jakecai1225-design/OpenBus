@@ -12,6 +12,7 @@ class CanTraceModel;
 class CanFilterProxyModel;
 class ViewportProxyModel;
 class FilterBar;
+class BookmarkManager;
 class QSplitter;
 class QLabel;
 class QActionGroup;
@@ -35,6 +36,26 @@ public:
 
     /// 重写 setModel，自动将代理模型传递给 FilterHeaderView
     void setModel(QAbstractItemModel *model) override;
+
+    // ---- 列布局持久化 ----
+
+    /// 保存列布局（宽度、顺序、可见性）到 QSettings
+    void saveColumnLayout();
+    /// 从 QSettings 恢复列布局
+    void restoreColumnLayout();
+
+    // ---- Trace 文件导出 ----
+
+    /// 导出模式
+    enum ExportMode {
+        ExportAll,       ///< 所有帧
+        ExportFiltered,  ///< 过滤后帧
+        ExportSelected,  ///< 选中帧
+        ExportMarked     ///< 标记帧
+    };
+
+    /// 导出帧到文件
+    void exportFrames(ExportMode mode);
 
     // ---- 选中行保持（过滤变化后恢复定位） ----
 
@@ -253,6 +274,7 @@ class TraceTab : public QWidget
 
 public:
     explicit TraceTab(QWidget *parent = nullptr);
+    ~TraceTab();
 
     TraceView *traceView() const { return m_traceView; }
     FilterBar *filterBar() const { return m_filterBar; }
@@ -312,6 +334,7 @@ private:
     CanTraceModel *m_traceModel = nullptr;
     CanFilterProxyModel *m_proxyModel = nullptr;
     ViewportProxyModel *m_viewportProxy = nullptr;
+    BookmarkManager *m_bookmarkManager = nullptr;
     ViewportOverview *m_viewportOverview = nullptr;
     bool m_autoScrollViewport = true;  ///< 视窗自动跟随新数据
     bool m_running = false;

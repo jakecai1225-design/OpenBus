@@ -35,6 +35,7 @@
 #include "ui/tools/loganalysisview.h"
 #include "ui/tools/dbcsignallistview.h"
 #include "ui/datawindow.h"
+#include "ui/tools/iographview.h"
 #include "ui/colorruleeditor.h"
 #include "core/busstatistics.h"
 #include "core/filterpresetmanager.h"
@@ -1107,6 +1108,9 @@ void MainWindow::onFrameReceived(const CanFrame &frame)
     // 发送到 Data Window
     if (m_dataWindow)
         m_dataWindow->onFrame(frame);
+    // 发送到 I/O Graph
+    if (m_ioGraph)
+        m_ioGraph->onFrame(frame);
     // 更新状态栏帧数（使用独立计数器，不依赖当前标签页类型）
     m_receivedFrameCount++;
     if (m_player->isLoaded()) {
@@ -2298,6 +2302,8 @@ void MainWindow::onToolOpened(const QString &toolKey)
         openTab(view, QStringLiteral("总线统计分析"));
     } else if (toolKey == "data_window") {
         onOpenDataWindow();
+    } else if (toolKey == "io_graph") {
+        onOpenIOGraph();
     } else if (toolKey == "color_rules") {
         onOpenColorRuleEditor();
     }
@@ -2314,6 +2320,14 @@ void MainWindow::onOpenDataWindow()
         m_dataWindow->setDbcManager(m_dbcManager);
     }
     openTab(m_dataWindow, QStringLiteral("Data Window"));
+}
+
+void MainWindow::onOpenIOGraph()
+{
+    if (!m_ioGraph) {
+        m_ioGraph = new IOGraphView(this);
+    }
+    openTab(m_ioGraph, QStringLiteral("I/O Graph"));
 }
 
 void MainWindow::onOpenColorRuleEditor()

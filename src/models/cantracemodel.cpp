@@ -1,5 +1,6 @@
 #include "cantracemodel.h"
 #include "core/filter_engine.h"
+#include "core/dbcmanager.h"
 #include "utils/canutils.h"
 
 CanTraceModel::CanTraceModel(QObject *parent)
@@ -60,7 +61,7 @@ QVariant CanTraceModel::data(const QModelIndex &index, int role) const
         case ColNo: case ColTime: case ColDelta:
         case ColId: case ColDlc: case ColFrameCount:
             return int(Qt::AlignRight | Qt::AlignVCenter);
-        case ColData:
+        case ColData: case ColSignal:
             return int(Qt::AlignLeft | Qt::AlignVCenter);
         default:
             return int(Qt::AlignCenter);
@@ -93,6 +94,11 @@ QVariant CanTraceModel::data(const QModelIndex &index, int role) const
             return ruleColor;
         if (m_markedRows.contains(seq))
             return QColor(0xFF, 0xF3, 0xB0);
+        // 时间参考点行高亮
+        if (m_hasTimeRef && seq == m_timeRefSeq)
+            return QColor(0xB2, 0xDF, 0xDB);
+        if (m_errorFrameHighlight && f.isErrorFrame())
+            return QColor(0xFF, 0xCD, 0xD2);
         if (f.fd)
             return QColor(0xE8, 0xF5, 0xE8);
         return {};
@@ -139,6 +145,7 @@ QVariant CanTraceModel::headerData(int section, Qt::Orientation orientation,
     case ColData:       return QStringLiteral("Data");
     case ColFlags:      return QStringLiteral("Flags");
     case ColFrameCount: return QStringLiteral("Count");
+    case ColSignal:     return QStringLiteral("Signals");
     }
     return {};
 }
@@ -154,7 +161,10 @@ void CanTraceModel::formatCell(int row, int col, const CanFrame &f, QString &out
         out = QString::number(m_seqCounter - m_ringBuffer.size() + row + 1);
         return;
     case ColTime:
-        out = CanUtils::formatTime(f.timestamp);
+        if (m_hasTimeRef)
+            out = CanUtils::formatTime(f.timestamp - m_timeRefTimestamp);
+        else
+            out = CanUtils::formatTime(f.timestamp);
         return;
     case ColDelta: {
         double prev = (row > 0) ? m_ringBuffer.at(row - 1).timestamp : f.timestamp;
@@ -182,6 +192,41 @@ void CanTraceModel::formatCell(int row, int col, const CanFrame &f, QString &out
     case ColFrameCount:
         out = QString::number(m_idCount.value(f.id, 0));
         return;
+    case ColSignal: {
+        if (!m_dbcManager) {
+            out = QStringLiteral("");
+            return;
+        }
+        // 查找匹配的报文定义
+        const DbcMessage *msg = m_dbcManager->findMessage(f.id);
+        if (!msg) {
+            out = QStringLiteral("");
+            return;
+        }
+        // 解码所有信号
+        auto decoded = m_dbcManager->decodeFrame(f.id, f.data);
+        if (decoded.isEmpty()) {
+            out = QStringLiteral("");
+            return;
+        }
+        // 格式化: Sig1=value Sig2=value ...
+        QStringList parts;
+        for (const auto &sig : decoded) {
+            QString val;
+            if (!sig.valueDesc.isEmpty())
+                val = sig.valueDesc;
+            else
+                val = QString::number(sig.physValue, 'g', 4);
+            if (!sig.unit.isEmpty())
+                val += sig.unit;
+            parts.append(QStringLiteral("%1=%2").arg(sig.name).arg(val));
+        }
+        out = parts.join(QStringLiteral("  "));
+        // 截断过长内容
+        if (out.length() > 200)
+            out = out.left(200) + QStringLiteral("...");
+        return;
+    }
     }
 }
 
@@ -372,6 +417,9 @@ void CanTraceModel::clear()
     m_markedRows.clear();
     m_rowColors.clear();
     m_rowLabels.clear();
+    m_hasTimeRef = false;
+    m_timeRefSeq = 0;
+    m_timeRefTimestamp = 0.0;
     m_pendingFrames.clear();
     invalidateRowCache();
     endResetModel();
@@ -389,6 +437,9 @@ void CanTraceModel::setMaxFrames(int max)
     m_markedRows.clear();
     m_rowColors.clear();
     m_rowLabels.clear();
+    m_hasTimeRef = false;
+    m_timeRefSeq = 0;
+    m_timeRefTimestamp = 0.0;
     invalidateRowCache();
     endResetModel();
 }
@@ -548,6 +599,48 @@ void CanTraceModel::clearColors()
 }
 
 // ============================================================
+//  时间参考点
+// ============================================================
+
+void CanTraceModel::setTimeReference(int row)
+{
+    if (row < 0 || row >= m_ringBuffer.size())
+        return;
+    quint64 oldSeq = m_timeRefSeq;
+    m_timeRefSeq = m_seqCounter - m_ringBuffer.size() + row;
+    m_timeRefTimestamp = m_ringBuffer.at(row).timestamp;
+    m_hasTimeRef = true;
+    invalidateRowCache();
+    if (m_ringBuffer.size() > 0) {
+        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
+                         {Qt::DisplayRole, Qt::BackgroundRole});
+        Q_UNUSED(oldSeq);
+    }
+}
+
+void CanTraceModel::clearTimeReference()
+{
+    if (!m_hasTimeRef)
+        return;
+    m_hasTimeRef = false;
+    m_timeRefSeq = 0;
+    m_timeRefTimestamp = 0.0;
+    invalidateRowCache();
+    if (m_ringBuffer.size() > 0)
+        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
+                         {Qt::DisplayRole, Qt::BackgroundRole});
+}
+
+int CanTraceModel::timeReferenceRow() const
+{
+    if (!m_hasTimeRef)
+        return -1;
+    int row = static_cast<int>(m_timeRefSeq) - (m_seqCounter - m_ringBuffer.size());
+    if (row < 0 || row >= m_ringBuffer.size())
+        return -1;
+    return row;
+}
+// ============================================================
 //  行标签（Notepad++ 风格书签）
 // ============================================================
 
@@ -645,6 +738,19 @@ QColor CanTraceModel::evaluateColorRules(const CanFrame &frame) const
 }
 
 // ============================================================
+//  DBC 管理器
+// ============================================================
+
+void CanTraceModel::setDbcManager(DbcManager *mgr)
+{
+    m_dbcManager = mgr;
+    invalidateRowCache();
+    if (m_ringBuffer.size() > 0)
+        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
+                         {Qt::DisplayRole});
+}
+
+// ============================================================
 //  覆盖模式
 // ============================================================
 
@@ -661,4 +767,19 @@ void CanTraceModel::setOverwriteMode(bool mode)
     } else {
         m_idToRow.clear();
     }
+}
+
+// ============================================================
+//  错误帧高亮
+// ============================================================
+
+void CanTraceModel::setErrorFrameHighlight(bool enabled)
+{
+    if (m_errorFrameHighlight == enabled)
+        return;
+    m_errorFrameHighlight = enabled;
+    invalidateRowCache();
+    if (m_ringBuffer.size() > 0)
+        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
+                         {Qt::BackgroundRole});
 }

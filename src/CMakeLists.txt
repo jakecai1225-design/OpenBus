@@ -170,6 +170,8 @@ set(SRC_UI
     ui/tools/loganalysisview.cpp
     ui/tools/dbcsignallistview.h
     ui/tools/dbcsignallistview.cpp
+    ui/tools/iographview.h
+    ui/tools/iographview.cpp
 )
 
 # ============================================================

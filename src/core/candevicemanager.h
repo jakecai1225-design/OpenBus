@@ -76,6 +76,18 @@ public:
     /// 通过当前设备发送一帧（模拟器模式下无效）
     bool sendFrame(const CanFrame &frame);
 
+    // ---- 硬件接收滤波器 ----
+
+    /// 设置硬件接收滤波器（仅真实设备模式有效）
+    /// @param code 滤波码
+    /// @param mask 滤波掩码
+    /// @param extended 是否扩展帧
+    /// @return true 成功
+    bool setAcceptanceFilter(quint32 code, quint32 mask, bool extended);
+
+    /// 清除硬件接收滤波器（接收所有帧）
+    bool clearAcceptanceFilter();
+
     // ---- 设备枚举 ----
 
     /// 枚举所有可用硬件设备

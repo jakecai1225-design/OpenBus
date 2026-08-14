@@ -39,6 +39,7 @@ class BusStatistics;
 class FilterPresetManager;
 class BookmarkManager;
 class DataWindow;
+class IOGraphView;
 class PluginManager;
 struct DbcFile;
 class QAction;
@@ -119,6 +120,7 @@ private slots:
 
     // P0/P1 新增
     void onOpenDataWindow();
+    void onOpenIOGraph();
     void onOpenColorRuleEditor();
     void onBookmarkJumped(int frameIndex);
     void onTriggerRecording(const QString &dir, const QString &prefix,
@@ -205,6 +207,7 @@ private:
     FilterPresetManager *m_filterPresets = nullptr;
     BookmarkManager *m_bookmarkMgr = nullptr;
     DataWindow *m_dataWindow = nullptr;
+    IOGraphView *m_ioGraph = nullptr;
 
     // ---- 插件系统 ----
     PluginManager *m_pluginManager = nullptr;
