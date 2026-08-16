@@ -10,7 +10,7 @@
 #include "core/canfileio/canfileio.h"
 #include "core/canfileio/canfileio_factory.h"
 #include "models/cantracemodel.h"
-#include "models/canfilterproxymodel.h"
+#include "models/cantraceproxymodel.h"
 #include "ui/traceview.h"
 #include "ui/graphicview.h"
 #include "ui/filterbar.h"

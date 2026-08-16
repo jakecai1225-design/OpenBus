@@ -472,6 +472,7 @@ private:
         if (n == "rx")   return 6;
         if (n == "tx")   return 7;
         if (n == "std")  return 8;
+        if (n == "error") return 9;
         return -1;
     }
 
@@ -639,7 +640,7 @@ private:
 // ============================================================
 
 struct EvalContext {
-    double vars[9] = {};  // 0:id 1:dlc 2:ch 3:time 4:fd 5:ext 6:rx 7:tx 8:std
+    double vars[10] = {};  // 0:id 1:dlc 2:ch 3:time 4:fd 5:ext 6:rx 7:tx 8:std 9:error
     const QByteArray *data = nullptr;
     const std::array<QByteArray, kMaxDataMatches> *dataPatterns = nullptr;
     size_t numData = 0;
@@ -654,7 +655,7 @@ double evalAST(const ASTNode *node, const EvalContext &ctx)
         return node->number;
 
     case NodeKind::Variable:
-        if (node->varIdx >= 0 && node->varIdx < 9)
+        if (node->varIdx >= 0 && node->varIdx < 10)
             return ctx.vars[node->varIdx];
         return 0;
 
@@ -784,6 +785,7 @@ bool FilterEngine::evaluate(const CanFrame &frame) const
     ctx.vars[6] = (frame.direction == CanFrame::Rx) ? 1.0 : 0.0; // rx
     ctx.vars[7] = (frame.direction == CanFrame::Tx) ? 1.0 : 0.0; // tx
     ctx.vars[8] = frame.extended ? 0.0 : 1.0;                    // std
+    ctx.vars[9] = frame.isErrorFrame() ? 1.0 : 0.0;              // error
     ctx.data = &frame.data;
     ctx.dataPatterns = &m_impl->dataPatterns;
     ctx.numData = m_impl->numData;

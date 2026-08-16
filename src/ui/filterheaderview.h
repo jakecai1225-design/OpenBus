@@ -3,7 +3,7 @@
 
 #include <QHeaderView>
 
-class CanFilterProxyModel;
+class CanTraceProxyModel;
 
 /**
  * @brief Wireshark 风格表头视图 — 排序箭头 + 过滤漏斗图标
@@ -23,7 +23,7 @@ public:
     explicit FilterHeaderView(Qt::Orientation orientation, QWidget *parent = nullptr);
 
     /// 设置代理模型（用于查询各列过滤状态）
-    void setProxyModel(CanFilterProxyModel *proxy);
+    void setProxyModel(CanTraceProxyModel *proxy);
 
     /// 某列是否有活跃的过滤条件
     bool hasFilter(int logicalIndex) const;
@@ -45,7 +45,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
 
 private:
-    CanFilterProxyModel *m_proxy = nullptr;
+    CanTraceProxyModel *m_proxy = nullptr;
     int m_hoverSection = -1;       ///< 当前鼠标悬停的逻辑列号
     int m_sortColumn = -1;         ///< 当前排序列（-1=未排序）
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;

@@ -1,5 +1,5 @@
 #include "filterheaderview.h"
-#include "models/canfilterproxymodel.h"
+#include "models/cantraceproxymodel.h"
 
 #include <QPainter>
 #include <QMouseEvent>
@@ -23,7 +23,7 @@ FilterHeaderView::FilterHeaderView(Qt::Orientation orientation, QWidget *parent)
     setSortIndicatorShown(false);
 }
 
-void FilterHeaderView::setProxyModel(CanFilterProxyModel *proxy)
+void FilterHeaderView::setProxyModel(CanTraceProxyModel *proxy)
 {
     m_proxy = proxy;
 }

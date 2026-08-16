@@ -18,6 +18,14 @@
 
 **openbus** 是一款灵感来源于 [Wireshark](https://www.wireshark.org/)、[CANoe](https://www.vector.com/canoe)、[Ozone](https://www.segger.com/products/development-tools/ozone-debugger/) 等优秀软件的 CAN/CAN FD 总线报文分析工具。采用 VS Code 风格的现代化 UI 设计，提供从报文录制到信号级解析的完整工作流，适用于汽车电子开发、总线调试、协议逆向等场景。
 ![alt text](image.png)
+
+## 设计文档索引
+
+| 文档 | 内容 | 对标 |
+|------|------|------|
+| [doc/Trace模块设计文档.md](doc/Trace模块设计文档.md) | 报文列表核心视图：架构分层、4 阶段性能优化（延迟格式化/批量刷新/增量过滤/环形缓冲）、书签着色、导航交互、CANoe 深度对标差距复查（§九） | CANoe Trace Window + Wireshark Packet List |
+| [doc/Graphic模块设计文档.md](doc/Graphic模块设计文档.md) | 信号波形核心视图：多轴堆叠、卡尺测量、视口降采样、数学运算、游标联动 | CANoe Graphics Window |
+
 ## 功能特性
 
 ### 报文录制与回放
@@ -182,34 +190,10 @@ TSMaster 是 TOSUN 推出的开放总线工具平台，支持多厂商硬件，�
 
 #### 方案 2：Graphics 游标测量 + 多 Y 轴（P0，对标 CANoe Graphics Window）
 
-**目标**：在 Graphic 图形视图中增加双游标测量、多 Y 轴支持、视口降采样。
-
-**游标测量**：
-```
-┌────────────────────────────────────────────────┐
-│ Graphic View                                    │
-│                                                  │
-│  ┌───┬─────┬──────────┬──────────┐              │
-│  │     │     ╲          ╱         │  ← 信号曲线   │
-│  │  A  │      ╲        ╱          │              │
-│  │  ╫  │       ╲      ╱           │  ← 游标 A     │
-│  │  ╫  B        ╲    ╱            │  ← 游标 B     │
-│  │     │          ╲  ╱             │              │
-│  └───┴─────┴──────────┴──────────┘              │
-│  ΔT = 2.35s    ΔY = 15.3    f = 0.43 Hz          │
-└────────────────────────────────────────────────┘
-```
-
-**实现方案**：
-- 游标：在 `QCustomPlot` 上添加 `QCPItemStraightLine`（垂直线），鼠标拖拽移动
-- 差值计算：双游标之间的时间差 (ΔT)、信号值差 (ΔY)、频率估算 (1/ΔT)
-- 多 Y 轴：使用 `QCustomPlot::yAxis2`（右轴），不同信号可分配到左轴或右轴
-- 视口降采样：当数据点超过视口宽度 ×2 时，按最大/最小值分组抽稀（保留波形轮廓）
-- 游标联动：多个 GraphicView 标签页间游标时间同步（通过信号槽）
-
-**涉及文件**：
-- 修改：`src/ui/graphicview.h` / `src/ui/graphicview.cpp`
-- 新增：游标控制工具栏（QToolBar：添加/移除游标、显示/隐藏差值面板）
+> **详细设计已分离至 [doc/Graphic模块设计文档.md](doc/Graphic模块设计文档.md)**
+>
+> 当前进度：单/双卡尺测量（ΔT/ΔY/f）、每信号独立 Y 轴堆叠、信号列表联动、卡尺插值取值均已实现 ✅；
+> 待实现：视口降采样（P0）、多视图游标联动（P1）、信号数学运算（P1）。实施计划与性能目标见设计文档。
 
 ---
 
@@ -287,74 +271,19 @@ TSMaster 是 TOSUN 推出的开放总线工具平台，支持多厂商硬件，�
 
 #### 方案 5：预定义过滤集管理（P1，对标 CANoe Filter Presets）
 
-**目标**：将常用的过滤表达式保存为命名预设，一键切换。
-
-**功能设计**：
-- 过滤栏右侧增加「预设」下拉按钮
-- 预设列表以菜单形式展示，点击即应用
-- 右键当前表达式 → 「保存为预设」→ 输入名称
-- 预设存储在 `filters/` 目录下 `.sfilter` 文件中（JSON 格式）
-
-**文件格式**（`.sfilter`）：
-```jsonc
-{
-  "version": 1,
-  "filters": [
-    {"name": "仅 Rx 帧",       "expr": "rx"},
-    {"name": "仅错误帧",       "expr": "error"},
-    {"name": "制动系统",       "expr": "id in (0x100, 0x1A5, 0x2FF)"},
-    {"name": "高优先级",       "expr": "id < 0x100"},
-    {"name": "CAN FD 帧",      "expr": "fd"}
-  ]
-}
-```
-
-**实现方案**：
-- 新增 `FilterPresetManager` 类，加载/保存 `.sfilter` 文件
-- 修改 `FilterBar` 添加预设下拉按钮和菜单
-- 预设可导入导出，方便团队共享
-
-**涉及文件**：
-- 新增：`src/core/filterpresetmanager.h` / `src/core/filterpresetmanager.cpp`
-- 修改：`src/ui/filterbar.h` / `src/ui/filterbar.cpp`
+> **已分离至设计文档：[doc/Trace模块设计文档.md](doc/Trace模块设计文档.md) §4.3**
+>
+> `.sfilter` 预设文件格式、FilterPresetManager 设计详见 Trace 设计文档。
 
 ---
 
 #### 方案 6：Trace 书签持久化 + 着色规则编辑器（P1，对标 CANoe Trace 标记着色）
 
-**书签持久化**：
-- 右键报文行 → 「添加书签」→ 输入备注
-- 书签数据结构：`{frameIndex, note, timestamp, color}`
-- 书签保存在 `.openbusproj` 工程文件中（或独立的 `.sbm` 书签文件）
-- 右侧面板增加「书签」标签页，点击跳转到对应帧
-
-**着色规则编辑器**：
-- 工具菜单 → 「着色规则」打开编辑器
-- 规则列表：每条规则 = 条件表达式 + 背景色 + 前景色
-- 条件复用 `FilterEngine`（如 `id == 0x123` → 黄色背景）
-- 规则优先级：从上到下匹配，首个命中规则的着色生效
-- 规则保存在 `.openbusproj` 中
-
-**UI**：
-```
-┌─ 着色规则编辑器 ──────────────────────────────┐
-│  规则列表                      [添加] [删除]   │
-│  ┌──────────────────────────────────────────┐  │
-│  │ ▲ id == 0x123        🟡 黄色背景         │  │
-│  │   error == true      🔴 浅红背景         │  │
-│  │   fd == true         🔵 浅蓝背景         │  │
-│  │   id in (0x1A5,..)   🟢 浅绿背景         │  │
-│  └──────────────────────────────────────────┘  │
-│  条件: [id == 0x123                        ]   │
-│  背景: [⬛ 黄色 ▼]   前景: [⬛ 黑色 ▼]           │
-│                                  [取消] [确定]   │
-└────────────────────────────────────────────────┘
-```
-
-**涉及文件**：
-- 新增：`src/ui/colorruleeditor.h` / `src/ui/colorruleeditor.cpp`
-- 修改：`src/core/cantracemodel.h` / `src/core/cantracemodel.cpp`（支持着色规则求值）
-- 修改：`src/ui/rightpanel.h` / `src/ui/rightpanel.cpp`（增加书签标签页）
+> **详细设计已分离至 [doc/Trace模块设计文档.md](doc/Trace模块设计文档.md) §4.1 / §4.2**
+>
+> 现状：运行时标记/行标签/着色规则引擎（`ColorRule{expr, background, foreground, enabled}`，首个命中生效）已实现 ✅；
+> 待实现：书签工程文件序列化（`{seqCounter, note, timestamp, color}`）、着色规则编辑器 UI、规则持久化到 `.openbusproj`。
+> 编辑器线框图与涉及文件清单见设计文档。
 
 ---
 
@@ -599,145 +528,25 @@ Phase 3 (长期 1-2 月) — P2 高级能力
 
 ## Trace 页面详细规划
 
-> Trace 是总线分析工具的核心视图，对标 CANoe Trace 窗口 + Wireshark 报文列表。
-> 以下按功能模块细化，明确已实现/待实现状态，并引入必要的开源组件减少重复造轮子。
-
-### 一、已实现功能清单
-
-| 功能 | 状态 | 实现位置 |
-|------|------|----------|
-| Wireshark 风格报文列表 | ✅ 已实现 | `TraceView` + `CanTraceModel` |
-| 按列排序（数值/时间智能比较） | ✅ 已实现 | `CanFilterProxyModel::lessThan` |
-| 按列筛选（ID 列支持运算符） | ✅ 已实现 | `CanFilterProxyModel::setColumnFilter` |
-| 快速筛选（Rx/Tx、唯一 ID） | ✅ 已实现 | `TraceView::contextMenuEvent` |
-| 帧信息面板（DBC 信号解码） | ✅ 已实现 | `FrameInfoWidget` + `SignalDecodeWidget` |
-| 十六进制转储（Offset+Hex+ASCII） | ✅ 已实现 | `TraceTab` 底部面板 |
-| 覆盖模式（同 ID 只保留最新帧） | ✅ 已实现 | `CanTraceModel::setOverwriteMode` |
-| 表达式过滤引擎 | ✅ 已实现 | `FilterEngine`（自写递归下降解析器） |
-| 多 Trace 标签页 | ✅ 已实现 | `SplitEditorArea` 多 Tab |
-
-### 二、待实现功能规划
-
-#### 1. 文件导入（高优先级）
-
-支持从第三方日志文件导入报文到 Trace，复用现有 `CanFrame` 数据结构和 `CanTraceModel`。
-
-| 格式 | 方案 | 协议 | 说明 |
-|------|------|------|------|
-| **BLF** | [vector_blf](https://github.com/Technica-Engineering/vector_blf) | LGPL | C++ 库，兼容 binlog API 7.1.0，支持 CAN/CAN FD/LIN 等多种对象类型 |
-| **ASC** | 自写解析器 | — | 纯文本格式，每行一条报文记录，约 300 行代码即可实现 |
-| **CSV** | 自写解析器 | — | 通用表格格式，约 200 行代码即可实现 |
-
-**架构设计**：
-
-```
-core/file_import/
-├── file_importer.h        # 统一导入接口（纯虚基类）
-├── blf_importer.h/cpp     # BLF 格式导入（依赖 vector_blf）
-├── asc_importer.h/cpp     # ASC 格式导入（自写文本解析）
-└── csv_importer.h/cpp     # CSV 格式导入（自写文本解析）
-```
-
-- 所有导入器实现统一接口 `bool importFile(const QString &path, CanTraceModel *model)`
-- 导入过程支持进度回调，大文件异步导入不阻塞 UI
-- 导入后自动合并到当前 Trace 的 `CanTraceModel`，按时间戳排序
-
-**ASC 格式说明**（Vector ASCII Logging Format）：
-
-```
-; comment
-begin Triggerblock
-   0.001  CAN  1  Rx  0123  8  01 02 03 04 05 06 07 08
-   0.005  CAN  1  Tx  0456  4  AA BB CC DD
-end Triggerblock
-```
-
-每行字段：时间戳(s) | 总线类型 | 通道 | 方向 | ID(hex) | DLC | 数据字节(hex)
-
-#### 2. 文件导出（中优先级）
-
-| 格式 | 方案 | 说明 |
-|------|------|------|
-| **ASC** | 自写导出器 | 按 Vector ASC 标准格式输出，可被 CANoe/CANalyzer 直接打开 |
-| **CSV** | 自写导出器 | 通用 CSV 格式，Excel/Python 可直接分析 |
-| **过滤子集导出** | 基于 FilterProxyModel | 仅导出当前过滤后可见行 |
-
-#### 3. 行着色规则（中优先级）
-
-通过 `CanTraceModel::data()` 的 `Qt::BackgroundRole` 实现行级背景色：
-
-| 规则 | 颜色 | 说明 |
-|------|------|------|
-| 按 CAN ID 着色 | 哈希调色板（~20 色循环） | 不同 ID 不同背景色，快速识别报文类型 |
-| 方向区分 | Rx: 无底色 / Tx: 浅绿底 | 收发方向一目了然 |
-| 错误帧 | 浅红底 | CAN_ERR_FLAG 标记的帧高亮 |
-| CAN FD 帧 | 浅蓝底标记 | 区分经典帧和 FD 帧 |
-| 用户标记 | 黄色高亮 | 手动标记的重要帧 |
-
-#### 4. 搜索与书签（中优先级）
-
-- **搜索栏**：在 FilterBar 右侧增加搜索按钮，支持：
-  - 按 ID 搜索：`0x123`
-  - 按数据内容搜索：`data contains AA BB`
-  - 按时间范围：`time > 10.5 && time < 20.0`
-- **书签**：
-  - 右键报文行 → 「添加书签」/「移除书签」
-  - 书签列表在右侧面板显示，点击跳转
-  - 书签数据保存在 `.openbus` 录制文件中
-
-#### 5. Hex Dump 增强（低优先级）
-
-当前 Hex Dump 使用 `QPlainTextEdit` 纯文本显示，后续引入 **QHexEdit2** 替换：
-
-| 特性 | 当前 | QHexEdit2 |
-|------|------|----------|
-| 查看 | ✅ 文本 | ✅ 高亮文本 |
-| 选中/复制 | ❌ | ✅ 区域选中、右键复制 |
-| 查找 | ❌ | ✅ Hex/ASCII 双向查找 |
-| 信号高亮 | ❌ | ✅ DBC 信号在 Hex 数据中着色标注 |
-
-> **QHexEdit2**：BSD 协议，商用友好。GitHub: https://github.com/SilkierNet/HexEdit
-
-#### 6. 统计面板增强（低优先级）
-
-当前仅显示总帧数/Rx/Tx 分布，后续增加：
-
-- **总线负载率**：基于 CAN 波特率和实际数据量计算
-- **各 ID 帧数/频率**：表格展示每个 CAN ID 的累计帧数和每秒帧数
-- **错误帧统计**：按错误类型分类统计
-- **周期抖动分析**：计算各 ID 的报文周期均值、最大/最小/标准差
-
-### 三、Trace 专用开源组件引入计划
-
-| 组件 | 协议 | 用途 | 集成方式 | 优先级 |
-|------|------|------|---------|--------|
-| **[vector_blf](https://github.com/Technica-Engineering/vector_blf)** | LGPL | BLF 文件解析 | 源码引入 `third_party/vector_blf/` | 🔴 高 |
-| **自写 ASC 解析器** | — | ASC 文件导入/导出 | 自研（~300 行） | 🔴 高 |
-| **自写 CSV 解析器** | — | CSV 文件导入/导出 | 自研（~200 行） | 🟡 中 |
-| **[QHexEdit2](https://github.com/SilkierNet/HexEdit)** | BSD | 十六进制查看控件 | 源码引入 `third_party/qhexedit2/` | 🟢 低 |
-
-### 四、实现分阶段计划
-
-**Phase 1 — 文件导入（核心）**
-1. 实现 ASC 解析器（文本格式，最简单）
-2. 引入 vector_blf，实现 BLF 导入器
-3. 实现 CSV 导入器
-4. 统一导入接口，集成到 Trace 菜单「文件 → 导入」
-
-**Phase 2 — 行着色 + 搜索**
-1. 实现行着色规则（`data()` 的 `BackgroundRole`）
-2. 实现搜索定位功能
-3. 实现书签标记
-
-**Phase 3 — 文件导出 + Hex 增强**
-1. 实现 ASC/CSV 导出器
-2. 引入 QHexEdit2 替换当前 Hex 面板
-3. 实现 DBC 信号在 Hex 数据中高亮
-
-**Phase 4 — 统计增强**
-1. 总线负载率计算
-2. 各 ID 帧数/频率统计表格
-3. 周期抖动分析
+> **完整设计已分离至 [doc/Trace模块设计文档.md](doc/Trace模块设计文档.md)** — 对标分析、架构分层、性能优化方案、待实现功能规划、实施计划。
+>
+> 当前状态概要：
+>
+> | 领域 | 状态 |
+> |------|------|
+> | Wireshark 风格列表/排序/列筛/表达式过滤/快速筛选 | ✅ 已实现 |
+> | 文件导入导出（BLF/ASC/CSV，含过滤子集导出） | ✅ 已实现 |
+> | 行标记/着色/标签（seqCounter 键）+ 着色规则引擎 | ✅ 已实现（编辑器 UI 待实现） |
+> | 覆盖模式 / 时间参考点 / 5 种时间戳模式 | ✅ 已实现 |
+> | 视窗缩略图导航（ViewportOverview）+ 视窗虚拟表格 | ✅ 已实现 |
+> | 性能优化 Phase 1 延迟格式化 / Phase 2 批量刷新 / Phase 4 环形缓冲 | ✅ 已实现 |
+> | Phase 3 增量过滤代理 `CanTraceProxyModel`（替代 QSortFilterProxyModel，新增行 O(1) 过滤） | ✅ 已实现（2026-08-17） |
+> | 值勾选列筛选 / 时间精度配置 / 书签文件导出导入 / 标记跳转菜单 | ✅ 已实现（2026-08 复查确认） |
+> | CANoe 深度复查速赢：Name 列 / 字体缩放 / 标记键盘导航（Ctrl+./Ctrl+,）/ 默认语义配色（error/Tx）/ `error` 过滤标识符 | ✅ 已实现（2026-08-17） |
+> | Trace Explorer 底部标签外壳（详情/信号/统计/差异，T8） | ✅ 已实现（2026-08-17） |
+> | 选中帧统计视图（时间 Δt + 信号/字节 min/max/avg/σ/首末，T9）/ 选中帧差异对比（字节级 + 信号级首末对比，T10） | ✅ 已实现（2026-08-17） |
+> | 书签工程集成 / 预定义过滤集 / QHexEdit2 | ⬜ 待实现 |
+> | CANoe 深度复查其余项：Pass/Stop 过滤组、结构化详情树、图标工具栏、混合事件流等 | ⬜ 差距清单与实施建议见 [设计文档 §九](doc/Trace模块设计文档.md) |
 
 ---
 
@@ -1285,17 +1094,1010 @@ struct BusMessage {
 3. **协议扩展**：`IBusMessage` 统一结构体，后续新增总线协议无需重构上层 UI
 4. **授权风险**：组件优先选用 MIT/BSD 协议（QADS、QHexEdit2），谨慎使用 GPL 组件
 
-#### 九、可选长期扩展模块（对标 CAPL）
+#### 九、插件系统架构设计（v2 重构方案）
 
-预留脚本服务模块，后期嵌入 Lua 脚本引擎，实现自定义报文生成、自动化测试，充当自研版"CAPL"。
+> 参考 VS Code Extension API 设计思想，主进程（Qt C++）与插件进程（Python + PyQt6）完全隔离，双通道通信实现高效 raw data 交互，订阅制按需推送。
+
+##### 1. 设计目标
+
+| 目标 | 说明 |
+|------|------|
+| **进程隔离** | 每个插件运行在独立 Python 进程中，插件崩溃不影响主程序和其他插件 |
+| **高效数据传输** | 二进制协议替代 JSON，CAN 帧批量传输，吞吐量 ≥ 100k frames/s |
+| **订阅制推送** | 插件按需订阅（CAN ID / 通道 / 信号），主程序仅推送匹配数据，无订阅 = 零开销 |
+| **完整 SDK** | Python SDK 封装全部通信细节，插件开发者只需关注业务逻辑 |
+| **VS Code 风格** | 激活事件、贡献点、命令注册、独立 UI 窗口，与 VS Code 扩展模型对齐 |
+| **声明式贡献点** | 插件通过 `plugin.json` 声明式描述能力（命令/视图/设置/数据输入输出/协议解码器），主程序解析后即注册 UI 和数据路由，无需激活插件进程即可发现其全部能力 |
+| **零侵入主程序** | 插件系统作为纯消费者连接到现有信号与单例，不修改任何现有源文件；集成点仅为一行 `PluginManager::instance()->initialize()` |
+| **协议契约稳定** | 协议版本化（major.minor），仅增量演进——可新增消息类型/方法/字段，禁止修改已定义语义或二进制编码，禁止删除已发布接口；前后向兼容，旧插件与新主程序互操作 |
+
+##### 2. 进程模型
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ 主进程 openbus.exe (Qt C++)                                    │
+│                                                              │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │ TraceView   │  │ GraphicView │  │ MainWindow  │          │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          │
+│         │                │                │                  │
+│  ┌──────┴─────────────────┴────────────────┴──────┐          │
+│  │          PluginManager (C++ 单例)                │          │
+│  │  · 发现插件 · 激活/停用 · 订阅路由 · 崩溃重启      │          │
+│  └──┬───────────┬───────────┬───────────┬─────────┘          │
+│     │           │           │           │                    │
+│  ┌──┴──┐    ┌──┴──┐    ┌──┴──┐    ┌──┴──┐                 │
+│  │Host1│    │Host2│    │Host3│    │HostN│  PluginHost(C++)  │
+│  └──┬──┘    └──┬──┘    └──┬──┘    └──┬──┘  每插件一个进程    │
+│     │           │           │           │                    │
+└─────┼───────────┼───────────┼───────────┼────────────────────┘
+      │ Named Pipe │           │           │
+      │ + Binary   │           │           │
+      ▼           ▼           ▼           ▼
+┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐
+│ Plugin A  │ │ Plugin B  │ │ Plugin C  │ │ Plugin N  │
+│ Python    │ │ Python    │ │ Python    │ │ Python    │
+│ PyQt6     │ │ PyQt6     │ │ 无UI      │ │ PyQt6     │
+│ openbus   │ │ openbus   │ │ openbus   │ │ openbus   │
+│ SDK       │ │ SDK       │ │ SDK       │ │ SDK       │
+└───────────┘ └───────────┘ └───────────┘ └───────────┘
+```
+
+**关键设计决策**：
+
+- **每插件一进程**：`PluginHost` (C++) 通过 `QProcess` 为每个已激活插件启动独立 Python 进程，彻底隔离插件间影响
+- **主从隔离**：主进程 C++ Qt6，插件进程 Python + PyQt6，通过 Named Pipe 通信，无共享内存竞争
+- **崩溃自愈**：`PluginHost` 监控子进程状态，崩溃后指数退避重启（最多 3 次），超过则标记为「错误」状态
+- **资源回收**：插件进程退出时，主程序自动清理该插件的所有订阅、命令注册、UI 窗口
+
+##### 3. 双通道通信架构
+
+```
+┌──────────────────────┐          ┌──────────────────────┐
+│   主进程 (C++ Qt)     │          │  插件进程 (Python)    │
+│                      │          │                      │
+│  ┌────────────────┐  │          │  ┌────────────────┐  │
+│  │ Control Channel│◄─┼──────────┼─►│ Control Channel│  │
+│  │ JSON-RPC 2.0   │  │  Named   │  │ JSON-RPC 2.0   │  │
+│  │ 命令/查询/配置   │  │  Pipe    │  │ 命令/查询/配置   │  │
+│  └────────────────┘  │ (Text)   │  └────────────────┘  │
+│                      │          │                      │
+│  ┌────────────────┐  │          │  ┌────────────────┐  │
+│  │  Data Channel   │◄─┼──────────┼─►│  Data Channel   │  │
+│  │ Binary Protocol │  │  Named   │  │ Binary Protocol │  │
+│  │ 帧批量/信号更新   │  │  Pipe    │  │ 帧批量/信号更新   │  │
+│  └────────────────┘  │ (Binary) │  └────────────────┘  │
+└──────────────────────┘          └──────────────────────┘
+```
+
+**为什么双通道？**
+
+| 通道 | 协议 | 用途 | 吞吐量 |
+|------|------|------|--------|
+| Control | JSON-RPC 2.0 (UTF-8 text) | 激活/停用、命令注册、查询选中帧、DBC 解码请求、配置读写 | 低频，延迟敏感 |
+| Data | Binary (自定义二进制协议) | CAN 帧批量推送、信号值更新、统计推送 | 高频，吞吐敏感 |
+
+Named Pipe 在 Windows 上支持全双工、二进制模式，单管道吞吐量 > 200 MB/s，满足 CAN FD 最高速率需求。
+
+##### 4. 二进制数据协议
+
+###### 4.1 消息包格式
+
+所有 Data Channel 消息使用统一的二进制包格式：
+
+```
+┌──────────┬──────────┬──────────┬──────────────────────┐
+│ Magic    │ MsgType  │ Payload  │ Payload Data         │
+│ 4 bytes  │ 2 bytes  │ Length   │ N bytes              │
+│ 0x4F425553│ uint16   │ 4 bytes  │                      │
+│ "OBUS"   │          │ uint32   │                      │
+└──────────┴──────────┴──────────┴──────────────────────┘
+  固定头 10 bytes              变长 payload
+```
+
+###### 4.2 消息类型
+
+| MsgType | 名称 | 方向 | Payload |
+|---------|------|------|---------|
+| 0x0000 | _保留（协议保留值，不使用）_ | — | — |
+| 0x0001 | `FRAME_BATCH` | 主→插件 | N 个 CAN 帧的二进制打包 |
+| 0x0002 | `SIGNAL_UPDATE` | 主→插件 | 信号名+值+时间戳的批量打包 |
+| 0x0003 | `STATISTICS` | 主→插件 | 总线统计快照 |
+| 0x0010 | `SUBSCRIBE` | 插件→主 | JSON 订阅请求 |
+| 0x0011 | `UNSUBSCRIBE` | 插件→主 | JSON 取消订阅 |
+| 0x0020 | `RPC_REQUEST` | 双向 | JSON-RPC 2.0 请求 |
+| 0x0021 | `RPC_RESPONSE` | 双向 | JSON-RPC 2.0 响应 |
+| 0x0022 | `RPC_NOTIFICATION` | 双向 | JSON-RPC 2.0 通知 |
+
+###### 4.3 CAN 帧二进制编码
+
+单帧编码（16 + N 字节，N = 实际数据长度 0-64）：
+
+```
+Offset  Size  Field         说明
+0       4     can_id        CAN ID (bit31=扩展帧, bit30=FD, bit29=BRS, bit28=ESI)
+4       1     flags         bit7=extended, bit6=fd, bit5=brs, bit4=esi, bit3=direction(0=Rx,1=Tx)
+5       1     dlc           数据长度码 0-15
+6       1     channel       通道号 (1-based)
+7       1     data_length   实际数据字节数 (0-64)
+8       8     timestamp_ns  纳秒时间戳 (相对起点)
+16      N     data          原始数据 (N = data_length)
+```
+
+**批量帧编码**：`[uint16 frame_count][frame_1][frame_2]...[frame_N]`
+
+**效率对比**（100 帧 Classic CAN，每帧 8 字节数据）：
+
+| 编码方式 | 单帧大小 | 100 帧总大小 | 倍率 |
+|---------|---------|------------|------|
+| JSON-RPC (hex) | ~220 bytes | ~22,000 bytes | 1× (基准) |
+| 二进制协议 | 24 bytes | 2,402 bytes | **9.2× 压缩** |
+
+###### 4.4 Control Channel — JSON-RPC 2.0 方法清单
+
+**主程序 → 插件**：
+
+| Method | 说明 |
+|--------|------|
+| `activate` | 激活插件，传入 context 参数 |
+| `deactivate` | 停用插件 |
+| `executeCommand` | 执行插件注册的命令 |
+| `fileOpened` | 通知文件打开事件 |
+| `shutdown` | 优雅关闭 |
+
+**插件 → 主程序**：
+
+| Method | 说明 |
+|--------|------|
+| `output.append` | 追加文本到输出面板 |
+| `output.clear` | 清空输出面板 |
+| `sendFrame` | 请求发送 CAN 帧 |
+| `registerCommand` | 注册命令到主程序菜单 |
+| `frames.getSelected` | 查询 Trace 中选中的帧 |
+| `frames.getRecent` | 查询最近 N 帧 |
+| `signals.decode` | 请求 DBC 信号解码 |
+| `signals.encode` | 请求 DBC 信号编码 |
+| `workspace.getProjectDir` | 查询当前工程目录 |
+| `workspace.getDbcFiles` | 查询已加载 DBC 文件列表 |
+| `workspace.getSetting` | 读取应用设置 |
+| `statusbar.set` | 设置状态栏文本 |
+| `log` | 插件日志 |
+
+> **双向通知**（连接建立后立即交换）
+
+| Method | 方向 | 说明 |
+|--------|------|------|
+| `hello` | 双向 | 协议握手，交换 `{protocolVersion, sdkVersion, capabilities, supportedMethods}` |
+
+###### 4.5 协议稳定性契约
+
+协议是主程序与插件之间的**永久契约**，一经发布即冻结语义。以下规则确保插件一次编写、跨版本运行：
+
+**版本协商**
+
+```
+连接建立
+  │
+  ├─ 插件 → 主: hello { protocolVersion: "1.0", sdkVersion: "1.2.3", capabilities: [...] }
+  ├─ 主 → 插件: hello { protocolVersion: "1.0", appVersion: "3.5.0", capabilities: [...] }
+  │
+  ├─ major 版本相同? ── YES → 接受连接，双方取各自 minor 的较小值工作
+  │                  ── NO  → 主发送 shutdown，终止连接
+  │
+  └─ 握手完成，后续通信使用双方均支持的方法集合
+```
+
+**兼容性规则**
+
+| 规则 | 说明 |
+|------|------|
+| **major 版本必须匹配** | major 变更 = 不兼容断代，旧插件无法运行（需迁移） |
+| **minor 向前兼容** | 新主程序接受旧插件（缺少的字段使用默认值）；新插件接受旧主程序（不调用不存在的方法） |
+| **未知消息类型静默丢弃** | Data Channel 收到未知 MsgType 的包，记录警告后丢弃，不中断连接 |
+| **未知 JSON 字段忽略** | Control Channel 收到未知字段，直接忽略，不报错 |
+| **能力协商** | `hello` 中的 `capabilities` 数组声明支持的功能域；调用未声明的能力返回 `methodNotFound` 错误而非崩溃 |
+
+**演进策略**
+
+| 操作 | 允许? | 说明 |
+|------|-------|------|
+| 新增 MsgType | ✅ | 在保留区间分配新 ID（0x0100+ 为 v2 预留） |
+| 新增 JSON-RPC 方法 | ✅ | 旧端忽略未知方法通知；请求式方法返回 `methodNotFound` |
+| 新增可选字段 | ✅ | 新字段必须可选、有默认值；旧端忽略未知字段 |
+| 修改已有消息的二进制编码 | ❌ 永久禁止 | 二进制布局一经发布冻结，如需变更必须使用新 MsgType |
+| 修改已有方法的参数语义 | ❌ 永久禁止 | 参数名/类型/含义一经发布冻结 |
+| 删除已发布消息类型或方法 | ❌ 永久禁止 | 仅允许标记 `deprecated`，功能保留至 major 版本断代 |
+| 新增 MsgType 编码格式 | ✅ | 新 MsgType 可使用任意编码（如 protobuf），不影响已有 MsgType |
+
+**版本区间分配**
+
+```
+0x0000        保留
+0x0001-0x00FF  v1 消息（当前定义，永久冻结）
+0x0100-0x01FF  v2 预留（未来扩展）
+0x0200-0x7FFF  未分配
+0x8000-0xFFFF  私有/实验区（插件可自定义，不保证互操作）
+```
+
+**协议版本与 SDK 版本的关系**
+
+- `protocolVersion`（如 `"1.0"`）= 通信契约版本，极少变更（仅断代时 major+1）
+- `sdkVersion`（如 `"1.2.3"`）= SDK 实现版本，常规迭代
+- 插件开发者只需关注 `protocolVersion`；SDK 封装所有版本协商细节
+
+##### 5. 订阅制数据推送
+
+###### 5.1 订阅模型
+
+插件通过 SDK 订阅感兴趣的数据流，主程序仅推送匹配的数据：
+
+```python
+import openbus
+
+def activate(context: openbus.ExtensionContext):
+    # 订阅特定 CAN ID 的帧
+    context.frames.subscribe(
+        ids=[0x123, 0x456, 0x7FF],   # 仅这些 CAN ID（省略 = 全部）
+        channels=[1],                 # 仅通道 1（省略 = 全部通道）
+        direction="Rx",               # 仅 Rx 帧（省略 = 全部）
+        handler=on_frame              # 回调函数
+    )
+
+    # 订阅 DBC 信号实时值
+    context.signals.subscribe(
+        names=["EngineRPM", "VehicleSpeed"],
+        handler=on_signal             # (name, value, timestamp)
+    )
+
+    # 订阅总线统计（1 秒间隔）
+    context.statistics.subscribe(
+        interval_ms=1000,
+        handler=on_stats              # (stats_dict)
+    )
+
+def on_frame(frame: openbus.CanFrame):
+    print(f"0x{frame.id:X} ch={frame.channel} data={frame.data.hex()}")
+
+def on_signal(name: str, value: float, timestamp: float):
+    print(f"{name} = {value:.2f} @ {timestamp:.3f}s")
+
+def on_stats(stats: dict):
+    print(f"负载率: {stats['bus_load_percent']:.1f}%  总帧数: {stats['total_frames']}")
+```
+
+###### 5.2 订阅路由表
+
+主程序为每个插件进程维护一张订阅表：
+
+```
+Plugin: "j1939-analyzer" (PID 12345)
+┌──────────┬─────────────────────────────────┬─────────┐
+│ 类型     │ 过滤条件                         │ 状态     │
+├──────────┼─────────────────────────────────┼─────────┤
+│ frames   │ ids=[0x18FEF100,0x18EEFF00]     │ active  │
+│          │ channels=[1]                     │         │
+│ signals  │ names=["EngineRPM","OilTemp"]    │ active  │
+│ stats    │ interval_ms=1000                 │ active  │
+└──────────┴─────────────────────────────────┴─────────┘
+```
+
+> 上表中 `frames` 和 `signals` 订阅来自 `plugin.json` 的 `dataInputs` 声明，
+> 在插件激活时自动创建；插件也可在 `activate()` 中追加动态订阅。
+
+当 CAN 帧到达时：
+1. 主程序遍历所有插件进程的订阅表
+2. 对每个订阅执行 ID/通道/方向匹配
+3. 匹配的帧打包为 `FRAME_BATCH` 二进制包，通过 Data Channel 推送
+4. 无匹配订阅的插件进程：零开销，不触发任何 I/O
+
+###### 5.3 节流与批处理
+
+- **帧批量**：主程序每 10ms（可配置）将匹配的帧打包成一批，减少 IPC 次数
+- **最大批大小**：每批不超过 1024 帧（避免大包阻塞管道）
+- **信号去重**：同一信号在 50ms 内只推送最新值（避免高频信号淹没插件）
+- **声明式处理模式**：`dataInputs` 中的 `processing` 字段控制推送策略——`streaming` 即时推送，`batch` 按 10ms 批量打包（见 §7.4）
+
+##### 6. Python SDK 设计 (`openbus` 包)
+
+###### 6.1 包结构
+
+```
+sdk/openbus/
+├── __init__.py           # 公共 API 导出
+├── _transport.py         # Named Pipe 传输层（内部）
+├── _binary.py            # 二进制协议编解码（内部）
+├── context.py            # ExtensionContext — 插件上下文
+├── frames.py             # CanFrame 类 + 帧订阅/发送 API
+├── signals.py            # 信号解码/编码 + 信号订阅 API
+├── output.py             # 输出面板 API
+├── commands.py           # 命令注册/执行 API
+├── workspace.py          # 工程上下文查询 API
+├── statistics.py         # 总线统计订阅 API
+├── statusbar.py          # 状态栏 API
+└── ui.py                 # 独立窗口创建 API (PyQt6)
+```
+
+###### 6.2 核心 API
+
+```python
+import openbus
+
+# ====== CanFrame 数据类 ======
+class CanFrame:
+    id: int              # CAN ID
+    extended: bool       # 扩展帧
+    fd: bool             # CAN FD
+    dlc: int             # 数据长度码
+    data: bytes          # 原始数据 (0-64 bytes)
+    timestamp: float     # 相对时间戳 (秒)
+    channel: int         # 通道号
+    direction: str       # "Rx" 或 "Tx"
+    bitrate_switch: bool # BRS (CAN FD)
+    error_state: bool    # ESI (CAN FD)
+
+# ====== ExtensionContext ======
+class ExtensionContext:
+    """插件激活时收到的上下文对象，所有 API 的入口"""
+
+    # 子系统
+    frames: FramesAPI         # 帧订阅与发送
+    signals: SignalsAPI       # 信号编解码与订阅
+    output: OutputAPI         # 输出面板
+    commands: CommandsAPI     # 命令注册
+    workspace: WorkspaceAPI   # 工程上下文
+    statistics: StatisticsAPI # 总线统计
+    statusbar: StatusbarAPI   # 状态栏
+    ui: UIAPI                 # 独立窗口 (需 PyQt6)
+
+    # 生命周期
+    plugin_name: str          # 当前插件名
+
+# ====== FramesAPI ======
+class FramesAPI:
+    def subscribe(self, *, ids=None, channels=None,
+                  direction=None, handler=None) -> int:
+        """订阅 CAN 帧，返回 subscription_id"""
+
+    def unsubscribe(self, sub_id: int) -> None:
+        """取消订阅"""
+
+    def get_selected(self) -> list[CanFrame]:
+        """查询 Trace 中选中的帧"""
+
+    def get_recent(self, count: int = 100) -> list[CanFrame]:
+        """查询最近 N 帧"""
+
+    def send(self, id: int, data: bytes, *,
+             extended: bool = False, fd: bool = False) -> None:
+        """发送 CAN 帧"""
+
+# ====== SignalsAPI ======
+class SignalsAPI:
+    def decode(self, can_id: int, data: bytes) -> dict[str, float]:
+        """解码信号值"""
+
+    def encode(self, can_id: int, values: dict[str, float]) -> bytes:
+        """编码信号值"""
+
+    def subscribe(self, names: list[str], handler) -> int:
+        """订阅信号实时更新，返回 subscription_id"""
+
+    def unsubscribe(self, sub_id: int) -> None:
+        """取消订阅"""
+
+# ====== UIAPI (需 PyQt6) ======
+class UIAPI:
+    def create_window(self, title: str = "") -> QMainWindow:
+        """创建独立窗口，关闭时自动通知主程序"""
+
+    def show_message(self, title: str, text: str) -> None:
+        """信息对话框"""
+
+    def show_warning(self, title: str, text: str) -> None:
+        """警告对话框"""
+
+    def show_error(self, title: str, text: str) -> None:
+        """错误对话框"""
+```
+
+###### 6.3 插件入口约定
+
+```python
+# main.py — 插件入口
+import openbus
+
+def activate(context: openbus.ExtensionContext):
+    """插件激活时调用。
+
+    此时 plugin.json 中声明的 dataInputs 已自动生效（订阅已创建），
+    commands / views / configuration 已由主程序注册。
+    activate() 中只需处理动态逻辑和运行时追加的订阅/命令。
+    """
+    context.output.append("插件已加载")
+
+    # 声明式 dataInputs 已自动订阅，此处仅追加动态订阅
+    context.frames.subscribe(ids=[0x123], handler=on_frame)
+
+    # 声明式 commands 已注册，此处仅追加动态命令
+    context.commands.register("myPlugin.dynamicAction", do_action, "动态操作")
+
+def on_frame(frame: openbus.CanFrame):
+    pass
+
+def do_action():
+    pass
+
+def deactivate():
+    """插件停用时调用（可选）。
+
+    主程序自动清理声明式订阅和注册项；
+    动态创建的订阅/命令也由 SDK 自动注销。
+    """
+    pass
+```
+
+> **声明式优先原则**：`plugin.json` 中能声明的能力（固定订阅、命令、设置项、
+> 视图、文件格式等）不应在 `activate()` 中重复注册。`activate()` 仅处理
+> 需要运行时上下文的动态逻辑（如根据 DBC 内容决定订阅哪些信号）。
+
+##### 7. 插件清单文件 (`plugin.json`) — 声明式贡献点系统
+
+> 参考 VS Code `package.json` 的 `contributes` 机制，插件通过声明式清单描述自身能力、数据输入输出与关键逻辑。
+> 主程序解析清单后即可注册 UI 元素、预建数据路由表、渲染设置页，**无需激活插件进程**。
+> 声明式清单是零侵入原则的核心使能器——主程序不调用插件即可发现其全部能力。
+
+###### 7.1 完整示例
+
+```json
+{
+    "name": "j1939-analyzer",
+    "displayName": "J1939 协议分析器",
+    "version": "1.0.0",
+    "author": "Example Corp",
+    "description": "J1939 协议解析、诊断与报文生成",
+    "main": "main.py",
+    "minProtocolVersion": "1.0",
+
+    "activationEvents": [
+        "onCommand:j1939.analyze",
+        "onFile:.j1939",
+        "onSignal:EngineRPM",
+        "onStartup"
+    ],
+
+    "contributes": {
+        "commands": [
+            {
+                "id": "j1939.analyze",
+                "title": "J1939: 分析报文",
+                "category": "J1939",
+                "icon": "resources/analyze.svg",
+                "enablement": "frameCount > 0"
+            },
+            {
+                "id": "j1939.generate",
+                "title": "J1939: 生成测试报文",
+                "category": "J1939",
+                "icon": "resources/generate.svg"
+            }
+        ],
+
+        "menus": {
+            "commandPalette": [
+                { "command": "j1939.analyze" },
+                { "command": "j1939.generate" }
+            ],
+            "trace/contextMenu": [
+                { "command": "j1939.analyze", "when": "selectedFrame != null", "group": "protocol@1" }
+            ],
+            "toolbar/main": [
+                { "command": "j1939.generate", "group": "protocol@3", "when": "plugin.active == j1939-analyzer" }
+            ]
+        },
+
+        "views": {
+            "panel/bottom": [
+                {
+                    "id": "j1939.diagnostics",
+                    "title": "J1939 诊断",
+                    "type": "webview",
+                    "when": "plugin.active == j1939-analyzer"
+                }
+            ],
+            "sidebar/right": [
+                {
+                    "id": "j1939.network",
+                    "title": "J1939 网络",
+                    "type": "tree",
+                    "icon": "resources/network.svg"
+                }
+            ]
+        },
+
+        "configuration": {
+            "title": "J1939 分析器",
+            "properties": {
+                "j1939.baudrate": {
+                    "type": "integer",
+                    "default": 500000,
+                    "enum": [250000, 500000, 1000000],
+                    "enumDescriptions": ["250 kbps", "500 kbps", "1 Mbps"],
+                    "description": "J1939 波特率"
+                },
+                "j1939.sourceAddress": {
+                    "type": "integer",
+                    "default": 254,
+                    "minimum": 0,
+                    "maximum": 253,
+                    "description": "本节点源地址 (0-253, 254=空地址)"
+                },
+                "j1939.preferredName": {
+                    "type": "string",
+                    "default": "J1939 Tool",
+                    "description": "工具在网络中的名称"
+                }
+            }
+        },
+
+        "dataInputs": [
+            {
+                "type": "frames",
+                "filter": {
+                    "ids": [405419776, 416074496],
+                    "channels": [1],
+                    "direction": "Rx"
+                },
+                "processing": "streaming"
+            },
+            {
+                "type": "signals",
+                "names": ["EngineRPM", "VehicleSpeed", "OilTemp"],
+                "processing": "streaming"
+            },
+            {
+                "type": "statistics",
+                "interval": 1000
+            }
+        ],
+
+        "dataOutputs": [
+            {
+                "type": "signals",
+                "signals": [
+                    {
+                        "name": "J1939.EngineTorque",
+                        "unit": "Nm",
+                        "min": 0,
+                        "max": 5000,
+                        "description": "发动机扭矩（由 PGN 61444 计算）"
+                    },
+                    {
+                        "name": "J1939.FuelRate",
+                        "unit": "L/h",
+                        "min": 0,
+                        "max": 500,
+                        "description": "瞬时油耗"
+                    }
+                ]
+            },
+            {
+                "type": "diagnostics",
+                "format": "dtc",
+                "description": "J1939 DM1 诊断码"
+            }
+        ],
+
+        "signalDecoders": [
+            {
+                "name": "J1939 PGN Decoder",
+                "protocol": "J1939",
+                "match": { "idMask": "0x00FF0000", "idValue": "0x00EE00" },
+                "pgns": [
+                    { "pgn": 61444, "name": "EEC1", "signals": ["EngineRPM", "EngineTorque"] },
+                    { "pgn": 65263, "name": "ET1",  "signals": ["CoolantTemp", "OilTemp"] },
+                    { "pgn": 65266, "name": "CC1",  "signals": ["VehicleSpeed"] }
+                ]
+            }
+        ],
+
+        "fileFormats": [
+            { "extension": ".j1939", "name": "J1939 日志", "role": "import" },
+            { "extension": ".j1939", "name": "J1939 日志导出", "role": "export" }
+        ],
+
+        "keybindings": [
+            {
+                "command": "j1939.analyze",
+                "key": "Ctrl+Shift+J",
+                "when": "activeView == trace"
+            }
+        ],
+
+        "statusBar": [
+            {
+                "id": "j1939.status",
+                "text": "J1939: $(check) Online",
+                "tooltip": "J1939 插件运行中",
+                "alignment": "right",
+                "priority": 100,
+                "when": "plugin.active == j1939-analyzer"
+            }
+        ]
+    }
+}
+```
+
+> 上例中 `ids` 使用十进制（如 `405419776` = `0x18FEF100`），因为 JSON 不支持十六进制字面量。
+> `match.idMask` / `idValue` 使用字符串形式的十六进制，由 SDK 解析。
+
+###### 7.2 激活事件
+
+| 事件 | 说明 | 示例 |
+|------|------|------|
+| `onStartup` | 主程序启动时激活 | 后台监控插件 |
+| `onCommand:<id>` | 用户执行命令时激活 | `onCommand:j1939.analyze` |
+| `onFile:<ext>` | 打开特定扩展名文件时激活 | `onFile:.j1939` |
+| `onSignal:<name>` | 指定信号首次出现时激活 | `onSignal:EngineRPM` |
+| `onFrame` | 收到首帧时激活 | 帧计数器 |
+| `onDbcLoaded` | DBC 文件加载完成时激活 | 信号分析插件 |
+| `onView:<id>` | 用户打开插件贡献的视图时激活 | `onView:j1939.diagnostics` |
+
+> 主程序在激活事件触发前仅解析 `plugin.json`，不启动插件进程。
+> 声明式贡献的 UI 元素（命令、菜单、设置项）在激活前即可显示和操作；
+> 用户触发需要插件处理的操作时，才按需激活（lazy activation）。
+
+###### 7.3 贡献点参考
+
+| 贡献点 | 说明 | 激活前生效 |
+|--------|------|:----------:|
+| `commands` | 声明插件提供的命令（id + title + icon + enablement） | ✅ |
+| `menus` | 声明命令出现在哪些菜单位置 | ✅ |
+| `views` | 声明插件贡献的面板/视图（bottom dock / sidebar / tab） | ✅ |
+| `configuration` | 声明插件设置项（主程序设置页自动渲染表单） | ✅ |
+| `dataInputs` | 声明消费的数据流（主程序预建订阅路由表） | ✅ |
+| `dataOutputs` | 声明产出的数据（供其他插件发现和订阅） | ✅ |
+| `signalDecoders` | 声明自定义协议解码器（PGN/CANopen/UDS 等） | ✅ |
+| `fileFormats` | 声明文件导入/导出能力 | ✅ |
+| `keybindings` | 声明快捷键绑定 | ✅ |
+| `statusBar` | 声明状态栏项 | ✅ |
+
+> 所有贡献点均在**激活前生效**——主程序解析 `plugin.json` 后立即注册 UI 和路由，
+> 用户操作触发激活事件时才启动插件进程。这是零侵入与按需加载的关键。
+
+###### 7.4 数据输入声明 (`dataInputs`)
+
+插件声明式描述消费的数据流，主程序在**激活前预建订阅路由表**，激活后自动推送匹配数据：
+
+| `type` | 说明 | 必填字段 | 可选字段 |
+|--------|------|---------|---------|
+| `frames` | CAN 帧流 | — | `filter.ids` (数组), `filter.channels` (数组), `filter.direction` ("Rx"/"Tx") |
+| `signals` | DBC 信号值流 | `names` (数组) | `processing` ("streaming"/"batch", 默认 streaming) |
+| `statistics` | 总线统计快照 | — | `interval` (ms, 默认 1000) |
+| `selectedFrame` | Trace 选中帧变化事件 | — | — |
+
+**`processing` 模式**：
+- `streaming` — 每帧/每信号即时推送（实时监控类插件）
+- `batch` — 主程序按 10ms 批量打包后推送（离线分析类插件，减少 IPC 开销）
+
+**与命令式订阅的关系**：声明式 `dataInputs` 在插件激活时自动创建订阅，等效于在 `activate()` 中调用 `context.frames.subscribe(...)`。插件可在运行时追加动态订阅（如用户交互后订阅新 ID），两者共存互不冲突。
+
+###### 7.5 数据输出声明 (`dataOutputs`)
+
+插件声明式描述产出的数据，使其他插件和主程序可**发现并订阅**这些输出：
+
+| `type` | 说明 | 字段 |
+|--------|------|------|
+| `signals` | 计算/派生信号 | `signals[].name`, `unit`, `min`, `max`, `description` |
+| `diagnostics` | 诊断码 (DTC/SPN) | `format` ("dtc"/"spn"), `description` |
+| `log` | 结构化日志 | `level` ("info"/"warning"/"error") |
+| `exportData` | 可导出数据 | `format` ("csv"/"json"/"custom"), `description` |
+
+**输出信号注册到全局信号命名空间**：
+- 插件输出的信号（如 `J1939.EngineTorque`）注册到主程序信号注册表
+- 其他插件可通过 `dataInputs` 声明订阅这些信号，或通过 SDK 命令式订阅
+- Graphic 视图可将插件输出信号添加为曲线
+
+**数据流全景**：
+```
+硬件/回放 → 主程序 → DBC 解码 → 原始信号 ─┬─→ 插件 A (dataInputs: signals)
+                                          │      └─→ dataOutputs: signals (J1939.EngineTorque)
+                                          │              └─→ 插件 B (dataInputs: signals[J1939.EngineTorque])
+                                          │              └─→ Graphic 视图曲线
+                                          └─→ 插件 C (dataInputs: frames)
+```
+
+###### 7.6 上下文表达式 (`when`)
+
+参考 VS Code 的 `when` 子句，控制 UI 元素的可见性和命令的可用性：
+
+**上下文变量**：
+
+| 变量 | 类型 | 说明 |
+|------|------|------|
+| `activeView` | string | 当前活动视图 (`"trace"`, `"graphic"`, `"record"`, `"playback"`) |
+| `selectedFrame` | object/null | 当前选中的帧（`null` = 未选中） |
+| `frameCount` | int | Trace 中帧总数 |
+| `recording` | bool | 是否正在录制 |
+| `playing` | bool | 是否正在回放 |
+| `connected` | bool | 是否连接到硬件设备 |
+| `dbcLoaded` | bool | 是否已加载 DBC 文件 |
+| `dbcFileCount` | int | 已加载 DBC 文件数 |
+| `plugin.active` | string | 当前激活的插件名 |
+
+**运算符**：`==`, `!=`, `<`, `>`, `<=`, `>=`, `&&`, `||`, `!`
+
+**示例**：
+- `"when": "selectedFrame != null"` — 选中帧时显示
+- `"when": "frameCount > 0 && dbcLoaded"` — 有帧且 DBC 已加载时启用
+- `"when": "activeView == trace || activeView == graphic"` — Trace 或 Graphic 视图时显示
+- `"when": "plugin.active == j1939-analyzer"` — 本插件已激活时显示
+
+**`enablement` vs `when`**：
+- `when` 控制菜单项/视图**是否显示**
+- `enablement` 控制命令**是否可执行**（灰色 vs 正常）
+
+###### 7.7 声明式与命令式的关系
+
+```
+声明式 (plugin.json)                  命令式 (main.py activate())
+┌────────────────────────────┐       ┌────────────────────────────┐
+│ dataInputs:                │       │ def activate(ctx):         │
+│   - frames [0x18FEF100]    │──激活─▶│   # 声明式订阅已自动生效    │
+│   - signals [EngineRPM]    │       │   # 可追加动态订阅:         │
+│   - statistics             │       │   ctx.frames.subscribe(    │
+│                            │       │     ids=[0xABC], handler=…) │
+│ commands: [...]            │       │                            │
+│ menus: [...]               │       │   # 声明式命令已注册        │
+│ views: [...]               │       │   # 可追加动态命令:         │
+│ configuration: [...]       │       │   ctx.commands.register(   │
+│ signalDecoders: [...]      │       │     "dynamic.cmd", handler) │
+│ dataOutputs: [...]         │       │                            │
+└────────────────────────────┘       └────────────────────────────┘
+  激活前生效（UI / 路由 / 发现）         激活后生效（运行时 / 动态）
+```
+
+| 维度 | 声明式 | 命令式 |
+|------|--------|--------|
+| 时机 | 激活前（解析 plugin.json） | 激活后（`activate()` 执行） |
+| 用途 | 静态能力声明、UI 注册、数据路由 | 动态行为、用户交互、运行时订阅 |
+| 示例 | 固定订阅 0x18FEF100 | 用户选择 ID 后动态订阅 |
+| 关系 | **基础**——自动创建订阅和注册 UI | **扩展**——在声明式基础上追加动态逻辑 |
+
+> 设计原则：**能声明式完成的，不写命令式代码**。声明式清单是插件与主程序之间的
+> 稳定契约的一部分，主程序可跨版本解析；命令式代码可随插件版本自由变化。
+
+##### 8. C++ 侧架构（主程序）
+
+###### 8.0 零侵入集成原则
+
+插件系统作为**纯消费者**接入主程序，不修改任何现有源文件：
+
+```
+现有主程序代码（不修改）              插件系统代码（新增模块）
+┌─────────────────────────┐        ┌─────────────────────────┐
+│ CanSimulator            │        │ PluginManager           │
+│   signal: frameReceived │◄───────│   initialize() 中       │
+│                         │ connect│   connect 到现有信号     │
+├─────────────────────────┤        ├─────────────────────────┤
+│ DbcManager (singleton)  │◄───────│ PluginHost              │
+│   getSignalValue()      │  call  │   通过单例 API 查询      │
+├─────────────────────────┤        ├─────────────────────────┤
+│ AppConfig (singleton)   │◄───────│ PluginManager           │
+│   value() / setValue()  │  call  │   读写配置              │
+└─────────────────────────┘        └─────────────────────────┘
+```
+
+**集成点**：仅在 `main.cpp` 或 `MainWindow` 构造函数中增加一行：
+```cpp
+PluginManager::instance()->initialize();
+```
+
+**`initialize()` 内部通过 `connect()` 绑定到现有信号，不改动现有类的任何代码**：
+```cpp
+void PluginManager::initialize()
+{
+    // 连接帧数据流 — 来自 CanSimulator / Player / Recorder 已有的信号
+    auto *sim = CanSimulator::instance();
+    connect(sim, &CanSimulator::frameReceived,
+            this, &PluginManager::onFrameReceived);
+
+    // 连接 DBC 信号更新 — 来自 DbcManager 已有的信号
+    auto *dbc = DbcManager::instance();
+    connect(dbc, &DbcManager::signalUpdated,
+            this, &PluginManager::onSignalUpdated);
+
+    // 连接总线统计 — 来自 BusStatistics 已有的信号
+    // （BusStatistics::statisticsUpdated 已存在，FrameStatisticsView 已在使用）
+
+    // 扫描插件目录、读取 plugin.json
+    discoverPlugins();
+}
+```
+
+> 如果现有类缺少所需信号，则在插件模块内创建一个**适配层**（Adapter），
+> 通过轮询或拦截 QEvent 等非侵入方式获取数据，而非修改现有类。
+
+###### 8.1 类设计
+
+```cpp
+// 插件宿主 — 管理单个插件进程的生命周期和通信
+class PluginHost : public QObject {
+    Q_OBJECT
+public:
+    bool start(const QString &pluginName, const QString &pluginDir,
+               const QString &mainScript, const QString &pythonExe);
+    void stop();
+    bool isRunning() const;
+    qint64 processId() const;
+
+    // Control Channel (JSON-RPC)
+    void sendNotification(const QString &method, const QJsonObject &params);
+    void sendRequest(const QString &method, const QJsonObject &params,
+                     std::function<void(const QJsonValue &)> callback);
+
+    // Data Channel (Binary)
+    void sendFrameBatch(const QVector<CanFrame> &frames);
+    void sendSignalUpdate(const QString &name, double value, double timestamp);
+    void sendStatistics(const BusStatistics::Summary &summary,
+                        const QVector<BusStatistics::IdStats> &idStats);
+
+signals:
+    void messageReceived(const QString &method, const QJsonObject &params,
+                         const QJsonValue &id);
+    void hostStarted();
+    void hostCrashed();
+    void hostError(const QString &error);
+};
+
+// 订阅管理 — 每个插件一份
+class PluginSubscription {
+public:
+    struct FrameFilter {
+        QSet<quint32> ids;        // 空 = 全部 ID
+        QSet<quint8> channels;    // 空 = 全部通道
+        bool rxOnly = false;
+        bool txOnly = false;
+    };
+
+    struct SignalFilter {
+        QSet<QString> signalNames;
+    };
+
+    bool hasFrameSubscription() const;
+    bool matchesFrame(const CanFrame &frame) const;
+    bool hasSignalSubscription() const;
+    bool matchesSignal(const QString &name) const;
+
+    void addFrameFilter(const FrameFilter &filter);
+    void removeFrameFilter(int subId);
+    void addSignalFilter(const SignalFilter &filter);
+    void removeSignalFilter(int subId);
+};
+
+// 插件管理器 — 全局单例
+class PluginManager : public QObject {
+    Q_OBJECT
+public:
+    static PluginManager *instance();
+    void initialize();
+    void shutdown();
+
+    // 由现有信号触发（非主程序直接调用）— 遍历订阅表，仅推送匹配数据
+    void onFrameReceived(const CanFrame &frame);
+
+    // 批量帧刷新（10ms 定时器）
+    void flushFrameBatches();
+
+    // 协议握手 — 收到插件 hello 后协商版本与能力
+    void onPluginHello(const QString &pluginName,
+                       const QJsonObject &hello);
+
+private:
+    QHash<QString, PluginHost*> m_hosts;           // name → host
+    QHash<QString, PluginSubscription> m_subs;     // name → subscriptions
+    QHash<QString, QList<CanFrame>> m_frameBuffers; // name → pending frames
+};
+```
+
+###### 8.2 数据流（帧到达 → 推送到插件）
+
+```
+CanSimulator/Player 发出 frameReceived 信号（已有，不修改）
+    │
+    ▼
+PluginManager::onFrameReceived(frame)  ← 由 connect 自动触发
+    │
+    ├─ 遍历 m_subs (每个已激活插件的订阅表)
+    │   │
+    │   ├─ matchesFrame(frame)?
+    │   │   ├─ YES → 追加到 m_frameBuffers[pluginName]
+    │   │   └─ NO  → 跳过（零开销）
+    │   │
+    │   └─ 下一个插件
+    │
+    └─ 10ms 定时器触发 flushFrameBatches()
+        │
+        ├─ 对每个有待发帧的插件:
+        │   ├─ 打包为二进制 FRAME_BATCH
+        │   ├─ PluginHost::sendFrameBatch(frames)
+        │   └─ 清空 buffer
+        └─ 完成
+```
+
+##### 9. 与现有架构（v1）的对比与迁移
+
+| 维度 | v1（现有） | v2（本方案） |
+|------|-----------|-------------|
+| 进程模型 | 所有插件共享一个 Python 进程 | **每插件独立进程** |
+| 传输 | stdin/stdout JSON-RPC | **Named Pipe 双通道（JSON + Binary）** |
+| 数据编码 | JSON hex 字符串 | **二进制协议（9× 压缩）** |
+| 推送策略 | 所有 onFrame 插件收全部帧 | **订阅制，按 ID/通道/信号过滤** |
+| 帧批量 | 有（JSON 数组） | **二进制批量（10ms 间隔）** |
+| SDK 包名 | `sin` | **`openbus`**（跟随项目改名） |
+| 崩溃影响 | 一个插件崩溃导致全部插件不可用 | **崩溃隔离，自动重启** |
+| UI 支持 | PyQt6 独立窗口 | **保持（PyQt6 独立窗口）** |
+| 主程序侵入 | v1 需在帧调度代码中插入 `PluginManager::onFrameReceived()` 调用 | **零侵入——`connect()` 到现有信号，不修改任何现有源文件** |
+| 协议稳定性 | 无版本协商，方法可随意变更 | **协议契约冻结，版本化协商，仅增量演进** |
+
+**迁移策略**：
+1. SDK 包名从 `sin` 改为 `openbus`，保留 `import sin` 兼容别名
+2. 现有 `plugin.json` 格式保持兼容，新增字段为可选
+3. 现有 3 个示例插件（hello-world / frame-counter / ui-demo）适配新 SDK
+4. C++ 侧 `PluginHost` 从单进程改为多进程，`PluginManager` 增加订阅路由
+5. **移除 v1 在主程序帧调度中的硬编码调用**，改为 `PluginManager::initialize()` 中 `connect()` 到现有信号
+
+##### 10. 目录结构
+
+```
+openbus/
+├── src/core/plugin/
+│   ├── plugininfo.h/cpp        # 插件元数据解析
+│   ├── pluginhost.h/cpp        # 单插件进程管理 + 双通道通信
+│   ├── pluginmanager.h/cpp     # 全局管理 + 订阅路由
+│   └── pluginsubscription.h    # 订阅过滤表
+├── sdk/openbus/                # Python SDK
+│   ├── __init__.py
+│   ├── _transport.py           # Named Pipe 传输
+│   ├── _binary.py              # 二进制编解码
+│   ├── context.py              # ExtensionContext
+│   ├── frames.py               # 帧订阅 + CanFrame
+│   ├── signals.py              # 信号订阅 + 编解码
+│   ├── output.py / commands.py / workspace.py / statistics.py / statusbar.py
+│   └── ui.py                   # PyQt6 独立窗口
+├── scripts/
+│   └── openbus_host.py         # 插件宿主脚本（每插件进程入口）
+├── plugins/                    # 插件目录
+│   ├── hello-world/
+│   │   ├── plugin.json
+│   │   └── main.py
+│   ├── frame-counter/
+│   └── ui-demo/
+```
+
+##### 11. 实施计划
+
+| 阶段 | 内容 | 产出 |
+|------|------|------|
+| **Phase 0** | 协议契约冻结 | 定义并冻结二进制协议格式、JSON-RPC 方法清单、版本协商规则；编写协议文档 |
+| **Phase 1** | 传输层重构 | Named Pipe 双通道、二进制协议编解码、`PluginHost` 多进程 |
+| **Phase 2** | 订阅系统 | `PluginSubscription` 过滤表、订阅路由、帧批量缓冲 |
+| **Phase 3** | SDK 重写 | `openbus` Python 包、`ExtensionContext` API、二进制解码 |
+| **Phase 4** | 插件宿主 | `openbus_host.py` 重写、PyQt6 事件循环集成 |
+| **Phase 5** | 示例迁移 | 3 个示例插件适配新 SDK、端到端测试 |
+| **Phase 6** | UI 集成 | ExtensionsTab 对接新管理器、插件市场 UI |
 
 ---
 
 ## 开源组件选型清单
 
 > 区分三大模块：Trace 报文表格组件、Graphic 实时曲线组件、协议辅助工具组件，附带授权、适用场景、优缺点，适配 CAN/CAN FD/EtherCAT 分析仪上位机。
+>
+> Trace / Graphic 两大核心模块的完整选型结论与使用约定已分离至设计文档：
+> [doc/Trace模块设计文档.md](doc/Trace模块设计文档.md) §六、[doc/Graphic模块设计文档.md](doc/Graphic模块设计文档.md) §四。
 
 ### 一、Graphic 曲线绘图（最高优先级，核心刚需）
+
+> 选型结论：**QCustomPlot 已采用**（深度实现多轴堆叠+卡尺系统）。完整对比与使用约定见 [doc/Graphic模块设计文档.md](doc/Graphic模块设计文档.md) §四。
 
 #### 1. QCustomPlot（首推）
 
@@ -1327,6 +2129,8 @@ struct BusMessage {
 - 代价：界面需要大量手写，无法 Qt Designer 拖拽
 
 ### 二、Trace 报文表格组件（报文列表、筛选、高亮）
+
+> 选型结论：**Qt 虚拟 Model（QAbstractTableModel + 环形缓冲 + 视窗代理）已采用**。选型分析与避坑见 [doc/Trace模块设计文档.md](doc/Trace模块设计文档.md) §六。
 
 Qt 原生 QTableWidget/QTreeWidget 基础上扩展，没有开箱即用的工业 Trace 控件，以下是可复用扩展库：
 
@@ -1939,156 +2743,20 @@ private:
 
 ## Trace 高性能优化方案
 
-> 参考 Wireshark Packet List 优化经验、CANoe Trace Window 机制、TSMaster 显示刷新率策略，解决万帧以上实时捕获和百万帧离线加载的卡顿问题。
+> **完整方案已分离至 [doc/Trace模块设计文档.md](doc/Trace模块设计文档.md) §三** — 瓶颈分析、4 阶段优化方案、性能目标、验证方法。
+>
+> 实施进度（参考 Wireshark 延迟格式化 / TSMaster 可调刷新率 / CANoe 环形缓冲）：
+>
+> | Phase | 内容 | 状态 |
+> |-------|------|------|
+> | Phase 1 | 延迟格式化 + 可见行缓存（RowCache，滚动性能 ×10-50） | ✅ 已实现 |
+> | Phase 2 | 批量更新 + 可调刷新率（高/中/低/暂停，CPU 降低 90%+） | ✅ 已实现 |
+> | Phase 3 | 增量过滤代理（CanTraceProxyModel 替代 QSortFilterProxyModel） | ✅ 已实现（2026-08-17，新增行 O(1) 过滤） |
+> | Phase 4 | 环形缓冲区存储（百万帧，seqCounter 键） | ✅ 已实现 |
+>
+> 性能目标：10 万帧加载 <1s、滚动 60fps、5000帧/s 实时捕获 CPU<20%、百万帧加载 <5s 内存 <500MB。
 
-### 一、问题分析
-
-#### 当前架构瓶颈
-
-| # | 瓶颈点 | 现状 | 影响 |
-|---|--------|------|------|
-| P1 | **data() 逐次格式化** | 每次绘制单元格都调用 `CanUtils::formatTime/formatId/formatData` 重新生成字符串 | 10万行×10列 = 100万次 `data()` 调用，每次都做字符串分配+格式化 |
-| P2 | **逐帧 beginInsertRows** | `appendFrame()` 每帧触发 `beginInsertRows/endInsertRows` | 高频报文（如 5000帧/s）每秒 5000 次模型布局更新，UI 线程过载 |
-| P3 | **QSortFilterProxyModel 全量重算** | 新增帧时 `invalidateFilter()` 重新评估所有行 | 过滤状态下持续捕获，每帧导致 O(n) 重新过滤 |
-| P4 | **recomputeDisplayDeltas O(n)** | SinceDisplay 模式切换时遍历全部行计算增量 | 10万帧需 10万次 `mapFromSource` 调用，耗时数秒 |
-| P5 | **着色规则逐行求值** | `evaluateColorRules()` 在 `data(BackgroundRole)` 中被每次调用 | 滚动时每个可见行都执行 FilterEngine::evaluate()，含正则匹配 |
-| P6 | **QVector 滚动开销** | `m_maxFrames=100000`，超限时 `removeFirst()` 导致全量内存移动 | 高频场景下每帧都要移动 10万个 CanFrame（含 QByteArray 堆对象） |
-| P7 | **无显示刷新率控制** | 帧到达即追加到模型并触发 UI 更新 | 无类似 TSMaster 的可调刷新率，CPU 占用不受控 |
-
-#### 参考方案对比
-
-| 工具 | 核心策略 | 效果 |
-|------|---------|------|
-| **Wireshark** | 延迟格式化（callback 按需生成列文本）+ 仅对可见行执行着色规则 | 20万帧加载 14s→4s，内存 170MB→113MB，着色 22s→<1s，时间格式切换 4.5min→<1s |
-| **TSMaster** | 可调显示刷新率（高/中/低/暂停）+ 批量缓冲 | 降低 CPU 占用，老式电脑可选低刷新率 |
-| **CANoe** | 环形缓冲区 + 后台线程解码 + 窗口化渲染 | 实时百万帧不卡顿 |
-
-### 二、优化方案（4 个阶段）
-
-#### Phase 1 — 延迟格式化 + 可见行缓存（核心，优先实施）
-
-**原理**：借鉴 Wireshark，`data()` 返回时不每次都格式化字符串，而是缓存已格式化的结果。缓存以行号为 key，格式化字符串数组为 value，仅缓存可见行区域（±50 行）。
-
-**实施要点**：
-1. 在 `CanTraceModel` 中增加 `QHash<int, RowCache>` 成员，`RowCache` 存储 10 列的格式化字符串
-2. `data(DisplayRole)` 先查缓存，命中则直接返回，未命中才调用 `CanUtils::formatXxx()` 并写入缓存
-3. 滚动时通过 `QTableView::scrollContentsBy()` 或 `QAbstractItemView` 信号感知可见行变化，淘汰不可见行的缓存
-4. 时间格式切换、行删除（ring buffer 滚动）、数据修改（覆盖模式刷新行）时使对应行缓存失效
-5. 着色规则求值结果同样缓存到 `RowCache`，避免每次 `BackgroundRole` 重新匹配
-
-**预期收益**：滚动和绘制性能提升 10-50 倍（从全量格式化降至仅可见行格式化）
-
-**新增文件**：
-- `src/models/rowcachetablemodel.h` — 带行缓存的 QAbstractTableModel 基类，可复用
-
-#### Phase 2 — 批量更新 + 可调刷新率（高频实时场景）
-
-**原理**：借鉴 TSMaster 显示刷新率机制，将逐帧追加改为批量缓冲 + 定时刷新。
-
-**实施要点**：
-1. `CanTraceModel` 增加 `m_pendingFrames` 缓冲队列和 `m_flushTimer`（默认 50ms 间隔）
-2. `appendFrame()` 不立即调用 `beginInsertRows`，而是追加到 `m_pendingFrames`
-3. 定时器触发时，如果有 pending 帧，执行一次 `beginInsertRows(first, last)` + `m_frames.append(batch)` + `endInsertRows()`
-4. FilterBar 设置按钮菜单增加"刷新率"子菜单：高(50ms) / 中(100ms) / 低(200ms) / 暂停(不刷新)
-5. 暂停刷新时数据仍写入 `m_pendingFrames`，恢复后一次性 flush
-6. 离线文件加载（`appendFrames`）不受刷新率限制，直接批量追加
-
-**预期收益**：5000 帧/s 实时捕获时 UI 帧数从 5000 降至 20（每 50ms 一次），CPU 占用降低 90%+
-
-**修改文件**：
-- `src/models/cantracemodel.h/cpp` — 增加 pending 队列和 flush 逻辑
-- `src/ui/filterbar.h/cpp` — 设置按钮菜单增加刷新率选项
-- `src/ui/traceview.h/cpp` — TraceTab 连接刷新率到 CanTraceModel
-
-#### Phase 3 — 增量过滤代理（替代 QSortFilterProxyModel）
-
-**原理**：Qt 的 `QSortFilterProxyModel` 在 `invalidateFilter()` 时重新评估全部行。自定义代理模型仅评估新增行，已有行的过滤结果通过 `QVector<int>` 映射表保留。
-
-**实施要点**：
-1. 新建 `CanTraceProxyModel`（替代 `CanFilterProxyModel`，不继承 `QSortFilterProxyModel`）
-2. 维护 `QVector<int> m_sourceToProxy` 和 `QVector<int> m_proxyToSource` 映射数组
-3. 新增行：只评估新行的过滤条件，append 到映射表尾部（O(1) 每行）
-4. 过滤条件变化：全量重新评估（但仍只做一次遍历，不依赖 `QSortFilterProxyModel` 的排序/过滤重算开销）
-5. 排序：维护独立的排序索引数组，不修改源模型行号
-6. `recomputeDisplayDeltas()` 改为增量计算：新增行只与上一个显示行比较，不全量重算
-
-**预期收益**：过滤状态下持续捕获，新增行过滤开销从 O(n) 降至 O(1)；SinceDisplay 模式切换从 O(n) 降至 O(1) 增量
-
-**新增文件**：
-- `src/models/cantraceproxymodel.h/cpp` — 自定义代理模型
-
-#### Phase 4 — 环形缓冲区存储（百万帧支持）
-
-**原理**：借鉴 CANoe 环形缓冲区，用固定大小数组 + 头尾指针替代 `QVector::removeFirst()`，避免全量内存移动。
-
-**实施要点**：
-1. `CanTraceModel` 内部存储从 `QVector<CanFrame>` 改为 `RingBuffer<CanFrame>`
-2. 环形缓冲区固定容量（默认 100 万帧，可配置），到满时头指针前进覆盖最旧帧
-3. `frameAt(row)` 通过 `(head + row) % capacity` 映射，O(1) 随机访问
-4. `beginRemoveRows`/`endRemoveRows` 不再需要（覆盖而非删除）
-5. 行号映射：`data(ColNo)` 返回 `seqCounter`（永不回退），与环形缓冲区物理位置解耦
-6. 行标记和着色 `m_markedRows`/`m_rowColors` 的 key 改用 `seqCounter` 而非行号，避免覆盖时错位
-
-**预期收益**：百万帧场景内存占用从 O(n·sizeof(QByteArray)) 降至 O(capacity·sizeof(CanFrame))；消除 `removeFirst()` 的 O(n) 内存移动
-
-**修改文件**：
-- `src/models/cantracemodel.h/cpp` — 存储改用环形缓冲区
-- 新增 `src/utils/ringbuffer.h` — 泛型环形缓冲区模板
-
-### 三、开源组件与技术参考
-
-| 组件/技术 | 来源 | 用途 |
-|-----------|------|------|
-| **Qt fetchMore/canFetchMore 模式** | [Qt 官方示例](https://doc.qt.io/qt-6/qtwidgets-itemviews-fetchmore-example.html) | 增量加载参考（主要应用于 Phase 1 缓存淘汰逻辑） |
-| **Wireshark 延迟格式化** | [Wireshark Wiki: OptimizePacketList](https://wiki.wireshark.org/Development/OptimizePacketList) | Phase 1 的设计灵感来源 — callback 按需生成列文本 |
-| **TSMaster 显示刷新率** | [TSMaster 文档](https://www.tosunai.com) | Phase 2 的设计灵感来源 — 可调刷新率降低 CPU |
-| **moodycamel::ConcurrentQueue** | 已集成（third_party/concurrentqueue） | Phase 2 中 pending 帧队列的线程安全实现 |
-| **spdlog** | 已集成 | 性能日志：记录 flush 耗时、缓存命中率等指标 |
-
-> **不引入新第三方依赖**。Phase 1-4 全部基于 Qt6 原生 API 和已有第三方库实现。
-
-### 四、实施顺序与优先级
-
-```
-Phase 1 (延迟格式化)  ████████████  ← 最高优先级，解决最核心的 data() 瓶颈
-Phase 2 (批量刷新)    ████████      ← 高优先级，解决实时捕获卡顿
-Phase 3 (增量过滤)    ██████        ← 中优先级，解决过滤状态下的性能
-Phase 4 (环形缓冲区)  ████          ← 低优先级，解决百万帧内存优化
-```
-
-### 五、性能目标
-
-| 场景 | 当前 | 目标 |
-|------|------|------|
-| 10万帧离线加载 | 数秒卡顿 | <1s |
-| 10万帧滚动浏览 | 明显卡顿 | 流畅 60fps |
-| 5000帧/s 实时捕获 | UI 冻结 | 流畅，CPU <20% |
-| 过滤条件切换（10万帧）| 数秒 | <500ms |
-| 时间格式切换（10万帧）| 数秒 | <100ms |
-| 百万帧加载 | 不支持 | <5s 加载，内存 <500MB |
-| 着色规则应用（10万帧）| 数秒 | <200ms |
-
-### 六、验证方法
-
-1. **基准测试脚本** — 生成 1万/10万/100万帧测试数据（BLF/ASC），使用 `python scripts/build.py run` 加载并计时
-2. **性能日志** — 通过 spdlog 记录 `data()` 调用次数、缓存命中率、flush 耗时
-3. **实际场景** — 连接 ZLG 设备 5000帧/s 实时捕获，观察 UI 流畅度和 CPU 占用
-4. **回归测试** — 确保 Delta 时间、覆盖模式、着色规则等已有功能不受影响
-
-### 七、实施说明
-
-- 不考虑向后兼容，直接替换现有实现
-- Phase 3 直接用 `CanTraceProxyModel` 替代 `CanFilterProxyModel`，删除旧文件
-- Phase 4 直接用 `RingBuffer` 替代 `QVector` 存储，行标记/着色 key 直接改用 seqCounter
-
-
--------------------------
-视窗滑动条，放到左侧，有个视窗大小在滑动条上面滑动，视窗内滑动条在右侧，把trace页面上方的覆盖模式按钮，放到搜索框右侧的设置按钮的内部选项，默认不开启覆盖模式。支持trace中选中多行，按住ctrl选中任意多行，按照shift选中联系多行，选中后，右键支持进行标记。trace有没有支持虚拟表格，为了克服卡顿。
-
-
-问题：
-排序：当修改了时间显示格式后，排序方式还是按照老的时间格式进行排序。 ✓ 已修复
-需要支持blf格式的文件录制啊。 ✓ 已实现
+---
 
 
 # 插件扩展机制

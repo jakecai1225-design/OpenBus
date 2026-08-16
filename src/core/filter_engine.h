@@ -12,7 +12,7 @@ struct CanFrame;
  * 使用自写递归下降解析器（零外部依赖），通过 pimpl 模式封装。
  *
  * 支持的表达式语法：
- *   - 变量: id, dlc, ch, time, fd, ext, rx, tx, std
+ *   - 变量: id, dlc, ch, time, fd, ext, rx, tx, std, error
  *   - 逻辑: and/&&, or/||, not/!
  *   - 比较: ==, !=, >, <, >=, <=
  *   - 裸十六进制: 0x123 自动解释为 id==0x123

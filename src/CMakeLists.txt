@@ -90,8 +90,8 @@ set(SRC_CORE
 set(SRC_MODELS
     models/cantracemodel.h
     models/cantracemodel.cpp
-    models/canfilterproxymodel.h
-    models/canfilterproxymodel.cpp
+    models/cantraceproxymodel.h
+    models/cantraceproxymodel.cpp
     models/viewportproxy.h
     models/viewportproxy.cpp
 )
@@ -111,6 +111,10 @@ set(SRC_UI
     ui/mainwindow.cpp
     ui/traceview.h
     ui/traceview.cpp
+    ui/tracestatisticswidget.h
+    ui/tracestatisticswidget.cpp
+    ui/tracediffwidget.h
+    ui/tracediffwidget.cpp
     ui/filterheaderview.h
     ui/filterheaderview.cpp
     ui/columnfilterpopup.h

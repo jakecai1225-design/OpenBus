@@ -9,7 +9,7 @@
 #include "core/canframe.h"
 
 class CanTraceModel;
-class CanFilterProxyModel;
+class CanTraceProxyModel;
 class ViewportProxyModel;
 class FilterBar;
 class BookmarkManager;
@@ -18,6 +18,9 @@ class QLabel;
 class QActionGroup;
 class DbcManager;
 class QTimer;
+class QTabWidget;
+class TraceStatisticsWidget;
+class TraceDiffWidget;
 
 /**
  * @brief CANoe 风格 Trace 报文列表视图
@@ -34,6 +37,9 @@ public:
 
     const CanFrame *selectedFrame() const;
 
+    /// 获取当前选中的源模型行号列表（供统计/差异视图取帧集合）
+    QList<int> selectedSourceRows() const;
+
     /// 重写 setModel，自动将代理模型传递给 FilterHeaderView
     void setModel(QAbstractItemModel *model) override;
 
@@ -43,6 +49,14 @@ public:
     void saveColumnLayout();
     /// 从 QSettings 恢复列布局
     void restoreColumnLayout();
+
+    // ---- 字体缩放（持久化） ----
+
+    /// 应用字体大小（7-24 磅，行高随之缩放，写回 QSettings）
+    void applyFontSize(int pointSize);
+    void zoomFontIn();
+    void zoomFontOut();
+    void resetFontSize();
 
     // ---- Trace 文件导出 ----
 
@@ -76,6 +90,10 @@ public:
     void goToNextSameId();
     /// 跳转到上一个相同 CAN ID 的帧
     void goToPrevSameId();
+    /// 跳转到下一个标记行（标记/着色/标签）
+    void goToNextMark();
+    /// 跳转到上一个标记行
+    void goToPrevMark();
 
 public slots:
     void scrollToBottom();
@@ -97,7 +115,7 @@ private:
     /// 获取视窗代理模型 (如有)
     ViewportProxyModel *viewportProxy() const;
     /// 获取过滤代理模型 (穿越视窗代理层)
-    CanFilterProxyModel *filterProxy() const;
+    CanTraceProxyModel *filterProxy() const;
     /// 获取源数据模型 (穿越代理层)
     CanTraceModel *traceSource() const;
 
@@ -131,8 +149,6 @@ private:
     QString columnFilterHint(int column) const;
     /// 将代理模型行号映射到源模型行号
     int toSourceRow(const QModelIndex &proxyIndex) const;
-    /// 获取当前选中的源模型行号列表
-    QList<int> selectedSourceRows() const;
     /// 选中并滚动到指定源模型行
     void selectSourceRow(int sourceRow);
 };
@@ -207,7 +223,7 @@ public:
     explicit ViewportOverview(QWidget *parent = nullptr);
 
     void setViewportProxy(ViewportProxyModel *proxy);
-    void setFilterProxy(CanFilterProxyModel *proxy);
+    void setFilterProxy(CanTraceProxyModel *proxy);
     void setTraceSource(CanTraceModel *model);
 
     /// 标记缓存需要重建
@@ -230,7 +246,7 @@ protected:
 
 private:
     ViewportProxyModel *m_proxy = nullptr;
-    CanFilterProxyModel *m_filterProxy = nullptr;
+    CanTraceProxyModel *m_filterProxy = nullptr;
     CanTraceModel *m_traceModel = nullptr;
 
     bool m_dragging = false;
@@ -261,11 +277,12 @@ private:
  *   │ 工具条 (时间戳模式 + 分组统计)    │
  *   ├────────────────────────────────┤
  *   │ TraceView (报文列表)            │
- *   ├──────────────┬─────────────────┤
- *   │ 帧结构        │ 信号解析         │
- *   └──────────────┴─────────────────┘
+ *   ├────────────────────────────────┤
+ *   │ Trace Explorer 底部标签          │
+ *   │ (详情/信号/统计/差异)            │
+ *   └────────────────────────────────┘
  *
- * 每个 TraceTab 拥有独立的 CanTraceModel + CanFilterProxyModel，
+ * 每个 TraceTab 拥有独立的 CanTraceModel + CanTraceProxyModel，
  * 通过 Start/Stop 按钮控制是否接收帧数据。
  */
 class TraceTab : public QWidget
@@ -281,7 +298,7 @@ public:
     FrameInfoWidget *frameInfo() const { return m_frameInfo; }
     SignalDecodeWidget *signalDecode() const { return m_signalDecode; }
     CanTraceModel *traceModel() const { return m_traceModel; }
-    CanFilterProxyModel *proxyModel() const { return m_proxyModel; }
+    CanTraceProxyModel *proxyModel() const { return m_proxyModel; }
     ViewportProxyModel *viewportProxy() const { return m_viewportProxy; }
 
     void setDbcManager(DbcManager *mgr);
@@ -327,12 +344,14 @@ private:
     FilterBar *m_filterBar = nullptr;
     TraceView *m_traceView = nullptr;
     QSplitter *m_vSplitter = nullptr;
-    QSplitter *m_hSplitter = nullptr;
+    QTabWidget *m_explorerTabs = nullptr;           ///< T8: 底部 Trace Explorer 标签外壳
     FrameInfoWidget *m_frameInfo = nullptr;
     SignalDecodeWidget *m_signalDecode = nullptr;
+    TraceStatisticsWidget *m_statistics = nullptr;  ///< T9: 选中帧统计
+    TraceDiffWidget *m_diff = nullptr;              ///< T10: 选中帧差异对比
 
     CanTraceModel *m_traceModel = nullptr;
-    CanFilterProxyModel *m_proxyModel = nullptr;
+    CanTraceProxyModel *m_proxyModel = nullptr;
     ViewportProxyModel *m_viewportProxy = nullptr;
     BookmarkManager *m_bookmarkManager = nullptr;
     ViewportOverview *m_viewportOverview = nullptr;

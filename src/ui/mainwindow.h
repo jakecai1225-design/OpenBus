@@ -7,7 +7,6 @@
 #include "core/canframe.h"
 
 class CanTraceModel;
-class CanFilterProxyModel;
 class TraceTab;
 class TraceView;
 class GraphicView;

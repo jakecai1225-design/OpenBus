@@ -2,7 +2,7 @@
 #include "filterbar.h"
 #include "filterheaderview.h"
 #include "models/cantracemodel.h"
-#include "models/canfilterproxymodel.h"
+#include "models/cantraceproxymodel.h"
 #include "models/viewportproxy.h"
 #include "core/dbcmanager.h"
 #include "core/dbcdata.h"
@@ -26,6 +26,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QSplitter>
+#include <QTabWidget>
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QInputDialog>
@@ -40,6 +41,8 @@
 #include <QUrl>
 #include "columnfilterpopup.h"
 #include "colorruleeditor.h"
+#include "tracestatisticswidget.h"
+#include "tracediffwidget.h"
 #include "core/bookmarkmanager.h"
 #include <QFileInfo>
 #include <QThread>
@@ -75,12 +78,19 @@ TraceView::TraceView(QWidget *parent)
     addShortcut(QKeySequence("Shift+F3"),     &TraceView::onFindPrevious);
     addShortcut(QKeySequence("Ctrl+Down"),    &TraceView::goToNextSameId);
     addShortcut(QKeySequence("Ctrl+Up"),      &TraceView::goToPrevSameId);
+    addShortcut(QKeySequence("Ctrl+."),       &TraceView::goToNextMark);
+    addShortcut(QKeySequence("Ctrl+,"),       &TraceView::goToPrevMark);
+    addShortcut(QKeySequence(QKeySequence::ZoomIn),  &TraceView::zoomFontIn);
+    addShortcut(QKeySequence(QKeySequence::ZoomOut), &TraceView::zoomFontOut);
+    addShortcut(QKeySequence("Ctrl+0"),       &TraceView::resetFontSize);
 }
 
 void TraceView::setupAppearance()
 {
     QFont mono = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-    mono.setPointSize(10);
+    QSettings settings;
+    mono.setPointSize(qBound(7, settings.value(
+        QStringLiteral("TraceLayout/font_point_size"), 10).toInt(), 24));
     setFont(mono);
 
     setAlternatingRowColors(true);
@@ -99,7 +109,8 @@ void TraceView::setupAppearance()
     filterHeader->setSectionsClickable(true);
     filterHeader->setSectionsMovable(true);
     filterHeader->setContextMenuPolicy(Qt::CustomContextMenu);
-    verticalHeader()->setDefaultSectionSize(22);
+    // 行高随字体缩放，避免大字号裁剪
+    verticalHeader()->setDefaultSectionSize(qMax(22, font().pointSize() + 12));
     verticalHeader()->setVisible(false);
 
     // 列宽 — 参照 CANoe 风格，Data 列拉伸填充剩余空间
@@ -109,6 +120,7 @@ void TraceView::setupAppearance()
     setColumnWidth(CanTraceModel::ColChannel, 50);
     setColumnWidth(CanTraceModel::ColDirection, 50);
     setColumnWidth(CanTraceModel::ColId, 130);
+    setColumnWidth(CanTraceModel::ColName, 140);
     setColumnWidth(CanTraceModel::ColDlc, 60);
     setColumnWidth(CanTraceModel::ColData, 400);
     setColumnWidth(CanTraceModel::ColFlags, 90);
@@ -136,7 +148,7 @@ void TraceView::setModel(QAbstractItemModel *model)
     // 自动将过滤代理模型传递给 FilterHeaderView
     auto *fh = qobject_cast<FilterHeaderView *>(horizontalHeader());
     if (fh) {
-        // 穿越视窗代理层找到 CanFilterProxyModel
+        // 穿越视窗代理层找到 CanTraceProxyModel
         auto *fp = filterProxy();
         fh->setProxyModel(fp);
         // Data 列自动拉伸填满剩余宽度（需在模型设置后调用）
@@ -162,6 +174,7 @@ void TraceView::saveColumnLayout()
 
     QSettings settings;
     settings.beginGroup(QStringLiteral("TraceLayout"));
+    settings.setValue(QStringLiteral("layout_version"), 2);
     int colCount = model()->columnCount();
     for (int c = 0; c < colCount; ++c) {
         QString prefix = QStringLiteral("col_%1").arg(c);
@@ -180,6 +193,12 @@ void TraceView::restoreColumnLayout()
 
     QSettings settings;
     settings.beginGroup(QStringLiteral("TraceLayout"));
+
+    // 列布局版本（v2: 新增 Name 列，列索引平移；旧版布局直接丢弃）
+    if (settings.value(QStringLiteral("layout_version"), 1).toInt() < 2) {
+        settings.endGroup();
+        return;
+    }
     int colCount = model()->columnCount();
 
     // 先恢复可见性（隐藏的列跳过宽度和位置设置）
@@ -218,6 +237,27 @@ void TraceView::restoreColumnLayout()
     }
     settings.endGroup();
 }
+
+// ============================================================
+//  字体缩放
+// ============================================================
+
+void TraceView::applyFontSize(int pointSize)
+{
+    pointSize = qBound(7, pointSize, 24);
+    QFont f = font();
+    if (f.pointSize() == pointSize)
+        return;
+    f.setPointSize(pointSize);
+    setFont(f);
+    verticalHeader()->setDefaultSectionSize(qMax(22, pointSize + 12));
+    QSettings settings;
+    settings.setValue(QStringLiteral("TraceLayout/font_point_size"), pointSize);
+}
+
+void TraceView::zoomFontIn()    { applyFontSize(font().pointSize() + 1); }
+void TraceView::zoomFontOut()   { applyFontSize(font().pointSize() - 1); }
+void TraceView::resetFontSize() { applyFontSize(10); }
 
 // ============================================================
 //  Trace 文件导出
@@ -535,6 +575,8 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
     QAction findPrevAct(QStringLiteral("查找上一个  (Shift+F3)"), this);
     QAction nextSameIdAct(QStringLiteral("下一个相同 ID  (Ctrl+Down)"), this);
     QAction prevSameIdAct(QStringLiteral("上一个相同 ID  (Ctrl+Up)"), this);
+    QAction nextMarkAct(QStringLiteral("下一个标记  (Ctrl+.)"), this);
+    QAction prevMarkAct(QStringLiteral("上一个标记  (Ctrl+,)"), this);
 
     navMenu->addAction(&goToAct);
     navMenu->addSeparator();
@@ -544,11 +586,17 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
     navMenu->addSeparator();
     navMenu->addAction(&nextSameIdAct);
     navMenu->addAction(&prevSameIdAct);
+    navMenu->addAction(&nextMarkAct);
+    navMenu->addAction(&prevMarkAct);
 
     findNextAct.setEnabled(!m_lastFindText.isEmpty());
     findPrevAct.setEnabled(!m_lastFindText.isEmpty());
     nextSameIdAct.setEnabled(index.isValid());
     prevSameIdAct.setEnabled(index.isValid());
+    auto *navSource = traceSource();
+    bool hasMarks = navSource && !navSource->labeledMarks().isEmpty();
+    nextMarkAct.setEnabled(hasMarks);
+    prevMarkAct.setEnabled(hasMarks);
 
     connect(&goToAct, &QAction::triggered, this, &TraceView::onGoToPacket);
     connect(&findAct, &QAction::triggered, this, &TraceView::onFind);
@@ -556,6 +604,23 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
     connect(&findPrevAct, &QAction::triggered, this, &TraceView::onFindPrevious);
     connect(&nextSameIdAct, &QAction::triggered, this, &TraceView::goToNextSameId);
     connect(&prevSameIdAct, &QAction::triggered, this, &TraceView::goToPrevSameId);
+    connect(&nextMarkAct, &QAction::triggered, this, &TraceView::goToNextMark);
+    connect(&prevMarkAct, &QAction::triggered, this, &TraceView::goToPrevMark);
+
+    // ---- 视图：字体缩放 ----
+    menu.addSeparator();
+    QMenu *viewMenu = menu.addMenu(QStringLiteral("视图"));
+    QAction zoomInAct(QStringLiteral("放大字体  (Ctrl++)"), this);
+    QAction zoomOutAct(QStringLiteral("缩小字体  (Ctrl+-)"), this);
+    QAction zoomResetAct(QStringLiteral("重置字体  (Ctrl+0)"), this);
+    viewMenu->addAction(&zoomInAct);
+    viewMenu->addAction(&zoomOutAct);
+    viewMenu->addSeparator();
+    viewMenu->addAction(&zoomResetAct);
+
+    connect(&zoomInAct, &QAction::triggered, this, &TraceView::zoomFontIn);
+    connect(&zoomOutAct, &QAction::triggered, this, &TraceView::zoomFontOut);
+    connect(&zoomResetAct, &QAction::triggered, this, &TraceView::resetFontSize);
 
     // ---- 时间参考点 ----
     menu.addSeparator();
@@ -674,6 +739,12 @@ void TraceView::mouseDoubleClickEvent(QMouseEvent *event)
 
 void TraceView::wheelEvent(QWheelEvent *event)
 {
+    // Ctrl+滚轮：字体缩放（对标 CANoe View → Font Size）
+    if (event->modifiers() & Qt::ControlModifier) {
+        applyFontSize(font().pointSize() + (event->angleDelta().y() > 0 ? 1 : -1));
+        event->accept();
+        return;
+    }
     // CANoe 风格: 鼠标滑轮只在当前视窗内滚动，不移动视窗
     QTableView::wheelEvent(event);
 }
@@ -683,12 +754,12 @@ ViewportProxyModel *TraceView::viewportProxy() const
     return qobject_cast<ViewportProxyModel *>(model());
 }
 
-CanFilterProxyModel *TraceView::filterProxy() const
+CanTraceProxyModel *TraceView::filterProxy() const
 {
     auto *vp = viewportProxy();
     if (vp)
-        return qobject_cast<CanFilterProxyModel *>(vp->sourceModel());
-    return qobject_cast<CanFilterProxyModel *>(model());
+        return qobject_cast<CanTraceProxyModel *>(vp->sourceModel());
+    return qobject_cast<CanTraceProxyModel *>(model());
 }
 
 CanTraceModel *TraceView::traceSource() const
@@ -749,6 +820,7 @@ QString TraceView::columnFilterHint(int column) const
     case CanTraceModel::ColChannel:   return QStringLiteral("例如: 1  或  2");
     case CanTraceModel::ColDirection: return QStringLiteral("rx  或  tx");
     case CanTraceModel::ColId:        return QStringLiteral("例如: 0x123  或  >0x100  或  !=0x200");
+    case CanTraceModel::ColName:      return QStringLiteral("报文名，如: EngineData");
     case CanTraceModel::ColDlc:       return QStringLiteral("例如: 8  或  >4");
     case CanTraceModel::ColData:      return QStringLiteral("例如: 01 02  或  FF");
     case CanTraceModel::ColFlags:     return QStringLiteral("例如: FD  或  BRS");
@@ -1224,6 +1296,48 @@ void TraceView::goToPrevSameId()
     }
 }
 
+void TraceView::goToNextMark()
+{
+    auto *source = traceSource();
+    if (!source) return;
+    auto marks = source->labeledMarks();  // 行号升序（标记/着色/标签行）
+    if (marks.isEmpty()) return;
+
+    int curRow = -1;
+    auto rows = selectedSourceRows();
+    if (!rows.isEmpty())
+        curRow = rows.first();
+
+    for (const auto &mark : marks) {
+        if (mark.first > curRow) {
+            selectSourceRow(mark.first);
+            return;
+        }
+    }
+}
+
+void TraceView::goToPrevMark()
+{
+    auto *source = traceSource();
+    if (!source) return;
+    auto marks = source->labeledMarks();
+    if (marks.isEmpty()) return;
+
+    auto rows = selectedSourceRows();
+    if (rows.isEmpty()) {
+        selectSourceRow(marks.last().first);  // 无选中：从最后一个标记开始
+        return;
+    }
+    int curRow = rows.first();
+
+    for (int i = marks.size() - 1; i >= 0; --i) {
+        if (marks.at(i).first < curRow) {
+            selectSourceRow(marks.at(i).first);
+            return;
+        }
+    }
+}
+
 // ============================================================
 //  转到 / 查找 — 对话框入口
 // ============================================================
@@ -1281,11 +1395,7 @@ FrameInfoWidget::FrameInfoWidget(QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    auto *title = new QLabel("帧结构", this);
-    title->setObjectName("DockPanelTitle");
-    title->setContentsMargins(6, 3, 6, 3);
-    layout->addWidget(title);
-
+    // T8: 标题由 Trace Explorer 标签页提供（“详情”）
     m_edit = new QPlainTextEdit(this);
     m_edit->setReadOnly(true);
     QFont mono = QFontDatabase::systemFont(QFontDatabase::FixedFont);
@@ -1367,11 +1477,7 @@ SignalDecodeWidget::SignalDecodeWidget(QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    auto *title = new QLabel("信号解析", this);
-    title->setObjectName("DockPanelTitle");
-    title->setContentsMargins(6, 3, 6, 3);
-    layout->addWidget(title);
-
+    // T8: 标题由 Trace Explorer 标签页提供（“信号”）
     m_edit = new QPlainTextEdit(this);
     m_edit->setReadOnly(true);
     QFont mono = QFontDatabase::systemFont(QFontDatabase::FixedFont);
@@ -1460,7 +1566,7 @@ void ViewportOverview::setViewportProxy(ViewportProxyModel *proxy)
     update();
 }
 
-void ViewportOverview::setFilterProxy(CanFilterProxyModel *proxy)
+void ViewportOverview::setFilterProxy(CanTraceProxyModel *proxy)
 {
     m_filterProxy = proxy;
     m_cacheDirty = true;
@@ -1777,9 +1883,9 @@ TraceTab::TraceTab(QWidget *parent)
     : QWidget(parent)
 {
     // 每个标签页拥有独立的数据模型
-    // 模型链: CanTraceModel → CanFilterProxyModel → ViewportProxyModel → TraceView
+    // 模型链: CanTraceModel → CanTraceProxyModel → ViewportProxyModel → TraceView
     m_traceModel = new CanTraceModel(this);
-    m_proxyModel = new CanFilterProxyModel(this);
+    m_proxyModel = new CanTraceProxyModel(this);
     m_proxyModel->setSourceModel(m_traceModel);
     m_viewportProxy = new ViewportProxyModel(this);
     m_viewportProxy->setSourceModel(m_proxyModel);
@@ -1806,27 +1912,27 @@ TraceTab::TraceTab(QWidget *parent)
     auto *actAbs = settingsMenu->addAction(QStringLiteral("自捕获开始"));
     actAbs->setCheckable(true);
     actAbs->setChecked(true);
-    actAbs->setData(CanFilterProxyModel::Absolute);
+    actAbs->setData(CanTraceProxyModel::Absolute);
     m_timeFormatGroup->addAction(actAbs);
 
     auto *actSinceCap = settingsMenu->addAction(QStringLiteral("自上一捕获分组"));
     actSinceCap->setCheckable(true);
-    actSinceCap->setData(CanFilterProxyModel::SinceCapture);
+    actSinceCap->setData(CanTraceProxyModel::SinceCapture);
     m_timeFormatGroup->addAction(actSinceCap);
 
     auto *actSinceDisp = settingsMenu->addAction(QStringLiteral("自上一显示分组"));
     actSinceDisp->setCheckable(true);
-    actSinceDisp->setData(CanFilterProxyModel::SinceDisplay);
+    actSinceDisp->setData(CanTraceProxyModel::SinceDisplay);
     m_timeFormatGroup->addAction(actSinceDisp);
 
     auto *actDate = settingsMenu->addAction(QStringLiteral("日期和时间"));
     actDate->setCheckable(true);
-    actDate->setData(CanFilterProxyModel::DateTimeOfDay);
+    actDate->setData(CanTraceProxyModel::DateTimeOfDay);
     m_timeFormatGroup->addAction(actDate);
 
     auto *actEpoch = settingsMenu->addAction(QStringLiteral("Unix 时间戳"));
     actEpoch->setCheckable(true);
-    actEpoch->setData(CanFilterProxyModel::SecondsSinceEpoch);
+    actEpoch->setData(CanTraceProxyModel::SecondsSinceEpoch);
     m_timeFormatGroup->addAction(actEpoch);
 
     settingsMenu->addSeparator();
@@ -1963,10 +2069,35 @@ TraceTab::TraceTab(QWidget *parent)
         }
     });
 
-    // 启动时从 QSettings 加载着色规则
+    // 启动时从 QSettings 加载着色规则；首次运行安装默认语义着色规则
     {
         QSettings settings;
         settings.beginGroup(QStringLiteral("ColorRules"));
+        if (!settings.contains(QStringLiteral("count"))) {
+            // 首次运行：默认语义着色（错误帧淡红 / Tx 帧淡蓝），可在着色规则编辑器中修改
+            QVector<CanTraceModel::ColorRule> defaults;
+            CanTraceModel::ColorRule errRule;
+            errRule.expr = QStringLiteral("error");
+            errRule.background = QColor(0xFF, 0xCD, 0xD2);
+            errRule.foreground = QColor(0xD0, 0x20, 0x20);
+            errRule.enabled = true;
+            defaults.append(errRule);
+            CanTraceModel::ColorRule txRule;
+            txRule.expr = QStringLiteral("tx");
+            txRule.background = QColor(0xE3, 0xF2, 0xFD);
+            txRule.foreground = QColor(0x10, 0x50, 0xD0);
+            txRule.enabled = true;
+            defaults.append(txRule);
+            m_traceModel->setColorRules(defaults);
+            settings.setValue(QStringLiteral("count"), defaults.size());
+            for (int i = 0; i < defaults.size(); ++i) {
+                QString prefix = QStringLiteral("rule_%1").arg(i);
+                settings.setValue(prefix + "_expr", defaults[i].expr);
+                settings.setValue(prefix + "_bg", defaults[i].background.name());
+                settings.setValue(prefix + "_fg", defaults[i].foreground.name());
+                settings.setValue(prefix + "_enabled", defaults[i].enabled);
+            }
+        }
         int count = settings.value(QStringLiteral("count"), 0).toInt();
         if (count > 0) {
             QVector<CanTraceModel::ColorRule> modelRules;
@@ -2053,7 +2184,7 @@ TraceTab::TraceTab(QWidget *parent)
             [this](QAction *act) {
         int mode = act->data().toInt();
         m_proxyModel->setTimestampMode(
-            static_cast<CanFilterProxyModel::TimestampMode>(mode));
+            static_cast<CanTraceProxyModel::TimestampMode>(mode));
     });
 
     // 时间精度切换
@@ -2094,18 +2225,21 @@ TraceTab::TraceTab(QWidget *parent)
 
     m_vSplitter->addWidget(viewportContainer);
 
-    // 水平分割: 帧结构 (左) | 信号解析 (右)
-    m_hSplitter = new QSplitter(Qt::Horizontal, this);
-    m_hSplitter->setHandleWidth(2);
+    // ---- T8: Trace Explorer 底部标签外壳（详情/信号/统计/差异，§九 G-U1） ----
+    m_explorerTabs = new QTabWidget(this);
+    m_explorerTabs->setDocumentMode(true);
 
     m_frameInfo = new FrameInfoWidget(this);
     m_signalDecode = new SignalDecodeWidget(this);
+    m_statistics = new TraceStatisticsWidget(this);
+    m_diff = new TraceDiffWidget(this);
 
-    m_hSplitter->addWidget(m_frameInfo);
-    m_hSplitter->addWidget(m_signalDecode);
-    m_hSplitter->setSizes({400, 400});
+    m_explorerTabs->addTab(m_frameInfo, QStringLiteral("详情"));
+    m_explorerTabs->addTab(m_signalDecode, QStringLiteral("信号"));
+    m_explorerTabs->addTab(m_statistics, QStringLiteral("统计"));
+    m_explorerTabs->addTab(m_diff, QStringLiteral("差异"));
 
-    m_vSplitter->addWidget(m_hSplitter);
+    m_vSplitter->addWidget(m_explorerTabs);
     m_vSplitter->setSizes({500, 200});
     m_vSplitter->setStretchFactor(0, 3);
     m_vSplitter->setStretchFactor(1, 1);
@@ -2154,9 +2288,9 @@ TraceTab::TraceTab(QWidget *parent)
     });
 
     // 过滤/排序变化后重置视窗到开头
-    connect(m_proxyModel, &CanFilterProxyModel::layoutAboutToBeChanged,
+    connect(m_proxyModel, &CanTraceProxyModel::layoutAboutToBeChanged,
             this, [this]() { m_autoScrollViewport = true; });
-    connect(m_proxyModel, &CanFilterProxyModel::packetCountChanged,
+    connect(m_proxyModel, &CanTraceProxyModel::packetCountChanged,
             this, [this](int, int) {
         m_viewportOverview->markCacheDirty();
         m_viewportOverview->update();
@@ -2170,7 +2304,7 @@ TraceTab::TraceTab(QWidget *parent)
     m_packetCountTimer->start();
 
     // 过滤条件变化时立即更新（不防抖）
-    connect(m_proxyModel, &CanFilterProxyModel::packetCountChanged,
+    connect(m_proxyModel, &CanTraceProxyModel::packetCountChanged,
             this, [this](int captured, int displayed) {
         int marked = m_traceModel->markedRows().size();
         m_filterBar->setPacketCountText(
@@ -2191,6 +2325,8 @@ TraceTab::~TraceTab()
 void TraceTab::setDbcManager(DbcManager *mgr)
 {
     m_signalDecode->setDbcManager(mgr);
+    m_statistics->setDbcManager(mgr);
+    m_diff->setDbcManager(mgr);
     m_traceModel->setDbcManager(mgr);
 }
 
@@ -2301,6 +2437,24 @@ void TraceTab::onSelectionChanged()
         m_signalDecode->setFrame(*frame);
         emit m_traceView->frameSelected(*frame);
     }
+
+    // T9/T10: 选中帧集合 → 统计/差异视图（上限截断，控件内 100ms 防抖）
+    const QList<int> rows = m_traceView->selectedSourceRows();
+    QVector<CanFrame> frames;
+    if (!rows.isEmpty()) {
+        const int frameCount = m_traceModel->frameCount();
+        const int cap = qMin(rows.size(), TraceStatisticsWidget::MaxFrames);
+        frames.reserve(cap);
+        for (int row : rows) {
+            if (row < 0 || row >= frameCount)
+                continue;
+            frames.append(m_traceModel->frameAt(row));
+            if (frames.size() >= cap)
+                break;
+        }
+    }
+    m_statistics->setFrames(frames, rows.size() > frames.size());
+    m_diff->setFrames(frames);
 }
 
 // ============================================================

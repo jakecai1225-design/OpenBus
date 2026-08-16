@@ -34,6 +34,7 @@ public:
         ColChannel,
         ColDirection,
         ColId,
+        ColName,        ///< DBC 报文名称
         ColDlc,
         ColData,
         ColFlags,
@@ -147,6 +148,9 @@ public:
     double timeReferenceTimestamp() const { return m_timeRefTimestamp; }
 
     int frameCountForId(quint32 id) const { return m_idCount.value(id, 0); }
+
+    /// 帧序列号计数（永不回退；No. = seqCounter - rowCount + row + 1）
+    quint64 seqCounter() const { return m_seqCounter; }
 
     // ---- Phase 2: 刷新率控制 ----
 

@@ -61,7 +61,7 @@ QVariant CanTraceModel::data(const QModelIndex &index, int role) const
         case ColNo: case ColTime: case ColDelta:
         case ColId: case ColDlc: case ColFrameCount:
             return int(Qt::AlignRight | Qt::AlignVCenter);
-        case ColData: case ColSignal:
+        case ColName: case ColData: case ColSignal:
             return int(Qt::AlignLeft | Qt::AlignVCenter);
         default:
             return int(Qt::AlignCenter);
@@ -141,6 +141,7 @@ QVariant CanTraceModel::headerData(int section, Qt::Orientation orientation,
     case ColChannel:    return QStringLiteral("Ch");
     case ColDirection:  return QStringLiteral("Dir");
     case ColId:         return QStringLiteral("ID");
+    case ColName:       return QStringLiteral("Name");
     case ColDlc:        return QStringLiteral("DLC");
     case ColData:       return QStringLiteral("Data");
     case ColFlags:      return QStringLiteral("Flags");
@@ -180,6 +181,16 @@ void CanTraceModel::formatCell(int row, int col, const CanFrame &f, QString &out
     case ColId:
         out = CanUtils::formatId(f.id, f.extended);
         return;
+    case ColName: {
+        // DBC 报文名称（未加载 DBC 或未匹配时为空）
+        if (!m_dbcManager) {
+            out = QStringLiteral("");
+            return;
+        }
+        const DbcMessage *msg = m_dbcManager->findMessage(f.id);
+        out = msg ? msg->name : QStringLiteral("");
+        return;
+    }
     case ColDlc:
         out = CanUtils::formatDlc(f.dlc, f.fd);
         return;
