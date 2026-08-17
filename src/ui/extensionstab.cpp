@@ -12,6 +12,9 @@
 #include <QPushButton>
 #include <QFrame>
 #include <QTimer>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QMenu>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -137,6 +140,14 @@ void ExtensionsTab::setupUi()
     m_refreshBtn->setFixedWidth(80);
     connect(m_refreshBtn, &QPushButton::clicked, this, &ExtensionsTab::onRefreshClicked);
     toolbar->addWidget(m_refreshBtn);
+
+    // G9: 安装 .opk 插件包
+    auto *installBtn = new QPushButton(QStringLiteral("安装 .opk..."));
+    installBtn->setFixedWidth(110);
+    installBtn->setToolTip(QStringLiteral("从 .opk 插件包安装（可由 plugin_tool.py pack 打包）"));
+    connect(installBtn, &QPushButton::clicked, this, &ExtensionsTab::onInstallOpk);
+    toolbar->addWidget(installBtn);
+
     toolbar->addStretch();
     m_pluginCount = new QLabel;
     m_pluginCount->setStyleSheet("color: #888;");
@@ -167,6 +178,11 @@ void ExtensionsTab::setupUi()
 
     connect(m_table, &QTableWidget::cellDoubleClicked,
             this, &ExtensionsTab::onItemDoubleClicked);
+
+    // G9: 右键菜单（卸载插件）
+    m_table->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_table, &QTableWidget::customContextMenuRequested,
+            this, &ExtensionsTab::onTableContextMenu);
 
     layout->addWidget(m_table, 1);
 }
@@ -421,4 +437,53 @@ void ExtensionsTab::onItemDoubleClicked(int row, int /*col*/)
     QString name = item->text();
     if (!name.isEmpty())
         emit pluginActivateRequested(name);
+}
+
+// ============================================================
+//  G9: 插件包安装 / 卸载
+// ============================================================
+
+void ExtensionsTab::onInstallOpk()
+{
+    QString path = QFileDialog::getOpenFileName(
+        this, QStringLiteral("选择插件包"), QString(),
+        QStringLiteral("openbus 插件包 (*.opk);;所有文件 (*)"));
+    if (path.isEmpty())
+        return;
+
+    QString err = m_pm ? m_pm->installPackage(path)
+                       : QStringLiteral("插件系统未初始化");
+    if (!err.isEmpty())
+        QMessageBox::warning(this, QStringLiteral("安装插件"), err);
+    else
+        QMessageBox::information(this, QStringLiteral("安装插件"),
+                                 QStringLiteral("插件安装成功"));
+    refresh();
+}
+
+void ExtensionsTab::onTableContextMenu(const QPoint &pos)
+{
+    auto *item = m_table->itemAt(pos);
+    if (!item) return;
+    const int row = item->row();
+    auto *nameItem = m_table->item(row, 0);
+    if (!nameItem) return;
+    const QString name = nameItem->text();
+
+    QMenu menu(this);
+    QAction *uninstallAct = menu.addAction(QStringLiteral("卸载"));
+    QAction *chosen = menu.exec(m_table->viewport()->mapToGlobal(pos));
+    if (chosen != uninstallAct)
+        return;
+
+    if (QMessageBox::question(this, QStringLiteral("卸载插件"),
+                              QStringLiteral("确定卸载插件 %1？").arg(name))
+        != QMessageBox::Yes)
+        return;
+
+    QString err = m_pm ? m_pm->uninstallPlugin(name)
+                       : QStringLiteral("插件系统未初始化");
+    if (!err.isEmpty())
+        QMessageBox::warning(this, QStringLiteral("卸载插件"), err);
+    refresh();
 }

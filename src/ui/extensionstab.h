@@ -40,6 +40,8 @@ private slots:
     void onRefreshClicked();
     void onItemDoubleClicked(int row, int col);
     void onResourceTimer();
+    void onInstallOpk();                       // G9: 安装 .opk 插件包
+    void onTableContextMenu(const QPoint &pos); // G9: 右键菜单（卸载）
 
 private:
     void setupUi();

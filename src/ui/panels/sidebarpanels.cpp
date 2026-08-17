@@ -1119,71 +1119,6 @@ void MeasurementSetupPanel::onItemClicked(QListWidgetItem *item)
 }
 
 // ============================================================
-//  工具集面板 — 总线分析工具列表
-// ============================================================
-
-ToolsPanel::ToolsPanel(QWidget *parent)
-    : SidePanel("工具集", parent)
-{
-    auto *cl = contentLayout();
-
-    m_list = new QListWidget(this);
-    m_list->setObjectName("ToolsList");
-
-    // 文件格式转换类
-    auto *convItem = new QListWidgetItem("BLF ↔ ASC ↔ CSV 转换", m_list);
-    convItem->setData(Qt::UserRole, "blf_converter");
-    convItem->setToolTip("报文日志文件格式互转：BLF / ASC / CSV 之间转换");
-
-    // DBC 工具类（合并：查看编辑 + 信号清单导出）
-    auto *dbcItem = new QListWidgetItem("DBC 工具", m_list);
-    dbcItem->setData(Qt::UserRole, "dbc_tool");
-    dbcItem->setToolTip("DBC 查看/编辑 + 信号清单导出");
-
-    // 总线统计分析类（合并：报文统计 + ID 频率/周期 + 总线负载率）
-    auto *statItem = new QListWidgetItem("总线统计分析", m_list);
-    statItem->setData(Qt::UserRole, "bus_analysis");
-    statItem->setToolTip("报文统计 / ID 频率周期 / 总线负载率");
-
-    // P0: Data Window
-    auto *dataItem = new QListWidgetItem("Data Window", m_list);
-    dataItem->setData(Qt::UserRole, "data_window");
-    dataItem->setToolTip("信号实时表格：当前值/原始值/物理值/最小值/最大值");
-
-    // P1: I/O Graph
-    auto *ioGraphItem = new QListWidgetItem("I/O Graph", m_list);
-    ioGraphItem->setData(Qt::UserRole, "io_graph");
-    ioGraphItem->setToolTip("帧率/总线负载随时间曲线");
-
-    // P1: 着色规则编辑器
-    auto *colorItem = new QListWidgetItem("着色规则编辑器", m_list);
-    colorItem->setData(Qt::UserRole, "color_rules");
-    colorItem->setToolTip("Trace 行动态着色规则管理");
-
-    cl->addWidget(m_list);
-
-    auto *hint = new QLabel("\n"
-                           "\xE2\x80\xA2 点击工具名打开对应标签页\n"
-                           "\xE2\x80\xA2 工具独立运行，不影响当前工程\n"
-                           "\xE2\x80\xA2 后续将持续集成更多总线分析工具", this);
-    hint->setWordWrap(true);
-    hint->setObjectName("SidePanelHint");
-    cl->addWidget(hint);
-
-    connect(m_list, &QListWidget::itemClicked,
-            this, &ToolsPanel::onItemClicked);
-}
-
-void ToolsPanel::onItemClicked(QListWidgetItem *item)
-{
-    if (!item) return;
-    QString key = item->data(Qt::UserRole).toString();
-    if (key.isEmpty()) return;
-    qDebug() << "[ToolsPanel] item clicked, key:" << key;
-    emit toolOpened(key);
-}
-
-// ============================================================
 //  ExtensionsPanel — 插件管理面板
 // ============================================================
 
@@ -1435,10 +1370,9 @@ void ExtensionsPanel::filterPlugins(const QString &text)
 }
 
 // ============================================================
-//  SideBar — 12 个面板，索引与 ActivityBar 一致
-//  0=Project  1=Analysis(Flow)  2=Device   3=Trace  4=Graphic
-//  5=Dbc      6=Transceive      7=Protocol 8=Tools  9=Extensions
-//  10=Settings
+//  SideBar — 10 个面板，索引与 ActivityBar 一致
+//  0=Project  1=Analysis(Flow)  2=Device  3=Trace  4=Graphic
+//  5=Dbc      6=Transceive     7=Extensions        8=Settings
 // ============================================================
 
 SideBar::SideBar(QWidget *parent)
@@ -1453,9 +1387,7 @@ SideBar::SideBar(QWidget *parent)
     m_dbc          = new DbcPanel(this);
     m_transceive   = new TransceivePanel(this);
     m_device       = new DevicePanel(this);
-    m_protocol     = new ProtocolPanel(this);
     m_analysis     = new MeasurementSetupPanel(this);
-    m_tools        = new ToolsPanel(this);
     m_extensions   = new ExtensionsPanel(this);
     m_settings     = new SettingsPanel(this);
 
@@ -1466,10 +1398,8 @@ SideBar::SideBar(QWidget *parent)
     addWidget(m_graphicConfig);  // 4 = Graphic
     addWidget(m_dbc);            // 5 = Dbc
     addWidget(m_transceive);     // 6 = Transceive (收发)
-    addWidget(m_protocol);       // 7 = Protocol
-    addWidget(m_tools);          // 8 = Tools
-    addWidget(m_extensions);     // 9 = Extensions
-    addWidget(m_settings);       // 10 = Settings
+    addWidget(m_extensions);     // 7 = Extensions
+    addWidget(m_settings);       // 8 = Settings
 
     setCurrentIndex(0);
     setMinimumWidth(240);
@@ -1485,79 +1415,4 @@ void SideBar::showPanel(int index)
 void SideBar::togglePanel(int index)
 {
     Q_UNUSED(index);
-}
-
-// ============================================================
-//  协议面板
-// ============================================================
-
-ProtocolPanel::ProtocolPanel(QWidget *parent)
-    : SidePanel("协议", parent)
-{
-    auto *layout = contentLayout();
-
-    m_list = new QListWidget(this);
-    m_list->setObjectName("ProtocolList");
-
-    // 已实现的协议（可点击打开标签页）
-    auto *udsItem = new QListWidgetItem("UDS 诊断 (ISO 14229)", m_list);
-    udsItem->setData(Qt::UserRole, "UDS");
-    udsItem->setToolTip("Unified Diagnostic Services — ECU 诊断服务交互");
-
-    auto *canopenItem = new QListWidgetItem("CANopen (CiA 301)", m_list);
-    canopenItem->setData(Qt::UserRole, "CANopen");
-    canopenItem->setToolTip("CANopen 协议 — NMT/SDO/PDO/Emergency/Heartbeat");
-
-    // 未实现的协议（灰色显示）
-    auto *j1939Item = new QListWidgetItem("J1939", m_list);
-    j1939Item->setData(Qt::UserRole, "J1939");
-    j1939Item->setToolTip("SAE J1939 — 商用车/工程机械协议（敬请期待）");
-
-    auto *isotpItem = new QListWidgetItem("ISO-TP (ISO 15765-2)", m_list);
-    isotpItem->setData(Qt::UserRole, "ISO-TP");
-    isotpItem->setToolTip("CAN 传输层协议 — 多帧拆包/组包（敬请期待）");
-
-    auto *obdItem = new QListWidgetItem("OBD-II", m_list);
-    obdItem->setData(Qt::UserRole, "OBD-II");
-    obdItem->setToolTip("车载诊断 — 故障码读取/排放监测（敬请期待）");
-
-    auto *xcpItem = new QListWidgetItem("XCP (CCP/Universal)", m_list);
-    xcpItem->setData(Qt::UserRole, "XCP");
-    xcpItem->setToolTip("通用标定测量协议 — ECU 标定/数据采集（敬请期待）");
-
-    auto *nmeaItem = new QListWidgetItem("NMEA 2000", m_list);
-    nmeaItem->setData(Qt::UserRole, "NMEA2000");
-    nmeaItem->setToolTip("船舶电子设备互联协议（敬请期待）");
-
-    // 灰色标记未实现
-    for (int i = 2; i < m_list->count(); ++i) {
-        auto *item = m_list->item(i);
-        item->setForeground(QColor(0x6c, 0x6c, 0x6c));
-        QFont f = item->font();
-        f.setItalic(true);
-        item->setFont(f);
-    }
-
-    layout->addWidget(m_list);
-
-    // 信息提示
-    auto *infoLabel = new QLabel("点击协议名称打开对应标签页\n灰色项暂未实现", this);
-    infoLabel->setObjectName("SidePanelInfo");
-    infoLabel->setAlignment(Qt::AlignCenter);
-    layout->addWidget(infoLabel);
-
-    connect(m_list, &QListWidget::itemClicked, this, &ProtocolPanel::onItemClicked);
-}
-
-void ProtocolPanel::onItemClicked(QListWidgetItem *item)
-{
-    if (!item) return;
-    QString protocol = item->data(Qt::UserRole).toString();
-    if (protocol.isEmpty()) return;
-
-    // 灰色项（未实现）不响应
-    if (item->foreground() == QColor(0x80, 0x80, 0x80))
-        return;
-
-    emit protocolOpened(protocol);
 }

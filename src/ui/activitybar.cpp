@@ -30,7 +30,7 @@ ActivityBar::ActivityBar(QWidget *parent)
 
     // 顶部按钮 — 顺序与 Activity 枚举一致
     // 0=Project 1=Analysis(Flow) 2=Device 3=Trace 4=Graphic
-    // 5=Dbc 6=Transceive(收发) 7=Protocol 8=Tools 9=Extensions
+    // 5=Dbc 6=Transceive(收发) 7=Extensions
     m_buttons.append({createButton(":/icons/project.svg", "工程管理", Project), Project, "工程管理", "工程管理", ":/icons/project.svg"});
     layout->addWidget(m_buttons.last().btn);
 
@@ -50,12 +50,6 @@ ActivityBar::ActivityBar(QWidget *parent)
     layout->addWidget(m_buttons.last().btn);
 
     m_buttons.append({createButton(":/icons/send.svg", "收发", Transceive), Transceive, "收发", "收发 — 发送 / 回放 / 录制", ":/icons/send.svg"});
-    layout->addWidget(m_buttons.last().btn);
-
-    m_buttons.append({createButton(":/icons/protocol.svg", "协议", Protocol), Protocol, "协议", "上层协议分析", ":/icons/protocol.svg"});
-    layout->addWidget(m_buttons.last().btn);
-
-    m_buttons.append({createButton(":/icons/tools.svg", "工具集", Tools), Tools, "工具集", "总线分析工具集 — 格式转换 / DBC 编辑 / 统计分析", ":/icons/tools.svg"});
     layout->addWidget(m_buttons.last().btn);
 
     m_buttons.append({createButton(":/icons/extensions.svg", "扩展", Extensions), Extensions, "扩展", "插件管理 — 安装 / 启用 / 搜索插件", ":/icons/extensions.svg"});

@@ -16,6 +16,8 @@ from .frames import frames
 from .commands import commands
 from .workspace import workspace
 from .signals import signals
+from .files import files
+from .dbc import dbc
 
 # UI 模块需要 PyQt6，未安装时跳过
 try:
@@ -24,7 +26,7 @@ try:
 except ImportError:
     _has_ui = False
 
-__version__ = "1.0.0"
-__all__ = ["output", "frames", "commands", "workspace", "signals"]
+__version__ = "1.1.0"
+__all__ = ["output", "frames", "commands", "workspace", "signals", "files", "dbc"]
 if _has_ui:
     __all__.append("ui")

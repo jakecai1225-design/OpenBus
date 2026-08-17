@@ -1,0 +1,15 @@
+{
+    "name": "canopen-explorer",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "CANopen 工具（CiA 301）— NMT 节点控制、SDO 读写、Heartbeat 监控、Emergency 解析（替代原 C++ CanOpenView）",
+    "main": "main.py",
+    "activationEvents": [
+        "onCommand:canopenExplorer.open"
+    ],
+    "contributes": {
+        "commands": [
+            { "id": "canopenExplorer.open", "title": "协议: CANopen" }
+        ]
+    }
+}

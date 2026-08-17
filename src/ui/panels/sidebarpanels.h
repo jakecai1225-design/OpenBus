@@ -285,25 +285,6 @@ private:
 };
 
 // ============================================================
-//  协议面板 — 上层协议列表（UDS/CANopen/J1939/ISO-TP 等）
-// ============================================================
-class ProtocolPanel : public SidePanel
-{
-    Q_OBJECT
-public:
-    explicit ProtocolPanel(QWidget *parent = nullptr);
-
-signals:
-    void protocolOpened(const QString &protocolName);
-
-private slots:
-    void onItemClicked(QListWidgetItem *item);
-
-private:
-    QListWidget *m_list;
-};
-
-// ============================================================
 //  分析配置面板 — 侧边栏入口（点击打开 flow 标签页）
 // ============================================================
 class MeasurementSetupPanel : public SidePanel
@@ -315,26 +296,6 @@ public:
 signals:
     /// 请求打开 flow 标签页
     void openMeasurementSetupRequested();
-
-private slots:
-    void onItemClicked(QListWidgetItem *item);
-
-private:
-    QListWidget *m_list;
-};
-
-// ============================================================
-//  工具集面板 — 总线分析工具列表入口
-// ============================================================
-class ToolsPanel : public SidePanel
-{
-    Q_OBJECT
-public:
-    explicit ToolsPanel(QWidget *parent = nullptr);
-
-signals:
-    /// 请求打开工具标签页，toolKey 为工具唯一标识
-    void toolOpened(const QString &toolKey);
 
 private slots:
     void onItemClicked(QListWidgetItem *item);
@@ -398,7 +359,7 @@ private:
 //  SideBar — 侧边栏容器（QStackedWidget 切换面板）
 //  索引必须与 ActivityBar::Activity 枚举一致
 //  0=Project 1=Analysis(Flow) 2=Device 3=Trace 4=Graphic
-//  5=Dbc 6=Transceive 7=Protocol 8=Tools 9=Extensions 10=Settings
+//  5=Dbc 6=Transceive 7=Extensions 8=Settings
 // ============================================================
 class SideBar : public QStackedWidget
 {
@@ -412,9 +373,7 @@ public:
     DbcPanel *dbcPanel() const { return m_dbc; }
     TransceivePanel *transceivePanel() const { return m_transceive; }
     DevicePanel *devicePanel() const { return m_device; }
-    ProtocolPanel *protocolPanel() const { return m_protocol; }
     MeasurementSetupPanel *analysisPanel() const { return m_analysis; }
-    ToolsPanel *toolsPanel() const { return m_tools; }
     ExtensionsPanel *extensionsPanel() const { return m_extensions; }
     SettingsPanel *settingsPanel() const { return m_settings; }
 
@@ -428,9 +387,7 @@ private:
     DbcPanel *m_dbc;
     TransceivePanel *m_transceive;
     DevicePanel *m_device;
-    ProtocolPanel *m_protocol;
     MeasurementSetupPanel *m_analysis;
-    ToolsPanel *m_tools;
     ExtensionsPanel *m_extensions;
     SettingsPanel *m_settings;
     int m_lastIndex = 0;

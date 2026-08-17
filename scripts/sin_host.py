@@ -267,6 +267,14 @@ def handle_message(msg):
     elif method == "fileOpened":
         handle_file_opened(params)
 
+    elif method and method.startswith("files.convert"):
+        # G9：转换进度/完成通知 → 分发给 sin.files 注册的回调
+        try:
+            from sin import files as _files_api
+            _files_api.handle_notification(method, params)
+        except Exception:
+            log_error(f"files 通知分发错误:\n{traceback.format_exc()}")
+
     elif method == "shutdown":
         # 优雅关闭：停用所有插件
         for name in list(_plugins.keys()):

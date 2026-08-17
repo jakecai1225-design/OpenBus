@@ -19,8 +19,6 @@ class PlaybackTab;
 class OfflineAnalysisTab;
 class RecordTab;
 class DbcDetailTab;
-class UdsView;
-class CanOpenView;
 class Recorder;
 class Player;
 class CanSimulator;
@@ -113,9 +111,7 @@ private slots:
     void onNewGraphicRequested();
     void onOpenMeasurementSetup();
     void onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName, int deviceType);
-    void onToolOpened(const QString &toolKey);
     void onSettingsRequested(const QString &section);
-    void onProtocolOpened(const QString &protocolName);
 
     // P0/P1 新增
     void onOpenDataWindow();

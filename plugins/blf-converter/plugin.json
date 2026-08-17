@@ -1,0 +1,15 @@
+{
+    "name": "blf-converter",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "报文日志格式转换工具 — BLF/ASC/CSV/PCAP/TRC 互转（宿主 C++ 引擎，后台线程执行）",
+    "main": "main.py",
+    "activationEvents": [
+        "onCommand:blfConverter.open"
+    ],
+    "contributes": {
+        "commands": [
+            { "id": "blfConverter.open", "title": "工具: 格式转换 (BLF/ASC/CSV/PCAP/TRC)" }
+        ]
+    }
+}

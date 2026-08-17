@@ -82,6 +82,8 @@ set(SRC_CORE
     core/plugin/plugininfo.cpp
     core/plugin/pluginhost.h
     core/plugin/pluginhost.cpp
+    core/plugin/pluginconvertjob.h
+    core/plugin/pluginconvertjob.cpp
     core/plugin/pluginmanager.h
     core/plugin/pluginmanager.cpp
 )
@@ -155,10 +157,6 @@ set(SRC_UI
     ui/colorruleeditor.cpp
     ui/dbcdetailtab.h
     ui/dbcdetailtab.cpp
-    ui/udsview.h
-    ui/udsview.cpp
-    ui/canopenview.h
-    ui/canopenview.cpp
     ui/thememanager.h
     ui/thememanager.cpp
     ui/measurementsetupview.h
@@ -167,13 +165,7 @@ set(SRC_UI
     ui/deviceconnectiontab.cpp
     ui/extensionstab.h
     ui/extensionstab.cpp
-    # 工具集 — 总线分析工具
-    ui/tools/blfasconverter.h
-    ui/tools/blfasconverter.cpp
-    ui/tools/dbctoolview.h
-    ui/tools/dbctoolview.cpp
-    ui/tools/loganalysisview.h
-    ui/tools/loganalysisview.cpp
+    # 工具集 — 内置分析工具（原 blfasconverter/dbctoolview/loganalysisview 已插件化，见 plugins/）
     ui/tools/dbcsignallistview.h
     ui/tools/dbcsignallistview.cpp
     ui/tools/iographview.h

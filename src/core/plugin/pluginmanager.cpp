@@ -1,7 +1,11 @@
 #include "pluginmanager.h"
 #include "pluginhost.h"
+#include "pluginconvertjob.h"
 #include "core/canframe.h"
 #include "core/logging.h"
+#include "core/dbcdata.h"
+#include "core/dbc/dbc_adapter.h"
+#include "core/dbc/dbc_writer.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -145,13 +149,23 @@ void PluginManager::discoverPlugins()
 void PluginManager::initialize()
 {
     discoverPlugins();
+    startHostIfNeeded();
+
+    // 插件不自动激活，由用户在扩展面板中双击触发
+}
+
+void PluginManager::startHostIfNeeded()
+{
+    if (m_host)
+        return;   // 宿主已运行（如安装首个插件后补启）
 
     if (m_plugins.isEmpty()) {
         spdlog::info("PluginManager: 无插件，跳过宿主启动");
         return;
     }
 
-    m_pythonExe = findPythonExecutable();
+    if (m_pythonExe.isEmpty())
+        m_pythonExe = findPythonExecutable();
     if (m_pythonExe.isEmpty()) {
         spdlog::warn("PluginManager: 未找到 Python，插件系统不可用");
         return;
@@ -176,9 +190,8 @@ void PluginManager::initialize()
     }
 
     // 启动帧批量定时器（100ms）
-    m_frameBatchTimerId = startTimer(100);
-
-    // 插件不自动激活，由用户在扩展面板中双击触发
+    if (!m_frameBatchTimerId)
+        m_frameBatchTimerId = startTimer(100);
 }
 
 void PluginManager::shutdown()
@@ -198,6 +211,12 @@ void PluginManager::shutdown()
         m_host->deleteLater();
         m_host = nullptr;
     }
+
+    // 清理 DBC 会话与转换 Job（G9）
+    qDeleteAll(m_dbcSessions);
+    m_dbcSessions.clear();
+    for (auto *job : m_convertJobs)
+        job->requestCancel();
 }
 
 QList<PluginInfo> PluginManager::discoveredPlugins() const
@@ -424,6 +443,34 @@ void PluginManager::handleHostMessage(const QString &method,
         int count = params.value("count").toInt(100);
         emit requestRecentFrames(id, count);
     }
+    // ---- files.* / dbc.*（G9 工具插件 API）----
+    else if (method == "files.convertStart") {
+        handleFilesConvertStart(params, id);
+    }
+    else if (method == "files.convertCancel") {
+        handleFilesConvertCancel(params, id);
+    }
+    else if (method == "dbc.open") {
+        handleDbcOpen(params, id);
+    }
+    else if (method == "dbc.messages") {
+        handleDbcMessages(params, id);
+    }
+    else if (method == "dbc.signals") {
+        handleDbcSignals(params, id);
+    }
+    else if (method == "dbc.updateSignal") {
+        handleDbcUpdateSignal(params, id);
+    }
+    else if (method == "dbc.updateMessage") {
+        handleDbcUpdateMessage(params, id);
+    }
+    else if (method == "dbc.save") {
+        handleDbcSave(params, id);
+    }
+    else if (method == "dbc.close") {
+        handleDbcClose(params, id);
+    }
     else {
         spdlog::warn("PluginManager: 未知方法 '{}'", method.toStdString());
     }
@@ -447,4 +494,353 @@ void PluginManager::provideRecentFrames(const QJsonValue &requestId, const QList
     for (const auto &f : frames)
         arr.append(frameToJson(f));
     m_host->sendResponse(requestId, QJsonObject{{"frames", arr}});
+}
+
+// ============================================================
+//  files.* / dbc.* 处理（G9 工具插件 API）
+// ============================================================
+
+static CanFileIO::Format convertFormatFromString(const QString &s)
+{
+    const QString t = s.toLower().trimmed();
+    if (t == "blf") return CanFileIO::Format::BLF;
+    if (t == "asc") return CanFileIO::Format::ASC;
+    if (t == "csv") return CanFileIO::Format::CSV;
+    if (t == "pcap") return CanFileIO::Format::PCAP;
+    if (t == "trc") return CanFileIO::Format::TRC;
+    return CanFileIO::Format::Unknown;
+}
+
+void PluginManager::handleFilesConvertStart(const QJsonObject &params, const QJsonValue &id)
+{
+    QJsonObject result;
+    const QString source = params.value("source").toString();
+    const QString target = params.value("target").toString();
+    const CanFileIO::Format fmt = convertFormatFromString(params.value("format").toString());
+
+    if (source.isEmpty() || target.isEmpty() || fmt == CanFileIO::Format::Unknown) {
+        result["error"] = QStringLiteral("参数无效：需要 source/target/format(blf|asc|csv|pcap|trc)");
+    } else if (!QFileInfo::exists(source)) {
+        result["error"] = QStringLiteral("源文件不存在");
+    } else {
+        const int jobId = m_nextJobId++;
+        auto *job = new PluginConvertJob(source, target, fmt, this);
+        m_convertJobs.insert(jobId, job);
+
+        connect(job, &PluginConvertJob::progress, this, [this, jobId](int pct) {
+            if (m_host && m_host->isRunning())
+                m_host->sendNotification("files.convertProgress",
+                                         {{"jobId", jobId}, {"percent", pct}});
+        });
+        connect(job, &PluginConvertJob::finished, this,
+                [this, jobId, job](bool ok, int frameCount, const QString &error) {
+            if (m_host && m_host->isRunning())
+                m_host->sendNotification("files.convertFinished", {
+                    {"jobId", jobId},
+                    {"ok", ok},
+                    {"frameCount", frameCount},
+                    {"error", error}
+                });
+            m_convertJobs.remove(jobId);
+            job->deleteLater();   // job 位于主线程，安全
+        });
+
+        job->start();
+        result["jobId"] = jobId;
+    }
+
+    if (!id.isUndefined() && m_host)
+        m_host->sendResponse(id, result);
+}
+
+void PluginManager::handleFilesConvertCancel(const QJsonObject &params, const QJsonValue &id)
+{
+    const int jobId = params.value("jobId").toInt();
+    auto it = m_convertJobs.find(jobId);
+    if (it != m_convertJobs.end())
+        it.value()->requestCancel();
+    if (!id.isUndefined() && m_host)
+        m_host->sendResponse(id, QJsonObject{{"ok", it != m_convertJobs.end()}});
+}
+
+void PluginManager::handleDbcOpen(const QJsonObject &params, const QJsonValue &id)
+{
+    QJsonObject result;
+    const QString path = params.value("path").toString();
+    if (path.isEmpty() || !QFileInfo::exists(path)) {
+        result["error"] = QStringLiteral("DBC 文件不存在");
+    } else {
+        auto *dbc = new DbcFile();
+        if (!dbc::parse(path, *dbc)) {
+            delete dbc;
+            result["error"] = QStringLiteral("DBC 解析失败");
+        } else {
+            dbc::postProcess(*dbc);
+            const int dbId = m_nextDbId++;
+            m_dbcSessions.insert(dbId, dbc);
+            result["dbId"] = dbId;
+            result["messageCount"] = dbc->messages.size();
+            result["nodeCount"] = dbc->nodes.size();
+            result["version"] = dbc->version;
+            result["fileName"] = dbc->fileName.isEmpty()
+                                      ? QFileInfo(path).fileName() : dbc->fileName;
+        }
+    }
+    if (!id.isUndefined() && m_host)
+        m_host->sendResponse(id, result);
+}
+
+void PluginManager::handleDbcMessages(const QJsonObject &params, const QJsonValue &id)
+{
+    QJsonObject result;
+    const int dbId = params.value("dbId").toInt();
+    auto it = m_dbcSessions.find(dbId);
+    if (it == m_dbcSessions.end()) {
+        result["error"] = QStringLiteral("会话不存在");
+    } else {
+        QJsonArray arr;
+        for (const auto &msg : it.value()->messages) {
+            QJsonObject m;
+            m["id"] = static_cast<qint64>(msg.id);
+            m["name"] = msg.name;
+            m["dlc"] = msg.dlc;
+            m["sender"] = msg.sender;
+            m["comment"] = msg.comment;
+            m["cycleTime"] = msg.cycleTime;
+            m["signalCount"] = msg.signalList.size();
+            arr.append(m);
+        }
+        result["messages"] = arr;
+    }
+    if (!id.isUndefined() && m_host)
+        m_host->sendResponse(id, result);
+}
+
+static QJsonObject signalToJson(const DbcSignal &s)
+{
+    QJsonObject o;
+    o["name"] = s.name;
+    o["startBit"] = s.startBit;
+    o["bitLength"] = s.bitLength;
+    o["littleEndian"] = s.littleEndian;
+    o["isSigned"] = s.isSigned;
+    o["factor"] = s.factor;
+    o["offset"] = s.offset;
+    o["min"] = s.minimum;
+    o["max"] = s.maximum;
+    o["unit"] = s.unit;
+    o["receiver"] = s.receiver;
+    o["comment"] = s.comment;
+    o["muxType"] = static_cast<int>(s.muxType);   // 0=None 1=Multiplexor 2=Multiplexed
+    o["muxValue"] = s.muxValue;
+    QJsonArray vt;
+    for (const auto &e : s.valueTable) {
+        QJsonArray pair;
+        pair.append(e.value);
+        pair.append(e.description);
+        vt.append(pair);
+    }
+    o["valueTable"] = vt;
+    return o;
+}
+
+void PluginManager::handleDbcSignals(const QJsonObject &params, const QJsonValue &id)
+{
+    QJsonObject result;
+    const int dbId = params.value("dbId").toInt();
+    const qint64 msgId = params.value("messageId").toInteger();
+    auto it = m_dbcSessions.find(dbId);
+    if (it == m_dbcSessions.end()) {
+        result["error"] = QStringLiteral("会话不存在");
+    } else {
+        const DbcMessage *msg = it.value()->findMessage(static_cast<quint32>(msgId));
+        if (!msg) {
+            result["error"] = QStringLiteral("报文不存在");
+        } else {
+            QJsonArray arr;
+            for (const auto &sig : msg->signalList)
+                arr.append(signalToJson(sig));
+            result["signals"] = arr;
+            result["messageName"] = msg->name;
+            result["messageDlc"] = msg->dlc;
+        }
+    }
+    if (!id.isUndefined() && m_host)
+        m_host->sendResponse(id, result);
+}
+
+void PluginManager::handleDbcUpdateSignal(const QJsonObject &params, const QJsonValue &id)
+{
+    QJsonObject result;
+    const int dbId = params.value("dbId").toInt();
+    const qint64 msgId = params.value("messageId").toInteger();
+    const QString sigName = params.value("name").toString();
+    const QJsonObject fields = params.value("fields").toObject();
+    auto it = m_dbcSessions.find(dbId);
+    if (it == m_dbcSessions.end()) {
+        result["error"] = QStringLiteral("会话不存在");
+    } else {
+        DbcMessage *msg = it.value()->findMessage(static_cast<quint32>(msgId));
+        DbcSignal *sig = msg ? msg->findSignal(sigName) : nullptr;
+        if (!sig) {
+            result["error"] = QStringLiteral("报文或信号不存在");
+        } else {
+            if (fields.contains("startBit"))  sig->startBit = fields.value("startBit").toInt();
+            if (fields.contains("bitLength")) sig->bitLength = fields.value("bitLength").toInt();
+            if (fields.contains("littleEndian")) sig->littleEndian = fields.value("littleEndian").toBool();
+            if (fields.contains("isSigned"))  sig->isSigned = fields.value("isSigned").toBool();
+            if (fields.contains("factor"))    sig->factor = fields.value("factor").toDouble();
+            if (fields.contains("offset"))    sig->offset = fields.value("offset").toDouble();
+            if (fields.contains("min"))       sig->minimum = fields.value("min").toDouble();
+            if (fields.contains("max"))       sig->maximum = fields.value("max").toDouble();
+            if (fields.contains("unit"))      sig->unit = fields.value("unit").toString();
+            if (fields.contains("comment"))   sig->comment = fields.value("comment").toString();
+            result["ok"] = true;
+        }
+    }
+    if (!id.isUndefined() && m_host)
+        m_host->sendResponse(id, result);
+}
+
+void PluginManager::handleDbcUpdateMessage(const QJsonObject &params, const QJsonValue &id)
+{
+    QJsonObject result;
+    const int dbId = params.value("dbId").toInt();
+    const qint64 msgId = params.value("messageId").toInteger();
+    const QJsonObject fields = params.value("fields").toObject();
+    auto it = m_dbcSessions.find(dbId);
+    if (it == m_dbcSessions.end()) {
+        result["error"] = QStringLiteral("会话不存在");
+    } else {
+        DbcMessage *msg = it.value()->findMessage(static_cast<quint32>(msgId));
+        if (!msg) {
+            result["error"] = QStringLiteral("报文不存在");
+        } else {
+            if (fields.contains("name"))      msg->name = fields.value("name").toString();
+            if (fields.contains("dlc"))       msg->dlc = fields.value("dlc").toInt();
+            if (fields.contains("comment"))   msg->comment = fields.value("comment").toString();
+            if (fields.contains("cycleTime")) msg->cycleTime = fields.value("cycleTime").toInt();
+            result["ok"] = true;
+        }
+    }
+    if (!id.isUndefined() && m_host)
+        m_host->sendResponse(id, result);
+}
+
+void PluginManager::handleDbcSave(const QJsonObject &params, const QJsonValue &id)
+{
+    QJsonObject result;
+    const int dbId = params.value("dbId").toInt();
+    QString path = params.value("path").toString();
+    auto it = m_dbcSessions.find(dbId);
+    if (it == m_dbcSessions.end()) {
+        result["error"] = QStringLiteral("会话不存在");
+    } else {
+        DbcFile *dbc = it.value();
+        if (path.isEmpty())
+            path = dbc->filePath;
+        if (path.isEmpty()) {
+            result["error"] = QStringLiteral("未指定保存路径");
+        } else if (!dbc::write(path, *dbc)) {
+            result["error"] = QStringLiteral("写入 DBC 失败");
+        } else {
+            dbc->filePath = path;   // 另存为后更新会话路径
+            result["ok"] = true;
+        }
+    }
+    if (!id.isUndefined() && m_host)
+        m_host->sendResponse(id, result);
+}
+
+void PluginManager::handleDbcClose(const QJsonObject &params, const QJsonValue &id)
+{
+    QJsonObject result;
+    const int dbId = params.value("dbId").toInt();
+    auto it = m_dbcSessions.find(dbId);
+    if (it != m_dbcSessions.end()) {
+        delete it.value();
+        m_dbcSessions.erase(it);
+        result["ok"] = true;
+    } else {
+        result["error"] = QStringLiteral("会话不存在");
+    }
+    if (!id.isUndefined() && m_host)
+        m_host->sendResponse(id, result);
+}
+
+// ============================================================
+//  插件包安装/卸载（G9 .opk，具体 zip 操作委托 scripts/plugin_tool.py）
+// ============================================================
+
+QString PluginManager::installPackage(const QString &opkPath)
+{
+    if (!QFileInfo::exists(opkPath))
+        return QStringLiteral("插件包不存在: %1").arg(opkPath);
+    if (m_pythonExe.isEmpty())
+        m_pythonExe = findPythonExecutable();
+    if (m_pythonExe.isEmpty())
+        return QStringLiteral("未找到 Python 解释器");
+
+    const QString toolPath = QFileInfo(m_hostScriptPath).dir().filePath("plugin_tool.py");
+    if (!QFileInfo::exists(toolPath))
+        return QStringLiteral("打包工具不存在: %1").arg(toolPath);
+
+    QProcess proc;
+    proc.start(m_pythonExe, {toolPath, "install", opkPath, m_pluginsDir});
+    if (!proc.waitForFinished(60000)) {
+        proc.kill();
+        return QStringLiteral("安装超时");
+    }
+    const QByteArray out = proc.readAllStandardOutput().trimmed();
+
+    QJsonParseError err;
+    const QJsonDocument doc = QJsonDocument::fromJson(out, &err);
+    if (err.error != QJsonParseError::NoError || !doc.isObject())
+        return QStringLiteral("安装脚本输出异常: %1")
+                   .arg(QString::fromUtf8(out).left(300));
+
+    const QJsonObject res = doc.object();
+    if (!res.value("ok").toBool())
+        return res.value("error").toString(QStringLiteral("安装失败"));
+
+    // 重新扫描并确保宿主运行（此前无插件时宿主未启动）
+    discoverPlugins();
+    startHostIfNeeded();
+    emit pluginListChanged();
+    spdlog::info("PluginManager: 已安装插件 '{}'",
+                 res.value("name").toString().toStdString());
+    return QString();
+}
+
+QString PluginManager::uninstallPlugin(const QString &name)
+{
+    if (!m_plugins.contains(name))
+        return QStringLiteral("插件不存在: %1").arg(name);
+    if (m_disabledPlugins.contains(name) == false)
+        setPluginEnabled(name, false);   // 内部会先停用
+    else
+        deactivatePlugin(name);
+
+    const QString toolPath = QFileInfo(m_hostScriptPath).dir().filePath("plugin_tool.py");
+    QProcess proc;
+    proc.start(m_pythonExe, {toolPath, "uninstall", name, m_pluginsDir});
+    if (!proc.waitForFinished(30000)) {
+        proc.kill();
+        return QStringLiteral("卸载超时");
+    }
+    const QByteArray out = proc.readAllStandardOutput().trimmed();
+
+    QJsonParseError err;
+    const QJsonDocument doc = QJsonDocument::fromJson(out, &err);
+    if (err.error != QJsonParseError::NoError || !doc.isObject())
+        return QStringLiteral("卸载脚本输出异常: %1")
+                   .arg(QString::fromUtf8(out).left(300));
+    const QJsonObject res = doc.object();
+    if (!res.value("ok").toBool())
+        return res.value("error").toString(QStringLiteral("卸载失败"));
+
+    discoverPlugins();
+    emit pluginListChanged();
+    spdlog::info("PluginManager: 已卸载插件 '{}'", name.toStdString());
+    return QString();
 }

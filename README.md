@@ -72,15 +72,19 @@
 - **快速切换** — 一键切换工程上下文，无需重新加载文件
 - **工程持久化** — 工程配置保存为 `.openbusproj` 文件，下次打开即恢复工作状态
 
-### 工具集
-- **侧边栏工具集入口** — ActivityBar 中的工具集图标，点击展开工具列表面板
-- **BLF ↔ ASC ↔ CSV 转换** — 报文日志文件格式互转工具，后台线程执行，不阻塞 UI
-- **DBC 查看编辑** — 独立打开任意 DBC 文件，树形浏览报文/信号层级，可编辑信号属性并保存
-- **报文统计分析** — 加载日志文件统计各 CAN ID 帧数、频率、周期与抖动
-- **ID 频率/周期分析** — 按 CAN ID 统计报文周期均值/最大/最小/标准差
-- **总线负载率** — 基于波特率与数据量计算总线负载率
-- **DBC 信号清单导出** — 从 DBC 导出全部报文/信号清单为 CSV/Markdown
-- **独立运行** — 工具独立运行，不影响当前工程数据，后续持续集成更多总线分析工具
+### 插件化工具
+- **G9 重构** — 原“工具集/协议”侧边栏功能全部插件化（Python + PyQt6），在侧边栏“扩展”面板安装/启用，支持 `.opk` 包打包安装
+- **blf-converter** — BLF / ASC / CSV 报文日志格式互转，后台 Job 执行不阻塞 UI，实时进度与取消
+- **dbc-tool** — 独立打开任意 DBC 文件，树形浏览报文/信号层级，可编辑信号属性并保存
+- **bus-statistics** — 实时总线统计：各 CAN ID 帧数、周期均值/最小/最大、总线负载率
+- **uds-diagnostic** — UDS 诊断（ISO 14229，G10 强化版 v1.1.0）：标准 ISO-TP 流控（FC/BS/STmin/WAIT）、P2/P2* 超时与 0x78 续等、物理/功能/响应三 ID 可配、16 服务专属表单+结构化响应解码、DID 字典（内置+自定义+批量读/周期轮询）、DTC 状态位图解析与一键清除、种子-密钥安全访问（三种算法）、34/36/37 刷写助手（预检→传输→校验）、结构化日志与 CSV 导出，对标 ZCANPro / CANoe / TSMaster
+- **canopen-explorer** — CANopen（CiA 301）：NMT 节点控制、SDO expedited 读写、Heartbeat 监控、EMCY 解析
+- **插件开发** — 参见 [doc/插件系统方案.md](doc/插件系统方案.md)，`python scripts/plugin_tool.py pack <插件目录>` 一键打包 `.opk`
+
+### 内置分析工具（工具菜单）
+- **Data Window** — 信号实时表格：当前值/原始值/物理值/最小值/最大值（Ctrl+Shift+D）
+- **I/O Graph** — 帧率/总线负载随时间曲线（Ctrl+Shift+G）
+- **着色规则编辑器** — Trace 行动态着色规则管理
 
 ### VS Code 风格 UI
 - **无边框窗口** — 去除原生标题栏，菜单栏直接置顶，最小化/最大化/关闭按钮位于菜单栏右上角
@@ -308,7 +312,7 @@ TSMaster 是 TOSUN 推出的开放总线工具平台，支持多厂商硬件，�
 - 新增：`third_party/pugixml/`（pugixml.hpp + pugixml.cpp + pugiconfig.hpp）
 - 新增：`src/core/dbc/arxml_importer.h` / `src/core/dbc/arxml_importer.cpp`
 - 新增：`src/core/dbc/arxml_exporter.h` / `src/core/dbc/arxml_exporter.cpp`
-- 修改：`src/ui/tools/blfasconverter.h` / `src/ui/tools/blfasconverter.cpp`（扩展为通用文件转换器）
+- 修改：`plugins/blf-converter/main.py`（插件 UI 中增加 ARXML 选项，复用宿主 `files.convert` API）
 - 修改：`third_party/Dependencies.cmake`（添加 pugixml 目标）
 
 ---

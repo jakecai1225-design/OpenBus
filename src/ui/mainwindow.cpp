@@ -25,14 +25,10 @@
 #include "ui/offlineanalysistab.h"
 #include "ui/recordtab.h"
 #include "ui/dbcdetailtab.h"
-#include "ui/udsview.h"
-#include "ui/canopenview.h"
 #include "ui/measurementsetupview.h"
 #include "ui/deviceconnectiontab.h"
 #include "ui/extensionstab.h"
-#include "ui/tools/blfasconverter.h"
-#include "ui/tools/dbctoolview.h"
-#include "ui/tools/loganalysisview.h"
+// ui/udsview.h, ui/canopenview.h 已移除 — UDS/CANopen 由插件 uds-diagnostic/canopen-explorer 提供
 #include "ui/tools/dbcsignallistview.h"
 #include "ui/datawindow.h"
 #include "ui/tools/iographview.h"
@@ -275,8 +271,6 @@ MainWindow::MainWindow(QWidget *parent)
     });
     connect(m_sideBar->settingsPanel(), &SettingsPanel::settingsRequested,
             this, &MainWindow::onSettingsRequested);
-    connect(m_sideBar->protocolPanel(), &ProtocolPanel::protocolOpened,
-            this, &MainWindow::onProtocolOpened);
     connect(m_sideBar->settingsPanel(), &SettingsPanel::themeChanged,
             this, [](const QString &name) {
         ThemeManager::instance()->applyTheme(name);
@@ -291,10 +285,6 @@ MainWindow::MainWindow(QWidget *parent)
     // 分析配置面板 — 点击打开 flow 标签页
     connect(m_sideBar->analysisPanel(), &MeasurementSetupPanel::openMeasurementSetupRequested,
             this, [this]() { onOpenMeasurementSetup(); });
-
-    // 工具集面板 — 点击打开对应工具标签页
-    connect(m_sideBar->toolsPanel(), &ToolsPanel::toolOpened,
-            this, &MainWindow::onToolOpened);
 
     // 右侧面板快捷按钮
     connect(m_rightPanel, &RightPanel::recordRequested, this, &MainWindow::onQuickRecord);
@@ -348,15 +338,11 @@ MainWindow::MainWindow(QWidget *parent)
                 act = ActivityBar::Trace;
             else if (text.contains("Graphic"))
                 act = ActivityBar::Graphic;
-            else if (text.contains("格式转换") || text.contains("DBC 工具") || text.contains("总线统计"))
-                act = ActivityBar::Tools;
             else if (text.contains("DBC"))
                 act = ActivityBar::Dbc;
             else if (text.contains("发送") || text.contains("回放") ||
                      text.contains("录制") || text.contains("离线分析"))
                 act = ActivityBar::Transceive;
-            else if (text.contains("UDS") || text.contains("CANopen"))
-                act = ActivityBar::Protocol;
             else if (text == QStringLiteral("扩展"))
                 act = ActivityBar::Extensions;
 
@@ -524,6 +510,17 @@ void MainWindow::createMenuBar()
 
     viewMenu->addSeparator();
     viewMenu->addAction("重置布局", this, &MainWindow::resetLayout);
+
+    // ---- 工具 ----
+    // 原“工具集/协议”侧边栏功能已插件化（blf-converter / dbc-tool / bus-statistics /
+    // uds-diagnostic / canopen-explorer），在“扩展”面板安装使用；内置工具保留在此菜单
+    auto *toolsMenu = menuBar()->addMenu("工具(&T)");
+    toolsMenu->addAction("Data Window", QKeySequence("Ctrl+Shift+D"),
+                         this, &MainWindow::onOpenDataWindow);
+    toolsMenu->addAction("I/O Graph", QKeySequence("Ctrl+Shift+G"),
+                         this, &MainWindow::onOpenIOGraph);
+    toolsMenu->addSeparator();
+    toolsMenu->addAction("着色规则编辑器...", this, &MainWindow::onOpenColorRuleEditor);
 
     // ---- 工具操作 (不创建菜单, QAction 挂到主窗口, 快捷键仍然生效) ----
     m_recordAction = new QAction("录制", this);
@@ -822,23 +819,6 @@ void MainWindow::onActivityChanged(int activity)
             m_editorArea->addTab(m_deviceTab, QStringLiteral("设备连接"));
     } else if (activity == ActivityBar::Analysis) {
         onOpenMeasurementSetup();
-    } else if (activity == ActivityBar::Tools) {
-        // 切换到已存在的工具标签页（格式转换 / DBC 编辑）
-        const auto allTabs = m_editorArea->allTabWidgets();
-        bool found = false;
-        for (auto *tw : allTabs) {
-            for (int i = tw->count() - 1; i >= 0; --i) {
-                QString text = tw->tabText(i);
-                if (text.contains("格式转换") || text.contains("DBC 编辑")) {
-                    tw->setCurrentIndex(i);
-                    m_tabLabel->setText(text);
-                    found = true;
-                    break;
-                }
-            }
-            if (found) break;
-        }
-        // 未找到已打开的工具标签页时，仅显示工具集面板供用户选择
     } else if (activity == ActivityBar::Extensions) {
         // 扩展管理：打开扩展标签页
         const auto allTabs = m_editorArea->allTabWidgets();
@@ -2312,28 +2292,6 @@ void MainWindow::onOpenMeasurementSetup()
     }
 }
 
-void MainWindow::onToolOpened(const QString &toolKey)
-{
-    qDebug() << "[MainWindow] onToolOpened:" << toolKey;
-    if (toolKey == "blf_converter") {
-        auto *conv = new BlfAsConverter(this);
-        openTab(conv, QStringLiteral("格式转换"));
-    } else if (toolKey == "dbc_tool") {
-        auto *view = new DbcToolView(this);
-        openTab(view, QStringLiteral("DBC 工具"));
-    } else if (toolKey == "bus_analysis") {
-        auto *view = new FrameStatisticsView(this);
-        view->setBusStatistics(m_busStats);
-        openTab(view, QStringLiteral("总线统计分析"));
-    } else if (toolKey == "data_window") {
-        onOpenDataWindow();
-    } else if (toolKey == "io_graph") {
-        onOpenIOGraph();
-    } else if (toolKey == "color_rules") {
-        onOpenColorRuleEditor();
-    }
-}
-
 // ============================================================
 //  P0/P1 新增功能实现
 // ============================================================
@@ -2458,17 +2416,6 @@ void MainWindow::onTriggerRecording(
     } else {
         m_triggerRecorder->stop();
         m_statusLabel->setText("触发录制已停止");
-    }
-}
-
-void MainWindow::onProtocolOpened(const QString &protocolName)
-{
-    if (protocolName == "UDS") {
-        auto *view = new UdsView(this);
-        openTab(view, "UDS 诊断");
-    } else if (protocolName == "CANopen") {
-        auto *view = new CanOpenView(this);
-        openTab(view, "CANopen");
     }
 }
 
