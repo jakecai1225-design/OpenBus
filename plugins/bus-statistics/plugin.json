@@ -4,6 +4,7 @@
     "author": "sin",
     "description": "总线统计分析 — 按 ID 统计帧数/周期/频率/字节数，总线负载率（替代原 C++ FrameStatisticsView）",
     "main": "main.py",
+    "icon": "icon.svg",
     "activationEvents": [
         "onCommand:busStatistics.open"
     ],

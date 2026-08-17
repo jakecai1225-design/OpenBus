@@ -8,6 +8,7 @@
 #include "core/sessionmanager.h"
 #include "ui/graphicview.h"
 #include "ui/thememanager.h"
+#include "ui/plugindetailpage.h"
 
 #include <nlohmann/json.hpp>
 
@@ -26,6 +27,8 @@
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QMenu>
+#include <QAction>
+#include <QEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QMouseEvent>
@@ -1119,36 +1122,51 @@ void MeasurementSetupPanel::onItemClicked(QListWidgetItem *item)
 }
 
 // ============================================================
-//  ExtensionsPanel — 插件管理面板
+//  ExtensionsPanel — 插件管理面板（VS Code 扩展视图）
 // ============================================================
-
-static QString formatCount(int n)
-{
-    if (n >= 1000000) return QString::number(n / 1000000) + "M";
-    if (n >= 1000) return QString::number(n / 1000) + "K";
-    return QString::number(n);
-}
 
 ExtensionsPanel::ExtensionsPanel(QWidget *parent)
     : SidePanel("扩展", parent)
 {
     auto *cl = contentLayout();
 
-    // 搜索栏
+    // 搜索栏 + 右上角 "…" 菜单（VS Code 布局）
+    auto *searchRow = new QHBoxLayout;
+    searchRow->setContentsMargins(8, 8, 4, 8);
+    searchRow->setSpacing(4);
     m_searchEdit = new QLineEdit(this);
     m_searchEdit->setObjectName("ExtensionSearch");
-    m_searchEdit->setPlaceholderText("搜索插件...");
+    m_searchEdit->setPlaceholderText("在扩展中搜索...");
     m_searchEdit->setClearButtonEnabled(true);
-    cl->addWidget(m_searchEdit);
+    searchRow->addWidget(m_searchEdit, 1);
+
+    m_menuBtn = new QToolButton(this);
+    m_menuBtn->setIcon(svgIcon(":/icons/kebab.svg",
+                               ThemeManager::instance()->currentTheme().text, 16));
+    m_menuBtn->setToolTip("视图和更多操作");
+    m_menuBtn->setAutoRaise(true);
+    connect(m_menuBtn, &QToolButton::clicked,
+            this, &ExtensionsPanel::onMenuClicked);
+    searchRow->addWidget(m_menuBtn);
+    cl->addLayout(searchRow);
+
+    // 主题切换 → 重刷菜单/行内图标颜色
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, [this]() {
+        const QString c = ThemeManager::instance()->currentTheme().text;
+        m_menuBtn->setIcon(svgIcon(":/icons/kebab.svg", c, 16));
+        if (!m_lastEntries.isEmpty())
+            refreshInstalledPlugins(m_lastEntries);
+    });
 
     // 插件列表树
     m_tree = new QTreeWidget(this);
     m_tree->setObjectName("ExtensionTree");
     m_tree->setHeaderHidden(true);
-    m_tree->setIndentation(12);
+    m_tree->setIndentation(0);             // VS Code：行铺满整宽
     m_tree->setColumnCount(1);
-    m_tree->setRootIsDecorated(true);
-    m_tree->setExpandsOnDoubleClick(false);  // 双击不折叠，用于激活插件
+    m_tree->setRootIsDecorated(false);
+    m_tree->setExpandsOnDoubleClick(false);
     cl->addWidget(m_tree, 1);
 
     // 分区标题字体
@@ -1157,26 +1175,21 @@ ExtensionsPanel::ExtensionsPanel(QWidget *parent)
     QFont placeholderFont = font();
     placeholderFont.setItalic(true);
 
-    // 已安装
+    // 已启用
     m_installedHeader = new QTreeWidgetItem;
-    m_installedHeader->setText(0, "已安装");
+    m_installedHeader->setText(0, "已启用");
     m_installedHeader->setFont(0, headerFont);
     m_installedHeader->setFlags(Qt::ItemIsEnabled);
     m_tree->addTopLevelItem(m_installedHeader);
     m_installedHeader->setExpanded(true);
 
-    // 插件市场
-    m_marketHeader = new QTreeWidgetItem;
-    m_marketHeader->setText(0, "插件市场");
-    m_marketHeader->setFont(0, headerFont);
-    m_marketHeader->setFlags(Qt::ItemIsEnabled);
-    m_tree->addTopLevelItem(m_marketHeader);
-    m_marketHeader->setExpanded(true);
-
-    auto *marketHint = new QTreeWidgetItem(m_marketHeader);
-    marketHint->setText(0, "敬请期待");
-    marketHint->setFont(0, placeholderFont);
-    marketHint->setFlags(Qt::ItemIsEnabled);
+    // 已禁用
+    m_disabledHeader = new QTreeWidgetItem;
+    m_disabledHeader->setText(0, "已禁用");
+    m_disabledHeader->setFont(0, headerFont);
+    m_disabledHeader->setFlags(Qt::ItemIsEnabled);
+    m_tree->addTopLevelItem(m_disabledHeader);
+    m_disabledHeader->setExpanded(true);
 
     // 命令
     m_commandsHeader = new QTreeWidgetItem;
@@ -1195,91 +1208,110 @@ ExtensionsPanel::ExtensionsPanel(QWidget *parent)
             this, &ExtensionsPanel::onSearchChanged);
     connect(m_tree, &QTreeWidget::itemClicked,
             this, &ExtensionsPanel::onItemClicked);
-    connect(m_tree, &QTreeWidget::itemDoubleClicked,
-            this, &ExtensionsPanel::onItemDoubleClicked);
 }
 
 void ExtensionsPanel::refreshInstalledPlugins(const QList<ExtensionEntry> &entries)
 {
-    // 清空已安装分区
-    while (m_installedHeader->childCount() > 0) {
-        auto *child = m_installedHeader->child(0);
-        m_installedHeader->removeChild(child);
-        delete child;
+    m_lastEntries = entries;
+
+    // 清空已启用/已禁用两个分区
+    for (auto *header : {m_installedHeader, m_disabledHeader}) {
+        while (header->childCount() > 0)
+            delete header->takeChild(0);
     }
 
     for (const auto &entry : entries) {
-        auto *item = new QTreeWidgetItem(m_installedHeader);
+        const bool disabledSection = !entry.enabled;
+        auto *header = disabledSection ? m_disabledHeader : m_installedHeader;
+        auto *item = new QTreeWidgetItem(header);
         item->setData(0, Qt::UserRole, entry.name);
         item->setData(0, Qt::UserRole + 1, entry.name + " " + entry.description);
-        item->setSizeHint(0, QSize(0, 72));
-        m_tree->setItemWidget(item, 0, createPluginWidget(entry));
+        item->setSizeHint(0, QSize(0, 56));
+        m_tree->setItemWidget(item, 0, createPluginWidget(entry, disabledSection));
     }
 
+    // 空分区隐藏（VS Code 行为）
+    m_installedHeader->setHidden(m_installedHeader->childCount() == 0);
+    m_disabledHeader->setHidden(m_disabledHeader->childCount() == 0);
     m_installedHeader->setExpanded(true);
+    m_disabledHeader->setExpanded(true);
 }
 
-QWidget *ExtensionsPanel::createPluginWidget(const ExtensionEntry &entry)
+QWidget *ExtensionsPanel::createPluginWidget(const ExtensionEntry &entry, bool disabledSection)
 {
     auto *widget = new QWidget;
     widget->setObjectName("ExtensionItem");
-    auto *layout = new QVBoxLayout(widget);
-    layout->setContentsMargins(4, 4, 4, 4);
-    layout->setSpacing(2);
+    auto *layout = new QHBoxLayout(widget);
+    layout->setContentsMargins(8, 6, 4, 6);
+    layout->setSpacing(8);
 
-    // 名称 + 版本
+    // 图标（VS Code 行首图标）
+    auto *iconLabel = new QLabel(widget);
+    iconLabel->setPixmap(PluginUi::pluginIconPixmap(entry.iconPath, entry.name, 32));
+    iconLabel->setFixedSize(32, 32);
+    layout->addWidget(iconLabel);
+
+    // 名称 + 版本 / 描述 / 状态
+    auto *col = new QVBoxLayout;
+    col->setSpacing(1);
+
     auto *topRow = new QHBoxLayout;
     topRow->setSpacing(6);
-    auto *nameLabel = new QLabel(entry.name);
+    auto *nameLabel = new QLabel(entry.name, widget);
     QFont nameFont = nameLabel->font();
     nameFont.setBold(true);
     nameLabel->setFont(nameFont);
     topRow->addWidget(nameLabel);
-    auto *verLabel = new QLabel(entry.version);
-    verLabel->setStyleSheet("color: #888;");
-    topRow->addWidget(verLabel);
+    if (!entry.version.isEmpty()) {
+        auto *verLabel = new QLabel(entry.version, widget);
+        verLabel->setStyleSheet("color: #888; font-size: 11px;");
+        topRow->addWidget(verLabel);
+    }
     topRow->addStretch();
-    // 运行状态指示
-    if (entry.activated) {
-        auto *runningLabel = new QLabel(QString::fromUtf8("● 运行中"));
-        runningLabel->setStyleSheet("color: #4ec9b0; font-size: 11px;");
-        topRow->addWidget(runningLabel);
-    }
-    layout->addLayout(topRow);
+    col->addLayout(topRow);
 
-    // 描述
     if (!entry.description.isEmpty()) {
-        auto *descLabel = new QLabel(entry.description);
-        descLabel->setWordWrap(true);
+        auto *descLabel = new QLabel(entry.description, widget);
         descLabel->setStyleSheet("color: #aaa; font-size: 11px;");
-        layout->addWidget(descLabel);
+        descLabel->setWordWrap(false);
+        col->addWidget(descLabel);
     }
 
-    // 统计 + 按钮
-    auto *bottomRow = new QHBoxLayout;
-    bottomRow->setSpacing(8);
-    if (entry.downloads > 0) {
-        auto *dl = new QLabel(QString::fromUtf8("\u2B07 %1").arg(formatCount(entry.downloads)));
-        dl->setStyleSheet("color: #888; font-size: 11px;");
-        bottomRow->addWidget(dl);
+    if (entry.activated) {
+        auto *runningLabel = new QLabel(QString::fromUtf8("● 运行中"), widget);
+        runningLabel->setStyleSheet("color: #4ec9b0; font-size: 11px;");
+        col->addWidget(runningLabel);
+    } else if (disabledSection) {
+        auto *disabledLabel = new QLabel(QString::fromUtf8("● 已禁用"), widget);
+        disabledLabel->setStyleSheet("color: #888; font-size: 11px;");
+        col->addWidget(disabledLabel);
     }
-    if (entry.rating > 0) {
-        auto *star = new QLabel(QString::fromUtf8("\u2605 %1").arg(entry.rating, 0, 'f', 1));
-        star->setStyleSheet("color: #e8a824; font-size: 11px;");
-        bottomRow->addWidget(star);
-    }
-    bottomRow->addStretch();
 
-    auto *btn = new QToolButton;
-    btn->setText(entry.enabled ? QString::fromUtf8("禁用") : QString::fromUtf8("启用"));
-    btn->setAutoRaise(true);
-    connect(btn, &QToolButton::clicked, this,
-            [this, name = entry.name, enabled = entry.enabled]() {
-                emit pluginToggleRequested(name, !enabled);
-            });
-    bottomRow->addWidget(btn);
+    layout->addLayout(col, 1);
 
-    layout->addLayout(bottomRow);
+    // 齿轮菜单按钮（启动/停止/启用/禁用/卸载）
+    auto *gear = new QToolButton(widget);
+    gear->setIcon(svgIcon(":/icons/gear.svg",
+                          ThemeManager::instance()->currentTheme().text, 16));
+    gear->setToolTip("更多操作");
+    gear->setAutoRaise(true);
+    const QString name = entry.name;
+    const bool enabled = entry.enabled;
+    const bool activated = entry.activated;
+    connect(gear, &QToolButton::clicked, this,
+            [this, gear, name, enabled, activated]() {
+        showGearMenu(name, enabled, activated,
+                     gear->mapToGlobal(QPoint(0, gear->height())));
+    });
+    layout->addWidget(gear, 0, Qt::AlignTop);
+
+    // 单击/双击捕获：itemWidget 会吞掉树控件的鼠标事件，
+    // 行 widget 安装事件过滤器，子标签对鼠标事件透明（齿轮按钮除外）
+    widget->setProperty("pluginName", entry.name);
+    widget->installEventFilter(this);
+    const auto labels = widget->findChildren<QLabel *>();
+    for (auto *lbl : labels)
+        lbl->setAttribute(Qt::WA_TransparentForMouseEvents, true);
     return widget;
 }
 
@@ -1333,6 +1365,13 @@ void ExtensionsPanel::onItemClicked(QTreeWidgetItem *item, int column)
     Q_UNUSED(column);
     if (!item) return;
 
+    // 分区标题：点击折叠/展开（VS Code 行为）
+    if (item == m_installedHeader || item == m_disabledHeader ||
+        item == m_commandsHeader) {
+        item->setExpanded(!item->isExpanded());
+        return;
+    }
+
     // 只处理命令分区的子项
     QTreeWidgetItem *parent = item->parent();
     if (parent != m_commandsHeader) return;
@@ -1342,30 +1381,89 @@ void ExtensionsPanel::onItemClicked(QTreeWidgetItem *item, int column)
         emit commandTriggered(cmdId);
 }
 
-void ExtensionsPanel::onItemDoubleClicked(QTreeWidgetItem *item, int column)
+bool ExtensionsPanel::eventFilter(QObject *obj, QEvent *ev)
 {
-    Q_UNUSED(column);
-    if (!item) return;
+    auto *w = qobject_cast<QWidget *>(obj);
+    if (w) {
+        const QString name = w->property("pluginName").toString();
+        if (!name.isEmpty()) {
+            if (ev->type() == QEvent::MouseButtonRelease) {
+                emit pluginSelected(name);   // 单击 → 打开详情页
+                return true;
+            }
+            if (ev->type() == QEvent::MouseButtonDblClick) {
+                emit pluginActivated(name);  // 双击 → 启动（重启）
+                return true;
+            }
+        }
+    }
+    return SidePanel::eventFilter(obj, ev);
+}
 
-    // 只处理已安装分区的插件项
-    QTreeWidgetItem *parent = item->parent();
-    if (parent != m_installedHeader) return;
+void ExtensionsPanel::onMenuClicked()
+{
+    QMenu menu(this);
+    auto *installAct = menu.addAction(QString::fromUtf8("从 .opk 离线安装..."));
+    connect(installAct, &QAction::triggered, this, [this]() {
+        emit installOpkRequested();
+    });
+    auto *refreshAct = menu.addAction(QString::fromUtf8("刷新"));
+    connect(refreshAct, &QAction::triggered, this, [this]() {
+        emit refreshPluginsRequested();
+    });
+    menu.exec(m_menuBtn->mapToGlobal(QPoint(0, m_menuBtn->height())));
+}
 
-    QString name = item->data(0, Qt::UserRole).toString();
-    if (!name.isEmpty())
-        emit pluginActivated(name);  // 双击 = 激活插件
+void ExtensionsPanel::showGearMenu(const QString &name, bool enabled, bool activated,
+                                   const QPoint &globalPos)
+{
+    QMenu menu(this);
+    if (!enabled) {
+        auto *enableAct = menu.addAction(QString::fromUtf8("启用"));
+        connect(enableAct, &QAction::triggered, this, [this, name]() {
+            emit pluginToggleRequested(name, true);
+        });
+    } else {
+        if (activated) {
+            auto *stopAct = menu.addAction(QString::fromUtf8("停止"));
+            connect(stopAct, &QAction::triggered, this, [this, name]() {
+                emit pluginDeactivateRequested(name);
+            });
+        }
+        auto *startAct = menu.addAction(activated ? QString::fromUtf8("重启")
+                                                  : QString::fromUtf8("启动"));
+        connect(startAct, &QAction::triggered, this, [this, name]() {
+            emit pluginActivated(name);
+        });
+        auto *disableAct = menu.addAction(QString::fromUtf8("禁用"));
+        connect(disableAct, &QAction::triggered, this, [this, name]() {
+            emit pluginToggleRequested(name, false);
+        });
+    }
+    menu.addSeparator();
+    auto *uninstallAct = menu.addAction(QString::fromUtf8("卸载"));
+    connect(uninstallAct, &QAction::triggered, this, [this, name]() {
+        emit pluginUninstallRequested(name);
+    });
+    menu.exec(globalPos);
 }
 
 void ExtensionsPanel::filterPlugins(const QString &text)
 {
-    for (int i = 0; i < m_installedHeader->childCount(); ++i) {
-        auto *child = m_installedHeader->child(i);
-        if (text.isEmpty()) {
-            child->setHidden(false);
-        } else {
-            QString haystack = child->data(0, Qt::UserRole + 1).toString().toLower();
-            child->setHidden(!haystack.contains(text.toLower()));
+    for (auto *header : {m_installedHeader, m_disabledHeader}) {
+        int visible = 0;
+        for (int i = 0; i < header->childCount(); ++i) {
+            auto *child = header->child(i);
+            bool show = true;
+            if (!text.isEmpty()) {
+                QString haystack = child->data(0, Qt::UserRole + 1).toString().toLower();
+                show = haystack.contains(text.toLower());
+            }
+            child->setHidden(!show);
+            if (show) ++visible;
         }
+        // 无可见子项的分区隐藏
+        header->setHidden(visible == 0);
     }
 }
 

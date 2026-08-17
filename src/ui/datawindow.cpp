@@ -2,6 +2,8 @@
 #include "signalconfigdialog.h"
 #include "core/dbcmanager.h"
 #include "core/dbcdata.h"
+#include "ui/thememanager.h"
+#include "utils/svg_icon.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -33,14 +35,15 @@ void DataWindow::setupUi()
     m_toolbar->setMovable(false);
     m_toolbar->setIconSize(QSize(16, 16));
 
+    const QString iconCol = ThemeManager::instance()->currentTheme().text;
     auto *addBtn = new QToolButton(m_toolbar);
-    addBtn->setText("+");
+    addBtn->setIcon(svgIcon(":/icons/plus.svg", iconCol, 16));
     addBtn->setToolTip("添加信号");
     auto *removeBtn = new QToolButton(m_toolbar);
-    removeBtn->setText("-");
+    removeBtn->setIcon(svgIcon(":/icons/dash.svg", iconCol, 16));
     removeBtn->setToolTip("删除选中信号");
     auto *clearBtn = new QToolButton(m_toolbar);
-    clearBtn->setText("✕");
+    clearBtn->setIcon(svgIcon(":/icons/close.svg", iconCol, 16));
     clearBtn->setToolTip("清空全部");
 
     m_toolbar->addWidget(addBtn);

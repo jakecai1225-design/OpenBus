@@ -1,4 +1,6 @@
 #include "measurementsetupview.h"
+#include "ui/thememanager.h"
+#include "utils/svg_icon.h"
 #include <QToolBar>
 #include <QAction>
 #include <QToolButton>
@@ -322,9 +324,10 @@ void MeasurementSetupView::setupUi()
     m_toolbar->setMovable(false);
     m_toolbar->setIconSize(QSize(20, 20));
 
-    m_startAct = m_toolbar->addAction("▶ 开始");
+    const QString iconCol = ThemeManager::instance()->currentTheme().text;
+    m_startAct = m_toolbar->addAction(svgIcon(":/icons/play.svg", iconCol, 20), "开始");
 
-    m_stopAct = m_toolbar->addAction("■ 停止");
+    m_stopAct = m_toolbar->addAction(svgIcon(":/icons/stop.svg", iconCol, 20), "停止");
     m_stopAct->setEnabled(false);
 
     m_toolbar->addSeparator();
@@ -1172,7 +1175,10 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
         m_rightMenu->addSeparator();
 
-        auto *actAddCh = m_rightMenu->addAction("+ 添加通道");
+        auto *actAddCh = m_rightMenu->addAction(
+            svgIcon(":/icons/plus.svg",
+                    ThemeManager::instance()->currentTheme().text, 16),
+            "添加通道");
         connect(actAddCh, &QAction::triggered, this, [this]() {
             addChannelBlock();
         });
@@ -1221,7 +1227,10 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
         // 模块类型对应的添加实例动作
         if (blockModule == "trace") {
             // Trace 独立块: 跳转 + 删除（不提供添加，添加在空白区菜单）
-            auto *actAdd = m_rightMenu->addAction("+ 添加 Trace 视图");
+            auto *actAdd = m_rightMenu->addAction(
+                svgIcon(":/icons/plus.svg",
+                        ThemeManager::instance()->currentTheme().text, 16),
+                "添加 Trace 视图");
             actAdd->setStatusTip("新建一个 Trace 报文列表块");
             connect(actAdd, &QAction::triggered, this, [this]() {
                 emit moduleOpened("trace", "");

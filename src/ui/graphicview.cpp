@@ -41,8 +41,25 @@
 
 #include "qcustomplot.h"
 #include "thememanager.h"
+#include "utils/svg_icon.h"
 #include "core/canfileio/canfileio.h"
 #include "core/canfileio/canfileio_factory.h"
+
+// ============================================================
+//  辅助：工具栏图标（VS Code 线条风格 SVG）
+//  常态 = 主题前景色，选中态 = 白色（checked 时 QSS 为 accent 背景）；
+//  按钮记 iconName 属性，主题切换后由 updateToolbarIcons() 统一重刷
+// ============================================================
+static void applyToolBarIcon(QToolButton *btn, const QString &iconName)
+{
+    const QString path = QStringLiteral(":/icons/%1.svg").arg(iconName);
+    const QColor normal = ThemeManager::instance()->currentTheme().text;
+    QIcon icon;
+    icon.addPixmap(renderSvgPixmap(path, normal.name(), 16), QIcon::Normal, QIcon::Off);
+    icon.addPixmap(renderSvgPixmap(path, QStringLiteral("#ffffff"), 16), QIcon::Normal, QIcon::On);
+    btn->setProperty("iconName", iconName);
+    btn->setIcon(icon);
+}
 
 // ============================================================
 //  辅助：QCustomPlot 子类 — 支持卡尺拖动 + 鼠标滚轮缩放
@@ -251,7 +268,10 @@ QString GraphicView::toolbarQss() const
         "QToolButton:hover { background: %4; border-color: %5; }"
         "QToolButton:checked { background: %6; border-color: %7; color: #fff; }"
         "QCheckBox { color: %3; font-size: 12px; padding: 2px 4px; }"
-        "QCheckBox::indicator { width: 14px; height: 14px; }"
+        "QCheckBox::indicator { width: 14px; height: 14px; border: 1px solid %5; "
+        "border-radius: 3px; background: transparent; }"
+        "QCheckBox::indicator:checked { background: %6; border-color: %7; "
+        "image: url(:/icons/check.svg); }"
         "QComboBox { background: %4; border: 1px solid %5; border-radius: 3px; "
         "padding: 2px 6px; color: %3; font-size: 12px; min-width: 56px; min-height: 20px; }"
         "QComboBox:hover { border-color: %5; }"
@@ -305,35 +325,31 @@ void GraphicView::setupUi()
     m_toolbar->setIconSize(QSize(16, 16));
     m_toolbar->setStyleSheet(toolbarQss());
 
-    auto makeBtn = [this](const QString &text, const QString &tip) -> QToolButton* {
+    auto makeBtn = [this](const QString &iconName, const QString &tip) -> QToolButton* {
         auto *btn = new QToolButton(m_toolbar);
-        btn->setText(text);
+        applyToolBarIcon(btn, iconName);
+        btn->setIconSize(QSize(16, 16));
         btn->setToolTip(tip);
         btn->setAutoRaise(true);
-        // 统一尺寸与字体（§10.5）：固定 30×24；锁定微软雅黑，避免符号 fallback 到
-        // Segoe UI Emoji 被渲染成彩色异形（⏸/📷/✕ 等 emoji 化字符已在文案中替换）
-        btn->setFixedSize(30, 24);
-        btn->setToolButtonStyle(Qt::ToolButtonTextOnly);
-        QFont f = btn->font();
-        f.setFamily("Microsoft YaHei");
-        f.setPixelSize(13);
-        btn->setFont(f);
+        // 统一尺寸（§10.5）：固定 28×24 图标钮（VS Code 线条 SVG，见 icons/*.svg）
+        btn->setFixedSize(28, 24);
+        btn->setToolButtonStyle(Qt::ToolButtonIconOnly);
         return btn;
     };
 
     // 暂停/继续
-    m_pauseBtn = makeBtn("‖", "暂停/继续采集 (Space)");
+    m_pauseBtn = makeBtn("pause", "暂停/继续采集 (Space)");
     m_pauseBtn->setCheckable(true);
 
-    m_zoomInBtn = makeBtn("+", "放大 (+)");
-    m_zoomOutBtn = makeBtn("−", "缩小 (-)");
-    m_fitBtn = makeBtn("▣", "适应窗口 (F)");
-    m_undoZoomBtn = makeBtn("↺", "撤销缩放 (Ctrl+Z)");
+    m_zoomInBtn = makeBtn("zoom-in", "放大 (+)");
+    m_zoomOutBtn = makeBtn("zoom-out", "缩小 (-)");
+    m_fitBtn = makeBtn("fit", "适应窗口 (F)");
+    m_undoZoomBtn = makeBtn("undo", "撤销缩放 (Ctrl+Z)");
     m_undoZoomBtn->setEnabled(false);
-    m_timeBackBtn = makeBtn("◀", "时间窗后移 (←，按住连续)");
-    m_timeFwdBtn = makeBtn("▶", "时间窗前移 (→，按住连续)");
-    m_yUpBtn = makeBtn("▲", "选中信号 Y 轴上移（按住连续）");
-    m_yDownBtn = makeBtn("▼", "选中信号 Y 轴下移（按住连续）");
+    m_timeBackBtn = makeBtn("chevron-left", "时间窗后移 (←，按住连续)");
+    m_timeFwdBtn = makeBtn("chevron-right", "时间窗前移 (→，按住连续)");
+    m_yUpBtn = makeBtn("chevron-up", "选中信号 Y 轴上移（按住连续）");
+    m_yDownBtn = makeBtn("chevron-down", "选中信号 Y 轴下移（按住连续）");
     m_yUpBtn->setEnabled(false);   // 初始无选中信号（随 setSelectedSignal 联动）
     m_yDownBtn->setEnabled(false);
     for (auto *b : {m_timeBackBtn, m_timeFwdBtn, m_yUpBtn, m_yDownBtn}) {
@@ -341,11 +357,11 @@ void GraphicView::setupUi()
         b->setAutoRepeatDelay(300);
         b->setAutoRepeatInterval(60);
     }
-    m_rubberZoomBtn = makeBtn("▦", "框选缩放（左键拖框放大，扁平框仅 X）");
+    m_rubberZoomBtn = makeBtn("rubber-zoom", "框选缩放（左键拖框放大，扁平框仅 X）");
     m_rubberZoomBtn->setCheckable(true);
     m_rubberZoomBtn->setChecked(m_rubberZoom);
-    auto *clearDataBtn = makeBtn("清空", "清空全部信号数据");
-    auto *exportBtn = makeBtn("导图", "导出为图片 (PNG)");
+    auto *clearDataBtn = makeBtn("clear-all", "清空全部信号数据");
+    auto *exportBtn = makeBtn("save-image", "导出为图片 (PNG)");
 
     // 缩放轴模式（对标 CANoe X/Y/XY 独立缩放）
     m_zoomAxisCombo = new QComboBox(m_toolbar);
@@ -392,18 +408,18 @@ void GraphicView::setupUi()
     m_pointsToggle->setToolTip("显示/隐藏采样点");
     m_pointsToggle->setChecked(m_showPoints);
 
-    m_cursorSingleBtn = makeBtn("┊", "单卡尺 (C)");
+    m_cursorSingleBtn = makeBtn("cursor-single", "单卡尺 (C)");
     m_cursorSingleBtn->setCheckable(true);
-    m_cursorDoubleBtn = makeBtn("┊┊", "双卡尺 (V)");
+    m_cursorDoubleBtn = makeBtn("cursor-double", "双卡尺 (V)");
     m_cursorDoubleBtn->setCheckable(true);
-    m_cursorClearBtn = makeBtn("×", "清除卡尺 (Esc)");
+    m_cursorClearBtn = makeBtn("close", "清除卡尺 (Esc)");
 
     m_cursorLinkToggle = new QCheckBox("联动", m_toolbar);
     m_cursorLinkToggle->setToolTip("多视图游标联动");
     m_cursorLinkToggle->setChecked(m_cursorLink);
 
-    // 分组排列（§10.5：所有下拉带前缀标签 + tooltip，分隔符分组）：
-    // [暂停] | [适应 +− ↺ ◀▶▲▼] | [框选] | [缩放:] | [窗口:] [模式:] [显示:] [采样点] | [Y轴:] | [卡尺 联动] | [清空 导图]
+    // 分组排列（§10.5：所有下拉带前缀标签 + tooltip，分隔符分组，全部图标钮）：
+    // [暂停] | [适应 缩放± 撤销 ◀▶▲▼] | [框选] | [缩放:] | [窗口:] [模式:] [显示:] [采样点] | [Y轴:] | [卡尺 联动] | [清空 导图]
     m_toolbar->addWidget(m_pauseBtn);
     m_toolbar->addSeparator();
     m_toolbar->addWidget(m_fitBtn);
@@ -635,7 +651,8 @@ void GraphicView::setupUi()
     // ---- 暂停/继续 ----
     connect(m_pauseBtn, &QToolButton::toggled, this, [this](bool checked) {
         m_paused = checked;
-        m_pauseBtn->setText(checked ? "▶" : "⏸");
+        applyToolBarIcon(m_pauseBtn,
+                         checked ? QStringLiteral("play") : QStringLiteral("pause"));
         m_pauseBtn->setToolTip(checked ? "继续采集" : "暂停采集");
         updateStatusBar();
     });
@@ -1389,6 +1406,17 @@ void GraphicView::styleAxisRect(QCPAxisRect *ar)
     ar->setMargins(QMargins(0, 0, 0, 0));
 }
 
+void GraphicView::updateToolbarIcons()
+{
+    // 按 iconName 属性重刷（暂停钮的当前图标随切换状态记录）
+    const auto buttons = m_toolbar->findChildren<QToolButton *>();
+    for (auto *b : buttons) {
+        const QString name = b->property("iconName").toString();
+        if (!name.isEmpty())
+            applyToolBarIcon(b, name);
+    }
+}
+
 void GraphicView::applyPalette()
 {
     m_palette = isLightTheme() ? GraphicPalette::canoeLight()
@@ -1397,6 +1425,7 @@ void GraphicView::applyPalette()
 
     m_plot->setBackground(m_palette.canvas);
     m_toolbar->setStyleSheet(toolbarQss());
+    updateToolbarIcons();
     m_signalTree->setStyleSheet(treeQss());
     m_cursorInfoLabel->setStyleSheet(infoLabelQss());
     m_statusLabel->setStyleSheet(QString(

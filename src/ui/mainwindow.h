@@ -32,6 +32,7 @@ class RightPanel;
 class MeasurementSetupView;
 class DeviceConnectionTab;
 class ExtensionsTab;
+class PluginDetailPage;
 class BusStatistics;
 class FilterPresetManager;
 class BookmarkManager;
@@ -183,6 +184,7 @@ private:
     void refreshPanelLists();
     void refreshPluginList();
     void setupExtensionsTab();  // 创建/重建 ExtensionsTab 并连接信号
+    void openPluginDetail(const QString &name);  // 打开插件详情页（多插件共用一个标签页）
     void linkGraphicCursor(GraphicView *gv);  // 新建 GraphicView 时与已有视图建立游标联动
 
     // ---- 布局 ----
@@ -217,6 +219,7 @@ private:
     RecordTab *m_recordTab = nullptr;
     DeviceConnectionTab *m_deviceTab = nullptr;
     ExtensionsTab *m_extensionsTab = nullptr;
+    PluginDetailPage *m_pluginDetailPage = nullptr;
 
     // ---- 核心引擎 ----
     Recorder *m_recorder = nullptr;

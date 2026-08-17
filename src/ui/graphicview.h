@@ -242,10 +242,10 @@ private:
     enum class AxisDragMode { None, X, Y };
     AxisDragMode m_axisDrag = AxisDragMode::None;   ///< 轴区拖动中（X 轴区=平移时间，Y 轴区=平移该轴）
     int m_axisDragSig = -1;                         ///< Y 拖动目标信号（叠加并排轴定位；-1 = 全部）
-    QToolButton *m_timeBackBtn = nullptr;           ///< 时间窗后移 ◀（按住连续）
-    QToolButton *m_timeFwdBtn = nullptr;            ///< 时间窗前移 ▶
-    QToolButton *m_yUpBtn = nullptr;                ///< 选中信号 Y 轴上移 ▲（无选中时禁用）
-    QToolButton *m_yDownBtn = nullptr;              ///< 选中信号 Y 轴下移 ▼
+    QToolButton *m_timeBackBtn = nullptr;           ///< 时间窗后移（chevron-left，按住连续）
+    QToolButton *m_timeFwdBtn = nullptr;            ///< 时间窗前移（chevron-right）
+    QToolButton *m_yUpBtn = nullptr;                ///< 选中信号 Y 轴上移（chevron-up，无选中时禁用）
+    QToolButton *m_yDownBtn = nullptr;              ///< 选中信号 Y 轴下移（chevron-down）
 
     // --- 当前时间指示线 ---
     QCPItemStraightLine *m_currentTimeLine = nullptr;
@@ -290,6 +290,7 @@ private:
 
     /// 应用当前主题配色到全部元素（画布/轴/网格/标签/QSS）
     void applyPalette();
+    void updateToolbarIcons();   ///< 主题切换后重刷工具栏图标颜色
 
     /// 配置单个 axisRect 的样式（palette 化；X 刻度仅末轨道由布局控制）
     void styleAxisRect(QCPAxisRect *ar);

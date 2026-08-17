@@ -4,6 +4,7 @@
     "author": "sin",
     "description": "报文日志格式转换工具 — BLF/ASC/CSV/PCAP/TRC 互转（宿主 C++ 引擎，后台线程执行）",
     "main": "main.py",
+    "icon": "icon.svg",
     "activationEvents": [
         "onCommand:blfConverter.open"
     ],

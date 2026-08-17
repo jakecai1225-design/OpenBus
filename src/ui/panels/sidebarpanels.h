@@ -17,6 +17,7 @@ class QCheckBox;
 class QLabel;
 class QPushButton;
 class QLineEdit;
+class QToolButton;
 class DbcManager;
 class GraphicView;
 class CanSimulator;
@@ -313,6 +314,7 @@ struct ExtensionEntry
     QString version;
     QString author;
     QString description;
+    QString iconPath;        ///< 图标文件绝对路径（可空，空时用首字母头像）
     bool installed = false;
     bool enabled = true;     // 可用（未禁用）
     bool activated = false;  // 已激活（正在运行）
@@ -322,7 +324,8 @@ struct ExtensionEntry
 
 // ============================================================
 //  扩展面板 — 插件管理（对标 VSCode Extensions 视图）
-//  搜索栏 + 已安装/市场折叠列表 + 命令列表
+//  搜索栏 + 右上角 "…" 菜单（离线安装 .opk / 刷新）
+//  + 已安装/已禁用折叠列表（图标行 + 齿轮操作菜单）+ 命令列表
 // ============================================================
 class ExtensionsPanel : public SidePanel
 {
@@ -337,21 +340,34 @@ public:
 signals:
     void commandTriggered(const QString &id);
     void pluginToggleRequested(const QString &name, bool enable);  // 启用/禁用
-    void pluginActivated(const QString &name);                     // 双击激活
+    void pluginActivated(const QString &name);                     // 双击/菜单：启动（重启）
+    void pluginDeactivateRequested(const QString &name);           // 菜单：停止
+    void pluginUninstallRequested(const QString &name);            // 菜单：卸载
+    void pluginSelected(const QString &name);                      // 单击：打开详情页
+    void installOpkRequested();                                    // "…" 菜单：离线安装 .opk
+    void refreshPluginsRequested();                                // "…" 菜单：刷新
+
+protected:
+    /// 捕获插件行 widget 的单击/双击（itemWidget 会吞掉树控件的鼠标事件）
+    bool eventFilter(QObject *obj, QEvent *ev) override;
 
 private slots:
     void onSearchChanged(const QString &text);
     void onItemClicked(QTreeWidgetItem *item, int column);
-    void onItemDoubleClicked(QTreeWidgetItem *item, int column);
+    void onMenuClicked();   // "…" 按钮
 
 private:
     QLineEdit *m_searchEdit;
+    QToolButton *m_menuBtn;
     QTreeWidget *m_tree;
-    QTreeWidgetItem *m_installedHeader = nullptr;
-    QTreeWidgetItem *m_marketHeader = nullptr;
+    QTreeWidgetItem *m_installedHeader = nullptr;  // 已启用
+    QTreeWidgetItem *m_disabledHeader = nullptr;   // 已禁用
     QTreeWidgetItem *m_commandsHeader = nullptr;
+    QList<ExtensionEntry> m_lastEntries;  // 最近一次列表（主题切换时重建行图标用）
 
-    QWidget *createPluginWidget(const ExtensionEntry &entry);
+    QWidget *createPluginWidget(const ExtensionEntry &entry, bool disabledSection);
+    void showGearMenu(const QString &name, bool enabled, bool activated,
+                      const QPoint &globalPos);
     void filterPlugins(const QString &text);
 };
 

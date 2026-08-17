@@ -18,6 +18,7 @@ struct PluginInfo
     QString author;
     QString description;
     QString mainScript;      ///< 入口 Python 文件（如 "main.py"）
+    QString icon;            ///< 图标文件相对路径（如 "icon.png"，可选）
     QString directory;       ///< 插件所在目录的绝对路径
 
     // ---- 激活事件 ----
@@ -51,6 +52,9 @@ struct PluginInfo
     /// @param dir 插件目录的绝对路径
     /// @return 成功加载返回 true
     bool loadFromDirectory(const QString &dir);
+
+    /// 图标文件绝对路径（icon 字段存在且文件存在时有效，否则返回空串）
+    QString iconFilePath() const;
 };
 
 #endif // PLUGININFO_H

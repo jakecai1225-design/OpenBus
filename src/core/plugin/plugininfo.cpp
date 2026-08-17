@@ -3,6 +3,7 @@
 
 #include <QFile>
 #include <QFileInfo>
+#include <QDir>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -49,6 +50,7 @@ bool PluginInfo::loadFromDirectory(const QString &dir)
     author = obj.value("author").toString();
     description = obj.value("description").toString();
     mainScript = obj.value("main").toString("main.py");
+    icon = obj.value("icon").toString();
     directory = dir;
 
     if (name.isEmpty()) {
@@ -81,4 +83,12 @@ bool PluginInfo::loadFromDirectory(const QString &dir)
     spdlog::info("PluginInfo: 已加载插件 '{}' v{} ({})", name.toStdString(),
                  version.toStdString(), dir.toStdString());
     return true;
+}
+
+QString PluginInfo::iconFilePath() const
+{
+    if (icon.isEmpty() || directory.isEmpty())
+        return QString();
+    const QString path = QDir(directory).filePath(icon);
+    return QFileInfo::exists(path) ? path : QString();
 }

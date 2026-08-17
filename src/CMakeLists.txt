@@ -165,6 +165,8 @@ set(SRC_UI
     ui/deviceconnectiontab.cpp
     ui/extensionstab.h
     ui/extensionstab.cpp
+    ui/plugindetailpage.h
+    ui/plugindetailpage.cpp
     # 工具集 — 内置分析工具（原 blfasconverter/dbctoolview/loganalysisview 已插件化，见 plugins/）
     ui/tools/dbcsignallistview.h
     ui/tools/dbcsignallistview.cpp

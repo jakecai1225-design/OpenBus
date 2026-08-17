@@ -28,6 +28,7 @@
 #include "ui/measurementsetupview.h"
 #include "ui/deviceconnectiontab.h"
 #include "ui/extensionstab.h"
+#include "ui/plugindetailpage.h"
 // ui/udsview.h, ui/canopenview.h 已移除 — UDS/CANopen 由插件 uds-diagnostic/canopen-explorer 提供
 #include "ui/tools/dbcsignallistview.h"
 #include "ui/datawindow.h"
@@ -144,6 +145,48 @@ MainWindow::MainWindow(QWidget *parent)
         connect(extPanel, &ExtensionsPanel::pluginActivated,
                 this, [this](const QString &name) {
             if (m_pluginManager) m_pluginManager->reactivatePlugin(name);
+        });
+        connect(extPanel, &ExtensionsPanel::pluginDeactivateRequested,
+                this, [this](const QString &name) {
+            if (m_pluginManager) {
+                m_pluginManager->deactivatePlugin(name);
+                emit m_pluginManager->pluginListChanged();
+            }
+        });
+        connect(extPanel, &ExtensionsPanel::pluginUninstallRequested,
+                this, [this](const QString &name) {
+            if (QMessageBox::question(this, QStringLiteral("卸载插件"),
+                                      QStringLiteral("确定卸载插件 %1？").arg(name))
+                != QMessageBox::Yes)
+                return;
+            const QString err = m_pluginManager
+                                    ? m_pluginManager->uninstallPlugin(name)
+                                    : QStringLiteral("插件系统未初始化");
+            if (!err.isEmpty())
+                QMessageBox::warning(this, QStringLiteral("卸载插件"), err);
+        });
+        connect(extPanel, &ExtensionsPanel::pluginSelected,
+                this, &MainWindow::openPluginDetail);
+        connect(extPanel, &ExtensionsPanel::installOpkRequested,
+                this, [this]() {
+            const QString path = QFileDialog::getOpenFileName(
+                this, QStringLiteral("选择插件包"), QString(),
+                QStringLiteral("openbus 插件包 (*.opk);;所有文件 (*)"));
+            if (path.isEmpty())
+                return;
+            const QString err = m_pluginManager
+                                    ? m_pluginManager->installPackage(path)
+                                    : QStringLiteral("插件系统未初始化");
+            if (!err.isEmpty())
+                QMessageBox::warning(this, QStringLiteral("安装插件"), err);
+            else
+                QMessageBox::information(this, QStringLiteral("安装插件"),
+                                         QStringLiteral("插件安装成功"));
+        });
+        connect(extPanel, &ExtensionsPanel::refreshPluginsRequested,
+                this, [this]() {
+            refreshPluginList();
+            if (m_extensionsTab) m_extensionsTab->refresh();
         });
         connect(m_pluginManager, &PluginManager::pluginListChanged,
                 this, &MainWindow::refreshPluginList);
@@ -1441,11 +1484,6 @@ void MainWindow::setupExtensionsTab()
             this, [this](const QString &name, bool enable) {
         if (m_pluginManager) m_pluginManager->setPluginEnabled(name, enable);
     });
-    connect(m_extensionsTab, &ExtensionsTab::hostStopRequested,
-            this, [this]() {
-        if (m_pluginManager) m_pluginManager->shutdown();
-        if (m_extensionsTab) m_extensionsTab->refresh();
-    });
 
     // 标签页被关闭后 widget 被删除 → 置空指针，避免悬空引用
     connect(m_extensionsTab, &QObject::destroyed, this, [this]() {
@@ -1460,6 +1498,33 @@ void MainWindow::onOpenExtensionsTab()
         setupExtensionsTab();
     openTab(m_extensionsTab, QStringLiteral("扩展"));
     m_extensionsTab->refresh();
+}
+
+void MainWindow::openPluginDetail(const QString &name)
+{
+    // 多个插件共用一个详情标签页
+    if (!m_pluginDetailPage) {
+        m_pluginDetailPage = new PluginDetailPage(this);
+        // 标签页被关闭后 widget 被删除 → 置空指针，下次点击重建
+        connect(m_pluginDetailPage, &QObject::destroyed, this, [this]() {
+            m_pluginDetailPage = nullptr;
+        });
+    }
+    m_pluginDetailPage->showPlugin(name);
+
+    // 已打开 → 复用并更新标签文本；否则在编辑区新开
+    auto *tabs = m_editorArea->activeTabWidget();
+    if (tabs) {
+        for (int i = 0; i < tabs->count(); ++i) {
+            if (tabs->widget(i) == m_pluginDetailPage) {
+                tabs->setTabText(i, name);
+                tabs->setCurrentIndex(i);
+                m_tabLabel->setText(name);
+                return;
+            }
+        }
+    }
+    openTab(m_pluginDetailPage, name);
 }
 
 void MainWindow::onOpenTraceTab()
@@ -2920,6 +2985,7 @@ void MainWindow::refreshPluginList()
         e.version = info.version;
         e.author = info.author;
         e.description = info.description;
+        e.iconPath = info.iconFilePath();
         e.installed = true;
         e.enabled = m_pluginManager->isPluginEnabled(info.name);
         e.activated = m_pluginManager->isPluginActivated(info.name);

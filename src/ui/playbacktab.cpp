@@ -3,6 +3,8 @@
 #include "core/canfileio/canfileio.h"
 #include "core/canfileio/canfileio_factory.h"
 #include "core/canframe.h"
+#include "ui/thememanager.h"
+#include "utils/svg_icon.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -34,9 +36,10 @@ PlaybackTab::PlaybackTab(QWidget *parent)
 
     // Play / Pause / Stop
     auto *btnLayout = new QHBoxLayout;
-    m_playBtn = new QPushButton("▶ 播放", ctrlGroup);
-    m_pauseBtn = new QPushButton("⏸ 暂停", ctrlGroup);
-    m_stopBtn = new QPushButton("⏹ 停止", ctrlGroup);
+    const QString iconCol = ThemeManager::instance()->currentTheme().text;
+    m_playBtn = new QPushButton(svgIcon(":/icons/play.svg", iconCol, 16), "播放", ctrlGroup);
+    m_pauseBtn = new QPushButton(svgIcon(":/icons/pause.svg", iconCol, 16), "暂停", ctrlGroup);
+    m_stopBtn = new QPushButton(svgIcon(":/icons/stop.svg", iconCol, 16), "停止", ctrlGroup);
     m_playBtn->setEnabled(false);
     m_pauseBtn->setEnabled(false);
     m_stopBtn->setEnabled(false);
