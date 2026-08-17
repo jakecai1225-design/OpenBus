@@ -322,6 +322,13 @@ void GraphicView::setupUi()
     m_fitBtn = makeBtn("⤢", "适应窗口 (F)");
     m_undoZoomBtn = makeBtn("↺", "撤销缩放 (Ctrl+Z)");
     m_undoZoomBtn->setEnabled(false);
+    m_timeBackBtn = makeBtn("◀", "时间窗后移 (←，按住连续)");
+    m_timeFwdBtn = makeBtn("▶", "时间窗前移 (→，按住连续)");
+    for (auto *b : {m_timeBackBtn, m_timeFwdBtn}) {
+        b->setAutoRepeat(true);
+        b->setAutoRepeatDelay(300);
+        b->setAutoRepeatInterval(60);
+    }
     m_rubberZoomBtn = makeBtn("▣", "框选缩放（左键拖框放大，扁平框仅 X）");
     m_rubberZoomBtn->setCheckable(true);
     m_rubberZoomBtn->setChecked(m_rubberZoom);
@@ -385,6 +392,8 @@ void GraphicView::setupUi()
     m_toolbar->addWidget(m_zoomInBtn);
     m_toolbar->addWidget(m_zoomOutBtn);
     m_toolbar->addWidget(m_undoZoomBtn);
+    m_toolbar->addWidget(m_timeBackBtn);
+    m_toolbar->addWidget(m_timeFwdBtn);
     m_toolbar->addSeparator();
     m_toolbar->addWidget(m_rubberZoomBtn);
     m_toolbar->addWidget(m_zoomAxisCombo);
@@ -499,20 +508,8 @@ void GraphicView::setupUi()
     addShortcut(QKeySequence(Qt::CTRL | Qt::Key_Z), [this]() { undoZoom(); });
     addShortcut(QKeySequence(Qt::Key_Plus), [this]() { zoomAt(0.5, m_plot->rect().center()); });
     addShortcut(QKeySequence(Qt::Key_Minus), [this]() { zoomAt(2.0, m_plot->rect().center()); });
-    addShortcut(QKeySequence(Qt::Key_Left), [this]() {
-        if (QCPAxis *x = primaryXAxis()) {
-            QCPRange r = x->range();
-            double d = r.size() * 0.1;
-            setXRangeAll(QCPRange(r.lower - d, r.upper - d));
-        }
-    });
-    addShortcut(QKeySequence(Qt::Key_Right), [this]() {
-        if (QCPAxis *x = primaryXAxis()) {
-            QCPRange r = x->range();
-            double d = r.size() * 0.1;
-            setXRangeAll(QCPRange(r.lower + d, r.upper + d));
-        }
-    });
+    addShortcut(QKeySequence(Qt::Key_Left), [this]() { shiftTimeAxis(-0.1); });
+    addShortcut(QKeySequence(Qt::Key_Right), [this]() { shiftTimeAxis(0.1); });
     addShortcut(QKeySequence(Qt::Key_C), [this]() {
         if (!m_cursorSingleBtn->isChecked())
             m_cursorSingleBtn->click();   // setChecked 不触发 clicked 信号
@@ -556,6 +553,8 @@ void GraphicView::setupUi()
     });
     connect(m_fitBtn, &QToolButton::clicked, this, [this]() { fitAll(); });
     connect(m_undoZoomBtn, &QToolButton::clicked, this, [this]() { undoZoom(); });
+    connect(m_timeBackBtn, &QToolButton::clicked, this, [this]() { shiftTimeAxis(-0.1); });
+    connect(m_timeFwdBtn, &QToolButton::clicked, this, [this]() { shiftTimeAxis(0.1); });
     connect(m_rubberZoomBtn, &QToolButton::toggled, this, [this](bool on) {
         m_rubberZoom = on;
         // 框选开时左键不再交给 QCP 拖拽（由自绘橡皮筋接管）；关时恢复左键平移
@@ -722,7 +721,42 @@ void GraphicView::setupUi()
 
     // ---- 鼠标滚轮缩放 (同步所有 axisRect 的 X 轴) ----
     cursorPlot->onWheel = [this](QWheelEvent *event) {
-        // 找到鼠标位置对应的 axisRect
+        // 轴区命中（§十）：X 轴区仅缩 X / Y 轴区仅缩该 Y（覆盖缩放轴模式下拉）
+        int zoneSig = -1;
+        if (const int zone = axisZoneAt(event->position().toPoint(), &zoneSig)) {
+            const double factor = (event->angleDelta().y() > 0) ? 0.8 : 1.25;
+            if (!m_zoomPushTimer.isActive())
+                pushZoomState();
+            m_zoomPushTimer.start();
+            if (zone == 1) {
+                if (QCPAxis *xAxis = primaryXAxis()) {
+                    const double center = xAxis->pixelToCoord(event->position().x());
+                    const double newRange = xAxis->range().size() * factor;
+                    setXRangeAll(QCPRange(center - newRange / 2, center + newRange / 2), false);
+                }
+            } else {
+                auto zoomYAxis = [&](QCPAxis *ya) {
+                    const double yCenter = ya->pixelToCoord(event->position().y());
+                    const double newYRange = ya->range().size() * factor;
+                    ya->setRange(yCenter - newYRange / 2, yCenter + newYRange / 2);
+                };
+                if (zoneSig >= 0) {
+                    if (QCPAxis *ya = valueAxisFor(m_signals[zoneSig]))
+                        zoomYAxis(ya);
+                } else if (m_yAxisMode != YAxisMode::Separate) {
+                    // 叠加模式轴带间隙：全部 Y
+                    for (auto &sd : m_signals)
+                        if (QCPAxis *ya = valueAxisFor(sd))
+                            zoomYAxis(ya);
+                }
+            }
+            refreshDisplayData();
+            m_plot->replot();
+            event->accept();
+            return;
+        }
+
+        // 找到鼠标位置对应的 axisRect（绘图区）
         QPoint pos = event->position().toPoint();
         QCPAxisRect *targetAr = nullptr;
         for (auto &sd : m_signals) {
@@ -975,6 +1009,33 @@ void GraphicView::setupUi()
         if (event->button() != Qt::LeftButton)
             return;
 
+        // 轴区拖动（§十：X 轴区平移时间 / Y 轴区平移该轴；先于卡尺与橡皮筋）
+        int zoneSig = -1;
+        const int zone = axisZoneAt(pos, &zoneSig);
+        if (zone != 0) {
+            m_axisDrag = zone == 1 ? AxisDragMode::X : AxisDragMode::Y;
+            m_axisDragSig = zone == 2 ? zoneSig : -1;
+            pushZoomState();
+            m_panStartPos = pos;
+            m_panStartY.clear();
+            if (m_axisDrag == AxisDragMode::X) {
+                if (QCPAxis *x = primaryXAxis()) {
+                    m_panStartX1 = x->range().lower;
+                    m_panStartX2 = x->range().upper;
+                }
+            } else if (m_axisDragSig >= 0) {
+                if (QCPAxis *ya = valueAxisFor(m_signals[m_axisDragSig]))
+                    m_panStartY.append({m_axisDragSig, ya->range().lower, ya->range().upper});
+            } else if (m_yAxisMode != YAxisMode::Separate) {
+                // 叠加轴带间隙：全部 Y
+                for (int i = 0; i < m_signals.size(); ++i)
+                    if (QCPAxis *ya = valueAxisFor(m_signals[i]))
+                        m_panStartY.append({i, ya->range().lower, ya->range().upper});
+            }
+            event->accept();
+            return;
+        }
+
         // 卡尺命中（线 ±6px 或顶部手柄区 ±10px，优先于框选）
         if (m_cursorMode != CursorMode::None) {
             QCPAxis *xAxis = primaryXAxis();
@@ -1013,6 +1074,32 @@ void GraphicView::setupUi()
 
     cursorPlot->onMouseMove = [this](QMouseEvent *event) {
         const QPoint pos = event->pos();
+
+        // 0) 轴区拖动平移（§十：X 全轨道同步 / Y 单轴差值）
+        if (m_axisDrag != AxisDragMode::None) {
+            if (m_axisDrag == AxisDragMode::X) {
+                if (QCPAxis *x = primaryXAxis()) {
+                    const double t0 = x->pixelToCoord(m_panStartPos.x());
+                    const double t1 = x->pixelToCoord(pos.x());
+                    setXRangeAll(QCPRange(m_panStartX1 - (t1 - t0),
+                                          m_panStartX2 - (t1 - t0)), false);
+                }
+            } else {
+                for (const auto &py : m_panStartY) {
+                    if (py.sig < 0 || py.sig >= m_signals.size())
+                        continue;
+                    if (QCPAxis *ya = valueAxisFor(m_signals[py.sig])) {
+                        const double y0 = ya->pixelToCoord(m_panStartPos.y());
+                        const double y1 = ya->pixelToCoord(pos.y());
+                        ya->setRange(py.lo - (y1 - y0), py.hi - (y1 - y0));
+                    }
+                }
+            }
+            refreshDisplayData();
+            m_plot->replot(QCustomPlot::rpQueuedReplot);
+            event->accept();
+            return;
+        }
 
         // 1) 卡尺拖动
         if (m_draggingCursor != 0) {
@@ -1091,6 +1178,14 @@ void GraphicView::setupUi()
         }
         if (event->button() != Qt::LeftButton)
             return;
+
+        // 轴区拖动结束（§十）
+        if (m_axisDrag != AxisDragMode::None) {
+            m_axisDrag = AxisDragMode::None;
+            m_axisDragSig = -1;
+            event->accept();
+            return;
+        }
 
         // 卡尺拖动结束
         if (m_draggingCursor != 0) {
@@ -1698,6 +1793,46 @@ int GraphicView::signalIndexForAxis(QCPAxis *yAxis) const
     return -1;
 }
 
+int GraphicView::axisZoneAt(const QPoint &pos, int *outIdx) const
+{
+    if (outIdx)
+        *outIdx = -1;
+    QCPAxisRect *ar = m_plot->axisRectAt(pos);
+    if (!ar)
+        return 0;
+    // X 轴刻度区（绘图内区下方、outerRect 内）
+    if (pos.y() > ar->rect().bottom())
+        return 1;
+    // Y 轴刻度区（绘图内区左侧）
+    if (pos.x() < ar->rect().left()) {
+        int idx = -1;
+        if (m_yAxisMode == YAxisMode::Separate) {
+            idx = signalIndexAtPos(QPoint(ar->rect().center().x(), pos.y()));
+        } else if (ar == m_overlayRect) {
+            if (m_yAxisMode == YAxisMode::OverlaySelected) {
+                idx = m_selectedSignal;
+            } else {
+                // 叠加·全部轴：按并排刻度带定位（带宽 45px，间隙 → -1 = 全部）
+                const int right = ar->rect().left();
+                for (int i = 0; i < m_signals.size(); ++i) {
+                    QCPAxis *ya = m_signals[i].overlayYAxis;
+                    if (!ya)
+                        continue;
+                    const int off = static_cast<int>(ya->offset());
+                    if (pos.x() <= right - off && pos.x() >= right - off - 45) {
+                        idx = i;
+                        break;
+                    }
+                }
+            }
+        }
+        if (outIdx)
+            *outIdx = idx;
+        return 2;
+    }
+    return 0;
+}
+
 // ============================================================
 //  显示模式 / 聚焦三态 / 选中信号 / 名字标签
 // ============================================================
@@ -1813,6 +1948,20 @@ void GraphicView::setZoomAxisMode(ZoomAxisMode m)
                   : m == ZoomAxisMode::XOnly ? 1 : 2;
     if (m_zoomAxisCombo && m_zoomAxisCombo->currentIndex() != idx)
         m_zoomAxisCombo->setCurrentIndex(idx);
+}
+
+void GraphicView::shiftTimeAxis(double frac)
+{
+    QCPAxis *x = primaryXAxis();
+    if (!x)
+        return;
+    // 连续平移（按住箭头/连按快捷键）合并为一级缩放历史（同滚轮防抖）
+    if (!m_zoomPushTimer.isActive())
+        pushZoomState();
+    m_zoomPushTimer.start();
+    const QCPRange r = x->range();
+    const double d = r.size() * frac;
+    setXRangeAll(QCPRange(r.lower + d, r.upper + d));
 }
 
 void GraphicView::zoomAt(double factor, const QPointF &plotPos)

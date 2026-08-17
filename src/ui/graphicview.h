@@ -238,6 +238,13 @@ private:
     struct PanY { int sig; double lo, hi; };
     QVector<PanY> m_panStartY;
 
+    // --- G8 轴区交互（§十：轴区独立缩放/平移 + 时间窗箭头） ---
+    enum class AxisDragMode { None, X, Y };
+    AxisDragMode m_axisDrag = AxisDragMode::None;   ///< 轴区拖动中（X 轴区=平移时间，Y 轴区=平移该轴）
+    int m_axisDragSig = -1;                         ///< Y 拖动目标信号（叠加并排轴定位；-1 = 全部）
+    QToolButton *m_timeBackBtn = nullptr;           ///< 时间窗后移 ◀（按住连续）
+    QToolButton *m_timeFwdBtn = nullptr;            ///< 时间窗前移 ▶
+
     // --- 当前时间指示线 ---
     QCPItemStraightLine *m_currentTimeLine = nullptr;
 
@@ -358,6 +365,12 @@ private:
     /// 波形区位置 → 信号索引 / Y 刻度区命中判断
     int signalIndexAtPos(const QPoint &pos) const;
     int signalIndexForAxis(QCPAxis *yAxis) const;
+
+    /// 轴区命中（§十）：0=非轴区 1=X轴区 2=Y轴区；outIdx = Y 轴区对应信号（-1 = 叠加全部）
+    int axisZoneAt(const QPoint &pos, int *outIdx = nullptr) const;
+
+    /// 时间窗平移（frac = 视口宽比例；连续调用合并为一级缩放历史）
+    void shiftTimeAxis(double frac);
 
     /// 创建/获取卡尺线（含手柄与时间标签）
     void ensureCursors();

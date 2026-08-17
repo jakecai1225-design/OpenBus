@@ -261,6 +261,7 @@ replot() — 恒定 O(视口宽度) 渲染成本
 | **G7a** | CANoe 配色与主题联动（GraphicPalette + 移除硬编码，见 §8.2/§8.3） | ✅ 已完成 | — |
 | **G7b(+)** | 布局与坐标轴对标 + Y 轴三模式（X 刻度仅底部、显示模式、叠加，见 §8.4/§8.4.1） | ✅ 已完成 | — |
 | **G7c(+)** | 交互与光标对标（框选缩放、中键平移、缩放历史、缩放轴三模式、跟踪取值、聚焦三态，见 §8.5-§8.7） | ✅ 已完成 | — |
+| **G8** | 坐标轴区交互增强（轴区滚轮独立缩放、轴区拖动平移、时间窗 ◀▶ 箭头，见 §十） | ✅ 已完成 | — |
 | **G3** | 信号数学运算（计算信号 + 表达式引擎评估） | 🟡 P1 | 3-5 天 |
 | **G4** | 区域统计（min/max/avg/σ/RMS） | 🟠 P2 | 2 天 |
 | **G5** | 数据导出 CSV + 配置持久化（含显示模式/颜色随 G7 一并持久化） | 🟠 P2 | 2 天 |
@@ -737,3 +738,60 @@ void undoAllZooms();              // 直接恢复栈底（全览）
 | G7c+ | 显示模式三态（聚焦）/ 卡尺手柄标签 / 快捷键全集 | #25 #26 #37 |
 
 未纳入本轮（后续版本）：轨道拖拽排序（#4）、界面瘦身按钮（#5）、绝对时间（#9）、XY 模式（#10）、per-signal 线宽（#28）、G3 数学信号、G5 导出持久化。
+
+---
+
+## 十、坐标轴区交互增强（G8）
+
+> **背景**：G7 后绘图区交互（滚轮/框选/中键/缩放轴三模式）已对标 CANoe，但**坐标轴刻度区**仍无专属交互。
+> 本章补充轴区独立缩放/平移与时间窗箭头，参考 CANoe Graphics 的轴区行为（§9.2 坐标轴系统）。
+> **决策点（已评审确认）**：① X 轴区滚轮 = 仅缩 X（非 XY）② 轴区左键拖动 = 平移 ③ 时间箭头 = 工具栏 ◀▶ 按钮。
+> **状态**：✅ 已实施并编译通过（axisZoneAt 命中 + onWheel/onMousePress/onMouseMove/onMouseRelease 轴区分支 + shiftTimeAxis 共用 ←/→/◀/▶）。
+
+### 10.1 交互矩阵（轴区专属，优先于绘图区规则，不受“缩放轴模式下拉”约束）
+
+| 位置 | 滚轮 | 左键拖动 | 双击（现有） | 右键（现有） |
+|------|------|---------|------|------|
+| X 轴刻度区（内区下方、outerRect 内） | **仅缩 X**，中心 = 鼠标 x | **平移 X**（全轨道同步） | — | X 轴菜单（适应/撤销） |
+| Y 轴刻度区（内区左侧、outerRect 内） | **仅缩该 Y**，中心 = 鼠标 y | **平移该 Y** | 轴设置对话框 | Y 轴菜单 |
+| 绘图区 | 现有（受缩放轴模式） | 框选/卡尺（现有） | Y 适应 | 通用菜单 |
+
+轴区语义 = “操作这根轴”，故**覆盖**缩放轴模式下拉（XY/仅X/仅Y 仅约束绘图区与 ± 按钮）。
+
+### 10.2 命中判定
+
+复用已验证语义：`rect()` = margins 内绘图区，`axisRectAt()` 按 outerRect 命中（§8.10 备注）。
+
+```cpp
+enum class AxisDragMode { None, X, Y };
+AxisDragMode m_axisDrag;      // 拖动中的轴区
+int m_axisDragSig = -1;       // Y 拖动目标信号（叠加并排轴定位；-1 = 全部 Y）
+
+/// 轴区命中：0=非轴区 1=X轴区 2=Y轴区；outIdx = Y 轴区对应信号
+int axisZoneAt(const QPoint &pos, int *outIdx = nullptr) const;
+```
+
+- `pos.y() > ar->rect().bottom()` → X 轴区；`pos.x() < ar->rect().left()` → Y 轴区
+- Y 轴区信号定位：
+  - 分栏：`signalIndexAtPos(ar 中心 x, pos.y)` 命中轨道
+  - 叠加·选中轴：`m_selectedSignal`
+  - 叠加·全部轴：按 `overlayYAxis->offset()` 定位——鼠标 x 落于 `[rect.left()-off-45, rect.left()-off]` 带内的信号；未命中任何带（间隙/空白）→ -1 = 全部 Y
+
+### 10.3 实现要点
+
+1. **onWheel 前置轴区分支**：命中轴区时绕过 m_zoomAxis；X 轴区 `setXRangeAll`（中心 = pos.x）；Y 轴区缩 `valueAxisFor(sd)`（idx≥0）或全部 overlay Y（idx=-1）；缩放历史沿用 m_zoomPushTimer 500ms 防抖
+2. **onMousePress 左键前置轴区分支**（先于卡尺/橡皮筋判定）：X 轴区 → m_axisDrag=X + pushZoomState + 记起始 X range（复用 m_panStartX1/X2）；Y 轴区 → m_axisDrag=Y(sigIdx) + push + 记该轴 lo/hi（复用 PanY）；轴区按下不启动橡皮筋
+3. **onMouseMove**：按 m_axisDrag 差值平移（像素→坐标差；X 走 setXRangeAll 全同步，Y 单轴 setRange；rpQueuedReplot）
+4. **onMouseRelease**：清 m_axisDrag
+5. **工具栏 ◀▶ 按钮**（缩放组末尾）：`setAutoRepeat(true)`（Delay 300ms / Interval 60ms），点击 = 平移 10% 视口宽；提取 `shiftTimeAxis(double frac)` 共用（←/→ 快捷键复用）
+6. **不改动**：绘图区滚轮/框选/卡尺/中键平移、缩放轴模式下拉语义、G1 降采样、G2 联动、轴区双击/右键菜单
+
+### 10.4 验收标准
+
+1. X 轴区滚轮仅 X 变（Y 不动），中心 = 鼠标位置；Y 轴区滚轮仅该 Y 变
+2. 叠加·全部轴模式：鼠标在不同并排刻度带上滚动，对应信号 Y 独立缩放
+3. X 轴区拖动全轨道时间同步平移；Y 轴区拖动仅该 Y 平移；Ctrl+Z 可撤销单次拖动/一组滚轮
+4. ◀▶ 按住连续平移，与 ←/→ 快捷键等距（10% 视口宽）
+5. 回归：绘图区全部现有交互不回退
+
+工时：约 0.5 天；涉及文件：`src/ui/graphicview.h/cpp`。

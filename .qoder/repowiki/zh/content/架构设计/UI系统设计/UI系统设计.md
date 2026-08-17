@@ -57,15 +57,16 @@
 - [src/core/dbcdata.h](file://src/core/dbcdata.h)
 - [src/ui/filterheaderview.h](file://src/ui/filterheaderview.h)
 - [src/ui/filterheaderview.cpp](file://src/ui/filterheaderview.cpp)
+- [src/ui/graphic/downsample.h](file://src/ui/graphic/downsample.h)
+- [src/ui/graphic/downsample.cpp](file://src/ui/graphic/downsample.cpp)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- UI架构重大重构：原有的SendPanel和RecordPanel已合并为统一的TransceivePanel，简化了收发功能的界面组织
-- 活动栏枚举新增Transceive模式，提供统一的发送、回放、录制入口
-- 播放系统增强循环回放功能，支持多种循环模式和播放控制
-- 录制系统增强暂停/恢复功能，提供更灵活的录制控制
-- 侧边栏面板系统重新组织，TransceivePanel作为收发功能的统一入口
+- 新增高性能视口降采样功能模块，实现Min/Max、Average、First、Decimate四种抽稀策略
+- 在GraphicView组件中集成downsample模块，显著提升大数据量波形渲染性能
+- 优化图形视图的数据处理流程，支持O(视口宽)恒定渲染成本
+- 增强批处理模型性能，通过智能数据裁剪和缓存机制提升渲染效率
 
 ## 目录
 1. [简介](#简介)
@@ -87,7 +88,7 @@
 
 **更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新针对UI系统进行了全面增强，包括SVG图标支持系统、样式系统重构、现代化界面设计改进，以及设备连接界面的优化。新增的ThemeManager主题管理器支持多种内置主题和运行时切换，SVG图标系统提供动态颜色替换功能，设备连接界面提供了完整的CAN/CAN FD配置选项和时序预设管理。活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置，反映了其在测量设置工作流程中的重要性。各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。**
 
-**最新增强** GraphicView组件现已完全重构，集成了QCustomPlot库，提供了专业的信号可视化功能。支持多轴信号绘图、实时数据流处理、交互式光标系统和高性能的批处理渲染。主题管理系统得到了显著增强，支持7种内置主题（Light、Dark、VS Code Dark+、VS Code Light+、Monokai、Solarized Light、Solarized Dark）和运行时动态切换。**新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，支持拖拽式视窗控制和点击跳转功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数和厂商特定设置。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。**
+**最新增强** GraphicView组件现已完全重构，集成了QCustomPlot库，提供了专业的信号可视化功能。支持多轴信号绘图、实时数据流处理、交互式光标系统和高性能的批处理渲染。主题管理系统得到了显著增强，支持7种内置主题（Light、Dark、VS Code Dark+、VS Code Light+、Monokai、Solarized Light、Solarized Dark）和运行时动态切换。**新增的高性能视口降采样功能模块通过downsample算法实现Min/Max、Average、First、Decimate四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，支持拖拽式视窗控制和点击跳转功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数和厂商特定设置。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。**
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式，结合了传统Qt Widgets架构和现代Web前端技术：
@@ -122,18 +123,19 @@ B --> U["src/models/cantracemodel.h/.cpp"]
 B --> V["src/models/canfilterproxymodel.h/.cpp"]
 B --> W["src/models/viewportproxy.h/.cpp"]
 B --> X["src/ui/filterheaderview.h/.cpp"]
-A --> Y["resources/resources.qrc"]
-Y --> Z["resources/styles/default.qss"]
-Y --> AA["resources/styles/theme.qss"]
-A --> AB["UI/ui-prototype.html"]
-AB --> AC["UI/js/ui-loader.js"]
-AB --> AD["UI/js/ui-prototype.js"]
-AB --> AE["UI/css/ui-prototype.css"]
-AC --> AF["UI/partials/*.html"]
-AD --> AF
-AE --> AF
-B --> AG["third_party/qcustomplot"]
-AG --> AH["qcustomplot.h"]
+B --> Y["src/ui/graphic/downsample.h/.cpp"]
+A --> Z["resources/resources.qrc"]
+Z --> AA["resources/styles/default.qss"]
+Z --> BB["resources/styles/theme.qss"]
+A --> CC["UI/ui-prototype.html"]
+CC --> DD["UI/js/ui-loader.js"]
+CC --> EE["UI/js/ui-prototype.js"]
+CC --> FF["UI/css/ui-prototype.css"]
+DD --> GG["UI/partials/*.html"]
+EE --> GG
+FF --> GG
+B --> HH["third_party/qcustomplot"]
+HH --> II["qcustomplot.h"]
 ```
 
 **图表来源**
@@ -167,8 +169,9 @@ AG --> AH["qcustomplot.h"]
 - **新增** ViewportOverview: 视窗缩略图组件，支持拖拽式视窗导航
 - **新增** FilterHeaderView: Wireshark风格的自定义表头视图，支持排序和过滤图标
 - **新增** TransceivePanel: 统一的收发功能面板，整合发送、回放、录制功能
+- **新增** Downsample模块: 高性能视口降采样算法，支持四种抽稀策略
 
-**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过Min/Max、Average、First、Decimate四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -196,8 +199,9 @@ AG --> AH["qcustomplot.h"]
 - **新增** 视口代理模型提供固定行数视窗限制，优化大数据集处理性能
 - **新增** FilterHeaderView提供Wireshark风格的自定义表头界面
 - **新增** TransceivePanel提供统一的收发功能入口
+- **新增** Downsample模块提供高性能视口降采样算法
 
-**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数。FilterHeaderView组件通过自定义排序指示器和漏斗图标，提供了Wireshark风格的表头界面，增强了数据表的交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
+**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数。FilterHeaderView组件通过自定义排序指示器和漏斗图标，提供了Wireshark风格的表头界面，增强了数据表的交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
 
 ```mermaid
 graph TB
@@ -242,6 +246,7 @@ SCD["SignalConfigDialog<br/>信号配置对话框"]
 VO["ViewportOverview<br/>视窗缩略图<br/>新增组件"]
 VPM["ViewportProxyModel<br/>视窗代理模型<br/>新增组件"]
 FHV["FilterHeaderView<br/>自定义表头视图<br/>新增组件"]
+DS["Downsample<br/>视口降采样<br/>新增模块"]
 end
 subgraph "数据模型层"
 CTM["CanTraceModel<br/>追踪数据模型<br/>批量处理增强"]
@@ -290,6 +295,7 @@ TT --> VO
 TT --> FHV
 FB --> CTM
 GV --> QCP
+GV --> DS
 VPM --> CFPM
 FHV --> CFPM
 TPN --> TR
@@ -363,7 +369,7 @@ App->>App : 进入事件循环
 - 通过信号槽机制与子控件通信
 - 支持Web前端的原型验证和交互测试
 
-**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，新增了ThemeManager主题管理器的集成，支持运行时主题切换；设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项；侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理。活动栏导航系统已重新组织，'Flow'按钮被移动到更显眼的位置，与CANoe Measurement Setup行业标准保持一致。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。设备连接行为已升级为V2接口，支持更完整的设备配置参数。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。**主窗口作为协调者，统一管理各组件的生命周期和数据流，并支持与Web前端原型的无缝集成。
+**更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，新增了ThemeManager主题管理器的集成，支持运行时主题切换；设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项；侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理。活动栏导航系统已重新组织，'Flow'按钮被移动到更显眼的位置，与CANoe Measurement Setup行业标准保持一致。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。设备连接行为已升级为V2接口，支持更完整的设备配置参数。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**主窗口作为协调者，统一管理各组件的生命周期和数据流，并支持与Web前端原型的无缝集成。
 
 ```mermaid
 classDiagram
@@ -835,6 +841,63 @@ FilterHeaderView --> TraceView : "信号连接"
 
 ## 增强图形组件
 
+### 高性能视口降采样模块（Downsample）- 新增
+功能特性
+- **新增** Min/Max策略：每桶保留最小值和最大值两点，确保波形轮廓无损
+- **新增** Average策略：每桶计算平均值，适用于平滑显示需求
+- **新增** First策略：每桶取第一个点，保持时间序列连续性
+- **新增** Decimate策略：每N个点取一个，均匀降采样
+- **新增** 智能区间定位：使用二分查找快速定位视口范围
+- **新增** 外延点保证：确保阶梯线边缘跳变沿正确渲染
+- **新增** O(视口宽)恒定渲染成本：无论原始数据量多大，渲染成本仅与视口宽度相关
+
+技术实现
+- 基于RingBuffer的高效数据访问
+- 二分查找lowerBound函数快速定位时间区间
+- 桶化算法将时间轴划分为多个桶进行处理
+- 每种策略都有针对性的数据处理逻辑
+- 兜底机制确保首尾端点的完整性
+
+```mermaid
+classDiagram
+class DownsampleModule {
++downsample(raw, t1, t2, targetPoints, strategy) QVector<Sample>
++lowerBound(raw, key) int
++processMinMaxBucket(bucketSpan, first, last)
++processAvgBucket(bucketSpan, first, last)
++processFirstBucket(bucketSpan, first, last)
++processDecimate(inRange, targetPoints, first, last)
++ensureEndpoints(first, last, out)
+}
+class Sample {
++double t
++double v
+}
+class Strategy {
++MinMax
++Avg
++First
++Decimate
+}
+class RingBuffer {
++size() int
++at(index) Sample
++push_back(Sample)
++capacity() int
+}
+DownsampleModule --> Sample : "处理"
+DownsampleModule --> Strategy : "使用"
+DownsampleModule --> RingBuffer : "访问"
+```
+
+**图表来源**
+- [src/ui/graphic/downsample.h](file://src/ui/graphic/downsample.h)
+- [src/ui/graphic/downsample.cpp](file://src/ui/graphic/downsample.cpp)
+
+章节来源
+- [src/ui/graphic/downsample.h](file://src/ui/graphic/downsample.h)
+- [src/ui/graphic/downsample.cpp](file://src/ui/graphic/downsample.cpp)
+
 ### 视口概览组件系统
 功能特性
 - **新增** ViewportProxyModel：CANoe风格的视窗代理模型，提供固定行数视窗限制
@@ -916,12 +979,13 @@ TraceTab --> ViewportProxyModel : "管理"
 - **增强** 基于QCustomPlot的专业级图表引擎
 - **增强** 多轴信号绘图，每个信号拥有独立的Y轴
 - **增强** 交互式光标系统，支持单卡尺和双卡尺模式
-- **增强** 实时数据流处理，支持高性能的批量渲染
+- **增强** 实时数据流处理，支持高性能的批处理渲染
 - **增强** 优化的渲染引擎和内存管理
 - **增强** 改进的缩放和平移交互
 - **增强** 支持更多数据类型和格式
 - **最新改进** 修复了崩溃问题，提升了稳定性
 - **最新改进** 优化了对新测试数据集的支持能力
+- **新增** 高性能视口降采样集成，支持四种抽稀策略
 
 技术实现
 - 基于QCustomPlot框架的专业图表引擎
@@ -932,6 +996,7 @@ TraceTab --> ViewportProxyModel : "管理"
 - **增强** 增量更新避免全量重绘
 - **增强** 智能数据裁剪，超过显示窗口的数据自动清理
 - **增强** 插值算法支持精确的卡尺测量
+- **新增** downsample模块集成，实现O(视口宽)恒定渲染成本
 - **最新改进** 增强的错误处理和异常恢复机制
 - **最新改进** 优化的内存管理和资源清理
 
@@ -955,6 +1020,8 @@ class GraphicView {
 +loadFile(path)
 +fitAll()
 +exportPlot()
++m_dsStrategy graphic : : Strategy
++refreshDisplayData()
 }
 class CursorPlot {
 +CursorPlot(parent)
@@ -1007,11 +1074,18 @@ class CursorSystem {
 +updateCursorValues()
 +valueAtTime(graph, time, outVal)
 }
+class DownsampleIntegration {
++downsample(rawData, t1, t2, targetPoints, strategy)
++calculateTargetPoints()
++selectOptimalStrategy()
++cacheDisplayData()
+}
 GraphicView --> CursorPlot : "使用"
 GraphicView --> SignalChannel : "管理"
 GraphicView --> RenderEngine : "使用"
 GraphicView --> TestDataSupport : "支持"
 GraphicView --> CursorSystem : "集成"
+GraphicView --> DownsampleIntegration : "集成"
 ```
 
 **图表来源**
@@ -2009,7 +2083,7 @@ DbcPanel --> CategoryNode : "使用"
 - MainWindow 依赖样式与主题管理
 - 样式与资源通过qrc解耦，降低硬编码路径风险
 
-**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统、设备连接界面和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置，工具提示已增强。新增了ThemeManager主题管理器和SVG图标系统，增强了样式管理和图标渲染能力。设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，包括活动栏工具集按钮、工具集面板、工具路由机制和主窗口的onToolOpened处理函数。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能。FilterHeaderView组件通过自定义排序指示器和漏斗图标，提供了Wireshark风格的表头界面，增强了数据表的交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。**
+**更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统、设备连接界面和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置，工具提示已增强。新增了ThemeManager主题管理器和SVG图标系统，增强了样式管理和图标渲染能力。设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，包括活动栏工具集按钮、工具集面板、工具路由机制和主窗口的onToolOpened处理函数。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能。FilterHeaderView组件通过自定义排序指示器和漏斗图标，提供了Wireshark风格的表头界面，增强了数据表的交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**
 
 ```mermaid
 graph LR
@@ -2030,7 +2104,7 @@ MW --> TM["ThemeManager<br/>主题管理器"]
 MW --> SD["SettingsDialog<br/>设置对话框"]
 MW --> TPANEL["TransceivePanel<br/>新增统一入口"]
 SEA --> FB["FilterBar<br/>刷新率控制增强"]
-SEA --> GV["GraphicView<br/>QCustomPlot集成"]
+SEA --> GV["GraphicView<br/>QCustomPlot集成<br/>Downsample模块集成"]
 SEA --> TV["TraceView"]
 SEA --> VO["ViewportOverview<br/>视窗缩略图"]
 MW --> SCD["SignalConfigDialog"]
@@ -2061,6 +2135,7 @@ Web --> CSS["CSS样式"]
 GV --> Graphics["图形引擎"]
 GV --> TestData["测试数据集支持"]
 GV --> QCP["QCustomPlot<br/>图表引擎"]
+GV --> DS["Downsample<br/>视口降采样模块"]
 TV --> DataCache["数据缓存"]
 SBP --> Accessibility["可访问性"]
 GV --> Stability["稳定性增强"]
@@ -2131,6 +2206,7 @@ TPANEL --> RecordTab["录制标签页"]
   - **新增** 视窗代理模型通过固定行数限制优化内存使用
   - **新增** FilterHeaderView使用自定义绘制避免Qt内置指示器的性能开销
   - **新增** TransceivePanel使用轻量级设计，减少内存占用
+  - **新增** Downsample模块实现O(视口宽)恒定渲染成本，将百万级原始数据点转换为视口像素级别的显示数据
 - **专用Tab组件性能优化**
   - DBC详情标签页实现大数据集的虚拟滚动
   - 播放控制标签页使用高效的定时器机制
@@ -2171,6 +2247,7 @@ TPANEL --> RecordTab["录制标签页"]
   - **新增** 视窗代理模型通过固定行数限制优化大数据集处理
   - **新增** FilterHeaderView的自定义绘制优化了表头渲染性能
   - **新增** TransceivePanel的轻量级设计减少了内存占用
+  - **新增** Downsample模块的智能数据裁剪和四种抽稀策略，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能
 - **批处理模型性能优化**
   - CanTraceModel使用环形缓冲区存储，支持最大帧数限制
   - 批量追加frames()方法优化大数据集处理
@@ -2185,6 +2262,13 @@ TPANEL --> RecordTab["录制标签页"]
   - 旧数据自动清理，保持内存使用稳定
   - 多轴布局优化，减少重绘范围
   - 插值算法优化，提高卡尺测量精度
+- **Downsample模块性能优化**
+  - 二分查找lowerBound函数实现O(log n)区间定位
+  - 桶化算法将时间轴划分为多个桶进行处理
+  - 每种策略都有针对性的数据处理逻辑
+  - 外延点保证确保阶梯线边缘正确渲染
+  - 智能缓存机制避免重复计算
+  - 支持Min/Max、Average、First、Decimate四种策略
 
 [本节为通用指导，无需特定文件引用]
 
@@ -2225,6 +2309,7 @@ TPANEL --> RecordTab["录制标签页"]
   - **新增** FilterHeaderView漏斗图标点击无响应需要检查信号连接
   - **新增** TransceivePanel按钮点击无响应需要检查信号连接
   - **新增** TransceivePanel面板不显示需要检查索引映射
+  - **新增** Downsample模块数据降采样异常需要检查策略选择和参数配置
 - **专用Tab组件问题**
   - DBC文件加载失败需要检查文件格式与权限
   - 播放控制标签页时间轴不同步需要检查定时器精度
@@ -2267,12 +2352,13 @@ TPANEL --> RecordTab["录制标签页"]
   - 测试数据集兼容性问题已通过数据验证和适配层修复
   - 内存管理问题已通过优化的资源清理机制改善
   - 图形渲染稳定性已通过双缓冲和增量更新技术提升
-  - SVG图标渲染问题已通过QSvgRenderer优化解决
-  - 主题切换性能问题已通过缓存机制改善
-  - **新增** 视口概览组件缓存失效问题已通过密度缓存机制解决
-  - **新增** 视窗代理模型数据同步问题已通过信号槽机制优化
-  - **新增** FilterHeaderView绘制问题已通过自定义paintSection解决
-  - **新增** TransceivePanel信号连接问题已通过调试日志解决
+  - SVG图标系统使用QSvgRenderer提高渲染性能
+  - 设备连接界面使用延迟初始化减少启动时间
+  - **新增** 视口概览组件的密度缓存机制减少缩略图重绘开销
+  - **新增** 视窗代理模型通过固定行数限制优化大数据集处理
+  - **新增** FilterHeaderView的自定义绘制优化了表头渲染性能
+  - **新增** TransceivePanel的轻量级设计减少了内存占用
+  - **新增** Downsample模块的智能数据裁剪和四种抽稀策略，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能
 - **DbcPanel多协议分类问题**
   - 协议分类节点不显示需要检查文件扩展名识别
   - DatabaseEntry结构数据丢失需要检查序列化机制
@@ -2306,6 +2392,12 @@ TPANEL --> RecordTab["录制标签页"]
   - 录制数据丢失需要检查缓冲区管理
   - 暂停状态持久化失败需要检查状态保存机制
   - 恢复录制性能问题需要检查数据恢复策略
+- **Downsample模块问题**
+  - 降采样策略选择不当需要检查Strategy枚举配置
+  - 视口范围计算错误需要检查t1/t2参数传递
+  - 目标点数计算异常需要检查targetPoints参数
+  - 外延点缺失需要检查first/last边界处理
+  - 性能问题需要检查RingBuffer容量和数据量
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
@@ -2328,7 +2420,7 @@ TPANEL --> RecordTab["录制标签页"]
 
 **更新** 最新的架构重构将单体单文件结构完全转变为模块化组件系统，引入了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了真正的现代化开发模式。新的Web前端原型系统支持动态内容加载、模块化开发和响应式设计，为复杂的企业级应用提供了更加灵活和可扩展的用户界面解决方案。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性，工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理器，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过ActivityBar的工具集按钮和ToolsPanel侧边栏面板，为CAN总线数据分析提供了完整的工具解决方案，包括BLF/ASC/CSV格式转换、DBC文件查看编辑、帧统计分析、ID频率分析、总线负载计算等多种实用工具。主窗口组件通过新增的onToolOpened槽函数实现了工具激活请求的统一处理，支持多种不同的总线分析工具动态加载和管理，大大增强了UI系统的工具管理能力。**
 
-**最新增强** GraphicView组件现已完全重构，集成了QCustomPlot库，提供了专业的信号可视化功能。支持多轴信号绘图、实时数据流处理、交互式光标系统和高性能的批处理渲染。主题管理系统得到了显著增强，支持7种内置主题和运行时动态切换。**新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数和厂商特定设置。跟踪视图组件也得到了显著增强，新增了刷新率控制功能，支持高(50ms)、中(100ms)、低(200ms)、暂停四种刷新模式，有效平衡了实时性和性能需求。过滤器栏集成了批处理模型，通过CanTraceModel的批量数据处理能力，大幅提升了大数据集的处理效率。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程，整合了发送、回放、录制三个功能。播放系统增强了循环回放功能，支持多种循环模式和播放控制。录制系统增强了暂停/恢复功能，提供更灵活的录制控制。这些增强功能通过完善的设置菜单和信号槽机制实现，确保了系统的可扩展性和可维护性。遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。**
+**最新增强** GraphicView组件现已完全重构，集成了QCustomPlot库，提供了专业的信号可视化功能。支持多轴信号绘图、实时数据流处理、交互式光标系统和高性能的批处理渲染。主题管理系统得到了显著增强，支持7种内置主题和运行时动态切换。**新增的高性能视口降采样功能模块通过downsample算法实现Min/Max、Average、First、Decimate四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数和厂商特定设置。跟踪视图组件也得到了显著增强，新增了刷新率控制功能，支持高(50ms)、中(100ms)、低(200ms)、暂停四种刷新模式，有效平衡了实时性和性能需求。过滤器栏集成了批处理模型，通过CanTraceModel的批量数据处理能力，大幅提升了大数据集的处理效率。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程，整合了发送、回放、录制三个功能。播放系统增强了循环回放功能，支持多种循环模式和播放控制。录制系统增强了暂停/恢复功能，提供更灵活的录制控制。这些增强功能通过完善的设置菜单和信号槽机制实现，确保了系统的可扩展性和可维护性。遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。**
 
 [本节为总结性内容，无需特定文件引用]
 
@@ -2367,6 +2459,7 @@ TPANEL --> RecordTab["录制标签页"]
   - **新增** 视窗代理模型应提供稳定的数据映射和性能优化
   - **新增** FilterHeaderView应实现自定义排序指示器和漏斗图标的精确布局
   - **新增** TransceivePanel应提供简洁的收发功能入口
+  - **新增** Downsample模块应实现O(视口宽)恒定渲染成本和四种抽稀策略
 - **专用Tab组件规范**
   - DBC详情标签页应支持大数据集的虚拟滚动
   - 播放控制标签页需实现精确的时间轴控制
@@ -2404,6 +2497,7 @@ TPANEL --> RecordTab["录制标签页"]
   - **新增** 视窗代理模型应提供固定的视窗大小限制
   - **新增** FilterHeaderView应实现自定义绘制避免性能开销
   - **新增** TransceivePanel应使用轻量级设计减少内存占用
+  - **新增** Downsample模块应实现智能数据裁剪和四种抽稀策略
 - **最新规范要求**
   - 图形组件必须包含完善的错误处理和异常恢复机制
   - 所有组件需支持测试数据集的兼容性验证
@@ -2421,6 +2515,7 @@ TPANEL --> RecordTab["录制标签页"]
   - **新增** 设置对话框需提供直观的覆盖模式配置界面
   - **新增** FilterHeaderView需实现setSortState和clearSortState方法的正确调用
   - **新增** TransceivePanel需实现简洁的收发功能入口
+  - **新增** Downsample模块需实现O(视口宽)恒定渲染成本和四种抽稀策略
   - **增强** 播放系统需支持多种循环模式和播放控制
   - **增强** 录制系统需支持暂停/恢复功能和状态管理
 
@@ -2479,6 +2574,7 @@ TPANEL --> RecordTab["录制标签页"]
   - **新增** 视窗代理模型应提供稳定的数据映射和性能优化
   - **新增** FilterHeaderView应实现自定义绘制避免性能开销
   - **新增** TransceivePanel应提供简洁的收发功能入口
+  - **新增** Downsample模块应实现O(视口宽)恒定渲染成本和四种抽稀策略
 - **专用Tab组件最佳实践**
   - DBC详情标签页应实现高效的文件解析与缓存
   - 播放控制标签页需支持精确的时间同步
@@ -2517,6 +2613,7 @@ TPANEL --> RecordTab["录制标签页"]
   - **新增** 视窗代理模型应提供固定的视窗大小限制
   - **新增** FilterHeaderView应实现自定义绘制优化性能
   - **新增** TransceivePanel应使用轻量级设计减少内存占用
+  - **新增** Downsample模块应实现智能数据裁剪和四种抽稀策略
 - **最新最佳实践**
   - 图形组件必须实现健壮的异常处理和崩溃恢复
   - 所有数据处理组件需包含数据验证和完整性检查
@@ -2535,6 +2632,7 @@ TPANEL --> RecordTab["录制标签页"]
   - **新增** 设置对话框需提供直观的覆盖模式配置界面
   - **新增** FilterHeaderView需实现自定义排序指示器和漏斗图标的精确布局
   - **新增** TransceivePanel需实现简洁的收发功能入口
+  - **新增** Downsample模块需实现O(视口宽)恒定渲染成本和四种抽稀策略
   - **增强** 播放系统需支持多种循环模式和播放控制
   - **增强** 录制系统需支持暂停/恢复功能和状态管理
 
@@ -2591,6 +2689,9 @@ TPANEL --> RecordTab["录制标签页"]
 48. **性能测试**：验证新增组件对系统性能的影响
 49. **用户体验测试**：验证新增功能的使用便捷性和直观性
 50. **回归测试**：确保新增功能不影响现有功能的正常运行
+51. **Downsample模块测试**：验证四种抽稀策略的正确性和性能表现
+52. **视口降采样测试**：验证O(视口宽)恒定渲染成本的实现效果
+53. **大数据量测试**：验证百万级数据点的渲染性能和内存使用情况
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
