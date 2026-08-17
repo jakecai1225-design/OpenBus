@@ -1,4 +1,4 @@
-﻿#include "dbcdetailtab.h"
+#include "dbcdetailtab.h"
 #include "core/dbcmanager.h"
 #include "core/logging.h"
 
