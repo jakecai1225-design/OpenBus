@@ -121,6 +121,8 @@ set(SRC_UI
     ui/columnfilterpopup.cpp
     ui/graphicview.h
     ui/graphicview.cpp
+    ui/graphic/downsample.h
+    ui/graphic/downsample.cpp
     ui/filterbar.h
     ui/filterbar.cpp
     ui/signalconfigdialog.h

@@ -19,15 +19,15 @@
 - [plugins/frame-counter/plugin.json](file://plugins/frame-counter/plugin.json)
 - [plugins/hello-world/plugin.json](file://plugins/hello-world/plugin.json)
 - [sdk/sin/__init__.py](file://sdk/sin/__init__.py)
+- [src/core/canfileio/blf.cpp](file://src/core/canfileio/blf.cpp)
 </cite>
 
 ## 更新摘要
 **所做更改**
-- 新增插件系统核心组件到构建配置，包括PluginManager、PluginHost和PluginInfo类
-- 更新CMakeLists.txt以集成Python插件宿主的编译和部署流程
-- 添加插件发现机制，支持动态加载Python插件模块
-- 实现插件生命周期管理，包括激活、停用和事件处理
-- 增强构建脚本以支持插件系统的完整构建流程
+- 项目名从 `sin` 标准化为 `openbus`，目标名称从 `sin_core/sin_ui` 更新为 `openbus_core/openbus_ui`
+- 添加 BLF 支持的条件编译标志 `HAS_VECTOR_BLF`，支持可选的 vector_blf 库集成
+- 增强依赖管理，支持条件编译和可选功能模块
+- 更新构建系统以支持模块化架构和灵活的依赖配置
 
 ## 目录
 1. [项目概述](#项目概述)
@@ -44,10 +44,10 @@
 
 ## 项目概述
 
-本项目是一个基于Qt6的CAN总线报文分析工具，采用模块化架构设计。CMake构建系统支持多平台编译，包括Windows、macOS和Linux。项目结构清晰，分为core（核心逻辑）、models（数据模型）、ui（用户界面）和utils（工具函数）四个主要层次。**新增完整的Python插件系统支持**，允许通过Python扩展功能，提供动态加载和执行外部功能的强大能力。
+本项目是一个基于Qt6的CAN总线报文分析工具，采用模块化架构设计。CMake构建系统支持多平台编译，包括Windows、macOS和Linux。项目结构清晰，分为core（核心逻辑）、models（数据模型）、ui（用户界面）和utils（工具函数）四个主要层次。**项目已重命名为 openbus**，提供完整的Python插件系统支持，允许通过Python扩展功能，提供动态加载和执行外部功能的强大能力。
 
 **章节来源**
-- [CMakeLists.txt:1-7](file://CMakeLists.txt#L1-L7)
+- [CMakeLists.txt:3-7](file://CMakeLists.txt#L3-L7)
 
 ## 根目录CMakeLists.txt配置
 
@@ -55,7 +55,7 @@
 ```cmake
 cmake_minimum_required(VERSION 3.21)
 
-project(sin
+project(openbus
     VERSION 0.1.0
     DESCRIPTION "报文解析、分析、回放、录制、trace、graphic 桌面软件"
     LANGUAGES CXX
@@ -110,7 +110,7 @@ Core层包含核心业务逻辑，按功能模块组织：
 - **应用配置**: appconfig.cpp
 - **项目管理**: projectmanager.cpp
 - **日志系统**: logging.cpp
-- **插件系统**: plugininfo.h/cpp, pluginhost.h/cpp, pluginmanager.h/cpp (**新增**)
+- **插件系统**: plugininfo.h/cpp, pluginhost.h/cpp, pluginmanager.h/cpp
 
 #### CanFileIO模块源文件
 新增的canfileio模块支持多种文件格式：
@@ -144,8 +144,8 @@ Qt数据模型实现：
 - 特殊视图: udsview.h/cpp, canopenview.h/cpp
 - 主题管理: thememanager.h/cpp
 - 测量设置: measurementsetupview.h/cpp
-- **列筛选**: columnfilterpopup.h/cpp (新增)
-- **表头视图**: filterheaderview.h/cpp (增强)
+- **列筛选**: columnfilterpopup.h/cpp
+- **表头视图**: filterheaderview.h/cpp
 
 **章节来源**
 - [src/CMakeLists.txt:5-87](file://src/CMakeLists.txt#L5-L87)
@@ -153,20 +153,20 @@ Qt数据模型实现：
 
 ### 静态库构建配置
 
-#### sin_core静态库
-核心功能库，包含所有业务逻辑：
+#### openbus_core静态库
+**已更新** 核心功能库，包含所有业务逻辑：
 ```cmake
-add_library(sin_core STATIC
+add_library(openbus_core STATIC
     ${SRC_CORE}
     ${SRC_MODELS}
     ${SRC_UTILS}
 )
 ```
 
-#### sin_ui静态库
-用户界面库，独立于核心逻辑：
+#### openbus_ui静态库
+**已更新** 用户界面库，独立于核心逻辑：
 ```cmake
-add_library(sin_ui STATIC
+add_library(openbus_ui STATIC
     ${SRC_UI}
 )
 ```
@@ -182,7 +182,7 @@ add_library(sin_ui STATIC
 
 #### PRIVATE依赖
 内部使用的库，不对外暴露：
-- vector_blf: Vector BLF文件格式库
+- vector_blf: Vector BLF文件格式库（条件编译）
 - qcustomplot: 图表绘制库
 - **Qt6::Svg**: SVG图标渲染支持
 
@@ -196,13 +196,13 @@ add_library(sin_ui STATIC
 
 ### 插件系统整体架构
 
-**新增** 项目实现了完整的Python插件系统，支持动态加载和执行外部功能：
+项目实现了完整的Python插件系统，支持动态加载和执行外部功能：
 
 ```mermaid
 graph TD
 A[主程序] --> B[PluginManager]
 B --> C[PluginHost]
-C --> D[sin_host.py]
+C --> D[sing_host.py]
 D --> E[插件SDK]
 E --> F[插件模块]
 F --> G[plugin.json]
@@ -322,11 +322,11 @@ void PluginManager::discoverPlugins() {
 插件通过Python SDK与主程序交互：
 
 #### 核心API
-- **sin.output**: 输出消息到主程序面板
-- **sin.frames**: 访问CAN帧数据
-- **sin.commands**: 注册和执行命令
-- **sin.workspace**: 工作区操作
-- **sin.signals**: 信号处理
+- **openbus.output**: 输出消息到主程序面板
+- **openbus.frames**: 访问CAN帧数据
+- **openbus.commands**: 注册和执行命令
+- **openbus.workspace**: 工作区操作
+- **openbus.signals**: 信号处理
 
 #### UI支持
 - **PyQt6集成**: 可选的GUI功能支持
@@ -341,7 +341,7 @@ void PluginManager::discoverPlugins() {
 
 ### ColumnFilterPopup组件架构
 
-**新增** 实现了完整的Excel风格列筛选弹出面板，提供强大的数据过滤功能：
+实现了完整的Excel风格列筛选弹出面板，提供强大的数据过滤功能：
 
 ```mermaid
 graph TD
@@ -375,7 +375,7 @@ H --> J[显示值和计数]
 
 ### 信号与槽机制
 
-**已更新** ColumnFilterPopup提供了完整的信号接口：
+ColumnFilterPopup提供了完整的信号接口：
 
 ```cpp
 signals:
@@ -385,7 +385,7 @@ signals:
 
 ### FilterHeaderView集成
 
-**已更新** 表头视图集成了漏斗图标和排序指示器：
+表头视图集成了漏斗图标和排序指示器：
 
 ```cpp
 // 自定义绘制漏斗图标
@@ -437,7 +437,7 @@ H --> I
 
 ### SVG图标工具函数
 
-**新增** SVG图标渲染工具提供了灵活的图标处理能力：
+SVG图标渲染工具提供了灵活的图标处理能力：
 
 ```cpp
 // 读取 SVG 文件，替换 currentColor 为指定颜色，渲染为 QPixmap
@@ -460,7 +460,7 @@ inline QPixmap renderSvgPixmap(const QString &resourcePath, const QString &color
 
 ### ActivityBar中的SVG图标使用
 
-**已更新** ActivityBar使用SVG图标实现双状态显示：
+ActivityBar使用SVG图标实现双状态显示：
 
 ```cpp
 static QIcon makeActivityIcon(const QString &resourcePath)
@@ -475,7 +475,7 @@ static QIcon makeActivityIcon(const QString &resourcePath)
 
 ### 资源文件管理
 
-**已更新** QRC资源文件包含了所有SVG图标：
+QRC资源文件包含了所有SVG图标：
 
 ```xml
 <RCC>
@@ -508,14 +508,14 @@ static QIcon makeActivityIcon(const QString &resourcePath)
 
 ### 驱动DLL自动复制机制
 
-**已更新** 改进了设备驱动的构建后处理：
+改进了设备驱动的构建后处理：
 
 ```cmake
 if(EXISTS "${CMAKE_SOURCE_DIR}/driver")
-    add_custom_command(TARGET sin POST_BUILD
+    add_custom_command(TARGET openbus POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_SOURCE_DIR}/driver"
-                "$<TARGET_FILE_DIR:sin>"
+                "$<TARGET_FILE_DIR:openbus>"
         COMMENT "Copying driver DLLs to output directory"
     )
     # 安装规则 — 安装包包含驱动 DLL
@@ -555,7 +555,7 @@ driver/
 
 ### vector_blf库配置
 
-vector_blf库是Vector BLF文件格式的C++实现，采用GPL-3.0许可证：
+**已更新** vector_blf库是Vector BLF文件格式的C++实现，采用GPL-3.0许可证，支持条件编译：
 
 ```cmake
 # 查找zlib依赖
@@ -589,6 +589,28 @@ add_library(vector_blf STATIC ${VECTOR_BLF_SOURCES})
 target_link_libraries(vector_blf PUBLIC Threads::Threads ${ZLIB_LIBRARIES})
 ```
 
+### BLF支持的条件编译
+
+**新增** 项目支持可选的vector_blf库集成，通过条件编译标志控制：
+
+```cmake
+if(TARGET vector_blf)
+    target_link_libraries(openbus_core PRIVATE vector_blf)
+    target_compile_definitions(openbus_core PRIVATE HAS_VECTOR_BLF)
+endif()
+```
+
+当启用vector_blf库时，会定义`HAS_VECTOR_BLF`宏，允许代码中使用高级BLF功能：
+
+```cpp
+#ifdef HAS_VECTOR_BLF
+#include <Vector/BLF.h>
+// 使用vector_blf库的高级功能
+#else
+// 使用内置的BLF解析实现
+#endif
+```
+
 ### 其他第三方库
 
 #### spdlog日志库
@@ -614,6 +636,7 @@ target_link_libraries(vector_blf PUBLIC Threads::Threads ${ZLIB_LIBRARIES})
 **章节来源**
 - [third_party/Dependencies.cmake:1-32](file://third_party/Dependencies.cmake#L1-L32)
 - [src/CMakeLists.txt:210-220](file://src/CMakeLists.txt#L210-L220)
+- [src/core/canfileio/blf.cpp:10-12](file://src/core/canfileio/blf.cpp#L10-L12)
 
 ## 平台特定配置
 
@@ -622,7 +645,7 @@ target_link_libraries(vector_blf PUBLIC Threads::Threads ${ZLIB_LIBRARIES})
 #### GUI程序设置
 ```cmake
 if(WIN32)
-    set_target_properties(sin PROPERTIES
+    set_target_properties(openbus PROPERTIES
         WIN32_EXECUTABLE TRUE
     )
 endif()
@@ -652,7 +675,7 @@ endif()
 #### Core层PCH配置
 针对核心层使用精简的Qt头文件列表：
 ```cmake
-target_precompile_headers(sin_core PRIVATE
+target_precompile_headers(openbus_core PRIVATE
     <QObject>
     <QString>
     <QStringList>
@@ -687,7 +710,7 @@ target_precompile_headers(sin_core PRIVATE
 #### UI层PCH配置
 针对UI层使用完整的Qt Widget头文件列表：
 ```cmake
-target_precompile_headers(sin_ui PRIVATE
+target_precompile_headers(openbus_ui PRIVATE
     <QWidget>
     <QMainWindow>
     <QVBoxLayout>
@@ -749,15 +772,15 @@ target_precompile_headers(sin_ui PRIVATE
 
 ### 可执行文件安装
 ```cmake
-install(TARGETS sin
+install(TARGETS openbus
     RUNTIME DESTINATION bin
 )
 ```
 
 ### 库文件安装
-当前配置未包含库文件的安装规则，如需安装sin_core和sin_ui库，可以添加：
+当前配置未包含库文件的安装规则，如需安装openbus_core和openbus_ui库，可以添加：
 ```cmake
-install(TARGETS sin_core sin_ui
+install(TARGETS openbus_core openbus_ui
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
 )
@@ -767,7 +790,7 @@ install(TARGETS sin_core sin_ui
 如需安装公共头文件，可以添加：
 ```cmake
 install(DIRECTORY core/ models/ utils/
-    DESTINATION include/sin
+    DESTINATION include/openbus
     FILES_MATCHING PATTERN "*.h"
 )
 ```
@@ -782,23 +805,23 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/driver/"
 ```
 
 ### 插件系统安装
-**新增** 插件系统的安装配置：
+插件系统的安装配置：
 - **插件目录**: 自动复制`plugins/`目录到安装位置
 - **SDK模块**: 包含Python SDK供插件开发使用
 - **宿主脚本**: 部署`sing_host.py`到安装目录
 
 **章节来源**
 - [CMakeLists.txt:60-62](file://CMakeLists.txt#L60-L62)
-- [src/CMakeLists.txt:362-364](file://src/CMakeLists.txt#L362-L364)
-- [src/CMakeLists.txt:352-357](file://src/CMakeLists.txt#L352-L357)
+- [src/CMakeLists.txt:362-364](file://src/CMakeLists.txt#L362-364)
+- [src/CMakeLists.txt:352-357](file://src/CMakeLists.txt#L352-357)
 
 ## 构建流程总结
 
 ### 依赖关系图
 ```mermaid
 graph TD
-A[sin可执行文件] --> B[sin_ui静态库]
-B --> C[sin_core静态库]
+A[openbus可执行文件] --> B[openbus_ui静态库]
+B --> C[openbus_core静态库]
 C --> D[Qt6::Widgets]
 C --> E[spdlog]
 C --> F[nlohmann_json]
@@ -819,9 +842,9 @@ O --> R[PluginInfo]
 ### 构建步骤
 1. **配置阶段**: CMake检查依赖项并生成构建系统
 2. **编译阶段**: 
-   - 先编译sin_core核心库（包含插件系统）
-   - 再编译sin_ui界面库（包含新的columnfilterpopup组件）
-   - 最后链接sin可执行文件
+   - 先编译openbus_core核心库
+   - 再编译openbus_ui界面库
+   - 最后链接openbus可执行文件
 3. **链接阶段**: 链接所有依赖库生成最终可执行文件
 4. **安装阶段**: 将可执行文件、驱动文件和插件系统安装到指定目录
 
@@ -834,5 +857,5 @@ O --> R[PluginInfo]
 
 **章节来源**
 - [src/CMakeLists.txt:175-179](file://src/CMakeLists.txt#L175-L179)
-- [src/CMakeLists.txt:322-329](file://src/CMakeLists.txt#L322-L329)
+- [src/CMakeLists.txt:322-329](file://src/CMakeLists.txt#L322-329)
 - [src/CMakeLists.txt:81-87](file://src/CMakeLists.txt#L81-L87)

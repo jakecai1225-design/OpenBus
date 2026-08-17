@@ -16,6 +16,7 @@
 #include <QLabel>
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <QResizeEvent>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
@@ -27,11 +28,19 @@
 #include <QComboBox>
 #include <QColorDialog>
 #include <QPixmap>
+#include <QRubberBand>
+#include <QShortcut>
+#include <QKeySequence>
+#include <QDialog>
+#include <QFormLayout>
+#include <QDoubleSpinBox>
+#include <QDialogButtonBox>
 #include <cmath>
 #include <algorithm>
 #include <functional>
 
 #include "qcustomplot.h"
+#include "thememanager.h"
 #include "core/canfileio/canfileio.h"
 #include "core/canfileio/canfileio_factory.h"
 
@@ -47,8 +56,11 @@ public:
     std::function<void(QMouseEvent*)> onMousePress;
     std::function<void(QMouseEvent*)> onMouseMove;
     std::function<void(QMouseEvent*)> onMouseRelease;
+    std::function<void(QMouseEvent*)> onMouseDoubleClick;
     std::function<void(QWheelEvent*)> onWheel;
     std::function<void(QContextMenuEvent*)> onContextMenu;
+    std::function<void(QResizeEvent*)> onResize;
+    std::function<void()> onLeave;
 
 protected:
     void mousePressEvent(QMouseEvent *event) override
@@ -69,6 +81,17 @@ protected:
         if (!event->isAccepted())
             QCustomPlot::mouseReleaseEvent(event);
     }
+    void mouseDoubleClickEvent(QMouseEvent *event) override
+    {
+        if (onMouseDoubleClick) onMouseDoubleClick(event);
+        if (!event->isAccepted())
+            QCustomPlot::mouseDoubleClickEvent(event);
+    }
+    void leaveEvent(QEvent *event) override
+    {
+        if (onLeave) onLeave();
+        QCustomPlot::leaveEvent(event);
+    }
     void wheelEvent(QWheelEvent *event) override
     {
         if (onWheel) onWheel(event);
@@ -80,6 +103,11 @@ protected:
         if (onContextMenu) onContextMenu(event);
         else
             QCustomPlot::contextMenuEvent(event);
+    }
+    void resizeEvent(QResizeEvent *event) override
+    {
+        QCustomPlot::resizeEvent(event);
+        if (onResize) onResize(event);
     }
 };
 
@@ -106,12 +134,56 @@ public:
 };
 
 // ============================================================
+//  GraphicPalette — CANoe 经典浅色基准 / 深色同构映射
+// ============================================================
+
+GraphicPalette GraphicPalette::canoeLight()
+{
+    GraphicPalette p;
+    p.canvas      = QColor(0xFF, 0xFF, 0xFF);   // 白底（CANoe 经典）
+    p.grid        = QColor(0xD9, 0xD9, 0xD9);   // 浅灰实线网格
+    p.trackSep    = QColor(0xBF, 0xBF, 0xBF);   // 轨道分隔线
+    p.axis        = QColor(0x00, 0x00, 0x00);   // 黑色轴线/刻度（CANoe）
+    p.axisText    = QColor(0x00, 0x00, 0x00);
+    p.timeLine    = QColor(0xFF, 0xD9, 0x00);   // 当前时间线（黄，白底可辨识）
+    p.cursor1     = QColor(0x00, 0x00, 0x00);   // 测量卡尺 1：黑实线
+    p.cursor2     = QColor(0x1E, 0x64, 0xC8);   // 测量卡尺 2：深蓝实线
+    p.trackCursor = QColor(0x80, 0x80, 0x80);   // 鼠标跟踪线：灰点线
+    p.nameTagBg     = QColor(0xFF, 0xFF, 0xFF, 235);
+    p.nameTagFg     = QColor(0x00, 0x00, 0x00);
+    p.nameTagBorder = QColor(0xBF, 0xBF, 0xBF);
+    p.dimCurve    = QColor(0xB0, 0xB0, 0xB0);   // 聚焦模式未选中曲线置灰
+    return p;
+}
+
+GraphicPalette GraphicPalette::canoeDark()
+{
+    GraphicPalette p;
+    p.canvas      = QColor(0x1E, 0x1E, 0x1E);
+    p.grid        = QColor(0x33, 0x33, 0x33);
+    p.trackSep    = QColor(0x44, 0x44, 0x44);
+    p.axis        = QColor(0xD4, 0xD4, 0xD4);
+    p.axisText    = QColor(0xD4, 0xD4, 0xD4);
+    p.timeLine    = QColor(0xFF, 0xD4, 0x00);
+    p.cursor1     = QColor(0xFF, 0xFF, 0xFF);
+    p.cursor2     = QColor(0x5A, 0xA9, 0xFF);
+    p.trackCursor = QColor(0x77, 0x77, 0x77);
+    p.nameTagBg     = QColor(0x2A, 0x2A, 0x2A, 235);
+    p.nameTagFg     = QColor(0xDD, 0xDD, 0xDD);
+    p.nameTagBorder = QColor(0x55, 0x55, 0x55);
+    p.dimCurve    = QColor(0x60, 0x60, 0x60);
+    return p;
+}
+
+// ============================================================
 //  GraphicView 实现
 // ============================================================
 
 GraphicView::GraphicView(QWidget *parent)
     : QWidget(parent)
 {
+    m_palette = isLightTheme() ? GraphicPalette::canoeLight() : GraphicPalette::canoeDark();
+
     setupUi();
     setAcceptDrops(true);
 
@@ -125,22 +197,93 @@ GraphicView::GraphicView(QWidget *parent)
     connect(&m_valueTimer, &QTimer::timeout, this, [this]() { updateSignalValues(); });
     m_valueTimer.start();
 
+    // 缩放历史：滚轮防抖合并（操作前状态已在滚动开始时 push，超时无需再记）
+    m_zoomPushTimer.setInterval(500);
+    m_zoomPushTimer.setSingleShot(true);
+
+    // 主题切换 → 全视图重刷配色
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, [this]() { applyPalette(); });
+
+    // 卡尺/时间线/跟踪线用 ptAbsolute 像素定位（updateCursorDecorations 统一维护），
+    // 不依赖任何业务轴生命周期
     ensureCurrentTimeLine();
+    ensureTrackLine();
 }
 
 QColor GraphicView::autoColor(int index)
 {
+    // CANoe/Vector 经典高饱和 16 色板（深浅底通用，白底对比度优于 Material 色）
     static const QColor colors[] = {
-        QColor(0x21, 0x96, 0xF3), // blue
-        QColor(0xF4, 0x43, 0x36), // red
-        QColor(0x4C, 0xAF, 0x50), // green
-        QColor(0xFF, 0x98, 0x00), // orange
-        QColor(0x9C, 0x27, 0xB0), // purple
-        QColor(0x00, 0xBC, 0xD4), // cyan
-        QColor(0xFF, 0xEB, 0x3B), // yellow
-        QColor(0x79, 0x55, 0x48), // brown
+        QColor(0x00, 0x00, 0xFF), // Blue
+        QColor(0xFF, 0x00, 0x00), // Red
+        QColor(0x00, 0x80, 0x00), // Green
+        QColor(0x00, 0xFF, 0xFF), // Cyan
+        QColor(0xFF, 0x00, 0xFF), // Magenta
+        QColor(0x80, 0x80, 0x00), // Olive
+        QColor(0x00, 0x00, 0x80), // Navy
+        QColor(0x80, 0x00, 0x00), // Maroon
+        QColor(0x00, 0x80, 0x80), // Teal
+        QColor(0xC0, 0x00, 0x00), // Dark Red
+        QColor(0x80, 0x80, 0xC0), // Light Navy
+        QColor(0x80, 0x40, 0x00), // Brown
+        QColor(0x60, 0x80, 0x00), // Olive Green
+        QColor(0x80, 0x00, 0xFF), // Purple
+        QColor(0x00, 0x80, 0xFF), // Sky Blue
+        QColor(0xFF, 0x80, 0x00), // Orange
     };
-    return colors[index % 8];
+    return colors[index % 16];
+}
+
+bool GraphicView::isLightTheme()
+{
+    const Theme &t = ThemeManager::instance()->currentTheme();
+    return QColor(t.windowBg).lightness() > 128;
+}
+
+QString GraphicView::toolbarQss() const
+{
+    const Theme &t = ThemeManager::instance()->currentTheme();
+    return QString(
+        "QToolBar { background: %1; border: none; border-bottom: 1px solid %2; spacing: 2px; padding: 2px; }"
+        "QToolButton { background: transparent; border: 1px solid transparent; border-radius: 3px; "
+        "padding: 3px 8px; color: %3; font-size: 12px; min-width: 28px; }"
+        "QToolButton:hover { background: %4; border-color: %5; }"
+        "QToolButton:checked { background: %6; border-color: %7; color: #fff; }"
+        "QCheckBox { color: %3; font-size: 12px; padding: 2px 6px; }"
+        "QCheckBox::indicator { width: 14px; height: 14px; }"
+        "QComboBox { background: %4; border: 1px solid %5; border-radius: 3px; "
+        "padding: 2px 6px; color: %3; font-size: 12px; min-width: 56px; }"
+        "QComboBox:hover { border-color: %5; }"
+        "QComboBox QAbstractItemView { background: %1; border: 1px solid %5; "
+        "selection-background-color: %6; color: %3; }"
+        "QLabel { color: %8; font-size: 12px; padding-left: 4px; }"
+    )
+    .arg(t.panelBg, t.border, t.text, t.buttonBg, t.border, t.accent, t.accentBorder, t.textDim);
+}
+
+QString GraphicView::treeQss() const
+{
+    const Theme &t = ThemeManager::instance()->currentTheme();
+    return QString(
+        "QTreeWidget { background: %1; color: %2; border: none; font-size: 12px; }"
+        "QTreeWidget::item { padding: 2px 4px; }"
+        "QTreeWidget::item:alternate { background: %3; }"
+        "QTreeWidget::item:selected { background: %4; color: %2; }"
+        "QHeaderView::section { background: %5; color: %6; border: none; "
+        "border-bottom: 1px solid %7; padding: 3px 4px; font-size: 11px; }"
+    )
+    .arg(t.contentBg, t.text, t.altRowBg, t.selectionBg, t.headerBg, t.textDim, t.border);
+}
+
+QString GraphicView::infoLabelQss() const
+{
+    const Theme &t = ThemeManager::instance()->currentTheme();
+    return QString(
+        "QLabel { padding: 4px 8px; background: %1; color: %2; "
+        "border-top: 1px solid %3; font-family: Consolas, monospace; font-size: 12px; }"
+    )
+    .arg(t.panelBg, t.text, t.border);
 }
 
 void GraphicView::setupUi()
@@ -149,24 +292,18 @@ void GraphicView::setupUi()
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
-    // ---- 工具栏 ----
+    const Theme &th = ThemeManager::instance()->currentTheme();
+    auto buttonQss = [&th](const QString &bg, const QString &border) {
+        return QString("QPushButton { background: %1; color: %2; border: 1px solid %3; "
+                       "border-radius: 3px; padding: 4px 8px; font-size: 12px; }")
+               .arg(bg, th.text, border);
+    };
+
+    // ---- 工具栏（对标 CANoe 分组，主题化 QSS） ----
     m_toolbar = new QToolBar(this);
     m_toolbar->setMovable(false);
     m_toolbar->setIconSize(QSize(16, 16));
-    m_toolbar->setStyleSheet(
-        "QToolBar { background: #2d2d2d; border: none; border-bottom: 1px solid #3d3d3d; spacing: 2px; padding: 2px; }"
-        "QToolButton { background: transparent; border: 1px solid transparent; border-radius: 3px; "
-        "padding: 3px 8px; color: #cccccc; font-size: 12px; min-width: 28px; }"
-        "QToolButton:hover { background: #3d3d3d; border-color: #555; }"
-        "QToolButton:checked { background: #0c5d8f; border-color: #1a8dcc; color: #fff; }"
-        "QCheckBox { color: #cccccc; font-size: 12px; padding: 2px 6px; }"
-        "QCheckBox::indicator { width: 14px; height: 14px; }"
-        "QComboBox { background: #3d3d3d; border: 1px solid #555; border-radius: 3px; "
-        "padding: 2px 6px; color: #cccccc; font-size: 12px; min-width: 60px; }"
-        "QComboBox:hover { border-color: #777; }"
-        "QComboBox QAbstractItemView { background: #2d2d2d; border: 1px solid #555; "
-        "selection-background-color: #0c5d8f; color: #cccccc; }"
-    );
+    m_toolbar->setStyleSheet(toolbarQss());
 
     auto makeBtn = [this](const QString &text, const QString &tip) -> QToolButton* {
         auto *btn = new QToolButton(m_toolbar);
@@ -177,14 +314,26 @@ void GraphicView::setupUi()
     };
 
     // 暂停/继续
-    m_pauseBtn = makeBtn("⏸", "暂停/继续采集");
+    m_pauseBtn = makeBtn("⏸", "暂停/继续采集 (Space)");
     m_pauseBtn->setCheckable(true);
 
-    auto *zoomInBtn = makeBtn("＋", "放大");
-    auto *zoomOutBtn = makeBtn("－", "缩小");
-    auto *fitBtn = makeBtn("⤢", "适应窗口");
+    m_zoomInBtn = makeBtn("＋", "放大 (+)");
+    m_zoomOutBtn = makeBtn("－", "缩小 (-)");
+    m_fitBtn = makeBtn("⤢", "适应窗口 (F)");
+    m_undoZoomBtn = makeBtn("↺", "撤销缩放 (Ctrl+Z)");
+    m_undoZoomBtn->setEnabled(false);
+    m_rubberZoomBtn = makeBtn("▣", "框选缩放（左键拖框放大，扁平框仅 X）");
+    m_rubberZoomBtn->setCheckable(true);
+    m_rubberZoomBtn->setChecked(m_rubberZoom);
     auto *clearDataBtn = makeBtn("⟲", "清空数据");
     auto *exportBtn = makeBtn("📷", "导出为图片");
+
+    // 缩放轴模式（对标 CANoe X/Y/XY 独立缩放）
+    m_zoomAxisCombo = new QComboBox(m_toolbar);
+    m_zoomAxisCombo->setToolTip("缩放轴模式（滚轮/框选/±受其约束）");
+    m_zoomAxisCombo->addItem("XY");
+    m_zoomAxisCombo->addItem("仅X");
+    m_zoomAxisCombo->addItem("仅Y");
 
     // 时间窗口选择
     m_timeWindowCombo = new QComboBox(m_toolbar);
@@ -193,35 +342,72 @@ void GraphicView::setupUi()
         m_timeWindowCombo->addItem(QString("%1s").arg(sec), sec);
     m_timeWindowCombo->setCurrentIndex(4); // 默认 30s
 
+    // 曲线显示模式（折线/阶梯/仅点）
+    m_displayModeCombo = new QComboBox(m_toolbar);
+    m_displayModeCombo->setToolTip("曲线显示模式");
+    m_displayModeCombo->addItem("折线");
+    m_displayModeCombo->addItem("阶梯");
+    m_displayModeCombo->addItem("仅点");
+    m_displayModeCombo->setCurrentIndex(static_cast<int>(m_displayMode));
+
+    // 聚焦模式（对标 CANoe 全部彩色/选中彩色/仅选中显示）
+    m_focusCombo = new QComboBox(m_toolbar);
+    m_focusCombo->setToolTip("显示模式：全部彩色 / 选中彩色 / 仅显示选中");
+    m_focusCombo->addItem("全部彩色");
+    m_focusCombo->addItem("选中彩色");
+    m_focusCombo->addItem("仅选中");
+
+    // Y 轴显示方式（对标 CANoe 三态）
+    m_yAxisModeCombo = new QComboBox(m_toolbar);
+    m_yAxisModeCombo->setToolTip("Y 轴显示方式");
+    m_yAxisModeCombo->addItem("分栏");
+    m_yAxisModeCombo->addItem("叠加·选中轴");
+    m_yAxisModeCombo->addItem("叠加·全部轴");
+
     m_pointsToggle = new QCheckBox("采样点", m_toolbar);
     m_pointsToggle->setToolTip("显示/隐藏采样点");
     m_pointsToggle->setChecked(m_showPoints);
 
-    m_cursorSingleBtn = makeBtn("┊", "单卡尺");
+    m_cursorSingleBtn = makeBtn("┊", "单卡尺 (C)");
     m_cursorSingleBtn->setCheckable(true);
-    m_cursorDoubleBtn = makeBtn("┊┊", "双卡尺");
+    m_cursorDoubleBtn = makeBtn("┊┊", "双卡尺 (V)");
     m_cursorDoubleBtn->setCheckable(true);
-    m_cursorClearBtn = makeBtn("✕", "清除卡尺");
+    m_cursorClearBtn = makeBtn("✕", "清除卡尺 (Esc)");
 
+    m_cursorLinkToggle = new QCheckBox("联动", m_toolbar);
+    m_cursorLinkToggle->setToolTip("多视图游标联动");
+    m_cursorLinkToggle->setChecked(m_cursorLink);
+
+    // 分组排列：[暂停] | [适应 放大 缩小 撤销缩放] | [框选 缩放轴] | [窗口 模式 聚焦 采样点] | [Y轴] | [卡尺 联动] | [导出]
     m_toolbar->addWidget(m_pauseBtn);
     m_toolbar->addSeparator();
-    m_toolbar->addWidget(zoomInBtn);
-    m_toolbar->addWidget(zoomOutBtn);
-    m_toolbar->addWidget(fitBtn);
-    m_toolbar->addWidget(clearDataBtn);
+    m_toolbar->addWidget(m_fitBtn);
+    m_toolbar->addWidget(m_zoomInBtn);
+    m_toolbar->addWidget(m_zoomOutBtn);
+    m_toolbar->addWidget(m_undoZoomBtn);
     m_toolbar->addSeparator();
-    // 时间窗口标签 + 下拉框
+    m_toolbar->addWidget(m_rubberZoomBtn);
+    m_toolbar->addWidget(m_zoomAxisCombo);
+    m_toolbar->addSeparator();
     auto *twLabel = new QLabel("窗口:", m_toolbar);
-    twLabel->setStyleSheet("color: #aaa; font-size: 12px; padding-left: 4px;");
     m_toolbar->addWidget(twLabel);
     m_toolbar->addWidget(m_timeWindowCombo);
-    m_toolbar->addSeparator();
+    auto *dmLabel = new QLabel("模式:", m_toolbar);
+    m_toolbar->addWidget(dmLabel);
+    m_toolbar->addWidget(m_displayModeCombo);
+    m_toolbar->addWidget(m_focusCombo);
     m_toolbar->addWidget(m_pointsToggle);
+    m_toolbar->addSeparator();
+    auto *yaLabel = new QLabel("Y轴:", m_toolbar);
+    m_toolbar->addWidget(yaLabel);
+    m_toolbar->addWidget(m_yAxisModeCombo);
     m_toolbar->addSeparator();
     m_toolbar->addWidget(m_cursorSingleBtn);
     m_toolbar->addWidget(m_cursorDoubleBtn);
     m_toolbar->addWidget(m_cursorClearBtn);
+    m_toolbar->addWidget(m_cursorLinkToggle);
     m_toolbar->addSeparator();
+    m_toolbar->addWidget(clearDataBtn);
     m_toolbar->addWidget(exportBtn);
     auto *spacer = new QWidget(m_toolbar);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -231,27 +417,23 @@ void GraphicView::setupUi()
     // ---- 分割器: 信号列表 | 波形区 ----
     m_splitter = new QSplitter(Qt::Horizontal, this);
 
-    // 左侧: 信号列表 (QTreeWidget)
+    // 左侧: 信号列表 (QTreeWidget，首列色块，对标 CANoe)
     auto *leftWidget = new QWidget(m_splitter);
     auto *leftLayout = new QVBoxLayout(leftWidget);
     leftLayout->setContentsMargins(0, 0, 0, 0);
     leftLayout->setSpacing(0);
 
     m_signalTree = new QTreeWidget(leftWidget);
-    m_signalTree->setColumnCount(8);
-    m_signalTree->setHeaderLabels({"信号", "原始值", "物理值", "单位", "Min", "Max", "ID", "点数"});
+    m_signalTree->setColumnCount(9);
+    m_signalTree->setHeaderLabels({"", "信号", "物理值", "原始值", "单位", "Min", "Max", "ID", "点数"});
     m_signalTree->setRootIsDecorated(false);
     m_signalTree->setAlternatingRowColors(true);
     m_signalTree->setMinimumWidth(320);
-    m_signalTree->setStyleSheet(
-        "QTreeWidget { background: #1e1e1e; color: #ccc; border: none; font-size: 12px; }"
-        "QTreeWidget::item { padding: 2px 4px; }"
-        "QTreeWidget::item:selected { background: #0c5d8f; color: #fff; }"
-        "QHeaderView::section { background: #2d2d2d; color: #aaa; border: none; "
-        "border-bottom: 1px solid #3d3d3d; padding: 3px 4px; font-size: 11px; }"
-    );
-    m_signalTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    for (int c = 1; c < 8; ++c)
+    m_signalTree->setStyleSheet(treeQss());
+    m_signalTree->header()->setSectionResizeMode(0, QHeaderView::Fixed);
+    m_signalTree->header()->resizeSection(0, 22);
+    m_signalTree->header()->setSectionResizeMode(1, QHeaderView::Stretch);
+    for (int c = 2; c < 9; ++c)
         m_signalTree->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
     leftLayout->addWidget(m_signalTree, 1);
 
@@ -259,13 +441,9 @@ void GraphicView::setupUi()
     btnBar->setContentsMargins(4, 4, 4, 4);
     btnBar->setSpacing(4);
     auto *addBtn = new QPushButton("+ 添加信号", leftWidget);
-    addBtn->setStyleSheet("QPushButton { background: #2d5a2d; color: #ccc; border: 1px solid #3d7a3d; "
-                          "border-radius: 3px; padding: 4px 8px; font-size: 12px; }"
-                          "QPushButton:hover { background: #3d7a3d; }");
+    addBtn->setStyleSheet(buttonQss(th.buttonBg, th.accentBorder));
     auto *removeBtn = new QPushButton("- 删除信号", leftWidget);
-    removeBtn->setStyleSheet("QPushButton { background: #5a2d2d; color: #ccc; border: 1px solid #7a3d3d; "
-                              "border-radius: 3px; padding: 4px 8px; font-size: 12px; }"
-                              "QPushButton:hover { background: #7a3d3d; }");
+    removeBtn->setStyleSheet(buttonQss(th.buttonBg, th.border));
     btnBar->addWidget(addBtn);
     btnBar->addWidget(removeBtn);
     leftLayout->addLayout(btnBar);
@@ -274,13 +452,16 @@ void GraphicView::setupUi()
     auto *cursorPlot = new CursorPlot(m_splitter);
     m_plot = cursorPlot;
     m_plot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom);
-    m_plot->setSelectionRectMode(QCP::srmNone);  // 默认拖拽模式, 非选区缩放
+    m_plot->setSelectionRectMode(QCP::srmNone);  // 框选缩放自实现（多轨道 X 同步）
     m_plot->setAntialiasedElements(QCP::aeAll);
     // 清除默认 axisRect，后面按信号数量动态创建
     m_plot->plotLayout()->clear();
 
-    // 深色画布背景（CANoe 风格）
-    m_plot->setBackground(QColor(0x1e, 0x1e, 0x1e));
+    // 画布背景（随主题：浅色 = CANoe 白底）
+    m_plot->setBackground(m_palette.canvas);
+
+    // 框选缩放橡皮筋
+    m_rubberBand = new QRubberBand(QRubberBand::Rectangle, m_plot);
 
     m_splitter->addWidget(leftWidget);
     m_splitter->addWidget(m_plot);
@@ -291,21 +472,56 @@ void GraphicView::setupUi()
     // ---- 卡尺信息面板（底部，可隐藏） ----
     m_cursorInfoLabel = new QLabel(this);
     m_cursorInfoLabel->setObjectName("CursorInfoLabel");
-    m_cursorInfoLabel->setStyleSheet(
-        "QLabel { padding: 4px 8px; background: #1e1e1e; color: #cccccc; "
-        "border-top: 1px solid #333; font-family: Consolas, monospace; font-size: 12px; }");
+    m_cursorInfoLabel->setStyleSheet(infoLabelQss());
     m_cursorInfoLabel->setVisible(false);
 
     // ---- 底部状态栏 ----
     m_statusLabel = new QLabel(this);
     m_statusLabel->setStyleSheet(
-        "QLabel { padding: 3px 8px; background: #252525; color: #999; "
-        "border-top: 1px solid #333; font-family: Consolas, monospace; font-size: 11px; }");
+        QString("QLabel { padding: 3px 8px; background: %1; color: %2; "
+                "border-top: 1px solid %3; font-family: Consolas, monospace; font-size: 11px; }")
+            .arg(th.statusBg, th.statusFg, th.border));
     m_statusLabel->setText("就绪 — 请添加信号或拖入文件");
 
     mainLayout->addWidget(m_splitter, 1);
     mainLayout->addWidget(m_cursorInfoLabel);
     mainLayout->addWidget(m_statusLabel);
+
+    // ---- 快捷键（对标 CANoe 常用操作，当前视图不可见时忽略） ----
+    auto addShortcut = [this](const QKeySequence &key, auto &&fn) {
+        auto *sc = new QShortcut(key, this);
+        connect(sc, &QShortcut::activated, this, [this, fn]() {
+            if (isVisible()) fn();
+        });
+    };
+    addShortcut(QKeySequence(Qt::Key_F), [this]() { fitAll(); });
+    addShortcut(QKeySequence(Qt::Key_Space), [this]() { m_pauseBtn->click(); });
+    addShortcut(QKeySequence(Qt::CTRL | Qt::Key_Z), [this]() { undoZoom(); });
+    addShortcut(QKeySequence(Qt::Key_Plus), [this]() { zoomAt(0.5, m_plot->rect().center()); });
+    addShortcut(QKeySequence(Qt::Key_Minus), [this]() { zoomAt(2.0, m_plot->rect().center()); });
+    addShortcut(QKeySequence(Qt::Key_Left), [this]() {
+        if (QCPAxis *x = primaryXAxis()) {
+            QCPRange r = x->range();
+            double d = r.size() * 0.1;
+            setXRangeAll(QCPRange(r.lower - d, r.upper - d));
+        }
+    });
+    addShortcut(QKeySequence(Qt::Key_Right), [this]() {
+        if (QCPAxis *x = primaryXAxis()) {
+            QCPRange r = x->range();
+            double d = r.size() * 0.1;
+            setXRangeAll(QCPRange(r.lower + d, r.upper + d));
+        }
+    });
+    addShortcut(QKeySequence(Qt::Key_C), [this]() {
+        if (!m_cursorSingleBtn->isChecked())
+            m_cursorSingleBtn->click();   // setChecked 不触发 clicked 信号
+    });
+    addShortcut(QKeySequence(Qt::Key_V), [this]() {
+        if (!m_cursorDoubleBtn->isChecked())
+            m_cursorDoubleBtn->click();
+    });
+    addShortcut(QKeySequence(Qt::Key_Escape), [this]() { m_cursorClearBtn->click(); });
 
     // ---- 信号添加/删除 ----
     connect(addBtn, &QPushButton::clicked, this, [this]() {
@@ -329,30 +545,61 @@ void GraphicView::setupUi()
             removeSignal(row);
     });
 
-    // ---- 缩放 ----
-    connect(zoomInBtn, &QToolButton::clicked, this, [this]() {
-        for (auto &sd : m_signals) {
-            if (sd.axisRect) {
-                sd.axisRect->axis(QCPAxis::atBottom)->scaleRange(0.5,
-                    sd.axisRect->axis(QCPAxis::atBottom)->range().center());
-                sd.yAxis->scaleRange(0.5, sd.yAxis->range().center());
-            }
-        }
-        m_plot->replot();
+    // ---- 缩放（受缩放轴模式约束，改变前记录缩放历史） ----
+    connect(m_zoomInBtn, &QToolButton::clicked, this, [this]() {
+        pushZoomState();
+        zoomAt(0.5, m_plot->rect().center());
     });
-    connect(zoomOutBtn, &QToolButton::clicked, this, [this]() {
-        for (auto &sd : m_signals) {
-            if (sd.axisRect) {
-                sd.axisRect->axis(QCPAxis::atBottom)->scaleRange(2.0,
-                    sd.axisRect->axis(QCPAxis::atBottom)->range().center());
-                sd.yAxis->scaleRange(2.0, sd.yAxis->range().center());
-            }
-        }
-        m_plot->replot();
+    connect(m_zoomOutBtn, &QToolButton::clicked, this, [this]() {
+        pushZoomState();
+        zoomAt(2.0, m_plot->rect().center());
     });
-    connect(fitBtn, &QToolButton::clicked, this, [this]() { fitAll(); });
+    connect(m_fitBtn, &QToolButton::clicked, this, [this]() { fitAll(); });
+    connect(m_undoZoomBtn, &QToolButton::clicked, this, [this]() { undoZoom(); });
+    connect(m_rubberZoomBtn, &QToolButton::toggled, this, [this](bool on) {
+        m_rubberZoom = on;
+        // 框选开时左键不再交给 QCP 拖拽（由自绘橡皮筋接管）；关时恢复左键平移
+        m_plot->setInteractions(on ? (QCP::iRangeZoom)
+                                   : (QCP::iRangeDrag | QCP::iRangeZoom));
+    });
+    m_plot->setInteractions(QCP::iRangeZoom);  // 默认框选开：左键归橡皮筋
+    connect(m_zoomAxisCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int idx) {
+        setZoomAxisMode(idx == 0 ? ZoomAxisMode::XY
+                      : idx == 1 ? ZoomAxisMode::XOnly
+                                 : ZoomAxisMode::YOnly);
+    });
     connect(clearDataBtn, &QToolButton::clicked, this, [this]() { clearData(); });
     connect(exportBtn, &QToolButton::clicked, this, [this]() { exportPlot(); });
+
+    // ---- 曲线显示模式 ----
+    connect(m_displayModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int idx) {
+        m_displayMode = static_cast<DisplayMode>(idx);
+        for (auto &sd : m_signals)
+            sd.config.displayMode = idx;
+        applyDisplayModeAll();
+        m_plot->replot();
+    });
+
+    // ---- 聚焦模式（全部彩色/选中彩色/仅选中） ----
+    connect(m_focusCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int idx) {
+        m_focusMode = idx == 1 ? FocusMode::SelectedColor
+                   : idx == 2 ? FocusMode::SelectedOnly
+                              : FocusMode::AllColor;
+        applyFocus();
+        m_plot->replot();
+    });
+
+    // ---- Y 轴显示方式（分栏/叠加·选中轴/叠加·全部轴） ----
+    connect(m_yAxisModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int idx) {
+        m_yAxisMode = idx == 1 ? YAxisMode::OverlaySelected
+                   : idx == 2 ? YAxisMode::OverlayAll
+                              : YAxisMode::Separate;
+        applyYAxisMode();
+    });
 
     // ---- 暂停/继续 ----
     connect(m_pauseBtn, &QToolButton::toggled, this, [this](bool checked) {
@@ -362,30 +609,28 @@ void GraphicView::setupUi()
         updateStatusBar();
     });
 
-    // ---- 时间窗口 ----
+    // ---- 时间窗口（改变前记录缩放历史） ----
     connect(m_timeWindowCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int idx) {
         int sec = m_timeWindowCombo->itemData(idx).toInt();
         if (sec > 0) {
+            pushZoomState();
             m_timeWindow = sec;
             refreshTimeAxis();
             updateStatusBar();
         }
     });
 
-    // ---- 采样点开关 ----
+    // ---- 信号列表选中 → 叠加选中轴切换 + 聚焦刷新 ----
+    connect(m_signalTree, &QTreeWidget::currentItemChanged, this,
+            [this](QTreeWidgetItem *cur, QTreeWidgetItem *) {
+        setSelectedSignal(cur ? m_signalTree->indexOfTopLevelItem(cur) : -1);
+    });
+
+    // ---- 采样点开关（统一走 applyDisplayModeAll，含聚焦置灰色处理） ----
     connect(m_pointsToggle, &QCheckBox::toggled, this, [this](bool on) {
         m_showPoints = on;
-        for (auto &sd : m_signals) {
-            if (sd.graph) {
-                if (on) {
-                    sd.graph->setScatterStyle(
-                        QCPScatterStyle(QCPScatterStyle::ssCircle, sd.config.color, 3));
-                } else {
-                    sd.graph->setScatterStyle(QCPScatterStyle::ssNone);
-                }
-            }
-        }
+        applyDisplayModeAll();
         m_plot->replot();
     });
 
@@ -412,21 +657,23 @@ void GraphicView::setupUi()
         setCursorMode(CursorMode::None);
     });
 
-    // ---- 信号列表右键菜单 ----
+    // ---- 多视图游标联动 ----
+    connect(m_cursorLinkToggle, &QCheckBox::toggled, this, [this](bool on) {
+        m_cursorLink = on;
+    });
+
+    // ---- 信号列表右键菜单（对标 CANoe 信号操作 + 轴快捷操作） ----
     m_signalTree->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_signalTree, &QTreeWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
         auto *item = m_signalTree->itemAt(pos);
         if (!item) return;
         int row = m_signalTree->indexOfTopLevelItem(item);
-        QMenu menu(this);
-        menu.setStyleSheet(
-            "QMenu { background: #2d2d2d; color: #ccc; border: 1px solid #555; padding: 4px; }"
-            "QMenu::item { padding: 4px 20px; }"
-            "QMenu::item:selected { background: #0c5d8f; }"
-            "QMenu::separator { height: 1px; background: #444; margin: 4px 8px; }");
+        QMenu menu(this);  // 样式随全局主题 QSS
         auto *colorAction = menu.addAction("更改颜色...");
         menu.addSeparator();
         auto *fitAction = menu.addAction("Y 轴适应");
+        auto *dbcAction = menu.addAction("Y 轴重置为 DBC 范围");
+        auto *axisAction = menu.addAction("Y 轴设置...");
         auto *clrAction = menu.addAction("清空数据");
         menu.addSeparator();
         auto *rmAction = menu.addAction("删除信号");
@@ -434,31 +681,28 @@ void GraphicView::setupUi()
         if (sel == rmAction) {
             removeSignal(row);
         } else if (sel == clrAction) {
-            if (row >= 0 && row < m_signals.size() && m_signals[row].graph)
+            if (row >= 0 && row < m_signals.size() && m_signals[row].graph) {
                 m_signals[row].graph->data()->clear();
+                m_signals[row].rawData.clear();
+                m_signals[row].hasMinMax = false;
+                m_signals[row].minMaxDirty = false;
+                m_signals[row].cacheValid = false;
+            }
             m_plot->replot();
         } else if (sel == fitAction) {
-            if (row >= 0 && row < m_signals.size() && m_signals[row].graph) {
-                m_signals[row].graph->rescaleValueAxis(true);
-                m_plot->replot();
-            }
+            fitSignalY(row);
+        } else if (sel == dbcAction) {
+            resetSignalYToDbc(row);
+        } else if (sel == axisAction) {
+            showAxisConfigDialog(row);
         } else if (sel == colorAction) {
             if (row >= 0 && row < m_signals.size()) {
                 QColor newColor = QColorDialog::getColor(
                     m_signals[row].config.color, this, "选择信号颜色");
                 if (newColor.isValid()) {
                     m_signals[row].config.color = newColor;
-                    if (m_signals[row].graph)
-                        m_signals[row].graph->setPen(QPen(newColor, 1.5));
-                    if (m_signals[row].yAxis) {
-                        m_signals[row].yAxis->setBasePen(QPen(newColor, 1));
-                        m_signals[row].yAxis->setTickPen(QPen(newColor, 1));
-                        m_signals[row].yAxis->setSubTickPen(QPen(newColor.darker(150), 1));
-                        m_signals[row].yAxis->setTickLabelColor(newColor);
-                        m_signals[row].yAxis->setLabelColor(newColor);
-                    }
-                    if (m_signals[row].nameLabel)
-                        m_signals[row].nameLabel->setColor(newColor);
+                    applyFocus();          // 按 focus 状态重设画笔（原色/置灰）
+                    refreshNameLabels();   // 重设色块富文本标签
                     updateSignalList();
                     m_plot->replot();
                 }
@@ -466,15 +710,12 @@ void GraphicView::setupUi()
         }
     });
 
-    // ---- 信号列表 checkbox → show/hide ----
+    // ---- 信号列表 checkbox → show/hide（userHidden + 聚焦状态共同决定可见性） ----
     connect(m_signalTree, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem *item) {
         int row = m_signalTree->indexOfTopLevelItem(item);
         if (row >= 0 && row < m_signals.size()) {
-            bool visible = (item->checkState(0) == Qt::Checked);
-            m_signals[row].graph->setVisible(visible);
-            if (m_signals[row].axisRect)
-                m_signals[row].axisRect->setVisible(visible);
-            layoutAxisRects();
+            m_signals[row].userHidden = (item->checkState(1) != Qt::Checked);
+            applyFocus();   // 曲线/轨道可见性 + 置灰统一重算（内含 layoutAxisRects）
             m_plot->replot();
         }
     });
@@ -490,196 +731,586 @@ void GraphicView::setupUi()
                 break;
             }
         }
+        // 叠加模式下命中 overlay rect
+        if (!targetAr && m_overlayRect && m_overlayRect->visible() &&
+            m_overlayRect->rect().contains(pos))
+            targetAr = m_overlayRect;
         if (!targetAr) return;
 
-        double factor = (event->angleDelta().y() > 0) ? 0.8 : 1.25;
+        const double factor = (event->angleDelta().y() > 0) ? 0.8 : 1.25;
         QCPAxis *xAxis = targetAr->axis(QCPAxis::atBottom);
 
-        // 以鼠标位置为中心缩放
-        double center = xAxis->pixelToCoord(pos.x());
-        double newRange = xAxis->range().size() * factor;
-        QCPRange newXR(center - newRange / 2, center + newRange / 2);
+        // 缩放历史（新一轮滚动前记录一次，500ms 内连续滚动合并为一级）
+        if (!m_zoomPushTimer.isActive())
+            pushZoomState();
+        m_zoomPushTimer.start();
 
-        // 同步到所有 axisRect 的 X 轴
-        for (auto &sd : m_signals) {
-            if (sd.axisRect && sd.axisRect->visible()) {
-                auto *xa = sd.axisRect->axis(QCPAxis::atBottom);
-                QSignalBlocker blocker(xa);
-                xa->setRange(newXR);
+        // X：以鼠标位置为中心（仅X / XY 模式）
+        if (m_zoomAxis != ZoomAxisMode::YOnly) {
+            double center = xAxis->pixelToCoord(pos.x());
+            double newRange = xAxis->range().size() * factor;
+            setXRangeAll(QCPRange(center - newRange / 2, center + newRange / 2), false);
+        }
+
+        // Y：仅目标轨道（仅Y / XY 模式）
+        if (m_zoomAxis != ZoomAxisMode::XOnly) {
+            for (auto &sd : m_signals) {
+                if (sd.axisRect == targetAr ||
+                    (m_yAxisMode != YAxisMode::Separate && sd.overlayYAxis)) {
+                    QCPAxis *ya = valueAxisFor(sd);
+                    if (!ya || sd.axisRect != targetAr)
+                        continue;
+                    double yCenter = ya->pixelToCoord(pos.y());
+                    double newYRange = ya->range().size() * factor;
+                    ya->setRange(yCenter - newYRange / 2, yCenter + newYRange / 2);
+                    break;
+                }
+            }
+            // 叠加模式：目标 rect 无分栏轨道 → 缩全部叠加 Y 轴
+            if (m_yAxisMode != YAxisMode::Separate) {
+                bool hitSeparate = false;
+                for (auto &sd : m_signals)
+                    if (sd.axisRect == targetAr) { hitSeparate = true; break; }
+                if (!hitSeparate) {
+                    for (auto &sd : m_signals) {
+                        if (QCPAxis *ya = valueAxisFor(sd)) {
+                            double yCenter = ya->pixelToCoord(pos.y());
+                            double newYRange = ya->range().size() * factor;
+                            ya->setRange(yCenter - newYRange / 2, yCenter + newYRange / 2);
+                        }
+                    }
+                }
             }
         }
 
-        // Y 轴也缩放（仅目标 axisRect）
-        QCPAxis *yAxis = targetAr->axis(QCPAxis::atLeft);
-        double yCenter = yAxis->pixelToCoord(pos.y());
-        double newYRange = yAxis->range().size() * factor;
-        yAxis->setRange(yCenter - newYRange / 2, yCenter + newYRange / 2);
-
+        // blocker 挡掉了 rangeChanged → 手动重建显示数据
+        refreshDisplayData();
         m_plot->replot();
         event->accept();
     };
 
-    // ---- 右键菜单 (波形区) ----
+    // ---- 右键菜单 (波形区，对标 CANoe：Fit/Undo Zoom/框选/缩放轴/线型/聚焦/卡尺/轴操作) ----
     cursorPlot->onContextMenu = [this](QContextMenuEvent *event) {
+        const QPoint pos = event->pos();
         QMenu menu(this);
-        auto *fitAction = menu.addAction("适应窗口");
+        QCPAxisRect *ar = m_plot->axisRectAt(pos);
+
+        // ---- Y/X 轴刻度区命中 → 轴专属菜单（rect() 为 margins 内绘图区，axisRectAt 按 outerRect 命中） ----
+        const bool onYAxis = ar && pos.x() < ar->rect().left();
+        const bool onXAxis = ar && pos.y() > ar->rect().bottom() &&
+                             pos.x() >= ar->rect().left();
+        if (onYAxis || onXAxis) {
+            int idx = ar ? signalIndexAtPos(QPoint(ar->rect().center().x(), pos.y())) : -1;
+            if (idx < 0)
+                idx = m_selectedSignal;
+            if (onYAxis && idx >= 0) {
+                auto *yFit = menu.addAction("Y 轴适应");
+                auto *yDbc = menu.addAction("Y 轴重置为 DBC 范围");
+                auto *yCfg = menu.addAction("Y 轴设置...");
+                auto *sel = menu.exec(event->globalPos());
+                if (sel == yFit) fitSignalY(idx);
+                else if (sel == yDbc) resetSignalYToDbc(idx);
+                else if (sel == yCfg) showAxisConfigDialog(idx);
+            } else {
+                auto *xFit = menu.addAction("适应窗口 (F)");
+                menu.addSeparator();
+                auto *xUndo = menu.addAction("撤销缩放 (Ctrl+Z)");
+                xUndo->setEnabled(!m_zoomStack.isEmpty());
+                auto *xUndoAll = menu.addAction("撤销全部缩放");
+                xUndoAll->setEnabled(!m_zoomStack.isEmpty());
+                auto *sel = menu.exec(event->globalPos());
+                if (sel == xFit) fitAll();
+                else if (sel == xUndo) undoZoom();
+                else if (sel == xUndoAll) undoAllZooms();
+            }
+            return;
+        }
+
+        // ---- 绘图区通用菜单 ----
+        auto *fitAction = menu.addAction("适应窗口 (F)");
+        auto *undoAction = menu.addAction("撤销缩放 (Ctrl+Z)");
+        undoAction->setEnabled(!m_zoomStack.isEmpty());
+        auto *undoAllAction = menu.addAction("撤销全部缩放");
+        undoAllAction->setEnabled(!m_zoomStack.isEmpty());
         menu.addSeparator();
+
+        auto *rubberAction = menu.addAction("框选缩放");
+        rubberAction->setCheckable(true);
+        rubberAction->setChecked(m_rubberZoom);
+
+        auto *zoomAxisMenu = menu.addMenu("缩放轴");
+        auto *zaGroup = new QActionGroup(zoomAxisMenu);
+        auto mkZa = [&](const QString &text, ZoomAxisMode m) {
+            auto *a = zaGroup->addAction(text);
+            a->setCheckable(true);
+            a->setChecked(m_zoomAxis == m);
+            zoomAxisMenu->addAction(a);
+            return a;
+        };
+        QAction *zaXY = mkZa("XY", ZoomAxisMode::XY);
+        QAction *zaX = mkZa("仅 X", ZoomAxisMode::XOnly);
+        QAction *zaY = mkZa("仅 Y", ZoomAxisMode::YOnly);
+
+        auto *dmMenu = menu.addMenu("线型");
+        auto *dmGroup = new QActionGroup(dmMenu);
+        auto mkDm = [&](const QString &text, DisplayMode m) {
+            auto *a = dmGroup->addAction(text);
+            a->setCheckable(true);
+            a->setChecked(m_displayMode == m);
+            dmMenu->addAction(a);
+            return a;
+        };
+        QAction *dmLinear = mkDm("折线", DisplayMode::Linear);
+        QAction *dmStep = mkDm("阶梯", DisplayMode::Step);
+        QAction *dmPoints = mkDm("仅点", DisplayMode::Points);
+
+        auto *focusMenu = menu.addMenu("显示模式");
+        auto *focusGroup = new QActionGroup(focusMenu);
+        auto mkFm = [&](const QString &text, FocusMode m) {
+            auto *a = focusGroup->addAction(text);
+            a->setCheckable(true);
+            a->setChecked(m_focusMode == m);
+            focusMenu->addAction(a);
+            return a;
+        };
+        QAction *fmAll = mkFm("全部彩色", FocusMode::AllColor);
+        QAction *fmSel = mkFm("选中彩色", FocusMode::SelectedColor);
+        QAction *fmOnly = mkFm("仅选中", FocusMode::SelectedOnly);
+
         auto *togglePoints = menu.addAction(m_showPoints ? "隐藏采样点" : "显示采样点");
         menu.addSeparator();
-        auto *singleCursorAction = menu.addAction("单卡尺");
+
+        auto *singleCursorAction = menu.addAction("单卡尺 (C)");
         singleCursorAction->setCheckable(true);
         singleCursorAction->setChecked(m_cursorMode == CursorMode::Single);
-        auto *doubleCursorAction = menu.addAction("双卡尺");
+        auto *doubleCursorAction = menu.addAction("双卡尺 (V)");
         doubleCursorAction->setCheckable(true);
         doubleCursorAction->setChecked(m_cursorMode == CursorMode::Double);
-        auto *clearCursorAction = menu.addAction("清除卡尺");
+        auto *clearCursorAction = menu.addAction("清除卡尺 (Esc)");
         menu.addSeparator();
+
+        auto *yaMenu = menu.addMenu("Y 轴");
+        auto *yaFit = yaMenu->addAction("Y 轴适应");
+        auto *yaDbc = yaMenu->addAction("Y 轴重置为 DBC 范围");
+        auto *yaCfg = yaMenu->addAction("Y 轴设置...");
+        menu.addSeparator();
+
         auto *exportAction = menu.addAction("导出图片...");
 
         auto *sel = menu.exec(event->globalPos());
+        if (!sel) return;
         if (sel == fitAction) {
             fitAll();
+        } else if (sel == undoAction) {
+            undoZoom();
+        } else if (sel == undoAllAction) {
+            undoAllZooms();
+        } else if (sel == rubberAction) {
+            m_rubberZoomBtn->setChecked(!m_rubberZoom);
+        } else if (sel == zaXY) {
+            setZoomAxisMode(ZoomAxisMode::XY);
+        } else if (sel == zaX) {
+            setZoomAxisMode(ZoomAxisMode::XOnly);
+        } else if (sel == zaY) {
+            setZoomAxisMode(ZoomAxisMode::YOnly);
+        } else if (sel == dmLinear) {
+            m_displayModeCombo->setCurrentIndex(0);
+        } else if (sel == dmStep) {
+            m_displayModeCombo->setCurrentIndex(1);
+        } else if (sel == dmPoints) {
+            m_displayModeCombo->setCurrentIndex(2);
+        } else if (sel == fmAll) {
+            m_focusCombo->setCurrentIndex(0);
+        } else if (sel == fmSel) {
+            m_focusCombo->setCurrentIndex(1);
+        } else if (sel == fmOnly) {
+            m_focusCombo->setCurrentIndex(2);
         } else if (sel == togglePoints) {
             m_pointsToggle->setChecked(!m_showPoints);
         } else if (sel == singleCursorAction) {
-            m_cursorSingleBtn->setChecked(true);
             m_cursorSingleBtn->click();
         } else if (sel == doubleCursorAction) {
-            m_cursorDoubleBtn->setChecked(true);
             m_cursorDoubleBtn->click();
         } else if (sel == clearCursorAction) {
             m_cursorClearBtn->click();
+        } else if (sel == yaFit) {
+            fitSignalY(m_selectedSignal);
+        } else if (sel == yaDbc) {
+            resetSignalYToDbc(m_selectedSignal);
+        } else if (sel == yaCfg) {
+            showAxisConfigDialog(m_selectedSignal);
         } else if (sel == exportAction) {
             exportPlot();
         }
     };
 
-    // ---- 卡尺拖动 ----
-    auto getPrimaryXAxis = [this]() -> QCPAxis* {
-        for (auto &sd : m_signals) {
-            if (sd.axisRect && sd.axisRect->visible())
-                return sd.axisRect->axis(QCPAxis::atBottom);
+    // ---- 鼠标交互：卡尺拖动(含手柄) / 框选缩放 / 中键平移 / 双击轴操作 / 跟踪线 ----
+    cursorPlot->onMousePress = [this](QMouseEvent *event) {
+        const QPoint pos = event->pos();
+
+        // 中键：平移启动（X 全局 + Y 按下时所在轨道）
+        if (event->button() == Qt::MiddleButton) {
+            m_panning = true;
+            m_panStartPos = pos;
+            pushZoomState();
+            if (QCPAxis *x = primaryXAxis()) {
+                m_panStartX1 = x->range().lower;
+                m_panStartX2 = x->range().upper;
+            }
+            m_panStartY.clear();
+            const int panSig = signalIndexAtPos(pos);
+            if (panSig >= 0) {
+                if (QCPAxis *ya = valueAxisFor(m_signals[panSig]))
+                    m_panStartY.append({panSig, ya->range().lower, ya->range().upper});
+            } else {
+                // 叠加轨道：全部信号 Y 一起平移
+                for (int i = 0; i < m_signals.size(); ++i)
+                    if (QCPAxis *ya = valueAxisFor(m_signals[i]))
+                        m_panStartY.append({i, ya->range().lower, ya->range().upper});
+            }
+            event->accept();
+            return;
         }
-        return nullptr;
+
+        if (event->button() != Qt::LeftButton)
+            return;
+
+        // 卡尺命中（线 ±6px 或顶部手柄区 ±10px，优先于框选）
+        if (m_cursorMode != CursorMode::None) {
+            QCPAxis *xAxis = primaryXAxis();
+            QCPAxisRect *pr = primaryRect();
+            if (xAxis) {
+                const int px1 = static_cast<int>(xAxis->coordToPixel(m_cursor1Time));
+                const int px2 = m_cursor2
+                    ? static_cast<int>(xAxis->coordToPixel(m_cursor2Time)) : -9999;
+                const bool handleZone = pr && pr->rect().contains(pos) &&
+                                        pos.y() <= pr->rect().top() + 28;
+                auto hit = [&](int px) {
+                    return std::abs(pos.x() - px) <= 6 ||
+                           (handleZone && std::abs(pos.x() - px) <= 10);
+                };
+                if (m_cursorMode == CursorMode::Double && m_cursor2 && hit(px2)) {
+                    m_draggingCursor = 2;
+                    event->accept();
+                    return;
+                }
+                if (m_cursor1 && hit(px1)) {
+                    m_draggingCursor = 1;
+                    event->accept();
+                    return;
+                }
+            }
+        }
+
+        // 框选缩放启动
+        if (m_rubberZoom) {
+            m_rubberOrigin = pos;
+            m_rubberBand->setGeometry(QRect(pos, QSize()));
+            m_rubberBand->show();
+            event->accept();
+        }
     };
 
-    cursorPlot->onMousePress = [this, getPrimaryXAxis](QMouseEvent *event) {
-        if (m_cursorMode == CursorMode::None) return;
-        if (event->button() != Qt::LeftButton) return;
+    cursorPlot->onMouseMove = [this](QMouseEvent *event) {
+        const QPoint pos = event->pos();
 
-        QCPAxis *xAxis = getPrimaryXAxis();
-        if (!xAxis) return;
-
-        double x = xAxis->pixelToCoord(event->pos().x());
-        double tolerance = (xAxis->range().size()) / 50.0;
-
-        if (m_cursorMode == CursorMode::Double && m_cursor2) {
-            if (std::abs(x - m_cursor2Time) < tolerance) {
-                m_draggingCursor = 2;
+        // 1) 卡尺拖动
+        if (m_draggingCursor != 0) {
+            if (QCPAxis *xAxis = primaryXAxis()) {
+                moveCursor(m_draggingCursor, xAxis->pixelToCoord(pos.x()));
                 event->accept();
                 return;
             }
         }
-        if (m_cursor1 && std::abs(x - m_cursor1Time) < tolerance) {
-            m_draggingCursor = 1;
+
+        // 2) 框选橡皮筋更新
+        if (m_rubberBand->isVisible()) {
+            m_rubberBand->setGeometry(QRect(m_rubberOrigin, pos).normalized());
             event->accept();
             return;
         }
-        if (m_cursorMode == CursorMode::Single) {
-            moveCursor(1, x);
-            m_draggingCursor = 1;
+
+        // 3) 中键平移（X 全轨道同步 + Y 起始轨道/叠加全部）
+        if (m_panning) {
+            if (QCPAxis *x = primaryXAxis()) {
+                const double t0 = x->pixelToCoord(m_panStartPos.x());
+                const double t1 = x->pixelToCoord(pos.x());
+                setXRangeAll(QCPRange(m_panStartX1 - (t1 - t0),
+                                      m_panStartX2 - (t1 - t0)), false);
+            }
+            for (const auto &py : m_panStartY) {
+                if (py.sig < 0 || py.sig >= m_signals.size())
+                    continue;
+                if (QCPAxis *ya = valueAxisFor(m_signals[py.sig])) {
+                    const double y0 = ya->pixelToCoord(m_panStartPos.y());
+                    const double y1 = ya->pixelToCoord(pos.y());
+                    ya->setRange(py.lo - (y1 - y0), py.hi - (y1 - y0));
+                }
+            }
+            refreshDisplayData();
+            m_plot->replot(QCustomPlot::rpQueuedReplot);
             event->accept();
-        } else if (m_cursorMode == CursorMode::Double) {
-            if (m_cursor2 && std::abs(x - m_cursor2Time) < std::abs(x - m_cursor1Time)) {
-                moveCursor(2, x);
-                m_draggingCursor = 2;
-            } else {
-                moveCursor(1, x);
-                m_draggingCursor = 1;
+            return;
+        }
+
+        // 4) 鼠标跟踪线（竖直点线 + 时间标签，对标 CANoe）
+        if (m_trackLine && m_trackLabel) {
+            QCPAxisRect *ar = m_plot->axisRectAt(pos);
+            if (ar && ar->rect().contains(pos)) {
+                if (QCPAxis *xAxis = ar->axis(QCPAxis::atBottom)) {
+                    const double t = xAxis->pixelToCoord(pos.x());
+                    const double px = xAxis->coordToPixel(t);
+                    // 跟踪线贯穿全部可见轨道（首轨 top → 末轨 bottom，CANoe 行为）
+                    QRect rc = ar->rect();
+                    for (auto &sd : m_signals)
+                        if (sd.axisRect && sd.axisRect->visible())
+                            rc = rc.united(sd.axisRect->rect());
+                    if (m_overlayRect && m_overlayRect->visible())
+                        rc = rc.united(m_overlayRect->rect());
+                    m_trackLine->point1->setCoords(QPointF(px, rc.top()));
+                    m_trackLine->point2->setCoords(QPointF(px, rc.bottom()));
+                    m_trackLine->setVisible(true);
+                    m_trackLabel->position->setCoords(QPointF(px, rc.bottom() - 4));
+                    m_trackLabel->setText(formatTime(t));
+                    m_trackLabel->setVisible(true);
+                    m_plot->replot(QCustomPlot::rpQueuedReplot);
+                }
+            } else if (m_trackLine->visible()) {
+                m_trackLine->setVisible(false);
+                m_trackLabel->setVisible(false);
+                m_plot->replot(QCustomPlot::rpQueuedReplot);
+            }
+        }
+    };
+
+    cursorPlot->onMouseRelease = [this](QMouseEvent *event) {
+        if (m_panning && event->button() == Qt::MiddleButton) {
+            m_panning = false;
+            event->accept();
+            return;
+        }
+        if (event->button() != Qt::LeftButton)
+            return;
+
+        // 卡尺拖动结束
+        if (m_draggingCursor != 0) {
+            m_draggingCursor = 0;
+            event->accept();
+            return;
+        }
+
+        // 框选缩放确认
+        if (m_rubberBand->isVisible()) {
+            m_rubberBand->hide();
+            const QRect geo = m_rubberBand->geometry();
+            // 单击（未拖框）：卡尺模式下放置卡尺到点击处
+            if (geo.width() < 5 && geo.height() < 5) {
+                if (m_cursorMode != CursorMode::None) {
+                    if (QCPAxis *xAxis = primaryXAxis()) {
+                        const double t = xAxis->pixelToCoord(geo.center().x());
+                        if (m_cursorMode == CursorMode::Double && m_cursor2 &&
+                            std::abs(t - m_cursor2Time) < std::abs(t - m_cursor1Time))
+                            moveCursor(2, t);
+                        else
+                            moveCursor(1, t);
+                    }
+                }
+                event->accept();
+                return;
+            }
+
+            QCPAxisRect *ar = m_plot->axisRectAt(geo.center());
+            if (ar) {
+                QCPAxis *xAxis = ar->axis(QCPAxis::atBottom);
+                double x1 = xAxis->pixelToCoord(geo.left());
+                double x2 = xAxis->pixelToCoord(geo.right());
+                if (x1 > x2) std::swap(x1, x2);
+                pushZoomState();
+                const bool flat = geo.height() < 5;   // 扁平框 = 仅缩 X（CANoe Drag zoom）
+                if (m_zoomAxis != ZoomAxisMode::YOnly && x2 - x1 > 0)
+                    setXRangeAll(QCPRange(x1, x2), false);
+                if (!flat && m_zoomAxis != ZoomAxisMode::XOnly) {
+                    // Y 仅缩所在轨道（叠加轨道缩全部 Y）
+                    const int idx = signalIndexAtPos(geo.center());
+                    if (idx >= 0) {
+                        if (QCPAxis *ya = valueAxisFor(m_signals[idx])) {
+                            double y1 = ya->pixelToCoord(geo.top());
+                            double y2 = ya->pixelToCoord(geo.bottom());
+                            if (y1 > y2) std::swap(y1, y2);
+                            if (y2 - y1 > 0) ya->setRange(y1, y2);
+                        }
+                    } else {
+                        for (auto &sd : m_signals) {
+                            if (QCPAxis *ya = valueAxisFor(sd)) {
+                                double y1 = ya->pixelToCoord(geo.top());
+                                double y2 = ya->pixelToCoord(geo.bottom());
+                                if (y1 > y2) std::swap(y1, y2);
+                                if (y2 - y1 > 0) ya->setRange(y1, y2);
+                            }
+                        }
+                    }
+                }
+                refreshDisplayData();
+                m_plot->replot();
             }
             event->accept();
         }
     };
 
-    cursorPlot->onMouseMove = [this, getPrimaryXAxis](QMouseEvent *event) {
-        if (m_draggingCursor == 0) return;
-        QCPAxis *xAxis = getPrimaryXAxis();
-        if (!xAxis) return;
-        double x = xAxis->pixelToCoord(event->pos().x());
-        moveCursor(m_draggingCursor, x);
-        event->accept();
+    // 双击：Y 刻度区 → 轴设置对话框；轨道内 → 该轨道 Y 适应（对标 CANoe）
+    cursorPlot->onMouseDoubleClick = [this](QMouseEvent *event) {
+        const QPoint pos = event->pos();
+        QCPAxisRect *ar = m_plot->axisRectAt(pos);
+        if (!ar)
+            return;
+        if (pos.x() < ar->rect().left()) {
+            int idx = signalIndexAtPos(QPoint(ar->rect().center().x(), pos.y()));
+            if (idx < 0)
+                idx = m_selectedSignal;
+            if (idx >= 0) {
+                showAxisConfigDialog(idx);
+                event->accept();
+            }
+            return;
+        }
+        const int idx = signalIndexAtPos(pos);
+        if (idx >= 0) {
+            fitSignalY(idx);
+            event->accept();
+        }
     };
 
-    cursorPlot->onMouseRelease = [this](QMouseEvent *event) {
-        m_draggingCursor = 0;
-        event->accept();
+    // 鼠标离开 → 隐藏跟踪线
+    cursorPlot->onLeave = [this]() {
+        if (m_trackLine && m_trackLine->visible()) {
+            m_trackLine->setVisible(false);
+            if (m_trackLabel) m_trackLabel->setVisible(false);
+            m_plot->replot(QCustomPlot::rpQueuedReplot);
+        }
+    };
+
+    // ---- 窗口尺寸变化 → 重建显示数据（目标点数随视口宽度变化） ----
+    cursorPlot->onResize = [this](QResizeEvent *) {
+        for (auto &sd : m_signals)
+            sd.cacheValid = false;
+        m_replotPending = true;
+        if (!m_replotTimer.isActive())
+            m_replotTimer.start();
     };
 }
 
 // ============================================================
-//  样式配置
+//  样式配置（palette 化，随主题切换）
 // ============================================================
 
-void GraphicView::styleAxisRect(QCPAxisRect *ar, const QColor &color, const QString &name)
+void GraphicView::styleYAxis(QCPAxis *axis)
 {
-    // 网格
-    ar->axis(QCPAxis::atBottom)->grid()->setVisible(true);
-    ar->axis(QCPAxis::atBottom)->grid()->setPen(QPen(QColor(0x3a, 0x3a, 0x3a), 1, Qt::DotLine));
-    ar->axis(QCPAxis::atLeft)->grid()->setVisible(true);
-    ar->axis(QCPAxis::atLeft)->grid()->setPen(QPen(QColor(0x3a, 0x3a, 0x3a), 1, Qt::DotLine));
+    if (!axis)
+        return;
+    const QPen axisPen(m_palette.axis, 1);
+    axis->setBasePen(axisPen);
+    axis->setTickPen(axisPen);
+    axis->setSubTickPen(axisPen);
+    axis->setTickLabelColor(m_palette.axisText);
+    axis->setLabelColor(m_palette.axisText);
+    axis->setLabel(QString());   // CANoe：轴无标题（信号名在轨道左上角标签）
+    axis->grid()->setVisible(true);
+    axis->grid()->setPen(QPen(m_palette.grid, 1, Qt::SolidLine));
+    axis->grid()->setSubGridVisible(false);
+}
 
-    // 子网格
-    ar->axis(QCPAxis::atBottom)->grid()->setSubGridVisible(true);
-    ar->axis(QCPAxis::atBottom)->grid()->setSubGridPen(QPen(QColor(0x2a, 0x2a, 0x2a), 1, Qt::DotLine));
-    ar->axis(QCPAxis::atLeft)->grid()->setSubGridVisible(true);
-    ar->axis(QCPAxis::atLeft)->grid()->setSubGridPen(QPen(QColor(0x2a, 0x2a, 0x2a), 1, Qt::DotLine));
+void GraphicView::styleAxisRect(QCPAxisRect *ar)
+{
+    if (!ar)
+        return;
+    const QPen axisPen(m_palette.axis, 1);
 
-    // 信号色微染背景 (CANoe 风格：每行有淡淡的信号色调)
-    ar->setBackground(QBrush(QColor(
-        color.red() * 0.08 + 0x1e * 0.92,
-        color.green() * 0.08 + 0x1e * 0.92,
-        color.blue() * 0.08 + 0x1e * 0.92)));
+    // 画布：统一底色（不再按信号色染背景 — CANoe 白底黑轴）
+    ar->setBackground(QBrush(m_palette.canvas));
 
-    // X 轴样式 — 使用 TimeTicker (mm:ss.ms 格式)
+    // X 轴（时间，mm:ss.ms 刻度；仅底部轨道显示刻度，由 layoutAxisRects 控制）
     auto *xAxis = ar->axis(QCPAxis::atBottom);
-    xAxis->setBasePen(QPen(QColor(0x55, 0x55, 0x55), 1));
-    xAxis->setTickPen(QPen(QColor(0x55, 0x55, 0x55), 1));
-    xAxis->setSubTickPen(QPen(QColor(0x44, 0x44, 0x44), 1));
-    xAxis->setTickLabelColor(QColor(0xcc, 0xcc, 0xcc));
-    xAxis->setLabelColor(QColor(0xcc, 0xcc, 0xcc));
+    xAxis->setBasePen(axisPen);
+    xAxis->setTickPen(axisPen);
+    xAxis->setSubTickPen(axisPen);
+    xAxis->setTickLabelColor(m_palette.axisText);
+    xAxis->setLabelColor(m_palette.axisText);
     xAxis->setTicker(QSharedPointer<TimeTicker>::create());
-    xAxis->setRange(0, m_timeWindow);
+    xAxis->setTickLabels(false);
+    xAxis->grid()->setVisible(true);
+    xAxis->grid()->setPen(QPen(m_palette.grid, 1, Qt::SolidLine));
+    xAxis->grid()->setSubGridVisible(false);
 
-    // Y 轴样式
-    auto *yAxis = ar->axis(QCPAxis::atLeft);
-    yAxis->setBasePen(QPen(color, 1));
-    yAxis->setTickPen(QPen(color, 1));
-    yAxis->setSubTickPen(QPen(color.darker(150), 1));
-    yAxis->setTickLabelColor(color);
-    yAxis->setLabelColor(color);
-    // 标签：信号名 + 单位 (如果 DBC 中有定义)
-    yAxis->setLabel(name);
+    // Y 轴（黑色轴黑字，颜色只属于曲线）
+    styleYAxis(ar->axis(QCPAxis::atLeft));
 
-    // 右侧 Y 轴（镜像刻度）
-    ar->axis(QCPAxis::atRight)->setVisible(true);
-    ar->axis(QCPAxis::atRight)->setTickLabels(false);
-    ar->axis(QCPAxis::atRight)->setBasePen(QPen(QColor(0x55, 0x55, 0x55), 1));
+    // 右/顶镜像轴（保留边框，无刻度文字）
+    auto *right = ar->axis(QCPAxis::atRight);
+    right->setVisible(true);
+    right->setTickLabels(false);
+    right->setBasePen(axisPen);
+    right->setTickPen(axisPen);
+    right->setSubTickPen(axisPen);
+    auto *top = ar->axis(QCPAxis::atTop);
+    top->setVisible(true);
+    top->setTickLabels(false);
+    top->setBasePen(axisPen);
+    top->setTickPen(axisPen);
+    top->setSubTickPen(axisPen);
 
-    // 顶部 X 轴（镜像刻度）
-    ar->axis(QCPAxis::atTop)->setVisible(true);
-    ar->axis(QCPAxis::atTop)->setTickLabels(false);
-    ar->axis(QCPAxis::atTop)->setBasePen(QPen(QColor(0x55, 0x55, 0x55), 1));
+    // 轨道 0 间隔紧密堆叠（CANoe 分栏），轴刻度空间由布局自动预留
+    ar->setMargins(QMargins(0, 0, 0, 0));
+}
 
-    // 行间分隔线 (顶部边框)
-    ar->axis(QCPAxis::atTop)->setTickPen(QPen(QColor(0x3a, 0x3a, 0x3a), 1));
-    ar->axis(QCPAxis::atBottom)->setTickPen(QPen(QColor(0x3a, 0x3a, 0x3a), 1));
+void GraphicView::applyPalette()
+{
+    m_palette = isLightTheme() ? GraphicPalette::canoeLight()
+                               : GraphicPalette::canoeDark();
+    const Theme &th = ThemeManager::instance()->currentTheme();
 
-    // 边距 (行间距: 顶部 4px, 底部 4px — CANoe 风格行分离)
-    ar->setMargins(QMargins(60, 4, 60, 4));
+    m_plot->setBackground(m_palette.canvas);
+    m_toolbar->setStyleSheet(toolbarQss());
+    m_signalTree->setStyleSheet(treeQss());
+    m_cursorInfoLabel->setStyleSheet(infoLabelQss());
+    m_statusLabel->setStyleSheet(QString(
+        "QLabel { padding: 3px 8px; background: %1; color: %2; "
+        "border-top: 1px solid %3; font-family: Consolas, monospace; font-size: 11px; }")
+        .arg(th.statusBg, th.statusFg, th.border));
+
+    // 全部轨道 + 叠加轨道重新着色（重置 X 刻度开关后由 layoutAxisRects 恢复）
+    for (auto &sd : m_signals) {
+        if (sd.axisRect)
+            styleAxisRect(sd.axisRect);
+        if (sd.overlayYAxis)
+            styleYAxis(sd.overlayYAxis);
+    }
+    if (m_overlayRect)
+        styleAxisRect(m_overlayRect);
+
+    // 时间线 / 卡尺 / 跟踪线换色（时间线 1.5px 实线、卡尺 1px 实线 — §8.2.2/§8.5）
+    if (m_currentTimeLine)
+        m_currentTimeLine->setPen(QPen(m_palette.timeLine, 1.5));
+    if (m_cursor1)
+        m_cursor1->setPen(QPen(m_palette.cursor1, 1));
+    if (m_cursor2)
+        m_cursor2->setPen(QPen(m_palette.cursor2, 1));
+    if (m_trackLine)
+        m_trackLine->setPen(QPen(m_palette.trackCursor, 1, Qt::DotLine));
+    if (m_trackLabel) {
+        m_trackLabel->setColor(m_palette.axisText);
+        m_trackLabel->setBrush(QBrush(m_palette.nameTagBg));
+        m_trackLabel->setPen(QPen(m_palette.nameTagBorder, 1));
+    }
+
+    applyOverlayAxisVisibility();
+    applyFocus();          // 曲线画笔/散点按新 palette 重算（含 refreshNameLabels）
+    updateCursorDecorations();
+    layoutAxisRects();
+    m_plot->replot();
 }
 
 // ============================================================
-//  多轴布局
+//  多轴布局 + Y 轴三模式（分栏 / 叠加·选中轴 / 叠加·全部轴）
 // ============================================================
 
 void GraphicView::layoutAxisRects()
@@ -694,15 +1325,24 @@ void GraphicView::layoutAxisRects()
     layout->simplify();
 
     int visibleCount = 0;
+    QCPAxisRect *lastVisible = nullptr;
     for (auto &sd : m_signals) {
         if (sd.axisRect && sd.axisRect->visible()) {
             layout->addElement(visibleCount, 0, sd.axisRect);
+            lastVisible = sd.axisRect;
             visibleCount++;
         }
     }
 
+    // 叠加模式：overlay 轨道独占一行
+    if (m_overlayRect && m_overlayRect->visible() && visibleCount == 0) {
+        layout->addElement(0, 0, m_overlayRect);
+        lastVisible = m_overlayRect;
+        visibleCount = 1;
+    }
+
     for (auto *el : taken) {
-        bool stillUsed = false;
+        bool stillUsed = (el == m_overlayRect);
         for (auto &sd : m_signals) {
             if (sd.axisRect == el) {
                 stillUsed = true;
@@ -718,6 +1358,130 @@ void GraphicView::layoutAxisRects()
         layout->addElement(0, 0, ar);
     }
 
+    // X 刻度仅底部轨道显示（CANoe：所有轨道共用唯一时间轴刻度）
+    for (auto &sd : m_signals) {
+        if (sd.axisRect)
+            sd.axisRect->axis(QCPAxis::atBottom)
+                ->setTickLabels(sd.axisRect == lastVisible);
+    }
+    if (m_overlayXAxis)
+        m_overlayXAxis->setTickLabels(m_overlayRect == lastVisible);
+
+    updateCursorDecorations();
+    m_plot->replot();
+}
+
+void GraphicView::applyOverlayAxisVisibility()
+{
+    if (!m_overlayRect)
+        return;
+    int axisIdx = 0;
+    for (int i = 0; i < m_signals.size(); ++i) {
+        QCPAxis *ya = m_signals[i].overlayYAxis;
+        if (!ya)
+            continue;
+        if (m_yAxisMode == YAxisMode::OverlayAll) {
+            // 全部 Y 轴并排（offset 递增错开，刻度文字用信号色区分）
+            ya->setTickLabels(true);
+            ya->setOffset(axisIdx * 45);
+            ya->setTickLabelColor(m_signals[i].config.color);
+            axisIdx++;
+        } else {
+            // 仅选中信号轴显示刻度（黑字）
+            ya->setTickLabels(i == m_selectedSignal);
+            ya->setOffset(0);
+            ya->setTickLabelColor(m_palette.axisText);
+        }
+    }
+}
+
+void GraphicView::buildOverlay()
+{
+    if (m_signals.isEmpty())
+        return;
+
+    // 首次进入叠加模式：创建 overlay 轨道
+    if (!m_overlayRect) {
+        QCPAxis *px = primaryXAxis();   // 先取分栏主轴（m_overlayRect 赋值后 primaryXAxis 即返回 overlay 轴自身）
+        m_overlayRect = new QCPAxisRect(m_plot);
+        m_overlayXAxis = m_overlayRect->axis(QCPAxis::atBottom);
+        styleAxisRect(m_overlayRect);
+        connectXAxis(m_overlayXAxis);   // 仅创建时连接（重复进入叠加模式不再连）
+        if (px)
+            m_overlayXAxis->setRange(px->range());
+        else
+            m_overlayXAxis->setRange(0, m_timeWindow);
+    }
+    m_overlayRect->setVisible(true);
+
+    for (int i = 0; i < m_signals.size(); ++i) {
+        SignalData &sd = m_signals[i];
+        if (!sd.graph)
+            continue;
+        // 隐藏分栏轨道
+        if (sd.axisRect)
+            sd.axisRect->setVisible(false);
+        // 每信号独立 overlay Y 轴（首信号复用轨道自带 left 轴，其余 addAxis）
+        if (!sd.overlayYAxis) {
+            if (i == 0)
+                sd.overlayYAxis = m_overlayRect->axis(QCPAxis::atLeft);
+            else
+                sd.overlayYAxis = m_overlayRect->addAxis(QCPAxis::atLeft);
+            styleYAxis(sd.overlayYAxis);
+            if (sd.yAxis)
+                sd.overlayYAxis->setRange(sd.yAxis->range());
+        }
+        // 曲线迁移到 overlay 轨道（QCPAbstractPlottable 公开接口）
+        sd.graph->setKeyAxis(m_overlayXAxis);
+        sd.graph->setValueAxis(sd.overlayYAxis);
+        // 名字标签迁移 + 竖直堆叠防重叠
+        if (sd.nameLabel) {
+            sd.nameLabel->position->setAxisRect(m_overlayRect);
+            sd.nameLabel->position->setCoords(0.01, 0.02 + i * 0.06);
+        }
+    }
+    applyOverlayAxisVisibility();
+    layoutAxisRects();
+}
+
+void GraphicView::teardownOverlay()
+{
+    // 曲线与标签迁回分栏轨道（必须在销毁 overlay 轴之前）
+    for (auto &sd : m_signals) {
+        if (sd.graph && sd.axisRect) {
+            sd.graph->setKeyAxis(sd.axisRect->axis(QCPAxis::atBottom));
+            sd.graph->setValueAxis(sd.yAxis);
+        }
+        if (sd.nameLabel && sd.axisRect) {
+            sd.nameLabel->position->setAxisRect(sd.axisRect);
+            sd.nameLabel->position->setCoords(0.01, 0.02);
+        }
+        if (sd.axisRect)
+            sd.axisRect->setVisible(!sd.userHidden);
+        sd.overlayYAxis = nullptr;   // 轴随 overlay 轨道销毁
+    }
+    m_overlayXAxis = nullptr;
+    if (m_overlayRect) {
+        m_plot->plotLayout()->remove(m_overlayRect);   // remove 内部 delete（含其全部轴）
+        m_overlayRect = nullptr;
+    }
+}
+
+void GraphicView::applyYAxisMode()
+{
+    if (m_yAxisMode == YAxisMode::Separate || m_signals.isEmpty()) {
+        teardownOverlay();
+        for (auto &sd : m_signals) {
+            if (sd.axisRect)
+                sd.axisRect->setVisible(!sd.userHidden);
+        }
+    } else {
+        buildOverlay();
+    }
+    applyFocus();          // 曲线/轨道可见性按聚焦模式重算（内含 layoutAxisRects）
+    refreshNameLabels();
+    layoutAxisRects();
+    refreshDisplayData();
     m_plot->replot();
 }
 
@@ -727,71 +1491,56 @@ void GraphicView::addSignal(const Signal &sig)
     sd.config = sig;
     if (!sd.config.color.isValid())
         sd.config.color = autoColor(m_signals.size());
+    if (sd.config.displayMode < 0 || sd.config.displayMode > 2)
+        sd.config.displayMode = static_cast<int>(m_displayMode);
 
-    // 创建独立的 axisRect
+    // 创建独立分栏轨道
     sd.axisRect = new QCPAxisRect(m_plot);
-
-    // 样式配置
-    styleAxisRect(sd.axisRect, sd.config.color, sig.name);
-
+    styleAxisRect(sd.axisRect);
     sd.yAxis = sd.axisRect->axis(QCPAxis::atLeft);
 
-    // 默认 Y 轴范围
+    // X 轴对齐当前主视口（首信号用默认时间窗）
+    QCPAxis *xAxis = sd.axisRect->axis(QCPAxis::atBottom);
+    if (QCPAxis *px = primaryXAxis())
+        xAxis->setRange(px->range());
+    else
+        xAxis->setRange(0, m_timeWindow);
+
+    // 默认 Y 轴范围：DBC 范围（无效则 0..1）
     double yMin = sig.dbcSig.minimum;
     double yMax = sig.dbcSig.maximum;
-    if (yMax <= yMin) yMax = yMin + 1.0;
+    if (yMax <= yMin) { yMin = 0.0; yMax = 1.0; }
     sd.yAxis->setRange(yMin, yMax);
 
-    // 创建 graph
-    sd.graph = m_plot->addGraph(sd.axisRect->axis(QCPAxis::atBottom), sd.yAxis);
+    // 曲线（1px 细线，颜色只属于曲线）
+    sd.graph = m_plot->addGraph(xAxis, sd.yAxis);
     sd.graph->setName(sig.name);
-    sd.graph->setPen(QPen(sd.config.color, 1.5));
+    sd.graph->setPen(QPen(sd.config.color, 1));
 
-    // 采样点样式
-    if (m_showPoints) {
-        sd.graph->setScatterStyle(
-            QCPScatterStyle(QCPScatterStyle::ssCircle, sd.config.color, 3));
-    }
-
-    // 线条样式：阶梯线（CANoe 风格：值保持到下一个采样点）
-    sd.graph->setLineStyle(QCPGraph::lsStepLeft);
-
-    // 信号名叠加文本（CANoe 风格：左上角显示信号名+单位）
+    // 信号名标签（轨道左上角，底色随主题）
     sd.nameLabel = new QCPItemText(m_plot);
     sd.nameLabel->position->setType(QCPItemPosition::ptAxisRectRatio);
     sd.nameLabel->position->setAxisRect(sd.axisRect);
     sd.nameLabel->position->setCoords(0.01, 0.02);
     sd.nameLabel->setPositionAlignment(Qt::AlignLeft | Qt::AlignTop);
-    QString labelText = sig.name;
-    if (!sig.dbcSig.unit.isEmpty())
-        labelText += " [" + sig.dbcSig.unit + "]";
-    sd.nameLabel->setText(labelText);
-    sd.nameLabel->setColor(sd.config.color);
-    sd.nameLabel->setBrush(QBrush(QColor(0, 0, 0, 160)));
+    sd.nameLabel->setBrush(QBrush(m_palette.nameTagBg));
+    sd.nameLabel->setPen(QPen(m_palette.nameTagBorder, 1));
     sd.nameLabel->setPadding(QMargins(4, 2, 4, 2));
     QFont labelFont("Consolas", 8);
-    labelFont.setBold(true);
     sd.nameLabel->setFont(labelFont);
 
-    // X 轴联动
-    QCPAxis *xAxis = sd.axisRect->axis(QCPAxis::atBottom);
-    connect(xAxis, static_cast<void(QCPAxis::*)(const QCPRange&)>(&QCPAxis::rangeChanged),
-        this, [this](const QCPRange &range) {
-        for (auto &s : m_signals) {
-            if (s.axisRect) {
-                auto *xa = s.axisRect->axis(QCPAxis::atBottom);
-                if (xa && xa->range() != range) {
-                    QSignalBlocker blocker(xa);
-                    xa->setRange(range);
-                }
-            }
-        }
-        if (m_cursorMode != CursorMode::None)
-            updateCursorValues();
-    });
-
     m_signals.append(sd);
-    layoutAxisRects();
+
+    // 线型/散点（applyDisplayMode 需 graph 就绪，入列后调用）
+    applyDisplayMode(m_signals.last());
+    refreshNameLabels();
+    connectXAxis(xAxis);
+
+    // 叠加模式下新信号直接迁移到 overlay 轨道
+    if (m_yAxisMode != YAxisMode::Separate)
+        applyYAxisMode();
+    else
+        layoutAxisRects();
     updateSignalList();
     m_plot->replot();
 }
@@ -801,35 +1550,446 @@ void GraphicView::removeSignal(int index)
     if (index < 0 || index >= m_signals.size())
         return;
 
+    // 叠加模式：先拆 overlay（迁回分栏轴），删完重建，避免轴悬空
+    if (m_yAxisMode != YAxisMode::Separate)
+        teardownOverlay();
+
     auto &sd = m_signals[index];
     if (sd.nameLabel)
         m_plot->removeItem(sd.nameLabel);
     if (sd.graph)
         m_plot->removeGraph(sd.graph);
     if (sd.axisRect)
-        m_plot->plotLayout()->remove(sd.axisRect);
+        m_plot->plotLayout()->remove(sd.axisRect);   // remove 内部 delete（含其轴）
 
     m_signals.removeAt(index);
-    layoutAxisRects();
+    m_zoomStack.clear();   // 信号索引已变，缩放历史失效
+    updateZoomUi();
+    if (m_selectedSignal >= m_signals.size())
+        setSelectedSignal(m_signals.isEmpty() ? -1 : m_signals.size() - 1);
+
+    if (m_yAxisMode != YAxisMode::Separate && !m_signals.isEmpty())
+        applyYAxisMode();
+    else
+        layoutAxisRects();
     updateSignalList();
     m_plot->replot();
 }
 
 void GraphicView::clearSignals()
 {
+    teardownOverlay();
     for (auto &sd : m_signals) {
+        if (sd.nameLabel)
+            m_plot->removeItem(sd.nameLabel);
         if (sd.graph)
             m_plot->removeGraph(sd.graph);
-    }
-    auto *layout = m_plot->plotLayout();
-    for (int i = layout->elementCount() - 1; i >= 0; --i) {
-        if (auto *el = layout->takeAt(i))
-            delete el;
+        if (sd.axisRect) {
+            m_plot->plotLayout()->remove(sd.axisRect);   // remove 内部 delete
+            sd.axisRect = nullptr;
+        }
     }
     m_signals.clear();
+    m_zoomStack.clear();
+    updateZoomUi();
+    setSelectedSignal(-1);
     layoutAxisRects();
     updateSignalList();
     m_plot->replot();
+}
+
+// ============================================================
+//  坐标辅助（分栏/叠加双模式取轴）
+// ============================================================
+
+QCPAxis *GraphicView::valueAxisFor(const SignalData &sd) const
+{
+    if (m_yAxisMode != YAxisMode::Separate && sd.overlayYAxis)
+        return sd.overlayYAxis;
+    return sd.yAxis;
+}
+
+QCPAxis *GraphicView::primaryXAxis() const
+{
+    if (m_yAxisMode != YAxisMode::Separate && m_overlayXAxis)
+        return m_overlayXAxis;
+    for (auto &sd : m_signals)
+        if (sd.axisRect && sd.axisRect->visible())
+            return sd.axisRect->axis(QCPAxis::atBottom);
+    return nullptr;
+}
+
+QCPAxisRect *GraphicView::primaryRect() const
+{
+    if (m_yAxisMode != YAxisMode::Separate && m_overlayRect && m_overlayRect->visible())
+        return m_overlayRect;
+    for (auto &sd : m_signals)
+        if (sd.axisRect && sd.axisRect->visible())
+            return sd.axisRect;
+    return nullptr;
+}
+
+void GraphicView::setXRangeAll(const QCPRange &range, bool refresh)
+{
+    for (auto &sd : m_signals) {
+        if (!sd.axisRect)
+            continue;
+        auto *xa = sd.axisRect->axis(QCPAxis::atBottom);
+        QSignalBlocker blocker(xa);
+        xa->setRange(range);
+    }
+    if (m_overlayXAxis) {
+        QSignalBlocker blocker(m_overlayXAxis);
+        m_overlayXAxis->setRange(range);
+    }
+    if (refresh)
+        refreshDisplayData();
+}
+
+void GraphicView::connectXAxis(QCPAxis *xAxis)
+{
+    if (!xAxis)
+        return;
+    connect(xAxis, static_cast<void(QCPAxis::*)(const QCPRange&)>(&QCPAxis::rangeChanged),
+        this, [this](const QCPRange &range) {
+        if (m_restoringZoom)
+            return;
+        // 全轨道 X 同步（含 overlay X）
+        for (auto &s : m_signals) {
+            if (!s.axisRect)
+                continue;
+            auto *xa = s.axisRect->axis(QCPAxis::atBottom);
+            if (xa && xa->range() != range) {
+                QSignalBlocker blocker(xa);
+                xa->setRange(range);
+            }
+        }
+        if (m_overlayXAxis && m_overlayXAxis->range() != range) {
+            QSignalBlocker blocker(m_overlayXAxis);
+            m_overlayXAxis->setRange(range);
+        }
+        // 视口变化 → 重建显示数据（50ms 节流，由定时器统一处理）
+        m_replotPending = true;
+        if (!m_replotTimer.isActive())
+            m_replotTimer.start();
+        if (m_cursorMode != CursorMode::None)
+            updateCursorValues();
+    });
+}
+
+int GraphicView::signalIndexAtPos(const QPoint &pos) const
+{
+    for (int i = 0; i < m_signals.size(); ++i) {
+        const auto &sd = m_signals[i];
+        if (sd.axisRect && sd.axisRect->visible() && sd.axisRect->rect().contains(pos))
+            return i;
+    }
+    return -1;   // 叠加轨道：无分栏命中
+}
+
+int GraphicView::signalIndexForAxis(QCPAxis *yAxis) const
+{
+    if (!yAxis)
+        return -1;
+    for (int i = 0; i < m_signals.size(); ++i) {
+        if (m_signals[i].yAxis == yAxis || m_signals[i].overlayYAxis == yAxis)
+            return i;
+    }
+    return -1;
+}
+
+// ============================================================
+//  显示模式 / 聚焦三态 / 选中信号 / 名字标签
+// ============================================================
+
+void GraphicView::applyDisplayMode(SignalData &sd)
+{
+    if (!sd.graph)
+        return;
+    const QColor c = sd.graph->pen().color();   // 已按聚焦状态设置的画笔色
+    const auto mode = static_cast<DisplayMode>(sd.config.displayMode);
+    const auto scatter = m_showPoints || mode == DisplayMode::Points
+        ? QCPScatterStyle(QCPScatterStyle::ssCircle, c, 3)
+        : QCPScatterStyle(QCPScatterStyle::ssNone);
+    switch (mode) {
+    case DisplayMode::Linear:
+        sd.graph->setLineStyle(QCPGraph::lsLine);
+        sd.graph->setScatterStyle(scatter);
+        break;
+    case DisplayMode::Points:
+        sd.graph->setLineStyle(QCPGraph::lsNone);
+        sd.graph->setScatterStyle(
+            QCPScatterStyle(QCPScatterStyle::ssCircle, c, 3));
+        break;
+    case DisplayMode::Step:
+    default:
+        sd.graph->setLineStyle(QCPGraph::lsStepLeft);
+        sd.graph->setScatterStyle(scatter);
+        break;
+    }
+}
+
+void GraphicView::applyDisplayModeAll()
+{
+    for (auto &sd : m_signals)
+        applyDisplayMode(sd);
+}
+
+void GraphicView::applyFocus()
+{
+    for (int i = 0; i < m_signals.size(); ++i) {
+        auto &sd = m_signals[i];
+        if (!sd.graph)
+            continue;
+        const bool selected = (i == m_selectedSignal);
+        bool visible = !sd.userHidden;
+        QColor color = sd.config.color;
+        switch (m_focusMode) {
+        case FocusMode::SelectedColor:
+            if (m_selectedSignal >= 0 && !selected)
+                color = m_palette.dimCurve;
+            break;
+        case FocusMode::SelectedOnly:
+            visible = visible && (m_selectedSignal < 0 || selected);
+            break;
+        case FocusMode::AllColor:
+        default:
+            break;
+        }
+        sd.graph->setVisible(visible);
+        sd.graph->setPen(QPen(color, 1));
+        // 分栏模式：未显示信号的轨道收起
+        if (m_yAxisMode == YAxisMode::Separate && sd.axisRect)
+            sd.axisRect->setVisible(visible);
+    }
+    applyDisplayModeAll();   // 散点颜色跟随画笔（含置灰）
+    refreshNameLabels();
+    if (m_yAxisMode == YAxisMode::Separate)
+        layoutAxisRects();
+}
+
+void GraphicView::setSelectedSignal(int index)
+{
+    if (index >= m_signals.size())
+        index = m_signals.isEmpty() ? -1 : m_signals.size() - 1;
+    if (m_selectedSignal == index)
+        return;
+    m_selectedSignal = index;
+    applyOverlayAxisVisibility();   // 叠加·选中轴：刻度切换
+    applyFocus();
+    m_plot->replot();
+}
+
+void GraphicView::refreshNameLabels()
+{
+    for (int i = 0; i < m_signals.size(); ++i) {
+        auto &sd = m_signals[i];
+        if (!sd.nameLabel)
+            continue;
+        QString text = sd.config.name;
+        if (!sd.config.dbcSig.unit.isEmpty())
+            text += " [" + sd.config.dbcSig.unit + "]";
+        const bool dim = m_focusMode != FocusMode::AllColor &&
+                         m_selectedSignal >= 0 && i != m_selectedSignal;
+        // 富文本：■ 信号色块 + 名字（主题前景色/置灰），对标 CANoe 信号名标签（§8.4）
+        sd.nameLabel->setText(QString("<span style='color:%1'>■</span> "
+                                      "<span style='color:%2'>%3</span>")
+            .arg(sd.config.color.name(),
+                 (dim ? m_palette.dimCurve : m_palette.nameTagFg).name(),
+                 text.toHtmlEscaped()));
+        sd.nameLabel->setBrush(QBrush(m_palette.nameTagBg));
+        sd.nameLabel->setPen(QPen(m_palette.nameTagBorder, 1));
+    }
+}
+
+// ============================================================
+//  缩放（轴模式 + 历史栈，对标 CANoe Undo Zoom / Undo All Zooms）
+// ============================================================
+
+void GraphicView::setZoomAxisMode(ZoomAxisMode m)
+{
+    m_zoomAxis = m;
+    const int idx = m == ZoomAxisMode::XY ? 0
+                  : m == ZoomAxisMode::XOnly ? 1 : 2;
+    if (m_zoomAxisCombo && m_zoomAxisCombo->currentIndex() != idx)
+        m_zoomAxisCombo->setCurrentIndex(idx);
+}
+
+void GraphicView::zoomAt(double factor, const QPointF &plotPos)
+{
+    QCPAxis *xAxis = primaryXAxis();
+    if (!xAxis)
+        return;
+    const int px = static_cast<int>(plotPos.x());
+    const int py = static_cast<int>(plotPos.y());
+    if (m_zoomAxis != ZoomAxisMode::YOnly) {
+        const double center = xAxis->pixelToCoord(px);
+        const double newRange = xAxis->range().size() * factor;
+        setXRangeAll(QCPRange(center - newRange / 2, center + newRange / 2), false);
+    }
+    if (m_zoomAxis != ZoomAxisMode::XOnly) {
+        // 工具栏缩放无特定轨道 → 全部信号 Y
+        for (auto &sd : m_signals) {
+            QCPAxis *ya = valueAxisFor(sd);
+            if (!ya)
+                continue;
+            const double yCenter = ya->pixelToCoord(py);
+            const double newYRange = ya->range().size() * factor;
+            ya->setRange(yCenter - newYRange / 2, yCenter + newYRange / 2);
+        }
+    }
+    refreshDisplayData();
+    m_plot->replot();
+}
+
+GraphicView::ZoomState GraphicView::currentZoomState() const
+{
+    ZoomState st;
+    if (QCPAxis *x = primaryXAxis()) {
+        st.x1 = x->range().lower;
+        st.x2 = x->range().upper;
+    }
+    for (int i = 0; i < m_signals.size(); ++i) {
+        if (QCPAxis *ya = valueAxisFor(m_signals[i]))
+            st.yRanges.append({i, ya->range().lower, ya->range().upper});
+    }
+    return st;
+}
+
+void GraphicView::pushZoomState()
+{
+    if (m_restoringZoom)
+        return;
+    const ZoomState cur = currentZoomState();
+    // 与栈顶相同（no-op 操作，如未缩放即 fitAll）不入栈
+    if (!m_zoomStack.isEmpty()) {
+        const ZoomState &top = m_zoomStack.last();
+        bool same = top.x1 == cur.x1 && top.x2 == cur.x2 &&
+                    top.yRanges.size() == cur.yRanges.size();
+        for (int k = 0; same && k < cur.yRanges.size(); ++k)
+            same = top.yRanges[k].sig == cur.yRanges[k].sig &&
+                   top.yRanges[k].lo == cur.yRanges[k].lo &&
+                   top.yRanges[k].hi == cur.yRanges[k].hi;
+        if (same)
+            return;
+    }
+    m_zoomStack.append(cur);
+    if (m_zoomStack.size() > 50)
+        m_zoomStack.removeFirst();
+    updateZoomUi();
+}
+
+void GraphicView::undoZoom()
+{
+    if (m_zoomStack.isEmpty())
+        return;
+    restoreZoomState(m_zoomStack.takeLast());
+    updateZoomUi();
+}
+
+void GraphicView::undoAllZooms()
+{
+    if (m_zoomStack.isEmpty())
+        return;
+    const ZoomState first = m_zoomStack.first();
+    m_zoomStack.clear();
+    restoreZoomState(first);
+    updateZoomUi();
+}
+
+void GraphicView::restoreZoomState(const ZoomState &st)
+{
+    m_restoringZoom = true;
+    setXRangeAll(QCPRange(st.x1, st.x2), false);
+    for (const auto &yr : st.yRanges) {
+        if (yr.sig < 0 || yr.sig >= m_signals.size())
+            continue;
+        if (QCPAxis *ya = valueAxisFor(m_signals[yr.sig]))
+            ya->setRange(yr.lo, yr.hi);
+    }
+    m_restoringZoom = false;
+    m_zoomPushTimer.stop();   // 撤销后不再补 push
+    refreshDisplayData();
+    m_plot->replot();
+}
+
+void GraphicView::updateZoomUi()
+{
+    if (m_undoZoomBtn)
+        m_undoZoomBtn->setEnabled(!m_zoomStack.isEmpty());
+}
+
+// ============================================================
+//  单信号 Y 轴快捷操作（适应 / 重置 DBC / 范围设置对话框）
+// ============================================================
+
+void GraphicView::fitSignalY(int index)
+{
+    if (index < 0 || index >= m_signals.size())
+        return;
+    auto &sd = m_signals[index];
+    ensureMinMax(sd);
+    QCPAxis *ya = valueAxisFor(sd);
+    if (!ya)
+        return;
+    if (sd.hasMinMax) {
+        double margin = (sd.dataMax - sd.dataMin) * 0.05;
+        if (margin <= 0) margin = 1.0;
+        ya->setRange(sd.dataMin - margin, sd.dataMax + margin);
+    } else {
+        double yMin = sd.config.dbcSig.minimum;
+        double yMax = sd.config.dbcSig.maximum;
+        if (yMax <= yMin) { yMin = 0.0; yMax = 1.0; }
+        ya->setRange(yMin, yMax);
+    }
+    m_plot->replot();
+}
+
+void GraphicView::resetSignalYToDbc(int index)
+{
+    if (index < 0 || index >= m_signals.size())
+        return;
+    QCPAxis *ya = valueAxisFor(m_signals[index]);
+    if (!ya)
+        return;
+    double yMin = m_signals[index].config.dbcSig.minimum;
+    double yMax = m_signals[index].config.dbcSig.maximum;
+    if (yMax <= yMin) { yMin = 0.0; yMax = 1.0; }
+    ya->setRange(yMin, yMax);
+    m_plot->replot();
+}
+
+void GraphicView::showAxisConfigDialog(int index)
+{
+    if (index < 0 || index >= m_signals.size())
+        return;
+    auto &sd = m_signals[index];
+    QCPAxis *ya = valueAxisFor(sd);
+    if (!ya)
+        return;
+
+    QDialog dlg(this);
+    dlg.setWindowTitle(QString("Y 轴设置 — %1").arg(sd.config.name));
+    auto *form = new QFormLayout(&dlg);
+    auto *minSpin = new QDoubleSpinBox(&dlg);
+    auto *maxSpin = new QDoubleSpinBox(&dlg);
+    minSpin->setRange(-1e9, 1e9);
+    minSpin->setDecimals(3);
+    maxSpin->setRange(-1e9, 1e9);
+    maxSpin->setDecimals(3);
+    minSpin->setValue(ya->range().lower);
+    maxSpin->setValue(ya->range().upper);
+    form->addRow("最小值:", minSpin);
+    form->addRow("最大值:", maxSpin);
+    auto *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    form->addRow(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    if (dlg.exec() == QDialog::Accepted && minSpin->value() < maxSpin->value()) {
+        ya->setRange(minSpin->value(), maxSpin->value());
+        m_plot->replot();
+    }
 }
 
 QVector<GraphicView::Signal> GraphicView::signalConfigs() const
@@ -856,14 +2016,98 @@ void GraphicView::clearData()
     for (auto &sd : m_signals) {
         if (sd.graph)
             sd.graph->data()->clear();
+        sd.rawData.clear();
         sd.hasMinMax = false;
+        sd.minMaxDirty = false;
         sd.dataMin = 0.0;
         sd.dataMax = 0.0;
+        sd.cacheValid = false;
     }
+    m_dataDirty = true;
     m_currentTime = 0.0;
     refreshTimeAxis();
     m_plot->replot();
     updateStatusBar();
+}
+
+// ============================================================
+//  环形缓冲写入 / min/max 维护 / 视口降采样重建
+// ============================================================
+
+void GraphicView::pushSample(SignalData &sd, double t, double v)
+{
+    if (sd.rawData.push({t, v})) {
+        // 覆盖了最旧元素 → 增量 min/max 失效，需重算
+        sd.minMaxDirty = true;
+    }
+    if (!sd.hasMinMax) {
+        sd.dataMin = v;
+        sd.dataMax = v;
+        sd.hasMinMax = true;
+    } else {
+        if (v < sd.dataMin) sd.dataMin = v;
+        if (v > sd.dataMax) sd.dataMax = v;
+    }
+    m_dataDirty = true;
+}
+
+void GraphicView::ensureMinMax(SignalData &sd)
+{
+    if (!sd.minMaxDirty)
+        return;
+    const int n = sd.rawData.size();
+    if (n == 0) {
+        sd.hasMinMax = false;
+        sd.minMaxDirty = false;
+        return;
+    }
+    double mn = sd.rawData.at(0).v;
+    double mx = mn;
+    for (int i = 1; i < n; ++i) {
+        const double v = sd.rawData.at(i).v;
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
+    }
+    sd.dataMin = mn;
+    sd.dataMax = mx;
+    sd.hasMinMax = true;
+    sd.minMaxDirty = false;
+}
+
+void GraphicView::refreshDisplayData()
+{
+    if (m_signals.isEmpty())
+        return;
+
+    // 主视口（当前模式主 X 轴：分栏首个可见轨道 / 叠加 overlay X）
+    QCPAxis *primaryX = primaryXAxis();
+    if (!primaryX)
+        return;
+    const QCPRange vp = primaryX->range();
+
+    // 目标点数 ≈ 2 × 视口像素宽
+    const int targetPoints = std::max(400, m_plot->width() * graphic::POINTS_PER_PIXEL);
+
+    for (auto &sd : m_signals) {
+        if (!sd.graph)
+            continue;
+        // 视口缓存命中：数据未变且视口未变
+        if (!m_dataDirty && sd.cacheValid &&
+            sd.cachedT1 == vp.lower && sd.cachedT2 == vp.upper)
+            continue;
+        const QVector<graphic::Sample> disp =
+            graphic::downsample(sd.rawData, vp.lower, vp.upper, targetPoints, m_dsStrategy);
+        QVector<QCPGraphData> graphData;
+        graphData.reserve(disp.size());
+        for (const auto &s : disp)
+            graphData.append(QCPGraphData(s.t, s.v));
+        sd.graph->data()->set(graphData, true);
+        sd.cachedT1 = vp.lower;
+        sd.cachedT2 = vp.upper;
+        sd.cacheValid = true;
+    }
+    m_dataDirty = false;
+    updateCursorDecorations();   // 视口变化 → 卡尺/时间线像素重定位
 }
 
 void GraphicView::onFrame(const CanFrame &frame)
@@ -882,42 +2126,23 @@ void GraphicView::onFrame(const CanFrame &frame)
             frame.extended == sd.config.extended) {
             double val = extractValue(frame, sd.config);
             if (!std::isnan(val)) {
-                sd.graph->addData(frame.timestamp, val);
+                // 原始数据入环形缓冲（百万点容量，满后覆盖最旧；
+                // 显示数据由 onReplotTimeout → refreshDisplayData 按视口抽稀重建）
+                pushSample(sd, frame.timestamp, val);
 
-                // 跟踪 min/max
-                if (!sd.hasMinMax) {
-                    sd.dataMin = val;
-                    sd.dataMax = val;
-                    sd.hasMinMax = true;
-                } else {
-                    if (val < sd.dataMin) sd.dataMin = val;
-                    if (val > sd.dataMax) sd.dataMax = val;
-                }
-
-                // 裁剪旧数据（超过显示窗口 + 10% 缓冲）
-                double cutoff = frame.timestamp - m_timeWindow * 1.1;
-                sd.graph->data()->removeBefore(cutoff);
-
-                // 数据量超过上限时降采样
-                if (sd.graph->data()->size() > MAX_DISPLAY_POINTS) {
-                    // 移除最早 10% 的数据点
-                    int removeCount = sd.graph->data()->size() - MAX_DISPLAY_POINTS;
-                    auto it = sd.graph->data()->constBegin();
-                    for (int i = 0; i < removeCount && it != sd.graph->data()->constEnd(); ++i)
-                        ++it;
-                    sd.graph->data()->removeBefore(it->key);
-                }
-
-                // 自动调整 Y 轴范围（仅在数据超出当前范围时扩展）
-                double curMin = sd.yAxis->range().lower;
-                double curMax = sd.yAxis->range().upper;
-                if (val < curMin) {
-                    double range = curMax - curMin;
-                    sd.yAxis->setRange(val, curMax + (curMin - val) * 0.1 + range * 0.05);
-                }
-                if (val > curMax) {
-                    double range = curMax - curMin;
-                    sd.yAxis->setRange(curMin - (val - curMax) * 0.1 - range * 0.05, val);
+                // 自动调整 Y 轴范围（仅在数据超出当前范围时扩展；
+                // 当前生效轴 = 分栏 yAxis / 叠加 overlayYAxis）
+                if (QCPAxis *ya = valueAxisFor(sd)) {
+                    double curMin = ya->range().lower;
+                    double curMax = ya->range().upper;
+                    if (val < curMin) {
+                        double range = curMax - curMin;
+                        ya->setRange(val, curMax + (curMin - val) * 0.1 + range * 0.05);
+                    }
+                    if (val > curMax) {
+                        double range = curMax - curMin;
+                        ya->setRange(curMin - (val - curMax) * 0.1 - range * 0.05, val);
+                    }
                 }
 
                 hasData = true;
@@ -926,23 +2151,11 @@ void GraphicView::onFrame(const CanFrame &frame)
     }
 
     if (hasData) {
-        // 刷新时间轴范围（不触发 replot，由定时器处理）
+        // 刷新时间轴范围（不触发 replot，由定时器处理；
+        // 时间线像素位置由 onReplotTimeout → updateCursorDecorations 维护）
         double tEnd = m_currentTime;
         double tStart = std::max(0.0, tEnd - m_timeWindow);
-        QCPRange range(tStart, tEnd);
-        for (auto &sd : m_signals) {
-            if (sd.axisRect) {
-                auto *xa = sd.axisRect->axis(QCPAxis::atBottom);
-                QSignalBlocker blocker(xa);
-                xa->setRange(range);
-            }
-        }
-
-        // 更新当前时间指示线
-        if (m_currentTimeLine) {
-            m_currentTimeLine->point1->setCoords(m_currentTime, 0);
-            m_currentTimeLine->point2->setCoords(m_currentTime, 1);
-        }
+        setXRangeAll(QCPRange(tStart, tEnd), false);
 
         // 标记需要重绘
         m_replotPending = true;
@@ -956,6 +2169,8 @@ void GraphicView::onReplotTimeout()
 {
     if (!m_replotPending) return;
     m_replotPending = false;
+    refreshDisplayData();
+    updateCursorDecorations();
     m_plot->replot(QCustomPlot::rpQueuedReplot);
 
     if (m_cursorMode != CursorMode::None)
@@ -1024,19 +2239,38 @@ void GraphicView::loadFile(const QString &path)
 
         QMetaObject::invokeMethod(this, [this, frames, count]() {
             if (count > 0) {
+                double tFirst = -1.0;
                 for (const auto &frame : frames) {
                     m_currentTime = frame.timestamp;
+                    if (tFirst < 0)
+                        tFirst = frame.timestamp;
                     for (auto &sd : m_signals) {
                         if ((frame.id & 0x1FFFFFFF) == sd.config.canId &&
                             frame.extended == sd.config.extended) {
                             double val = extractValue(frame, sd.config);
                             if (!std::isnan(val))
-                                sd.graph->addData(frame.timestamp, val);
+                                pushSample(sd, frame.timestamp, val);
                         }
                     }
                 }
-                refreshTimeAxis();
-                fitAll();
+                // X 轴适配全部数据范围（而非时间窗口截断）
+                double tStart = (tFirst > 0.0 ? tFirst : 0.0);
+                double tEnd = m_currentTime;
+                if (tEnd <= tStart)
+                    tEnd = tStart + 1.0;
+                setXRangeAll(QCPRange(tStart, tEnd), false);
+                // Y 轴适配（当前生效轴：分栏/叠加，基于原始数据 min/max）
+                for (auto &sd : m_signals) {
+                    ensureMinMax(sd);
+                    if (QCPAxis *ya = valueAxisFor(sd); ya && sd.hasMinMax) {
+                        double margin = (sd.dataMax - sd.dataMin) * 0.05;
+                        if (margin <= 0) margin = 1.0;
+                        ya->setRange(sd.dataMin - margin, sd.dataMax + margin);
+                    }
+                }
+                updateCursorDecorations();
+                refreshDisplayData();
+                m_plot->replot();
             }
             emit fileLoaded(count);
         }, Qt::QueuedConnection);
@@ -1060,14 +2294,9 @@ void GraphicView::refreshTimeAxis()
 {
     double tEnd = m_currentTime;
     double tStart = std::max(0.0, tEnd - m_timeWindow);
-    QCPRange range(tStart, tEnd);
-    for (auto &sd : m_signals) {
-        if (sd.axisRect) {
-            auto *xa = sd.axisRect->axis(QCPAxis::atBottom);
-            QSignalBlocker blocker(xa);
-            xa->setRange(range);
-        }
-    }
+    setXRangeAll(QCPRange(tStart, tEnd), false);
+    // blocker 挡掉了 rangeChanged → 手动重建显示数据
+    refreshDisplayData();
     m_plot->replot(QCustomPlot::rpQueuedReplot);
 }
 
@@ -1083,27 +2312,28 @@ void GraphicView::updateSignalList()
     for (int i = 0; i < m_signals.size(); ++i) {
         const auto &sd = m_signals[i];
         auto *item = new QTreeWidgetItem();
-        // 列 0: 信号名 + 色块图标 (CANoe 风格)
-        QPixmap colorPix(14, 14);
+        // 列 0: 色块图标（CANoe 信号栏风格）
+        QPixmap colorPix(12, 12);
         colorPix.fill(sd.config.color);
         item->setIcon(0, QIcon(colorPix));
-        item->setText(0, sd.config.name);
-        item->setForeground(0, sd.config.color);
-        // 列 1: 原始值
-        item->setText(1, "—");
-        // 列 2: 物理值
+        // 列 1: 信号名 + 显隐复选框
+        item->setText(1, sd.config.name);
+        item->setCheckState(1, sd.userHidden ? Qt::Unchecked : Qt::Checked);
+        item->setForeground(1, sd.config.color);
+        // 列 2: 物理值（卡尺或实时刷新）
         item->setText(2, "—");
-        // 列 3: 单位
-        item->setText(3, sd.config.dbcSig.unit);
-        // 列 4: Min
-        item->setText(4, sd.hasMinMax ? QString::number(sd.dataMin, 'f', 2) : "—");
-        // 列 5: Max
-        item->setText(5, sd.hasMinMax ? QString::number(sd.dataMax, 'f', 2) : "—");
-        // 列 6: ID
-        item->setText(6, QString("0x%1").arg(sd.config.canId, 0, 16).toUpper());
-        // 列 7: 点数
-        item->setText(7, "0");
-        item->setCheckState(0, Qt::Checked);
+        // 列 3: 原始值
+        item->setText(3, "—");
+        // 列 4: 单位
+        item->setText(4, sd.config.dbcSig.unit);
+        // 列 5: Min
+        item->setText(5, sd.hasMinMax ? QString::number(sd.dataMin, 'f', 2) : "—");
+        // 列 6: Max
+        item->setText(6, sd.hasMinMax ? QString::number(sd.dataMax, 'f', 2) : "—");
+        // 列 7: ID
+        item->setText(7, QString("0x%1").arg(sd.config.canId, 0, 16).toUpper());
+        // 列 8: 点数
+        item->setText(8, QString::number(sd.rawData.size()));
         item->setData(0, Qt::UserRole, i);
         m_signalTree->addTopLevelItem(item);
     }
@@ -1113,32 +2343,37 @@ void GraphicView::updateSignalList()
 
 void GraphicView::updateSignalValues()
 {
+    // 卡尺激活时列表值随卡尺（CANoe），否则显示实时最新值
+    if (m_cursorMode != CursorMode::None)
+        return;
+
     for (int i = 0; i < m_signals.size() && i < m_signalTree->topLevelItemCount(); ++i) {
         auto *item = m_signalTree->topLevelItem(i);
         auto &sd = m_signals[i];
 
-        if (!sd.graph || sd.graph->data()->isEmpty()) {
-            item->setText(1, "—");
+        if (sd.rawData.empty()) {
             item->setText(2, "—");
-            item->setText(7, "0");
+            item->setText(3, "—");
+            item->setText(8, "0");
             continue;
         }
 
-        // 获取最后一个数据点
-        auto it = std::prev(sd.graph->data()->constEnd());
-        double physVal = it->value;
+        // 原始数据最后一个点（不受显示抽稀影响）
+        const graphic::Sample &last = sd.rawData.at(sd.rawData.size() - 1);
+        double physVal = last.v;
 
         // 原始值
         double factor = sd.config.dbcSig.factor;
         if (factor == 0) factor = 1.0;
         quint64 rawVal = static_cast<quint64>((physVal - sd.config.dbcSig.offset) / factor + 0.5);
 
-        item->setText(1, QString::number(rawVal));
         item->setText(2, QString::number(physVal, 'f', 3));
-        // Min/Max 列也更新
-        item->setText(4, sd.hasMinMax ? QString::number(sd.dataMin, 'f', 2) : "—");
-        item->setText(5, sd.hasMinMax ? QString::number(sd.dataMax, 'f', 2) : "—");
-        item->setText(7, QString::number(sd.graph->data()->size()));
+        item->setText(3, QString::number(rawVal));
+        // Min/Max 列也更新（覆盖重算后生效）
+        ensureMinMax(sd);
+        item->setText(5, sd.hasMinMax ? QString::number(sd.dataMin, 'f', 2) : "—");
+        item->setText(6, sd.hasMinMax ? QString::number(sd.dataMax, 'f', 2) : "—");
+        item->setText(8, QString::number(sd.rawData.size()));
     }
 }
 
@@ -1147,8 +2382,8 @@ void GraphicView::updateCursorValues()
     if (m_cursorMode == CursorMode::None) {
         for (int i = 0; i < m_signalTree->topLevelItemCount(); ++i) {
             auto *item = m_signalTree->topLevelItem(i);
-            item->setText(1, "—");
             item->setText(2, "—");
+            item->setText(3, "—");
         }
         return;
     }
@@ -1157,21 +2392,21 @@ void GraphicView::updateCursorValues()
         auto *item = m_signalTree->topLevelItem(i);
         auto &sd = m_signals[i];
 
-        double physVal;
-        if (sd.graph && valueAtTime(sd.graph, m_cursor1Time, physVal)) {
+        double physVal = 0.0;
+        if (!sd.rawData.empty() && valueAtTime(sd.rawData, m_cursor1Time, physVal)) {
             double factor = sd.config.dbcSig.factor;
             if (factor == 0) factor = 1.0;
             quint64 rawVal = static_cast<quint64>((physVal - sd.config.dbcSig.offset) / factor + 0.5);
-            item->setText(1, QString::number(rawVal));
             item->setText(2, QString::number(physVal, 'f', 3));
+            item->setText(3, QString::number(rawVal));
         } else {
-            item->setText(1, "—");
             item->setText(2, "—");
+            item->setText(3, "—");
         }
 
         if (m_cursorMode == CursorMode::Double && m_cursor2) {
             double physVal2;
-            if (sd.graph && valueAtTime(sd.graph, m_cursor2Time, physVal2)) {
+            if (!sd.rawData.empty() && valueAtTime(sd.rawData, m_cursor2Time, physVal2)) {
                 double delta = physVal2 - physVal;
                 item->setText(2, QString("%1 → %2 (Δ%3)")
                     .arg(physVal, 0, 'f', 3)
@@ -1205,9 +2440,9 @@ void GraphicView::updateCursorValues()
 
         for (int i = 0; i < m_signals.size(); ++i) {
             double v1, v2;
-            if (m_signals[i].graph &&
-                valueAtTime(m_signals[i].graph, m_cursor1Time, v1) &&
-                valueAtTime(m_signals[i].graph, m_cursor2Time, v2)) {
+            if (!m_signals[i].rawData.empty() &&
+                valueAtTime(m_signals[i].rawData, m_cursor1Time, v1) &&
+                valueAtTime(m_signals[i].rawData, m_cursor2Time, v2)) {
                 info += QString("  Δ%1 = %2")
                     .arg(m_signals[i].config.name)
                     .arg(v2 - v1, 0, 'f', 3);
@@ -1224,17 +2459,34 @@ void GraphicView::updateCursorValues()
 
 void GraphicView::ensureCursors()
 {
+    // 手柄/时间标签公共样式（ptAbsolute 像素定位，随视口由 updateCursorDecorations 维护）
+    auto setupDecor = [this](QCPItemText *t, const QColor &c) {
+        t->position->setType(QCPItemPosition::ptAbsolute);
+        t->setPositionAlignment(Qt::AlignHCenter | Qt::AlignTop);
+        t->setColor(c);
+        t->setBrush(QBrush(m_palette.nameTagBg));
+        t->setPen(QPen(m_palette.nameTagBorder, 1));
+        t->setPadding(QMargins(2, 0, 2, 0));
+        QFont f("Consolas", 8);
+        t->setFont(f);
+    };
     if (!m_cursor1) {
         m_cursor1 = new QCPItemStraightLine(m_plot);
-        m_cursor1->setPen(QPen(QColor(0xE9, 0x1E, 0x63), 1, Qt::DashLine));
-        m_cursor1->point1->setCoords(m_cursor1Time, 0);
-        m_cursor1->point2->setCoords(m_cursor1Time, 1);
+        m_cursor1->setPen(QPen(m_palette.cursor1, 1));   // 黑实线（§8.5）
+        m_cursor1Handle = new QCPItemText(m_plot);
+        m_cursor1Handle->setText("▼");
+        setupDecor(m_cursor1Handle, m_palette.cursor1);
+        m_cursor1Label = new QCPItemText(m_plot);
+        setupDecor(m_cursor1Label, m_palette.cursor1);
     }
     if (!m_cursor2) {
         m_cursor2 = new QCPItemStraightLine(m_plot);
-        m_cursor2->setPen(QPen(QColor(0x00, 0x96, 0x88), 1, Qt::DashLine));
-        m_cursor2->point1->setCoords(m_cursor2Time, 0);
-        m_cursor2->point2->setCoords(m_cursor2Time, 1);
+        m_cursor2->setPen(QPen(m_palette.cursor2, 1));   // 深蓝实线（§8.5）
+        m_cursor2Handle = new QCPItemText(m_plot);
+        m_cursor2Handle->setText("▼");
+        setupDecor(m_cursor2Handle, m_palette.cursor2);
+        m_cursor2Label = new QCPItemText(m_plot);
+        setupDecor(m_cursor2Label, m_palette.cursor2);
     }
 }
 
@@ -1242,9 +2494,92 @@ void GraphicView::ensureCurrentTimeLine()
 {
     if (!m_currentTimeLine) {
         m_currentTimeLine = new QCPItemStraightLine(m_plot);
-        m_currentTimeLine->setPen(QPen(QColor(0xFF, 0xFF, 0x00), 1, Qt::DotLine));
-        m_currentTimeLine->point1->setCoords(0, 0);
-        m_currentTimeLine->point2->setCoords(0, 1);
+        m_currentTimeLine->setPen(QPen(m_palette.timeLine, 1.5));   // 黄实线 1.5px（§8.2.2）
+        m_currentTimeLine->point1->setCoords(QPointF(0, 0));
+        m_currentTimeLine->point2->setCoords(QPointF(0, 1));
+        m_currentTimeLine->setVisible(false);
+    }
+}
+
+void GraphicView::ensureTrackLine()
+{
+    if (!m_trackLine) {
+        m_trackLine = new QCPItemStraightLine(m_plot);
+        m_trackLine->setPen(QPen(m_palette.trackCursor, 1, Qt::DotLine));
+        m_trackLine->point1->setCoords(QPointF(0, 0));
+        m_trackLine->point2->setCoords(QPointF(0, 1));
+        m_trackLine->setVisible(false);
+    }
+    if (!m_trackLabel) {
+        m_trackLabel = new QCPItemText(m_plot);
+        m_trackLabel->position->setType(QCPItemPosition::ptAbsolute);
+        m_trackLabel->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
+        m_trackLabel->setColor(m_palette.axisText);
+        m_trackLabel->setBrush(QBrush(m_palette.nameTagBg));
+        m_trackLabel->setPen(QPen(m_palette.nameTagBorder, 1));
+        m_trackLabel->setPadding(QMargins(2, 0, 2, 0));
+        QFont f("Consolas", 8);
+        m_trackLabel->setFont(f);
+        m_trackLabel->setVisible(false);
+    }
+}
+
+void GraphicView::updateCursorDecorations()
+{
+    QCPAxisRect *pr = primaryRect();
+    QCPAxis *xAxis = primaryXAxis();
+    const bool valid = pr && xAxis && !pr->rect().isNull();
+    const QRect rc = valid ? pr->rect() : QRect();
+
+    // 竖直线：ptAbsolute 像素两点（超出轨道左右 60px 隐藏）
+    auto placeLine = [&](QCPItemStraightLine *line, double t) {
+        if (!line)
+            return;
+        if (!valid) {
+            line->setVisible(false);
+            return;
+        }
+        const double px = xAxis->coordToPixel(t);
+        if (px < rc.left() - 60 || px > rc.right() + 60) {
+            line->setVisible(false);
+            return;
+        }
+        line->point1->setCoords(QPointF(px, rc.top()));
+        line->point2->setCoords(QPointF(px, rc.bottom()));
+        line->setVisible(true);
+    };
+    // 手柄▼ + 时间标签：顶部错开两层
+    auto placeDecor = [&](QCPItemText *handle, QCPItemText *label,
+                          double t, const QString &text) {
+        if (!handle || !label)
+            return;
+        if (!valid) {
+            handle->setVisible(false);
+            label->setVisible(false);
+            return;
+        }
+        const double px = xAxis->coordToPixel(t);
+        const bool inView = px >= rc.left() - 40 && px <= rc.right() + 40;
+        handle->setVisible(inView);
+        label->setVisible(inView);
+        if (!inView)
+            return;
+        handle->position->setCoords(QPointF(px, rc.top() + 1));
+        label->position->setCoords(QPointF(px, rc.top() + 15));
+        label->setText(text);
+    };
+
+    placeLine(m_cursor1, m_cursor1Time);
+    placeLine(m_cursor2, m_cursor2Time);
+    placeLine(m_currentTimeLine, m_currentTime);
+    placeDecor(m_cursor1Handle, m_cursor1Label, m_cursor1Time,
+               QString::number(m_cursor1Time, 'f', 3) + "s");
+    if (m_cursorMode == CursorMode::Double)
+        placeDecor(m_cursor2Handle, m_cursor2Label, m_cursor2Time,
+                   QString::number(m_cursor2Time, 'f', 3) + "s");
+    else {
+        if (m_cursor2Handle) m_cursor2Handle->setVisible(false);
+        if (m_cursor2Label) m_cursor2Label->setVisible(false);
     }
 }
 
@@ -1255,6 +2590,10 @@ void GraphicView::setCursorMode(CursorMode mode)
     if (mode == CursorMode::None) {
         if (m_cursor1) { m_plot->removeItem(m_cursor1); m_cursor1 = nullptr; }
         if (m_cursor2) { m_plot->removeItem(m_cursor2); m_cursor2 = nullptr; }
+        if (m_cursor1Handle) { m_plot->removeItem(m_cursor1Handle); m_cursor1Handle = nullptr; }
+        if (m_cursor2Handle) { m_plot->removeItem(m_cursor2Handle); m_cursor2Handle = nullptr; }
+        if (m_cursor1Label) { m_plot->removeItem(m_cursor1Label); m_cursor1Label = nullptr; }
+        if (m_cursor2Label) { m_plot->removeItem(m_cursor2Label); m_cursor2Label = nullptr; }
         m_draggingCursor = 0;
         updateCursorValues();
         m_plot->replot();
@@ -1265,13 +2604,9 @@ void GraphicView::setCursorMode(CursorMode mode)
 
     double center = m_currentTime > 0 ? m_currentTime - m_timeWindow / 2 : 0;
     if (mode == CursorMode::Single) {
-        m_cursor1->setVisible(true);
-        m_cursor2->setVisible(false);
         m_cursor1Time = center;
         moveCursor(1, center);
     } else if (mode == CursorMode::Double) {
-        m_cursor1->setVisible(true);
-        m_cursor2->setVisible(true);
         m_cursor1Time = center - m_timeWindow * 0.1;
         m_cursor2Time = center + m_timeWindow * 0.1;
         moveCursor(1, m_cursor1Time);
@@ -1284,51 +2619,71 @@ void GraphicView::setCursorMode(CursorMode mode)
 
 void GraphicView::moveCursor(int which, double time)
 {
-    if (which == 1 && m_cursor1) {
+    if (which == 1 && m_cursor1)
         m_cursor1Time = time;
-        m_cursor1->point1->setCoords(time, 0);
-        m_cursor1->point2->setCoords(time, 1);
-    } else if (which == 2 && m_cursor2) {
+    else if (which == 2 && m_cursor2)
         m_cursor2Time = time;
-        m_cursor2->point1->setCoords(time, 0);
-        m_cursor2->point2->setCoords(time, 1);
-    }
+    // 像素位置（手柄/标签/线）由 updateCursorDecorations 统一维护
+    updateCursorDecorations();
     updateCursorValues();
     m_plot->replot(QCustomPlot::rpQueuedReplot);
+
+    // 多视图游标联动（同步中不发射，防回环）
+    if (!m_syncingCursor && m_cursorLink)
+        emit cursorMoved(which, time);
 }
 
-bool GraphicView::valueAtTime(QCPGraph *graph, double time, double &outVal) const
+void GraphicView::onSyncCursor(int which, double time)
 {
-    if (!graph || graph->data()->size() == 0)
+    if (m_syncingCursor || !m_cursorLink)
+        return;
+    if (m_cursorMode == CursorMode::None)
+        return;
+    // 本视图无双卡尺时，卡尺 2 降级为卡尺 1
+    if (which == 2 && m_cursorMode != CursorMode::Double)
+        which = 1;
+
+    m_syncingCursor = true;
+    moveCursor(which, time);
+    m_syncingCursor = false;
+}
+
+bool GraphicView::valueAtTime(const RingBuffer<graphic::Sample> &raw, double time, double &outVal)
+{
+    const int n = raw.size();
+    if (n == 0)
         return false;
 
-    auto it = graph->data()->findBegin(time);
-    if (it == graph->data()->end())
-        return false;
-
-    if (it == graph->data()->begin()) {
-        if (it->key >= time) {
-            outVal = it->value;
-            return true;
-        }
+    // 二分定位第一个 t >= time
+    int lo = 0, hi = n;
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (raw.at(mid).t < time)
+            lo = mid + 1;
+        else
+            hi = mid;
     }
 
-    if (it != graph->data()->begin()) {
-        auto prev = std::prev(it);
-        double t0 = prev->key;
-        double t1 = it->key;
-        double v0 = prev->value;
-        double v1 = it->value;
-        if (t1 == t0) {
-            outVal = v1;
-        } else {
-            double ratio = (time - t0) / (t1 - t0);
-            outVal = v0 + ratio * (v1 - v0);
-        }
+    if (lo == n) {
+        // 超出最后一点 → 取最后值（阶梯保持语义）
+        outVal = raw.at(n - 1).v;
+        return true;
+    }
+    if (lo == 0) {
+        // 早于第一点 → 取第一值
+        outVal = raw.at(0).v;
         return true;
     }
 
-    outVal = it->value;
+    // [lo-1, lo] 之间线性插值
+    const graphic::Sample &p0 = raw.at(lo - 1);
+    const graphic::Sample &p1 = raw.at(lo);
+    if (p1.t == p0.t) {
+        outVal = p1.v;
+    } else {
+        double ratio = (time - p0.t) / (p1.t - p0.t);
+        outVal = p0.v + ratio * (p1.v - p0.v);
+    }
     return true;
 }
 
@@ -1338,18 +2693,21 @@ bool GraphicView::valueAtTime(QCPGraph *graph, double time, double &outVal) cons
 
 void GraphicView::fitAll()
 {
+    pushZoomState();   // 适应前记录缩放历史（no-op 时由栈顶去重拦截）
     double tEnd = m_currentTime;
     double tStart = std::max(0.0, tEnd - m_timeWindow);
-    QCPRange range(tStart, tEnd);
+    setXRangeAll(QCPRange(tStart, tEnd), false);
+    // Y 轴适配（当前生效轴：分栏/叠加；基于原始数据 min/max，覆盖重算后生效）
     for (auto &sd : m_signals) {
-        if (sd.axisRect) {
-            auto *xa = sd.axisRect->axis(QCPAxis::atBottom);
-            QSignalBlocker blocker(xa);
-            xa->setRange(range);
+        ensureMinMax(sd);
+        if (QCPAxis *ya = valueAxisFor(sd); ya && sd.hasMinMax) {
+            double margin = (sd.dataMax - sd.dataMin) * 0.05;
+            if (margin <= 0) margin = 1.0;
+            ya->setRange(sd.dataMin - margin, sd.dataMax + margin);
         }
-        if (sd.graph)
-            sd.graph->rescaleValueAxis(true);
     }
+    updateCursorDecorations();
+    refreshDisplayData();
     m_plot->replot();
 }
 
@@ -1385,10 +2743,8 @@ void GraphicView::updateStatusBar()
     parts << QString("信号: %1").arg(m_signals.size());
 
     int totalPoints = 0;
-    for (const auto &sd : m_signals) {
-        if (sd.graph)
-            totalPoints += sd.graph->data()->size();
-    }
+    for (const auto &sd : m_signals)
+        totalPoints += sd.rawData.size();
     parts << QString("采样点: %1").arg(totalPoints);
     parts << QString("时间: %1").arg(formatTime(m_currentTime));
     parts << QString("窗口: %1s").arg(m_timeWindow);

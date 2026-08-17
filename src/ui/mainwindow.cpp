@@ -450,6 +450,7 @@ MainWindow::MainWindow(QWidget *parent)
     if (m_graphicInstances.isEmpty()) {
         auto *gv = new GraphicView(this);
         openTab(gv, QStringLiteral("Graphic1"));
+        linkGraphicCursor(gv);
         m_graphicInstances["graphic1"] = gv;
         m_graphicView = gv;
         m_sideBar->graphicConfigPanel()->setGraphicView(gv);
@@ -1181,6 +1182,7 @@ void MainWindow::onFrameDoubleClicked(const CanFrame &frame)
     if (!targetGv) {
         targetGv = new GraphicView(this);
         openTab(targetGv, QString("Graphic%1").arg(++m_graphicCount));
+        linkGraphicCursor(targetGv);
     }
 
     GraphicView::Signal sig;
@@ -1276,6 +1278,7 @@ void MainWindow::onSignalDoubleClicked(quint32 canId, const QString &signalName)
     if (!targetGv) {
         targetGv = new GraphicView(this);
         openTab(targetGv, QString("Graphic%1").arg(++m_graphicCount));
+        linkGraphicCursor(targetGv);
     }
     targetGv->addSignal(gsig);
 
@@ -1389,6 +1392,7 @@ void MainWindow::setupTraceTab(TraceTab *tab)
         if (!targetGv) {
             targetGv = new GraphicView(this);
             openTab(targetGv, QString("Graphic%1").arg(++m_graphicCount));
+            linkGraphicCursor(targetGv);
         }
         // 添加该报文的所有信号到 Graphic
         for (const auto &sig : msg->signalList) {
@@ -1844,10 +1848,29 @@ void MainWindow::setupDeviceTab(DeviceConnectionTab *tab)
     });
 }
 
+void MainWindow::linkGraphicCursor(GraphicView *gv)
+{
+    // 与所有已打开的 GraphicView 建立游标联动（双向 + 去重，
+    // 视图关闭时 Qt 自动断开连接）
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            auto *other = qobject_cast<GraphicView *>(tw->widget(i));
+            if (!other || other == gv)
+                continue;
+            connect(gv, &GraphicView::cursorMoved, other, &GraphicView::onSyncCursor,
+                    Qt::UniqueConnection);
+            connect(other, &GraphicView::cursorMoved, gv, &GraphicView::onSyncCursor,
+                    Qt::UniqueConnection);
+        }
+    }
+}
+
 void MainWindow::onNewGraphicRequested()
 {
     auto *gv = new GraphicView(this);
     openTab(gv, QString("Graphic%1").arg(++m_graphicCount));
+    linkGraphicCursor(gv);
 }
 
 void MainWindow::onOpenMeasurementSetup()
@@ -2114,6 +2137,7 @@ void MainWindow::onOpenMeasurementSetup()
                 numPart.remove("graphic", Qt::CaseInsensitive);
                 QString title = QString("Graphic%1").arg(numPart.toInt());
                 openTab(newGv, title);
+                linkGraphicCursor(newGv);
                 m_graphicInstances[id] = newGv;
                 view->addModuleInstance("graphic", id, title);
                 connect(newGv, &QObject::destroyed, this, [this, id](QObject *) {
@@ -2271,6 +2295,7 @@ void MainWindow::onOpenMeasurementSetup()
         // 首次启动 — 创建默认 Graphic1 标签页
         auto *gv = new GraphicView(this);
         openTab(gv, "Graphic1");
+        linkGraphicCursor(gv);
         m_graphicCount = qMax(m_graphicCount, 1);
         m_graphicView = gv;
         m_graphicInstances["graphic1"] = gv;
@@ -3340,6 +3365,7 @@ void MainWindow::applyProjectState()
         if (!sigConfigs.isEmpty())
             gv->loadSignalConfigs(sigConfigs);
         openTab(gv, "Graphic1");
+        linkGraphicCursor(gv);
         m_graphicInstances["graphic1"] = gv;
         m_graphicView = gv;
         m_sideBar->graphicConfigPanel()->setGraphicView(gv);
@@ -3349,6 +3375,7 @@ void MainWindow::applyProjectState()
     if (!m_graphicInstances.contains("graphic1")) {
         auto *gv = new GraphicView(this);
         openTab(gv, "Graphic1");
+        linkGraphicCursor(gv);
         m_graphicInstances["graphic1"] = gv;
         m_graphicView = gv;
         m_sideBar->graphicConfigPanel()->setGraphicView(gv);

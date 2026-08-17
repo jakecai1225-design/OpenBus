@@ -18,8 +18,8 @@
 - [src/core/recorder.h](file://src/core/recorder.h)
 - [src/core/bookmarkmanager.cpp](file://src/core/bookmarkmanager.cpp)
 - [src/core/bookmarkmanager.h](file://src/core/bookmarkmanager.h)
-- [src/models/canfilterproxymodel.cpp](file://src/models/canfilterproxymodel.cpp)
-- [src/models/canfilterproxymodel.h](file://src/models/canfilterproxymodel.h)
+- [src/models/cantraceproxymodel.cpp](file://src/models/cantraceproxymodel.cpp)
+- [src/models/cantraceproxymodel.h](file://src/models/cantraceproxymodel.h)
 - [src/models/cantracemodel.cpp](file://src/models/cantracemodel.cpp)
 - [src/models/cantracemodel.h](file://src/models/cantracemodel.h)
 - [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
@@ -40,19 +40,23 @@
 - [src/ui/colorruleeditor.h](file://src/ui/colorruleeditor.h)
 - [src/ui/rightpanel.cpp](file://src/ui/rightpanel.cpp)
 - [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
+- [src/ui/tracestatisticswidget.cpp](file://src/ui/tracestatisticswidget.cpp)
+- [src/ui/tracestatisticswidget.h](file://src/ui/tracestatisticswidget.h)
+- [src/ui/tracediffwidget.cpp](file://src/ui/tracediffwidget.cpp)
+- [src/ui/tracediffwidget.h](file://src/ui/tracediffwidget.h)
+- [src/core/candevice_zlg.cpp](file://src/core/candevice_zlg.cpp)
+- [src/core/candevice_zlg.h](file://src/core/candevice_zlg.h)
 - [src/utils/canutils.cpp](file://src/utils/canutils.cpp)
 - [src/utils/canutils.h](file://src/utils/canutils.h)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- 增强了CAN追踪分析功能，新增帧编号（No.）和时间增量（Delta）列
-- 实现了Wireshark风格的过滤界面，支持交互式列级过滤
-- 添加了行标记和自定义着色功能，支持高亮重要帧
-- 改进了过滤代理模型，支持高级过滤操作符和范围过滤
-- 新增了覆盖模式，同CAN ID的帧只保留一行并实时更新数据
-- **新增**：FilterHeaderView组件提供完整的Wireshark风格漏斗表头过滤功能
-- **重大增强**：新增行标签和书签系统功能，支持类似Notepad++的标记功能，包括自定义文本标签、预设颜色调色板、批量操作等特性
+- **重大架构变更**：CanFilterProxyModel 被 CanTraceProxyModel 完全替换，实现增量过滤代理模型
+- **新增分析组件**：TraceStatisticsWidget（统计视图）和 TraceDiffWidget（差异对比视图）
+- **ZLG硬件增强**：增强的硬件滤波功能，支持动态配置和白名单模式
+- **性能优化**：增量过滤算法，O(1)/行的新增处理，SinceDisplay模式优化
+- **UI增强**：完整的CANoe风格底部面板，集成详情、信号、统计、差异四个标签页
 
 ## 目录
 1. [简介](#简介)
@@ -69,13 +73,13 @@
 ## 简介
 本工具是一个基于 Qt 的 CAN 总线分析应用，提供实时抓包、过滤、回放与录制功能，并通过图形化视图展示信号时序。整体采用分层架构：UI 层负责交互与可视化，模型层封装数据与过滤逻辑，核心层实现播放器、录制器、仿真器与 DBC 数据库管理，工具层提供通用辅助能力。构建系统使用 CMake，资源通过 Qt 资源系统进行管理。
 
-**更新** 增强了CAN追踪分析功能，新增了帧编号和时间增量计算，提供了Wireshark风格的过滤界面和行标记着色功能，显著提升了数据分析能力和用户体验。**最新增强**：FilterHeaderView组件实现了完整的Wireshark风格漏斗表头过滤功能，为用户提供直观的列级数据筛选体验。**重大更新**：新增了完整的行标签和书签系统功能，支持类似Notepad++的标记功能，包括自定义文本标签、预设颜色调色板、批量操作等特性，大幅提升了用户标注和分析效率。
+**最新更新**：实现了重大的架构升级，用CanTraceProxyModel替代原有的CanFilterProxyModel，提供增量过滤性能和更好的可扩展性。新增了完整的统计分析功能和帧差异对比能力，显著提升了数据分析的专业性和效率。**最新增强**：ZLG设备驱动增强了硬件滤波功能，支持动态配置和白名单模式，提高了数据采集的灵活性和性能。
 
 ## 项目结构
 项目按职责划分为以下模块：
-- src/core：CAN 帧数据结构、播放器、录制器、仿真器、DBC 数据库管理、书签管理器
-- src/models：CAN 追踪模型与过滤器代理模型
-- src/ui：主窗口、跟踪视图、图形视图、过滤栏、过滤表头、信号配置对话框、DBC 详情标签页、着色规则编辑器、右侧面板
+- src/core：CAN 帧数据结构、播放器、录制器、仿真器、DBC 数据库管理、书签管理器、ZLG设备驱动
+- src/models：CAN 追踪模型与增量过滤代理模型
+- src/ui：主窗口、跟踪视图、图形视图、过滤栏、过滤表头、信号配置对话框、DBC 详情标签页、着色规则编辑器、右侧面板、统计分析组件
 - src/utils：CAN 工具函数
 - resources：样式与资源文件
 - scripts：构建脚本
@@ -92,18 +96,21 @@ B --> G["信号配置对话框<br/>src/ui/signalconfigdialog.*"]
 B --> H["DBC详情标签页<br/>src/ui/dbcdetailtab.*"]
 B --> I["着色规则编辑器<br/>src/ui/colorruleeditor.*"]
 B --> J["右侧面板<br/>src/ui/rightpanel.*"]
-C --> K["追踪模型<br/>src/models/cantracemodel.*"]
-C --> L["过滤代理模型<br/>src/models/canfilterproxymodel.*"]
-H --> M["DBC管理器<br/>src/core/dbcmanager.*"]
-K --> N["CAN 帧定义<br/>src/core/canframe.h"]
-M --> O["DBC数据模型<br/>src/core/dbcdata.h"]
-B --> P["播放器<br/>src/core/player.*"]
-B --> Q["录制器<br/>src/core/recorder.*"]
-B --> R["仿真器<br/>src/core/cansimulator.*"]
-B --> S["书签管理器<br/>src/core/bookmarkmanager.*"]
-B --> T["CAN 工具<br/>src/utils/canutils.*"]
+B --> K["统计视图<br/>src/ui/tracestatisticswidget.*"]
+B --> L["差异视图<br/>src/ui/tracediffwidget.*"]
+C --> M["追踪模型<br/>src/models/cantracemodel.*"]
+C --> N["增量过滤代理<br/>src/models/cantraceproxymodel.*"]
+H --> O["DBC管理器<br/>src/core/dbcmanager.*"]
+M --> P["CAN 帧定义<br/>src/core/canframe.h"]
+O --> Q["DBC数据模型<br/>src/core/dbcdata.h"]
+B --> R["播放器<br/>src/core/player.*"]
+B --> S["录制器<br/>src/core/recorder.*"]
+B --> T["仿真器<br/>src/core/cansimulator.*"]
+B --> U["书签管理器<br/>src/core/bookmarkmanager.*"]
+B --> V["ZLG设备<br/>src/core/candevice_zlg.*"]
+B --> W["CAN 工具<br/>src/utils/canutils.*"]
 R["构建配置<br/>CMakeLists.txt / src/CMakeLists.txt"] --> A
-U["Qt 资源<br/>resources/*"] --> B
+X["Qt 资源<br/>resources/*"] --> B
 ```
 
 图表来源
@@ -117,8 +124,10 @@ U["Qt 资源<br/>resources/*"] --> B
 - [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
 - [src/ui/colorruleeditor.h](file://src/ui/colorruleeditor.h)
 - [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
+- [src/ui/tracestatisticswidget.h](file://src/ui/tracestatisticswidget.h)
+- [src/ui/tracediffwidget.h](file://src/ui/tracediffwidget.h)
 - [src/models/cantracemodel.h](file://src/models/cantracemodel.h)
-- [src/models/canfilterproxymodel.h](file://src/models/canfilterproxymodel.h)
+- [src/models/cantraceproxymodel.h](file://src/models/cantraceproxymodel.h)
 - [src/core/canframe.h](file://src/core/canframe.h)
 - [src/core/dbcmanager.h](file://src/core/dbcmanager.h)
 - [src/core/dbcdata.h](file://src/core/dbcdata.h)
@@ -126,6 +135,7 @@ U["Qt 资源<br/>resources/*"] --> B
 - [src/core/recorder.h](file://src/core/recorder.h)
 - [src/core/cansimulator.h](file://src/core/cansimulator.h)
 - [src/core/bookmarkmanager.h](file://src/core/bookmarkmanager.h)
+- [src/core/candevice_zlg.h](file://src/core/candevice_zlg.h)
 - [src/utils/canutils.h](file://src/utils/canutils.h)
 - [CMakeLists.txt](file://CMakeLists.txt)
 - [src/CMakeLists.txt](file://src/CMakeLists.txt)
@@ -138,7 +148,10 @@ U["Qt 资源<br/>resources/*"] --> B
 ## 核心组件
 - CAN 帧定义：统一的数据结构，承载 ID、数据长度、时间戳与载荷等字段，贯穿 UI、模型与核心模块。
 - 追踪模型：维护 CAN 帧序列并提供排序、分页与查询接口，支持帧编号、时间增量、行标记、行标签和自定义着色。
-- 过滤代理模型：对底层追踪模型进行动态过滤，支持按 ID、掩码、方向等条件筛选，以及高级操作符和范围过滤。
+- **增量过滤代理模型**：全新的CanTraceProxyModel，替代原有的CanFilterProxyModel，提供增量过滤算法，仅评估新增行，大幅提升性能。
+- **统计视图**：TraceStatisticsWidget提供选中帧的统计分析，包括时间统计和信号统计，对标CANoe Statistics功能。
+- **差异对比视图**：TraceDiffWidget支持帧差异对比，显示首帧与末帧的字节级和信号级差异。
+- **ZLG设备驱动**：增强的硬件滤波功能，支持动态配置和白名单模式，提高数据采集灵活性。
 - **过滤表头**：Wireshark风格的交互式表头，支持鼠标悬停显示漏斗图标和列级过滤，提供直观的数据筛选体验。
 - **书签管理器**：管理报文行书签，支持添加、删除、持久化保存，包含帧序号、备注、时间戳和颜色信息。
 - **着色规则编辑器**：提供可视化的着色规则编辑界面，支持条件表达式、背景色和前景色设置。
@@ -150,12 +163,15 @@ U["Qt 资源<br/>resources/*"] --> B
 - DBC 数据模型：存储 DBC 文件的结构化数据，包括消息、信号、节点等信息。
 - 工具库：提供字节序转换、校验和计算、字符串解析等通用方法。
 
-**更新** 增强了追踪模型的帧编号和时间增量功能，新增了Wireshark风格的过滤表头和行标记着色能力，显著提升了数据分析体验。**最新增强**：FilterHeaderView组件实现了完整的Wireshark风格漏斗表头过滤功能，为用户提供专业的数据筛选体验。**重大增强**：新增了完整的行标签和书签系统功能，包括BookmarkManager书签管理器、ColorRuleEditor着色规则编辑器和RightPanel右侧面板，支持类似Notepad++的标记功能，大幅提升了用户的标注和分析效率。
+**重大更新**：实现了CanTraceProxyModel增量过滤代理模型，相比原有的QSortFilterProxyModel方案，新增行处理从O(n)优化到O(1)，大幅提升了大数据量场景下的性能。**新增功能**：TraceStatisticsWidget和TraceDiffWidget提供了专业的统计分析能力，使工具具备了类似CANoe的分析功能。**增强功能**：ZLG设备驱动的硬件滤波功能得到显著增强，支持更灵活的配置选项。
 
 章节来源
 - [src/core/canframe.h](file://src/core/canframe.h)
 - [src/models/cantracemodel.h](file://src/models/cantracemodel.h)
-- [src/models/canfilterproxymodel.h](file://src/models/canfilterproxymodel.h)
+- [src/models/cantraceproxymodel.h](file://src/models/cantraceproxymodel.h)
+- [src/ui/tracestatisticswidget.h](file://src/ui/tracestatisticswidget.h)
+- [src/ui/tracediffwidget.h](file://src/ui/tracediffwidget.h)
+- [src/core/candevice_zlg.h](file://src/core/candevice_zlg.h)
 - [src/ui/filterheaderview.h](file://src/ui/filterheaderview.h)
 - [src/core/bookmarkmanager.h](file://src/core/bookmarkmanager.h)
 - [src/ui/colorruleeditor.h](file://src/ui/colorruleeditor.h)
@@ -190,14 +206,46 @@ class TraceView {
 +支持自定义着色()
 +支持行标签()
 +自动绑定FilterHeaderView()
++集成统计和差异视图()
 }
-class FilterHeaderView {
-+绘制漏斗图标()
-+处理鼠标事件()
-+触发列过滤()
-+支持排序切换()
-+状态管理()
-+视觉反馈()
+class CanTraceProxyModel {
++增量过滤()
++时间戳显示模式()
++列级过滤()
++值集过滤()
++分组统计()
++排序()
++双向映射()
++SinceDisplay优化()
+}
+class TraceStatisticsWidget {
++时间统计()
++信号统计()
++防抖重算()
++DBC解码()
++标准差计算()
+}
+class TraceDiffWidget {
++帧差异对比()
++字节级对比()
++信号级对比()
++变化高亮()
++防抖重算()
+}
+class CanDeviceZLG {
++硬件滤波()
++动态配置()
++白名单模式()
++设备枚举()
++DLL加载()
+}
+class BookmarkManager {
++添加书签()
++删除书签()
++清空书签()
++查找书签()
++保存文件()
++加载文件()
 }
 class ColorRuleEditor {
 +设置规则()
@@ -214,66 +262,6 @@ class RightPanel {
 +快捷按钮()
 +书签跳转()
 }
-class BookmarkManager {
-+添加书签()
-+删除书签()
-+清空书签()
-+查找书签()
-+保存文件()
-+加载文件()
-}
-class CanTraceModel {
-+追加帧()
-+获取帧集合()
-+排序/分页()
-+行标记管理()
-+行标签管理()
-+自定义着色()
-+着色规则求值()
-+覆盖模式()
-+帧编号计算()
-+时间增量计算()
-}
-class CanFilterProxyModel {
-+设置过滤器()
-+刷新结果()
-+列级过滤()
-+高级操作符()
-+范围过滤()
-+状态查询()
-}
-class Player {
-+加载源()
-+开始回放()
-+暂停/停止()
-}
-class Recorder {
-+开始录制()
-+停止录制()
-+写入帧()
-}
-class CanSimulator {
-+生成测试帧()
-+控制速率()
-}
-class DBCManager {
-+解析DBC文件()
-+获取消息定义()
-+获取信号定义()
-+错误处理()
-}
-class DBCData {
-+存储消息信息()
-+存储信号信息()
-+存储节点信息()
-+数据验证()
-}
-class CanUtils {
-+解析ID/掩码()
-+字节序转换()
-+校验和计算()
-+过滤器语法检查()
-}
 MainWindow --> TraceView : "包含"
 MainWindow --> FilterHeaderView : "包含"
 MainWindow --> GraphicView : "包含"
@@ -282,16 +270,17 @@ MainWindow --> SignalConfigDialog : "调用"
 MainWindow --> DBCDetailTab : "包含"
 MainWindow --> ColorRuleEditor : "调用"
 MainWindow --> RightPanel : "包含"
+MainWindow --> TraceStatisticsWidget : "包含"
+MainWindow --> TraceDiffWidget : "包含"
 TraceView --> CanTraceModel : "绑定"
-TraceView --> CanFilterProxyModel : "使用"
-FilterHeaderView --> CanFilterProxyModel : "查询过滤状态"
+TraceView --> CanTraceProxyModel : "使用"
+CanTraceProxyModel --> CanTraceModel : "代理"
 RightPanel --> BookmarkManager : "管理"
-CanFilterProxyModel --> CanTraceModel : "代理"
 DBCDetailTab --> DBCManager : "使用"
-DBCManager --> DBCData : "管理"
 MainWindow --> Player : "控制"
 MainWindow --> Recorder : "控制"
 MainWindow --> CanSimulator : "控制"
+MainWindow --> CanDeviceZLG : "控制"
 CanTraceModel --> CanUtils : "辅助"
 Player --> CanUtils : "辅助"
 Recorder --> CanUtils : "辅助"
@@ -308,14 +297,17 @@ DBCManager --> CanUtils : "辅助"
 - [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
 - [src/ui/colorruleeditor.h](file://src/ui/colorruleeditor.h)
 - [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
+- [src/ui/tracestatisticswidget.h](file://src/ui/tracestatisticswidget.h)
+- [src/ui/tracediffwidget.h](file://src/ui/tracediffwidget.h)
 - [src/models/cantracemodel.h](file://src/models/cantracemodel.h)
-- [src/models/canfilterproxymodel.h](file://src/models/canfilterproxymodel.h)
+- [src/models/cantraceproxymodel.h](file://src/models/cantraceproxymodel.h)
 - [src/core/player.h](file://src/core/player.h)
 - [src/core/recorder.h](file://src/core/recorder.h)
 - [src/core/cansimulator.h](file://src/core/cansimulator.h)
 - [src/core/dbcmanager.h](file://src/core/dbcmanager.h)
 - [src/core/dbcdata.h](file://src/core/dbcdata.h)
 - [src/core/bookmarkmanager.h](file://src/core/bookmarkmanager.h)
+- [src/core/candevice_zlg.h](file://src/core/candevice_zlg.h)
 - [src/utils/canutils.h](file://src/utils/canutils.h)
 
 ## 详细组件分析
@@ -331,14 +323,77 @@ DBCManager --> CanUtils : "辅助"
 
 ### 跟踪视图（TraceView）
 - 职责：以表格形式展示 CAN 帧，支持排序、搜索、高亮与滚动定位。
-- 数据绑定：通过 CanFilterProxyModel 访问 CanTraceModel，确保过滤与排序不影响底层数据。
+- 数据绑定：通过 CanTraceProxyModel 访问 CanTraceModel，确保过滤与排序不影响底层数据。
 - 性能优化：延迟渲染、按需加载、批量更新。
 - **新增功能**：支持行标记、行标签和自定义着色，可高亮重要帧并设置个性化背景色。
 - **自动集成**：在setModel时自动将代理模型传递给FilterHeaderView，实现无缝集成。
+- **底部面板集成**：集成了FrameInfoWidget、SignalDecodeWidget、TraceStatisticsWidget和TraceDiffWidget，提供完整的分析面板。
 
 章节来源
 - [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
 - [src/ui/traceview.h](file://src/ui/traceview.h)
+
+### 增量过滤代理模型（CanTraceProxyModel）
+- **核心功能**：替代原有的CanFilterProxyModel，实现增量过滤算法，大幅提升性能。
+- **性能优势**：
+  - 新增行：仅评估新行，追加到映射尾部（O(1)/行）
+  - 过滤条件变化：单次全量遍历重评估 + layoutChanged
+  - 排序：独立排序索引（m_proxyRows），不动源模型行号
+  - SinceDisplay 增量：由映射直接推导，无需全量重算
+- **时间戳显示模式**：支持绝对时间、捕获后时间、显示后时间、日期时间和Unix时间等多种显示模式。
+- **列级过滤**：支持文本过滤和值集过滤（Excel风格复选框）。
+- **双向映射**：维护m_proxyRows和m_sourceToProxy双向映射，支持高效的行列转换。
+- **环形缓冲区支持**：handleFullShift方法处理环形覆盖场景。
+
+**重大改进**：全新的增量过滤架构相比原有的QSortFilterProxyModel方案，在处理大量数据时性能提升显著，特别是在持续捕获场景下。
+
+章节来源
+- [src/models/cantraceproxymodel.cpp](file://src/models/cantraceproxymodel.cpp)
+- [src/models/cantraceproxymodel.h](file://src/models/cantraceproxymodel.h)
+
+### 统计视图（TraceStatisticsWidget）
+- **核心功能**：对标CANoe Statistics功能，提供选中帧的详细统计分析。
+- **时间统计**：显示帧数、时间跨度、相邻帧Δt的min/max/avg/σ（标准差）等指标。
+- **信号统计**：通过DBC解码后逐信号统计min/max/avg/σ/首值/末值，未加载DBC时按字节位置统计。
+- **性能优化**：内部100ms防抖后重算，集合上限MaxFrames=10000，超出截断并在摘要中提示。
+- **数据源**：来自TraceView当前选中行集合，按时间排序处理。
+
+**新增功能**：为工具提供了专业的统计分析能力，用户可以快速了解选中帧的时间特性和信号特性。
+
+章节来源
+- [src/ui/tracestatisticswidget.cpp](file://src/ui/tracestatisticswidget.cpp)
+- [src/ui/tracestatisticswidget.h](file://src/ui/tracestatisticswidget.h)
+
+### 差异对比视图（TraceDiffWidget）
+- **核心功能**：对标CANoe Difference功能，提供选中帧的差异对比分析。
+- **对比逻辑**：选中≥2帧时对比首帧(A)与末帧(B)，恰好2帧即A/B对比。
+- **概览信息**：显示A/B时间、报文名、CAN ID、DLC、首末Δt等基本信息。
+- **字节级对比**：双列Hex对照，不等字节高亮显示。
+- **信号级对比**：DBC解码后逐信号显示首值→末值，默认仅列变化项，可切换显示全部。
+- **性能优化**：内部100ms防抖后重算，支持"仅显示变化项"快速切换。
+
+**新增功能**：为帧差异分析提供了专业工具，特别适用于调试和验证场景。
+
+章节来源
+- [src/ui/tracediffwidget.cpp](file://src/ui/tracediffwidget.cpp)
+- [src/ui/tracediffwidget.h](file://src/ui/tracediffwidget.h)
+
+### ZLG设备驱动（CanDeviceZLG）
+- **核心功能**：ZLG致远电子CAN/CAN FD设备后端，动态加载zlgcan.dll，封装全部原生API。
+- **设备支持**：支持USBCAN-1/2、USBCANFD-200U等ZLG设备。
+- **架构设计**：ICanDevice → CanDeviceZLG → zlgcan.dll (运行时加载)，DLL缺失时open()返回false，不影响其他后端。
+- **硬件滤波增强**：
+  - setAcceptanceFilter方法支持code、mask、extended参数
+  - clearAcceptanceFilter方法清除滤波器
+  - 支持动态配置和白名单模式
+  - 使用ZCAN_Dynamic_Config结构进行高级配置
+- **DLL管理**：共享DLL实例，全局只加载一次，避免反复load/unload导致USB设备状态破坏。
+
+**重大增强**：硬件滤波功能的增强使得ZLG设备能够提供更灵活的数据过滤能力，减少CPU负载。
+
+章节来源
+- [src/core/candevice_zlg.cpp](file://src/core/candevice_zlg.cpp)
+- [src/core/candevice_zlg.h](file://src/core/candevice_zlg.h)
 
 ### 过滤表头（FilterHeaderView）
 - **核心功能**：实现Wireshark风格的交互式表头，支持鼠标悬停显示漏斗图标和列级过滤。
@@ -353,9 +408,7 @@ DBCManager --> CanUtils : "辅助"
 - **技术实现**：
   - 继承QHeaderView并重写paintSection、mouseMoveEvent、leaveEvent、mousePressEvent
   - 使用QPainterPath绘制漏斗形状，支持激活态和悬停态的颜色变化
-  - 与CanFilterProxyModel集成，实时查询各列过滤状态
-
-**重大增强** 实现了完整的Wireshark风格过滤界面，提供了直观的列级过滤操作体验，显著提升数据分析效率。
+  - 与CanTraceProxyModel集成，实时查询各列过滤状态
 
 章节来源
 - [src/ui/filterheaderview.cpp](file://src/ui/filterheaderview.cpp)
@@ -377,8 +430,6 @@ DBCManager --> CanUtils : "辅助"
   - 支持规则的导入导出和持久化存储
   - 与CanTraceModel集成，实时更新着色效果
 
-**新增功能** 着色规则编辑器为用户提供了强大的可视化着色功能，支持复杂的条件表达式和灵活的配色方案，极大提升了数据分析的可视化效果。
-
 章节来源
 - [src/ui/colorruleeditor.cpp](file://src/ui/colorruleeditor.cpp)
 - [src/ui/colorruleeditor.h](file://src/ui/colorruleeditor.h)
@@ -398,8 +449,6 @@ DBCManager --> CanUtils : "辅助"
   - 监听书签管理器的各种信号（添加、删除、清空）
   - 转发用户操作到相应的控制器
   - 支持书签跳转事件的传播
-
-**新增功能** 右侧面板作为统一的控制中心，集成了多种实用功能，特别是书签管理功能，为用户提供了便捷的标注和导航体验。
 
 章节来源
 - [src/ui/rightpanel.cpp](file://src/ui/rightpanel.cpp)
@@ -423,8 +472,6 @@ DBCManager --> CanUtils : "辅助"
   - 使用QVector存储书签数据
   - 支持高效的查找和遍历操作
   - 提供清理和重置功能
-
-**重大增强** 书签管理器为整个标注系统提供了核心的数据管理能力，支持完整的书签生命周期管理和持久化存储。
 
 章节来源
 - [src/core/bookmarkmanager.cpp](file://src/core/bookmarkmanager.cpp)
@@ -469,28 +516,9 @@ DBCManager --> CanUtils : "辅助"
   - 着色规则求值：支持基于条件的自动着色
   - 覆盖模式：同CAN ID的帧只保留一行，实时更新数据
 
-**重大增强** 大幅扩展了追踪模型的功能，新增了帧编号、时间增量计算、行标记着色、行标签和覆盖模式，显著提升了数据分析能力。**最新增强**：行标签功能支持为任意行添加自定义文本标签，配合书签系统提供完整的标注能力。
-
 章节来源
 - [src/models/cantracemodel.cpp](file://src/models/cantracemodel.cpp)
 - [src/models/cantracemodel.h](file://src/models/cantracemodel.h)
-
-### 过滤代理模型（CanFilterProxyModel）
-- 职责：对 CanTraceModel 的结果进行动态过滤，保持与底层模型的解耦。
-- 算法：基于规则的匹配与缓存命中，避免重复计算。
-- 扩展性：新增过滤条件只需扩展规则集。
-- **增强功能**：
-  - 高级过滤操作符：支持 >、<、!= 等操作符
-  - 范围过滤：支持时间范围和数值范围过滤
-  - 列级过滤：每列独立的过滤条件和状态管理
-  - 智能匹配：根据列类型自动选择合适的匹配策略
-  - 状态查询：hasColumnFilter方法支持FilterHeaderView查询过滤状态
-
-**显著改进** 增强了过滤代理模型的功能，支持更复杂的过滤表达式和更智能的匹配算法，为FilterHeaderView提供必要的状态查询接口。
-
-章节来源
-- [src/models/canfilterproxymodel.cpp](file://src/models/canfilterproxymodel.cpp)
-- [src/models/canfilterproxymodel.h](file://src/models/canfilterproxymodel.h)
 
 ### 播放器（Player）
 - 职责：从文件或内存缓冲读取 CAN 帧，按时间轴回放，驱动 UI 更新。
@@ -567,12 +595,30 @@ class CanTraceModel {
 +setOverwriteMode(mode)
 +frameCountForId(id)
 }
-class CanFilterProxyModel {
-+setFilter(rule)
+class CanTraceProxyModel {
++setFilterExpression(expr)
 +refresh()
 +setColumnFilter(column, text)
 +hasColumnFilter(column)
 +columnFilter(column)
++setTimestampMode(mode)
++emitPacketCount()
+}
+class TraceStatisticsWidget {
++setFrames(frames, truncated)
++rebuild()
++setDbcManager(manager)
+}
+class TraceDiffWidget {
++setFrames(frames)
++rebuild()
++setDbcManager(manager)
+}
+class CanDeviceZLG {
++setAcceptanceFilter(code, mask, extended)
++clearAcceptanceFilter()
++vendorCtrl(cmd, param)
++enumerate()
 }
 class BookmarkManager {
 +addBookmark(index, note, timestamp, color)
@@ -596,168 +642,82 @@ class RightPanel {
 +setBookmarkManager(manager)
 +bookmarkJumped(index)
 }
-class FilterHeaderView {
-+setProxyModel(proxy)
-+hasFilter(logicalIndex)
-+filterClicked(index)
-+paintSection()
-+mouseMoveEvent()
-+mousePressEvent()
-}
-class DBCMessage {
-+name : string
-+id : uint32
-+signals : Signal[]
-+length : uint8
-+attributes : map
-}
-class DBCSignal {
-+name : string
-+startBit : int
-+length : int
-+byteOrder : enum
-+scale : double
-+offset : double
-+minValue : double
-+maxValue : double
-}
-class DBCNode {
-+name : string
-+attributes : map
-}
-class DBCData {
-+messages : map~string, DBCMessage~
-+signals : map~string, DBCSignal~
-+nodes : map~string, DBCNode~
-+version : string
-+validate()
-}
-CanFilterProxyModel --> CanTraceModel : "代理"
+CanTraceProxyModel --> CanTraceModel : "代理"
+TraceStatisticsWidget --> DbcManager : "使用"
+TraceDiffWidget --> DbcManager : "使用"
 RightPanel --> BookmarkManager : "管理"
-FilterHeaderView --> CanFilterProxyModel : "查询状态"
-DBCData --> DBCMessage : "包含"
-DBCData --> DBCSignal : "包含"
-DBCData --> DBCNode : "包含"
 ```
 
 图表来源
 - [src/core/canframe.h](file://src/core/canframe.h)
 - [src/models/cantracemodel.h](file://src/models/cantracemodel.h)
-- [src/models/canfilterproxymodel.h](file://src/models/canfilterproxymodel.h)
+- [src/models/cantraceproxymodel.h](file://src/models/cantraceproxymodel.h)
+- [src/ui/tracestatisticswidget.h](file://src/ui/tracestatisticswidget.h)
+- [src/ui/tracediffwidget.h](file://src/ui/tracediffwidget.h)
+- [src/core/candevice_zlg.h](file://src/core/candevice_zlg.h)
 - [src/core/bookmarkmanager.h](file://src/core/bookmarkmanager.h)
 - [src/ui/colorruleeditor.h](file://src/ui/colorruleeditor.h)
 - [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
-- [src/ui/filterheaderview.h](file://src/ui/filterheaderview.h)
-- [src/core/dbcdata.h](file://src/core/dbcdata.h)
 
-### 过滤流程图（代码级）
+### 增量过滤流程图（新增）
 ```mermaid
 flowchart TD
-Start(["输入过滤条件"]) --> Parse["解析规则<br/>ID/掩码/方向"]
-Parse --> Apply["应用到代理模型"]
-Apply --> Check{"是否有匹配?"}
-Check --> |是| Show["显示匹配帧"]
-Check --> |否| Empty["显示空结果"]
-Show --> End(["完成"])
-Empty --> End
+Start(["新增帧到达"]) --> CheckNew{"是否为新行?"}
+CheckNew --> |是| EvaluateNew["仅评估新行"]
+CheckNew --> |否| SkipEval["跳过评估"]
+EvaluateNew --> AppendMap["追加到映射尾部"]
+AppendMap --> UpdateProxy["更新代理行号"]
+SkipEval --> End(["完成"])
+UpdateProxy --> End
 ```
 
 图表来源
-- [src/models/canfilterproxymodel.cpp](file://src/models/canfilterproxymodel.cpp)
-- [src/ui/filterbar.cpp](file://src/ui/filterbar.cpp)
+- [src/models/cantraceproxymodel.cpp](file://src/models/cantraceproxymodel.cpp)
 
-### 行标记、标签和着色流程（新增）
+### 统计视图工作流程（新增）
 ```mermaid
 flowchart TD
-UserAction["用户操作"] --> ToggleMark["切换行标记"]
-UserAction --> SetLabel["设置行标签"]
-UserAction --> SetColor["设置行颜色"]
-ToggleMark --> UpdateState["更新标记状态"]
-SetLabel --> UpdateLabel["更新标签映射"]
-SetColor --> UpdateColor["更新颜色映射"]
-UpdateState --> NotifyView["通知视图更新"]
-UpdateLabel --> NotifyView
-UpdateColor --> NotifyView
-NotifyView --> Refresh["刷新行显示"]
-Refresh --> VisualFeedback["视觉反馈"]
+UserSelect["用户选择帧"] --> SetFrames["设置帧集合"]
+SetFrames --> Debounce["100ms防抖"]
+Debounce --> SortTime["按时间排序"]
+SortTime --> CalcStats["计算统计数据"]
+CalcStats --> BuildTree["构建树形结构"]
+BuildTree --> Display["显示结果"]
 ```
 
 图表来源
-- [src/models/cantracemodel.cpp](file://src/models/cantracemodel.cpp)
+- [src/ui/tracestatisticswidget.cpp](file://src/ui/tracestatisticswidget.cpp)
 
-### 书签管理流程（新增）
+### 差异对比工作流程（新增）
 ```mermaid
 flowchart TD
-AddBookmark["添加书签"] --> CreateBM["创建书签对象"]
-CreateBM --> AddToManager["添加到管理器"]
-AddToManager --> EmitSignal["发射添加信号"]
-EmitSignal --> UpdateUI["更新UI显示"]
-UpdateUI --> SaveFile["保存到文件"]
-SaveFile --> Complete["完成"]
-DeleteBookmark["删除书签"] --> FindBM["查找书签"]
-FindBM --> RemoveFromManager["从管理器移除"]
-RemoveFromManager --> EmitSignal2["发射删除信号"]
-EmitSignal2 --> UpdateUI2["更新UI显示"]
-UpdateUI2 --> Complete
+UserSelect["用户选择帧"] --> CheckCount{"帧数≥2?"}
+CheckCount --> |否| ShowHint["显示提示信息"]
+CheckCount --> |是| SortTime["按时间排序"]
+SortTime --> GetAB["获取首帧A和末帧B"]
+GetAB --> CompareBytes["字节级对比"]
+CompareBytes --> CompareSignals["信号级对比"]
+CompareSignals --> HighlightDiff["高亮差异"]
+HighlightDiff --> Display["显示对比结果"]
 ```
 
 图表来源
-- [src/core/bookmarkmanager.cpp](file://src/core/bookmarkmanager.cpp)
+- [src/ui/tracediffwidget.cpp](file://src/ui/tracediffwidget.cpp)
 
-### 着色规则求值流程（新增）
+### ZLG硬件滤波工作流程（新增）
 ```mermaid
 flowchart TD
-NewFrame["新帧到达"] --> CompileRules["编译着色规则"]
-CompileRules --> EvaluateRules["逐条求值规则"]
-EvaluateRules --> CheckMatch{"是否匹配?"}
-CheckMatch --> |是| ApplyColor["应用颜色"]
-CheckMatch --> |否| NextRule["下一条规则"]
-NextRule --> EvaluateRules
-ApplyColor --> UpdateDisplay["更新显示"]
-UpdateDisplay --> End(["完成"])
+SetFilter["设置硬件滤波"] --> CheckMask{"mask==0?"}
+CheckMask --> |是| ClearFilter["清除滤波器"]
+CheckMask --> |否| BuildCfg["构建动态配置"]
+BuildCfg --> SetRange["设置ID范围"]
+SetRange --> ApplyFilter["应用滤波器"]
+ApplyFilter --> Return["返回结果"]
+ClearFilter --> Return
 ```
 
 图表来源
-- [src/models/cantracemodel.cpp](file://src/models/cantracemodel.cpp)
-
-### 覆盖模式工作流程（新增）
-```mermaid
-flowchart TD
-NewFrame["新帧到达"] --> CheckMode{"覆盖模式?"}
-CheckMode --> |是| FindExisting["查找相同ID的行"]
-CheckMode --> |否| AppendNew["追加新行"]
-FindExisting --> UpdateRow["更新现有行数据"]
-AppendNew --> AddToMap["添加到ID映射"]
-UpdateRow --> IncrementCount["增加帧计数"]
-AddToMap --> IncrementCount
-IncrementCount --> NotifyChange["通知数据变化"]
-NotifyChange --> End(["完成"])
-```
-
-图表来源
-- [src/models/cantracemodel.cpp](file://src/models/cantracemodel.cpp)
-
-### FilterHeaderView工作流程（新增）
-```mermaid
-flowchart TD
-MouseMove["鼠标移动"] --> CheckHover["检查悬停位置"]
-CheckHover --> HoverActive{"是否在漏斗区域?"}
-HoverActive --> |是| ShowHandCursor["显示手型光标"]
-HoverActive --> |否| NormalCursor["正常光标"]
-ShowHandCursor --> UpdateVisual["更新视觉效果"]
-NormalCursor --> UpdateVisual
-UpdateVisual --> PaintIcon["绘制漏斗图标"]
-PaintIcon --> MouseClick["鼠标点击"]
-MouseClick --> CheckFilter{"是否点击漏斗?"}
-CheckFilter --> |是| EmitSignal["发射filterClicked信号"]
-CheckFilter --> |否| DefaultBehavior["默认行为"]
-EmitSignal --> ColumnFilter["触发列过滤"]
-DefaultBehavior --> End(["完成"])
-ColumnFilter --> End
-```
-
-图表来源
-- [src/ui/filterheaderview.cpp](file://src/ui/filterheaderview.cpp)
+- [src/core/candevice_zlg.cpp](file://src/core/candevice_zlg.cpp)
 
 ## 依赖关系分析
 - 模块耦合：UI 层依赖模型与核心层；模型层仅依赖工具层；核心层不依赖 UI。
@@ -774,10 +734,12 @@ subgraph "外部依赖"
 Qt["Qt 框架"]
 CMake["CMake"]
 QRC["Qt 资源"]
+ZLG["ZLG SDK"]
 end
 UI --> Qt
 Models --> Qt
 Core --> Qt
+Core --> ZLG
 CMake --> UI
 CMake --> Models
 CMake --> Core
@@ -803,8 +765,11 @@ QRC --> UI
 - **FilterHeaderView优化**：智能悬停检测避免不必要的重绘，高效的漏斗图标绘制算法。
 - **书签管理优化**：书签数据的批量操作和懒加载，减少UI刷新频率。
 - **着色规则优化**：规则编译缓存和增量求值，提高着色性能。
+- **增量过滤优化**：CanTraceProxyModel的增量算法将新增行处理从O(n)优化到O(1)，显著提升大数据量场景性能。
+- **统计分析优化**：TraceStatisticsWidget和TraceDiffWidget使用100ms防抖机制，避免频繁重算。
+- **ZLG设备优化**：共享DLL实例避免重复加载，硬件滤波减少CPU负载。
 
-**更新** 新增了覆盖模式、行标记、行标签和书签功能的性能优化，确保大量数据处理时的流畅性。**最新增强**：FilterHeaderView采用高效的绘制算法和智能的事件处理机制，书签管理器支持高效的批量操作，着色规则编辑器提供优化的规则求值算法，确保流畅的用户交互体验。
+**重大改进**：CanTraceProxyModel的增量过滤架构是本次更新的核心性能改进，相比原有的QSortFilterProxyModel方案，在处理大量数据时性能提升显著。**新增优化**：统计分析组件的防抖机制和张量优化确保了流畅的用户交互体验。
 
 ## 故障排查指南
 - 无法加载资源：检查 Qt 资源路径与编译输出目录是否一致。
@@ -820,24 +785,36 @@ QRC --> UI
 - **新增**：过滤表头不显示：确认FilterHeaderView正确绑定代理模型，检查事件处理。
 - **新增**：书签功能异常：检查BookmarkManager实例化状态，确认文件读写权限。
 - **新增**：着色规则不生效：验证规则表达式语法，检查规则优先级设置。
+- **新增**：增量过滤异常：检查CanTraceProxyModel的映射表状态，确认增量算法正常工作。
+- **新增**：统计视图不工作：检查TraceStatisticsWidget的防抖定时器，确认DBC管理器连接。
+- **新增**：差异对比异常：检查帧数量是否满足要求，确认DBC解码功能正常。
+- **新增**：ZLG设备问题：检查DLL加载状态，验证硬件滤波配置参数。
 - **FilterHeaderView问题**：
   - 漏斗图标不显示：检查列宽是否足够（至少30像素），确认hover属性已启用
   - 过滤状态不同步：验证hasColumnFilter方法调用是否正确，检查代理模型状态
   - 鼠标事件异常：确认mouseMoveEvent和mousePressEvent重写是否正确
-- **书签管理问题**：
-  - 书签无法保存：检查文件路径权限，验证JSON序列化过程
-  - 书签显示异常：确认书签数据完整性，检查颜色值有效性
-  - 书签跳转失败：验证帧索引有效性，检查目标帧是否存在
-- **着色规则问题**：
-  - 规则编辑器崩溃：检查规则数据结构完整性，验证颜色值有效性
-  - 着色效果异常：验证表达式语法，检查规则优先级和匹配逻辑
-  - 性能问题：优化规则数量，启用规则缓存机制
+- **增量过滤问题**：
+  - 过滤结果不正确：检查m_proxyRows和m_sourceToProxy映射表状态
+  - 性能下降：验证增量算法是否正常工作，检查是否有全量重评估发生
+  - 排序异常：确认排序列和方向的设置是否正确
+- **统计分析问题**：
+  - 统计结果不准确：检查帧集合是否正确传递，确认防抖机制工作正常
+  - DBC解码失败：验证DBC管理器状态，检查信号定义是否存在
+  - 界面响应慢：确认防抖定时器设置合理，避免过于频繁的更新
+- **差异对比问题**：
+  - 对比结果异常：检查帧数量是否满足≥2的要求，确认时间排序正确
+  - 字节对比错误：验证数据长度和边界检查
+  - 信号对比失败：检查DBC解码功能，确认信号定义存在
+- **ZLG设备问题**：
+  - DLL加载失败：检查zlgcan.dll路径和架构匹配
+  - 硬件滤波无效：验证filter配置参数，检查设备句柄状态
+  - 设备枚举失败：检查设备连接状态和权限设置
 
-**更新** 新增了覆盖模式、行标记、行标签、书签和着色规则相关的故障排查指南。**最新增强**：增加了FilterHeaderView、BookmarkManager、ColorRuleEditor等新增组件的专用故障排查指导，帮助用户快速定位和解决相关问题。
+**重大更新**：新增了增量过滤、统计分析、差异对比和ZLG设备相关的专用故障排查指导，帮助用户快速定位和解决相关问题。**最新增强**：针对新的架构变更提供了详细的诊断方法和解决方案。
 
 章节来源
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
-- [src/models/canfilterproxymodel.cpp](file://src/models/canfilterproxymodel.cpp)
+- [src/models/cantraceproxymodel.cpp](file://src/models/cantraceproxymodel.cpp)
 - [src/core/recorder.cpp](file://src/core/recorder.cpp)
 - [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
 - [src/core/dbcmanager.cpp](file://src/core/dbcmanager.cpp)
@@ -845,11 +822,14 @@ QRC --> UI
 - [src/ui/filterheaderview.cpp](file://src/ui/filterheaderview.cpp)
 - [src/core/bookmarkmanager.cpp](file://src/core/bookmarkmanager.cpp)
 - [src/ui/colorruleeditor.cpp](file://src/ui/colorruleeditor.cpp)
+- [src/ui/tracestatisticswidget.cpp](file://src/ui/tracestatisticswidget.cpp)
+- [src/ui/tracediffwidget.cpp](file://src/ui/tracediffwidget.cpp)
+- [src/core/candevice_zlg.cpp](file://src/core/candevice_zlg.cpp)
 
 ## 结论
-该 CAN 总线分析工具通过清晰的层次划分与稳定的接口设计，实现了高效的抓包、过滤、回放与录制功能。UI 与模型解耦提升了可维护性与可扩展性，核心层提供了可靠的播放、录制、仿真与 DBC 数据库管理能力。**最新更新** 大幅增强了CAN追踪分析功能，新增了帧编号和时间增量计算、Wireshark风格的过滤界面、行标记着色功能和覆盖模式，显著提升了数据分析能力和用户体验。**最新增强**：FilterHeaderView组件实现了完整的Wireshark风格漏斗表头过滤功能，为用户提供专业级的数据筛选体验。**重大更新**：新增了完整的行标签和书签系统功能，包括BookmarkManager书签管理器、ColorRuleEditor着色规则编辑器和RightPanel右侧面板，支持类似Notepad++的标记功能，包括自定义文本标签、预设颜色调色板、批量操作等特性，大幅提升了用户的标注和分析效率。建议在后续迭代中继续优化渲染与 I/O 性能，并增强错误诊断与用户引导。
+该 CAN 总线分析工具通过清晰的层次划分与稳定的接口设计，实现了高效的抓包、过滤、回放与录制功能。UI 与模型解耦提升了可维护性与可扩展性，核心层提供了可靠的播放、录制、仿真与 DBC 数据库管理能力。**重大更新**：实现了CanTraceProxyModel增量过滤代理模型，相比原有方案性能显著提升，特别是大数据量场景下的处理能力。**新增功能**：TraceStatisticsWidget和TraceDiffWidget提供了专业的统计分析能力，使工具具备了类似CANoe的分析功能。**增强功能**：ZLG设备驱动的硬件滤波功能得到显著增强，支持更灵活的数据过滤配置。建议在后续迭代中继续优化渲染与 I/O 性能，并增强错误诊断与用户引导。
 
-**更新** 强调了最新的功能增强对工具性能的显著提升，特别是在大数据量处理和用户交互体验方面的改进。**最新强调**：FilterHeaderView的引入标志着工具在用户界面交互方面达到了新的水平，书签系统的完善使得用户可以像使用专业文档编辑器一样进行高效的数据标注和分析，为开发和测试提供了更强大的支持。
+**架构升级意义**：CanTraceProxyModel的引入标志着工具在数据处理架构上的重大进步，增量过滤算法为未来更大规模的数据处理奠定了基础。**功能扩展价值**：统计和差异对比功能的加入使工具从单纯的抓包工具升级为完整的分析平台，能够满足更复杂的调试和分析需求。**硬件优化成果**：ZLG设备的增强功能为用户提供了更多硬件级别的优化选项，有助于提升整体系统性能。
 
 ## 附录
 - 构建说明：使用 CMake 配置与生成工程，参考顶层与 src 下的构建文件。
@@ -857,17 +837,14 @@ QRC --> UI
 - 扩展建议：新增过滤类型、信号映射与导出格式时，优先扩展工具层与模型层。
 - DBC支持：支持标准 DBC 文件格式，提供完整的消息、信号、节点信息管理。
 - **新增功能**：
-  - 帧编号和时间增量：提供精确的帧序列分析和时间关系计算
-  - Wireshark风格过滤：直观的列级过滤界面和高级过滤操作符
-  - 行标记和着色：灵活的行标记系统和自定义颜色支持
-  - 覆盖模式：高效的同ID帧合并显示和数据更新
-  - **FilterHeaderView**：完整的Wireshark风格漏斗表头过滤功能，支持鼠标悬停、状态指示和列级过滤
-  - **行标签系统**：类似Notepad++的文本标签功能，支持自定义标签文本和批量操作
-  - **书签管理器**：完整的书签CRUD操作，支持JSON格式持久化和颜色标识
-  - **着色规则编辑器**：可视化的着色规则编辑界面，支持复杂条件表达式和实时预览
-  - **右侧面板**：集成AI对话、快捷按钮和书签管理的统一控制面板
+  - **增量过滤代理模型**：CanTraceProxyModel提供O(1)/行的增量处理，支持多种时间戳显示模式和列级过滤
+  - **统计分析功能**：TraceStatisticsWidget提供时间统计和信号统计，支持标准差计算和DBC解码
+  - **差异对比功能**：TraceDiffWidget支持字节级和信号级的帧差异对比，具备变化高亮显示
+  - **ZLG硬件增强**：增强的硬件滤波功能，支持动态配置和白名单模式
+  - **底部分析面板**：集成详情、信号、统计、差异四个标签页的完整分析界面
+  - **性能优化**：100ms防抖机制、增量算法、共享DLL管理等优化措施
 
-**更新** 新增了所有新功能的使用说明和扩展建议。**最新增强**：行标签和书签系统的完善使得工具具备了专业文档编辑器的标注能力，用户可以像编辑文本一样对CAN数据进行标注和分类，极大地提升了数据分析的工作效率。FilterHeaderView的引入进一步增强了数据筛选的专业性，使工具能够更好地满足复杂CAN总线数据分析需求。
+**架构演进**：从QSortFilterProxyModel到CanTraceProxyModel的演进代表了工具在数据处理架构上的重要升级，为未来的功能扩展奠定了坚实基础。**功能完善**：统计分析功能的加入使工具具备了完整的分析能力，能够满足专业用户的复杂分析需求。**硬件优化**：ZLG设备的增强功能为用户提供了更多硬件级别的优化选项，有助于提升整体系统性能。
 
 章节来源
 - [CMakeLists.txt](file://CMakeLists.txt)
@@ -875,8 +852,11 @@ QRC --> UI
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
 - [src/models/cantracemodel.h](file://src/models/cantracemodel.h)
-- [src/models/canfilterproxymodel.h](file://src/models/canfilterproxymodel.h)
+- [src/models/cantraceproxymodel.h](file://src/models/cantraceproxymodel.h)
 - [src/ui/filterheaderview.h](file://src/ui/filterheaderview.h)
 - [src/core/bookmarkmanager.h](file://src/core/bookmarkmanager.h)
 - [src/ui/colorruleeditor.h](file://src/ui/colorruleeditor.h)
 - [src/ui/rightpanel.h](file://src/ui/rightpanel.h)
+- [src/ui/tracestatisticswidget.h](file://src/ui/tracestatisticswidget.h)
+- [src/ui/tracediffwidget.h](file://src/ui/tracediffwidget.h)
+- [src/core/candevice_zlg.h](file://src/core/candevice_zlg.h)
