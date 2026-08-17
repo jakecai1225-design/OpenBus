@@ -247,13 +247,13 @@ QString GraphicView::toolbarQss() const
     return QString(
         "QToolBar { background: %1; border: none; border-bottom: 1px solid %2; spacing: 2px; padding: 2px; }"
         "QToolButton { background: transparent; border: 1px solid transparent; border-radius: 3px; "
-        "padding: 3px 8px; color: %3; font-size: 12px; min-width: 28px; }"
+        "padding: 1px 2px; color: %3; font-size: 13px; }"
         "QToolButton:hover { background: %4; border-color: %5; }"
         "QToolButton:checked { background: %6; border-color: %7; color: #fff; }"
-        "QCheckBox { color: %3; font-size: 12px; padding: 2px 6px; }"
+        "QCheckBox { color: %3; font-size: 12px; padding: 2px 4px; }"
         "QCheckBox::indicator { width: 14px; height: 14px; }"
         "QComboBox { background: %4; border: 1px solid %5; border-radius: 3px; "
-        "padding: 2px 6px; color: %3; font-size: 12px; min-width: 56px; }"
+        "padding: 2px 6px; color: %3; font-size: 12px; min-width: 56px; min-height: 20px; }"
         "QComboBox:hover { border-color: %5; }"
         "QComboBox QAbstractItemView { background: %1; border: 1px solid %5; "
         "selection-background-color: %6; color: %3; }"
@@ -310,48 +310,63 @@ void GraphicView::setupUi()
         btn->setText(text);
         btn->setToolTip(tip);
         btn->setAutoRaise(true);
+        // 统一尺寸与字体（§10.5）：固定 30×24；锁定微软雅黑，避免符号 fallback 到
+        // Segoe UI Emoji 被渲染成彩色异形（⏸/📷/✕ 等 emoji 化字符已在文案中替换）
+        btn->setFixedSize(30, 24);
+        btn->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        QFont f = btn->font();
+        f.setFamily("Microsoft YaHei");
+        f.setPixelSize(13);
+        btn->setFont(f);
         return btn;
     };
 
     // 暂停/继续
-    m_pauseBtn = makeBtn("⏸", "暂停/继续采集 (Space)");
+    m_pauseBtn = makeBtn("‖", "暂停/继续采集 (Space)");
     m_pauseBtn->setCheckable(true);
 
-    m_zoomInBtn = makeBtn("＋", "放大 (+)");
-    m_zoomOutBtn = makeBtn("－", "缩小 (-)");
-    m_fitBtn = makeBtn("⤢", "适应窗口 (F)");
+    m_zoomInBtn = makeBtn("+", "放大 (+)");
+    m_zoomOutBtn = makeBtn("−", "缩小 (-)");
+    m_fitBtn = makeBtn("▣", "适应窗口 (F)");
     m_undoZoomBtn = makeBtn("↺", "撤销缩放 (Ctrl+Z)");
     m_undoZoomBtn->setEnabled(false);
     m_timeBackBtn = makeBtn("◀", "时间窗后移 (←，按住连续)");
     m_timeFwdBtn = makeBtn("▶", "时间窗前移 (→，按住连续)");
-    for (auto *b : {m_timeBackBtn, m_timeFwdBtn}) {
+    m_yUpBtn = makeBtn("▲", "选中信号 Y 轴上移（按住连续）");
+    m_yDownBtn = makeBtn("▼", "选中信号 Y 轴下移（按住连续）");
+    m_yUpBtn->setEnabled(false);   // 初始无选中信号（随 setSelectedSignal 联动）
+    m_yDownBtn->setEnabled(false);
+    for (auto *b : {m_timeBackBtn, m_timeFwdBtn, m_yUpBtn, m_yDownBtn}) {
         b->setAutoRepeat(true);
         b->setAutoRepeatDelay(300);
         b->setAutoRepeatInterval(60);
     }
-    m_rubberZoomBtn = makeBtn("▣", "框选缩放（左键拖框放大，扁平框仅 X）");
+    m_rubberZoomBtn = makeBtn("▦", "框选缩放（左键拖框放大，扁平框仅 X）");
     m_rubberZoomBtn->setCheckable(true);
     m_rubberZoomBtn->setChecked(m_rubberZoom);
-    auto *clearDataBtn = makeBtn("⟲", "清空数据");
-    auto *exportBtn = makeBtn("📷", "导出为图片");
+    auto *clearDataBtn = makeBtn("清空", "清空全部信号数据");
+    auto *exportBtn = makeBtn("导图", "导出为图片 (PNG)");
 
     // 缩放轴模式（对标 CANoe X/Y/XY 独立缩放）
     m_zoomAxisCombo = new QComboBox(m_toolbar);
     m_zoomAxisCombo->setToolTip("缩放轴模式（滚轮/框选/±受其约束）");
+    m_zoomAxisCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     m_zoomAxisCombo->addItem("XY");
     m_zoomAxisCombo->addItem("仅X");
     m_zoomAxisCombo->addItem("仅Y");
 
     // 时间窗口选择
     m_timeWindowCombo = new QComboBox(m_toolbar);
-    m_timeWindowCombo->setToolTip("时间窗口");
+    m_timeWindowCombo->setToolTip("时间窗口宽度");
+    m_timeWindowCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     for (int sec : {1, 2, 5, 10, 30, 60, 120, 300, 600})
         m_timeWindowCombo->addItem(QString("%1s").arg(sec), sec);
     m_timeWindowCombo->setCurrentIndex(4); // 默认 30s
 
     // 曲线显示模式（折线/阶梯/仅点）
     m_displayModeCombo = new QComboBox(m_toolbar);
-    m_displayModeCombo->setToolTip("曲线显示模式");
+    m_displayModeCombo->setToolTip("曲线显示模式：折线/阶梯/仅点");
+    m_displayModeCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     m_displayModeCombo->addItem("折线");
     m_displayModeCombo->addItem("阶梯");
     m_displayModeCombo->addItem("仅点");
@@ -360,13 +375,15 @@ void GraphicView::setupUi()
     // 聚焦模式（对标 CANoe 全部彩色/选中彩色/仅选中显示）
     m_focusCombo = new QComboBox(m_toolbar);
     m_focusCombo->setToolTip("显示模式：全部彩色 / 选中彩色 / 仅显示选中");
+    m_focusCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     m_focusCombo->addItem("全部彩色");
     m_focusCombo->addItem("选中彩色");
     m_focusCombo->addItem("仅选中");
 
     // Y 轴显示方式（对标 CANoe 三态）
     m_yAxisModeCombo = new QComboBox(m_toolbar);
-    m_yAxisModeCombo->setToolTip("Y 轴显示方式");
+    m_yAxisModeCombo->setToolTip("Y 轴显示方式：分栏 / 叠加");
+    m_yAxisModeCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     m_yAxisModeCombo->addItem("分栏");
     m_yAxisModeCombo->addItem("叠加·选中轴");
     m_yAxisModeCombo->addItem("叠加·全部轴");
@@ -379,13 +396,14 @@ void GraphicView::setupUi()
     m_cursorSingleBtn->setCheckable(true);
     m_cursorDoubleBtn = makeBtn("┊┊", "双卡尺 (V)");
     m_cursorDoubleBtn->setCheckable(true);
-    m_cursorClearBtn = makeBtn("✕", "清除卡尺 (Esc)");
+    m_cursorClearBtn = makeBtn("×", "清除卡尺 (Esc)");
 
     m_cursorLinkToggle = new QCheckBox("联动", m_toolbar);
     m_cursorLinkToggle->setToolTip("多视图游标联动");
     m_cursorLinkToggle->setChecked(m_cursorLink);
 
-    // 分组排列：[暂停] | [适应 放大 缩小 撤销缩放] | [框选 缩放轴] | [窗口 模式 聚焦 采样点] | [Y轴] | [卡尺 联动] | [导出]
+    // 分组排列（§10.5：所有下拉带前缀标签 + tooltip，分隔符分组）：
+    // [暂停] | [适应 +− ↺ ◀▶▲▼] | [框选] | [缩放:] | [窗口:] [模式:] [显示:] [采样点] | [Y轴:] | [卡尺 联动] | [清空 导图]
     m_toolbar->addWidget(m_pauseBtn);
     m_toolbar->addSeparator();
     m_toolbar->addWidget(m_fitBtn);
@@ -394,20 +412,32 @@ void GraphicView::setupUi()
     m_toolbar->addWidget(m_undoZoomBtn);
     m_toolbar->addWidget(m_timeBackBtn);
     m_toolbar->addWidget(m_timeFwdBtn);
+    m_toolbar->addWidget(m_yUpBtn);
+    m_toolbar->addWidget(m_yDownBtn);
     m_toolbar->addSeparator();
     m_toolbar->addWidget(m_rubberZoomBtn);
+    m_toolbar->addSeparator();
+    auto *zaLabel = new QLabel("缩放:", m_toolbar);
+    zaLabel->setToolTip(m_zoomAxisCombo->toolTip());
+    m_toolbar->addWidget(zaLabel);
     m_toolbar->addWidget(m_zoomAxisCombo);
     m_toolbar->addSeparator();
     auto *twLabel = new QLabel("窗口:", m_toolbar);
+    twLabel->setToolTip(m_timeWindowCombo->toolTip());
     m_toolbar->addWidget(twLabel);
     m_toolbar->addWidget(m_timeWindowCombo);
     auto *dmLabel = new QLabel("模式:", m_toolbar);
+    dmLabel->setToolTip(m_displayModeCombo->toolTip());
     m_toolbar->addWidget(dmLabel);
     m_toolbar->addWidget(m_displayModeCombo);
+    auto *fcLabel = new QLabel("显示:", m_toolbar);
+    fcLabel->setToolTip(m_focusCombo->toolTip());
+    m_toolbar->addWidget(fcLabel);
     m_toolbar->addWidget(m_focusCombo);
     m_toolbar->addWidget(m_pointsToggle);
     m_toolbar->addSeparator();
     auto *yaLabel = new QLabel("Y轴:", m_toolbar);
+    yaLabel->setToolTip(m_yAxisModeCombo->toolTip());
     m_toolbar->addWidget(yaLabel);
     m_toolbar->addWidget(m_yAxisModeCombo);
     m_toolbar->addSeparator();
@@ -555,6 +585,8 @@ void GraphicView::setupUi()
     connect(m_undoZoomBtn, &QToolButton::clicked, this, [this]() { undoZoom(); });
     connect(m_timeBackBtn, &QToolButton::clicked, this, [this]() { shiftTimeAxis(-0.1); });
     connect(m_timeFwdBtn, &QToolButton::clicked, this, [this]() { shiftTimeAxis(0.1); });
+    connect(m_yUpBtn, &QToolButton::clicked, this, [this]() { shiftYAxis(0.1); });
+    connect(m_yDownBtn, &QToolButton::clicked, this, [this]() { shiftYAxis(-0.1); });
     connect(m_rubberZoomBtn, &QToolButton::toggled, this, [this](bool on) {
         m_rubberZoom = on;
         // 框选开时左键不再交给 QCP 拖拽（由自绘橡皮筋接管）；关时恢复左键平移
@@ -1912,6 +1944,8 @@ void GraphicView::setSelectedSignal(int index)
     m_selectedSignal = index;
     applyOverlayAxisVisibility();   // 叠加·选中轴：刻度切换
     applyFocus();
+    m_yUpBtn->setEnabled(index >= 0);   // ▲▼ 需选中信号（§十）
+    m_yDownBtn->setEnabled(index >= 0);
     m_plot->replot();
 }
 
@@ -1961,7 +1995,26 @@ void GraphicView::shiftTimeAxis(double frac)
     m_zoomPushTimer.start();
     const QCPRange r = x->range();
     const double d = r.size() * frac;
-    setXRangeAll(QCPRange(r.lower + d, r.upper + d));
+    setXRangeAll(QCPRange(r.lower + d, r.upper + d));   // 默认 refresh=true 刷新视口数据
+    m_plot->replot(QCustomPlot::rpQueuedReplot);   // 轴范围变化需显式重绘（setXRangeAll 不 replot）
+}
+
+void GraphicView::shiftYAxis(double frac)
+{
+    // 平移选中信号的 Y 轴（分栏=所在轨道轴，叠加=overlay 轴；无选中 no-op）
+    if (m_selectedSignal < 0 || m_selectedSignal >= m_signals.size())
+        return;
+    QCPAxis *ya = valueAxisFor(m_signals[m_selectedSignal]);
+    if (!ya)
+        return;
+    // 连续平移（按住箭头）合并为一级缩放历史（同滚轮防抖）
+    if (!m_zoomPushTimer.isActive())
+        pushZoomState();
+    m_zoomPushTimer.start();
+    const QCPRange r = ya->range();
+    const double d = r.size() * frac;
+    ya->setRange(r.lower + d, r.upper + d);
+    m_plot->replot(QCustomPlot::rpQueuedReplot);   // Y 范围不影响采样，仅需重绘
 }
 
 void GraphicView::zoomAt(double factor, const QPointF &plotPos)

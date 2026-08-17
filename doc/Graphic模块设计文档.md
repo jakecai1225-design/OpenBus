@@ -746,7 +746,7 @@ void undoAllZooms();              // 直接恢复栈底（全览）
 > **背景**：G7 后绘图区交互（滚轮/框选/中键/缩放轴三模式）已对标 CANoe，但**坐标轴刻度区**仍无专属交互。
 > 本章补充轴区独立缩放/平移与时间窗箭头，参考 CANoe Graphics 的轴区行为（§9.2 坐标轴系统）。
 > **决策点（已评审确认）**：① X 轴区滚轮 = 仅缩 X（非 XY）② 轴区左键拖动 = 平移 ③ 时间箭头 = 工具栏 ◀▶ 按钮。
-> **状态**：✅ 已实施并编译通过（axisZoneAt 命中 + onWheel/onMousePress/onMouseMove/onMouseRelease 轴区分支 + shiftTimeAxis 共用 ←/→/◀/▶）。
+> **状态**：✅ 已实施并编译通过（axisZoneAt 命中 + onWheel/onMousePress/onMouseMove/onMouseRelease 轴区分支 + shiftTimeAxis/shiftYAxis 共用 ←/→/◀/▶ 与 ▲▼ 选中信号 Y 平移）。
 
 ### 10.1 交互矩阵（轴区专属，优先于绘图区规则，不受“缩放轴模式下拉”约束）
 
@@ -783,7 +783,7 @@ int axisZoneAt(const QPoint &pos, int *outIdx = nullptr) const;
 2. **onMousePress 左键前置轴区分支**（先于卡尺/橡皮筋判定）：X 轴区 → m_axisDrag=X + pushZoomState + 记起始 X range（复用 m_panStartX1/X2）；Y 轴区 → m_axisDrag=Y(sigIdx) + push + 记该轴 lo/hi（复用 PanY）；轴区按下不启动橡皮筋
 3. **onMouseMove**：按 m_axisDrag 差值平移（像素→坐标差；X 走 setXRangeAll 全同步，Y 单轴 setRange；rpQueuedReplot）
 4. **onMouseRelease**：清 m_axisDrag
-5. **工具栏 ◀▶ 按钮**（缩放组末尾）：`setAutoRepeat(true)`（Delay 300ms / Interval 60ms），点击 = 平移 10% 视口宽；提取 `shiftTimeAxis(double frac)` 共用（←/→ 快捷键复用）
+5. **工具栏 ◀▶▲▼ 按钮**（缩放组末尾）：`setAutoRepeat(true)`（Delay 300ms / Interval 60ms）；◀▶/←→ = 时间窗平移 10% 视口宽（`shiftTimeAxis`）；▲▼ = **选中信号** Y 轴平移 10% 视口高（`shiftYAxis`，分栏=轨道轴/叠加=overlay 轴；无选中时禁用，随 `setSelectedSignal` 联动启用）
 6. **不改动**：绘图区滚轮/框选/卡尺/中键平移、缩放轴模式下拉语义、G1 降采样、G2 联动、轴区双击/右键菜单
 
 ### 10.4 验收标准
@@ -791,7 +791,18 @@ int axisZoneAt(const QPoint &pos, int *outIdx = nullptr) const;
 1. X 轴区滚轮仅 X 变（Y 不动），中心 = 鼠标位置；Y 轴区滚轮仅该 Y 变
 2. 叠加·全部轴模式：鼠标在不同并排刻度带上滚动，对应信号 Y 独立缩放
 3. X 轴区拖动全轨道时间同步平移；Y 轴区拖动仅该 Y 平移；Ctrl+Z 可撤销单次拖动/一组滚轮
-4. ◀▶ 按住连续平移，与 ←/→ 快捷键等距（10% 视口宽）
+4. ◀▶ 按住连续平移，与 ←/→ 快捷键等距（10% 视口宽）；▲▼ 平移选中信号 Y 轴（10% 视口高），无选中时禁用、选中切换即时联动
 5. 回归：绘图区全部现有交互不回退
 
 工时：约 0.5 天；涉及文件：`src/ui/graphicview.h/cpp`。
+
+### 10.5 工具栏视觉规格（G8+ 可用性打磨）
+
+> **背景**：工具栏图标大小不一、下拉拥挤难辨、部分符号被 Windows fallback 到 Segoe UI Emoji 渲染成彩色异形（蓝色大块）。
+
+1. **按钮统一规格**：makeBtn 固定 30×24 px、ToolButtonTextOnly、微软雅黑 13px 锁定（防 emoji fallback）；QSS padding 收窄至 1px 2px 与固定尺寸配合
+2. **emoji 化/缺字形字符替换**（雅黑稳定覆盖集）：⏸→‖、＋/－→+/−、⤢→▣（适应）、▣（框选）→▦、⟲→“清空”、📷→“导图”、✕→×；保留 ↺ ◀▶▲▼ ┊┊（雅黑稳定）
+3. **下拉统一**：全部 QComboBox `AdjustToContents`（不截断）+ QSS min-height 20px（与按钮等高）+ 前缀标签（缩放:/窗口:/模式:/显示:/Y轴:）——聚焦与缩放轴两个下拉新增标签，消除“无名下拉”
+4. **提示全覆盖**：按钮/下拉/复选框/前缀 QLabel 全部带 tooltip（label 与对应 combo 同步）
+5. **分组矩阵**：[暂停] | [适应 +− ↺ ◀▶▲▼] | [框选] | [缩放:] | [窗口:] [模式:] [显示:] [采样点] | [Y轴:] | [卡尺 联动] | [清空 导图]
+6. **验收**：按钮等大、无彩色异形、悬停全部有提示、下拉展开/收起均不截断、深浅主题下风格一致

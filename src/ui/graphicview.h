@@ -244,6 +244,8 @@ private:
     int m_axisDragSig = -1;                         ///< Y 拖动目标信号（叠加并排轴定位；-1 = 全部）
     QToolButton *m_timeBackBtn = nullptr;           ///< 时间窗后移 ◀（按住连续）
     QToolButton *m_timeFwdBtn = nullptr;            ///< 时间窗前移 ▶
+    QToolButton *m_yUpBtn = nullptr;                ///< 选中信号 Y 轴上移 ▲（无选中时禁用）
+    QToolButton *m_yDownBtn = nullptr;              ///< 选中信号 Y 轴下移 ▼
 
     // --- 当前时间指示线 ---
     QCPItemStraightLine *m_currentTimeLine = nullptr;
@@ -371,6 +373,9 @@ private:
 
     /// 时间窗平移（frac = 视口宽比例；连续调用合并为一级缩放历史）
     void shiftTimeAxis(double frac);
+
+    /// 选中信号 Y 轴平移（frac = 视口高比例；无选中时 no-op）
+    void shiftYAxis(double frac);
 
     /// 创建/获取卡尺线（含手柄与时间标签）
     void ensureCursors();
