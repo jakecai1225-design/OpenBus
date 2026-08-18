@@ -907,9 +907,9 @@ void DevicePanel::populateTree()
 {
     m_deviceTree->clear();
 
-    // 模拟器（内置）
+    // 模拟器（openbus 官方，内置；不经 Registry，方案 §13.3）
     auto *simItem = new QTreeWidgetItem(m_deviceTree);
-    simItem->setText(0, QStringLiteral("模拟器 (内置)"));
+    simItem->setText(0, QStringLiteral("openbus 模拟器"));
     simItem->setData(0, Qt::UserRole, 0);       // deviceKind = 0 (Simulator)
     simItem->setData(0, Qt::UserRole + 1, 0);   // devIndex = 0
 

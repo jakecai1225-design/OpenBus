@@ -27,9 +27,8 @@
 #include "ui/dbcdetailtab.h"
 #include "ui/measurementsetupview.h"
 #include "ui/deviceconnectiontab.h"
-#include "ui/adddevicetab.h"
 #include "core/driver/driverregistry.h"
-#include "ui/extensionstab.h"
+#include "ui/markettab.h"
 #include "ui/plugindetailpage.h"
 // ui/udsview.h, ui/canopenview.h 已移除 — UDS/CANopen 由插件 uds-diagnostic/canopen-explorer 提供
 #include "ui/tools/dbcsignallistview.h"
@@ -192,20 +191,20 @@ MainWindow::MainWindow(QWidget *parent)
         connect(extPanel, &ExtensionsPanel::refreshPluginsRequested,
                 this, [this]() {
             refreshPluginList();
-            if (m_extensionsTab) m_extensionsTab->refresh();
+            if (m_marketTab) m_marketTab->refreshInstalled();
         });
         connect(m_pluginManager, &PluginManager::pluginListChanged,
                 this, &MainWindow::refreshPluginList);
     }
 
-    // ExtensionsTab → 插件管理标签页（懒创建，见 setupExtensionsTab）
-    setupExtensionsTab();
+    // MarketTab → 统一插件市场标签页（见 setupMarketTab）
+    setupMarketTab();
 
-    // pluginListChanged → 刷新 ExtensionsTab（连接在 manager 上，标签页删除后仍安全）
+    // pluginListChanged → 刷新市场页已装列表（连接在 manager 上，标签页删除后仍安全）
     if (m_pluginManager) {
         connect(m_pluginManager, &PluginManager::pluginListChanged,
                 this, [this]() {
-            if (m_extensionsTab) m_extensionsTab->refresh();
+            if (m_marketTab) m_marketTab->refreshInstalled();
         });
     }
 
@@ -330,9 +329,9 @@ MainWindow::MainWindow(QWidget *parent)
     // 设备连接面板 — 点击设备条目打开标签页
     connect(m_sideBar->devicePanel(), &DevicePanel::deviceOpenRequested,
             this, &MainWindow::onOpenDeviceTab);
-    // 设备连接面板 — 「＋新增设备」→ 新增设备标签页（驱动市场入口，方案 §8.4）
+    // 设备连接面板 — 「＋新增设备」→ 插件市场标签页（搜索安装驱动，方案 §13.6）
     connect(m_sideBar->devicePanel(), &DevicePanel::addDeviceRequested,
-            this, &MainWindow::onOpenAddDeviceTab);
+            this, &MainWindow::onOpenMarketTab);
 
     // 分析配置面板 — 点击打开 flow 标签页
     connect(m_sideBar->analysisPanel(), &MeasurementSetupPanel::openMeasurementSetupRequested,
@@ -872,12 +871,12 @@ void MainWindow::onActivityChanged(int activity)
     } else if (activity == ActivityBar::Analysis) {
         onOpenMeasurementSetup();
     } else if (activity == ActivityBar::Extensions) {
-        // 扩展管理：打开扩展标签页
+        // 扩展管理：打开统一插件市场标签页（v2，方案 §13.5）
         const auto allTabs = m_editorArea->allTabWidgets();
         bool found = false;
         for (auto *tw : allTabs) {
             for (int i = tw->count() - 1; i >= 0; --i) {
-                if (tw->tabText(i).contains(QStringLiteral("扩展"))) {
+                if (tw->tabText(i).contains(QStringLiteral("插件市场"))) {
                     tw->setCurrentIndex(i);
                     m_tabLabel->setText(tw->tabText(i));
                     found = true;
@@ -886,10 +885,12 @@ void MainWindow::onActivityChanged(int activity)
             }
             if (found) break;
         }
-        if (!found)
-            onOpenExtensionsTab();
-        else if (m_extensionsTab)
-            m_extensionsTab->refresh();
+        if (found) {
+            if (m_marketTab)
+                m_marketTab->refreshInstalled();
+        } else {
+            onOpenMarketTab();
+        }
     }
 }
 
@@ -1476,37 +1477,40 @@ void MainWindow::openTab(QWidget *widget, const QString &label)
         m_tabLabel->setText(label);
 }
 
-void MainWindow::setupExtensionsTab()
+void MainWindow::setupMarketTab()
 {
-    m_extensionsTab = new ExtensionsTab(this);
+    m_marketTab = new MarketTab(this);
 
-    connect(m_extensionsTab, &ExtensionsTab::pluginActivateRequested,
+    // 插件操作请求 → PluginManager（沿用原 ExtensionsTab 的连接）
+    connect(m_marketTab, &MarketTab::pluginActivateRequested,
             this, [this](const QString &name) {
         if (m_pluginManager) m_pluginManager->reactivatePlugin(name);
     });
-    connect(m_extensionsTab, &ExtensionsTab::pluginDeactivateRequested,
+    connect(m_marketTab, &MarketTab::pluginDeactivateRequested,
             this, [this](const QString &name) {
         if (m_pluginManager) m_pluginManager->deactivatePlugin(name);
         if (m_pluginManager) emit m_pluginManager->pluginListChanged();
     });
-    connect(m_extensionsTab, &ExtensionsTab::pluginToggleRequested,
+    connect(m_marketTab, &MarketTab::pluginToggleRequested,
             this, [this](const QString &name, bool enable) {
         if (m_pluginManager) m_pluginManager->setPluginEnabled(name, enable);
     });
 
     // 标签页被关闭后 widget 被删除 → 置空指针，避免悬空引用
-    connect(m_extensionsTab, &QObject::destroyed, this, [this]() {
-        m_extensionsTab = nullptr;
+    connect(m_marketTab, &QObject::destroyed, this, [this]() {
+        m_marketTab = nullptr;
     });
 }
 
-void MainWindow::onOpenExtensionsTab()
+void MainWindow::onOpenMarketTab()
 {
     // 标签页可能已被关闭并删除，需要重建
-    if (!m_extensionsTab)
-        setupExtensionsTab();
-    openTab(m_extensionsTab, QStringLiteral("扩展"));
-    m_extensionsTab->refresh();
+    if (!m_marketTab)
+        setupMarketTab();
+    openTab(m_marketTab, QStringLiteral("插件市场"));
+    m_marketTab->refreshInstalled();
+    // ＋新增设备跳转后直接聚焦搜索（方案 §13.6）
+    m_marketTab->focusSearch();
 }
 
 void MainWindow::openPluginDetail(const QString &name)
@@ -1857,29 +1861,6 @@ void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &de
     }
     m_deviceTab->setDevice(deviceKind, devIndex, deviceName, deviceType);
     openTab(m_deviceTab, QStringLiteral("设备连接"));
-}
-
-void MainWindow::onOpenAddDeviceTab()
-{
-    // 查找已有的「新增设备」标签页
-    const auto allTabs = m_editorArea->allTabWidgets();
-    for (auto *tw : allTabs) {
-        for (int i = 0; i < tw->count(); ++i) {
-            if (tw->tabText(i).contains(QStringLiteral("新增设备"))) {
-                tw->setCurrentIndex(i);
-                m_tabLabel->setText(tw->tabText(i));
-                return;
-            }
-        }
-    }
-
-    // 未找到则创建新的
-    if (!m_addDeviceTab) {
-        m_addDeviceTab = new AddDeviceTab(this);
-        connect(m_addDeviceTab, &QObject::destroyed, this,
-                [this]() { m_addDeviceTab = nullptr; });
-    }
-    openTab(m_addDeviceTab, QStringLiteral("新增设备"));
 }
 
 void MainWindow::setupDeviceTab(DeviceConnectionTab *tab)

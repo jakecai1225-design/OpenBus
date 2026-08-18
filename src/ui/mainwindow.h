@@ -31,8 +31,7 @@ class BottomPanel;
 class RightPanel;
 class MeasurementSetupView;
 class DeviceConnectionTab;
-class AddDeviceTab;
-class ExtensionsTab;
+class MarketTab;
 class PluginDetailPage;
 class BusStatistics;
 class FilterPresetManager;
@@ -113,7 +112,7 @@ private slots:
     void onNewGraphicRequested();
     void onOpenMeasurementSetup();
     void onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName, int deviceType);
-    void onOpenAddDeviceTab();
+    void onOpenMarketTab();   // 插件市场标签页（＋新增设备跳转入口，方案 §13.6）
     void onSettingsRequested(const QString &section);
 
     // P0/P1 新增
@@ -166,7 +165,6 @@ private slots:
     void onPluginCommandRegistered(const QString &id, const QString &title);
     void onPluginSendFrame(const CanFrame &frame);
     void onPluginRequestSelectedFrames(const QJsonValue &requestId);
-    void onOpenExtensionsTab();
 
 private:
     void createMenuBar();
@@ -185,7 +183,7 @@ private:
     void openTab(QWidget *widget, const QString &label);
     void refreshPanelLists();
     void refreshPluginList();
-    void setupExtensionsTab();  // 创建/重建 ExtensionsTab 并连接信号
+    void setupMarketTab();  // 创建/重建 MarketTab（统一插件市场）并连接信号
     void openPluginDetail(const QString &name);  // 打开插件详情页（多插件共用一个标签页）
     void linkGraphicCursor(GraphicView *gv);  // 新建 GraphicView 时与已有视图建立游标联动
 
@@ -220,8 +218,7 @@ private:
     OfflineAnalysisTab *m_offlineTab = nullptr;
     RecordTab *m_recordTab = nullptr;
     DeviceConnectionTab *m_deviceTab = nullptr;
-    AddDeviceTab *m_addDeviceTab = nullptr;
-    ExtensionsTab *m_extensionsTab = nullptr;
+    MarketTab *m_marketTab = nullptr;   // 统一插件市场（驱动 + 插件，方案 §13）
     PluginDetailPage *m_pluginDetailPage = nullptr;
 
     // ---- 核心引擎 ----

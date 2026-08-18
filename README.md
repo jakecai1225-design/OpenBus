@@ -26,6 +26,7 @@
 | [doc/Trace模块设计文档.md](doc/Trace模块设计文档.md) | 报文列表核心视图：架构分层、4 阶段性能优化（延迟格式化/批量刷新/增量过滤/环形缓冲）、书签着色、导航交互、CANoe 深度对标差距复查（§九） | CANoe Trace Window + Wireshark Packet List |
 | [doc/Graphic模块设计文档.md](doc/Graphic模块设计文档.md) | 信号波形核心视图：多轴堆叠、卡尺测量、视口降采样、数学运算、游标联动 | CANoe Graphics Window |
 | [doc/插件系统方案.md](doc/插件系统方案.md) | 插件系统方案：v2 架构设计（进程模型/双通道通信/二进制协议/订阅制推送）、Python SDK 与清单贡献点、插件扩展机制实施版、PyQt6 独立窗口 UI | VS Code Extension 模型 |
+| [doc/驱动系统方案.md](doc/驱动系统方案.md) | 驱动插件系统：原生驱动插件（主进程内加载）、`.odp` 驱动包格式与 sha256 校验、DriverRegistry 热加载/禁用/卸载、设备市场（market.json 双索引 + 搜索/图文详情/一键安装） | CANoe Hardware Config + TSMaster 硬件管理 |
 
 ## 功能特性
 
@@ -72,8 +73,16 @@
 - **快速切换** — 一键切换工程上下文，无需重新加载文件
 - **工程持久化** — 工程配置保存为 `.openbusproj` 文件，下次打开即恢复工作状态
 
+### 硬件驱动与统一插件市场
+- **官方设备收敛（v2）** — 主程序原生仅保留 openbus 官方设备（内置模拟器）；ZLG / PEAK / Kvaser 等厂商驱动全部经插件市场按需安装，设备树动态渲染厂商分区
+- **驱动插件化** — 厂商驱动以 `.odp` 包（ZIP：driver.json + driver_<id>.dll + CHECKSUMS.sha256）安装，`DriverRegistry` 热加载无需重启；禁用/卸载支持延迟清理（重启彻底移除）
+- **统一插件市场** — 「＋ 新增设备」自动跳转「插件市场」标签页（VS Code 扩展市场风格）：驱动 + 工具插件同场，三分组列表（已安装/驱动市场/插件市场）、多词搜索（型号/厂商/关键词）与全部·驱动·插件筛选、图标/主图/设备简表/Markdown 说明、行内启停小按钮；一键安装（下载进度 → sha256 校验 → 确认 → 热加载），图片磁盘缓存
+- **已安装管理** — 已装驱动（状态/设备型号表/禁用/卸载）与已装插件（启停/激活/禁用/卸载）统一管理，离线支持「⋯ 安装」从 .odp/.opk 文件安装
+- **市场索引** — market.json（schema 2：drivers[] 按驱动聚合内嵌设备简表 + plugins[]）；`python scripts/make_market.py` 生成本地市场（3 驱动 + 5 插件），`python scripts/driver_tool.py pack|install|uninstall|validate` 驱动包全生命周期
+- **驱动开发** — 参见 [doc/驱动系统方案.md](doc/驱动系统方案.md) §十三，`drivers/<id>/` 目录 + CMake target 即可接入新厂商，无需改主程序代码
+
 ### 插件化工具
-- **G9 重构** — 原“工具集/协议”侧边栏功能全部插件化（Python + PyQt6），在侧边栏“扩展”面板安装/启用，支持 `.opk` 包打包安装
+- **G9 重构** — 原“工具集/协议”侧边栏功能全部插件化（Python + PyQt6），插件在统一「插件市场」标签页与侧边栏“扩展”面板安装/启用，支持 `.opk` 包打包安装
 - **blf-converter** — BLF / ASC / CSV 报文日志格式互转，后台 Job 执行不阻塞 UI，实时进度与取消
 - **dbc-tool** — 独立打开任意 DBC 文件，树形浏览报文/信号层级，可编辑信号属性并保存
 - **bus-statistics** — 实时总线统计：各 CAN ID 帧数、周期均值/最小/最大、总线负载率

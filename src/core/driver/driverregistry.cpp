@@ -305,72 +305,13 @@ void DriverRegistry::upsertEntry(const DriverEntry &entry)
 
 void DriverRegistry::registerBuiltinDrivers()
 {
-    // ZLG
-    {
-        DriverEntry e;
-        e.driverId = QStringLiteral("zlg");
-        e.displayName = QStringLiteral("ZLG 致远电子");
-        e.version = QStringLiteral("1.0.0");
-        e.builtin = true;
-        e.available = CanDeviceZLG::isAvailable();
-        if (!e.available)
-            e.disabledReason = QStringLiteral("未找到 zlgcan.dll");
-        e.devices = makeDevices({
-            {3,  QStringLiteral("USBCAN-1"),       8, false},
-            {4,  QStringLiteral("USBCAN-2"),       2, false},
-            {20, QStringLiteral("USBCAN-E-U"),     1, false},
-            {21, QStringLiteral("USBCAN-2E-U"),    2, false},
-            {31, QStringLiteral("USBCAN-4E-U"),    4, false},
-            {41, QStringLiteral("USBCANFD-200U"),  2, true},
-            {42, QStringLiteral("USBCANFD-100U"),  1, true},
-            {43, QStringLiteral("USBCANFD-MINI"),  1, true},
-            {59, QStringLiteral("USBCANFD-800U"),  8, true},
-        });
-        e.brand = ICanDevice::Brand::ZLG;
-        e.deviceKind = static_cast<int>(CanDeviceManager::DeviceKind::ZLG);
-        m_entries.append(e);
-    }
-
-    // PEAK
-    {
-        DriverEntry e;
-        e.driverId = QStringLiteral("peak");
-        e.displayName = QStringLiteral("PEAK-Systems PCAN");
-        e.version = QStringLiteral("1.0.0");
-        e.builtin = true;
-        e.available = CanDevicePEAK::isAvailable();
-        if (!e.available)
-            e.disabledReason = QStringLiteral("未找到 PCAN-Basic DLL");
-        e.devices = makeDevices({
-            {0x51, QStringLiteral("PCAN-USB"),        1, false},
-            {0x54, QStringLiteral("PCAN-USB FD"),     1, true},
-            {0x56, QStringLiteral("PCAN-USB Pro FD"), 2, true},
-        });
-        e.brand = ICanDevice::Brand::PEAK;
-        e.deviceKind = static_cast<int>(CanDeviceManager::DeviceKind::PEAK);
-        m_entries.append(e);
-    }
-
-    // Kvaser
-    {
-        DriverEntry e;
-        e.driverId = QStringLiteral("kvaser");
-        e.displayName = QStringLiteral("Kvaser");
-        e.version = QStringLiteral("1.0.0");
-        e.builtin = true;
-        e.available = CanDeviceKvaser::isAvailable();
-        if (!e.available)
-            e.disabledReason = QStringLiteral("未找到 canlib32.dll");
-        e.devices = makeDevices({
-            {0, QStringLiteral("USBcan II"),    2, false},
-            {1, QStringLiteral("Leaf"),         1, false},
-            {2, QStringLiteral("Leaf Light"),   1, false},
-            {3, QStringLiteral("Hybrid"),       2, true},
-        });
-        e.brand = ICanDevice::Brand::Kvaser;
-        e.deviceKind = static_cast<int>(CanDeviceManager::DeviceKind::Kvaser);
-        m_entries.append(e);
-    }
+    // v2 收敛（方案 §13.3）：主程序原生仅保留 openbus 官方设备（内置模拟器，
+    // 由 DevicePanel 直接呈现，不经 Registry）；ZLG/PEAK/Kvaser 等厂商驱动
+    // 全部改为外置 .odp 经插件市场安装。未来 openbus 自研硬件在此注册内置条目。
+    //
+    // 注：candevice_zlg/peak/kvaser.cpp 仍编入 openbus_core —— 驱动 DLL target
+    // 同源复用这些文件，Brand/DeviceKind 兼容映射同样保留（enumerateDevices
+    // 的内置分支供未来官方硬件使用）。
 
     // 禁用清单作用于内置驱动（重启后同样不参与枚举/创建）
     for (auto &e : m_entries)

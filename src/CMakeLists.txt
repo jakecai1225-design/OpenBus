@@ -168,10 +168,8 @@ set(SRC_UI
     ui/measurementsetupview.cpp
     ui/deviceconnectiontab.h
     ui/deviceconnectiontab.cpp
-        ui/adddevicetab.h
-        ui/adddevicetab.cpp
-    ui/extensionstab.h
-    ui/extensionstab.cpp
+    ui/markettab.h
+    ui/markettab.cpp
     ui/plugindetailpage.h
     ui/plugindetailpage.cpp
     # 工具集 — 内置分析工具（原 blfasconverter/dbctoolview/loganalysisview 已插件化，见 plugins/）
@@ -283,7 +281,7 @@ target_link_libraries(openbus_ui PUBLIC
 
 # qcustomplot: 仅 graphicview.cpp 使用，graphicview.h 用前向声明 → PRIVATE
 # Qt6::Svg: SVG 线条图标渲染 (activitybar / sidebarpanels)
-# Qt6::Network: AddDeviceTab 市场下载/图片加载 (marketindex)
+# Qt6::Network: MarketTab 市场下载/图标加载 (marketindex)
 target_link_libraries(openbus_ui PRIVATE
     qcustomplot
     Qt6::Svg

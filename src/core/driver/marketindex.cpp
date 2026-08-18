@@ -4,7 +4,6 @@
 
 #include <QCoreApplication>
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -14,29 +13,8 @@
 #include <QNetworkRequest>
 
 // ============================================================
-//  MarketIndex 实现 — market.json 加载 / 检索 / URL 解析
+//  MarketIndex 实现 — market.json schema 2 加载 / 检索 / URL 解析
 // ============================================================
-
-namespace {
-bool matchWords(const QString &text, const QStringList &fields)
-{
-    if (text.trimmed().isEmpty())
-        return true;
-    const auto words = text.simplified().split(QLatin1Char(' '), Qt::SkipEmptyParts);
-    for (const auto &w : words) {
-        bool hit = false;
-        for (const auto &f : fields) {
-            if (f.contains(w, Qt::CaseInsensitive)) {
-                hit = true;
-                break;
-            }
-        }
-        if (!hit)
-            return false;   // 多词 AND
-    }
-    return true;
-}
-} // namespace
 
 MarketIndex *MarketIndex::instance()
 {
@@ -101,6 +79,7 @@ void MarketIndex::onReplyFinished(QNetworkReply *reply)
     m_base = obj.value(QStringLiteral("base")).toString(QStringLiteral("."));
     m_updated = obj.value(QStringLiteral("updated")).toString();
 
+    // ---- drivers[]：按驱动聚合（v2，方案 §13.4） ----
     m_drivers.clear();
     const auto drivers = obj.value(QStringLiteral("drivers")).toArray();
     for (const auto &v : drivers) {
@@ -117,47 +96,45 @@ void MarketIndex::onReplyFinished(QNetworkReply *reply)
         info.updatedAt = d.value(QStringLiteral("updatedAt")).toString();
         info.minAppVersion = d.value(QStringLiteral("minAppVersion")).toString();
         info.abiVersion = d.value(QStringLiteral("abiVersion")).toString();
+        info.icon = d.value(QStringLiteral("icon")).toString();
+        info.image = d.value(QStringLiteral("image")).toString();
+        info.summary = d.value(QStringLiteral("summary")).toString();
+        info.readme = d.value(QStringLiteral("readme")).toString();
+        info.keywords = d.value(QStringLiteral("keywords")).toString();
+        info.devices = d.value(QStringLiteral("devices")).toArray();
         if (!info.id.isEmpty() && !info.package.isEmpty())
             m_drivers.append(info);
     }
 
-    m_devices.clear();
-    const auto devices = obj.value(QStringLiteral("devices")).toArray();
-    for (const auto &v : devices) {
-        const auto d = v.toObject();
-        DeviceInfo info;
-        info.driverId = d.value(QStringLiteral("driverId")).toString();
-        info.model = d.value(QStringLiteral("model")).toString();
-        info.vendor = d.value(QStringLiteral("vendor")).toString();
-        info.type = d.value(QStringLiteral("type")).toInt();
-        info.summary = d.value(QStringLiteral("summary")).toString();
-        info.tags = d.value(QStringLiteral("tags")).toVariant().toStringList();
-        info.images = d.value(QStringLiteral("images")).toVariant().toStringList();
-        info.intro = d.value(QStringLiteral("intro")).toString();
-        info.specs = d.value(QStringLiteral("specs")).toObject();
-        info.keywords = d.value(QStringLiteral("keywords")).toString();
-        if (!info.model.isEmpty())
-            m_devices.append(info);
+    // ---- plugins[]：Python 插件（.opk） ----
+    m_plugins.clear();
+    const auto plugins = obj.value(QStringLiteral("plugins")).toArray();
+    for (const auto &v : plugins) {
+        const auto p = v.toObject();
+        PluginInfo info;
+        info.id = p.value(QStringLiteral("id")).toString();
+        info.name = p.value(QStringLiteral("name")).toString();
+        info.publisher = p.value(QStringLiteral("publisher")).toString();
+        info.version = p.value(QStringLiteral("version")).toString();
+        info.description = p.value(QStringLiteral("description")).toString();
+        info.icon = p.value(QStringLiteral("icon")).toString();
+        info.package = p.value(QStringLiteral("package")).toString();
+        info.sha256 = p.value(QStringLiteral("sha256")).toString();
+        info.size = static_cast<qint64>(p.value(QStringLiteral("size")).toDouble());
+        info.readme = p.value(QStringLiteral("readme")).toString();
+        info.tags = p.value(QStringLiteral("tags")).toVariant().toStringList();
+        info.keywords = p.value(QStringLiteral("keywords")).toString();
+        info.minAppVersion = p.value(QStringLiteral("minAppVersion")).toString();
+        info.updatedAt = p.value(QStringLiteral("updatedAt")).toString();
+        if (!info.id.isEmpty() && !info.package.isEmpty())
+            m_plugins.append(info);
     }
 
     m_loaded = true;
     m_lastError.clear();
-    OPENBUS_LOG_INFO("MarketIndex", "market loaded: {} drivers / {} devices",
-                     m_drivers.size(), m_devices.size());
+    OPENBUS_LOG_INFO("MarketIndex", "market loaded: {} drivers / {} plugins",
+                     m_drivers.size(), m_plugins.size());
     emit loaded(true, QString());
-}
-
-QList<MarketIndex::DeviceInfo> MarketIndex::search(const QString &text) const
-{
-    if (text.trimmed().isEmpty())
-        return m_devices;
-    QList<DeviceInfo> result;
-    for (const auto &d : m_devices) {
-        QStringList fields{ d.model, d.vendor, d.summary, d.keywords, d.tags.join(QLatin1Char(' ')) };
-        if (matchWords(text, fields))
-            result.append(d);
-    }
-    return result;
 }
 
 MarketIndex::DriverInfo MarketIndex::driverById(const QString &id) const
@@ -167,6 +144,34 @@ MarketIndex::DriverInfo MarketIndex::driverById(const QString &id) const
             return d;
     }
     return DriverInfo();
+}
+
+MarketIndex::PluginInfo MarketIndex::pluginById(const QString &id) const
+{
+    for (const auto &p : m_plugins) {
+        if (p.id == id)
+            return p;
+    }
+    return PluginInfo();
+}
+
+bool MarketIndex::matchWords(const QString &text, const QStringList &fields)
+{
+    if (text.trimmed().isEmpty())
+        return true;
+    const auto words = text.simplified().split(QLatin1Char(' '), Qt::SkipEmptyParts);
+    for (const auto &w : words) {
+        bool hit = false;
+        for (const auto &f : fields) {
+            if (f.contains(w, Qt::CaseInsensitive)) {
+                hit = true;
+                break;
+            }
+        }
+        if (!hit)
+            return false;   // 多词 AND
+    }
+    return true;
 }
 
 QUrl MarketIndex::resolveUrl(const QString &relative) const
