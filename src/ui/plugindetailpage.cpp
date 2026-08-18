@@ -86,14 +86,20 @@ void clearLayout(QLayout *layout)
 {
     while (layout->count() > 0) {
         QLayoutItem *item = layout->takeAt(0);
-        if (item->widget()) {
-            item->widget()->hide();
-            item->widget()->deleteLater();
-        } else if (item->layout()) {
-            clearLayout(item->layout());
-            delete item->layout();
+        if (QWidget *w = item->widget()) {
+            w->hide();
+            w->deleteLater();
+            delete item;               // 只删 QWidgetItem 包装，widget 延迟删
+        } else if (QLayout *sub = item->layout()) {
+            clearLayout(sub);         // 递归清空子布局内容
+            // QLayout::layout() 返回 this：addLayout 添加的子布局本身就是 item，
+            // 只能删一次，先删 item->layout() 再删 item 会 double-free 导致崩溃
+            if (sub != item)
+                delete item;
+            delete sub;
+        } else {
+            delete item;              // spacer 等其它项
         }
-        delete item;
     }
 }
 

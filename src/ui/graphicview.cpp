@@ -286,14 +286,17 @@ QString GraphicView::treeQss() const
 {
     const Theme &t = ThemeManager::instance()->currentTheme();
     return QString(
-        "QTreeWidget { background: %1; color: %2; border: none; font-size: 12px; }"
-        "QTreeWidget::item { padding: 2px 4px; }"
+        "QTreeWidget { background: %1; color: %2; border: 1px solid %7; "
+        "border-radius: 4px; font-size: 12px; }"
+        "QTreeWidget::item { padding: 3px 4px; min-height: 22px; border-radius: 4px; }"
+        "QTreeWidget::item:hover { background: %8; }"
         "QTreeWidget::item:alternate { background: %3; }"
         "QTreeWidget::item:selected { background: %4; color: %2; }"
         "QHeaderView::section { background: %5; color: %6; border: none; "
         "border-bottom: 1px solid %7; padding: 3px 4px; font-size: 11px; }"
     )
-    .arg(t.contentBg, t.text, t.altRowBg, t.selectionBg, t.headerBg, t.textDim, t.border);
+    .arg(t.contentBg, t.text, t.altRowBg, t.selectionBg, t.headerBg, t.textDim, t.border,
+         t.hoverBg);
 }
 
 QString GraphicView::infoLabelQss() const

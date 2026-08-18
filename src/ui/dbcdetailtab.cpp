@@ -20,7 +20,6 @@
 #include <QFont>
 #include <QBrush>
 #include <QDebug>
-#include <QStyleFactory>
 #include <QStyle>
 
 // 树节点 UserRole
@@ -80,6 +79,7 @@ void DbcDetailTab::buildLeftPane(QSplitter *splitter)
     leftLayout->addWidget(m_searchEdit);
 
     m_tree = new QTreeWidget(this);
+    m_tree->setObjectName(QStringLiteral("ContentTree"));   // 内容区树: 全局主题规则 + 淡边框
     m_tree->setHeaderHidden(true);
     m_tree->setRootIsDecorated(true);
     m_tree->setIndentation(18);
@@ -87,15 +87,6 @@ void DbcDetailTab::buildLeftPane(QSplitter *splitter)
     m_tree->setUniformRowHeights(true);
     m_tree->setAnimated(true);
     m_tree->setExpandsOnDoubleClick(true);
-    // CANdb++ 风格: 经典 +/- 折叠按钮 + 树形连接线
-    m_tree->setStyle(QStyleFactory::create("Windows"));
-    // 局部样式: 配色与整体 VS Code 风格主题一致
-    m_tree->setStyleSheet(
-        "QTreeWidget { background-color: #f8f8f8; border: none; outline: none; font-size: 12px; }"
-        "QTreeWidget::item { padding: 3px 2px; min-height: 20px; }"
-        "QTreeWidget::item:hover { background-color: #e8e8e8; }"
-        "QTreeWidget::item:selected { background-color: #c5d9f1; color: #000; }"
-    );
     leftLayout->addWidget(m_tree, 1);
 
     splitter->addWidget(leftWidget);

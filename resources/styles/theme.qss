@@ -21,8 +21,8 @@ QMenu::separator { height: 1px; background-color: @borderDim; margin: 4px 8px; }
 
 /* ---- DockWidget ---- */
 QDockWidget { titlebar-close-icon: none; titlebar-normal-icon: none; background-color: @sidebarBg; }
-QDockWidget::title { background-color: @panelBg; padding: 0; border: none; }
-#LeftContainer { background-color: @sidebarBg; }
+QDockWidget::title { background-color: @panelBg; padding: 0; border: none; border-bottom: 1px solid @border; }
+#LeftContainer { background-color: @sidebarBg; border-right: 1px solid @border; }
 #LeftDock { background-color: @sidebarBg; border: none; }
 #BottomDock { background-color: @sidebarBg; border: none; }
 #RightDock { background-color: @sidebarBg; border: none; }
@@ -57,21 +57,39 @@ SidePanel { background-color: @sidebarBg; }
 #DbcDetailComment { color: @textDim; font-style: italic; padding: 1px 0; }
 #DbcDetailPlaceholder { color: @textDim; font-size: 14px; }
 
-/* ---- 列表 / 树 ---- */
+/* ---- 列表 / 树 (VS Code Explorer 风格: 紧凑行高 + 圆角悬停/选中) ---- */
 #ProjectList { background-color: @sidebarBg; border: none; outline: none; font-size: 13px; }
-#ProjectList::item { padding: 5px 12px; min-height: 24px; border: none; }
+#ProjectList::item { padding: 4px 12px; min-height: 24px; border: none; border-radius: 4px; }
 #ProjectList::item:hover { background-color: @hoverBg; }
 #ProjectList::item:selected { background-color: @selectionBg; color: @text; }
 
-QTreeWidget { background-color: @sidebarBg; border: none; outline: none; font-size: 13px; }
-QTreeWidget::item { padding: 4px 6px; min-height: 24px; border: none; }
-QTreeWidget::item:hover { background-color: @hoverBg; }
-QTreeWidget::item:selected { background-color: @selectionBg; color: @text; }
-QTreeWidget::branch { background: transparent; }
-QTreeWidget::branch:has-siblings:!adjoins-item { background: transparent; }
+QTreeWidget, QTreeView {
+    background-color: @sidebarBg; border: none; outline: none; font-size: 13px;
+}
+QTreeWidget::item, QTreeView::item { padding: 3px 6px; min-height: 24px; border: none; border-radius: 4px; }
+QTreeWidget::item:hover, QTreeView::item:hover { background-color: @hoverBg; }
+QTreeWidget::item:selected, QTreeView::item:selected { background-color: @selectionBg; color: @text; }
+QTreeWidget::item:alternate, QTreeView::item:alternate { background-color: @altRowBg; }
+
+/* 内容区树 (DBC 信号树等): 带淡边框形成边界 */
+#ContentTree {
+    background-color: @contentBg; border: 1px solid @border; border-radius: 4px;
+    outline: none; font-size: 12px;
+}
+
+/* 树形分支: VS Code 风格展开箭头 + 缩进参考线 (主题色图标由 ThemeManager 生成注入)
+   注意顺序: 参考线规则在前，箭头规则在后 (箭头位置优先) */
+QTreeWidget::branch, QTreeView::branch { background: transparent; }
+QTreeWidget::branch:has-siblings, QTreeView::branch:has-siblings { image: url("@treeGuide"); }
+QTreeWidget::branch:has-children:closed, QTreeView::branch:has-children:closed {
+    image: url("@treeChevronRight");
+}
+QTreeWidget::branch:has-children:open, QTreeView::branch:has-children:open {
+    image: url("@treeChevronDown");
+}
 
 QListWidget { background-color: @sidebarBg; border: none; outline: none; font-size: 13px; }
-QListWidget::item { padding: 5px 12px; min-height: 24px; border: none; }
+QListWidget::item { padding: 4px 12px; min-height: 24px; border: none; border-radius: 4px; }
 QListWidget::item:hover { background-color: @hoverBg; }
 QListWidget::item:selected { background-color: @selectionBg; }
 
@@ -88,15 +106,19 @@ QToolBar QToolButton:hover { background-color: @hoverBg; }
 QToolBar QToolButton:checked { background-color: @hoverBg; }
 QToolBar QLabel { color: @textDim; font-size: 12px; padding: 0 6px; }
 
-/* ---- 标签页 — 主区域 (36px 高) ---- */
-QTabWidget::pane { border: none; background-color: @contentBg; }
+/* ---- 标签页 — 主区域 (VS Code 风格: 淡边框 + 选中顶部无边界) ---- */
+QTabWidget::pane { border: 1px solid @border; border-top: none; background-color: @contentBg; }
 QTabBar { qproperty-drawBase: 0; }
 QTabBar::tab {
-    background-color: @tabBg; color: @textDim; padding: 7px 14px; min-height: 26px;
-    border: none; border-bottom: 1px solid @borderDim; font-size: 13px; margin: 0;
+    background-color: @tabBg; color: @textDim; padding: 6px 14px; min-height: 26px;
+    border: 1px solid transparent; border-bottom: 1px solid @border;
+    border-top-left-radius: 3px; border-top-right-radius: 3px; font-size: 13px; margin: 0;
 }
-QTabBar::tab:selected { background-color: @tabActiveBg; color: @text; border-bottom: 3px solid @accent; }
 QTabBar::tab:hover:!selected { background-color: @tabHoverBg; color: @text; }
+QTabBar::tab:selected {
+    background-color: @tabActiveBg; color: @text;
+    border: 1px solid @border; border-bottom: 3px solid @accent;
+}
 QTabBar::close-button {
     subcontrol-position: right; border: 1px solid @borderDim;
     border-radius: 3px; padding: 1px; margin: 1px;
@@ -107,7 +129,11 @@ QTabBar::close-button:pressed { background-color: @closeBtnPress; }
 
 /* ---- 底部面板标签 (28px) ---- */
 #BottomPanel { background-color: @sidebarBg; }
-#BottomPanel::pane { border-top: 1px solid @borderDim; background-color: @sidebarBg; }
+#BottomPanel::pane {
+    border: 1px solid @border; border-top: 1px solid @border;
+    border-left: none; border-right: none; border-bottom: none;
+    background-color: @sidebarBg;
+}
 #BottomPanel QTabBar::tab {
     padding: 5px 14px; min-height: 20px; font-size: 12px;
     border-bottom: none; border-top: 2px solid transparent; margin: 0;
@@ -116,7 +142,9 @@ QTabBar::close-button:pressed { background-color: @closeBtnPress; }
 #BottomPanel QTabBar::tab:hover:!selected { color: @text; }
 
 /* ---- 右侧面板标签 (28px) ---- */
-#RightPanel::pane { border: none; border-left: 1px solid @borderDim; background-color: @sidebarBg; }
+#RightPanel::pane {
+    border: none; border-left: 1px solid @border; background-color: @sidebarBg;
+}
 #RightPanel QTabBar::tab {
     padding: 5px 14px; min-height: 20px; font-size: 12px;
     border-bottom: none; border-top: 2px solid transparent; margin: 0;
@@ -143,6 +171,9 @@ QPlainTextEdit {
     background-color: @contentBg; color: @text; border: none;
     font-family: Consolas, "Courier New", monospace; font-size: 13px;
 }
+
+/* ---- 滚动区: 跟随父容器背景 (未设置时视口用系统浅色调色板, 深色主题下会出现浅色底) ---- */
+QScrollArea { border: none; background: transparent; }
 #TerminalOutput { background-color: @terminalBg; color: @terminalFg; }
 #TerminalPrompt { font-family: Consolas, monospace; font-weight: bold; color: @accent; }
 

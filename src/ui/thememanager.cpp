@@ -214,6 +214,44 @@ void ThemeManager::applyTheme(const QString &name)
     }
 }
 
+// 生成主题色树形分支图标（展开箭头 + 缩进参考线）到临时目录，供 QSS image: 引用。
+// QSS 的 image: 只能引用真实文件路径，无法使用 qrc 内的 currentColor 占位 SVG，
+// 故每次换主题时按当前配色写出小尺寸 SVG。
+// 20x24 视口匹配 Qt 分支元素（缩进 20 × 行高 24），避免 image: 拉伸变形。
+static QString writeTreeIcons(const Theme &t)
+{
+    QString dir = QDir::tempPath() + "/openbus_theme_icons";
+    if (!QDir().mkpath(dir))
+        return {};
+    dir.replace('\\', '/');   // QSS url() 内使用正斜杠
+
+    const auto write = [&dir](const QString &name, const QString &svg) {
+        QFile f(dir + '/' + name);
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            return false;
+        f.write(svg.toUtf8());
+        return true;
+    };
+
+    const QString chevronRight = QStringLiteral(
+        "<svg width='20' height='24' xmlns='http://www.w3.org/2000/svg'>"
+        "<path d='M8 9 L13 12 L8 15' fill='none' stroke='%1' stroke-width='1.4' "
+        "stroke-linecap='round' stroke-linejoin='round'/></svg>").arg(t.textDim);
+    const QString chevronDown = QStringLiteral(
+        "<svg width='20' height='24' xmlns='http://www.w3.org/2000/svg'>"
+        "<path d='M7 10 L10 13 L13 10' fill='none' stroke='%1' stroke-width='1.4' "
+        "stroke-linecap='round' stroke-linejoin='round'/></svg>").arg(t.textDim);
+    const QString indentGuide = QStringLiteral(
+        "<svg width='20' height='24' xmlns='http://www.w3.org/2000/svg'>"
+        "<rect x='9' y='0' width='1' height='24' fill='%1' fill-opacity='0.5'/></svg>").arg(t.textDim);
+
+    if (!write(QStringLiteral("chevron-right.svg"), chevronRight)
+        || !write(QStringLiteral("chevron-down.svg"), chevronDown)
+        || !write(QStringLiteral("indent-guide.svg"), indentGuide))
+        return {};
+    return dir;
+}
+
 QString ThemeManager::generateQss(const Theme &t) const
 {
     // 1. 读取 QSS 模板 — 优先从文件系统 (开发模式, 改完无需编译), 回退到 qrc
@@ -280,6 +318,14 @@ QString ThemeManager::generateQss(const Theme &t) const
     QString qss = rawQss;
     for (auto it = varMap.constBegin(); it != varMap.constEnd(); ++it)
         qss.replace(it.key(), t.*(it.value()));
+
+    // 4. 注入主题色树形分支图标路径（@treeChevronRight / @treeChevronDown / @treeGuide）
+    const QString iconDir = writeTreeIcons(t);
+    if (!iconDir.isEmpty()) {
+        qss.replace(QStringLiteral("@treeChevronRight"), iconDir + "/chevron-right.svg");
+        qss.replace(QStringLiteral("@treeChevronDown"), iconDir + "/chevron-down.svg");
+        qss.replace(QStringLiteral("@treeGuide"), iconDir + "/indent-guide.svg");
+    }
 
     return qss;
 }
