@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: plugins
+title: plugins
+scope:
+    - plugins/
+    - doc/插件系统方案.md
+    - doc/驱动系统方案.md
+source_files: []
+depends_on: []
+related_to: []

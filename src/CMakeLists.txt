@@ -23,6 +23,11 @@ set(SRC_CORE
     core/candevice_kvaser.cpp
     core/candevicemanager.h
     core/candevicemanager.cpp
+    core/driver/candriverplugin.h
+    core/driver/driverregistry.h
+    core/driver/driverregistry.cpp
+    core/driver/marketindex.h
+    core/driver/marketindex.cpp
     core/dbcdata.h
     core/dbcmanager.h
     core/dbcmanager.cpp
@@ -163,6 +168,8 @@ set(SRC_UI
     ui/measurementsetupview.cpp
     ui/deviceconnectiontab.h
     ui/deviceconnectiontab.cpp
+        ui/adddevicetab.h
+        ui/adddevicetab.cpp
     ui/extensionstab.h
     ui/extensionstab.cpp
     ui/plugindetailpage.h
@@ -210,6 +217,9 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/pugixml/pugixml.hpp")
 endif()
 
 target_link_libraries(openbus_core PUBLIC Qt6::Widgets)
+
+# Network: MarketIndex 设备市场索引（market.json / 图片 / 驱动包下载）
+target_link_libraries(openbus_core PRIVATE Qt6::Network)
 
 # zlib: blf.cpp 手动解析 BLF 文件需要 zlib 解压 (MinGW 自带 libz.a)
 target_link_libraries(openbus_core PRIVATE
@@ -273,9 +283,11 @@ target_link_libraries(openbus_ui PUBLIC
 
 # qcustomplot: 仅 graphicview.cpp 使用，graphicview.h 用前向声明 → PRIVATE
 # Qt6::Svg: SVG 线条图标渲染 (activitybar / sidebarpanels)
+# Qt6::Network: AddDeviceTab 市场下载/图片加载 (marketindex)
 target_link_libraries(openbus_ui PRIVATE
     qcustomplot
     Qt6::Svg
+    Qt6::Network
 )
 
 # Windows: psapi 用于进程资源监控 (ExtensionsTab)

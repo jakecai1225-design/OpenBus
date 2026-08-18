@@ -47,11 +47,12 @@ public:
     // ---- 设备枚举 ----
 
     struct DeviceInfo {
-        Brand brand = Brand::ZLG;   ///< 设备品牌
+        Brand brand = Brand::ZLG;   ///< 设备品牌（兼容字段，新驱动以 driverId 为主）
         QString name;               ///< 显示名（如 "USBCANFD-200U #0"）
         int deviceType = 0;         ///< 厂商设备类型 ID
         int deviceIndex = 0;        ///< 设备序号（0-based）
         int channels = 1;           ///< 通道数
+        QString driverId;           ///< 所属驱动 id（DriverRegistry 填充，如 "zlg"）
     };
 
     /// 枚举所有品牌的所有可用设备

@@ -230,6 +230,8 @@ static QString findZlgDllPath()
 {
     const QString appDir = QCoreApplication::applicationDirPath();
     const QStringList dirs = {
+        // 外置驱动包自带厂商运行时（drivers/zlg/vendor，方案 §7.3 隔离规则）
+        appDir + QStringLiteral("/drivers/zlg/vendor"),
         appDir,
         appDir + QStringLiteral("/driver"),
         QStringLiteral("C:/Program Files/ZCANPRO"),

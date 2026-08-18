@@ -27,6 +27,8 @@
 #include "ui/dbcdetailtab.h"
 #include "ui/measurementsetupview.h"
 #include "ui/deviceconnectiontab.h"
+#include "ui/adddevicetab.h"
+#include "core/driver/driverregistry.h"
 #include "ui/extensionstab.h"
 #include "ui/plugindetailpage.h"
 // ui/udsview.h, ui/canopenview.h 已移除 — UDS/CANopen 由插件 uds-diagnostic/canopen-explorer 提供
@@ -114,6 +116,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_pluginManager, &PluginManager::requestSelectedFrames,
             this, &MainWindow::onPluginRequestSelectedFrames);
     m_pluginManager->initialize();
+
+    // ---- 驱动系统 ----
+    // 清理待卸载目录 + 扫描加载外置 .odp 驱动（须在 UI 构建前，设备树首建即完整）
+    DriverRegistry::instance()->initialize();
 
     // ---- UI 构建 ----
     createMenuBar();
@@ -324,6 +330,9 @@ MainWindow::MainWindow(QWidget *parent)
     // 设备连接面板 — 点击设备条目打开标签页
     connect(m_sideBar->devicePanel(), &DevicePanel::deviceOpenRequested,
             this, &MainWindow::onOpenDeviceTab);
+    // 设备连接面板 — 「＋新增设备」→ 新增设备标签页（驱动市场入口，方案 §8.4）
+    connect(m_sideBar->devicePanel(), &DevicePanel::addDeviceRequested,
+            this, &MainWindow::onOpenAddDeviceTab);
 
     // 分析配置面板 — 点击打开 flow 标签页
     connect(m_sideBar->analysisPanel(), &MeasurementSetupPanel::openMeasurementSetupRequested,
@@ -1848,6 +1857,29 @@ void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &de
     }
     m_deviceTab->setDevice(deviceKind, devIndex, deviceName, deviceType);
     openTab(m_deviceTab, QStringLiteral("设备连接"));
+}
+
+void MainWindow::onOpenAddDeviceTab()
+{
+    // 查找已有的「新增设备」标签页
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains(QStringLiteral("新增设备"))) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
+                return;
+            }
+        }
+    }
+
+    // 未找到则创建新的
+    if (!m_addDeviceTab) {
+        m_addDeviceTab = new AddDeviceTab(this);
+        connect(m_addDeviceTab, &QObject::destroyed, this,
+                [this]() { m_addDeviceTab = nullptr; });
+    }
+    openTab(m_addDeviceTab, QStringLiteral("新增设备"));
 }
 
 void MainWindow::setupDeviceTab(DeviceConnectionTab *tab)

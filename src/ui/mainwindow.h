@@ -31,6 +31,7 @@ class BottomPanel;
 class RightPanel;
 class MeasurementSetupView;
 class DeviceConnectionTab;
+class AddDeviceTab;
 class ExtensionsTab;
 class PluginDetailPage;
 class BusStatistics;
@@ -112,6 +113,7 @@ private slots:
     void onNewGraphicRequested();
     void onOpenMeasurementSetup();
     void onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName, int deviceType);
+    void onOpenAddDeviceTab();
     void onSettingsRequested(const QString &section);
 
     // P0/P1 新增
@@ -218,6 +220,7 @@ private:
     OfflineAnalysisTab *m_offlineTab = nullptr;
     RecordTab *m_recordTab = nullptr;
     DeviceConnectionTab *m_deviceTab = nullptr;
+    AddDeviceTab *m_addDeviceTab = nullptr;
     ExtensionsTab *m_extensionsTab = nullptr;
     PluginDetailPage *m_pluginDetailPage = nullptr;
 

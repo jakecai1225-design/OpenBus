@@ -227,6 +227,9 @@ signals:
     /// @param deviceType 厂商设备子类型（如 ZLG DEV_USBCANFD_200U=41）
     void deviceOpenRequested(int deviceKind, int devIndex, const QString &deviceName, int deviceType);
 
+    /// 请求打开「新增设备」标签页（设备市场：搜索/详情/安装驱动）
+    void addDeviceRequested();
+
 private slots:
     void onItemClicked(QTreeWidgetItem *item, int column);
     void onItemDoubleClicked(QTreeWidgetItem *item, int column);

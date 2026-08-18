@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450">
+  <rect width="800" height="450" fill="#1a2b4a"/>
+  <rect x="40" y="90" width="720" height="270" rx="12" fill="#24406e" stroke="#4a7bc4" stroke-width="2"/>
+  <rect x="70" y="200" width="90" height="52" rx="6" fill="#16213c" stroke="#4a7bc4" stroke-width="2"/>
+  <rect x="640" y="200" width="90" height="52" rx="6" fill="#16213c" stroke="#4a7bc4" stroke-width="2"/>
+  <circle cx="115" cy="226" r="8" fill="#4a7bc4"/>
+  <circle cx="685" cy="226" r="8" fill="#4a7bc4"/>
+  <rect x="330" y="150" width="140" height="30" rx="4" fill="#4a7bc4"/>
+  <text x="400" y="170" font-family="Segoe UI, sans-serif" font-size="16" fill="#ffffff" text-anchor="middle">USBCANFD</text>
+  <text x="400" y="300" font-family="Segoe UI, sans-serif" font-size="42" font-weight="bold" fill="#ffffff" text-anchor="middle">USBCANFD-200U</text>
+  <text x="400" y="335" font-family="Segoe UI, sans-serif" font-size="18" fill="#9db8e0" text-anchor="middle">2 × CAN FD · ZLG 致远电子</text>
+  <text x="400" y="420" font-family="Segoe UI, sans-serif" font-size="14" fill="#6a86ad" text-anchor="middle">示意图（正式市场图片随 market.json 版本化分发）</text>
+</svg>

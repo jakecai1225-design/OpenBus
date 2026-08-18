@@ -4,6 +4,7 @@
 #include "core/cansimulator.h"
 #include "core/candevicemanager.h"
 #include "core/candevice.h"
+#include "core/driver/driverregistry.h"
 #include "core/appconfig.h"
 #include "core/sessionmanager.h"
 #include "ui/graphicview.h"
@@ -15,6 +16,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QFont>
 #include <QTreeWidget>
 #include <QListWidget>
 #include <QListWidgetItem>
@@ -864,6 +866,10 @@ DevicePanel::DevicePanel(QWidget *parent)
             this, &DevicePanel::onItemDoubleClicked);
     connect(m_scanBtn, &QPushButton::clicked, this, &DevicePanel::onScanClicked);
 
+    // 外置驱动安装/卸载后设备树即时刷新（热加载）
+    connect(DriverRegistry::instance(), &DriverRegistry::driversChanged,
+            this, &DevicePanel::refreshDevices);
+
     populateTree();
 }
 
@@ -907,62 +913,67 @@ void DevicePanel::populateTree()
     simItem->setData(0, Qt::UserRole, 0);       // deviceKind = 0 (Simulator)
     simItem->setData(0, Qt::UserRole + 1, 0);   // devIndex = 0
 
-    // 统一枚举所有品牌的硬件设备
-    auto allDevices = ICanDevice::enumerateAll();
+    // 统一枚举（DriverRegistry 聚合内置 + 外置，DeviceInfo.driverId 分组）
+    const auto allDevices = ICanDevice::enumerateAll();
 
-    // 按品牌分组的辅助 lambda
-    auto devicesOfBrand = [&allDevices](ICanDevice::Brand b) {
-        QList<ICanDevice::DeviceInfo> result;
-        for (const auto &d : allDevices)
-            if (d.brand == b) result << d;
-        return result;
-    };
-
-    // 添加品牌分组的辅助 lambda
-    auto addBrandSection = [&](const QString &title, ICanDevice::Brand brand,
-                               CanDeviceManager::DeviceKind kind,
-                               const QString &emptyHint) {
+    // ---- 驱动分区（Registry 动态生成，不再硬编码品牌；禁用的隐藏 §7.4） ----
+    const auto drivers = DriverRegistry::instance()->drivers();
+    for (const auto &drv : drivers) {
+        if (!drv.enabled)
+            continue;
         auto *parent = new QTreeWidgetItem(m_deviceTree);
-        parent->setText(0, title);
-        auto devs = devicesOfBrand(brand);
-        if (devs.isEmpty()) {
-            auto *empty = new QTreeWidgetItem(parent);
-            empty->setText(0, emptyHint);
-            empty->setData(0, Qt::UserRole, static_cast<int>(kind));
-            empty->setData(0, Qt::UserRole + 1, 0);
-        } else {
+        parent->setText(0, drv.displayName);
+
+        // 该驱动的在线设备
+        QList<ICanDevice::DeviceInfo> devs;
+        for (const auto &d : allDevices) {
+            if (d.driverId == drv.driverId)
+                devs << d;
+        }
+
+        if (!devs.isEmpty()) {
             for (const auto &d : devs) {
                 auto *dev = new QTreeWidgetItem(parent);
                 dev->setText(0, QStringLiteral("  ") + d.name);
-                dev->setData(0, Qt::UserRole, static_cast<int>(kind));
+                dev->setData(0, Qt::UserRole, drv.deviceKind);
                 dev->setData(0, Qt::UserRole + 1, d.deviceIndex);
                 dev->setData(0, Qt::UserRole + 2, d.deviceType);
             }
+        } else if (drv.available) {
+            // 驱动可用但无在线设备：提示叶子（点击打开连接页手动配置）
+            auto *empty = new QTreeWidgetItem(parent);
+            empty->setText(0, QStringLiteral("  %1 (未检测到硬件)")
+                                   .arg(drv.displayName));
+            empty->setData(0, Qt::UserRole, drv.deviceKind);
+            empty->setData(0, Qt::UserRole + 1, 0);
+        } else {
+            // 驱动不可用（厂商 DLL 缺失/预检失败）：展示原因，禁用点击
+            auto *empty = new QTreeWidgetItem(parent);
+            empty->setText(0, QStringLiteral("  (%1)").arg(
+                drv.disabledReason.isEmpty() ? QStringLiteral("不可用")
+                                             : drv.disabledReason));
+            empty->setFlags(empty->flags() & ~Qt::ItemIsEnabled);
         }
         parent->setExpanded(true);
-        return parent;
-    };
+    }
 
-    // ---- 各品牌设备分组 ----
-    addBrandSection(QStringLiteral("ZLG 致远电子"), ICanDevice::Brand::ZLG,
-                    CanDeviceManager::DeviceKind::ZLG,
-                    QStringLiteral("  ZLG USBCANFD (未检测到硬件)"));
-
-    addBrandSection(QStringLiteral("PEAK PCAN"), ICanDevice::Brand::PEAK,
-                    CanDeviceManager::DeviceKind::PEAK,
-                    QStringLiteral("  PCAN-USB (未检测到硬件)"));
-
-    addBrandSection(QStringLiteral("Kvaser"), ICanDevice::Brand::Kvaser,
-                    CanDeviceManager::DeviceKind::Kvaser,
-                    QStringLiteral("  Kvaser USBcan (未检测到硬件)"));
-
-    addBrandSection(QStringLiteral("开源 USB-CAN (SLCAN)"), ICanDevice::Brand::SLCAN,
-                    CanDeviceManager::DeviceKind::SLCAN,
-                    QStringLiteral("  SLCAN (待实现)"));
+    // ---- 「＋ 新增设备」折叠栏底部固定入口 → 设备市场标签页 ----
+    auto *addItem = new QTreeWidgetItem(m_deviceTree);
+    addItem->setText(0, QStringLiteral("＋ 新增设备"));
+    QFont addFont = addItem->font(0);
+    addFont.setBold(true);
+    addItem->setFont(0, addFont);
+    addItem->setData(0, Qt::UserRole + 3, QStringLiteral("__add__"));
 }
 
 void DevicePanel::onItemClicked(QTreeWidgetItem *item, int /*column*/)
 {
+    // 「＋ 新增设备」入口 → 设备市场标签页
+    if (item->data(0, Qt::UserRole + 3).toString() == QLatin1String("__add__")) {
+        emit addDeviceRequested();
+        return;
+    }
+
     // 父节点 → 展开/折叠
     if (item->childCount() > 0) {
         item->setExpanded(!item->isExpanded());
@@ -977,6 +988,10 @@ void DevicePanel::onItemClicked(QTreeWidgetItem *item, int /*column*/)
 
 void DevicePanel::onItemDoubleClicked(QTreeWidgetItem *item, int /*column*/)
 {
+    if (item->data(0, Qt::UserRole + 3).toString() == QLatin1String("__add__")) {
+        emit addDeviceRequested();
+        return;
+    }
     if (item->childCount() > 0)
         return;
     int deviceKind = item->data(0, Qt::UserRole).toInt();
