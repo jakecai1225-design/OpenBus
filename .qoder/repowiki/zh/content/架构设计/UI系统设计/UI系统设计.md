@@ -66,11 +66,10 @@
 
 ## 更新摘要
 **所做更改**   
-- GraphicView组件增强了插件集成能力，添加了70+行代码用于改进可扩展性和插件功能
-- 集成了完整的Python插件宿主系统，支持动态加载和运行Python插件
-- 新增了插件管理器、插件宿主进程管理和JSON-RPC通信机制
-- 扩展了GraphicView的扩展点接口，允许插件自定义信号可视化和交互行为
-- 增强了图形视图的可插拔架构，支持运行时插件发现和激活
+- 更新了活动栏按钮配置，增强了插件市场按钮的工具提示文本，提供更详细的描述信息
+- 改进了扩展面板的集成，支持驱动与插件的安装、管理和搜索功能
+- 优化了活动栏按钮的显示顺序和用户体验
+- 增强了插件系统的用户界面友好性
 
 ## 目录
 1. [简介](#简介)
@@ -537,6 +536,184 @@ MainWindow --> TransceivePanel : "管理"
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 
+### 活动栏（ActivityBar）增强
+功能特性
+- **新增** Transceive模式枚举，提供统一的收发功能入口
+- **新增** 收发按钮集成，支持发送、回放、录制的快速访问
+- **增强** 活动栏按钮顺序优化，工作流程更加合理
+- **增强** 工具提示改进，提供更清晰的功能描述
+- **最新增强** 插件市场按钮工具提示优化，提供更详细的描述信息
+
+**更新** 活动栏按钮配置得到了显著增强，特别是插件市场按钮的工具提示文本已更新为"插件市场 — 驱动与插件的安装 / 管理 / 搜索"，为用户提供了更清晰的功能说明。活动栏按钮顺序已重新组织，从工程管理到分析工具再到插件市场的逻辑流程，提高了用户操作效率。
+
+技术实现
+- 在Activity枚举中新增Transceive和Extensions类型
+- 在活动栏初始化时添加工发和扩展按钮
+- 支持按钮的双状态图标显示
+- 与侧边栏面板系统集成
+- 增强的工具提示系统提供更详细的用户指导
+
+```mermaid
+classDiagram
+class ActivityBar {
++enum Activity {
++ None = -1,
++ Project = 0,
++ Analysis,
++ Device,
++ Trace,
++ Graphic,
++ Dbc,
++ Transceive, // 新增收发模式
++ Extensions, // 新增扩展模式
++ Settings
++}
++ActivityBar(parent)
++setCurrentActivity(act)
++onButtonClicked()
++createButton(iconPath, tooltip, act, atBottom)
++flowButtonUpdated()
+}
+class TransceivePanel {
++openSendRequested()
++openPlaybackRequested()
++openRecordRequested()
++onSendClicked()
++onPlaybackClicked()
++onRecordClicked()
+}
+class ExtensionsPanel {
++commandTriggered()
++itemActivated()
++pluginToggleRequested()
++driverToggleRequested()
++installFromFileRequested()
++openMarketRequested()
+}
+ActivityBar --> TransceivePanel : "触发"
+ActivityBar --> ExtensionsPanel : "触发"
+```
+
+**图表来源**
+- [src/ui/activitybar.h](file://src/ui/activitybar.h)
+- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+
+章节来源
+- [src/ui/activitybar.h](file://src/ui/activitybar.h)
+- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
+
+### 扩展面板（ExtensionsPanel）- 新增
+功能特性
+- **新增** 插件市场功能，支持驱动与插件的安装、管理和搜索
+- **新增** 丰富的用户界面，提供直观的插件管理体验
+- **新增** 与主窗口的深度集成，支持各种插件操作
+- **增强** 工具提示系统，提供详细的用户指导
+
+技术实现
+- 继承自SidePanel基类，保持界面风格一致
+- 支持插件的搜索、安装、卸载、启用/禁用等操作
+- 与主窗口的信号槽机制集成，处理各种插件相关事件
+- 提供友好的用户界面和错误处理机制
+
+```mermaid
+classDiagram
+class ExtensionsPanel {
++ExtensionsPanel(parent)
++refreshEntries()
++onSearchChanged()
++rebuild()
++makeRow(entry)
++addSectionLabel(title)
++addCommand(id, title)
++clearCommands()
++onCommandClicked(item)
++onMenuClicked()
++commandTriggered() signal
++itemActivated() signal
++pluginToggleRequested() signal
++driverToggleRequested() signal
++installFromFileRequested() signal
++openMarketRequested() signal
+}
+class SidePanel {
++title string
++contentLayout QVBoxLayout*
++setupTitle(title)
++contentLayout() QVBoxLayout*
+}
+class MainWindow {
++onExtensionCommand()
++onExtensionItemActivated()
++onPluginToggleRequested()
++onDriverToggleRequested()
++onInstallFromFileRequested()
++onOpenMarketRequested()
+}
+ExtensionsPanel --> SidePanel : "继承"
+ExtensionsPanel --> MainWindow : "信号连接"
+```
+
+**图表来源**
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+
+章节来源
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+
+### 收发面板（TransceivePanel）- 新增
+功能特性
+- **新增** 统一的收发功能入口，整合发送、回放、录制三个功能
+- **新增** 简洁的按钮界面，提供直观的操作入口
+- **新增** 信号发射机制，与主窗口进行通信
+- **新增** 可扩展的架构，支持未来功能的添加
+
+技术实现
+- 继承自SidePanel基类，保持界面风格一致
+- 三个主要按钮分别对应发送、回放、录制功能
+- 通过信号槽机制与主窗口进行通信
+- 支持按钮的样式定制和交互反馈
+
+```mermaid
+classDiagram
+class TransceivePanel {
++TransceivePanel(parent)
++openSendRequested() signal
++openPlaybackRequested() signal
++openRecordRequested() signal
++onSendClicked()
++onPlaybackClicked()
++onRecordClicked()
++setupButtons()
++connectSignals()
+}
+class SidePanel {
++title string
++contentLayout QVBoxLayout*
++setupTitle(title)
++contentLayout() QVBoxLayout*
+}
+class MainWindow {
++onTransceiveSend()
++onTransceivePlayback()
++onTransceiveRecord()
++openSendTab()
++openPlaybackTab()
++openRecordTab()
+}
+TransceivePanel --> SidePanel : "继承"
+TransceivePanel --> MainWindow : "信号连接"
+```
+
+**图表来源**
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+
+章节来源
+- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+
 ### 样式系统（QSS与主题管理）
 设计理念
 - 集中式样式表：通过单一QSS文件管理全局外观
@@ -630,7 +807,7 @@ SvgIconSystem --> ThemeIntegration : "集成"
 - 便于打包与版本化管理
 - 支持Web前端资源的统一管理
 
-**更新** 新增了SVG图标资源，包括project.svg、trace.svg、graphic.svg、database.svg、send.svg、record.svg、device.svg、protocol.svg、flow.svg、tools.svg、settings.svg、file.svg等图标文件，全部支持动态颜色替换。
+**更新** 新增了SVG图标资源，包括project.svg、trace.svg、graphic.svg、database.svg、send.svg、record.svg、device.svg、protocol.svg、flow.svg、tools.svg、settings.svg、file.svg、extensions.svg等图标文件，全部支持动态颜色替换。
 
 常用用法
 - 在样式表中引用资源：url(:/styles/default.qss)
@@ -710,113 +887,6 @@ SettingsDialog --> AppConfig : "操作"
 章节来源
 - [src/ui/settingsdialog.h](file://src/ui/settingsdialog.h)
 - [src/ui/settingsdialog.cpp](file://src/ui/settingsdialog.cpp)
-
-### 活动栏（ActivityBar）增强
-功能特性
-- **新增** Transceive模式枚举，提供统一的收发功能入口
-- **新增** 收发按钮集成，支持发送、回放、录制的快速访问
-- **增强** 活动栏按钮顺序优化，工作流程更加合理
-- **增强** 工具提示改进，提供更清晰的功能描述
-
-技术实现
-- 在Activity枚举中新增Transceive类型
-- 在活动栏初始化时添加工发按钮
-- 支持按钮的双状态图标显示
-- 与侧边栏面板系统集成
-
-```mermaid
-classDiagram
-class ActivityBar {
-+enum Activity {
-+ None = -1,
-+ Project = 0,
-+ Analysis,
-+ Device,
-+ Trace,
-+ Graphic,
-+ Dbc,
-+ Transceive, // 新增收发模式
-+ Protocol,
-+ Tools,
-+ Settings
-+}
-+ActivityBar(parent)
-+setCurrentActivity(act)
-+onButtonClicked()
-+createButton(iconPath, tooltip, act, atBottom)
-+flowButtonUpdated()
-}
-class TransceivePanel {
-+openSendRequested()
-+openPlaybackRequested()
-+openRecordRequested()
-+onSendClicked()
-+onPlaybackClicked()
-+onRecordClicked()
-}
-ActivityBar --> TransceivePanel : "触发"
-```
-
-**图表来源**
-- [src/ui/activitybar.h](file://src/ui/activitybar.h)
-- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
-- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
-
-章节来源
-- [src/ui/activitybar.h](file://src/ui/activitybar.h)
-- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
-
-### 收发面板（TransceivePanel）- 新增
-功能特性
-- **新增** 统一的收发功能入口，整合发送、回放、录制三个功能
-- **新增** 简洁的按钮界面，提供直观的操作入口
-- **新增** 信号发射机制，与主窗口进行通信
-- **新增** 可扩展的架构，支持未来功能的添加
-
-技术实现
-- 继承自SidePanel基类，保持界面风格一致
-- 三个主要按钮分别对应发送、回放、录制功能
-- 通过信号槽机制与主窗口进行通信
-- 支持按钮的样式定制和交互反馈
-
-```mermaid
-classDiagram
-class TransceivePanel {
-+TransceivePanel(parent)
-+openSendRequested() signal
-+openPlaybackRequested() signal
-+openRecordRequested() signal
-+onSendClicked()
-+onPlaybackClicked()
-+onRecordClicked()
-+setupButtons()
-+connectSignals()
-}
-class SidePanel {
-+title string
-+contentLayout QVBoxLayout*
-+setupTitle(title)
-+contentLayout() QVBoxLayout*
-}
-class MainWindow {
-+onTransceiveSend()
-+onTransceivePlayback()
-+onTransceiveRecord()
-+openSendTab()
-+openPlaybackTab()
-+openRecordTab()
-}
-TransceivePanel --> SidePanel : "继承"
-TransceivePanel --> MainWindow : "信号连接"
-```
-
-**图表来源**
-- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
-- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
-
-章节来源
-- [src/ui/panels/sidebarpanels.h](file://src/ui/panels/sidebarpanels.h)
-- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
 
 ### FilterHeaderView组件（新增）
 功能特性
@@ -2775,7 +2845,7 @@ TPANEL --> RecordTab["录制标签页"]
   - **新增** 视窗代理模型应提供固定的视窗大小限制
   - **新增** FilterHeaderView应实现自定义绘制避免性能开销
   - **新增** TransceivePanel应使用轻量级设计减少内存占用
-  - **新增** Downsample模块应实现智能数据裁剪和四种抽稀策略
+  - **新增** Downsample模块应实现O(视口宽)恒定渲染成本和四种抽稀策略
 - **最新规范要求**
   - 图形组件必须包含完善的错误处理和异常恢复机制
   - 所有组件需支持测试数据集的兼容性验证
