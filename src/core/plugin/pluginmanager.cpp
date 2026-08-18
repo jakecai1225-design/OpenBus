@@ -151,7 +151,7 @@ void PluginManager::initialize()
     discoverPlugins();
     startHostIfNeeded();
 
-    // 插件不自动激活，由用户在扩展面板中双击触发
+    // 插件不自动激活，由用户在插件市场面板中启动
 }
 
 void PluginManager::startHostIfNeeded()

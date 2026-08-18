@@ -8,10 +8,13 @@
 #include <QColor>
 #include <QRectF>
 
+#include "ui/marketmodel.h"   // MarketItem / FrameRow / MarketEntryData（§13.10）
+
 class QTreeWidget;
 class QTreeWidgetItem;
 class QListWidget;
 class QListWidgetItem;
+class QScrollArea;
 class QComboBox;
 class QCheckBox;
 class QLabel;
@@ -309,26 +312,10 @@ private:
 };
 
 // ============================================================
-//  扩展面板数据条目
-// ============================================================
-struct ExtensionEntry
-{
-    QString name;
-    QString version;
-    QString author;
-    QString description;
-    QString iconPath;        ///< 图标文件绝对路径（可空，空时用首字母头像）
-    bool installed = false;
-    bool enabled = true;     // 可用（未禁用）
-    bool activated = false;  // 已激活（正在运行）
-    int downloads = 0;
-    double rating = 0.0;
-};
-
-// ============================================================
-//  扩展面板 — 插件管理（对标 VSCode Extensions 视图）
-//  搜索栏 + 右上角 "…" 菜单（离线安装 .opk / 刷新）
-//  + 已安装/已禁用折叠列表（图标行 + 齿轮操作菜单）+ 命令列表
+//  扩展面板 — 迷你市场（与插件市场页同数据源同行风格，方案 §13.10）
+//  搜索栏 + 右上角 "…" 菜单（离线安装 .odp/.opk / 打开市场页 / 刷新）
+//  + 三分组条目（已安装 = 驱动+插件 / 驱动市场 / 插件市场，点击跳
+//  市场页定位详情）+ 行内齿轮菜单（启停/启禁/卸载）+ 命令列表
 // ============================================================
 class ExtensionsPanel : public SidePanel
 {
@@ -336,42 +323,41 @@ class ExtensionsPanel : public SidePanel
 public:
     explicit ExtensionsPanel(QWidget *parent = nullptr);
 
-    void refreshInstalledPlugins(const QList<ExtensionEntry> &entries);
+    /// 重新聚合四源并重建三分组（数据源信号已自动连接）
+    void refreshEntries();
     void addCommand(const QString &id, const QString &title);
     void clearCommands();
 
 signals:
     void commandTriggered(const QString &id);
+    /// 行点击 → 请求打开插件市场页并定位该条目详情
+    void itemActivated(const MarketItem &item);
     void pluginToggleRequested(const QString &name, bool enable);  // 启用/禁用
-    void pluginActivated(const QString &name);                     // 双击/菜单：启动（重启）
-    void pluginDeactivateRequested(const QString &name);           // 菜单：停止
-    void pluginUninstallRequested(const QString &name);            // 菜单：卸载
-    void pluginSelected(const QString &name);                      // 单击：打开详情页
-    void installOpkRequested();                                    // "…" 菜单：离线安装 .opk
-    void refreshPluginsRequested();                                // "…" 菜单：刷新
-
-protected:
-    /// 捕获插件行 widget 的单击/双击（itemWidget 会吞掉树控件的鼠标事件）
-    bool eventFilter(QObject *obj, QEvent *ev) override;
+    void pluginActivated(const QString &name);                     // 启动（重启）
+    void pluginDeactivateRequested(const QString &name);           // 停止
+    void pluginUninstallRequested(const QString &name);            // 卸载
+    void driverToggleRequested(const QString &driverId, bool enable);  // 禁用/启用
+    void driverUninstallRequested(const QString &driverId);            // 卸载
+    void installFromFileRequested();   // "…" 菜单：离线安装 .odp / .opk
+    void openMarketRequested();        // "…" 菜单：打开插件市场页
 
 private slots:
-    void onSearchChanged(const QString &text);
-    void onItemClicked(QTreeWidgetItem *item, int column);
+    void onSearchChanged();
     void onMenuClicked();   // "…" 按钮
+    void onCommandClicked(QListWidgetItem *item);
 
 private:
     QLineEdit *m_searchEdit;
     QToolButton *m_menuBtn;
-    QTreeWidget *m_tree;
-    QTreeWidgetItem *m_installedHeader = nullptr;  // 已启用
-    QTreeWidgetItem *m_disabledHeader = nullptr;   // 已禁用
-    QTreeWidgetItem *m_commandsHeader = nullptr;
-    QList<ExtensionEntry> m_lastEntries;  // 最近一次列表（主题切换时重建行图标用）
+    QScrollArea *m_listArea = nullptr;
+    QVBoxLayout *m_listLay = nullptr;    // 三分组条目（尾 stretch）
+    QLabel *m_cmdHeader = nullptr;       // 命令分组标题（无命令时隐藏）
+    QListWidget *m_cmdList = nullptr;    // 插件命令入口
 
-    QWidget *createPluginWidget(const ExtensionEntry &entry, bool disabledSection);
-    void showGearMenu(const QString &name, bool enabled, bool activated,
-                      const QPoint &globalPos);
-    void filterPlugins(const QString &text);
+    void rebuild();                      // 依据搜索词 + 四源重建三分组
+    FrameRow *makeRow(const MarketEntryData &e);
+    void addSectionLabel(const QString &title);
+    void showGearMenu(const MarketEntryData &e, const QPoint &globalPos);
 };
 
 // ============================================================

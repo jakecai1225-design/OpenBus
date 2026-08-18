@@ -52,7 +52,7 @@ ActivityBar::ActivityBar(QWidget *parent)
     m_buttons.append({createButton(":/icons/send.svg", "收发", Transceive), Transceive, "收发", "收发 — 发送 / 回放 / 录制", ":/icons/send.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/extensions.svg", "扩展", Extensions), Extensions, "扩展", "插件管理 — 安装 / 启用 / 搜索插件", ":/icons/extensions.svg"});
+    m_buttons.append({createButton(":/icons/extensions.svg", "插件市场", Extensions), Extensions, "插件市场", "插件市场 — 驱动与插件的安装 / 管理 / 搜索", ":/icons/extensions.svg"});
     layout->addWidget(m_buttons.last().btn);
 
     layout->addStretch();

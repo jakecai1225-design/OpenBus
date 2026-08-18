@@ -6,6 +6,7 @@
 #include <QUrl>
 
 #include "core/driver/marketindex.h"
+#include "marketmodel.h"   // MarketItem / FrameRow / MarketModel 共享层（方案 §13.10）
 
 class QLabel;
 class QLineEdit;
@@ -18,16 +19,6 @@ class QTableWidget;
 class QTextBrowser;
 class QNetworkAccessManager;
 class QNetworkReply;
-class FrameRow;
-
-/// 统一市场条目（四类：已装驱动/已装插件/市场驱动/市场插件）
-struct MarketItem {
-    enum Kind { InstalledDriver, InstalledPlugin, MarketDriver, MarketPlugin };
-    Kind kind = MarketDriver;
-    QString id;   ///< driverId 或插件名
-
-    bool operator==(const MarketItem &o) const { return kind == o.kind && id == o.id; }
-};
 
 /**
  * @brief 插件市场标签页 — 统一市场（VS Code 扩展市场风格，doc/驱动系统方案.md §13.5）
@@ -52,6 +43,11 @@ public:
     void refreshInstalled();
     /// 聚焦搜索框并全选（设备树「＋新增设备」跳转联动，方案 §13.6）
     void focusSearch();
+    /// 定位并展示指定条目（清空搜索/筛选 → 重建列表 → 选中展示详情；
+    /// 侧边栏迷你市场与设备树联动的统一入口，方案 §13.10）
+    void revealItem(const MarketItem &item);
+    /// 离线安装本地包（.odp 驱动 / .opk 插件，与「⋯ 安装」同一链路与确认文案）
+    void installLocalFile(const QString &path);
 
 signals:
     /// 驱动安装成功（Registry 已热加载，driversChanged 触发设备树刷新）
@@ -94,11 +90,7 @@ private:
     void showInstalledPlugin(const QString &name);
 
     // ---- 图标/图片 ----
-    void fetchPixmap(const QUrl &url, int maxH,
-                     const std::function<void(const QPixmap &)> &cb);
-    QString imageCachePath(const QUrl &url) const;
     void loadRowIcon(FrameRow *row, const QString &relPath);   // 市场 icon（32）
-    QPixmap pluginIconLocal(const QString &name) const;
 
     // ---- 安装/卸载 ----
     /// 市场下载安装（进度条 → sha256 → 驱动 installOdpFile / 插件 installPackage）
@@ -111,9 +103,7 @@ private:
     void uninstallPlugin(const QString &name);
 
     // ---- 本地状态查询 ----
-    bool isDriverInstalled(const QString &driverId) const;
     QString installedDriverVersion(const QString &driverId) const;
-    bool isPluginInstalled(const QString &id) const;
     QString installedPluginVersion(const QString &id) const;
 
     // ---- UI ----

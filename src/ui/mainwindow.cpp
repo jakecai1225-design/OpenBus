@@ -29,7 +29,6 @@
 #include "ui/deviceconnectiontab.h"
 #include "core/driver/driverregistry.h"
 #include "ui/markettab.h"
-#include "ui/plugindetailpage.h"
 // ui/udsview.h, ui/canopenview.h 已移除 — UDS/CANopen 由插件 uds-diagnostic/canopen-explorer 提供
 #include "ui/tools/dbcsignallistview.h"
 #include "ui/datawindow.h"
@@ -136,12 +135,18 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_activityBar, &ActivityBar::activityToggled,
             this, &MainWindow::onActivityToggled);
 
-    // ExtensionsPanel → 插件操作
+    // ExtensionsPanel（迷你市场）→ 插件/驱动操作（方案 §13.10：与市场页同一语义）
     auto *extPanel = m_sideBar->extensionsPanel();
     if (extPanel) {
         connect(extPanel, &ExtensionsPanel::commandTriggered,
                 this, [this](const QString &id) {
             if (m_pluginManager) m_pluginManager->executeCommand(id);
+        });
+        // 行点击 → 打开插件市场页并定位该条目详情
+        connect(extPanel, &ExtensionsPanel::itemActivated,
+                this, [this](const MarketItem &item) {
+            onOpenMarketTab();
+            m_marketTab->revealItem(item);
         });
         connect(extPanel, &ExtensionsPanel::pluginToggleRequested,
                 this, [this](const QString &name, bool enable) {
@@ -170,31 +175,39 @@ MainWindow::MainWindow(QWidget *parent)
             if (!err.isEmpty())
                 QMessageBox::warning(this, QStringLiteral("卸载插件"), err);
         });
-        connect(extPanel, &ExtensionsPanel::pluginSelected,
-                this, &MainWindow::openPluginDetail);
-        connect(extPanel, &ExtensionsPanel::installOpkRequested,
+        // 驱动禁用/卸载（与市场页详情按钮同一文案与语义）
+        connect(extPanel, &ExtensionsPanel::driverToggleRequested,
+                this, [this](const QString &driverId, bool enable) {
+            DriverRegistry::instance()->setDriverEnabled(driverId, enable);
+            // driversChanged → 市场页/侧边栏/设备树自动刷新
+        });
+        connect(extPanel, &ExtensionsPanel::driverUninstallRequested,
+                this, [this](const QString &driverId) {
+            if (QMessageBox::question(
+                    this, QStringLiteral("卸载驱动"),
+                    QStringLiteral("确定卸载驱动 %1？\n\n"
+                                   "若其 DLL 已被本次运行加载，重启程序后将彻底清理（方案 §7.4）。")
+                        .arg(driverId))
+                != QMessageBox::Yes)
+                return;
+            const QString err = DriverRegistry::instance()->uninstallExternal(driverId);
+            if (!err.isEmpty())
+                QMessageBox::warning(this, QStringLiteral("卸载驱动"), err);
+        });
+        // 离线安装 .odp/.opk（与市场页「⋯ 安装」同一安装链）
+        connect(extPanel, &ExtensionsPanel::installFromFileRequested,
                 this, [this]() {
             const QString path = QFileDialog::getOpenFileName(
-                this, QStringLiteral("选择插件包"), QString(),
-                QStringLiteral("openbus 插件包 (*.opk);;所有文件 (*)"));
+                this, QStringLiteral("选择驱动/插件包"), QString(),
+                QStringLiteral("openbus 驱动与插件包 (*.odp *.opk);;所有文件 (*)"));
             if (path.isEmpty())
                 return;
-            const QString err = m_pluginManager
-                                    ? m_pluginManager->installPackage(path)
-                                    : QStringLiteral("插件系统未初始化");
-            if (!err.isEmpty())
-                QMessageBox::warning(this, QStringLiteral("安装插件"), err);
-            else
-                QMessageBox::information(this, QStringLiteral("安装插件"),
-                                         QStringLiteral("插件安装成功"));
+            if (!m_marketTab)
+                setupMarketTab();
+            m_marketTab->installLocalFile(path);
         });
-        connect(extPanel, &ExtensionsPanel::refreshPluginsRequested,
-                this, [this]() {
-            refreshPluginList();
-            if (m_marketTab) m_marketTab->refreshInstalled();
-        });
-        connect(m_pluginManager, &PluginManager::pluginListChanged,
-                this, &MainWindow::refreshPluginList);
+        connect(extPanel, &ExtensionsPanel::openMarketRequested,
+                this, &MainWindow::onOpenMarketTab);
     }
 
     // MarketTab → 统一插件市场标签页（见 setupMarketTab）
@@ -394,7 +407,7 @@ MainWindow::MainWindow(QWidget *parent)
             else if (text.contains("发送") || text.contains("回放") ||
                      text.contains("录制") || text.contains("离线分析"))
                 act = ActivityBar::Transceive;
-            else if (text == QStringLiteral("扩展"))
+            else if (text.contains(QStringLiteral("插件市场")))
                 act = ActivityBar::Extensions;
 
             if (act != ActivityBar::None) {
@@ -417,7 +430,6 @@ MainWindow::MainWindow(QWidget *parent)
     m_bottomPanel->appendOutput("openbus 启动完成");
     updateActions();
     refreshPanelLists();
-    refreshPluginList();
 
     // ---- 工程管理 ----
     connect(m_sideBar->projectPanel(), &ProjectPanel::projectSwitched,
@@ -564,7 +576,7 @@ void MainWindow::createMenuBar()
 
     // ---- 工具 ----
     // 原“工具集/协议”侧边栏功能已插件化（blf-converter / dbc-tool / bus-statistics /
-    // uds-diagnostic / canopen-explorer），在“扩展”面板安装使用；内置工具保留在此菜单
+    // uds-diagnostic / canopen-explorer），在「插件市场」安装使用；内置工具保留在此菜单
     auto *toolsMenu = menuBar()->addMenu("工具(&T)");
     toolsMenu->addAction("Data Window", QKeySequence("Ctrl+Shift+D"),
                          this, &MainWindow::onOpenDataWindow);
@@ -611,7 +623,7 @@ void MainWindow::createMenuBar()
         else    m_simulator->stop();
     });
 
-    // ---- 插件入口已移至侧边栏扩展面板 ----
+    // ---- 插件入口已统一至插件市场（侧边栏迷你市场 + 插件市场页，方案 §13.10） ----
 
     // ---- 帮助 ----
     auto *helpMenu = menuBar()->addMenu("帮助(&H)");
@@ -871,7 +883,7 @@ void MainWindow::onActivityChanged(int activity)
     } else if (activity == ActivityBar::Analysis) {
         onOpenMeasurementSetup();
     } else if (activity == ActivityBar::Extensions) {
-        // 扩展管理：打开统一插件市场标签页（v2，方案 §13.5）
+        // 插件市场：打开统一插件市场标签页（v2，方案 §13.5）
         const auto allTabs = m_editorArea->allTabWidgets();
         bool found = false;
         for (auto *tw : allTabs) {
@@ -1511,33 +1523,6 @@ void MainWindow::onOpenMarketTab()
     m_marketTab->refreshInstalled();
     // ＋新增设备跳转后直接聚焦搜索（方案 §13.6）
     m_marketTab->focusSearch();
-}
-
-void MainWindow::openPluginDetail(const QString &name)
-{
-    // 多个插件共用一个详情标签页
-    if (!m_pluginDetailPage) {
-        m_pluginDetailPage = new PluginDetailPage(this);
-        // 标签页被关闭后 widget 被删除 → 置空指针，下次点击重建
-        connect(m_pluginDetailPage, &QObject::destroyed, this, [this]() {
-            m_pluginDetailPage = nullptr;
-        });
-    }
-    m_pluginDetailPage->showPlugin(name);
-
-    // 已打开 → 复用并更新标签文本；否则在编辑区新开
-    auto *tabs = m_editorArea->activeTabWidget();
-    if (tabs) {
-        for (int i = 0; i < tabs->count(); ++i) {
-            if (tabs->widget(i) == m_pluginDetailPage) {
-                tabs->setTabText(i, name);
-                tabs->setCurrentIndex(i);
-                m_tabLabel->setText(name);
-                return;
-            }
-        }
-    }
-    openTab(m_pluginDetailPage, name);
 }
 
 void MainWindow::onOpenTraceTab()
@@ -2982,30 +2967,8 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr
 #endif
 
 // ============================================================
-//  插件系统集成
+//  插件系统集成（侧边栏迷你市场自刷，无需集中推送列表）
 // ============================================================
-
-void MainWindow::refreshPluginList()
-{
-    if (!m_sideBar || !m_sideBar->extensionsPanel() || !m_pluginManager)
-        return;
-
-    QList<ExtensionEntry> entries;
-    const auto plugins = m_pluginManager->discoveredPlugins();
-    for (const auto &info : plugins) {
-        ExtensionEntry e;
-        e.name = info.name;
-        e.version = info.version;
-        e.author = info.author;
-        e.description = info.description;
-        e.iconPath = info.iconFilePath();
-        e.installed = true;
-        e.enabled = m_pluginManager->isPluginEnabled(info.name);
-        e.activated = m_pluginManager->isPluginActivated(info.name);
-        entries.append(e);
-    }
-    m_sideBar->extensionsPanel()->refreshInstalledPlugins(entries);
-}
 
 void MainWindow::onPluginOutput(const QString &text)
 {
@@ -3014,7 +2977,7 @@ void MainWindow::onPluginOutput(const QString &text)
 
 void MainWindow::onPluginCommandRegistered(const QString &id, const QString &title)
 {
-    // 添加到侧边栏扩展面板的命令列表
+    // 添加到侧边栏插件市场面板的命令列表
     if (m_sideBar && m_sideBar->extensionsPanel())
         m_sideBar->extensionsPanel()->addCommand(id, title);
 }

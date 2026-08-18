@@ -32,7 +32,6 @@ class RightPanel;
 class MeasurementSetupView;
 class DeviceConnectionTab;
 class MarketTab;
-class PluginDetailPage;
 class BusStatistics;
 class FilterPresetManager;
 class BookmarkManager;
@@ -182,9 +181,7 @@ private:
     void processCommand(const QString &cmd);
     void openTab(QWidget *widget, const QString &label);
     void refreshPanelLists();
-    void refreshPluginList();
     void setupMarketTab();  // 创建/重建 MarketTab（统一插件市场）并连接信号
-    void openPluginDetail(const QString &name);  // 打开插件详情页（多插件共用一个标签页）
     void linkGraphicCursor(GraphicView *gv);  // 新建 GraphicView 时与已有视图建立游标联动
 
     // ---- 布局 ----
@@ -219,7 +216,6 @@ private:
     RecordTab *m_recordTab = nullptr;
     DeviceConnectionTab *m_deviceTab = nullptr;
     MarketTab *m_marketTab = nullptr;   // 统一插件市场（驱动 + 插件，方案 §13）
-    PluginDetailPage *m_pluginDetailPage = nullptr;
 
     // ---- 核心引擎 ----
     Recorder *m_recorder = nullptr;

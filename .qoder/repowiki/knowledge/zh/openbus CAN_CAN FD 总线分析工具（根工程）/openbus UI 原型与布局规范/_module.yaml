@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: ui_layer
+title: openbus UI 原型与布局规范
+scope:
+    - UI/
+source_files: []
+depends_on: []
+related_to: []

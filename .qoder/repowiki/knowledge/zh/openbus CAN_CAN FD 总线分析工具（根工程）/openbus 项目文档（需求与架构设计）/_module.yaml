@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: documentation
+title: openbus 项目文档（需求与架构设计）
+scope:
+    - doc/
+source_files: []
+depends_on: []
+related_to: []

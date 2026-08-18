@@ -43,38 +43,8 @@
 #include <algorithm>
 #include <functional>
 
-// ============================================================
-//  行组件与辅助（VS Code 扩展列表风格）
-// ============================================================
-
-/// 列表行：图标 + 标题/元信息 + 状态词 +（已装插件）行内启停小按钮。
-///  无 Q_OBJECT（用动态属性 marketRow 标记，updateRowStyles 以 property 识别）
-class FrameRow : public QFrame {
-public:
-    explicit FrameRow(QWidget *parent = nullptr) : QFrame(parent)
-    {
-        setObjectName(QStringLiteral("marketRow"));
-        setProperty("marketRow", true);
-    }
-    using ClickCb = std::function<void()>;
-    void setOnClick(ClickCb cb) { m_cb = std::move(cb); }
-    void setSelected(bool sel)
-    {
-        setStyleSheet(sel
-            ? QStringLiteral("QFrame#marketRow { background-color: rgba(86,156,214,0.22);"
-                             " border-radius: 4px; }")
-            : QStringLiteral("QFrame#marketRow { background-color: transparent; }"));
-    }
-
-    MarketItem item;
-    QLabel *iconLabel = nullptr;
-
-protected:
-    void mousePressEvent(QMouseEvent *) override { if (m_cb) m_cb(); }
-
-private:
-    ClickCb m_cb;
-};
+// FrameRow / MarketItem / 四源聚合与图标缓存在 ui/marketmodel.h 共享层
+//（方案 §13.10，与侧边栏迷你市场同源同风格）
 
 namespace {
 
@@ -308,6 +278,33 @@ void MarketTab::focusSearch()
     m_searchEdit->selectAll();
 }
 
+void MarketTab::revealItem(const MarketItem &item)
+{
+    // 清空搜索词与筛选，保证目标行可见（setText 可能不触发 textChanged，
+    // 下面统一 rebuildList）
+    m_searchEdit->setText(QString());
+    m_filterAll->setChecked(true);
+    m_filterDrivers->setChecked(false);
+    m_filterPlugins->setChecked(false);
+    rebuildList();
+    selectItem(item);
+}
+
+void MarketTab::installLocalFile(const QString &path)
+{
+    if (path.endsWith(QStringLiteral(".opk"), Qt::CaseInsensitive)) {
+        const QString err = PluginManager::instance()->installPackage(path);
+        if (!err.isEmpty())
+            QMessageBox::warning(this, QStringLiteral("安装插件"), err);
+        else
+            QMessageBox::information(this, QStringLiteral("安装插件"),
+                                     QStringLiteral("插件安装成功"));
+        refreshInstalled();
+    } else {
+        installOdpFile(path, QString());   // 离线包依赖包内 CHECKSUMS 自校验
+    }
+}
+
 void MarketTab::onSearchChanged()
 {
     rebuildList();
@@ -331,20 +328,13 @@ void MarketTab::onInstallFromFile()
             this, QStringLiteral("选择驱动包"), QString(),
             QStringLiteral("openbus 驱动包 (*.odp);;所有文件 (*)"));
         if (!odp.isEmpty())
-            installOdpFile(odp, QString());   // 离线包依赖包内 CHECKSUMS 自校验
+            installLocalFile(odp);
     } else if (chosen == opkAct) {
         const QString opk = QFileDialog::getOpenFileName(
             this, QStringLiteral("选择插件包"), QString(),
             QStringLiteral("openbus 插件包 (*.opk);;所有文件 (*)"));
-        if (opk.isEmpty())
-            return;
-        const QString err = PluginManager::instance()->installPackage(opk);
-        if (!err.isEmpty())
-            QMessageBox::warning(this, QStringLiteral("安装插件"), err);
-        else
-            QMessageBox::information(this, QStringLiteral("安装插件"),
-                                     QStringLiteral("插件安装成功"));
-        refreshInstalled();
+        if (!opk.isEmpty())
+            installLocalFile(opk);
     }
 }
 
@@ -464,57 +454,32 @@ void MarketTab::rebuildList()
     // ---- 分组：已安装（驱动 + 插件混合） ----
     int installedCount = 0;
     if (wantDrivers) {
-        const auto entries = DriverRegistry::instance()->drivers();
-        for (const auto &e : entries) {
-            if (!MarketIndex::matchWords(
-                    text, { e.displayName, e.driverId, e.version }))
+        for (const auto &e : MarketModel::collectInstalledDrivers()) {
+            if (!MarketIndex::matchWords(text, e.searchFields))
                 continue;
             if (installedCount == 0)
                 addSectionLabel(QStringLiteral("已安装"));
-            const QString source = e.builtin ? QStringLiteral("内置")
-                                             : QStringLiteral("外置");
-            const QString state = e.enabled
-                                      ? (e.available ? QStringLiteral("可用")
-                                                     : QStringLiteral("不可用"))
-                                      : QStringLiteral("已禁用");
-            const QString version = e.version.isEmpty()
-                                        ? QStringLiteral("-") : e.version;
-            auto *row = makeRow({ MarketItem::InstalledDriver, e.driverId },
-                                e.displayName,
-                                QStringLiteral("v%1 · %2 · %3")
-                                    .arg(version, source, state),
-                                QString());
-            loadRowIcon(row, MarketIndex::instance()->driverById(e.driverId).icon);
+            auto *row = makeRow(e.item, e.title, e.meta, e.status);
+            loadRowIcon(row, e.marketIcon);
             insertBeforeStretch(row);
             ++installedCount;
             ++shown;
         }
     }
     if (wantPlugins) {
-        const auto plugins = PluginManager::instance()->discoveredPlugins();
-        for (const auto &p : plugins) {
-            if (!MarketIndex::matchWords(
-                    text, { p.name, p.version, p.author, p.description }))
+        for (const auto &e : MarketModel::collectInstalledPlugins()) {
+            if (!MarketIndex::matchWords(text, e.searchFields))
                 continue;
             if (installedCount == 0)
                 addSectionLabel(QStringLiteral("已安装"));
-            auto *pm = PluginManager::instance();
-            const bool enabled = pm->isPluginEnabled(p.name);
-            const bool activated = pm->isPluginActivated(p.name);
-            const QString status = !enabled ? QStringLiteral("已禁用")
-                                  : activated ? QStringLiteral("● 运行中")
-                                              : QStringLiteral("已就绪");
-            auto *row = makeRow({ MarketItem::InstalledPlugin, p.name },
-                                p.name,
-                                QStringLiteral("v%1 · %2").arg(p.version, p.author),
-                                status);
-            const QPixmap localIcon = pluginIconLocal(p.name);
+            auto *row = makeRow(e.item, e.title, e.meta, e.status);
+            const QPixmap localIcon = MarketModel::pluginIconLocal(e.item.id);
             if (!localIcon.isNull())
                 row->iconLabel->setPixmap(
                     localIcon.scaled(32, 32, Qt::KeepAspectRatio,
                                      Qt::SmoothTransformation));
             else
-                loadRowIcon(row, MarketIndex::instance()->pluginById(p.name).icon);
+                loadRowIcon(row, e.marketIcon);
             insertBeforeStretch(row);
             ++installedCount;
             ++shown;
@@ -524,22 +489,13 @@ void MarketTab::rebuildList()
     // ---- 分组：驱动市场（drivers[]，按驱动聚合） ----
     int driverMarket = 0;
     if (wantDrivers) {
-        const auto drivers = MarketIndex::instance()->drivers();
-        for (const auto &d : drivers) {
-            QStringList fields{ d.name, d.vendor, d.summary, d.keywords, d.id };
-            for (const auto &v : d.devices)
-                fields << v.toObject().value(QStringLiteral("model")).toString();
-            if (!MarketIndex::matchWords(text, fields))
+        for (const auto &e : MarketModel::collectMarketDrivers()) {
+            if (!MarketIndex::matchWords(text, e.searchFields))
                 continue;
             if (driverMarket == 0)
                 addSectionLabel(QStringLiteral("驱动市场"));
-            const QString local = installedDriverVersion(d.id);
-            const QString status = local.isEmpty()
-                                       ? QStringLiteral("未安装")
-                                       : QStringLiteral("已安装 v%1").arg(local);
-            auto *row = makeRow({ MarketItem::MarketDriver, d.id }, d.name,
-                                d.summary, status);
-            loadRowIcon(row, d.icon);
+            auto *row = makeRow(e.item, e.title, e.meta, e.status);
+            loadRowIcon(row, e.marketIcon);
             insertBeforeStretch(row);
             ++driverMarket;
             ++shown;
@@ -549,20 +505,13 @@ void MarketTab::rebuildList()
     // ---- 分组：插件市场（plugins[]） ----
     int pluginMarket = 0;
     if (wantPlugins) {
-        const auto plugins = MarketIndex::instance()->plugins();
-        for (const auto &p : plugins) {
-            QStringList fields{ p.name, p.id, p.publisher, p.description,
-                                p.keywords, p.tags.join(QLatin1Char(' ')) };
-            if (!MarketIndex::matchWords(text, fields))
+        for (const auto &e : MarketModel::collectMarketPlugins()) {
+            if (!MarketIndex::matchWords(text, e.searchFields))
                 continue;
             if (pluginMarket == 0)
                 addSectionLabel(QStringLiteral("插件市场"));
-            const QString local = installedPluginVersion(p.id);
-            const QString status = local.isEmpty() ? QStringLiteral("未安装")
-                                                   : QStringLiteral("已安装");
-            auto *row = makeRow({ MarketItem::MarketPlugin, p.id }, p.name,
-                                p.description, status);
-            loadRowIcon(row, p.icon);
+            auto *row = makeRow(e.item, e.title, e.meta, e.status);
+            loadRowIcon(row, e.marketIcon);
             insertBeforeStretch(row);
             ++pluginMarket;
             ++shown;
@@ -659,7 +608,7 @@ void MarketTab::showMarketDriver(const MarketIndex::DriverInfo &drv)
     hlay->setSpacing(12);
     auto *icon = makeIconPlaceholder(QStringLiteral("D"), 48);
     hlay->addWidget(icon);
-    fetchPixmap(MarketIndex::instance()->resolveUrl(drv.icon), 48,
+    MarketModel::fetchMarketPixmap(MarketIndex::instance()->resolveUrl(drv.icon),
                 [icon](const QPixmap &pm) {
                     QPointer<QLabel> g(icon);
                     if (g)
@@ -713,7 +662,7 @@ void MarketTab::showMarketDriver(const MarketIndex::DriverInfo &drv)
         img->setStyleSheet(QStringLiteral("background: #2a2d2e; border-radius: 4px;"
                                           " color: #777;"));
         m_detailLay->addWidget(img);
-        fetchPixmap(MarketIndex::instance()->resolveUrl(drv.image), 270,
+        MarketModel::fetchMarketPixmap(MarketIndex::instance()->resolveUrl(drv.image),
                     [img](const QPixmap &pm) {
                         QPointer<QLabel> g(img);
                         if (g)
@@ -788,7 +737,7 @@ void MarketTab::showInstalledDriver(const QString &driverId)
     hlay->addWidget(icon);
     const auto marketDrv = MarketIndex::instance()->driverById(driverId);
     if (!marketDrv.icon.isEmpty()) {
-        fetchPixmap(MarketIndex::instance()->resolveUrl(marketDrv.icon), 48,
+        MarketModel::fetchMarketPixmap(MarketIndex::instance()->resolveUrl(marketDrv.icon),
                     [icon](const QPixmap &pm) {
                         QPointer<QLabel> g(icon);
                         if (g)
@@ -884,7 +833,7 @@ void MarketTab::showMarketPlugin(const MarketIndex::PluginInfo &plug)
     hlay->setSpacing(12);
     auto *icon = makeIconPlaceholder(QStringLiteral("P"), 48);
     hlay->addWidget(icon);
-    fetchPixmap(MarketIndex::instance()->resolveUrl(plug.icon), 48,
+    MarketModel::fetchMarketPixmap(MarketIndex::instance()->resolveUrl(plug.icon),
                 [icon](const QPixmap &pm) {
                     QPointer<QLabel> g(icon);
                     if (g)
@@ -1035,62 +984,14 @@ void MarketTab::showInstalledPlugin(const QString &name)
 }
 
 // ============================================================
-//  图标 / 图片（磁盘缓存 + 网络异步）
+//  图标 / 图片（磁盘缓存 + 网络异步在 MarketModel 共享层，方案 §13.10）
 // ============================================================
-
-void MarketTab::fetchPixmap(const QUrl &url, int /*maxH*/,
-                            const std::function<void(const QPixmap &)> &cb)
-{
-    if (!url.isValid())
-        return;
-
-    // 磁盘缓存命中 → 直接回调
-    const QString cache = imageCachePath(url);
-    QPixmap pm(cache);
-    if (!pm.isNull()) {
-        cb(pm);
-        return;
-    }
-
-    QNetworkRequest req(url);
-    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                     QNetworkRequest::NoLessSafeRedirectPolicy);
-    auto *reply = m_nam->get(req);
-    connect(reply, &QNetworkReply::finished, this,
-            [this, reply, cache, cb]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError)
-            return;
-        const QByteArray data = reply->readAll();
-        QPixmap img;
-        if (!img.loadFromData(data))
-            return;
-        // 写入磁盘缓存（失败不影响显示）
-        QFile f(cache);
-        if (f.open(QIODevice::WriteOnly))
-            f.write(data);
-        cb(img);
-    });
-}
-
-QString MarketTab::imageCachePath(const QUrl &url) const
-{
-    const QString hash = QString::fromLatin1(QCryptographicHash::hash(
-        url.toString().toUtf8(), QCryptographicHash::Sha1).toHex());
-    QString suffix = QFileInfo(url.path()).suffix();
-    if (suffix.isEmpty())
-        suffix = QStringLiteral("img");
-    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-                        + QStringLiteral("/market-cache");
-    QDir().mkpath(dir);
-    return dir + QStringLiteral("/") + hash + QLatin1Char('.') + suffix;
-}
 
 void MarketTab::loadRowIcon(FrameRow *row, const QString &relPath)
 {
     if (relPath.isEmpty())
         return;
-    fetchPixmap(MarketIndex::instance()->resolveUrl(relPath), 32,
+    MarketModel::fetchMarketPixmap(MarketIndex::instance()->resolveUrl(relPath),
                 [row](const QPixmap &pm) {
                     QPointer<FrameRow> g(row);
                     if (g && g->iconLabel)
@@ -1098,20 +999,6 @@ void MarketTab::loadRowIcon(FrameRow *row, const QString &relPath)
                             pm.scaled(32, 32, Qt::KeepAspectRatio,
                                      Qt::SmoothTransformation));
                 });
-}
-
-QPixmap MarketTab::pluginIconLocal(const QString &name) const
-{
-    const auto plugins = PluginManager::instance()->discoveredPlugins();
-    for (const auto &p : plugins) {
-        if (p.name != name)
-            continue;
-        const QString f = p.iconFilePath();
-        if (!f.isEmpty())
-            return QPixmap(f);
-        break;
-    }
-    return QPixmap();
 }
 
 // ============================================================
@@ -1293,15 +1180,6 @@ void MarketTab::uninstallPlugin(const QString &name)
 //  本地状态查询
 // ============================================================
 
-bool MarketTab::isDriverInstalled(const QString &driverId) const
-{
-    for (const auto &e : DriverRegistry::instance()->drivers()) {
-        if (e.driverId == driverId)
-            return true;
-    }
-    return false;
-}
-
 QString MarketTab::installedDriverVersion(const QString &driverId) const
 {
     for (const auto &e : DriverRegistry::instance()->drivers()) {
@@ -1309,11 +1187,6 @@ QString MarketTab::installedDriverVersion(const QString &driverId) const
             return e.version;
     }
     return QString();
-}
-
-bool MarketTab::isPluginInstalled(const QString &id) const
-{
-    return !installedPluginVersion(id).isEmpty();
 }
 
 QString MarketTab::installedPluginVersion(const QString &id) const
