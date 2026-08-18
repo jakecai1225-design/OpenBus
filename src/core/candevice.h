@@ -36,6 +36,7 @@ public:
         Kvaser    = 2,   ///< Kvaser (canlib32)
         TongXing  = 3,   ///< 同星科技 (TSMCAN)
         SLCAN     = 4,   ///< 开源 SLCAN / serial-CAN 固件
+        Candle    = 5,   ///< Candle / GS_USB 开源 USB CAN (CANable 等)
     };
 
     /// 品牌显示名
@@ -53,6 +54,7 @@ public:
         int deviceIndex = 0;        ///< 设备序号（0-based）
         int channels = 1;           ///< 通道数
         QString driverId;           ///< 所属驱动 id（DriverRegistry 填充，如 "zlg"）
+        bool hasHwTimestamp = true; ///< 是否具备硬件时间戳（方案 §14.6；false=软件补齐）
     };
 
     /// 枚举所有品牌的所有可用设备

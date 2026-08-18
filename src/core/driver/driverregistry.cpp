@@ -521,6 +521,7 @@ QString DriverRegistry::brandToDriverId(ICanDevice::Brand b)
     case ICanDevice::Brand::Kvaser:   return QStringLiteral("kvaser");
     case ICanDevice::Brand::TongXing: return QStringLiteral("tongxing");
     case ICanDevice::Brand::SLCAN:    return QStringLiteral("slcan");
+    case ICanDevice::Brand::Candle:   return QStringLiteral("candle");
     }
     return QString();
 }
@@ -533,6 +534,7 @@ ICanDevice::Brand DriverRegistry::driverIdToBrand(const QString &id)
     if (key == QLatin1String("kvaser"))   return ICanDevice::Brand::Kvaser;
     if (key == QLatin1String("tongxing")) return ICanDevice::Brand::TongXing;
     if (key == QLatin1String("slcan"))    return ICanDevice::Brand::SLCAN;
+    if (key == QLatin1String("candle"))   return ICanDevice::Brand::Candle;
     return ICanDevice::Brand::SLCAN;   // 长尾驱动：无 Brand 枚举，仅 driverId 标识
 }
 
@@ -544,5 +546,6 @@ int DriverRegistry::driverIdToDeviceKind(const QString &id)
     if (key == QLatin1String("kvaser"))   return static_cast<int>(CanDeviceManager::DeviceKind::Kvaser);
     if (key == QLatin1String("tongxing")) return static_cast<int>(CanDeviceManager::DeviceKind::TongXing);
     if (key == QLatin1String("slcan"))    return static_cast<int>(CanDeviceManager::DeviceKind::SLCAN);
+    if (key == QLatin1String("candle"))   return static_cast<int>(CanDeviceManager::DeviceKind::Candle);
     return -1;   // 长尾驱动：DeviceConnectionTab 需声明式参数 schema（阶段 5）
 }

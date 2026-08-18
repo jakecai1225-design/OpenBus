@@ -28,3 +28,5 @@ set_target_properties(driver_peak PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/drivers/peak
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/drivers/peak
 )
+
+deploy_driver_manifest(driver_peak)

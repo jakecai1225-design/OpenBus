@@ -58,6 +58,17 @@ def _validate_manifest(manifest):
         return None, "缺少 version"
     if not isinstance(manifest.get("devices", []), list):
         return None, "devices 必须是数组"
+    # §14.6 框架字段：vendorSdk.dll 允许字符串（旧）或字符串数组（多 DLL 驱动）
+    sdk = manifest.get("vendorSdk")
+    if sdk is not None:
+        if not isinstance(sdk, dict):
+            return None, "vendorSdk 必须是对象"
+        dll = sdk.get("dll")
+        if dll is not None and not (
+            isinstance(dll, str)
+            or (isinstance(dll, list) and dll and all(isinstance(x, str) for x in dll))
+        ):
+            return None, "vendorSdk.dll 必须是非空字符串或字符串数组"
     return driver_id, None
 
 

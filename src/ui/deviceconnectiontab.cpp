@@ -13,6 +13,20 @@
 #include <QFrame>
 #include <QMessageBox>
 
+namespace {
+
+/// 该设备类型是否已实现后端（连接按钮门控）
+/// ZLG(1)/PEAK(2)/Kvaser(3) 先期实现；v2.2（方案 §14）新增 SLCAN(5)/Candle(6)；
+/// TongXing(4) 待硬件样机（方案 §14.4 批次 2）
+bool kindImplemented(int kind)
+{
+    return kind >= static_cast<int>(CanDeviceManager::DeviceKind::ZLG)
+        && kind <= static_cast<int>(CanDeviceManager::DeviceKind::Candle)
+        && kind != static_cast<int>(CanDeviceManager::DeviceKind::TongXing);
+}
+
+} // namespace
+
 DeviceConnectionTab::DeviceConnectionTab(QWidget *parent)
     : QWidget(parent)
 {
@@ -216,8 +230,8 @@ void DeviceConnectionTab::setDevice(int deviceKind, int devIndex, const QString 
 
     m_deviceLabel->setText(QStringLiteral("设备: %1").arg(deviceName));
 
-    // ZLG(1) 和 PEAK(2) 已实现(P0)，Kvaser(3) 基础可用(P1)
-    bool implemented = (deviceKind <= 3);
+    // ZLG(1)/PEAK(2)/Kvaser(3) 已实现(P0)；v2.2（方案 §14）新增 SLCAN(5)/Candle(6)
+    const bool implemented = kindImplemented(deviceKind);
     m_connectBtn->setEnabled(implemented);
     if (!implemented) {
         m_connectBtn->setText(QStringLiteral("连接 (待实现)"));
@@ -231,6 +245,32 @@ void DeviceConnectionTab::setDevice(int deviceKind, int devIndex, const QString 
 
     // 重置按钮状态
     m_disconnectBtn->setEnabled(false);
+
+    // ---- v2.2（方案 §14）驱动能力适配 ----
+    const bool slcan = (deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::SLCAN));
+    const bool autoTiming = slcan
+        || deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::Candle);
+    // SLCAN 各固件 FD 方言互不兼容，仅开放经典 CAN（方案 §14.5.2）
+    m_fdCombo->setEnabled(!slcan);
+    if (slcan)
+        m_fdCombo->setCurrentIndex(0);
+    // SLCAN/Candle 位时序由驱动自动计算（S 命令查表 / GS_USB 87.5% 采样点），
+    // 预设行不适用
+    m_arbTimingCombo->setEnabled(!autoTiming);
+    m_dataTimingCombo->setEnabled(!autoTiming);
+    if (autoTiming) {
+        m_arbTimingDetail->setText(QStringLiteral("驱动自动计算位时序（GS_USB 87.5% 采样点 / SLCAN 标准表）"));
+        m_dataTimingDetail->setText(QStringLiteral("驱动自动计算位时序（GS_USB 87.5% 采样点）"));
+    } else {
+        onArbTimingChanged(m_arbTimingCombo->currentIndex());
+        onDataTimingChanged(m_dataTimingCombo->currentIndex());
+    }
+    // SLCAN 单通道
+    if (m_channelChecks.size() > 1) {
+        m_channelChecks[1]->setEnabled(!slcan);
+        if (slcan)
+            m_channelChecks[1]->setChecked(false);
+    }
 
     updateCanFdVisibility();
 }
@@ -312,7 +352,7 @@ void DeviceConnectionTab::onDisconnect()
     }
     // 真实设备的停止由 MainWindow 在 deviceDisconnectRequested 信号中处理
 
-    m_connectBtn->setEnabled(m_deviceKind <= 3);
+    m_connectBtn->setEnabled(kindImplemented(m_deviceKind));
     m_disconnectBtn->setEnabled(false);
     m_statusLabel->setText(QStringLiteral("未连接"));
     m_statusLabel->setObjectName("StatusDim");

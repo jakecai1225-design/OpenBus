@@ -28,3 +28,5 @@ set_target_properties(driver_zlg PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/drivers/zlg
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/drivers/zlg
 )
+
+deploy_driver_manifest(driver_zlg)

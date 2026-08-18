@@ -21,6 +21,10 @@ set(SRC_CORE
     core/candevice_peak.cpp
     core/candevice_kvaser.h
     core/candevice_kvaser.cpp
+    core/candevice_slcan.h
+    core/candevice_slcan.cpp
+    core/candevice_candle.h
+    core/candevice_candle.cpp
     core/candevicemanager.h
     core/candevicemanager.cpp
     core/driver/candriverplugin.h

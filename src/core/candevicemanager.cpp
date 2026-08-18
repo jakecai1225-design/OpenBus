@@ -225,6 +225,7 @@ ICanDevice::Brand CanDeviceManager::kindToBrand(DeviceKind k)
     case DeviceKind::Kvaser:   return ICanDevice::Brand::Kvaser;
     case DeviceKind::TongXing: return ICanDevice::Brand::TongXing;
     case DeviceKind::SLCAN:    return ICanDevice::Brand::SLCAN;
+case DeviceKind::Candle:   return ICanDevice::Brand::Candle;
     default:                   return ICanDevice::Brand::ZLG;
     }
 }

@@ -93,6 +93,52 @@ DRIVER_META = {
             "官方驱动包，或将 DLL 置于驱动目录 vendor/ 下。"
         ),
     },
+    "slcan": {
+        "name": "SLCAN 串口 CAN 驱动",
+        "vendor": "Lawicel 兼容固件 / 开源社区",
+        "summary": "Lawicel 串口文本协议全家：淘宝适配器 / CANable / USBtin / ESP32",
+        "icon": "assets/slcan-serial.svg",
+        "image": "assets/slcan-serial.svg",
+        "keywords": "slcan lawicel serial canusb canable usbtin esp32 arduino 串口",
+        "license": "开源生态 — 驱动插件遵循 openbus 插件条款（无厂商 SDK，系统串口驱动）",
+        "readme": (
+            "## 概述\n\n"
+            "SLCAN（Lawicel 串口文本协议）驱动插件，一份驱动覆盖协议全家："
+            "淘宝廉价适配器 / Lawicel CANUSB / CANable (slcan 固件) / "
+            "USBtin / ESP32·Arduino DIY。\n\n"
+            "## 特性\n\n"
+            "- 标准波特率 10k ~ 1M（S0..S8 查表）\n"
+            "- 串口 115200-8N1（个别固件 9600/1M 可在连接页调整）\n"
+            "- 经典 CAN；无硬件时间戳（软件补齐）\n"
+            "- 兼容保守公共命令子集 C/O/V/N/F/M/S，不承诺厂商私有扩展\n\n"
+            "## 使用\n\n"
+            "无需安装厂商驱动：设备即系统串口（COMx），连接页选择串口即可。"
+            "ESP32 用户注意：DTR/RTS 已禁用，不会误触发自动复位。"
+        ),
+    },
+    "candle": {
+        "name": "Candle / GS_USB 驱动",
+        "vendor": "GS_USB 开源社区 / candle-usb",
+        "summary": "开源 USB-CAN 协议全家：CANable / candleLight / CANnectivity 等",
+        "icon": "assets/candle-usb.svg",
+        "image": "assets/candle-usb.svg",
+        "keywords": "candle gs_usb canable candlelight cantact cannectivity libusb canfd 开源",
+        "license": "LGPL-2.1 (libusb) — 驱动插件遵循 openbus 插件条款",
+        "readme": (
+            "## 概述\n\n"
+            "Candle / GS_USB 开源 USB-CAN 协议驱动插件（Linux 内核 gs_usb 同源"
+            "协议），覆盖 CANable (candle 固件) / candleLight DIY / CANnectivity / "
+            "CES CANext FD / ABE CANDebugger / Xylanta Saint3。\n\n"
+            "## 特性\n\n"
+            "- CAN FD（仲裁 1M / 数据 5M，能力经 BT_CONST 探测）\n"
+            "- 硬件微秒时间戳（固件支持时自动启用，1MHz 计数器对齐）\n"
+            "- VID/PID 白名单严格匹配，宁可漏不可错\n\n"
+            "## libusb\n\n"
+            "依赖 libusb-1.0.dll（LGPL，随包不分发）。运行 "
+            "scripts/download_libusb.py 自动放入 driver/ 目录，或从 libusb.info "
+            "手动获取。设备需绑定 WinUSB 驱动（CANable 新版固件为 WCID 免驱）。"
+        ),
+    },
 }
 
 # ---- 型号规格补充（有图文数据的 6 款；其余走 DEFAULT_SPEC） ----
@@ -109,6 +155,31 @@ DEVICE_META = {
              "maxBaud": "1 Mbps", "timestamp": "硬件时间戳"},
     "USBcan Hybrid": {"summary": "双通道 CAN FD / LIN 混合接口卡",
                       "maxBaud": "8 Mbps (数据段)", "timestamp": "硬件时间戳"},
+    # ---- v2.2 批次 1（方案 §14）：SLCAN / Candle ----
+    "通用 SLCAN 适配器": {"summary": "串口 SLCAN 协议通用适配器（淘宝杂牌全覆盖）",
+                          "maxBaud": "1 Mbps", "timestamp": "软件时间戳"},
+    "Lawicel CANUSB": {"summary": "Lawicel 原版串口 CAN 适配器",
+                       "maxBaud": "1 Mbps", "timestamp": "软件时间戳"},
+    "CANable (slcan 固件)": {"summary": "CANable 刷 slcan 固件形态",
+                             "maxBaud": "1 Mbps", "timestamp": "软件时间戳"},
+    "USBtin": {"summary": "开源 USBtin 串口 CAN 适配器",
+               "maxBaud": "1 Mbps", "timestamp": "软件时间戳"},
+    "ESP32 / Arduino DIY": {"summary": "ESP32 · Arduino 自制 SLCAN 网关",
+                            "maxBaud": "1 Mbps", "timestamp": "软件时间戳"},
+    "CANable (candle 固件)": {"summary": "最流行的开源 USB-CAN，candle/GS_USB 固件",
+                              "maxBaud": "5 Mbps (数据段)", "timestamp": "硬件时间戳"},
+    "candleLight / GS_USB": {"summary": "candleLight DIY 参考设计 / GS_USB 原型",
+                             "maxBaud": "5 Mbps (数据段)", "timestamp": "硬件时间戳"},
+    "candleLight (原版 VID)": {"summary": "原版 candleLight VID/PID 形态",
+                               "maxBaud": "5 Mbps (数据段)", "timestamp": "硬件时间戳"},
+    "CANnectivity": {"summary": "STM32 CANnectivity 开源 USB-CAN（最多 2 通道）",
+                     "maxBaud": "5 Mbps (数据段)", "timestamp": "硬件时间戳"},
+    "CES CANext FD": {"summary": "CES CANext FD 适配器",
+                      "maxBaud": "5 Mbps (数据段)", "timestamp": "硬件时间戳"},
+    "ABE CANDebugger FD": {"summary": "ABE CANDebugger FD 适配器",
+                           "maxBaud": "5 Mbps (数据段)", "timestamp": "硬件时间戳"},
+    "Xylanta Saint3": {"summary": "Xylanta Saint3 三通道 USB-CAN",
+                       "maxBaud": "5 Mbps (数据段)", "timestamp": "硬件时间戳"},
 }
 DEFAULT_SPEC = {"summary": "", "maxBaud": "1 Mbps", "timestamp": "软件时间戳"}
 
@@ -209,15 +280,25 @@ def build_driver(did):
     devices = []
     for d in drv.get("devices", []):
         spec = DEVICE_META.get(d.get("name"), DEFAULT_SPEC)
+        # §14.6 框架字段：hasHwTimestamp 存在时覆盖 DEVICE_META 默认值
+        if "hasHwTimestamp" in d:
+            timestamp = "硬件时间戳" if d["hasHwTimestamp"] else "软件时间戳"
+        else:
+            timestamp = spec["timestamp"]
         entry = {
             "model": d.get("name", ""),
             "channels": d.get("channels", 1),
             "canFd": bool(d.get("canFd", False)),
             "maxBaud": spec["maxBaud"],
-            "timestamp": spec["timestamp"],
+            "timestamp": timestamp,
         }
         if spec.get("summary"):
             entry["summary"] = spec["summary"]
+        # §14.6 框架字段：USB 设备身份标识透传（市场页展示用）
+        if d.get("vid"):
+            entry["vid"] = d["vid"]
+        if d.get("pid"):
+            entry["pid"] = d["pid"]
         devices.append(entry)
 
     return {
@@ -236,7 +317,7 @@ def build_driver(did):
         "devices": devices,
         "minAppVersion": "0.9.0",
         "abiVersion": "1.0",
-        "license": "Proprietary - 厂商授权条款",
+        "license": meta.get("license", "Proprietary - 厂商授权条款"),
         "updatedAt": TODAY,
     }
 

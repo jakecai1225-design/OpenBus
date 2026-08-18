@@ -35,6 +35,7 @@ public:
         Kvaser,     ///< Kvaser canlib32
         TongXing,   ///< 同星科技
         SLCAN,      ///< 开源 SLCAN / serial-CAN
+        Candle,     ///< Candle / GS_USB 开源 USB CAN (CANable 等)
     };
 
     explicit CanDeviceManager(QObject *parent = nullptr);

@@ -28,3 +28,5 @@ set_target_properties(driver_kvaser PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/drivers/kvaser
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/drivers/kvaser
 )
+
+deploy_driver_manifest(driver_kvaser)

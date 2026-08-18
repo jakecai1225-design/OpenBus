@@ -15,6 +15,7 @@ QString ICanDevice::brandName(Brand b)
     case Brand::Kvaser:   return QStringLiteral("Kvaser");
     case Brand::TongXing: return QStringLiteral("同星");
     case Brand::SLCAN:    return QStringLiteral("SLCAN");
+    case Brand::Candle:   return QStringLiteral("Candle");
     }
     return QStringLiteral("Unknown");
 }
