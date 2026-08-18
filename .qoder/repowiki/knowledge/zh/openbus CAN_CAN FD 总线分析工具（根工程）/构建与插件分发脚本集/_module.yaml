@@ -5,4 +5,7 @@ scope:
     - scripts/
 source_files: []
 depends_on: []
-related_to: []
+related_to:
+    - path: core_engine
+    - path: drivers
+    - path: plugins

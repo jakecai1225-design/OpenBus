@@ -1,0 +1,16 @@
+﻿name=[ZLG 致远电子驱动] aid=[QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ExtensionsPanel.QWidget.QScrollArea.qt_scrollarea_viewport.QWidget.marketRow.QLabel] rect=88,530 217x17
+name=[ZLG 致远电子驱动] aid=[QApplication.MainWindow.SplitEditorArea.QSplitter.QTabWidget.qt_tabwidget_stackedwidget.MarketTab.QSplitter.QScrollArea.qt_scrollarea_viewport.QWidget.marketRow.QLabel] rect=349,588 356x17
+name=[BLF 日志转换器] aid=[QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ExtensionsPanel.QWidget.QScrollArea.qt_scrollarea_viewport.QWidget.marketRow.QLabel] rect=88,689 254x17
+name=[BLF 日志转换器] aid=[QApplication.MainWindow.SplitEditorArea.QSplitter.QTabWidget.qt_tabwidget_stackedwidget.MarketTab.QSplitter.QScrollArea.qt_scrollarea_viewport.QWidget.marketRow.QLabel] rect=349,759 393x17
+name=[UDS 诊断客户端] aid=[QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ExtensionsPanel.QWidget.QScrollArea.qt_scrollarea_viewport.QWidget.marketRow.QLabel] rect=88,865 254x17
+name=[UDS 诊断客户端] aid=[QApplication.MainWindow.SplitEditorArea.QSplitter.QTabWidget.qt_tabwidget_stackedwidget.MarketTab.QSplitter.QScrollArea.qt_scrollarea_viewport.QWidget.marketRow.QLabel] rect=349,951 393x17
+name=[kvaser] aid=[QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ExtensionsPanel.QWidget.QScrollArea.qt_scrollarea_viewport.QWidget.marketRow.QLabel] rect=88,151 270x17
+name=[kvaser] aid=[QApplication.MainWindow.SplitEditorArea.QSplitter.QTabWidget.qt_tabwidget_stackedwidget.MarketTab.QSplitter.QScrollArea.qt_scrollarea_viewport.QWidget.marketRow.QLabel] rect=349,177 440x17
+name=[dbc-tool] aid=[QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ExtensionsPanel.QWidget.QScrollArea.qt_scrollarea_viewport.QWidget.marketRow.QLabel] rect=88,327 223x17
+name=[dbc-tool] aid=[QApplication.MainWindow.SplitEditorArea.QSplitter.QTabWidget.qt_tabwidget_stackedwidget.MarketTab.QSplitter.QScrollArea.qt_scrollarea_viewport.QWidget.marketRow.QLabel] rect=349,369 333x17
+name=[总线统计分析] aid=[QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ExtensionsPanel.QWidget.QScrollArea.qt_scrollarea_viewport.QWidget.marketRow.QLabel] rect=88,733 254x17
+name=[总线统计分析] aid=[QApplication.MainWindow.SplitEditorArea.QSplitter.QTabWidget.qt_tabwidget_stackedwidget.MarketTab.QSplitter.QScrollArea.qt_scrollarea_viewport.QWidget.marketRow.QLabel] rect=349,807 393x17
+name=[CANopen 总线浏览器] aid=[QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ExtensionsPanel.QWidget.QScrollArea.qt_scrollarea_viewport.QWidget.marketRow.QLabel] rect=88,777 254x17
+name=[CANopen 总线浏览器] aid=[QApplication.MainWindow.SplitEditorArea.QSplitter.QTabWidget.qt_tabwidget_stackedwidget.MarketTab.QSplitter.QScrollArea.qt_scrollarea_viewport.QWidget.marketRow.QLabel] rect=349,855 393x17
+searchbox rect=56,80 201x32
+sidebar-kebab rect=261,85 23x22

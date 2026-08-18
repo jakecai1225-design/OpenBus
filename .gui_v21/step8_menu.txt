@@ -1,0 +1,5 @@
+﻿=== win [openbus] 261,107 205x101
+  item [从 .odp / .opk 离线安装...] 262,114
+  item [打开插件市场页] 262,143
+  item [刷新] 262,172
+=== win [openbus - CAN/CAN FD 报文分析工具] 0,0 1920x1032

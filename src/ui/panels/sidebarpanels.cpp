@@ -1342,14 +1342,18 @@ FrameRow *ExtensionsPanel::makeRow(const MarketEntryData &e)
     QFont bold = titleLabel->font();
     bold.setBold(true);
     titleLabel->setFont(bold);
+    // Ignored 策略：允许压缩到内容以下，避免挤占右侧状态词/齿轮按钮的空间
+    // （窄面板下 QLabel 默认最小宽度会把尾部控件推出可视区）
+    titleLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     auto *metaLabel = new QLabel(e.meta);
     QFont small = metaLabel->font();
     small.setPointSize(qMax(small.pointSize() - 1, 1));
     metaLabel->setFont(small);
     metaLabel->setStyleSheet(QStringLiteral("color: #9d9d9d;"));
+    metaLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     // 单行截断（窄面板）
     const QFontMetrics fm(metaLabel->font());
-    metaLabel->setText(fm.elidedText(e.meta, Qt::ElideRight, 200));
+    metaLabel->setText(fm.elidedText(e.meta, Qt::ElideRight, 120));
     tbox->addWidget(titleLabel);
     tbox->addWidget(metaLabel);
     lay->addLayout(tbox, 1);

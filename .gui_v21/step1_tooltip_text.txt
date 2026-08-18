@@ -1,0 +1,3 @@
+﻿name=[插件市场] rect=26,417 77x36
+name=[] rect=26,417 82x41
+name=[openbus - CAN/CAN FD 报文分析工具] rect=0,0 1920x1032

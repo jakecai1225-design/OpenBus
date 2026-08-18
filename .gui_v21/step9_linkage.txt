@@ -1,0 +1,15 @@
+﻿btn[0] y=41 toggle=Off
+btn[1] y=89 toggle=Off
+btn[2] y=137 toggle=Off
+btn[3] y=185 toggle=Off
+btn[4] y=233 toggle=Off
+btn[5] y=281 toggle=Off
+btn[6] y=329 toggle=Off
+btn[7] y=377 toggle=On
+btn[8] y=962 toggle=Off
+ExtensionsPanel count=1
+tab-item aid=[QApplication.MainWindow.QStatusBar.QLabel] type=ControlType.Text 1514,1013
+tab-item aid=[QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ExtensionsPanel.SidePanelTitle] type=ControlType.Text 48,41
+tab-item aid=[QApplication.MainWindow.SplitEditorArea.QSplitter.QTabWidget.qt_tabwidget_stackedwidget.MarketTab.QSplitter.QScrollArea.qt_scrollarea_viewport.QWidget.QLabel] type=ControlType.Text 301,726
+tab-item aid=[QApplication.MainWindow.SplitEditorArea.QSplitter.QTabWidget.qt_tabwidget_tabbar] type=ControlType.Tab 292,41
+tab-item aid=[QApplication.MainWindow.SplitEditorArea.QSplitter.QTabWidget.qt_tabwidget_tabbar] type=ControlType.TabItem 660,41
