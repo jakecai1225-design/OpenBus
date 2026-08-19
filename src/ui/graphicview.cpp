@@ -498,10 +498,19 @@ void GraphicView::setupUi()
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(4, 4, 4, 4);
     btnBar->setSpacing(4);
-    auto *addBtn = new QPushButton("+ 添加信号", leftWidget);
+    auto *addBtn = new QPushButton(
+            svgIcon(":/icons/plus.svg", th.text, 14), QStringLiteral("添加信号"), leftWidget);
     addBtn->setStyleSheet(buttonQss(th.buttonBg, th.accentBorder));
-    auto *removeBtn = new QPushButton("- 删除信号", leftWidget);
+    auto *removeBtn = new QPushButton(
+            svgIcon(":/icons/dash.svg", th.text, 14), QStringLiteral("删除信号"), leftWidget);
     removeBtn->setStyleSheet(buttonQss(th.buttonBg, th.border));
+    // 主题切换 → 重刷按钮图标颜色
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+            leftWidget, [addBtn, removeBtn]() {
+        const QString &c = ThemeManager::instance()->currentTheme().text;
+        addBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
+        removeBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
+    });
     btnBar->addWidget(addBtn);
     btnBar->addWidget(removeBtn);
     leftLayout->addLayout(btnBar);

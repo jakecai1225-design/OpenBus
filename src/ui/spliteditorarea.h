@@ -90,6 +90,9 @@ private:
     // 标签页拖拽分离检测
     void installDragOutFilter(QTabWidget *tabs);
 
+    // 为标签页安装 SVG 关闭按钮（替换 Qt 默认文字 × 按钮）
+    void setupCloseButton(QTabWidget *tabs, int index);
+
     // Pin / 关闭操作
     void togglePin(QTabWidget *tabs, int index);
     void closeOthers(QTabWidget *tabs, int keepIndex);

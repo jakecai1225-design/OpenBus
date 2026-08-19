@@ -25,6 +25,10 @@
 - [src/core/candevice_kvaser.cpp](file://src/core/candevice_kvaser.cpp)
 - [src/core/candevice_peak.h](file://src/core/candevice_peak.h)
 - [src/core/candevice_peak.cpp](file://src/core/candevice_peak.cpp)
+- [src/core/candevice_slcan.h](file://src/core/candevice_slcan.h)
+- [src/core/candevice_slcan.cpp](file://src/core/candevice_slcan.cpp)
+- [src/core/candevice_candle.h](file://src/core/candevice_candle.h)
+- [src/core/candevice_candle.cpp](file://src/core/candevice_candle.cpp)
 - [src/core/candevice.cpp](file://src/core/candevice.cpp)
 - [src/core/driver/driverregistry.h](file://src/core/driver/driverregistry.h)
 - [src/core/driver/driverregistry.cpp](file://src/core/driver/driverregistry.cpp)
@@ -33,18 +37,23 @@
 - [src/core/driver/candriverplugin.h](file://src/core/driver/candriverplugin.h)
 - [drivers/zlg/driver.json](file://drivers/zlg/driver.json)
 - [drivers/peak/driver.json](file://drivers/peak/driver.json)
+- [drivers/slcan/driver.json](file://drivers/slcan/driver.json)
+- [drivers/candle/driver.json](file://drivers/candle/driver.json)
+- [drivers/slcan/slcan_driver_plugin.h](file://drivers/slcan/slcan_driver_plugin.h)
+- [drivers/slcan/slcan_driver_plugin.cpp](file://drivers/slcan/slcan_driver_plugin.cpp)
+- [drivers/candle/candle_driver_plugin.h](file://drivers/candle/candle_driver_plugin.h)
+- [drivers/candle/candle_driver_plugin.cpp](file://drivers/candle/candle_driver_plugin.cpp)
 - [src/ui/extensionstab.h](file://src/ui/extensionstab.h)
 - [src/ui/extensionstab.cpp](file://src/ui/extensionstab.cpp)
 </cite>
 
 ## 更新摘要
 **已进行的更改**
-- 新增DriverRegistry驱动注册表，统一管理所有内置和外置驱动，支持动态加载和热重载
-- 实现设备市场功能，允许用户从应用商店搜索、安装和管理驱动
-- 新增CanDriverPlugin插件接口，支持第三方驱动的标准化接入
-- 完善驱动生命周期管理，包括安装、卸载、启用/禁用等功能
-- 增强设备发现机制，支持多品牌设备的统一枚举和管理
-- **新增**：设备市场索引系统，支持market.json格式的驱动元数据管理
+- 新增SLCAN驱动支持Lawicel CANUSB协议家族，覆盖50+种USB转CAN适配器，支持自动波特率检测和软件时间戳
+- 新增GS_USB/Candle驱动支持candleLight固件家族，实现完整的GS_USB协议握手序列，VID/PID白名单支持7种设备家族，完整CAN FD支持和硬件时间戳
+- 扩展设备品牌枚举，新增SLCAN和Candle品牌标识
+- 增强设备工厂模式，支持新驱动的动态创建和枚举
+- 完善驱动插件架构，提供标准化的外部驱动接入机制
 
 ## 目录
 1. [简介](#简介)
@@ -61,7 +70,7 @@
 ## 简介
 本系统是一款面向汽车电子与总线调试的CAN/CAN FD报文分析工具，提供实时录制、文件回放、DBC信号解析、Trace列表展示、Graphic波形视图等能力。整体采用Qt6 + C++17构建，UI风格参考VS Code，支持无边框窗口、可停靠面板与多标签编辑区。系统通过统一的设备抽象层隔离硬件差异，结合无锁消息队列与发布订阅机制，实现高吞吐、低延迟的数据流处理。
 
-**最新更新**：系统现已完全重构驱动管理系统，引入DriverRegistry统一管理平台，支持内置驱动（ZLG、Kvaser、Peak Systems）和外置驱动的混合管理。新增设备市场功能，用户可直接从应用商店搜索、下载和安装新的设备驱动。**特别增强**：支持驱动的热重载和动态加载，无需重启应用程序即可更新驱动配置。
+**最新更新**：系统现已完全重构驱动管理系统，引入DriverRegistry统一管理平台，支持内置驱动（ZLG、Kvaser、Peak Systems）和外置驱动的混合管理。**重大增强**：新增SLCAN和GS_USB/Candle两大开源设备驱动，大幅扩展硬件兼容性。SLCAN驱动支持Lawicel CANUSB协议家族，覆盖50+种USB转CAN适配器；Candle驱动支持candleLight固件家族，提供完整的GS_USB协议支持和硬件时间戳功能。系统支持驱动的热重载和动态加载，无需重启应用程序即可更新驱动配置。
 
 ## 项目结构
 - 顶层CMake工程负责Qt6查找、子模块集成与安装规则
@@ -88,12 +97,16 @@ J --> N["candevice_kvaser.h/.cpp"]
 J --> O["candevice_peak.h/.cpp"]
 K --> P["CanDriverPlugin接口"]
 L --> Q["market.json索引"]
-D --> R["src/models/cantracemodel.h"]
-D --> S["src/core/filter_engine.h"]
-C --> T["src/core/recorder.h"]
-C --> U["src/core/player.h"]
-C --> V["src/core/dbcmanager.h"]
-F --> W["src/utils/message_queue.h"]
+P --> R["slcan_driver_plugin"]
+P --> S["candle_driver_plugin"]
+R --> T["candevice_slcan.h/.cpp"]
+S --> U["candevice_candle.h/.cpp"]
+D --> V["src/models/cantracemodel.h"]
+D --> W["src/core/filter_engine.h"]
+C --> X["src/core/recorder.h"]
+C --> Y["src/core/player.h"]
+C --> Z["src/core/dbcmanager.h"]
+F --> AA["src/utils/message_queue.h"]
 ```
 
 **图表来源**
@@ -102,8 +115,8 @@ F --> W["src/utils/message_queue.h"]
 - [src/ui/mainwindow.h:1-226](file://src/ui/mainwindow.h#L1-L226)
 - [src/ui/traceview.h:1-189](file://src/ui/traceview.h#L1-L189)
 - [src/ui/graphicview.h:1-160](file://src/ui/graphicview.h#L1-L160)
-- [src/core/candevicemanager.h:1-129](file://src/core/candevicemanager.h#L1-L129)
-- [src/core/candevice.h:1-109](file://src/core/candevice.h#L1-L109)
+- [src/core/candevicemanager.h:1-142](file://src/core/candevicemanager.h#L1-L142)
+- [src/core/candevice.h:1-127](file://src/core/candevice.h#L1-L127)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
 - [src/core/driver/driverregistry.h:1-110](file://src/core/driver/driverregistry.h#L1-L110)
 - [src/core/driver/marketindex.h:1-96](file://src/core/driver/marketindex.h#L1-L96)
@@ -120,6 +133,8 @@ F --> W["src/utils/message_queue.h"]
 - **DriverRegistry**：驱动注册表，统一管理所有内置和外置驱动，支持动态加载和热重载
 - **MarketIndex**：设备市场索引，管理market.json格式的驱动元数据和设备信息
 - **CanDriverPlugin**：驱动插件接口，定义标准的外部驱动接入规范
+- **CanDeviceSlcan**：SLCAN协议设备后端，支持Lawicel CANUSB协议家族
+- **CanDeviceCandle**：GS_USB协议设备后端，支持candleLight固件家族
 - CanTraceModel：QAbstractTableModel实现，支持追加、覆盖模式、行标记与着色
 - TraceView/TraceTab：Wireshark风格Trace列表、过滤栏、帧信息与信号解码面板
 - FilterEngine：自写递归下降表达式过滤器，支持变量、逻辑与比较运算符
@@ -131,12 +146,14 @@ F --> W["src/utils/message_queue.h"]
 
 **章节来源**
 - [src/core/canframe.h:1-117](file://src/core/canframe.h#L1-L117)
-- [src/core/candevice.h:1-124](file://src/core/candevice.h#L1-L124)
-- [src/core/candevicemanager.h:1-141](file://src/core/candevicemanager.h#L1-L141)
+- [src/core/candevice.h:1-127](file://src/core/candevice.h#L1-L127)
+- [src/core/candevicemanager.h:1-142](file://src/core/candevicemanager.h#L1-L142)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
 - [src/core/driver/driverregistry.h:1-110](file://src/core/driver/driverregistry.h#L1-L110)
 - [src/core/driver/marketindex.h:1-96](file://src/core/driver/marketindex.h#L1-L96)
 - [src/core/driver/candriverplugin.h:1-49](file://src/core/driver/candriverplugin.h#L1-L49)
+- [src/core/candevice_slcan.h:1-81](file://src/core/candevice_slcan.h#L1-L81)
+- [src/core/candevice_candle.h:1-152](file://src/core/candevice_candle.h#L1-L152)
 - [src/models/cantracemodel.h:1-120](file://src/models/cantracemodel.h#L1-L120)
 - [src/ui/traceview.h:1-189](file://src/ui/traceview.h#L1-L189)
 - [src/core/filter_engine.h:1-59](file://src/core/filter_engine.h#L1-L59)
@@ -150,7 +167,7 @@ F --> W["src/utils/message_queue.h"]
 ## 架构总览
 系统采用"中心化发布订阅"思想：设备抽象层（HAL）将在线采集、离线回放、仿真源统一为标准帧流；核心内核层进行时间对齐与分发；业务服务层订阅数据并执行日志、统计、解析等任务；UI交互层仅消费数据，不直接访问底层。
 
-**重大更新**：系统现在通过DriverRegistry统一管理所有驱动，支持内置驱动（ZLG、Kvaser、Peak Systems）和外置驱动的混合管理模式。新增设备市场功能，用户可以直接搜索、下载和安装新的设备驱动。**特别增强**：支持驱动的热重载和动态加载，无需重启应用程序即可更新驱动配置。
+**重大更新**：系统现在通过DriverRegistry统一管理所有驱动，支持内置驱动（ZLG、Kvaser、Peak Systems）和外置驱动的混合管理模式。**特别增强**：新增SLCAN和GS_USB/Candle两大开源设备驱动，大幅扩展硬件兼容性。SLCAN驱动支持Lawicel CANUSB协议家族，覆盖50+种USB转CAN适配器；Candle驱动支持candleLight固件家族，提供完整的GS_USB协议支持和硬件时间戳功能。系统支持驱动的热重载和动态加载，无需重启应用程序即可更新驱动配置。
 
 ```mermaid
 graph TB
@@ -163,6 +180,8 @@ subgraph "内置驱动层"
 BD1["ZLG设备驱动"]
 BD2["Kvaser设备驱动"]
 BD3["Peak设备驱动"]
+BD4["SLCAN设备驱动"]
+BD5["Candle设备驱动"]
 end
 subgraph "外置驱动层"
 ED1["外部驱动插件"]
@@ -173,7 +192,9 @@ HAL1["ICanDevice(硬件抽象)"]
 HAL2["CanDeviceZLG(ZLG设备)"]
 HAL3["CanDeviceKvaser(Kvaser设备)"]
 HAL4["CanDevicePEAK(Peak设备)"]
-HAL5["CanSimulator(仿真)"]
+HAL5["CanDeviceSlcan(SLCAN设备)"]
+HAL6["CanDeviceCandle(Candle设备)"]
+HAL7["CanSimulator(仿真)"]
 end
 subgraph "核心内核层"
 Core["帧分发中心<br/>时间对齐/缓存"]
@@ -196,6 +217,8 @@ end
 DR --> BD1
 DR --> BD2
 DR --> BD3
+DR --> BD4
+DR --> BD5
 DR --> ED1
 MI --> DR
 CDP --> ED1
@@ -203,10 +226,14 @@ HAL1 --> Factory
 Factory --> HAL2
 Factory --> HAL3
 Factory --> HAL4
+Factory --> HAL5
+Factory --> HAL6
 HAL2 --> MQ
 HAL3 --> MQ
 HAL4 --> MQ
 HAL5 --> MQ
+HAL6 --> MQ
+HAL7 --> MQ
 MQ --> Core
 Core --> FilterMgr
 Core --> S1
@@ -227,12 +254,14 @@ UI4 --> MI
 - [src/core/driver/driverregistry.h:1-110](file://src/core/driver/driverregistry.h#L1-L110)
 - [src/core/driver/marketindex.h:1-96](file://src/core/driver/marketindex.h#L1-L96)
 - [src/core/driver/candriverplugin.h:1-49](file://src/core/driver/candriverplugin.h#L1-L49)
-- [src/core/candevicemanager.h:1-141](file://src/core/candevicemanager.h#L1-L141)
+- [src/core/candevicemanager.h:1-142](file://src/core/candevicemanager.h#L1-L142)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
 - [src/core/player.h:1-74](file://src/core/player.h#L1-L74)
 - [src/core/candevice_zlg.h:1-129](file://src/core/candevice_zlg.h#L1-L129)
 - [src/core/candevice_kvaser.h:1-66](file://src/core/candevice_kvaser.h#L1-L66)
 - [src/core/candevice_peak.h:1-124](file://src/core/candevice_peak.h#L1-L124)
+- [src/core/candevice_slcan.h:1-81](file://src/core/candevice_slcan.h#L1-L81)
+- [src/core/candevice_candle.h:1-152](file://src/core/candevice_candle.h#L1-L152)
 - [src/ui/extensionstab.h:1-54](file://src/ui/extensionstab.h#L1-L54)
 
 ## 详细组件分析
@@ -349,6 +378,52 @@ Plugin-->>Registry : 设备实例
 **章节来源**
 - [src/core/driver/candriverplugin.h:1-49](file://src/core/driver/candriverplugin.h#L1-L49)
 
+### SLCAN设备驱动
+**新增功能**：实现了SLCAN（Lawicel串口文本协议）设备后端，支持广泛的USB转CAN适配器。
+
+#### 核心特性
+- **协议支持**：保守公共子集C/O/V/N/F/M/S，兼容淘宝廉价适配器、Lawicel CANUSB、CANable (slcan固件)、ESP32·Arduino DIY等
+- **串口通信**：Win32 API串口层，115200-8N1，无流控，避免DTR/RTS误触发复位
+- **自动波特率检测**：支持多种波特率配置，适配不同固件需求
+- **软件时间戳**：无硬件时间戳时通过steady_clock软件补齐timestampNs
+- **设备枚举**：支持系统串口名列表和设备条目枚举
+
+#### 设备类型支持
+- 通用SLCAN适配器
+- Lawicel CANUSB
+- CANable (slcan固件)
+- USBtin
+- ESP32 / Arduino DIY
+
+**章节来源**
+- [src/core/candevice_slcan.h:1-81](file://src/core/candevice_slcan.h#L1-L81)
+- [drivers/slcan/driver.json:1-17](file://drivers/slcan/driver.json#L1-L17)
+- [drivers/slcan/slcan_driver_plugin.h:1-33](file://drivers/slcan/slcan_driver_plugin.h#L1-L33)
+
+### GS_USB/Candle设备驱动
+**新增功能**：实现了GS_USB协议设备后端，支持candleLight固件家族的开源USB CAN设备。
+
+#### 核心特性
+- **协议实现**：完整的GS_USB协议握手序列，包括HOST_FORMAT、DEVICE_CONFIG、BT_CONST、BITTIMING、MODE START等步骤
+- **VID/PID白名单**：支持7种设备家族的VID/PID白名单匹配，包括CANable、candleLight、CANnectivity等
+- **CAN FD支持**：完整的CAN FD协议支持，包括64字节载荷、BRS/ESI标志、双波特率配置
+- **硬件时间戳**：支持设备硬件时间戳（1MHz自由计数器），首帧与steady_clock对齐后换算纳秒并处理32位回绕
+- **libusb集成**：动态加载libusb-1.0.dll，进程内共享单例，永不卸载
+
+#### 设备类型支持
+- CANable (candle固件)
+- candleLight / GS_USB
+- candleLight (原版VID)
+- CANnectivity
+- CES CANext FD
+- ABE CANDebugger FD
+- Xylanta Saint3
+
+**章节来源**
+- [src/core/candevice_candle.h:1-152](file://src/core/candevice_candle.h#L1-L152)
+- [drivers/candle/driver.json:1-24](file://drivers/candle/driver.json#L1-L24)
+- [drivers/candle/candle_driver_plugin.h:1-35](file://drivers/candle/candle_driver_plugin.h#L1-L35)
+
 ### 设备工厂与枚举系统
 **更新功能**：通过DriverRegistry实现了统一的设备工厂模式和全品牌设备枚举系统。
 
@@ -359,7 +434,7 @@ Plugin-->>Registry : 设备实例
 
 #### 设备枚举系统
 - **DriverRegistry::enumerateDevices()**：聚合所有可用驱动的在线设备
-- **多品牌支持**：自动检测ZLG、PEAK、Kvaser等设备
+- **多品牌支持**：自动检测ZLG、PEAK、Kvaser、SLCAN、Candle等设备
 - **设备信息增强**：包含driverId、品牌、设备类型等详细信息
 
 ```mermaid
@@ -385,7 +460,7 @@ Registry-->>UI : ICanDevice指针
 
 **章节来源**
 - [src/core/driver/driverregistry.cpp:382-450](file://src/core/driver/driverregistry.cpp#L382-L450)
-- [src/core/candevice.cpp:1-80](file://src/core/candevice.cpp#L1-L80)
+- [src/core/candevice.cpp:1-43](file://src/core/candevice.cpp#L1-L43)
 
 ### 设备市场界面
 **新增功能**：实现了设备市场的用户界面，支持驱动的浏览、搜索和安装。
@@ -409,17 +484,17 @@ Registry-->>UI : ICanDevice指针
 - CanDeviceManager作为QObject桥接层，持有ICanDevice或CanSimulator实例，对外发射frameGenerated信号，屏蔽后端差异，提供统一的硬件滤波控制接口
 - 接收线程通过FrameQueue批量入队，主线程定时drainQueue消费，避免阻塞UI
 
-**重大更新**：CanDeviceManager现在通过DriverRegistry统一管理多种设备类型（模拟器、ZLG、Kvaser、Peak等），并通过统一的接口管理不同的硬件后端，支持设备工厂模式和动态设备创建。**特别增强**：新增了硬件接收滤波器的统一管理，支持ZLG设备的动态配置API。
+**重大更新**：CanDeviceManager现在通过DriverRegistry统一管理多种设备类型（模拟器、ZLG、Kvaser、Peak、SLCAN、Candle等），并通过统一的接口管理不同的硬件后端，支持设备工厂模式和动态设备创建。**特别增强**：新增了硬件接收滤波器的统一管理，支持ZLG设备的动态配置API。
 
 **章节来源**
-- [src/core/candevice.h:1-124](file://src/core/candevice.h#L1-L124)
-- [src/core/candevicemanager.h:1-141](file://src/core/candevicemanager.h#L1-L141)
-- [src/core/candevicemanager.cpp:1-267](file://src/core/candevicemanager.cpp#L1-L267)
+- [src/core/candevice.h:1-127](file://src/core/candevice.h#L1-L127)
+- [src/core/candevicemanager.h:1-142](file://src/core/candevicemanager.h#L1-L142)
+- [src/core/candevicemanager.cpp:1-200](file://src/core/candevicemanager.cpp#L1-L200)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
 - [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 
 ### 多品牌设备驱动架构
-**重大更新**：系统现在支持三大主流CAN设备厂商，每个厂商都有独立的设备驱动实现，通过统一的ICanDevice接口进行抽象。
+**重大更新**：系统现在支持五大主流CAN设备厂商，每个厂商都有独立的设备驱动实现，通过统一的ICanDevice接口进行抽象。
 
 #### ZLG设备驱动
 - **双句柄管理机制**：设备句柄（devHandle）用于设备级操作，通道句柄（channelHandle）用于通道级操作
@@ -437,6 +512,16 @@ Registry-->>UI : ICanDevice指针
 - **时间戳处理**：PCAN硬件时间戳（微秒精度）转为纳秒填充timestampNs
 - **CAN FD帧结构**：TPCANMsgFD结构体支持64字节数据载荷
 
+#### SLCAN设备驱动
+- **串口文本协议**：基于Lawicel CANUSB协议的串口通信，支持多种USB转CAN适配器
+- **自动波特率检测**：支持115200等标准波特率，适配不同固件需求
+- **软件时间戳**：通过steady_clock提供软件时间戳补偿
+
+#### Candle设备驱动
+- **GS_USB协议实现**：完整的GS_USB协议握手序列，支持candleLight固件家族
+- **VID/PID白名单**：支持7种设备家族的VID/PID白名单匹配
+- **硬件时间戳**：支持设备硬件时间戳，1MHz自由计数器，首帧对齐后换算纳秒
+
 **章节来源**
 - [src/core/candevice_zlg.h:1-129](file://src/core/candevice_zlg.h#L1-L129)
 - [src/core/candevice_zlg.cpp:1-769](file://src/core/candevice_zlg.cpp#L1-L769)
@@ -444,6 +529,8 @@ Registry-->>UI : ICanDevice指针
 - [src/core/candevice_kvaser.cpp:1-265](file://src/core/candevice_kvaser.cpp#L1-L265)
 - [src/core/candevice_peak.h:1-124](file://src/core/candevice_peak.h#L1-L124)
 - [src/core/candevice_peak.cpp:1-363](file://src/core/candevice_peak.cpp#L1-L363)
+- [src/core/candevice_slcan.h:1-81](file://src/core/candevice_slcan.h#L1-L81)
+- [src/core/candevice_candle.h:1-152](file://src/core/candevice_candle.h#L1-L152)
 
 ### Trace追踪与过滤
 - CanTraceModel维护帧序列，支持appendFrame/appendFrames、覆盖模式、行标记与自定义颜色
@@ -488,9 +575,10 @@ Registry-->>UI : ICanDevice指针
 - **zlgcan.dll**用于ZLG设备驱动（运行时动态加载）
 - **canlib32.dll**用于Kvaser设备驱动（运行时动态加载）
 - **PCANUSB.dll**用于Peak设备驱动（运行时动态加载）
+- **libusb-1.0.dll**用于Candle设备驱动（运行时动态加载）
 - **QPluginLoader**用于外部驱动插件的动态加载
 
-**重大更新**：新增了DriverRegistry和MarketIndex等核心组件，支持驱动的热重载和设备市场的功能。**特别增强**：引入了CanDriverPlugin插件接口，实现了标准化的外部驱动接入机制。
+**重大更新**：新增了DriverRegistry和MarketIndex等核心组件，支持驱动的热重载和设备市场的功能。**特别增强**：引入了CanDriverPlugin插件接口，实现了标准化的外部驱动接入机制。新增SLCAN和Candle驱动，大幅扩展了硬件兼容性。
 
 ```mermaid
 graph LR
@@ -502,11 +590,13 @@ DBCPP["dbcppp"] --> DM["DbcManager"]
 ZLG["zlgcan.dll"] --> ZLGDRV["CanDeviceZLG"]
 KVASER["canlib32.dll"] --> KVASERDRV["CanDeviceKvaser"]
 PEAK["PCANUSB.dll"] --> PEAKDRV["CanDevicePEAK"]
+LIBUSB["libusb-1.0.dll"] --> CANDLEDRV["CanDeviceCandle"]
 PLUGIN["QPluginLoader"] --> DRIVERREG["DriverRegistry"]
 MARKET["market.json"] --> MARKETIDX["MarketIndex"]
 CFD["CAN FD协议"] --> ZLGDRV
 CFD --> KVASERDRV
 CFD --> PEAKDRV
+CFD --> CANDLEDRV
 ZCFG["ZLG动态配置API"] --> ZLGDRV
 ```
 
@@ -535,6 +625,8 @@ ZCFG["ZLG动态配置API"] --> ZLGDRV
 - **新特性**：ZLG硬件级动态滤波可减少CPU负载，提高数据处理效率
 - **新特性**：DriverRegistry支持驱动热重载，无需重启即可更新驱动配置
 - **新特性**：MarketIndex支持本地缓存，减少网络请求频率
+- **新特性**：Candle设备硬件时间戳提供更高精度的时间同步
+- **新特性**：SLCAN软件时间戳补偿确保时间轴一致性
 
 ## 故障排查指南
 - 设备连接失败：检查ICanDevice::open参数与设备序号；确认驱动与权限
@@ -544,13 +636,15 @@ ZCFG["ZLG动态配置API"] --> ZLGDRV
 - **新增**：插件接口不匹配：检查CanDriverPlugin IID版本；确认Qt版本兼容性
 - **新增**：驱动禁用后无法启用：检查disabled.json文件；确认驱动路径有效
 - **新增**：设备市场搜索无结果：检查market.json是否加载成功；确认搜索关键词格式
+- **新增**：SLCAN设备连接失败：检查串口名称是否正确；确认波特率设置；验证固件兼容性
+- **新增**：Candle设备连接失败：检查libusb-1.0.dll是否加载；确认VID/PID在白名单中；验证设备驱动安装
 - 帧丢失：监控FrameQueue.approxSize与pendingFrames，确保主线程及时drain
 - 过滤表达式错误：查看FilterEngine.errorString，修正语法
 - 录制失败：确认文件路径与写入器初始化；检查磁盘空间与权限
 - 回放卡顿：调整Player.speed与UI刷新频率；启用覆盖模式减少数据量
 
 **章节来源**
-- [src/core/candevicemanager.h:1-141](file://src/core/candevicemanager.h#L1-L141)
+- [src/core/candevicemanager.h:1-142](file://src/core/candevicemanager.h#L1-L142)
 - [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 - [src/core/filter_engine.h:1-59](file://src/core/filter_engine.h#L1-L59)
 - [src/core/recorder.h:1-48](file://src/core/recorder.h#L1-L48)
@@ -559,7 +653,7 @@ ZCFG["ZLG动态配置API"] --> ZLGDRV
 - [src/core/driver/marketindex.cpp:71-148](file://src/core/driver/marketindex.cpp#L71-L148)
 
 ## 结论
-本系统以清晰的层次化架构与松耦合设计，实现了CAN/CAN FD报文的采集、录制、回放与可视化分析。通过设备抽象、无锁队列与表达式过滤，兼顾了易用性与高性能。**重大更新**：系统现已完全重构驱动管理系统，通过DriverRegistry统一管理所有内置和外置驱动，支持热重载和动态加载。**特别增强**：新增设备市场功能，用户可以直接搜索、下载和安装新的设备驱动，大大简化了设备管理的复杂度。系统现已完全支持ZLG致远电子、Kvaser、Peak Systems三大主流CAN设备厂商，通过统一的ICanDevice接口和工厂模式实现了多品牌设备的无缝集成。**特别增强**：ZLG设备现在支持硬件级别的动态接受过滤功能，通过ZLG的动态配置API实现高效的帧过滤，可显著降低CPU负载并提高数据处理效率。新增的设备驱动支持USB-CAN接口、PCIe卡、网络设备等85+种设备类型，以及完整的CAN FD协议增强功能，为汽车电子开发和总线调试提供了强大的工具支持。后续可扩展更多硬件后端、高级统计与脚本能力，满足复杂工程需求。
+本系统以清晰的层次化架构与松耦合设计，实现了CAN/CAN FD报文的采集、录制、回放与可视化分析。通过设备抽象、无锁队列与表达式过滤，兼顾了易用性与高性能。**重大更新**：系统现已完全重构驱动管理系统，通过DriverRegistry统一管理所有内置和外置驱动，支持热重载和动态加载。**特别增强**：新增设备市场功能，用户可以直接搜索、下载和安装新的设备驱动，大大简化了设备管理的复杂度。系统现已完全支持ZLG致远电子、Kvaser、Peak Systems、SLCAN和Candle五大主流CAN设备厂商，通过统一的ICanDevice接口和工厂模式实现了多品牌设备的无缝集成。**特别增强**：ZLG设备现在支持硬件级别的动态接受过滤功能，通过ZLG的动态配置API实现高效的帧过滤，可显著降低CPU负载并提高数据处理效率。新增的SLCAN和Candle驱动大幅扩展了硬件兼容性，支持USB-CAN接口、PCIe卡、网络设备等85+种设备类型，以及完整的CAN FD协议增强功能，为汽车电子开发和总线调试提供了强大的工具支持。后续可扩展更多硬件后端、高级统计与脚本能力，满足复杂工程需求。
 
 ## 附录
 - 构建与运行：参考README中的安装教程与CMake配置
@@ -567,6 +661,8 @@ ZCFG["ZLG动态配置API"] --> ZLGDRV
 - **新增**：ZLG设备支持：USBCAN-1/2、USBCAN-E-U、USBCAN-2E-U、USBCAN-4E-U、USBCANFD-200U/100U、USBCANFD-mini、USBCANFD-800U等设备类型
 - **新增**：Kvaser设备支持：USBcan II、Leaf、Leaf Light、Hybrid等系列设备
 - **新增**：Peak设备支持：PCAN-USB、PCAN-USB FD、PCAN-USB Pro FD等设备
+- **新增**：SLCAN设备支持：通用SLCAN适配器、Lawicel CANUSB、CANable (slcan固件)、USBtin、ESP32 / Arduino DIY等设备类型
+- **新增**：Candle设备支持：CANable (candle固件)、candleLight / GS_USB、candleLight (原版VID)、CANnectivity、CES CANext FD、ABE CANDebugger FD、Xylanta Saint3等设备类型
 - **新增**：CAN FD协议特性：64字节载荷、BRS/ESI标志、双波特率配置等完整支持
 - **新增**：多品牌设备统一管理：统一的设备枚举、配置和生命周期管理
 - **新增**：ZLG动态滤波功能：支持白名单/黑名单模式、ID范围过滤、扩展帧过滤、数据长度过滤等
@@ -575,3 +671,5 @@ ZCFG["ZLG动态配置API"] --> ZLGDRV
 - **新增**：MarketIndex设备市场：支持market.json格式的驱动元数据管理和搜索
 - **新增**：CanDriverPlugin插件接口：标准化的外部驱动接入规范
 - **新增**：设备市场界面：支持驱动的浏览、搜索、安装和管理
+- **新增**：SLCAN串口通信：基于Lawicel CANUSB协议的串口文本协议，支持自动波特率检测
+- **新增**：Candle GS_USB协议：完整的GS_USB协议握手序列，支持VID/PID白名单和硬件时间戳

@@ -119,15 +119,12 @@ QLabel *makeSectionLabel(const QString &text)
 
 QLabel *makeIconPlaceholder(const QString &ch, int size)
 {
-    auto *label = new QLabel(ch);
+    // 与 sidebar 迷你市场统一的兑底：PluginUi 彩色首字母头像
+    // （market icon 异步加载完成前/加载失败时作为美观占位）
+    auto *label = new QLabel;
     label->setFixedSize(size, size);
     label->setAlignment(Qt::AlignCenter);
-    label->setStyleSheet(
-        QStringLiteral("background: #3a3d41; border-radius: %1px; color: #aaaaaa;"
-                       " font-weight: bold;").arg(size / 6));
-    QFont f = label->font();
-    f.setPointSize(qMax(size / 3, 9));
-    label->setFont(f);
+    label->setPixmap(PluginUi::pluginIconPixmap(QString(), ch, size));
     return label;
 }
 
@@ -208,15 +205,31 @@ void MarketTab::buildUi()
     bar->addWidget(m_filterPlugins);
 
     auto *refreshBtn = new QToolButton;
-    refreshBtn->setText(QStringLiteral("⟳ 刷新"));
+    refreshBtn->setIcon(svgIcon(":/icons/refresh.svg",
+                                ThemeManager::instance()->currentTheme().text, 14));
+    refreshBtn->setText(QStringLiteral("刷新"));
+    refreshBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     refreshBtn->setToolTip(QStringLiteral("重新拉取市场索引与本地已装列表"));
     connect(refreshBtn, &QToolButton::clicked, this, &MarketTab::onRefreshClicked);
+    // 主题切换 → 重刷按钮图标颜色
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this, [refreshBtn]() {
+        refreshBtn->setIcon(svgIcon(":/icons/refresh.svg",
+                                    ThemeManager::instance()->currentTheme().text, 14));
+    });
     bar->addWidget(refreshBtn);
 
     auto *installBtn = new QToolButton;
-    installBtn->setText(QStringLiteral("⋯ 安装"));
+    installBtn->setIcon(svgIcon(":/icons/kebab.svg",
+                                 ThemeManager::instance()->currentTheme().text, 14));
+    installBtn->setText(QStringLiteral("安装"));
+    installBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     installBtn->setToolTip(QStringLiteral("从本地包文件安装（.odp 驱动 / .opk 插件）"));
     connect(installBtn, &QToolButton::clicked, this, &MarketTab::onInstallFromFile);
+    // 主题切换 → 重刷按钮图标颜色
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this, [installBtn]() {
+        installBtn->setIcon(svgIcon(":/icons/kebab.svg",
+                                    ThemeManager::instance()->currentTheme().text, 14));
+    });
     bar->addWidget(installBtn);
 
     root->addLayout(bar);
@@ -377,15 +390,13 @@ FrameRow *MarketTab::makeRow(const MarketItem &item, const QString &title,
     lay->setContentsMargins(8, 6, 8, 6);
     lay->setSpacing(8);
 
-    row->iconLabel = makeIconPlaceholder(
-        item.kind == MarketItem::InstalledPlugin || item.kind == MarketItem::MarketPlugin
-            ? QStringLiteral("P") : QStringLiteral("D"),
-        32);
+    row->iconLabel = makeIconPlaceholder(title.left(1).toUpper(), 24);
     lay->addWidget(row->iconLabel);
 
     auto *tbox = new QVBoxLayout;
     tbox->setSpacing(0);
     auto *titleLabel = new QLabel(title);
+    titleLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     QFont bold = titleLabel->font();
     bold.setBold(true);
     titleLabel->setFont(bold);
@@ -394,9 +405,10 @@ FrameRow *MarketTab::makeRow(const MarketItem &item, const QString &title,
     small.setPointSize(qMax(small.pointSize() - 1, 1));
     metaLabel->setFont(small);
     metaLabel->setStyleSheet(QStringLiteral("color: #9d9d9d;"));
-    // 单行截断（VS Code 条目风格）
+    metaLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    // 单行截断（VS Code 条目风格；Ignored 允许压缩避免挤占右侧状态/按钮）
     const QFontMetrics fm(metaLabel->font());
-    metaLabel->setText(fm.elidedText(meta, Qt::ElideRight, 340));
+    metaLabel->setText(fm.elidedText(meta, Qt::ElideRight, 200));
     tbox->addWidget(titleLabel);
     tbox->addWidget(metaLabel);
     lay->addLayout(tbox, 1);
@@ -453,40 +465,9 @@ void MarketTab::rebuildList()
     const bool wantPlugins = m_filterAll->isChecked() || m_filterPlugins->isChecked();
     int shown = 0;
 
-    // ---- 分组：已安装（驱动 + 插件混合） ----
-    int installedCount = 0;
-    if (wantDrivers) {
-        for (const auto &e : MarketModel::collectInstalledDrivers()) {
-            if (!MarketIndex::matchWords(text, e.searchFields))
-                continue;
-            if (installedCount == 0)
-                addSectionLabel(QStringLiteral("已安装"));
-            auto *row = makeRow(e.item, e.title, e.meta, e.status);
-            loadRowIcon(row, e.marketIcon);
-            insertBeforeStretch(row);
-            ++installedCount;
-            ++shown;
-        }
-    }
-    if (wantPlugins) {
-        for (const auto &e : MarketModel::collectInstalledPlugins()) {
-            if (!MarketIndex::matchWords(text, e.searchFields))
-                continue;
-            if (installedCount == 0)
-                addSectionLabel(QStringLiteral("已安装"));
-            auto *row = makeRow(e.item, e.title, e.meta, e.status);
-            const QPixmap localIcon = MarketModel::pluginIconLocal(e.item.id);
-            if (!localIcon.isNull())
-                row->iconLabel->setPixmap(
-                    localIcon.scaled(32, 32, Qt::KeepAspectRatio,
-                                     Qt::SmoothTransformation));
-            else
-                loadRowIcon(row, e.marketIcon);
-            insertBeforeStretch(row);
-            ++installedCount;
-            ++shown;
-        }
-    }
+    // 「已安装」分组已移除（v2.2 市场入口分工调整）：已装驱动/插件由
+    // collectMarketDrivers/collectMarketPlugins 在对应市场分组内以
+    // 「已安装 vX」状态呈现；已装启停管理归侧边栏迷你市场，避免与标签页重复。
 
     // ---- 分组：驱动市场（drivers[]，按驱动聚合） ----
     int driverMarket = 0;
@@ -1003,7 +984,7 @@ void MarketTab::loadRowIcon(FrameRow *row, const QString &relPath)
                     QPointer<FrameRow> g(row);
                     if (g && g->iconLabel)
                         g->iconLabel->setPixmap(
-                            pm.scaled(32, 32, Qt::KeepAspectRatio,
+                            pm.scaled(24, 24, Qt::KeepAspectRatio,
                                      Qt::SmoothTransformation));
                 });
 }

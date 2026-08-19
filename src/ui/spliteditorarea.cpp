@@ -10,6 +10,9 @@
 #include <QGuiApplication>
 #include <QCloseEvent>
 #include <QCursor>
+#include <QToolButton>
+#include "thememanager.h"
+#include "utils/svg_icon.h"
 
 // ============================================================
 //  DetachedTabWindow — 分离标签页的独立窗口
@@ -218,8 +221,36 @@ int SplitEditorArea::addTab(QWidget *widget, const QString &label)
     if (!target)
         target = m_firstTabs;
     int idx = target->addTab(widget, label);
+    setupCloseButton(target, idx);
     emit tabListChanged();
     return idx;
+}
+
+void SplitEditorArea::setupCloseButton(QTabWidget *tabs, int index)
+{
+    if (!tabs || index < 0 || index >= tabs->count())
+        return;
+    auto *btn = new QToolButton(tabs->tabBar());
+    btn->setIcon(svgIcon(":/icons/close.svg",
+                         ThemeManager::instance()->currentTheme().text, 14));
+    btn->setAutoRaise(true);
+    btn->setFixedSize(16, 16);
+    btn->setToolTip(QStringLiteral("关闭标签页"));
+    QWidget *w = tabs->widget(index);
+    connect(btn, &QToolButton::clicked, this, [this, tabs, w]() {
+        int i = tabs->indexOf(w);
+        if (i >= 0)
+            closeTab(tabs, i);
+    });
+    // 主题切换 → 重刷关闭按钮图标颜色
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged, btn, [btn]() {
+        btn->setIcon(svgIcon(":/icons/close.svg",
+                             ThemeManager::instance()->currentTheme().text, 14));
+    });
+    tabs->tabBar()->setTabButton(index, QTabBar::RightSide, btn);
+    // 固定标签页隐藏关闭按钮
+    bool pinned = w && w->property("pinned").toBool();
+    btn->setVisible(!pinned);
 }
 
 QWidget *SplitEditorArea::currentWidget() const

@@ -405,7 +405,7 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
     QAction copyAction(QStringLiteral("复制选中行"), this);
     QAction copyDataAction(QStringLiteral("复制数据"), this);
     QAction addToGraphicAction(QStringLiteral("发送到 Graphic"), this);
-    QAction clearFilterAction(QStringLiteral("x 清除过滤"), this);
+    QAction clearFilterAction(QStringLiteral("清除过滤"), this);
 
     menu.addAction(&copyAction);
     menu.addAction(&copyDataAction);
