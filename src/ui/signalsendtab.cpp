@@ -2,6 +2,8 @@
 #include "dbcimportdialog.h"
 #include "core/dbcdata.h"
 #include "core/dbcmanager.h"
+#include "utils/svg_icon.h"
+#include "ui/thememanager.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -82,7 +84,7 @@ SignalSendTab::SignalSendTab(QWidget *parent)
     // -- 发送列表表格 --
     m_sendTable = new QTableWidget(0, 10, splitter);
     m_sendTable->setHorizontalHeaderLabels(
-        {"✓", "#", "ID", "名称", "DLC", "数据(Hex)", "周期(ms)", "次数", "状态", "操作"});
+        {"启用", "#", "ID", "名称", "DLC", "数据(Hex)", "周期(ms)", "次数", "状态", "操作"});
     m_sendTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     m_sendTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     m_sendTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
@@ -470,11 +472,18 @@ QWidget *SignalSendTab::createOpWidget()
     layout->setContentsMargins(2, 2, 2, 2);
     layout->setSpacing(2);
 
-    auto *sendBtn = new QPushButton("发送", widget);
-    auto *stopBtn = new QPushButton("停止", widget);
-    auto *delBtn = new QPushButton("×", widget);
-    auto *upBtn = new QPushButton("↑", widget);
-    auto *downBtn = new QPushButton("↓", widget);
+    // 行操作按钮统一使用 SVG 图标（文字图标在部分字体下无法渲染）
+    const QString iconCol = ThemeManager::instance()->currentTheme().text;
+    auto *sendBtn = new QPushButton(widget);
+    sendBtn->setIcon(svgIcon(":/icons/play.svg", iconCol, 14));
+    auto *stopBtn = new QPushButton(widget);
+    stopBtn->setIcon(svgIcon(":/icons/stop.svg", iconCol, 14));
+    auto *delBtn = new QPushButton(widget);
+    delBtn->setIcon(svgIcon(":/icons/close.svg", iconCol, 14));
+    auto *upBtn = new QPushButton(widget);
+    upBtn->setIcon(svgIcon(":/icons/chevron-up.svg", iconCol, 14));
+    auto *downBtn = new QPushButton(widget);
+    downBtn->setIcon(svgIcon(":/icons/chevron-down.svg", iconCol, 14));
 
     sendBtn->setToolTip("发送");
     stopBtn->setToolTip("停止");
@@ -507,6 +516,17 @@ QWidget *SignalSendTab::createOpWidget()
     connect(downBtn, &QPushButton::clicked, this, [this, downBtn]() {
         int row = findRowOfButton(downBtn);
         if (row >= 0) onRowMoveDown(row);
+    });
+
+    // 主题切换 → 重刷行操作图标颜色（widget 作为接收者，随控件销毁自动断开）
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged, widget,
+            [sendBtn, stopBtn, delBtn, upBtn, downBtn]() {
+        const QString c = ThemeManager::instance()->currentTheme().text;
+        sendBtn->setIcon(svgIcon(":/icons/play.svg", c, 14));
+        stopBtn->setIcon(svgIcon(":/icons/stop.svg", c, 14));
+        delBtn->setIcon(svgIcon(":/icons/close.svg", c, 14));
+        upBtn->setIcon(svgIcon(":/icons/chevron-up.svg", c, 14));
+        downBtn->setIcon(svgIcon(":/icons/chevron-down.svg", c, 14));
     });
 
     return widget;

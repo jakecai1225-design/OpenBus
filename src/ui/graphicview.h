@@ -19,6 +19,7 @@ class QCPAxisRect;
 class QCPRange;
 class QCPItemStraightLine;
 class QCPItemText;
+class CursorHandleItem;
 class QToolBar;
 class QToolButton;
 class QLabel;
@@ -258,8 +259,8 @@ private:
     CursorMode m_cursorMode = CursorMode::None;
     QCPItemStraightLine *m_cursor1 = nullptr;
     QCPItemStraightLine *m_cursor2 = nullptr;
-    QCPItemText *m_cursor1Handle = nullptr;   ///< 卡尺顶部手柄▼
-    QCPItemText *m_cursor2Handle = nullptr;
+    CursorHandleItem *m_cursor1Handle = nullptr;   ///< 卡尺顶部手柄（SVG 下箭头）
+    CursorHandleItem *m_cursor2Handle = nullptr;
     QCPItemText *m_cursor1Label = nullptr;    ///< 卡尺时间标签
     QCPItemText *m_cursor2Label = nullptr;
     int m_draggingCursor = 0;   ///< 0=none, 1=cursor1, 2=cursor2

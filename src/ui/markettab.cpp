@@ -3,6 +3,8 @@
 #include "core/driver/driverregistry.h"
 #include "core/plugin/plugininfo.h"
 #include "core/plugin/pluginmanager.h"
+#include "ui/thememanager.h"
+#include "utils/svg_icon.h"
 
 #include <QButtonGroup>
 #include <QCoreApplication>
@@ -342,7 +344,7 @@ void MarketTab::onMarketLoaded(bool ok, const QString &error)
 {
     auto *idx = MarketIndex::instance();
     if (!ok) {
-        m_marketStatus->setText(QStringLiteral("⚠ 市场加载失败: %1").arg(error));
+        m_marketStatus->setText(QStringLiteral("市场加载失败: %1").arg(error));
     } else {
         m_marketStatus->setText(
             QStringLiteral("市场更新于 %1 · %2 个驱动 / %3 个插件")
@@ -647,7 +649,10 @@ void MarketTab::showMarketDriver(const MarketIndex::DriverInfo &drv)
         });
         blay->addWidget(btn);
     } else {
-        auto *btn = new QPushButton(QStringLiteral("✓ 已安装 v%1").arg(local));
+        auto *btn = new QPushButton(
+            svgIcon(":/icons/check.svg",
+                    ThemeManager::instance()->currentTheme().text, 14),
+            QStringLiteral("已安装 v%1").arg(local));
         btn->setEnabled(false);
         blay->addWidget(btn);
     }
@@ -757,11 +762,10 @@ void MarketTab::showInstalledDriver(const QString &driverId)
     auto *status = new QLabel(
         e.enabled
             ? (e.available
-                   ? QStringLiteral("✓ 可用")
-                   : QStringLiteral("✗ %1").arg(
-                         e.disabledReason.isEmpty()
-                             ? QStringLiteral("不可用") : e.disabledReason))
-            : QStringLiteral("✗ 已禁用"));
+                   ? QStringLiteral("可用")
+                   : e.disabledReason.isEmpty()
+                         ? QStringLiteral("不可用") : e.disabledReason)
+            : QStringLiteral("已禁用"));
     status->setStyleSheet(
         e.enabled && e.available
             ? QStringLiteral("color: #4ec9b0;")
@@ -873,7 +877,10 @@ void MarketTab::showMarketPlugin(const MarketIndex::PluginInfo &plug)
         });
         blay->addWidget(btn);
     } else {
-        auto *btn = new QPushButton(QStringLiteral("✓ 已安装"));
+        auto *btn = new QPushButton(
+            svgIcon(":/icons/check.svg",
+                    ThemeManager::instance()->currentTheme().text, 14),
+            QStringLiteral("已安装"));
         btn->setEnabled(false);
         blay->addWidget(btn);
     }
@@ -931,7 +938,7 @@ void MarketTab::showInstalledPlugin(const QString &name)
 
     auto *status = new QLabel(
         !enabled ? QStringLiteral("已禁用")
-                 : activated ? QStringLiteral("● 运行中") : QStringLiteral("已就绪"));
+                 : activated ? QStringLiteral("运行中") : QStringLiteral("已就绪"));
     status->setStyleSheet(
         !enabled ? QStringLiteral("color: #888888;")
                  : activated ? QStringLiteral("color: #4ec9b0;")

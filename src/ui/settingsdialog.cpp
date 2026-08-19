@@ -2,6 +2,7 @@
 #include "core/appconfig.h"
 #include "core/logging.h"
 #include "thememanager.h"
+#include "utils/svg_icon.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -50,7 +51,11 @@ void SettingsDialog::setupUi()
     m_searchEdit = new QLineEdit(searchBar);
     m_searchEdit->setPlaceholderText("搜索设置...");
     m_searchEdit->setClearButtonEnabled(true);
-    searchLayout->addWidget(new QLabel("🔍", searchBar));
+    auto *searchIcon = new QLabel(searchBar);
+    searchIcon->setPixmap(renderSvgPixmap(
+        ":/icons/search.svg",
+        ThemeManager::instance()->currentTheme().text, 14));
+    searchLayout->addWidget(searchIcon);
     searchLayout->addWidget(m_searchEdit, 1);
 
     // JSON 编辑切换按钮
@@ -348,12 +353,12 @@ void SettingsDialog::onSave()
     if (m_rightStack->currentIndex() == 1) {
         QString jsonStr = m_jsonEdit->toPlainText();
         if (!AppConfig::instance()->fromJsonString(jsonStr)) {
-            m_statusLabel->setText("✗ JSON 解析失败，请检查语法");
+            m_statusLabel->setText("JSON 解析失败，请检查语法");
             return;
         }
     }
     AppConfig::instance()->save();
-    m_statusLabel->setText("✓ 已保存");
+    m_statusLabel->setText("已保存");
     spdlog::info("SettingsDialog: 配置已保存");
 }
 
@@ -363,7 +368,7 @@ void SettingsDialog::onReset()
         QString::fromStdString(AppConfig::defaultConfig().dump(4)));
     populateSettingsTree(QString(), m_searchEdit->text());
     m_jsonEdit->setPlainText(AppConfig::instance()->toJsonString());
-    m_statusLabel->setText("✓ 已重置为默认值");
+    m_statusLabel->setText("已重置为默认值");
 }
 
 void SettingsDialog::switchToJsonPage()

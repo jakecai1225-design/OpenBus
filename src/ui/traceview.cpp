@@ -7,6 +7,8 @@
 #include "core/dbcmanager.h"
 #include "core/dbcdata.h"
 #include "utils/canutils.h"
+#include "utils/svg_icon.h"
+#include "ui/thememanager.h"
 
 #include <QMenu>
 #include <QAction>
@@ -839,8 +841,11 @@ void TraceView::showHeaderMenu(int column, const QPoint &pos)
 
     // 排序子菜单
     QMenu *sortMenu = menu.addMenu(QStringLiteral("排序"));
-    QAction sortAsc(QStringLiteral("↑ 升序排序"), this);
-    QAction sortDesc(QStringLiteral("↓ 降序排序"), this);
+    const QString sortIconCol = ThemeManager::instance()->currentTheme().text;
+    QAction sortAsc(QStringLiteral("升序排序"), this);
+    sortAsc.setIcon(svgIcon(":/icons/chevron-up.svg", sortIconCol, 14));
+    QAction sortDesc(QStringLiteral("降序排序"), this);
+    sortDesc.setIcon(svgIcon(":/icons/chevron-down.svg", sortIconCol, 14));
     QAction sortNone(QStringLiteral("不排序"), this);
     sortMenu->addAction(&sortAsc);
     sortMenu->addAction(&sortDesc);

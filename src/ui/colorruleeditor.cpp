@@ -1,5 +1,8 @@
 #include "colorruleeditor.h"
 
+#include "ui/thememanager.h"
+#include "utils/svg_icon.h"
+
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -33,10 +36,11 @@ ColorRuleEditor::ColorRuleEditor(QWidget *parent)
     m_listWidget->setAlternatingRowColors(true);
     listLayout->addWidget(m_listWidget, 0, 0, 1, 2);
 
-    auto *addBtn = new QPushButton("+ 添加", listGroup);
-    auto *removeBtn = new QPushButton("- 删除", listGroup);
-    auto *upBtn = new QPushButton("↑ 上移", listGroup);
-    auto *downBtn = new QPushButton("↓ 下移", listGroup);
+    const QString iconCol = ThemeManager::instance()->currentTheme().text;
+    auto *addBtn = new QPushButton(svgIcon(":/icons/plus.svg", iconCol, 14), "添加", listGroup);
+    auto *removeBtn = new QPushButton(svgIcon(":/icons/dash.svg", iconCol, 14), "删除", listGroup);
+    auto *upBtn = new QPushButton(svgIcon(":/icons/chevron-up.svg", iconCol, 14), "上移", listGroup);
+    auto *downBtn = new QPushButton(svgIcon(":/icons/chevron-down.svg", iconCol, 14), "下移", listGroup);
 
     auto *btnLayout = new QHBoxLayout;
     btnLayout->addWidget(addBtn);

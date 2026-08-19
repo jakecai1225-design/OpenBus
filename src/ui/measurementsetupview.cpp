@@ -1080,12 +1080,12 @@ void MeasurementSetupView::onSceneRightClicked(const QPointF &scenePos)
         titleAct->setFont(titleFont);
         m_rightMenu->addSeparator();
 
-        auto *actJump = m_rightMenu->addAction("🔗 跳转到此标签页");
+        auto *actJump = m_rightMenu->addAction("跳转到此标签页");
         connect(actJump, &QAction::triggered, this, [this, instModuleId, instInstanceId]() {
             emit moduleOpened(instModuleId, instInstanceId);
         });
 
-        auto *actClose = m_rightMenu->addAction("❌ 删除此实例");
+        auto *actClose = m_rightMenu->addAction("删除此实例");
         connect(actClose, &QAction::triggered, this, [this, instModuleId, instInstanceId]() {
             emit moduleInstanceClosed(instModuleId, instInstanceId);
         });
@@ -1168,7 +1168,7 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
         m_rightMenu->addSeparator();
 
-        auto *actToggle = m_rightMenu->addAction(blockEnabled ? "⛔ 禁用通道" : "✅ 启用通道");
+        auto *actToggle = m_rightMenu->addAction(blockEnabled ? "禁用通道" : "启用通道");
         connect(actToggle, &QAction::triggered, this, [this, blockId]() {
             toggleBlock(blockId);
         });
@@ -1258,7 +1258,7 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
         m_rightMenu->addSeparator();
 
         // Trace 块: 跳转到对应标签页; 其他模块: 跳转（新建）
-        auto *actOpen = m_rightMenu->addAction("🔗 跳转到对应标签页");
+        auto *actOpen = m_rightMenu->addAction("跳转到对应标签页");
         actOpen->setStatusTip("在中心区域打开/切换到该模块的标签页");
         connect(actOpen, &QAction::triggered, this, [this, blockModule, blockId]() {
             if (blockModule == "trace" || blockModule == "graphic")
@@ -1269,7 +1269,7 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
         m_rightMenu->addSeparator();
 
-        auto *actToggle = m_rightMenu->addAction(blockEnabled ? "⛔ 禁用模块" : "✅ 启用模块");
+        auto *actToggle = m_rightMenu->addAction(blockEnabled ? "禁用模块" : "启用模块");
         connect(actToggle, &QAction::triggered, this, [this, blockId]() {
             toggleBlock(blockId);
         });

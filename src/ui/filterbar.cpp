@@ -1,5 +1,7 @@
 #include "filterbar.h"
 #include "utils/canutils.h"
+#include "utils/svg_icon.h"
+#include "ui/thememanager.h"
 #include "core/filterpresetmanager.h"
 
 #include <QLineEdit>
@@ -23,7 +25,7 @@ FilterBar::FilterBar(QWidget *parent)
 
     m_statusIcon = new QLabel(this);
     m_statusIcon->setFixedSize(20, 20);
-    m_statusIcon->setPixmap(style()->standardIcon(QStyle::SP_DialogOkButton).pixmap(16, 16));
+    m_statusIcon->setPixmap(renderSvgPixmap(":/icons/check.svg", "#888888", 16));
     m_statusIcon->setToolTip("过滤器语法正确");
 
     m_edit = new QLineEdit(this);
@@ -32,18 +34,19 @@ FilterBar::FilterBar(QWidget *parent)
 
     m_applyBtn = new QPushButton("Apply", this);
     m_clearBtn = new QPushButton("Clear", this);
+    const QString iconCol = ThemeManager::instance()->currentTheme().text;
     m_helpBtn = new QToolButton(this);
-    m_helpBtn->setText("?");
+    m_helpBtn->setIcon(svgIcon(":/icons/help.svg", iconCol, 16));
     m_helpBtn->setToolTip("过滤器语法帮助");
 
     m_presetBtn = new QToolButton(this);
-    m_presetBtn->setText("☰");
+    m_presetBtn->setIcon(svgIcon(":/icons/list.svg", iconCol, 16));
     m_presetBtn->setToolTip("过滤预设");
     m_presetBtn->setPopupMode(QToolButton::InstantPopup);
 
     // 设置按钮（齿轮图标，弹出菜单由外部设置）
     m_settingsBtn = new QToolButton(this);
-    m_settingsBtn->setText("⚙");
+    m_settingsBtn->setIcon(svgIcon(":/icons/gear.svg", iconCol, 16));
     m_settingsBtn->setToolTip("设置（时间格式等）");
     m_settingsBtn->setPopupMode(QToolButton::InstantPopup);
     m_settingsBtn->setAutoRaise(true);
@@ -68,6 +71,16 @@ FilterBar::FilterBar(QWidget *parent)
     connect(m_helpBtn, &QToolButton::clicked, this, &FilterBar::showHelp);
     connect(m_edit, &QLineEdit::returnPressed, this, &FilterBar::onApply);
     connect(m_edit, &QLineEdit::textChanged, this, &FilterBar::onTextChanged);
+
+    // 主题切换 → 重刷图标颜色（状态图标由 onTextChanged 按当前状态重渲染）
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, [this]() {
+        const QString c = ThemeManager::instance()->currentTheme().text;
+        m_helpBtn->setIcon(svgIcon(":/icons/help.svg", c, 16));
+        m_presetBtn->setIcon(svgIcon(":/icons/list.svg", c, 16));
+        m_settingsBtn->setIcon(svgIcon(":/icons/gear.svg", c, 16));
+        onTextChanged();
+    });
 }
 
 void FilterBar::setPresetManager(FilterPresetManager *mgr)
@@ -159,19 +172,20 @@ void FilterBar::showHelp()
 void FilterBar::onTextChanged()
 {
     QString expr = m_edit->text().trimmed();
+    const QString okCol = ThemeManager::instance()->currentTheme().text;
     if (expr.isEmpty()) {
-        m_statusIcon->setPixmap(style()->standardIcon(QStyle::SP_DialogOkButton).pixmap(16, 16));
+        m_statusIcon->setPixmap(renderSvgPixmap(":/icons/check.svg", "#888888", 16));
         m_statusIcon->setToolTip("无过滤");
         m_edit->setStyleSheet("");
         return;
     }
 
     if (CanUtils::isFilterValid(expr)) {
-        m_statusIcon->setPixmap(style()->standardIcon(QStyle::SP_DialogOkButton).pixmap(16, 16));
+        m_statusIcon->setPixmap(renderSvgPixmap(":/icons/check.svg", okCol, 16));
         m_statusIcon->setToolTip("语法正确");
         m_edit->setStyleSheet("QLineEdit { background-color: #eff6ee; }");
     } else {
-        m_statusIcon->setPixmap(style()->standardIcon(QStyle::SP_DialogCancelButton).pixmap(16, 16));
+        m_statusIcon->setPixmap(renderSvgPixmap(":/icons/close.svg", "#e51400", 16));
         m_statusIcon->setToolTip("语法错误");
         m_edit->setStyleSheet("QLineEdit { background-color: #fbeaea; }");
     }

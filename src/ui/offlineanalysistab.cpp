@@ -3,6 +3,8 @@
 #include "core/canfileio/canfileio.h"
 #include "core/canfileio/canfileio_factory.h"
 #include "core/canframe.h"
+#include "ui/thememanager.h"
+#include "utils/svg_icon.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -48,10 +50,11 @@ OfflineAnalysisTab::OfflineAnalysisTab(QWidget *parent)
 
     // ---- 工具栏 ----
     auto *toolbarLayout = new QHBoxLayout;
-    m_addFileBtn = new QPushButton("+ 添加文件", this);
-    m_removeFileBtn = new QPushButton("- 删除文件", this);
-    m_moveUpBtn = new QPushButton("▲ 上移", this);
-    m_moveDownBtn = new QPushButton("▼ 下移", this);
+    const QString iconCol = ThemeManager::instance()->currentTheme().text;
+    m_addFileBtn = new QPushButton(svgIcon(":/icons/plus.svg", iconCol, 14), "添加文件", this);
+    m_removeFileBtn = new QPushButton(svgIcon(":/icons/dash.svg", iconCol, 14), "删除文件", this);
+    m_moveUpBtn = new QPushButton(svgIcon(":/icons/chevron-up.svg", iconCol, 14), "上移", this);
+    m_moveDownBtn = new QPushButton(svgIcon(":/icons/chevron-down.svg", iconCol, 14), "下移", this);
     toolbarLayout->addWidget(m_addFileBtn);
     toolbarLayout->addWidget(m_removeFileBtn);
     toolbarLayout->addSpacing(10);
@@ -94,6 +97,15 @@ OfflineAnalysisTab::OfflineAnalysisTab(QWidget *parent)
     connect(m_removeFileBtn, &QPushButton::clicked, this, &OfflineAnalysisTab::onRemoveFile);
     connect(m_moveUpBtn, &QPushButton::clicked, this, &OfflineAnalysisTab::onMoveUp);
     connect(m_moveDownBtn, &QPushButton::clicked, this, &OfflineAnalysisTab::onMoveDown);
+
+    // 主题切换 → 重刷工具栏按钮图标颜色
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+        const QString c = ThemeManager::instance()->currentTheme().text;
+        m_addFileBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
+        m_removeFileBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
+        m_moveUpBtn->setIcon(svgIcon(":/icons/chevron-up.svg", c, 14));
+        m_moveDownBtn->setIcon(svgIcon(":/icons/chevron-down.svg", c, 14));
+    });
 }
 
 void OfflineAnalysisTab::onAddFile()

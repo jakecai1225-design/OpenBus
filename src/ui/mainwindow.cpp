@@ -1866,19 +1866,19 @@ void MainWindow::setupDeviceTab(DeviceConnectionTab *tab)
         // 真实设备模式下，检查设备是否成功启动
         if (m_deviceManager->isRealDevice() && !m_deviceManager->isRunning()) {
             m_bottomPanel->appendOutput(
-                QStringLiteral("⚠ 设备连接失败: %1").arg(name));
+                QStringLiteral("设备连接失败: %1").arg(name));
             return;
         }
         if (!m_deviceManager->isRealDevice())
-            m_connLabel->setText(QStringLiteral("🔗 已连接"));
+            m_connLabel->setText(QStringLiteral("已连接"));
         // 不自动启动数据流 — 需在 Flow 页面点击“开始”后才向 Trace/Graphic 分发数据
         m_bottomPanel->appendOutput(
-            QStringLiteral("✅ 设备已连接: %1 (请在 Flow 页面点击开始启动数据流)").arg(name));
+            QStringLiteral("设备已连接: %1 (请在 Flow 页面点击开始启动数据流)").arg(name));
     });
     // 断开 — 停止数据流
     connect(tab, &DeviceConnectionTab::deviceDisconnectRequested,
             this, [this]() {
-        m_connLabel->setText(QStringLiteral("🔗 未连接"));
+        m_connLabel->setText(QStringLiteral("未连接"));
         m_measurementRunning = false;
         m_simulator->stop();
         m_deviceManager->stop();
@@ -1887,7 +1887,7 @@ void MainWindow::setupDeviceTab(DeviceConnectionTab *tab)
             if (traceTab)
                 traceTab->setRunning(false);
         }
-        m_bottomPanel->appendOutput(QStringLiteral("■ 数据流已停止"));
+        m_bottomPanel->appendOutput(QStringLiteral("数据流已停止"));
     });
 }
 
@@ -2031,7 +2031,7 @@ void MainWindow::onOpenMeasurementSetup()
                               });
                     m_player->loadFrames(allFrames);
                     m_bottomPanel->appendOutput(
-                        QStringLiteral("✅ 共加载 %1 个文件, %2 帧")
+                        QStringLiteral("共加载 %1 个文件, %2 帧")
                             .arg(loadedNames.size()).arg(allFrames.size()));
                 }
 
@@ -2054,7 +2054,7 @@ void MainWindow::onOpenMeasurementSetup()
                     tab->setRunning(view->isBlockEnabled(it.key()));
             }
         } else {
-            m_bottomPanel->appendOutput("■ 测量停止");
+            m_bottomPanel->appendOutput("测量停止");
             m_simulator->stop();
             m_deviceManager->stop();
             m_player->stop();
@@ -2549,7 +2549,7 @@ void MainWindow::onQuickConnect()
         m_deviceManager->start();
     } else if (!m_simulator->isRunning() && !m_deviceManager->isRealDevice()) {
         m_simulator->start();
-        m_connLabel->setText("🔗 已连接");
+        m_connLabel->setText("已连接");
         m_bottomPanel->appendOutput("设备已连接 (模拟器)");
     }
 }
@@ -2558,7 +2558,7 @@ void MainWindow::onQuickDisconnect()
 {
     m_simulator->stop();
     m_deviceManager->stop();
-    m_connLabel->setText("🔗 未连接");
+    m_connLabel->setText("未连接");
     m_bottomPanel->appendOutput("设备已断开");
 }
 

@@ -442,8 +442,18 @@ DbcPanel::DbcPanel(QWidget *parent)
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(8, 6, 8, 6);
     btnBar->setSpacing(4);
-    auto *importBtn = new QPushButton("+ 加载数据库文件", this);
-    auto *removeBtn = new QPushButton("- 删除", this);
+    const QString dbcIconCol = ThemeManager::instance()->currentTheme().text;
+    auto *importBtn = new QPushButton(
+        svgIcon(":/icons/plus.svg", dbcIconCol, 14), "加载数据库文件", this);
+    auto *removeBtn = new QPushButton(
+        svgIcon(":/icons/dash.svg", dbcIconCol, 14), "删除", this);
+    // 主题切换 → 重刷按钮图标颜色
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this,
+            [importBtn, removeBtn]() {
+        const QString c = ThemeManager::instance()->currentTheme().text;
+        importBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
+        removeBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
+    });
     btnBar->addWidget(importBtn);
     btnBar->addWidget(removeBtn);
     btnBar->addStretch();
@@ -693,8 +703,18 @@ TracePanel::TracePanel(QWidget *parent)
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(8, 6, 8, 6);
     btnBar->setSpacing(4);
-    auto *newBtn = new QPushButton("+ 新建 Trace", this);
-    m_delBtn = new QPushButton("− 删除", this);
+    const QString traceIconCol = ThemeManager::instance()->currentTheme().text;
+    auto *newBtn = new QPushButton(
+        svgIcon(":/icons/plus.svg", traceIconCol, 14), "新建 Trace", this);
+    m_delBtn = new QPushButton(
+        svgIcon(":/icons/dash.svg", traceIconCol, 14), "删除", this);
+    // 主题切换 → 重刷按钮图标颜色
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this,
+            [newBtn, this]() {
+        const QString c = ThemeManager::instance()->currentTheme().text;
+        newBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
+        m_delBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
+    });
     btnBar->addWidget(newBtn);
     btnBar->addWidget(m_delBtn);
     btnBar->addStretch();
@@ -771,8 +791,18 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(8, 6, 8, 6);
     btnBar->setSpacing(4);
-    auto *newBtn = new QPushButton("+ 新建 Graphic", this);
-    m_delBtn = new QPushButton("− 删除", this);
+    const QString graphIconCol = ThemeManager::instance()->currentTheme().text;
+    auto *newBtn = new QPushButton(
+        svgIcon(":/icons/plus.svg", graphIconCol, 14), "新建 Graphic", this);
+    m_delBtn = new QPushButton(
+        svgIcon(":/icons/dash.svg", graphIconCol, 14), "删除", this);
+    // 主题切换 → 重刷按钮图标颜色
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this,
+            [newBtn, this]() {
+        const QString c = ThemeManager::instance()->currentTheme().text;
+        newBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
+        m_delBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
+    });
     btnBar->addWidget(newBtn);
     btnBar->addWidget(m_delBtn);
     btnBar->addStretch();
@@ -961,9 +991,11 @@ void DevicePanel::populateTree()
         parent->setExpanded(true);
     }
 
-    // ---- 「＋ 新增设备」折叠栏底部固定入口 → 设备市场标签页 ----
+    // ---- 「新增设备」折叠栏底部固定入口 → 设备市场标签页 ----
     auto *addItem = new QTreeWidgetItem(m_deviceTree);
-    addItem->setText(0, QStringLiteral("＋ 新增设备"));
+    addItem->setText(0, QStringLiteral("新增设备"));
+    addItem->setIcon(0, svgIcon(":/icons/plus.svg",
+                                ThemeManager::instance()->currentTheme().text, 16));
     QFont addFont = addItem->font(0);
     addFont.setBold(true);
     addItem->setFont(0, addFont);

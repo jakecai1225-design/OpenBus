@@ -214,10 +214,12 @@ void ThemeManager::applyTheme(const QString &name)
     }
 }
 
-// 生成主题色树形分支图标（展开箭头 + 缩进参考线）到临时目录，供 QSS image: 引用。
+// 生成主题色小图标（树形分支箭头 + 缩进参考线 + SpinBox/ComboBox 上下箭头）
+// 到临时目录，供 QSS image: 引用。
 // QSS 的 image: 只能引用真实文件路径，无法使用 qrc 内的 currentColor 占位 SVG，
 // 故每次换主题时按当前配色写出小尺寸 SVG。
-// 20x24 视口匹配 Qt 分支元素（缩进 20 × 行高 24），避免 image: 拉伸变形。
+// 树图标 20x24 视口匹配 Qt 分支元素（缩进 20 × 行高 24），避免 image: 拉伸变形。
+// 上下箭头 10x10 视口（边框三角法在 Qt QSS 中渲染不可靠，改用真实图片）。
 static QString writeTreeIcons(const Theme &t)
 {
     QString dir = QDir::tempPath() + "/openbus_theme_icons";
@@ -244,10 +246,26 @@ static QString writeTreeIcons(const Theme &t)
     const QString indentGuide = QStringLiteral(
         "<svg width='20' height='24' xmlns='http://www.w3.org/2000/svg'>"
         "<rect x='9' y='0' width='1' height='24' fill='%1' fill-opacity='0.5'/></svg>").arg(t.textDim);
+    const auto smallChevron = [](const char *d, const QString &color) {
+        return QStringLiteral(
+            "<svg width='10' height='10' xmlns='http://www.w3.org/2000/svg'>"
+            "<path d='%1' fill='none' stroke='%2' stroke-width='1.4' "
+            "stroke-linecap='round' stroke-linejoin='round'/></svg>")
+            .arg(QString::fromLatin1(d), color);
+    };
+    // 上箭头 ^ 与下箭头 v（SpinBox/ComboBox 共用），常规 textDim / 悬停 accent
+    const QString spinUp      = smallChevron("M2.5 6.5 L5 4 L7.5 6.5", t.textDim);
+    const QString spinDown    = smallChevron("M2.5 4 L5 6.5 L7.5 4",   t.textDim);
+    const QString spinUpHov   = smallChevron("M2.5 6.5 L5 4 L7.5 6.5", t.accent);
+    const QString spinDownHov = smallChevron("M2.5 4 L5 6.5 L7.5 4",   t.accent);
 
     if (!write(QStringLiteral("chevron-right.svg"), chevronRight)
         || !write(QStringLiteral("chevron-down.svg"), chevronDown)
-        || !write(QStringLiteral("indent-guide.svg"), indentGuide))
+        || !write(QStringLiteral("indent-guide.svg"), indentGuide)
+        || !write(QStringLiteral("spin-up.svg"), spinUp)
+        || !write(QStringLiteral("spin-down.svg"), spinDown)
+        || !write(QStringLiteral("spin-up-hover.svg"), spinUpHov)
+        || !write(QStringLiteral("spin-down-hover.svg"), spinDownHov))
         return {};
     return dir;
 }
@@ -320,11 +338,17 @@ QString ThemeManager::generateQss(const Theme &t) const
         qss.replace(it.key(), t.*(it.value()));
 
     // 4. 注入主题色树形分支图标路径（@treeChevronRight / @treeChevronDown / @treeGuide）
+    //    及 SpinBox/ComboBox 上下箭头路径（@spinUp / @spinDown / @spinUpHover / @spinDownHover）
     const QString iconDir = writeTreeIcons(t);
     if (!iconDir.isEmpty()) {
         qss.replace(QStringLiteral("@treeChevronRight"), iconDir + "/chevron-right.svg");
         qss.replace(QStringLiteral("@treeChevronDown"), iconDir + "/chevron-down.svg");
         qss.replace(QStringLiteral("@treeGuide"), iconDir + "/indent-guide.svg");
+        // 注意先替换长占位符（@spinUp 是 @spinUpHover 的前缀）
+        qss.replace(QStringLiteral("@spinUpHover"), iconDir + "/spin-up-hover.svg");
+        qss.replace(QStringLiteral("@spinDownHover"), iconDir + "/spin-down-hover.svg");
+        qss.replace(QStringLiteral("@spinUp"), iconDir + "/spin-up.svg");
+        qss.replace(QStringLiteral("@spinDown"), iconDir + "/spin-down.svg");
     }
 
     return qss;

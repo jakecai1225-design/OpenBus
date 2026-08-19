@@ -110,10 +110,10 @@ PlaybackTab::PlaybackTab(QWidget *parent)
     listLayout->addWidget(m_fileList);
 
     auto *listBtnLayout = new QHBoxLayout;
-    m_addFileBtn = new QPushButton("+ 添加文件", listGroup);
-    m_removeFileBtn = new QPushButton("- 删除文件", listGroup);
-    m_moveUpBtn = new QPushButton("▲ 上移", listGroup);
-    m_moveDownBtn = new QPushButton("▼ 下移", listGroup);
+    m_addFileBtn = new QPushButton(svgIcon(":/icons/plus.svg", iconCol, 14), "添加文件", listGroup);
+    m_removeFileBtn = new QPushButton(svgIcon(":/icons/dash.svg", iconCol, 14), "删除文件", listGroup);
+    m_moveUpBtn = new QPushButton(svgIcon(":/icons/chevron-up.svg", iconCol, 14), "上移", listGroup);
+    m_moveDownBtn = new QPushButton(svgIcon(":/icons/chevron-down.svg", iconCol, 14), "下移", listGroup);
     listBtnLayout->addWidget(m_addFileBtn);
     listBtnLayout->addWidget(m_removeFileBtn);
     listBtnLayout->addWidget(m_moveUpBtn);
@@ -167,6 +167,18 @@ PlaybackTab::PlaybackTab(QWidget *parent)
             this, &PlaybackTab::onFileListDoubleClicked);
     connect(m_loopChk, &QCheckBox::toggled, this, &PlaybackTab::loopToggled);
     connect(m_autoScrollChk, &QCheckBox::toggled, this, &PlaybackTab::autoScrollToggled);
+
+    // 主题切换 → 重刷全部按钮图标颜色
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+        const QString c = ThemeManager::instance()->currentTheme().text;
+        m_playBtn->setIcon(svgIcon(":/icons/play.svg", c, 16));
+        m_pauseBtn->setIcon(svgIcon(":/icons/pause.svg", c, 16));
+        m_stopBtn->setIcon(svgIcon(":/icons/stop.svg", c, 16));
+        m_addFileBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
+        m_removeFileBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
+        m_moveUpBtn->setIcon(svgIcon(":/icons/chevron-up.svg", c, 14));
+        m_moveDownBtn->setIcon(svgIcon(":/icons/chevron-down.svg", c, 14));
+    });
 }
 
 void PlaybackTab::onPlay() { emit playRequested(); }

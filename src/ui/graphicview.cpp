@@ -1420,6 +1420,51 @@ void GraphicView::updateToolbarIcons()
     }
 }
 
+/**
+ * @brief 卡尺顶部手柄 — 渲染 SVG 下箭头图片（替代 "▼" 文字符号，
+ *        部分字体下文字符号渲染为方块/乱码）
+ *
+ * 拖拽命中由 GraphicView 按像素距离判定（±10px），项目自身不参与选中。
+ */
+class CursorHandleItem : public QCPAbstractItem
+{
+public:
+    explicit CursorHandleItem(QCustomPlot *parentPlot, const QColor &color)
+        : QCPAbstractItem(parentPlot)
+        , position(createPosition("position"))
+    {
+        position->setType(QCPItemPosition::ptAbsolute);
+        setHandleColor(color);
+    }
+
+    /// 随主题/调色板刷新箭头颜色
+    void setHandleColor(const QColor &color)
+    {
+        m_pixmap = renderSvgPixmap(":/icons/chevron-down.svg", color.name(), 12);
+    }
+
+    double selectTest(const QPointF &, bool, QVariant *) const override
+    {
+        return -1.0;
+    }
+
+    QCPItemPosition *const position;
+
+protected:
+    void draw(QCPPainter *painter) override
+    {
+        if (m_pixmap.isNull())
+            return;
+        const QPointF pos = position->pixelPosition();
+        // 水平居中、顶部对齐（与时间标签同排）
+        painter->drawPixmap(QPointF(pos.x() - m_pixmap.width() / 2.0, pos.y()),
+                            m_pixmap);
+    }
+
+private:
+    QPixmap m_pixmap;
+};
+
 void GraphicView::applyPalette()
 {
     m_palette = isLightTheme() ? GraphicPalette::canoeLight()
@@ -1453,6 +1498,10 @@ void GraphicView::applyPalette()
         m_cursor1->setPen(QPen(m_palette.cursor1, 1));
     if (m_cursor2)
         m_cursor2->setPen(QPen(m_palette.cursor2, 1));
+    if (m_cursor1Handle)
+        m_cursor1Handle->setHandleColor(m_palette.cursor1);
+    if (m_cursor2Handle)
+        m_cursor2Handle->setHandleColor(m_palette.cursor2);
     if (m_trackLine)
         m_trackLine->setPen(QPen(m_palette.trackCursor, 1, Qt::DotLine));
     if (m_trackLabel) {
@@ -1992,8 +2041,9 @@ void GraphicView::refreshNameLabels()
             text += " [" + sd.config.dbcSig.unit + "]";
         const bool dim = m_focusMode != FocusMode::AllColor &&
                          m_selectedSignal >= 0 && i != m_selectedSignal;
-        // 富文本：■ 信号色块 + 名字（主题前景色/置灰），对标 CANoe 信号名标签（§8.4）
-        sd.nameLabel->setText(QString("<span style='color:%1'>■</span> "
+        // 富文本：信号色块 + 名字（主题前景色/置灰），对标 CANoe 信号名标签（§8.4）
+        // 色块用 background-color 空白串实现（不依赖 ■ 字形，避免字体缺字渲染为方块）
+        sd.nameLabel->setText(QString("<span style='background-color:%1;'>&nbsp;&nbsp;&nbsp;</span>&nbsp;"
                                       "<span style='color:%2'>%3</span>")
             .arg(sd.config.color.name(),
                  (dim ? m_palette.dimCurve : m_palette.nameTagFg).name(),
@@ -2693,7 +2743,7 @@ void GraphicView::updateCursorValues()
 
 void GraphicView::ensureCursors()
 {
-    // 手柄/时间标签公共样式（ptAbsolute 像素定位，随视口由 updateCursorDecorations 维护）
+    // 时间标签公共样式（ptAbsolute 像素定位，随视口由 updateCursorDecorations 维护）
     auto setupDecor = [this](QCPItemText *t, const QColor &c) {
         t->position->setType(QCPItemPosition::ptAbsolute);
         t->setPositionAlignment(Qt::AlignHCenter | Qt::AlignTop);
@@ -2707,18 +2757,14 @@ void GraphicView::ensureCursors()
     if (!m_cursor1) {
         m_cursor1 = new QCPItemStraightLine(m_plot);
         m_cursor1->setPen(QPen(m_palette.cursor1, 1));   // 黑实线（§8.5）
-        m_cursor1Handle = new QCPItemText(m_plot);
-        m_cursor1Handle->setText("▼");
-        setupDecor(m_cursor1Handle, m_palette.cursor1);
+        m_cursor1Handle = new CursorHandleItem(m_plot, m_palette.cursor1);
         m_cursor1Label = new QCPItemText(m_plot);
         setupDecor(m_cursor1Label, m_palette.cursor1);
     }
     if (!m_cursor2) {
         m_cursor2 = new QCPItemStraightLine(m_plot);
         m_cursor2->setPen(QPen(m_palette.cursor2, 1));   // 深蓝实线（§8.5）
-        m_cursor2Handle = new QCPItemText(m_plot);
-        m_cursor2Handle->setText("▼");
-        setupDecor(m_cursor2Handle, m_palette.cursor2);
+        m_cursor2Handle = new CursorHandleItem(m_plot, m_palette.cursor2);
         m_cursor2Label = new QCPItemText(m_plot);
         setupDecor(m_cursor2Label, m_palette.cursor2);
     }
@@ -2782,8 +2828,8 @@ void GraphicView::updateCursorDecorations()
         line->point2->setCoords(QPointF(px, rc.bottom()));
         line->setVisible(true);
     };
-    // 手柄▼ + 时间标签：顶部错开两层
-    auto placeDecor = [&](QCPItemText *handle, QCPItemText *label,
+    // 手柄图标 + 时间标签：顶部错开两层
+    auto placeDecor = [&](CursorHandleItem *handle, QCPItemText *label,
                           double t, const QString &text) {
         if (!handle || !label)
             return;

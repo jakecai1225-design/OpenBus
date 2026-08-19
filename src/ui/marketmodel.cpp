@@ -146,7 +146,7 @@ QVector<MarketEntryData> MarketModel::collectInstalledPlugins()
         const bool enabled = pm->isPluginEnabled(p.name);
         const bool activated = pm->isPluginActivated(p.name);
         d.status = !enabled ? QStringLiteral("已禁用")
-                  : activated ? QStringLiteral("● 运行中")
+                  : activated ? QStringLiteral("运行中")
                               : QStringLiteral("已就绪");
         d.marketIcon = MarketIndex::instance()->pluginById(p.name).icon;
         d.searchFields = { p.name, p.version, p.author, p.description };

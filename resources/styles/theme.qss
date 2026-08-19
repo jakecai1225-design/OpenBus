@@ -232,11 +232,8 @@ QComboBox:hover { border: 1px solid @border; }
 QComboBox:focus { border: 1px solid @accent; }
 QComboBox:disabled { background-color: @buttonDisabledBg; color: @buttonDisabledText; }
 QComboBox::drop-down { border: none; width: 26px; subcontrol-origin: padding; subcontrol-position: top right; }
-QComboBox::down-arrow {
-    image: none; border-left: 5px solid transparent;
-    border-right: 5px solid transparent; border-top: 6px solid @textDim; width: 0; height: 0;
-}
-QComboBox::down-arrow:hover { border-top: 6px solid @accent; }
+QComboBox::down-arrow { image: url(@spinDown); width: 10px; height: 10px; }
+QComboBox::down-arrow:hover { image: url(@spinDownHover); }
 QComboBox QAbstractItemView {
     border: 1px solid @borderDim; background-color: @contentBg;
     selection-background-color: @selectionBg; selection-color: @text; outline: none; padding: 2px;
@@ -296,18 +293,10 @@ QSpinBox::down-button, QDoubleSpinBox::down-button {
 }
 QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover { background: @hoverBg; }
 QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed { background: @buttonPress; }
-QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
-    image: none; width: 8px; height: 8px;
-    border-left: 4px solid transparent; border-right: 4px solid transparent;
-    border-bottom: 5px solid @textDim;
-}
-QSpinBox::up-arrow:hover, QDoubleSpinBox::up-arrow:hover { border-bottom: 5px solid @accent; }
-QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
-    image: none; width: 8px; height: 8px;
-    border-left: 4px solid transparent; border-right: 4px solid transparent;
-    border-top: 5px solid @textDim;
-}
-QSpinBox::down-arrow:hover, QDoubleSpinBox::down-arrow:hover { border-top: 5px solid @accent; }
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow { image: url(@spinUp); width: 10px; height: 10px; }
+QSpinBox::up-arrow:hover, QDoubleSpinBox::up-arrow:hover { image: url(@spinUpHover); }
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow { image: url(@spinDown); width: 10px; height: 10px; }
+QSpinBox::down-arrow:hover, QDoubleSpinBox::down-arrow:hover { image: url(@spinDownHover); }
 
 /* ---- 进度条 ---- */
 QProgressBar {
