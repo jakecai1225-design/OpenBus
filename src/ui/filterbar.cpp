@@ -31,6 +31,8 @@ FilterBar::FilterBar(QWidget *parent)
     m_edit = new QLineEdit(this);
     m_edit->setPlaceholderText("显示过滤 (例如: id == 0x123 and fd, 或 0x200, 或 dlc > 8)...");
     m_edit->setClearButtonEnabled(true);
+    // 原生清除按钮 × 不随主题（深色下不可见）→ 换主题色 SVG 图标
+    applyClearButtonIcon(m_edit, ThemeManager::instance()->currentTheme().text);
 
     m_applyBtn = new QPushButton("Apply", this);
     m_clearBtn = new QPushButton("Clear", this);

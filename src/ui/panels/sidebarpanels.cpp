@@ -1101,42 +1101,16 @@ SettingsPanel::SettingsPanel(QWidget *parent)
     m_list = new QListWidget(this);
     m_list->addItem("通用设置");
     m_list->addItem("快捷键");
-    cl->addWidget(m_list);
-
-    // 颜色主题
-    auto *themeLabel = new QLabel("颜色主题", this);
-    themeLabel->setObjectName("SidePanelSubTitle");
-    cl->addWidget(themeLabel);
-
-    m_themeList = new QListWidget(this);
-    for (const auto &name : ThemeManager::instance()->themeNames())
-        m_themeList->addItem(name);
-    // 默认选中当前主题
-    QString cur = ThemeManager::instance()->currentThemeName();
-    for (int i = 0; i < m_themeList->count(); ++i) {
-        if (m_themeList->item(i)->text() == cur) {
-            m_themeList->setCurrentRow(i);
-            break;
-        }
-    }
-    cl->addWidget(m_themeList, 1);
+    cl->addWidget(m_list, 1);
 
     connect(m_list, &QListWidget::itemClicked,
             this, &SettingsPanel::onItemClicked);
-    connect(m_themeList, &QListWidget::itemClicked,
-            this, &SettingsPanel::onThemeItemClicked);
 }
 
 void SettingsPanel::onItemClicked(QListWidgetItem *item)
 {
     if (item)
         emit settingsRequested(item->text());
-}
-
-void SettingsPanel::onThemeItemClicked(QListWidgetItem *item)
-{
-    if (item)
-        emit themeChanged(item->text());
 }
 
 // ============================================================
@@ -1189,6 +1163,8 @@ ExtensionsPanel::ExtensionsPanel(QWidget *parent)
     m_searchEdit->setObjectName("ExtensionSearch");
     m_searchEdit->setPlaceholderText("在驱动与插件中搜索...");
     m_searchEdit->setClearButtonEnabled(true);
+    // 原生清除按钮 × 不随主题（深色下不可见）→ 换主题色 SVG 图标
+    applyClearButtonIcon(m_searchEdit, ThemeManager::instance()->currentTheme().text);
     searchRow->addWidget(m_searchEdit, 1);
 
     m_menuBtn = new QToolButton(this);

@@ -1,8 +1,11 @@
 #include "thememanager.h"
+#include "utils/svg_icon.h"
 #include <QApplication>
 #include <QFile>
 #include <QHash>
 #include <QDir>
+#include <QPalette>
+#include <algorithm>
 
 ThemeManager *ThemeManager::instance()
 {
@@ -43,144 +46,8 @@ void ThemeManager::initThemes()
     light.altRowBg = "#fafafa";
     m_themes.append({light.name, light});
 
-    // ===== Dark =====
-    Theme dark;
-    dark.name = "Dark";
-    dark.windowBg = "#1e1e1e";   dark.contentBg = "#252526";   dark.sidebarBg = "#252526";
-    dark.panelBg = "#2d2d2d";
-    dark.barBg = "#1e1e1e";      dark.barFg = "#cccccc";       dark.barHover = "#3d3d3d";
-    dark.barBorder = "#0a0a0a";
-    dark.activityBarBg = "#333333";  dark.activityBarFg = "#cccccc";  dark.activityBarHover = "#454545";
-    dark.text = "#d4d4d4";       dark.textDim = "#808080";
-    dark.accent = "#0e639c";     dark.accentHover = "#1177bb"; dark.accentBorder = "#0a5680";
-    dark.border = "#3c3c3c";     dark.borderDim = "#2d2d2d";
-    dark.selectionBg = "#264f78"; dark.hoverBg = "#2a2d2e";
-    dark.buttonBg = "#3c3c3c";   dark.buttonHover = "#4c4c4c"; dark.buttonPress = "#2c2c2c";
-    dark.buttonDisabledBg = "#2d2d2d"; dark.buttonDisabledText = "#5a5a5a";
-    dark.statusBg = "#0e639c";   dark.statusFg = "#ffffff";
-    dark.terminalBg = "#1e1e1e"; dark.terminalFg = "#d4d4d4";
-    dark.tabBg = "#2d2d2d";      dark.tabActiveBg = "#1e1e1e"; dark.tabHoverBg = "#3d3d3d";
-    dark.scrollBg = "#1e1e1e";   dark.scrollHandle = "#424242"; dark.scrollHandleHover = "#5a5a5a";
-    dark.closeBtnHover = "#e81123"; dark.closeBtnPress = "#f1707a";
-    dark.headerBg = "#2d2d2d";  dark.headerHover = "#3d3d3d";
-    dark.altRowBg = "#2a2a2b";
-    m_themes.append({dark.name, dark});
-
-    // ===== VS Code Dark+ =====
-    Theme vscDark;
-    vscDark.name = "VS Code Dark+";
-    vscDark.windowBg = "#1e1e1e"; vscDark.contentBg = "#1e1e1e"; vscDark.sidebarBg = "#252526";
-    vscDark.panelBg = "#333333";
-    vscDark.barBg = "#333333";    vscDark.barFg = "#cccccc";     vscDark.barHover = "#454545";
-    vscDark.barBorder = "#1a1a1a";
-    vscDark.activityBarBg = "#333333";  vscDark.activityBarFg = "#cccccc";  vscDark.activityBarHover = "#454545";
-    vscDark.text = "#d4d4d4";     vscDark.textDim = "#858585";
-    vscDark.accent = "#007acc";   vscDark.accentHover = "#1f8ad3"; vscDark.accentBorder = "#0066b8";
-    vscDark.border = "#3c3c3c";  vscDark.borderDim = "#2d2d2d";
-    vscDark.selectionBg = "#264f78"; vscDark.hoverBg = "#2a2d2e";
-    vscDark.buttonBg = "#3c3c3c"; vscDark.buttonHover = "#4c4c4c"; vscDark.buttonPress = "#2c2c2c";
-    vscDark.buttonDisabledBg = "#2d2d2d"; vscDark.buttonDisabledText = "#5a5a5a";
-    vscDark.statusBg = "#007acc"; vscDark.statusFg = "#ffffff";
-    vscDark.terminalBg = "#1e1e1e"; vscDark.terminalFg = "#d4d4d4";
-    vscDark.tabBg = "#2d2d2d";   vscDark.tabActiveBg = "#1e1e1e"; vscDark.tabHoverBg = "#3d3d3d";
-    vscDark.scrollBg = "#1e1e1e"; vscDark.scrollHandle = "#424242"; vscDark.scrollHandleHover = "#5a5a5a";
-    vscDark.closeBtnHover = "#e81123"; vscDark.closeBtnPress = "#f1707a";
-    vscDark.headerBg = "#333333"; vscDark.headerHover = "#404040";
-    vscDark.altRowBg = "#2a2a2b";
-    m_themes.append({vscDark.name, vscDark});
-
-    // ===== VS Code Light+ =====
-    Theme vscLight;
-    vscLight.name = "VS Code Light+";
-    vscLight.windowBg = "#f3f3f3"; vscLight.contentBg = "#ffffff"; vscLight.sidebarBg = "#f3f3f3";
-    vscLight.panelBg = "#e8e8e8";
-    vscLight.barBg = "#dddddd";   vscLight.barFg = "#333333";    vscLight.barHover = "#d0d0d0";
-    vscLight.barBorder = "#c4c4c4";
-    vscLight.activityBarBg = "#d8d8d8";  vscLight.activityBarFg = "#5c5c5c";  vscLight.activityBarHover = "#cccccc";
-    vscLight.text = "#333333";    vscLight.textDim = "#6c6c6c";
-    vscLight.accent = "#0066b8";  vscLight.accentHover = "#1f7ad3"; vscLight.accentBorder = "#005a9e";
-    vscLight.border = "#c4c4c4"; vscLight.borderDim = "#d4d4d4";
-    vscLight.selectionBg = "#add6ff"; vscLight.hoverBg = "#e8e8e8";
-    vscLight.buttonBg = "#e8e8e8"; vscLight.buttonHover = "#d8d8d8"; vscLight.buttonPress = "#c8c8c8";
-    vscLight.buttonDisabledBg = "#f0f0f0"; vscLight.buttonDisabledText = "#b0b0b0";
-    vscLight.statusBg = "#0066b8"; vscLight.statusFg = "#ffffff";
-    vscLight.terminalBg = "#1e1e1e"; vscLight.terminalFg = "#d4d4d4";
-    vscLight.tabBg = "#ececec";  vscLight.tabActiveBg = "#ffffff"; vscLight.tabHoverBg = "#dcdcdc";
-    vscLight.scrollBg = "#f3f3f3"; vscLight.scrollHandle = "#c0c0c0"; vscLight.scrollHandleHover = "#a0a0a0";
-    vscLight.closeBtnHover = "#e81123"; vscLight.closeBtnPress = "#f1707a";
-    vscLight.headerBg = "#e8e8e8"; vscLight.headerHover = "#d8d8d8";
-    vscLight.altRowBg = "#f7f7f7";
-    m_themes.append({vscLight.name, vscLight});
-
-    // ===== Monokai =====
-    Theme monokai;
-    monokai.name = "Monokai";
-    monokai.windowBg = "#272822"; monokai.contentBg = "#272822"; monokai.sidebarBg = "#1e1f1c";
-    monokai.panelBg = "#3e3d32";
-    monokai.barBg = "#1e1f1c";   monokai.barFg = "#f8f8f2";    monokai.barHover = "#3e3d32";
-    monokai.barBorder = "#0c0c0a";
-    monokai.activityBarBg = "#1e1f1c";  monokai.activityBarFg = "#f8f8f2";  monokai.activityBarHover = "#3e3d32";
-    monokai.text = "#f8f8f2";    monokai.textDim = "#75715e";
-    monokai.accent = "#a6e22e"; monokai.accentHover = "#b6f23e"; monokai.accentBorder = "#86c20e";
-    monokai.border = "#3e3d32"; monokai.borderDim = "#2d2c28";
-    monokai.selectionBg = "#49483e"; monokai.hoverBg = "#3e3d32";
-    monokai.buttonBg = "#3e3d32"; monokai.buttonHover = "#4e4d42"; monokai.buttonPress = "#2e2d22";
-    monokai.buttonDisabledBg = "#2d2c28"; monokai.buttonDisabledText = "#5a5a4e";
-    monokai.statusBg = "#a6e22e"; monokai.statusFg = "#272822";
-    monokai.terminalBg = "#272822"; monokai.terminalFg = "#f8f8f2";
-    monokai.tabBg = "#1e1f1c";   monokai.tabActiveBg = "#272822"; monokai.tabHoverBg = "#3e3d32";
-    monokai.scrollBg = "#1e1f1c"; monokai.scrollHandle = "#3e3d32"; monokai.scrollHandleHover = "#5a5a4e";
-    monokai.closeBtnHover = "#f92672"; monokai.closeBtnPress = "#fc5a96";
-    monokai.headerBg = "#3e3d32"; monokai.headerHover = "#4e4d42";
-    monokai.altRowBg = "#2d2e28";
-    m_themes.append({monokai.name, monokai});
-
-    // ===== Solarized Light =====
-    Theme solLight;
-    solLight.name = "Solarized Light";
-    solLight.windowBg = "#eee8d5"; solLight.contentBg = "#fdf6e3"; solLight.sidebarBg = "#eee8d5";
-    solLight.panelBg = "#ddd6c1";
-    solLight.barBg = "#ddd6c1";   solLight.barFg = "#586e75";    solLight.barHover = "#cdc6b1";
-    solLight.barBorder = "#b8b098";
-    solLight.activityBarBg = "#cdc6b1";  solLight.activityBarFg = "#586e75";  solLight.activityBarHover = "#bdb6a1";
-    solLight.text = "#586e75";    solLight.textDim = "#93a1a1";
-    solLight.accent = "#268bd2";  solLight.accentHover = "#3a9ee3"; solLight.accentBorder = "#1a6da8";
-    solLight.border = "#c8c0a8"; solLight.borderDim = "#d8d2c0";
-    solLight.selectionBg = "#eee8d5"; solLight.hoverBg = "#ddd6c1";
-    solLight.buttonBg = "#ddd6c1"; solLight.buttonHover = "#cdc6b1"; solLight.buttonPress = "#bdb6a1";
-    solLight.buttonDisabledBg = "#e8e0cc"; solLight.buttonDisabledText = "#b0a890";
-    solLight.statusBg = "#268bd2"; solLight.statusFg = "#fdf6e3";
-    solLight.terminalBg = "#073642"; solLight.terminalFg = "#93a1a1";
-    solLight.tabBg = "#ddd6c1";  solLight.tabActiveBg = "#fdf6e3"; solLight.tabHoverBg = "#cdc6b1";
-    solLight.scrollBg = "#eee8d5"; solLight.scrollHandle = "#c8c0a8"; solLight.scrollHandleHover = "#a8a088";
-    solLight.closeBtnHover = "#dc322f"; solLight.closeBtnPress = "#ec504f";
-    solLight.headerBg = "#ddd6c1"; solLight.headerHover = "#cdc6b1";
-    solLight.altRowBg = "#f5efdc";
-    m_themes.append({solLight.name, solLight});
-
-    // ===== Solarized Dark =====
-    Theme solDark;
-    solDark.name = "Solarized Dark";
-    solDark.windowBg = "#002b36"; solDark.contentBg = "#073642"; solDark.sidebarBg = "#073642";
-    solDark.panelBg = "#073642";
-    solDark.barBg = "#002b36";   solDark.barFg = "#93a1a1";    solDark.barHover = "#0a3b46";
-    solDark.barBorder = "#001a22";
-    solDark.activityBarBg = "#002b36";  solDark.activityBarFg = "#93a1a1";  solDark.activityBarHover = "#0a3b46";
-    solDark.text = "#839496";    solDark.textDim = "#586e75";
-    solDark.accent = "#268bd2";  solDark.accentHover = "#3a9ee3"; solDark.accentBorder = "#1a6da8";
-    solDark.border = "#0a4252";  solDark.borderDim = "#073642";
-    solDark.selectionBg = "#073d4a"; solDark.hoverBg = "#0a4252";
-    solDark.buttonBg = "#073642"; solDark.buttonHover = "#0a4858"; solDark.buttonPress = "#002b36";
-    solDark.buttonDisabledBg = "#073642"; solDark.buttonDisabledText = "#4a6068";
-    solDark.statusBg = "#268bd2"; solDark.statusFg = "#fdf6e3";
-    solDark.terminalBg = "#002b36"; solDark.terminalFg = "#839496";
-    solDark.tabBg = "#002b36";   solDark.tabActiveBg = "#073642"; solDark.tabHoverBg = "#0a4252";
-    solDark.scrollBg = "#002b36"; solDark.scrollHandle = "#0a4252"; solDark.scrollHandleHover = "#1a5262";
-    solDark.closeBtnHover = "#dc322f"; solDark.closeBtnPress = "#ec504f";
-    solDark.headerBg = "#073642"; solDark.headerHover = "#0a4858";
-    solDark.altRowBg = "#0a3040";
-    m_themes.append({solDark.name, solDark});
-
+    // 仅保留 Light 一套配色 — 其余主题存在大量未覆盖的硬编码浅色区域
+    // （黑一块白一块），在全面适配前不再提供
     m_currentName = "Light";
 }
 
@@ -204,22 +71,66 @@ const Theme &ThemeManager::currentTheme() const
 
 void ThemeManager::applyTheme(const QString &name)
 {
+    // 仅保留 Light 一套配色；name 未命中时回退到首个（唯一）主题，
+    // 避免历史调用传入已删除的主题名导致界面无样式
+    const Theme *sel = nullptr;
     for (const auto &p : m_themes) {
         if (p.first == name) {
-            m_currentName = name;
-            qApp->setStyleSheet(generateQss(p.second));
-            emit themeChanged(name);
-            return;
+            m_currentName = p.first;
+            sel = &p.second;
+            break;
         }
     }
+    if (!sel) {
+        if (m_themes.isEmpty())
+            return;
+        m_currentName = m_themes.first().first;
+        sel = &m_themes.first().second;
+    }
+    const Theme &t = *sel;
+
+    qApp->setStyleSheet(generateQss(t));
+
+    // 同步 QPalette — QSS 未覆盖的原生绘制部件（输入框清除按钮回退、
+    // 消息框、原生弹窗等）也能跟随主题，避免配色残留
+    QPalette pal;
+    pal.setColor(QPalette::Window, QColor(t.windowBg));
+    pal.setColor(QPalette::WindowText, QColor(t.text));
+    pal.setColor(QPalette::Base, QColor(t.contentBg));
+    pal.setColor(QPalette::AlternateBase, QColor(t.altRowBg));
+    pal.setColor(QPalette::ToolTipBase, QColor(t.contentBg));
+    pal.setColor(QPalette::ToolTipText, QColor(t.text));
+    pal.setColor(QPalette::Text, QColor(t.text));
+    pal.setColor(QPalette::Button, QColor(t.buttonBg));
+    pal.setColor(QPalette::ButtonText, QColor(t.text));
+    pal.setColor(QPalette::BrightText, QColor("#ffffff"));
+    pal.setColor(QPalette::Highlight, QColor(t.accent));
+    pal.setColor(QPalette::HighlightedText, QColor("#ffffff"));
+    pal.setColor(QPalette::Link, QColor(t.accentHover));
+    pal.setColor(QPalette::PlaceholderText, QColor(t.textDim));
+    const QColor dimText(t.buttonDisabledText);
+    pal.setColor(QPalette::Disabled, QPalette::Text, dimText);
+    pal.setColor(QPalette::Disabled, QPalette::WindowText, dimText);
+    pal.setColor(QPalette::Disabled, QPalette::ButtonText, dimText);
+    qApp->setPalette(pal);
+
+    // 已存在的 QLineEdit 清除按钮统一换主题色图标
+    // （原生 × 图标不随主题，部分底色下不可见）
+    for (QWidget *w : qApp->allWidgets()) {
+        auto *edit = qobject_cast<QLineEdit *>(w);
+        if (edit && edit->property("clearButtonEnabled").toBool())
+            applyClearButtonIcon(edit, t.text);
+    }
+
+    emit themeChanged(m_currentName);
 }
 
-// 生成主题色小图标（树形分支箭头 + 缩进参考线 + SpinBox/ComboBox 上下箭头）
-// 到临时目录，供 QSS image: 引用。
+// 生成主题色小图标（树形分支箭头 + 缩进参考线 + SpinBox/ComboBox/表头排序上下箭头
+// + 标签关闭 × + 单选圆点 + 复选半选横线）到临时目录，供 QSS image: 引用。
 // QSS 的 image: 只能引用真实文件路径，无法使用 qrc 内的 currentColor 占位 SVG，
 // 故每次换主题时按当前配色写出小尺寸 SVG。
 // 树图标 20x24 视口匹配 Qt 分支元素（缩进 20 × 行高 24），避免 image: 拉伸变形。
-// 上下箭头 10x10 视口（边框三角法在 Qt QSS 中渲染不可靠，改用真实图片）。
+// 其余图标 10x10 视口（边框三角法在 Qt QSS 中渲染不可靠，改用真实图片）。
 static QString writeTreeIcons(const Theme &t)
 {
     QString dir = QDir::tempPath() + "/openbus_theme_icons";
@@ -253,11 +164,31 @@ static QString writeTreeIcons(const Theme &t)
             "stroke-linecap='round' stroke-linejoin='round'/></svg>")
             .arg(QString::fromLatin1(d), color);
     };
-    // 上箭头 ^ 与下箭头 v（SpinBox/ComboBox 共用），常规 textDim / 悬停 accent
+    // 上箭头 ^ 与下箭头 v（SpinBox/ComboBox/表头排序共用），常规 textDim / 悬停 accent
     const QString spinUp      = smallChevron("M2.5 6.5 L5 4 L7.5 6.5", t.textDim);
     const QString spinDown    = smallChevron("M2.5 4 L5 6.5 L7.5 4",   t.textDim);
     const QString spinUpHov   = smallChevron("M2.5 6.5 L5 4 L7.5 6.5", t.accent);
     const QString spinDownHov = smallChevron("M2.5 4 L5 6.5 L7.5 4",   t.accent);
+
+    // 标签页关闭 ×（QTabBar::close-button），常规 textDim / 悬停 text
+    const auto smallX = [](const QString &color) {
+        return QStringLiteral(
+            "<svg width='10' height='10' xmlns='http://www.w3.org/2000/svg'>"
+            "<path d='M3 3 L7 7 M3 7 L7 3' fill='none' stroke='%1' stroke-width='1.4' "
+            "stroke-linecap='round' stroke-linejoin='round'/></svg>").arg(color);
+    };
+    const QString tabClose    = smallX(t.textDim);
+    const QString tabCloseHov = smallX(t.text);
+
+    // 单选钮选中圆点（accent）
+    const QString radioDot = QStringLiteral(
+        "<svg width='10' height='10' xmlns='http://www.w3.org/2000/svg'>"
+        "<circle cx='5' cy='5' r='2.5' fill='%1'/></svg>").arg(t.accent);
+
+    // 复选框半选横线（白 — 铺在 accent 底色上）
+    const QString checkIndet = QStringLiteral(
+        "<svg width='10' height='10' xmlns='http://www.w3.org/2000/svg'>"
+        "<rect x='2' y='4' width='6' height='2' rx='1' fill='#ffffff'/></svg>");
 
     if (!write(QStringLiteral("chevron-right.svg"), chevronRight)
         || !write(QStringLiteral("chevron-down.svg"), chevronDown)
@@ -265,7 +196,11 @@ static QString writeTreeIcons(const Theme &t)
         || !write(QStringLiteral("spin-up.svg"), spinUp)
         || !write(QStringLiteral("spin-down.svg"), spinDown)
         || !write(QStringLiteral("spin-up-hover.svg"), spinUpHov)
-        || !write(QStringLiteral("spin-down-hover.svg"), spinDownHov))
+        || !write(QStringLiteral("spin-down-hover.svg"), spinDownHov)
+        || !write(QStringLiteral("tab-close.svg"), tabClose)
+        || !write(QStringLiteral("tab-close-hover.svg"), tabCloseHov)
+        || !write(QStringLiteral("radio-dot.svg"), radioDot)
+        || !write(QStringLiteral("check-indeterminate.svg"), checkIndet))
         return {};
     return dir;
 }
@@ -332,23 +267,44 @@ QString ThemeManager::generateQss(const Theme &t) const
         {"@altRowBg",          &Theme::altRowBg},
     };
 
-    // 3. 替换所有 @变量
-    QString qss = rawQss;
+    // 3. 替换所有 @变量 — 按键长降序，避免前缀键破坏长键
+    //    （如 @text 先替换会把 @textDim 变成 "#3b3b3bDim"，@border/@borderDim、
+    //    @accent/@accentHover、@scrollHandle/@scrollHandleHover 同理；QHash 遍历
+    //    顺序不确定，不能依赖插入顺序碰巧正确）
+    QList<QPair<QString, QString>> vars;
     for (auto it = varMap.constBegin(); it != varMap.constEnd(); ++it)
-        qss.replace(it.key(), t.*(it.value()));
+        vars.append({it.key(), t.*(it.value())});
+    std::sort(vars.begin(), vars.end(),
+              [](const QPair<QString, QString> &a, const QPair<QString, QString> &b) {
+                  return a.first.size() > b.first.size();
+              });
+    QString qss = rawQss;
+    for (const auto &v : vars)
+        qss.replace(v.first, v.second);
 
-    // 4. 注入主题色树形分支图标路径（@treeChevronRight / @treeChevronDown / @treeGuide）
-    //    及 SpinBox/ComboBox 上下箭头路径（@spinUp / @spinDown / @spinUpHover / @spinDownHover）
+    // 4. 注入主题色小图标路径（树分支箭头 / 缩进参考线 / SpinBox-ComboBox 上下
+    //    箭头 / 表头排序箭头 / 标签关闭 × / 单选圆点 / 复选半选横线）
     const QString iconDir = writeTreeIcons(t);
     if (!iconDir.isEmpty()) {
-        qss.replace(QStringLiteral("@treeChevronRight"), iconDir + "/chevron-right.svg");
-        qss.replace(QStringLiteral("@treeChevronDown"), iconDir + "/chevron-down.svg");
-        qss.replace(QStringLiteral("@treeGuide"), iconDir + "/indent-guide.svg");
-        // 注意先替换长占位符（@spinUp 是 @spinUpHover 的前缀）
-        qss.replace(QStringLiteral("@spinUpHover"), iconDir + "/spin-up-hover.svg");
-        qss.replace(QStringLiteral("@spinDownHover"), iconDir + "/spin-down-hover.svg");
-        qss.replace(QStringLiteral("@spinUp"), iconDir + "/spin-up.svg");
-        qss.replace(QStringLiteral("@spinDown"), iconDir + "/spin-down.svg");
+        QList<QPair<QString, QString>> iconVars = {
+            {"@treeChevronRight",  "/chevron-right.svg"},
+            {"@treeChevronDown",   "/chevron-down.svg"},
+            {"@treeGuide",         "/indent-guide.svg"},
+            {"@spinUpHover",       "/spin-up-hover.svg"},
+            {"@spinDownHover",     "/spin-down-hover.svg"},
+            {"@spinUp",            "/spin-up.svg"},
+            {"@spinDown",          "/spin-down.svg"},
+            {"@tabCloseHover",     "/tab-close-hover.svg"},
+            {"@tabClose",          "/tab-close.svg"},
+            {"@radioDot",          "/radio-dot.svg"},
+            {"@checkIndet",        "/check-indeterminate.svg"},
+        };
+        std::sort(iconVars.begin(), iconVars.end(),
+                  [](const QPair<QString, QString> &a, const QPair<QString, QString> &b) {
+                      return a.first.size() > b.first.size();
+                  });
+        for (const auto &v : iconVars)
+            qss.replace(v.first, iconDir + v.second);
     }
 
     return qss;

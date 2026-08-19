@@ -51,6 +51,8 @@ void SettingsDialog::setupUi()
     m_searchEdit = new QLineEdit(searchBar);
     m_searchEdit->setPlaceholderText("搜索设置...");
     m_searchEdit->setClearButtonEnabled(true);
+    // 原生清除按钮 × 不随主题（深色下不可见）→ 换主题色 SVG 图标
+    applyClearButtonIcon(m_searchEdit, ThemeManager::instance()->currentTheme().text);
     auto *searchIcon = new QLabel(searchBar);
     searchIcon->setPixmap(renderSvgPixmap(
         ":/icons/search.svg",
@@ -177,7 +179,6 @@ void SettingsDialog::setupMetas()
     };
 
     // ---- 通用 ----
-    add("theme", "颜色主题", "通用", "combo", "界面配色方案", ThemeManager::instance()->themeNames());
     add("font.family", "字体族", "通用", "string", "界面字体名称");
     add("font.size", "字体大小", "通用", "int", "界面字体大小 (px)");
     add("window.rememberGeometry", "记住窗口大小", "通用", "bool", "下次启动恢复上次窗口尺寸");
@@ -205,9 +206,6 @@ void SettingsDialog::setupMetas()
     add("log.maxFileSize", "日志文件最大字节", "日志", "int", "单个日志文件最大字节数");
     add("log.maxFiles", "日志文件最大数量", "日志", "int", "轮转保留的日志文件数");
 }
-
-// 辅助：获取主题名列表
-// 已移除，直接调用 ThemeManager::instance()->themeNames()
 
 void SettingsDialog::populateCategoryTree()
 {

@@ -61,6 +61,7 @@ public:
 protected:
     void closeEvent(QCloseEvent *event) override;
     bool eventFilter(QObject *obj, QEvent *event) override;
+    void changeEvent(QEvent *event) override;
 #ifdef Q_OS_WIN
     bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
 #endif
@@ -170,6 +171,7 @@ private:
     void createLayout();
     void createStatusBar();
     void createWindowButtons();
+    void refreshWindowButtonIcons();   // 窗口按钮 SVG 图标（主题色 + 最大化/还原切换）
     void updateActions();
     void updateStatistics();
     void setupTraceTab(TraceTab *tab);

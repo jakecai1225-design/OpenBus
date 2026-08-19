@@ -1,4 +1,5 @@
 #include "filterheaderview.h"
+#include "thememanager.h"
 #include "models/cantraceproxymodel.h"
 
 #include <QPainter>
@@ -21,6 +22,10 @@ FilterHeaderView::FilterHeaderView(Qt::Orientation orientation, QWidget *parent)
     setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     // 禁用 Qt 内置排序指示器 — 自行绘制以控制位置，避免与过滤图标重叠
     setSortIndicatorShown(false);
+
+    // 主题切换 → 重绘（图标颜色取自 ThemeManager，而非硬编码）
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, [this]() { viewport()->update(); });
 }
 
 void FilterHeaderView::setProxyModel(CanTraceProxyModel *proxy)
@@ -99,14 +104,17 @@ void FilterHeaderView::paintSection(QPainter *painter, const QRect &rect, int lo
     if (!rect.isValid())
         return;
 
+    const Theme &th = ThemeManager::instance()->currentTheme();
+    const bool hovered = (logicalIndex == m_hoverSection);
+
     // 1. 基类绘制背景 + 文字（排序指示器已禁用，不会绘制）
     painter->save();
     QHeaderView::paintSection(painter, rect, logicalIndex);
     painter->restore();
 
-    // 2. 列分隔线（右侧）
+    // 2. 列分隔线（右侧）— 主题色
     painter->save();
-    painter->setPen(QPen(QColor(0xD0, 0xD0, 0xD0), 1));
+    painter->setPen(QPen(QColor(th.borderDim), 1));
     painter->drawLine(rect.right(), rect.top(), rect.right(), rect.bottom());
     painter->restore();
 
@@ -117,26 +125,26 @@ void FilterHeaderView::paintSection(QPainter *painter, const QRect &rect, int lo
     QRect sRect = sortIndicatorRect(rect);
 
     // 3. 在图标区域绘制背景遮罩，防止文字渗入图标下方
+    //    颜色取当前节背景（悬停节用 headerHover），避免遮罩色块突兀
     int iconLeft = sRect.left() - 3;
     QRect maskRect(iconLeft, rect.top() + 1,
                    rect.right() - iconLeft + 1, rect.height() - 1);
     painter->save();
     painter->setPen(Qt::NoPen);
-    painter->setBrush(palette().color(QPalette::Button));
+    painter->setBrush(QColor(hovered ? th.headerHover : th.headerBg));
     painter->drawRect(maskRect);
     painter->restore();
 
     bool active = hasFilter(logicalIndex);
-    bool hovered = (logicalIndex == m_hoverSection);
 
     // 4. 排序三角形 — 当前排序列绘制实心三角
     if (m_sortColumn == logicalIndex) {
         drawSortIndicator(painter, sRect, m_sortOrder == Qt::AscendingOrder);
     } else if (hovered) {
-        // 非排序列悬停时显示淡灰提示点
+        // 非排序列悬停时显示提示点（主题次级色）
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing, true);
-        QColor hint(0xC0, 0xC0, 0xC0);
+        QColor hint(th.textDim);
         painter->setPen(Qt::NoPen);
         painter->setBrush(hint);
         int dotSize = 3;
@@ -156,7 +164,7 @@ void FilterHeaderView::drawSortIndicator(QPainter *painter, const QRect &rect, b
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    QColor color(0x1A, 0x73, 0xE8);  // 蓝色实心三角
+    QColor color(ThemeManager::instance()->currentTheme().accent);  // 主题色实心三角
     painter->setPen(Qt::NoPen);
     painter->setBrush(color);
 
@@ -184,14 +192,15 @@ void FilterHeaderView::drawFilterIcon(QPainter *painter, const QRect &rect,
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    // 颜色：激活=蓝色, 悬停=深灰, 否则=浅灰（始终可见）
+    // 颜色（主题色）：激活=accent, 悬停=text, 否则=textDim（始终可见）
+    const Theme &th = ThemeManager::instance()->currentTheme();
     QColor color;
     if (active)
-        color = QColor(0x1A, 0x73, 0xE8);   // 蓝色
+        color = QColor(th.accent);
     else if (hovered)
-        color = QColor(0x50, 0x50, 0x50);   // 深灰
+        color = QColor(th.text);
     else
-        color = QColor(0xA8, 0xA8, 0xA8);   // 浅灰 — 始终可见
+        color = QColor(th.textDim);
 
     painter->setPen(QPen(color, 1.5));
     painter->setBrush(Qt::NoBrush);

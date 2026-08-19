@@ -41,6 +41,7 @@
 #include "utils/canutils.h"
 #include "core/appconfig.h"
 #include "core/projectmanager.h"
+#include "utils/svg_icon.h"
 #include "ui/settingsdialog.h"
 #include "core/file_import/file_importer.h"
 #include "core/plugin/pluginmanager.h"
@@ -332,10 +333,6 @@ MainWindow::MainWindow(QWidget *parent)
     });
     connect(m_sideBar->settingsPanel(), &SettingsPanel::settingsRequested,
             this, &MainWindow::onSettingsRequested);
-    connect(m_sideBar->settingsPanel(), &SettingsPanel::themeChanged,
-            this, [](const QString &name) {
-        ThemeManager::instance()->applyTheme(name);
-    });
     // 主题切换后刷新 ActivityBar 图标颜色
     connect(ThemeManager::instance(), &ThemeManager::themeChanged,
             m_activityBar, &ActivityBar::refreshIcons);
@@ -665,23 +662,25 @@ void MainWindow::createWindowButtons()
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
+    // VS Code 风格窗口控制按钮：真实 SVG 图标（替代 ─ □ ✕ 文字符号，
+    // 文字符号在部分字体下渲染成方块或粗细不一）
     m_minBtn = new QToolButton(container);
     m_minBtn->setObjectName("WinMinBtn");
-    m_minBtn->setText("\u2500");
+    m_minBtn->setIconSize(QSize(10, 10));
     m_minBtn->setFixedSize(46, 30);
     m_minBtn->setAutoRaise(true);
     m_minBtn->setToolTip("最小化");
 
     m_maxBtn = new QToolButton(container);
     m_maxBtn->setObjectName("WinMaxBtn");
-    m_maxBtn->setText("\u25a1");
+    m_maxBtn->setIconSize(QSize(10, 10));
     m_maxBtn->setFixedSize(46, 30);
     m_maxBtn->setAutoRaise(true);
     m_maxBtn->setToolTip("最大化");
 
     m_closeBtn = new QToolButton(container);
     m_closeBtn->setObjectName("WinCloseBtn");
-    m_closeBtn->setText("\u2715");
+    m_closeBtn->setIconSize(QSize(10, 10));
     m_closeBtn->setFixedSize(46, 30);
     m_closeBtn->setAutoRaise(true);
     m_closeBtn->setToolTip("关闭");
@@ -698,6 +697,28 @@ void MainWindow::createWindowButtons()
         else showMaximized();
     });
     connect(m_closeBtn, &QToolButton::clicked, this, &QWidget::close);
+
+    refreshWindowButtonIcons();
+    // 主题切换 → 重刷窗口按钮图标颜色
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, &MainWindow::refreshWindowButtonIcons);
+}
+
+void MainWindow::refreshWindowButtonIcons()
+{
+    const QString c = ThemeManager::instance()->currentTheme().barFg;
+    m_minBtn->setIcon(svgIcon(":/icons/win-minimize.svg", c, 10));
+    m_maxBtn->setIcon(svgIcon(isMaximized() ? ":/icons/win-restore.svg"
+                                             : ":/icons/win-maximize.svg", c, 10));
+    m_closeBtn->setIcon(svgIcon(":/icons/close.svg", c, 10));
+}
+
+void MainWindow::changeEvent(QEvent *event)
+{
+    QMainWindow::changeEvent(event);
+    // Aero Snap / 双击标题栏等途径也会切换最大化状态 → 同步最大化/还原图标
+    if (event->type() == QEvent::WindowStateChange && m_maxBtn)
+        refreshWindowButtonIcons();
 }
 
 // ============================================================

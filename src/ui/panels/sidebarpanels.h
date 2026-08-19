@@ -280,15 +280,12 @@ public:
 
 signals:
     void settingsRequested(const QString &section);
-    void themeChanged(const QString &themeName);
 
 private slots:
     void onItemClicked(QListWidgetItem *item);
-    void onThemeItemClicked(QListWidgetItem *item);
 
 private:
     QListWidget *m_list;
-    QListWidget *m_themeList;
 };
 
 // ============================================================
