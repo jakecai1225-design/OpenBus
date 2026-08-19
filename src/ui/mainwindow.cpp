@@ -20,16 +20,17 @@
 #include "ui/bottompanel.h"
 #include "ui/rightpanel.h"
 #include "ui/spliteditorarea.h"
-#include "ui/signalsendtab.h"
-#include "ui/playbacktab.h"
-#include "ui/offlineanalysistab.h"
-#include "ui/recordtab.h"
 #include "ui/dbcdetailtab.h"
 #include "ui/measurementsetupview.h"
 #include "ui/deviceconnectiontab.h"
 #include "core/driver/driverregistry.h"
-#include "ui/markettab.h"
+#include "core/module/moduleregistry.h"
+#include "core/module/imodule.h"
+#include "ui/marketmodel.h"   // MarketItem（ExtensionsPanel 信号类型，经 QVariant 传给市场模块）
 // ui/udsview.h, ui/canopenview.h 已移除 — UDS/CANopen 由插件 uds-diagnostic/canopen-explorer 提供
+// ui/markettab.h 已移除 — 插件市场页经 ModuleRegistry "market" 模块创建（拆分方案 B0）
+// ui/signalsendtab.h / playbacktab.h / offlineanalysistab.h / recordtab.h 已移除 —
+// 收发四页经 ModuleRegistry "transceive" 模块创建（拆分方案 B2）
 #include "ui/tools/dbcsignallistview.h"
 #include "ui/datawindow.h"
 #include "ui/tools/iographview.h"
@@ -37,7 +38,7 @@
 #include "core/busstatistics.h"
 #include "core/filterpresetmanager.h"
 #include "core/bookmarkmanager.h"
-#include "core/triggerrecorder.h"
+// core/triggerrecorder.h 已移除 — 触发录制随录制页迁入 transceive 模块（拆分方案 B2）
 #include "utils/canutils.h"
 #include "core/appconfig.h"
 #include "core/projectmanager.h"
@@ -147,7 +148,7 @@ MainWindow::MainWindow(QWidget *parent)
         connect(extPanel, &ExtensionsPanel::itemActivated,
                 this, [this](const MarketItem &item) {
             onOpenMarketTab();
-            m_marketTab->revealItem(item);
+            marketInvoke(QStringLiteral("revealItem"), QVariant::fromValue(item));
         });
         connect(extPanel, &ExtensionsPanel::pluginToggleRequested,
                 this, [this](const QString &name, bool enable) {
@@ -203,22 +204,22 @@ MainWindow::MainWindow(QWidget *parent)
                 QStringLiteral("openbus 驱动与插件包 (*.odp *.opk);;所有文件 (*)"));
             if (path.isEmpty())
                 return;
-            if (!m_marketTab)
+            if (!m_marketWidget)
                 setupMarketTab();
-            m_marketTab->installLocalFile(path);
+            marketInvoke(QStringLiteral("installLocalFile"), path);
         });
         connect(extPanel, &ExtensionsPanel::openMarketRequested,
                 this, &MainWindow::onOpenMarketTab);
     }
 
-    // MarketTab → 统一插件市场标签页（见 setupMarketTab）
+    // 统一插件市场标签页（见 setupMarketTab）
     setupMarketTab();
 
     // pluginListChanged → 刷新市场页已装列表（连接在 manager 上，标签页删除后仍安全）
     if (m_pluginManager) {
         connect(m_pluginManager, &PluginManager::pluginListChanged,
                 this, [this]() {
-            if (m_marketTab) m_marketTab->refreshInstalled();
+            if (m_marketWidget) marketInvoke(QStringLiteral("refreshInstalled"));
         });
     }
 
@@ -254,13 +255,13 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_recorder, &Recorder::recordingStarted, this, [this](const QString &) {
         m_recording = true;
         m_bottomPanel->appendOutput("录制开始");
-        if (m_recordTab) m_recordTab->setRecording(true);
+        transceiveInvoke(QStringLiteral("setRecording"), true);
         updateActions();
     });
     connect(m_recorder, &Recorder::recordingStopped, this, [this](const QString &path, int count) {
         m_recording = false;
         m_bottomPanel->appendOutput(QString("录制结束: %1 (%2 帧)").arg(path).arg(count));
-        if (m_recordTab) m_recordTab->setRecording(false);
+        transceiveInvoke(QStringLiteral("setRecording"), false);
         updateActions();
     });
 
@@ -919,8 +920,8 @@ void MainWindow::onActivityChanged(int activity)
             if (found) break;
         }
         if (found) {
-            if (m_marketTab)
-                m_marketTab->refreshInstalled();
+            if (m_marketWidget)
+                marketInvoke(QStringLiteral("refreshInstalled"));
         } else {
             onOpenMarketTab();
         }
@@ -979,9 +980,10 @@ void MainWindow::onRecord()
 void MainWindow::onPlay()
 {
     if (!m_player->isLoaded()) {
-        // 优先从离线分析标签页加载
-        if (m_offlineTab && !m_offlineTab->isEmpty()) {
-            QStringList paths = m_offlineTab->filePaths();
+        // 优先从离线分析标签页加载（文件列表经 transceive 模块查询，B2）
+        const QStringList paths = transceiveQuery(
+            QStringLiteral("offlineFiles")).toStringList();
+        if (!paths.isEmpty()) {
             QVector<CanFrame> allFrames;
             for (const auto &path : paths) {
                 auto reader = CanFileIOFactory::createReader(path);
@@ -1058,8 +1060,8 @@ void MainWindow::onOpenFile()
         m_bottomPanel->appendOutput(QString("已加载: %1 (%2 帧, %3s)")
             .arg(fi.fileName()).arg(m_player->totalFrames())
             .arg(m_player->totalTime(), 0, 'f', 2));
-        if (m_playbackTab)
-            m_playbackTab->setFileInfo(fi.fileName(), m_player->totalFrames(), m_player->totalTime());
+        transceiveInvoke(QStringLiteral("setFileInfo"),
+            QVariantList{ fi.fileName(), m_player->totalFrames(), m_player->totalTime() });
     }
     updateActions();
 }
@@ -1281,8 +1283,8 @@ void MainWindow::onFrameDoubleClicked(const CanFrame &frame)
 
 void MainWindow::onPlayerProgress(int cur, int total, double curTime, double totalTime)
 {
-    if (m_playbackTab)
-        m_playbackTab->setProgress(cur, total, curTime, totalTime);
+    transceiveInvoke(QStringLiteral("setProgress"),
+                     QVariantList{ cur, total, curTime, totalTime });
     if (totalTime > 0)
         m_timeLabel->setText(QString::number(curTime, 'f', 3) + "s / " +
                               QString::number(totalTime, 'f', 3) + "s");
@@ -1512,38 +1514,107 @@ void MainWindow::openTab(QWidget *widget, const QString &label)
 
 void MainWindow::setupMarketTab()
 {
-    m_marketTab = new MarketTab(this);
-
-    // 插件操作请求 → PluginManager（沿用原 ExtensionsTab 的连接）
-    connect(m_marketTab, &MarketTab::pluginActivateRequested,
-            this, [this](const QString &name) {
-        if (m_pluginManager) m_pluginManager->reactivatePlugin(name);
-    });
-    connect(m_marketTab, &MarketTab::pluginDeactivateRequested,
-            this, [this](const QString &name) {
-        if (m_pluginManager) m_pluginManager->deactivatePlugin(name);
-        if (m_pluginManager) emit m_pluginManager->pluginListChanged();
-    });
-    connect(m_marketTab, &MarketTab::pluginToggleRequested,
-            this, [this](const QString &name, bool enable) {
-        if (m_pluginManager) m_pluginManager->setPluginEnabled(name, enable);
-    });
+    // 经模块接口创建（拆分方案 B0：单体链接验证接口；B1 起 market 迁入
+    // openbus_market.dll，壳不再 include markettab.h；插件操作请求的
+    // PluginManager 连接在模块内完成）
+    IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("market"));
+    if (!mod)
+        return;
+    ShellContext ctx = makeShellContext();
+    m_marketWidget = mod->createWidget(ctx);
 
     // 标签页被关闭后 widget 被删除 → 置空指针，避免悬空引用
-    connect(m_marketTab, &QObject::destroyed, this, [this]() {
-        m_marketTab = nullptr;
+    connect(m_marketWidget, &QObject::destroyed, this, [this]() {
+        m_marketWidget = nullptr;
     });
+}
+
+void MainWindow::marketInvoke(const QString &action, const QVariant &arg)
+{
+    // 动作字符串约定见 core/module/imodule.h（refreshInstalled/focusSearch/
+    // revealItem/installLocalFile）；页面不存在时静默忽略
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("market")))
+        mod->invoke(action, arg);
+}
+
+// ============================================================
+//  transceive 模块支持（拆分方案 B2）
+// ============================================================
+
+ShellContext MainWindow::makeShellContext()
+{
+    ShellContext ctx;
+    ctx.mainWindow = this;
+    ctx.player = m_player;
+    ctx.recorder = m_recorder;
+    ctx.deviceManager = m_deviceManager;
+    ctx.simulator = m_simulator;
+    ctx.dbcManager = m_dbcManager;
+    ctx.appendOutput = [this](const QString &text) {
+        m_bottomPanel->appendOutput(text);
+    };
+    ctx.addProblem = [this](int level, const QString &source, const QString &message) {
+        m_bottomPanel->addProblem(level, source, message);
+    };
+    ctx.shellInvoke = [this](const QString &action, const QVariant &arg) {
+        // 动作字符串约定见 core/module/imodule.h
+        if (action == QStringLiteral("play")) {
+            onPlay();
+        } else if (action == QStringLiteral("pause")) {
+            onPause();
+        } else if (action == QStringLiteral("stop")) {
+            onStop();
+        } else if (action == QStringLiteral("setSpeed")) {
+            onSpeedChanged(arg.toDouble());
+        } else if (action == QStringLiteral("setAutoScroll")) {
+            onAutoScrollToggled(arg.toBool());
+        } else if (action == QStringLiteral("clearTraceGraphic")) {
+            // 清除所有 Trace 和 Graphic 视图（加载新文件时的壳编排）
+            const auto allTabs = m_editorArea->allTabWidgets();
+            for (auto *tw : allTabs) {
+                for (int i = 0; i < tw->count(); ++i) {
+                    auto *gv = qobject_cast<GraphicView *>(tw->widget(i));
+                    if (gv) gv->clearData();
+                    auto *tt = qobject_cast<TraceTab *>(tw->widget(i));
+                    if (tt) tt->clearTrace();
+                }
+            }
+        } else if (action == QStringLiteral("updateActions")) {
+            updateActions();
+        } else if (action == QStringLiteral("statusMessage")) {
+            m_statusLabel->setText(arg.toString());
+        }
+    };
+    return ctx;
+}
+
+void MainWindow::transceiveInvoke(const QString &action, const QVariant &arg)
+{
+    // 动作字符串约定见 core/module/imodule.h（setRecording/setFileInfo/
+    // setProgress）；页面不存在时模块内静默忽略
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("transceive")))
+        mod->invoke(action, arg);
+}
+
+QVariant MainWindow::transceiveQuery(const QString &what, const QVariant &arg)
+{
+    // 查询约定见 core/module/imodule.h（offlineFiles → QStringList）
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("transceive")))
+        return mod->query(what, arg);
+    return {};
 }
 
 void MainWindow::onOpenMarketTab()
 {
     // 标签页可能已被关闭并删除，需要重建
-    if (!m_marketTab)
+    if (!m_marketWidget)
         setupMarketTab();
-    openTab(m_marketTab, QStringLiteral("插件市场"));
-    m_marketTab->refreshInstalled();
+    if (!m_marketWidget)
+        return;
+    openTab(m_marketWidget, QStringLiteral("插件市场"));
+    marketInvoke(QStringLiteral("refreshInstalled"));
     // ＋新增设备跳转后直接聚焦搜索（方案 §13.6）
-    m_marketTab->focusSearch();
+    marketInvoke(QStringLiteral("focusSearch"));
 }
 
 void MainWindow::onOpenTraceTab()
@@ -1584,12 +1655,13 @@ void MainWindow::onOpenSendTab()
             }
         }
     }
-    // 未找到则创建新的
-    m_sendTab = new SignalSendTab(this);
-    m_sendTab->setDbcManager(m_dbcManager);
-    setupSendTab(m_sendTab);
-    connect(m_sendTab, &QObject::destroyed, this, [this]() { m_sendTab = nullptr; });
-    openTab(m_sendTab, "发送");
+    // 未找到则经收发模块创建（拆分方案 B2：页面归 openbus_transceive.dll，
+    // 装配逻辑在模块内完成，壳只提供 ShellContext）
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("transceive"))) {
+        ShellContext ctx = makeShellContext();
+        if (QWidget *page = mod->createPage(QStringLiteral("signalsend"), ctx))
+            openTab(page, "发送");
+    }
 }
 
 void MainWindow::onOpenPlaybackTab()
@@ -1604,11 +1676,12 @@ void MainWindow::onOpenPlaybackTab()
             }
         }
     }
-    // 未找到则创建新的
-    m_playbackTab = new PlaybackTab(this);
-    setupPlaybackTab(m_playbackTab);
-    connect(m_playbackTab, &QObject::destroyed, this, [this]() { m_playbackTab = nullptr; });
-    openTab(m_playbackTab, "回放");
+    // 未找到则经收发模块创建（拆分方案 B2）
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("transceive"))) {
+        ShellContext ctx = makeShellContext();
+        if (QWidget *page = mod->createPage(QStringLiteral("playback"), ctx))
+            openTab(page, "回放");
+    }
 }
 
 void MainWindow::onOpenOfflineAnalysisTab()
@@ -1623,11 +1696,12 @@ void MainWindow::onOpenOfflineAnalysisTab()
             }
         }
     }
-    // 未找到则创建新的
-    m_offlineTab = new OfflineAnalysisTab(this);
-    setupOfflineAnalysisTab(m_offlineTab);
-    connect(m_offlineTab, &QObject::destroyed, this, [this]() { m_offlineTab = nullptr; });
-    openTab(m_offlineTab, QStringLiteral("离线分析"));
+    // 未找到则经收发模块创建（拆分方案 B2）
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("transceive"))) {
+        ShellContext ctx = makeShellContext();
+        if (QWidget *page = mod->createPage(QStringLiteral("offlineanalysis"), ctx))
+            openTab(page, QStringLiteral("离线分析"));
+    }
 }
 
 void MainWindow::onOpenRecordTab()
@@ -1642,204 +1716,16 @@ void MainWindow::onOpenRecordTab()
             }
         }
     }
-    // 未找到则创建新的
-    m_recordTab = new RecordTab(this);
-    setupRecordTab(m_recordTab);
-    connect(m_recordTab, &QObject::destroyed, this, [this]() { m_recordTab = nullptr; });
-    openTab(m_recordTab, "录制");
+    // 未找到则经收发模块创建（拆分方案 B2）
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("transceive"))) {
+        ShellContext ctx = makeShellContext();
+        if (QWidget *page = mod->createPage(QStringLiteral("record"), ctx))
+            openTab(page, "录制");
+    }
 }
 
-// ============================================================
-//  标签页 setup 方法 — 提取自构造函数，支持关闭后重建
-// ============================================================
-
-void MainWindow::setupSendTab(SignalSendTab *tab)
-{
-    // 发送单帧
-    connect(tab, &SignalSendTab::sendSingleRequested, this, [this](quint32 id, const QByteArray &data) {
-        CanFrame frame;
-        frame.id = id;
-        frame.dlc = CanFrame::lengthToDlc(data.size());
-        frame.data = data;
-        frame.direction = CanFrame::Tx;
-
-        if (m_deviceManager->sendFrame(frame)) {
-            m_bottomPanel->appendOutput(QString("发送: ID=0x%1, DLC=%2")
-                .arg(id, 0, 16).toUpper().arg(data.size()));
-        } else {
-            m_bottomPanel->appendOutput(QString("发送失败 (设备未连接或为模拟器): ID=0x%1")
-                .arg(id, 0, 16).toUpper());
-        }
-    });
-
-    // 发送行（单次或周期）
-    connect(tab, &SignalSendTab::sendRowRequested, this,
-        [this](int row, quint32 id, const QByteArray &data, int period, int count) {
-        CanFrame frame;
-        frame.id = id;
-        frame.dlc = CanFrame::lengthToDlc(data.size());
-        frame.data = data;
-        frame.direction = CanFrame::Tx;
-
-        // 先发送一帧
-        if (m_deviceManager->sendFrame(frame)) {
-            m_bottomPanel->appendOutput(QString("发送行%1: ID=0x%2, DLC=%3")
-                .arg(row + 1).arg(id, 0, 16).toUpper().arg(data.size()));
-        } else {
-            m_bottomPanel->appendOutput(QString("发送失败 (设备未连接或为模拟器): ID=0x%1")
-                .arg(id, 0, 16).toUpper());
-        }
-
-        // 周期发送
-        if (period > 0) {
-            // 停止该行已有的定时器
-            auto it = m_periodicSenders.find(row);
-            if (it != m_periodicSenders.end()) {
-                it.value()->stop();
-                it.value()->deleteLater();
-                m_periodicSenders.erase(it);
-            }
-
-            auto *timer = new QTimer(this);
-            timer->setInterval(period);
-            int remaining = count;  // 0 = 无限
-            connect(timer, &QTimer::timeout, this, [this, id, data, row, count, timer, remaining]() mutable {
-                CanFrame f;
-                f.id = id;
-                f.dlc = CanFrame::lengthToDlc(data.size());
-                f.data = data;
-                f.direction = CanFrame::Tx;
-                m_deviceManager->sendFrame(f);
-
-                if (count > 0) {
-                    --remaining;
-                    if (remaining <= 0) {
-                        timer->stop();
-                        timer->deleteLater();
-                        m_periodicSenders.remove(row);
-                        m_bottomPanel->appendOutput(
-                            QString("行%1 周期发送完成 (%2 次)").arg(row + 1).arg(count));
-                    }
-                }
-            });
-            timer->start();
-            m_periodicSenders[row] = timer;
-        }
-    });
-
-    // 停止单行
-    connect(tab, &SignalSendTab::stopRowRequested, this, [this](int row) {
-        auto it = m_periodicSenders.find(row);
-        if (it != m_periodicSenders.end()) {
-            it.value()->stop();
-            it.value()->deleteLater();
-            m_periodicSenders.erase(it);
-            m_bottomPanel->appendOutput(QString("停止行%1 周期发送").arg(row + 1));
-        }
-    });
-
-    // 全部停止（安全网：确保所有定时器都停止）
-    connect(tab, &SignalSendTab::stopAllRequested, this, [this]() {
-        for (auto *t : m_periodicSenders) {
-            t->stop();
-            t->deleteLater();
-        }
-        m_periodicSenders.clear();
-    });
-}
-
-void MainWindow::setupPlaybackTab(PlaybackTab *tab)
-{
-    connect(tab, &PlaybackTab::playRequested, this, &MainWindow::onPlay);
-    connect(tab, &PlaybackTab::pauseRequested, this, &MainWindow::onPause);
-    connect(tab, &PlaybackTab::stopRequested, this, &MainWindow::onStop);
-    connect(tab, &PlaybackTab::speedChanged, this, &MainWindow::onSpeedChanged);
-    connect(tab, &PlaybackTab::seekChanged, this, &MainWindow::onSeekChanged);
-    connect(tab, &PlaybackTab::loopToggled, m_player, &Player::setLoop);
-    connect(tab, &PlaybackTab::autoScrollToggled, this, &MainWindow::onAutoScrollToggled);
-    connect(tab, &PlaybackTab::fileLoaded, this, [this, tab](const QString &path) {
-        QFileInfo fi(path);
-        if (!m_player->load(path)) {
-            QMessageBox::warning(this, "回放", "无法加载: " + path);
-            m_bottomPanel->addProblem(1, "Player", "无法加载: " + path);
-            return;
-        }
-        // 清除所有 Trace 和 Graphic 视图
-        const auto allTabs = m_editorArea->allTabWidgets();
-        for (auto *tw : allTabs) {
-            for (int i = 0; i < tw->count(); ++i) {
-                auto *gv = qobject_cast<GraphicView *>(tw->widget(i));
-                if (gv) gv->clearData();
-                auto *tt = qobject_cast<TraceTab *>(tw->widget(i));
-                if (tt) tt->clearTrace();
-            }
-        }
-        m_bottomPanel->appendOutput(QString("已加载: %1 (%2 帧, %3s)")
-            .arg(fi.fileName()).arg(m_player->totalFrames())
-            .arg(m_player->totalTime(), 0, 'f', 2));
-        tab->setFileInfo(fi.fileName(), m_player->totalFrames(), m_player->totalTime());
-        updateActions();
-    });
-}
-
-void MainWindow::setupOfflineAnalysisTab(OfflineAnalysisTab *tab)
-{
-    // 离线分析标签页是纯文件列表管理，不直接加载文件
-    // 文件加载由 Flow 界面点击"开始"时统一处理（measurementToggled）
-    Q_UNUSED(tab);
-}
-
-void MainWindow::setupRecordTab(RecordTab *tab)
-{
-    connect(tab, &RecordTab::recordToggled, this, [this, tab](bool on) {
-        if (on) {
-            // 使用 RecordTab 面板设置自动生成文件路径
-            QString dir = tab->directory();
-            if (dir.isEmpty()) dir = ".";
-            QDir().mkpath(dir);
-            QString prefix = tab->prefix();
-            if (prefix.isEmpty()) prefix = "rec";
-            QString fmt = tab->format();
-            if (!CanFileIOFactory::canWrite(fmt)) fmt = "asc";
-            QString fileName = prefix + "_" +
-                QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") +
-                "." + fmt;
-            QString path = QDir(dir).filePath(fileName);
-
-            if (!m_recorder->start(path)) {
-                QMessageBox::warning(this, "录制", "无法创建文件: " + path +
-                    "\n请检查路径是否有效、磁盘空间是否足够。");
-                tab->setRecording(false);
-                m_bottomPanel->addProblem(1, "Recorder", "无法创建录制文件: " + path);
-                return;
-            }
-            m_bottomPanel->appendOutput("开始录制: " + path);
-        } else {
-            m_recorder->stop();
-        }
-    });
-
-    // 暂停/恢复录制
-    connect(tab, &RecordTab::pauseRequested, this, [this, tab](bool paused) {
-        if (paused) {
-            m_recorder->pause();
-            m_bottomPanel->appendOutput("录制已暂停");
-        } else {
-            m_recorder->resume();
-            m_bottomPanel->appendOutput("录制已恢复");
-        }
-    });
-
-    // P1: 触发录制
-    connect(tab, &RecordTab::triggerRecordingRequested,
-            this, &MainWindow::onTriggerRecording);
-
-    // 触发录制停止
-    connect(tab, &RecordTab::triggerRecordingStopped, this, [this]() {
-        if (m_triggerRecorder)
-            m_triggerRecorder->stop();
-    });
-}
+// setupSendTab/setupPlaybackTab/setupOfflineAnalysisTab/setupRecordTab 已随
+// 收发四页迁入 TransceiveModule（拆分方案 B2 §4.5：模块自己连接自己的信号槽）
 
 void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName, int deviceType)
 {
@@ -2011,8 +1897,9 @@ void MainWindow::onOpenMeasurementSetup()
             } else {
                 // 离线分析模式：从离线分析标签页加载所有文件，合并后送入 Player
                 m_player->stop();
-                QStringList paths = (m_offlineTab && !m_offlineTab->isEmpty())
-                                    ? m_offlineTab->filePaths() : QStringList{};
+                // 文件列表经 transceive 模块查询（拆分方案 B2）
+                QStringList paths = transceiveQuery(
+                    QStringLiteral("offlineFiles")).toStringList();
 
                 if (paths.isEmpty()) {
                     // 无文件 → 回退到文件选择框
@@ -2460,48 +2347,8 @@ void MainWindow::onBookmarkJumped(int frameIndex)
     }
 }
 
-void MainWindow::onTriggerRecording(
-    const QString &dir, const QString &prefix, const QString &format,
-    bool splitBySize, int sizeMb, bool splitByTime, int timeSec,
-    bool ringMode, int maxFiles,
-    const QString &triggerExpr, double preTriggerSec, double postTriggerSec,
-    bool repeatTrigger)
-{
-    if (!m_triggerRecorder) {
-        m_triggerRecorder = new TriggerRecorder(this);
-        connect(m_simulator, &CanSimulator::frameGenerated,
-                m_triggerRecorder, &TriggerRecorder::onFrame);
-        connect(m_deviceManager, &CanDeviceManager::frameGenerated,
-                m_triggerRecorder, &TriggerRecorder::onFrame);
-    }
-
-    TriggerRecorder::Config config;
-    config.logConfig.directory = dir;
-    config.logConfig.prefix = prefix;
-    config.logConfig.format = format;
-    config.logConfig.splitBySize = splitBySize;
-    config.logConfig.maxSizeBytes = static_cast<quint64>(sizeMb) * 1024 * 1024;
-    config.logConfig.splitByTime = splitByTime;
-    config.logConfig.maxTimeSeconds = static_cast<double>(timeSec);
-    config.logConfig.ringMode = ringMode;
-    config.logConfig.maxFiles = maxFiles;
-    config.triggerExpr = triggerExpr;
-    config.preTriggerSeconds = preTriggerSec;
-    config.postTriggerSeconds = postTriggerSec;
-    config.repeatTrigger = repeatTrigger;
-
-    if (!m_triggerRecorder->isRunning()) {
-        if (!m_triggerRecorder->start(config)) {
-            QMessageBox::warning(this, "触发录制",
-                "触发条件表达式编译失败，请检查表达式语法。");
-            return;
-        }
-        m_statusLabel->setText("触发录制中... 等待触发条件");
-    } else {
-        m_triggerRecorder->stop();
-        m_statusLabel->setText("触发录制已停止");
-    }
-}
+// onTriggerRecording 已随录制页迁入 TransceiveModule（拆分方案 B2；
+// TriggerRecorder 归模块所有，状态栏提示经 ctx.shellInvoke("statusMessage")）
 
 void MainWindow::onGraphicPageSelected(int row)
 {
@@ -2718,7 +2565,7 @@ void MainWindow::updateActions()
     m_pauseAction->setEnabled(playing);
     m_stopAction->setEnabled(hasFile);
     m_recordAction->setChecked(m_recording);
-    if (m_playbackTab) m_playbackTab->setPlayerLoaded(hasFile, playing);
+    transceiveInvoke(QStringLiteral("setPlayerLoaded"), QVariantList{ hasFile, playing });
 }
 
 // ============================================================

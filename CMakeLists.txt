@@ -26,9 +26,25 @@ set(CMAKE_AUTORCC ON)
 #  - 使用默认 ld.bfd 链接器（兼容性最好，无文件锁问题）
 #  - 不使用 ccache（与 MinGW g++ 13 的 PCH 不兼容，会静默崩溃）
 #  - 不使用 LLD 链接器（在 Windows 上会导致文件锁问题）
+#  - Dev 构建档（日常开发）：-O1 -g1，独立 build-dev/ 目录，
+#    与全信息 Debug（build/）并存，见 doc/拆分应用实施方案.md §3.1
 # ============================================================
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     message(STATUS "使用默认 ld.bfd 链接器")
+
+    # Dev 档 — 日常开发：O1 + 行号级调试信息，链接体积/耗时数量级下降
+    set(CMAKE_CXX_FLAGS_DEV "-O1 -g1")
+
+    # thin archive：只记录对象路径不复制内容，静态库重打包降为毫秒级。
+    # 静态库仅供本构建树内部链接使用，不出库/不安装，thin 引用始终有效。
+    # 回退方式：删除下面一行即恢复 ar qc 实档案。
+    set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> qcT <TARGET> <LINK_FLAGS> <OBJECTS>")
+
+    # 链接器结论（2026-08-19 实测，勿再尝试）：
+    #  - ld.bfd（默认）：唯一可靠选择
+    #  - ld.gold：MinGW 发行版内为 ELF-only 构建，链接 PE 时报
+    #    "--subsystem: unknown option" / "--enable-auto-image-base: unknown option"
+    #  - LLD：曾产出损坏的可执行文件
 endif()
 
 # ============================================================

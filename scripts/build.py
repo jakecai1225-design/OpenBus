@@ -21,6 +21,11 @@ openbus 项目构建脚本
   python scripts/build.py debug
   python scripts/build.py rebuild
   python scripts/build.py status
+
+Dev 快速构建档 (日常开发，-O1 -g1，独立目录与全量 Debug 并存):
+  python scripts/build.py configure --build-type Dev --build-dir build-dev
+  python scripts/build.py build --build-dir build-dev -j8
+  python scripts/build.py run --build-dir build-dev
 """
 
 import argparse
@@ -57,16 +62,28 @@ if sys.platform == "win32":
 # ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-BUILD_DIR = PROJECT_ROOT / "build"
+BUILD_DIR = PROJECT_ROOT / "build"          # 默认构建目录，可被 --build-dir 覆盖
 EXECUTABLE = BUILD_DIR / "bin" / "openbus.exe"
 TOOLS_DIR = PROJECT_ROOT / "tools"
+
+
+def set_build_dir(name):
+    """切换构建目录（--build-dir build-dev 等），同步更新可执行文件路径
+
+    允许 Dev 档 (build-dev/) 与全量 Debug (build/) 并存，避免切档全量重编。
+    """
+    global BUILD_DIR, EXECUTABLE
+    bd = Path(name)
+    BUILD_DIR = bd if bd.is_absolute() else PROJECT_ROOT / bd
+    EXECUTABLE = BUILD_DIR / "bin" / "openbus.exe"
 
 # 默认工具路径 (可通过环境变量或 --qt-dir / --mingw-dir / --cmake-dir 覆盖)
 DEFAULT_QT_DIR = Path(os.environ.get("SIN_QT_DIR", "C:/Qt/6.8.3/mingw_64"))
 DEFAULT_MINGW_DIR = Path(os.environ.get("SIN_MINGW_DIR", "C:/Qt/Tools/mingw1310_64"))
 DEFAULT_CMAKE_DIR = Path(os.environ.get("SIN_CMAKE_DIR", "C:/tools/cmake-3.30.3-windows-x86_64"))
 
-BUILD_TYPES = ["Debug", "Release", "RelWithDebInfo", "MinSizeRel"]
+# Dev: 日常开发档 (-O1 -g1，见根 CMakeLists.txt)，建议配合 --build-dir build-dev
+BUILD_TYPES = ["Dev", "Debug", "Release", "RelWithDebInfo", "MinSizeRel"]
 
 # ============================================================
 #  颜色输出
@@ -240,6 +257,10 @@ def cmd_configure(env, args):
         f"-DCMAKE_C_COMPILER={env.cc.as_posix()}",
         f"-DCMAKE_BUILD_TYPE={build_type}",
     ])
+
+    # 额外缓存定义（如 -DTRY_GOLD=ON）
+    for d in getattr(args, "define", None) or []:
+        cmd.append(f"-D{d}")
 
     run_cmd(cmd)
     ok("CMake 配置完成")
@@ -435,7 +456,10 @@ def main():
 常用命令:
   python scripts/build.py configure                      配置 (Debug, 自动检测 Ninja)
   python scripts/build.py configure --build-type Release  配置 (Release)
+  python scripts/build.py configure --build-type Dev --build-dir build-dev
+                                                          配置 Dev 快速档 (独立目录)
   python scripts/build.py build -j8                       增量编译 (8 线程)
+  python scripts/build.py build --build-dir build-dev -j8 增量编译 Dev 档
   python scripts/build.py run                             运行
   python scripts/build.py debug                           GDB 调试
   python scripts/build.py clean                           清理
@@ -452,10 +476,16 @@ def main():
         """,
     )
 
-    # 全局选项 (所有子命令可用)
+    # 全局选项 (所有子命令可用；--build-dir 也可放在子命令之后)
     parser.add_argument("--qt-dir", default=None, help=f"Qt6 路径 (默认: {DEFAULT_QT_DIR})")
     parser.add_argument("--mingw-dir", default=None, help=f"MinGW 路径 (默认: {DEFAULT_MINGW_DIR})")
     parser.add_argument("--cmake-dir", default=None, help=f"CMake 路径 (默认: {DEFAULT_CMAKE_DIR})")
+    parser.add_argument("--build-dir", default="build",
+                        help="构建目录 (默认: build；Dev 档建议 build-dev，可与全量 Debug 并存)")
+
+    def add_build_dir_opt(p):
+        """子命令级 --build-dir：SUPPRESS 默认值，避免覆盖全局解析结果"""
+        p.add_argument("--build-dir", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
 
     sub = parser.add_subparsers(dest="command", help="可用命令")
 
@@ -463,6 +493,9 @@ def main():
     p = sub.add_parser("configure", help="CMake 配置")
     p.add_argument("--build-type", choices=BUILD_TYPES, default="Debug")
     p.add_argument("--clean", action="store_true", help="配置前清理构建目录")
+    p.add_argument("-D", "--define", action="append", default=[], metavar="VAR=VALUE",
+                   help="额外 CMake 缓存定义 (如 -DTRY_GOLD=ON)，可多次使用")
+    add_build_dir_opt(p)
     p.set_defaults(func=cmd_configure)
 
     # build
@@ -470,43 +503,52 @@ def main():
     p.add_argument("-j", "--jobs", type=int, help="并行任务数 (默认: CPU 核心数)")
     p.add_argument("--target", help="指定构建目标")
     p.add_argument("--build-type", choices=BUILD_TYPES, default="Debug", help="自动配置时的构建类型")
+    add_build_dir_opt(p)
     p.set_defaults(func=cmd_build)
 
     # run
     p = sub.add_parser("run", help="运行程序")
     p.add_argument("--args", default="", help="传递给程序的参数")
+    add_build_dir_opt(p)
     p.set_defaults(func=cmd_run)
 
     # debug
     p = sub.add_parser("debug", help="GDB 调试")
     p.add_argument("--args", default="", help="传递给程序的参数")
+    add_build_dir_opt(p)
     p.set_defaults(func=cmd_debug)
 
     # clean
     p = sub.add_parser("clean", help="清理构建目录")
+    add_build_dir_opt(p)
     p.set_defaults(func=cmd_clean)
 
     # rebuild
     p = sub.add_parser("rebuild", help="重新构建 (清理 + 配置 + 编译)")
     p.add_argument("--build-type", choices=BUILD_TYPES, default="Debug")
+    add_build_dir_opt(p)
     p.set_defaults(func=cmd_rebuild)
 
     # deploy
     p = sub.add_parser("deploy", help="部署 Qt 运行时依赖")
+    add_build_dir_opt(p)
     p.set_defaults(func=cmd_deploy)
 
     # all
     p = sub.add_parser("all", help="完整流程 (配置 + 编译 + 部署 + 运行)")
     p.add_argument("--build-type", choices=BUILD_TYPES, default="Debug")
     p.add_argument("--args", default="", help="传递给程序的参数")
+    add_build_dir_opt(p)
     p.set_defaults(func=cmd_all)
 
     # status
     p = sub.add_parser("status", help="显示环境状态")
+    add_build_dir_opt(p)
     p.set_defaults(func=cmd_status)
 
     # open
     p = sub.add_parser("open", help="在资源管理器中打开输出目录")
+    add_build_dir_opt(p)
     p.set_defaults(func=cmd_open)
 
     args = parser.parse_args()
@@ -514,6 +556,9 @@ def main():
     if not args.command:
         parser.print_help()
         sys.exit(0)
+
+    # 生效 --build-dir（全局或子命令位置均可传入）
+    set_build_dir(getattr(args, "build_dir", "build"))
 
     env = Environment(args)
     env.setup_path()

@@ -7,6 +7,12 @@
 #include "core/logging.h"
 #include "core/appconfig.h"
 #include "core/sessionmanager.h"
+#include "core/module/moduleregistry.h"
+
+// 各业务 DLL 唯一导出的 C 工厂（拆分方案 §4.2：壳不 include 模块头，
+// 仅链接导入库；工厂按模块唯一命名 openbus_create<Xxx>Module）
+extern "C" IBusinessModule *openbus_createMarketModule();       // openbus_market.dll（B1）
+extern "C" IBusinessModule *openbus_createTransceiveModule();   // openbus_transceive.dll（B2）
 
 int main(int argc, char *argv[])
 {
@@ -27,6 +33,13 @@ int main(int argc, char *argv[])
 
     // 加载会话状态（含从 AppConfig 迁移 project.recent）
     SessionManager::instance()->load();
+
+    // 注册业务模块（拆分方案 B1/B2：market、transceive 迁入各自 DLL，
+    // 经其 C 工厂注册；后续模块 DLL 逐个在此追加）
+    ModuleRegistry::instance()->registerModule(
+        QStringLiteral("market"), &openbus_createMarketModule);
+    ModuleRegistry::instance()->registerModule(
+        QStringLiteral("transceive"), &openbus_createTransceiveModule);
 
     // 应用主题
     ThemeManager::instance()->applyTheme("Light");

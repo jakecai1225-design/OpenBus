@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QLabel>
 #include <QJsonValue>
+#include <QVariant>
 #include "core/canframe.h"
 
 class CanTraceModel;
@@ -14,24 +15,19 @@ class FilterBar;
 class FrameInfoWidget;
 class SignalDecodeWidget;
 class SplitEditorArea;
-class SignalSendTab;
-class PlaybackTab;
-class OfflineAnalysisTab;
-class RecordTab;
 class DbcDetailTab;
 class Recorder;
 class Player;
 class CanSimulator;
 class CanDeviceManager;
-class TriggerRecorder;
 class DbcManager;
+struct ShellContext;
 class ActivityBar;
 class SideBar;
 class BottomPanel;
 class RightPanel;
 class MeasurementSetupView;
 class DeviceConnectionTab;
-class MarketTab;
 class BusStatistics;
 class FilterPresetManager;
 class BookmarkManager;
@@ -120,12 +116,7 @@ private slots:
     void onOpenIOGraph();
     void onOpenColorRuleEditor();
     void onBookmarkJumped(int frameIndex);
-    void onTriggerRecording(const QString &dir, const QString &prefix,
-                              const QString &format, bool splitBySize, int sizeMb,
-                              bool splitByTime, int timeSec, bool ringMode,
-                              int maxFiles, const QString &triggerExpr,
-                              double preTriggerSec, double postTriggerSec,
-                              bool repeatTrigger);
+    // onTriggerRecording 随 setupRecordTab 迁入 transceive 模块（拆分方案 B2）
 
     // 工程
     void onOpenProject();
@@ -175,16 +166,20 @@ private:
     void updateActions();
     void updateStatistics();
     void setupTraceTab(TraceTab *tab);
-    void setupSendTab(SignalSendTab *tab);
-    void setupPlaybackTab(PlaybackTab *tab);
-    void setupOfflineAnalysisTab(OfflineAnalysisTab *tab);
-    void setupRecordTab(RecordTab *tab);
+    // setupSendTab/setupPlaybackTab/setupOfflineAnalysisTab/setupRecordTab
+    // 已迁入 TransceiveModule（拆分方案 B2：模块自己连接自己的信号槽）
     void setupDeviceTab(DeviceConnectionTab *tab);
     void processCommand(const QString &cmd);
     void openTab(QWidget *widget, const QString &label);
     void refreshPanelLists();
-    void setupMarketTab();  // 创建/重建 MarketTab（统一插件市场）并连接信号
+    void setupMarketTab();  // 创建/重建插件市场页（经 ModuleRegistry "market" 模块，方案 §13 / 拆分方案 B0）
+    void marketInvoke(const QString &action, const QVariant &arg = {});  // 市场模块动作转发（invoke 字符串约定见 imodule.h）
     void linkGraphicCursor(GraphicView *gv);  // 新建 GraphicView 时与已有视图建立游标联动
+
+    // ---- transceive 模块（拆分方案 B2）----
+    ShellContext makeShellContext();           // 构造含数据层服务指针与壳回调的上下文
+    void transceiveInvoke(const QString &action, const QVariant &arg = {});  // 收发模块动作转发
+    QVariant transceiveQuery(const QString &what, const QVariant &arg = {}); // 收发模块查询转发
 
     // ---- 布局 ----
     ActivityBar *m_activityBar = nullptr;
@@ -212,22 +207,19 @@ private:
     // ---- UI (Main tabs) ----
     TraceTab *m_traceTab = nullptr;
     GraphicView *m_graphicView = nullptr;
-    SignalSendTab *m_sendTab = nullptr;
-    PlaybackTab *m_playbackTab = nullptr;
-    OfflineAnalysisTab *m_offlineTab = nullptr;
-    RecordTab *m_recordTab = nullptr;
+    // m_sendTab/m_playbackTab/m_offlineTab/m_recordTab 随收发四页迁入
+    // openbus_transceive.dll（拆分方案 B2；壳经 createPage/invoke/query 操控）
     DeviceConnectionTab *m_deviceTab = nullptr;
-    MarketTab *m_marketTab = nullptr;   // 统一插件市场（驱动 + 插件，方案 §13）
+    QWidget *m_marketWidget = nullptr;   // 统一插件市场（经 ModuleRegistry "market" 模块创建，方案 §13 / 拆分方案 B0）
 
     // ---- 核心引擎 ----
     Recorder *m_recorder = nullptr;
     Player *m_player = nullptr;
-    TriggerRecorder *m_triggerRecorder = nullptr;
+    // m_triggerRecorder 随录制页迁入 transceive 模块（B2）
     CanSimulator *m_simulator = nullptr;
     CanDeviceManager *m_deviceManager = nullptr;  ///< 硬件设备管理器（ZLG/PEAK/...）
 
-    // ---- 周期发送 ----
-    QHash<int, QTimer *> m_periodicSenders;  ///< 行号 → 周期发送定时器
+    // 周期发送定时器（m_periodicSenders）随发送页迁入 transceive 模块（B2）
 
     // ---- 菜单 Action ----
     QAction *m_recordAction = nullptr;
