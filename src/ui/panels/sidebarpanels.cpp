@@ -1208,7 +1208,7 @@ ExtensionsPanel::ExtensionsPanel(QWidget *parent)
         m_menuBtn->setIcon(svgIcon(":/icons/kebab.svg", c, 16));
     });
 
-    // 三分组条目列表（FrameRow，与市场页同行风格）
+    // 已装条目列表（FrameRow，与市场页同行风格；市场分组已移至标签页）
     auto *listHost = new QWidget(this);
     m_listLay = new QVBoxLayout(listHost);
     m_listLay->setContentsMargins(0, 0, 0, 0);
@@ -1295,29 +1295,8 @@ void ExtensionsPanel::rebuild()
         ++shown;
     }
 
-    // ---- 分组：驱动市场 ----
-    int drvMarket = 0;
-    for (const auto &e : MarketModel::collectMarketDrivers()) {
-        if (!MarketIndex::matchWords(text, e.searchFields))
-            continue;
-        if (drvMarket == 0)
-            addSectionLabel(QStringLiteral("驱动市场"));
-        insertBeforeStretch(makeRow(e));
-        ++drvMarket;
-        ++shown;
-    }
-
-    // ---- 分组：插件市场 ----
-    int plugMarket = 0;
-    for (const auto &e : MarketModel::collectMarketPlugins()) {
-        if (!MarketIndex::matchWords(text, e.searchFields))
-            continue;
-        if (plugMarket == 0)
-            addSectionLabel(QStringLiteral("插件市场"));
-        insertBeforeStretch(makeRow(e));
-        ++plugMarket;
-        ++shown;
-    }
+    // 「驱动市场」「插件市场」分组已移至标签页 MarketTab（v2.2 市场入口分工）：
+    // sidebar 仅保留已装启停管理，发现与安装归标签页，避免与标签页市场重复。
 
     if (shown == 0) {
         auto *empty = new QLabel(QStringLiteral("没有匹配的条目"), this);
@@ -1458,7 +1437,7 @@ void ExtensionsPanel::onMenuClicked()
     connect(installAct, &QAction::triggered, this, [this]() {
         emit installFromFileRequested();
     });
-    auto *openAct = menu.addAction(QString::fromUtf8("打开插件市场页"));
+    auto *openAct = menu.addAction(QString::fromUtf8("打开市场页"));
     connect(openAct, &QAction::triggered, this, [this]() {
         emit openMarketRequested();
     });
