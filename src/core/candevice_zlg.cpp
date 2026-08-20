@@ -677,6 +677,24 @@ bool CanDeviceZLG::clearAcceptanceFilter()
 
 // ---- 静态方法 ----
 
+// 设备类型显示名（DEF-06：从 deviceName() 提出，供 enumerate 静态查表
+// 取名，避免在枚举循环里构造/析构 CanDeviceZLG 临时对象）
+static QString typeName(CanDeviceZLG::DeviceType type)
+{
+    switch (type) {
+    case CanDeviceZLG::DEV_USBCAN_1:       return QStringLiteral("USBCAN-1");
+    case CanDeviceZLG::DEV_USBCAN_2:       return QStringLiteral("USBCAN-2");
+    case CanDeviceZLG::DEV_USBCAN_E_U:     return QStringLiteral("USBCAN-E-U");
+    case CanDeviceZLG::DEV_USBCAN_2E_U:    return QStringLiteral("USBCAN-2E-U");
+    case CanDeviceZLG::DEV_USBCAN_4E_U:    return QStringLiteral("USBCAN-4E-U");
+    case CanDeviceZLG::DEV_USBCANFD_200U:  return QStringLiteral("USBCANFD-200U");
+    case CanDeviceZLG::DEV_USBCANFD_100U:  return QStringLiteral("USBCANFD-100U");
+    case CanDeviceZLG::DEV_USBCANFD_MINI:  return QStringLiteral("USBCANFD-mini");
+    case CanDeviceZLG::DEV_USBCANFD_800U:  return QStringLiteral("USBCANFD-800U");
+    default:                 return QStringLiteral("ZLG CAN Device");
+    }
+}
+
 // 共享 DLL 实例 — 全局只加载一次，永不卸载
 // 避免反复 load/unload 导致 DllMain 副作用破坏 USB 设备状态
 static QLibrary& sharedZlgDll()
@@ -715,7 +733,10 @@ std::vector<ICanDevice::DeviceInfo> CanDeviceZLG::enumerate()
     if (!fn_open || !fn_close)
         return list;
 
-    // 已知设备类型及其通道数
+    // 已知设备类型及其通道数（DEF-06：仅保留 zlgcan.dll 明确支持的
+    // FD/E-U 系列——USBCAN-1/2 属 ControlCAN 生态老型号，向 zlgcan.dll
+    // 传不支持类型的行为无文档保证，是真机在场时探测循环堆损坏的
+    // 头号嫌疑；通道数同 driver.json 声明）
     struct TypeEntry { DeviceType type; int channels; };
     const TypeEntry types[] = {
         { DEV_USBCANFD_200U, 2 },
@@ -725,8 +746,6 @@ std::vector<ICanDevice::DeviceInfo> CanDeviceZLG::enumerate()
         { DEV_USBCAN_2E_U,   2 },
         { DEV_USBCAN_4E_U,   4 },
         { DEV_USBCAN_E_U,    1 },
-        { DEV_USBCAN_1,      8 },
-        { DEV_USBCAN_2,      2 },
     };
 
     OPENBUS_LOG_INFO("CanDeviceZLG", "enumerate: scanning {} device types",
@@ -740,27 +759,22 @@ std::vector<ICanDevice::DeviceInfo> CanDeviceZLG::enumerate()
                               static_cast<unsigned int>(idx), 0);
             if (!h)
                 continue;
-    
-            // ZCAN_OpenDevice 成功即认为设备可用
-            // 注: ZCAN_IsDeviceOnLine 在部分设备/驱动组合下返回 0,
-            //     但实际可以正常 InitCAN + StartCAN, 因此不依赖此判断
-            if (fn_isOnline) {
-                int online = fn_isOnline(h);
-                OPENBUS_LOG_INFO("CanDeviceZLG", "  Opened: type={} idx={} online={}",
-                             static_cast<int>(e.type), idx, online);
-            } else {
-                OPENBUS_LOG_INFO("CanDeviceZLG", "  Opened: type={} idx={}",
-                             static_cast<int>(e.type), idx);
-            }
-    
+
+            // ZCAN_OpenDevice 成功即认为设备可用，立即关闭句柄。
+            // 注（DEF-06）：不再调 ZCAN_IsDeviceOnLine——部分设备/驱动组合
+            // 下返回 0 但可正常 InitCAN/StartCAN，且真机在场时 open 后的
+            // 额外 SDK 调用面缩小可降低间歇性堆损坏风险（日志无实际消费方）
+            OPENBUS_LOG_INFO("CanDeviceZLG", "  Opened: type={} idx={}",
+                         static_cast<int>(e.type), idx);
             fn_close(h);
 
             DeviceInfo info;
             info.deviceType = static_cast<int>(e.type);
             info.deviceIndex = idx;
             info.channels = e.channels;
-            info.name = CanDeviceZLG(e.type).deviceName() +
-                QStringLiteral(" #%1").arg(idx);
+            // DEF-06：静态查表取名，不在 push_back 表达式内构造/析构
+            // CanDeviceZLG 临时对象（减小枚举循环里的对象活动面）
+            info.name = typeName(e.type) + QStringLiteral(" #%1").arg(idx);
             list.push_back(info);
         }
     }

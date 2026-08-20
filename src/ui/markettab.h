@@ -39,8 +39,11 @@ class MarketTab : public QWidget
 public:
     explicit MarketTab(QWidget *parent = nullptr);
 
-    /// 重取已装驱动/插件并重建列表（保留选中并刷新详情）
+public slots:
+    /// 重取已装驱动/插件并重建列表（保留选中并刷新详情；DEF-08 字符串槽）
     void refreshInstalled();
+
+public:
     /// 聚焦搜索框并全选（设备树「＋新增设备」跳转联动，方案 §13.6）
     void focusSearch();
     /// 定位并展示指定条目（清空搜索/筛选 → 重建列表 → 选中展示详情；

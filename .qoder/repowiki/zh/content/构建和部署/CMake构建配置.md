@@ -4,13 +4,9 @@
 **本文引用的文件**
 - [CMakeLists.txt](file://CMakeLists.txt)
 - [src/CMakeLists.txt](file://src/CMakeLists.txt)
+- [tests/CMakeLists.txt](file://tests/CMakeLists.txt)
 - [third_party/Dependencies.cmake](file://third_party/Dependencies.cmake)
-- [src/core/module/imodule.h](file://src/core/module/imodule.h)
-- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
-- [src/ui/marketmodule.h](file://src/ui/marketmodule.h)
-- [src/ui/transceivemodule.h](file://src/ui/transceivemodule.h)
-- [resources/resources.qrc](file://resources/resources.qrc)
-- [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
+- [doc/构建基线.md](file://doc/构建基线.md)
 </cite>
 
 ## 更新摘要
@@ -20,6 +16,7 @@
 - **增强PCH配置**：为每个业务DLL配置专门的预编译头优化
 - **模块化依赖管理**：通过ModuleRegistry实现壳与业务模块的松耦合通信
 - **改进构建系统**：支持thin archive、Dev构建档、更好的链接器兼容性
+- **增强测试框架**：集成Qt Test和CTest，提供完整的自动化测试执行环境
 
 ## 目录
 1. [项目概述](#项目概述)
@@ -30,8 +27,9 @@
 6. [预编译头优化配置](#预编译头优化配置)
 7. [第三方库依赖管理](#第三方库依赖管理)
 8. [平台特定配置](#平台特定配置)
-9. [安装目标配置](#安装目标配置)
-10. [构建流程总结](#构建流程总结)
+9. [测试框架集成](#测试框架集成)
+10. [安装目标配置](#安装目标配置)
+11. [构建流程总结](#构建流程总结)
 
 ## 项目概述
 
@@ -87,11 +85,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 ```
 
 ### 构建系统改进
-**新增** 增强的构建配置说明和优化选项：
+**已更新** 增强的构建配置说明和优化选项：
 - PCH（预编译头）在 src/CMakeLists.txt 中配置
 - 使用默认 ld.bfd 链接器以获得最佳兼容性
 - Dev 构建档（日常开发）：-O1 -g1，独立 build-dev/ 目录
-- thin archive：只记录对象路径不复制内容，静态库重打包降为毫秒级
+- **thin archive：只记录对象路径不复制内容，静态库重打包降为毫秒级**
 
 **章节来源**
 - [CMakeLists.txt:9-14](file://CMakeLists.txt#L9-L14)
@@ -551,6 +549,7 @@ if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     
     # thin archive：只记录对象路径不复制内容，静态库重打包降为毫秒级
     set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> qcT <TARGET> <LINK_FLAGS> <OBJECTS>")
+    set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> qT <TARGET> <OBJECTS>")
 endif()
 ```
 
@@ -580,6 +579,68 @@ endif()
 - [CMakeLists.txt:32-48](file://CMakeLists.txt#L32-L48)
 - [src/CMakeLists.txt:627-634](file://src/CMakeLists.txt#L627-L634)
 - [src/CMakeLists.txt:636-653](file://src/CMakeLists.txt#L636-L653)
+
+## 测试框架集成
+
+### 测试架构设计
+**新增** 完整的测试框架集成，支持多层级的自动化测试：
+
+#### 测试目录结构
+```
+tests/
+├── CMakeLists.txt          # 测试构建配置
+├── test_canfileio.cpp      # 文件I/O测试
+├── test_filterengine.cpp   # 过滤引擎测试
+├── test_tracecore.cpp      # Trace核心测试
+├── test_dbc.cpp           # DBC解析测试
+├── test_sim_rec_play.cpp  # 采集/录制/回放测试
+├── test_market_driver.cpp # 市场驱动测试
+├── test_project.cpp       # 工程配置测试
+└── test_ui_offscreen.cpp  # UI无头测试
+```
+
+#### 测试执行器配置
+**新增** 通过CTest集成测试执行：
+```cmake
+enable_testing()
+add_subdirectory(tests)
+```
+
+#### 测试套件分类
+- **L1 核心逻辑测试**：使用QTEST_GUILESS_MAIN，隔离进程级单例状态
+- **L2 UI驱动测试**：使用offscreen模式驱动真实MainWindow
+
+### 测试目标配置
+**新增** 聚合测试目标和自动化部署：
+```cmake
+function(openbus_add_test name)
+    add_executable(test_${name} test_${name}.cpp)
+    target_compile_definitions(test_${name} PRIVATE
+        SIN_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    target_link_libraries(test_${name} PRIVATE
+        openbus_data
+        Qt6::Test)
+    add_test(NAME ${name} COMMAND test_${name}
+             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+endfunction()
+```
+
+### 测试执行流程
+**新增** 完整的测试执行链：
+1. **构建阶段**：编译所有测试可执行文件
+2. **部署阶段**：自动复制Qt6Test.dll和平台插件
+3. **执行阶段**：通过ctest运行所有测试套件
+4. **报告阶段**：生成测试结果报告
+
+### 性能优化效果
+**新增** 测试框架带来的构建性能提升：
+- **thin archive支持**：静态库重打包时间从分钟级降至毫秒级
+- **增量构建优化**：修改单个文件后的重新构建时间显著减少
+- **并行测试执行**：支持多线程测试执行
+
+**章节来源**
+- [CMakeLists.txt:83-86](file://CMakeLists.txt#L83-L86)
+- [tests/CMakeLists.txt:1-108](file://tests/CMakeLists.txt#L1-108)
 
 ## 安装目标配置
 
@@ -642,6 +703,7 @@ G --> R[Qt6::Svg]
    - 最后编译openbus_ui静态库和openbus可执行文件
 3. **链接阶段**: 链接所有依赖库生成最终可执行文件
 4. **安装阶段**: 将可执行文件、驱动文件和业务模块安装到指定目录
+5. **测试阶段**: 构建并执行所有测试套件
 
 ### 性能优化效果
 - **编译时间**: 通过分层PCH和优化选项显著减少编译时间
@@ -656,7 +718,14 @@ G --> R[Qt6::Svg]
 - **可维护性**: 职责分离，每个DLL专注于特定功能领域
 - **可测试性**: 业务模块可以独立进行测试和验证
 
+### Thin Archive性能提升
+**新增** 通过thin archive技术实现的构建性能优化：
+- **静态库重打包**：从分钟级降至毫秒级
+- **增量构建**：修改单个文件后的重新构建时间大幅减少
+- **存储优化**：只记录对象路径，不复制实际内容
+
 **章节来源**
 - [src/CMakeLists.txt:598-625](file://src/CMakeLists.txt#L598-L625)
 - [src/CMakeLists.txt:175-188](file://src/CMakeLists.txt#L175-L188)
 - [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
+- [doc/构建基线.md:22-39](file://doc/构建基线.md#L22-L39)

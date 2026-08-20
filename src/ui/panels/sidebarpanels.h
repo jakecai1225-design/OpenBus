@@ -219,7 +219,9 @@ public:
 
     void setSimulator(CanSimulator *sim);
     void setDeviceManager(CanDeviceManager *mgr);
-    /// 刷新设备列表（调用 CanDeviceManager::enumerateDevices）
+
+public slots:
+    /// 刷新设备列表（调用 CanDeviceManager::enumerateDevices；DEF-08 字符串槽）
     void refreshDevices();
 
 signals:
@@ -320,8 +322,11 @@ class ExtensionsPanel : public SidePanel
 public:
     explicit ExtensionsPanel(QWidget *parent = nullptr);
 
-    /// 重新聚合四源并重建三分组（数据源信号已自动连接）
+public slots:
+    /// 重新聚合四源并重建三分组（数据源信号已自动连接；DEF-08 字符串槽）
     void refreshEntries();
+
+public:
     void addCommand(const QString &id, const QString &title);
     void clearCommands();
 

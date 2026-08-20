@@ -1,4 +1,5 @@
 #include "graphicview.h"
+#include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
 #include "signalconfigdialog.h"
 
 #include <QSplitter>
@@ -220,8 +221,10 @@ GraphicView::GraphicView(QWidget *parent)
 
     // 主题切换 → 全视图重刷配色
     // DEF-08 字符串信号：ThemeManager 定义于 data.dll，跨 DLL PMF connect 断连
-connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
-            this, [this]() { applyPalette(); });
+    auto *paletteRelay = new SignalRelay(this);
+    paletteRelay->fire0 = [this]() { applyPalette(); };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            paletteRelay, SLOT(fire()));
 
     // 卡尺/时间线/跟踪线用 ptAbsolute 像素定位（updateCursorDecorations 统一维护），
     // 不依赖任何业务轴生命周期
@@ -507,12 +510,14 @@ void GraphicView::setupUi()
     removeBtn->setStyleSheet(buttonQss(th.buttonBg, th.border));
     // 主题切换 → 重刷按钮图标颜色
     // DEF-08 字符串信号（同上）
-connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
-            leftWidget, [addBtn, removeBtn]() {
+    auto *signalBtnRelay = new SignalRelay(leftWidget);
+    signalBtnRelay->fire0 = [addBtn, removeBtn]() {
         const QString &c = ThemeManager::instance()->currentTheme().text;
         addBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
         removeBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
-    });
+    };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            signalBtnRelay, SLOT(fire()));
     btnBar->addWidget(addBtn);
     btnBar->addWidget(removeBtn);
     leftLayout->addLayout(btnBar);

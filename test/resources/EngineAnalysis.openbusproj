@@ -1,0 +1,77 @@
+{
+  "name": "EngineAnalysis",
+  "version": 2,
+  "meta": {
+    "name": "EngineAnalysis",
+    "created": "2026-07-27T09:30:00.000",
+    "modified": "2026-07-27T09:30:00.000",
+    "author": "openbus",
+    "tags": ["engine", "CAN", "sample"],
+    "notes": "PRJ-04 样本工程：发动机分析场景（DBC + Trace 过滤 + Graphic 信号 + 录制文件）"
+  },
+  "resources": {
+    "dbc": [
+      "V5.4.0_20260605_INFO_CAN.dbc"
+    ],
+    "logs": [
+      "CD701_LS6C3E1E2RA960027_2023-12-20_17-12-16.blf"
+    ]
+  },
+  "device": {
+    "type": "zlg",
+    "channel": 0,
+    "baudrate": 500000,
+    "fd": false,
+    "fdBaudrate": 2000000
+  },
+  "source": {
+    "mode": 0,
+    "filePath": "CD701_LS6C3E1E2RA960027_2023-12-20_17-12-16.blf",
+    "baudrate": 500000,
+    "channel": 0
+  },
+  "dbc": {
+    "files": [
+      "V5.4.0_20260605_INFO_CAN.dbc"
+    ]
+  },
+  "traces": [
+    {
+      "id": "trace1",
+      "title": "Trace1",
+      "filter": "id >= 0x100 && id <= 0x1FF"
+    },
+    {
+      "id": "trace2",
+      "title": "Trace2",
+      "filter": ""
+    }
+  ],
+  "graphics": [
+    {
+      "id": "graphic1",
+      "title": "Graphic1",
+      "signals": [
+        {
+          "canId": 256,
+          "name": "EngineSpeed",
+          "extended": false
+        },
+        {
+          "canId": 257,
+          "name": "CoolantTemp",
+          "extended": false
+        }
+      ]
+    }
+  ],
+  "record": {
+    "files": [
+      "CD701_LS6C3E1E2RA960027_2023-12-20_17-12-16.blf"
+    ]
+  },
+  "tabs": {
+    "open": ["Trace1", "Graphic1"],
+    "active": "Trace1"
+  }
+}

@@ -154,9 +154,9 @@ void RightPanel::setBookmarkManager(BookmarkManager *mgr)
     m_bookmarkMgr = mgr;
     if (m_bookmarkMgr) {
         // DEF-08 字符串信号：BookmarkManager 定义于 data.dll，PMF connect 跨 DLL 断连
-        connect(m_bookmarkMgr, SIGNAL(bookmarkAdded(Bookmark)), this, &RightPanel::refreshBookmarks);
-        connect(m_bookmarkMgr, SIGNAL(bookmarkRemoved(int)), this, &RightPanel::refreshBookmarks);
-        connect(m_bookmarkMgr, SIGNAL(cleared()), this, &RightPanel::refreshBookmarks);
+        connect(m_bookmarkMgr, SIGNAL(bookmarkAdded(Bookmark)), this, SLOT(refreshBookmarks()));
+        connect(m_bookmarkMgr, SIGNAL(bookmarkRemoved(int)), this, SLOT(refreshBookmarks()));
+        connect(m_bookmarkMgr, SIGNAL(cleared()), this, SLOT(refreshBookmarks()));
     }
 }
 

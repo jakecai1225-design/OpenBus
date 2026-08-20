@@ -1,4 +1,5 @@
 #include "sidebarpanels.h"
+#include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
 #include "utils/svg_icon.h"
 #include "core/dbcmanager.h"
 #include "core/cansimulator.h"
@@ -448,12 +449,14 @@ DbcPanel::DbcPanel(QWidget *parent)
     auto *removeBtn = new QPushButton(
         svgIcon(":/icons/dash.svg", dbcIconCol, 14), "删除", this);
     // 主题切换 → 重刷按钮图标颜色
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this,
-            [importBtn, removeBtn]() {
+    auto *importRelay = new SignalRelay(this);
+    importRelay->fire0 = [importBtn, removeBtn]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
         importBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
         removeBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
-    });
+    };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            importRelay, SLOT(fire()));
     btnBar->addWidget(importBtn);
     btnBar->addWidget(removeBtn);
     btnBar->addStretch();
@@ -505,8 +508,11 @@ void DbcPanel::setDbcManager(DbcManager *mgr)
 {
     m_dbcMgr = mgr;
     if (m_dbcMgr) {
-        connect(m_dbcMgr, &DbcManager::dbcLoaded, this, [this](const QString &) { refreshTree(); });
-        connect(m_dbcMgr, &DbcManager::dbcUnloaded, this, [this](const QString &) { refreshTree(); });
+        // DEF-08 字符串信号：DbcManager 定义于 data.dll，跨 DLL PMF connect 断连
+        auto *dbcRelay = new SignalRelay(this);
+        dbcRelay->fire0 = [this]() { refreshTree(); };
+        connect(m_dbcMgr, SIGNAL(dbcLoaded(QString)), dbcRelay, SLOT(fire()));
+        connect(m_dbcMgr, SIGNAL(dbcUnloaded(QString)), dbcRelay, SLOT(fire()));
     }
     refreshTree();
 }
@@ -709,12 +715,14 @@ TracePanel::TracePanel(QWidget *parent)
     m_delBtn = new QPushButton(
         svgIcon(":/icons/dash.svg", traceIconCol, 14), "删除", this);
     // 主题切换 → 重刷按钮图标颜色
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this,
-            [newBtn, this]() {
+    auto *traceBtnRelay = new SignalRelay(this);
+    traceBtnRelay->fire0 = [newBtn, this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
         newBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
         m_delBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
-    });
+    };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            traceBtnRelay, SLOT(fire()));
     btnBar->addWidget(newBtn);
     btnBar->addWidget(m_delBtn);
     btnBar->addStretch();
@@ -797,12 +805,14 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
     m_delBtn = new QPushButton(
         svgIcon(":/icons/dash.svg", graphIconCol, 14), "删除", this);
     // 主题切换 → 重刷按钮图标颜色
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this,
-            [newBtn, this]() {
+    auto *traceBtnRelay = new SignalRelay(this);
+    traceBtnRelay->fire0 = [newBtn, this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
         newBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
         m_delBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
-    });
+    };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            traceBtnRelay, SLOT(fire()));
     btnBar->addWidget(newBtn);
     btnBar->addWidget(m_delBtn);
     btnBar->addStretch();
@@ -901,8 +911,8 @@ DevicePanel::DevicePanel(QWidget *parent)
     connect(m_scanBtn, &QPushButton::clicked, this, &DevicePanel::onScanClicked);
 
     // 外置驱动安装/卸载后设备树即时刷新（热加载）
-    connect(DriverRegistry::instance(), &DriverRegistry::driversChanged,
-            this, &DevicePanel::refreshDevices);
+    connect(DriverRegistry::instance(), SIGNAL(driversChanged()),
+            this, SLOT(refreshDevices()));
 
     populateTree();
 }
@@ -1182,11 +1192,13 @@ ExtensionsPanel::ExtensionsPanel(QWidget *parent)
     cl->addLayout(searchRow);
 
     // 主题切换 → 重刷菜单图标颜色
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
-            this, [this]() {
+    auto *menuRelay = new SignalRelay(this);
+    menuRelay->fire0 = [this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
         m_menuBtn->setIcon(svgIcon(":/icons/kebab.svg", c, 16));
-    });
+    };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            menuRelay, SLOT(fire()));
 
     // 已装条目列表（FrameRow，与市场页同行风格；市场分组已移至标签页）
     auto *listHost = new QWidget(this);
@@ -1217,12 +1229,14 @@ ExtensionsPanel::ExtensionsPanel(QWidget *parent)
             this, &ExtensionsPanel::onCommandClicked);
 
     // 四数据源变化自动刷新（与市场页一致：安装/卸载/启停/索引加载）
-    connect(DriverRegistry::instance(), &DriverRegistry::driversChanged,
-            this, &ExtensionsPanel::refreshEntries);
-    connect(PluginManager::instance(), &PluginManager::pluginListChanged,
-            this, &ExtensionsPanel::refreshEntries);
-    connect(MarketIndex::instance(), &MarketIndex::loaded,
-            this, [this](bool, const QString &) { refreshEntries(); });
+    connect(DriverRegistry::instance(), SIGNAL(driversChanged()),
+            this, SLOT(refreshEntries()));
+    connect(PluginManager::instance(), SIGNAL(pluginListChanged()),
+            this, SLOT(refreshEntries()));
+    auto *loadedRelay = new SignalRelay(this);
+    loadedRelay->fire0 = [this]() { refreshEntries(); };
+    connect(MarketIndex::instance(), SIGNAL(loaded(bool,QString)),
+            loadedRelay, SLOT(fire()));
 
     refreshEntries();
 }

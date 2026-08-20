@@ -401,6 +401,13 @@ def cmd_deploy(env, args):
     elif not printsupport.exists():
         warn(f"Qt6PrintSupport.dll 在 Qt 安装目录中未找到: {printsupport}")
 
+    # O-2：创建 lib/fonts 目录（Qt 6 Windows 不再自带字体，目录缺失时
+    # QFontDatabase 会打警告；空目录即可消警，实际渲染回退系统
+    # DirectWrite 字体。正式发布可在 lib/fonts 放置开源字体
+    # （DejaVu / 思源黑体等，注意微软系统字体不可再分发）
+    fonts_dir = EXECUTABLE.parent / "lib" / "fonts"
+    fonts_dir.mkdir(parents=True, exist_ok=True)
+
     ok("部署完成")
 
 

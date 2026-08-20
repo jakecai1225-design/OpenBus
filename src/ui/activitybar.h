@@ -35,6 +35,7 @@ public:
     Activity currentActivity() const { return m_current; }
     void setCurrentActivity(Activity act);
 
+public slots:
     void refreshIcons();
 
 signals:

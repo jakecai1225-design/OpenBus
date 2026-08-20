@@ -1,4 +1,5 @@
 #include "filterheaderview.h"
+#include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
 #include "thememanager.h"
 #include "models/cantraceproxymodel.h"
 
@@ -25,8 +26,10 @@ FilterHeaderView::FilterHeaderView(Qt::Orientation orientation, QWidget *parent)
 
     // 主题切换 → 重绘（图标颜色取自 ThemeManager，而非硬编码）
     // DEF-08 字符串信号：ThemeManager 定义于 data.dll，跨 DLL PMF connect 断连
-connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
-            this, [this]() { viewport()->update(); });
+    auto *themeRelay = new SignalRelay(this);
+    themeRelay->fire0 = [this]() { viewport()->update(); };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            themeRelay, SLOT(fire()));
 }
 
 void FilterHeaderView::setProxyModel(CanTraceProxyModel *proxy)

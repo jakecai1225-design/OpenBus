@@ -1,4 +1,5 @@
 #include "signalsendtab.h"
+#include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
 #include "dbcimportdialog.h"
 #include "core/dbcdata.h"
 #include "core/dbcmanager.h"
@@ -520,15 +521,17 @@ QWidget *SignalSendTab::createOpWidget()
 
     // 主题切换 → 重刷行操作图标颜色（widget 作为接收者，随控件销毁自动断开）
     // DEF-08 字符串信号：ThemeManager 定义于 data.dll
-connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)), widget,
-            [sendBtn, stopBtn, delBtn, upBtn, downBtn]() {
+    auto *themeRelay = new SignalRelay(widget);
+    themeRelay->fire0 = [sendBtn, stopBtn, delBtn, upBtn, downBtn]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
         sendBtn->setIcon(svgIcon(":/icons/play.svg", c, 14));
         stopBtn->setIcon(svgIcon(":/icons/stop.svg", c, 14));
         delBtn->setIcon(svgIcon(":/icons/close.svg", c, 14));
         upBtn->setIcon(svgIcon(":/icons/chevron-up.svg", c, 14));
         downBtn->setIcon(svgIcon(":/icons/chevron-down.svg", c, 14));
-    });
+    };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            themeRelay, SLOT(fire()));
 
     return widget;
 }

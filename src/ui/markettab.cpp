@@ -1,4 +1,5 @@
 #include "markettab.h"
+#include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
 
 #include "core/driver/driverregistry.h"
 #include "core/plugin/plugininfo.h"
@@ -214,10 +215,13 @@ void MarketTab::buildUi()
     refreshBtn->setToolTip(QStringLiteral("重新拉取市场索引与本地已装列表"));
     connect(refreshBtn, &QToolButton::clicked, this, &MarketTab::onRefreshClicked);
     // 主题切换 → 重刷按钮图标颜色（DEF-08 字符串信号）
-    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)), this, [refreshBtn]() {
+    auto *refreshBtnRelay = new SignalRelay(this);
+    refreshBtnRelay->fire0 = [refreshBtn]() {
         refreshBtn->setIcon(svgIcon(":/icons/refresh.svg",
                                     ThemeManager::instance()->currentTheme().text, 14));
-    });
+    };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            refreshBtnRelay, SLOT(fire()));
     bar->addWidget(refreshBtn);
 
     auto *installBtn = new QToolButton;
@@ -228,10 +232,13 @@ void MarketTab::buildUi()
     installBtn->setToolTip(QStringLiteral("从本地包文件安装（.odp 驱动 / .opk 插件）"));
     connect(installBtn, &QToolButton::clicked, this, &MarketTab::onInstallFromFile);
     // 主题切换 → 重刷按钮图标颜色（DEF-08 字符串信号）
-    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)), this, [installBtn]() {
+    auto *installBtnRelay = new SignalRelay(this);
+    installBtnRelay->fire0 = [installBtn]() {
         installBtn->setIcon(svgIcon(":/icons/kebab.svg",
-                                    ThemeManager::instance()->currentTheme().text, 14));
-    });
+                                  ThemeManager::instance()->currentTheme().text, 14));
+    };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            installBtnRelay, SLOT(fire()));
     bar->addWidget(installBtn);
 
     root->addLayout(bar);
@@ -279,10 +286,10 @@ void MarketTab::buildUi()
 
     // ---- 数据源信号（DEF-08 字符串信号：data.dll 类跨 DLL connect）----
     connect(MarketIndex::instance(), SIGNAL(loaded(bool,QString)),
-            this, &MarketTab::onMarketLoaded);
+            this, SLOT(onMarketLoaded(bool,QString)));
     // 安装/禁用/卸载（含 scanAndLoad）后自动刷新已装分组
     connect(DriverRegistry::instance(), SIGNAL(driversChanged()),
-            this, &MarketTab::refreshInstalled);
+            this, SLOT(refreshInstalled()));
 }
 
 // ============================================================

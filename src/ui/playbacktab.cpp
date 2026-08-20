@@ -1,4 +1,5 @@
 #include "playbacktab.h"
+#include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
 
 #include "core/canfileio/canfileio.h"
 #include "core/canfileio/canfileio_factory.h"
@@ -170,7 +171,8 @@ PlaybackTab::PlaybackTab(QWidget *parent)
 
     // 主题切换 → 重刷全部按钮图标颜色
     // DEF-08 字符串信号：ThemeManager 定义于 data.dll
-    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)), this, [this]() {
+    auto *themeRelay = new SignalRelay(this);
+    themeRelay->fire0 = [this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
         m_playBtn->setIcon(svgIcon(":/icons/play.svg", c, 16));
         m_pauseBtn->setIcon(svgIcon(":/icons/pause.svg", c, 16));
@@ -179,7 +181,9 @@ PlaybackTab::PlaybackTab(QWidget *parent)
         m_removeFileBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
         m_moveUpBtn->setIcon(svgIcon(":/icons/chevron-up.svg", c, 14));
         m_moveDownBtn->setIcon(svgIcon(":/icons/chevron-down.svg", c, 14));
-    });
+    };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            themeRelay, SLOT(fire()));
 }
 
 void PlaybackTab::onPlay() { emit playRequested(); }

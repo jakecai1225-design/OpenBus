@@ -18,6 +18,21 @@ import threading
 import queue
 
 # ============================================================
+#  管道编码统一 UTF-8（O-3：Windows 默认 GBK 导致主程序解析拒收）
+# ============================================================
+
+# json.dumps(ensure_ascii=False) 会将中文直接写入 stdout；Windows 下
+# Python 默认编码为 GBK(cp936)，主程序（Qt）按 UTF-8 解析管道字节即
+# 报 JSON 解析错误。插件与本宿主同进程共享 sys.stdout，在此统一
+# reconfigure 后所有输出（含 SDK _transport）均走 UTF-8。
+for _stream in (sys.stdin, sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        # 非 TextIOWrapper（如测试傀儡流）或已 detach 时跳过
+        pass
+
+# ============================================================
 #  SDK 路径设置（必须在导入 sin._transport 之前）
 # ============================================================
 

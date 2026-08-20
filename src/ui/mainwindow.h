@@ -159,13 +159,13 @@ private slots:
     void onPluginCommandRegistered(const QString &id, const QString &title);
     void onPluginSendFrame(const CanFrame &frame);
     void onPluginRequestSelectedFrames(const QJsonValue &requestId);
+    void refreshWindowButtonIcons();   // 窗口按钮 SVG 图标（主题色 + 最大化/还原切换，DEF-08 字符串槽）
 
 private:
     void createMenuBar();
     void createLayout();
     void createStatusBar();
     void createWindowButtons();
-    void refreshWindowButtonIcons();   // 窗口按钮 SVG 图标（主题色 + 最大化/还原切换）
     void updateActions();
     void updateStatistics();
     void setupTraceTab(TraceTab *tab);

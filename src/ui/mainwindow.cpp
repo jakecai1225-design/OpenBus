@@ -25,6 +25,7 @@
 #include "core/driver/driverregistry.h"
 #include "core/module/moduleregistry.h"
 #include "core/module/imodule.h"
+#include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
 #include "ui/marketmodel.h"   // MarketItem（ExtensionsPanel 信号类型，经 QVariant 传给市场模块）
 // ui/udsview.h, ui/canopenview.h 已移除 — UDS/CANopen 由插件 uds-diagnostic/canopen-explorer 提供
 // ui/markettab.h 已移除 — 插件市场页经 ModuleRegistry "market" 模块创建（拆分方案 B0）
@@ -112,13 +113,13 @@ MainWindow::MainWindow(QWidget *parent)
     // 槽端保留新式写法。全库同类调用点均已同步改造。
     m_pluginManager = PluginManager::instance();
     connect(m_pluginManager, SIGNAL(outputMessage(QString)),
-            this, &MainWindow::onPluginOutput);
+            this, SLOT(onPluginOutput(QString)));
     connect(m_pluginManager, SIGNAL(commandRegistered(QString,QString)),
-            this, &MainWindow::onPluginCommandRegistered);
+            this, SLOT(onPluginCommandRegistered(QString,QString)));
     connect(m_pluginManager, SIGNAL(sendFrameRequested(CanFrame)),
-            this, &MainWindow::onPluginSendFrame);
+            this, SLOT(onPluginSendFrame(CanFrame)));
     connect(m_pluginManager, SIGNAL(requestSelectedFrames(QJsonValue)),
-            this, &MainWindow::onPluginRequestSelectedFrames);
+            this, SLOT(onPluginRequestSelectedFrames(QJsonValue)));
     m_pluginManager->initialize();
 
     // ---- 驱动系统 ----
@@ -221,21 +222,23 @@ MainWindow::MainWindow(QWidget *parent)
 
     // pluginListChanged → 刷新市场页已装列表（连接在 manager 上，标签页删除后仍安全）
     if (m_pluginManager) {
-        connect(m_pluginManager, SIGNAL(pluginListChanged()),
-                this, [this]() {
+        auto *pluginRelay = new SignalRelay(this);
+        pluginRelay->fire0 = [this]() {
             if (m_marketWidget) marketInvoke(QStringLiteral("refreshInstalled"));
-        });
+        };
+        connect(m_pluginManager, SIGNAL(pluginListChanged()),
+                pluginRelay, SLOT(fire()));
     }
 
     // 模拟器 → 帧接收（DEF-08 字符串信号）
     connect(m_simulator, SIGNAL(frameGenerated(CanFrame)),
-            this, &MainWindow::onFrameReceived);
+            this, SLOT(onFrameReceived(CanFrame)));
 
     // 硬件设备管理器 → 帧接收（与模拟器同信号）
     connect(m_deviceManager, SIGNAL(frameGenerated(CanFrame)),
-            this, &MainWindow::onFrameReceived);
-    connect(m_deviceManager, SIGNAL(connectionChanged(bool,QString)),
-            this, [this](bool connected, const QString &name) {
+            this, SLOT(onFrameReceived(CanFrame)));
+    auto *connRelay = new SignalRelay(this);
+    connRelay->fnBoolString = [this](bool connected, const QString &name) {
         if (connected) {
             m_connLabel->setText(QStringLiteral("已连接: %1").arg(name));
             m_bottomPanel->appendOutput(QStringLiteral("硬件已连接: %1").arg(name));
@@ -243,31 +246,40 @@ MainWindow::MainWindow(QWidget *parent)
             m_connLabel->setText("未连接");
             m_bottomPanel->appendOutput(QStringLiteral("硬件已断开"));
         }
-    });
-    connect(m_deviceManager, SIGNAL(errorOccurred(QString)),
-            this, [this](const QString &msg) {
+    };
+    connect(m_deviceManager, SIGNAL(connectionChanged(bool,QString)),
+            connRelay, SLOT(fireBoolQString(bool,QString)));
+    auto *errRelay = new SignalRelay(this);
+    errRelay->fnString = [this](const QString &msg) {
         m_bottomPanel->appendOutput(QStringLiteral("%1").arg(msg));
-    });
+    };
+    connect(m_deviceManager, SIGNAL(errorOccurred(QString)),
+            errRelay, SLOT(fireQString(QString)));
 
     // 回放器
-    connect(m_player, SIGNAL(framePlayed(CanFrame)), this, &MainWindow::onFramePlayed);
-    connect(m_player, SIGNAL(progressChanged(int,int,double,double)), this, &MainWindow::onPlayerProgress);
-    connect(m_player, SIGNAL(stateChanged(bool)), this, &MainWindow::onPlayerStateChanged);
-    connect(m_player, SIGNAL(finished()), this, &MainWindow::onPlayerFinished);
+    connect(m_player, SIGNAL(framePlayed(CanFrame)), this, SLOT(onFramePlayed(CanFrame)));
+    connect(m_player, SIGNAL(progressChanged(int,int,double,double)), this, SLOT(onPlayerProgress(int,int,double,double)));
+    connect(m_player, SIGNAL(stateChanged(bool)), this, SLOT(onPlayerStateChanged(bool)));
+    connect(m_player, SIGNAL(finished()), this, SLOT(onPlayerFinished()));
 
     // 录制器
-    connect(m_recorder, SIGNAL(recordingStarted(QString)), this, [this](const QString &) {
+    auto *recStartRelay = new SignalRelay(this);
+    recStartRelay->fire0 = [this]() {
         m_recording = true;
         m_bottomPanel->appendOutput("录制开始");
         transceiveInvoke(QStringLiteral("setRecording"), true);
         updateActions();
-    });
-    connect(m_recorder, SIGNAL(recordingStopped(QString,int)), this, [this](const QString &path, int count) {
+    };
+    connect(m_recorder, SIGNAL(recordingStarted(QString)), recStartRelay, SLOT(fire()));
+    auto *recStopRelay = new SignalRelay(this);
+    recStopRelay->fnStringInt = [this](const QString &path, int count) {
         m_recording = false;
         m_bottomPanel->appendOutput(QString("录制结束: %1 (%2 帧)").arg(path).arg(count));
         transceiveInvoke(QStringLiteral("setRecording"), false);
         updateActions();
-    });
+    };
+    connect(m_recorder, SIGNAL(recordingStopped(QString,int)),
+            recStopRelay, SLOT(fireQStringInt(QString,int)));
 
     // 侧边栏面板
     connect(m_sideBar->dbcPanel(), &DbcPanel::dbcFileClicked,
@@ -340,7 +352,7 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onSettingsRequested);
     // 主题切换后刷新 ActivityBar 图标颜色（DEF-08 字符串信号）
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
-            m_activityBar, &ActivityBar::refreshIcons);
+            m_activityBar, SLOT(refreshIcons()));
     // 设备连接面板 — 点击设备条目打开标签页
     connect(m_sideBar->devicePanel(), &DevicePanel::deviceOpenRequested,
             this, &MainWindow::onOpenDeviceTab);
@@ -425,9 +437,12 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onCommandEntered);
 
     // DBC 加载通知（DEF-08 字符串信号）
-    connect(m_dbcManager, SIGNAL(dbcLoaded(QString)), this, [this](const QString &name) {
+    auto *dbcLoadedRelay = new SignalRelay(this);
+    dbcLoadedRelay->fnString = [this](const QString &name) {
         m_bottomPanel->appendOutput("DBC 已加载: " + name);
-    });
+    };
+    connect(m_dbcManager, SIGNAL(dbcLoaded(QString)),
+            dbcLoadedRelay, SLOT(fireQString(QString)));
 
     m_bottomPanel->appendOutput("openbus 启动完成");
     updateActions();
@@ -720,7 +735,7 @@ void MainWindow::createWindowButtons()
     refreshWindowButtonIcons();
     // 主题切换 → 重刷窗口按钮图标颜色（DEF-08 字符串信号）
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
-            this, &MainWindow::refreshWindowButtonIcons);
+            this, SLOT(refreshWindowButtonIcons()));
 }
 
 void MainWindow::refreshWindowButtonIcons()

@@ -1,4 +1,5 @@
 #include "filterbar.h"
+#include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
 #include "utils/canutils.h"
 #include "utils/svg_icon.h"
 #include "ui/thememanager.h"
@@ -54,6 +55,13 @@ FilterBar::FilterBar(QWidget *parent)
     m_settingsBtn->setAutoRaise(true);
     m_settingsBtn->setFixedSize(26, 22);
 
+    // 清空列表按钮（清空全部报文数据，区别于 Clear 的仅清过滤表达式）
+    m_clearListBtn = new QToolButton(this);
+    m_clearListBtn->setIcon(svgIcon(":/icons/clear-all.svg", iconCol, 16));
+    m_clearListBtn->setToolTip(QStringLiteral("清空列表（删除全部报文数据）"));
+    m_clearListBtn->setAutoRaise(true);
+    m_clearListBtn->setFixedSize(26, 22);
+
     // 分组统计标签
     m_packetCountLabel = new QLabel(this);
     m_packetCountLabel->setStyleSheet("font-size: 11px; color: #666;");
@@ -66,24 +74,29 @@ FilterBar::FilterBar(QWidget *parent)
     layout->addWidget(m_clearBtn);
     layout->addWidget(m_helpBtn);
     layout->addWidget(m_settingsBtn);
+    layout->addWidget(m_clearListBtn);
     layout->addWidget(m_packetCountLabel);
 
     connect(m_applyBtn, &QPushButton::clicked, this, &FilterBar::onApply);
     connect(m_clearBtn, &QPushButton::clicked, this, &FilterBar::onClear);
     connect(m_helpBtn, &QToolButton::clicked, this, &FilterBar::showHelp);
+    connect(m_clearListBtn, &QToolButton::clicked, this, &FilterBar::clearListRequested);
     connect(m_edit, &QLineEdit::returnPressed, this, &FilterBar::onApply);
     connect(m_edit, &QLineEdit::textChanged, this, &FilterBar::onTextChanged);
 
     // 主题切换 → 重刷图标颜色（状态图标由 onTextChanged 按当前状态重渲染）
     // DEF-08 字符串信号（同 filterheaderview）
-connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
-            this, [this]() {
+    auto *themeRelay = new SignalRelay(this);
+    themeRelay->fire0 = [this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
         m_helpBtn->setIcon(svgIcon(":/icons/help.svg", c, 16));
         m_presetBtn->setIcon(svgIcon(":/icons/list.svg", c, 16));
         m_settingsBtn->setIcon(svgIcon(":/icons/gear.svg", c, 16));
+        m_clearListBtn->setIcon(svgIcon(":/icons/clear-all.svg", c, 16));
         onTextChanged();
-    });
+    };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            themeRelay, SLOT(fire()));
 }
 
 void FilterBar::setPresetManager(FilterPresetManager *mgr)

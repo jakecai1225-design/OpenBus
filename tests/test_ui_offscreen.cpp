@@ -17,7 +17,6 @@
 #include <QtTest>
 #include <QApplication>
 #include <QDockWidget>
-#include <QFile>
 #include <QLabel>
 #include <QStatusBar>
 #include <QAbstractItemModel>
@@ -37,6 +36,21 @@ extern "C" IBusinessModule *openbus_createMarketModule();       // openbus_marke
 extern "C" IBusinessModule *openbus_createTransceiveModule();   // openbus_transceive.dll
 extern "C" IBusinessModule *openbus_createDbcModule();          // openbus_dbc.dll
 extern "C" IBusinessModule *openbus_createFlowModule();         // openbus_flow.dll
+
+// DEF-08 回归防线：捕获启动阶段的 connect 断连警告（"QObject::connect:
+// signal/slot not in..."）——跨 DLL 字符串化修复后 MainWindow 构造期间
+// 必须为零，任何回退（如新增 PMF 跨 DLL connect）在此立即拦下
+static QStringList g_connectWarnings;
+static QtMessageHandler g_prevHandler = nullptr;
+static void connectWarnHandler(QtMsgType type, const QMessageLogContext &ctx,
+                               const QString &msg)
+{
+    if (type == QtWarningMsg
+            && msg.contains(QLatin1String("QObject::connect")))
+        g_connectWarnings.append(msg);
+    if (g_prevHandler)
+        g_prevHandler(type, ctx, msg);
+}
 
 static CanFrame mkUiFrame(int seq)
 {
@@ -66,10 +80,6 @@ private slots:
 private:
     MainWindow *m_win = nullptr;
 
-    // drivers/disabled.json 现场备份（禁用 zlg 的副作用还原，见 initTestCase）
-    bool m_disabledJsonExisted = false;
-    QByteArray m_disabledJsonBackup;
-
     /// 按 metaObject 类名查找子孙部件（避免依赖具体部件头文件）
     QWidget *findFirstInstance(const char *className) const;
 };
@@ -97,41 +107,27 @@ void TestUiOffscreen::initTestCase()
     AppConfig::instance()->load();
     SessionManager::instance()->load();
 
-    // 禁用外置 ZLG 驱动（DEF-06 规避）：zlg 插件 + 真实设备在场的枚举链
-    // 存在间歇性堆损坏崩溃（待产品修复，见测试报告）；禁用后 UI 套件
-    // 不依赖硬件环境，可稳定重复。disabled.json 会落盘，cleanupTestCase
-    // 还原现场。
-    {
-        QFile f(DriverRegistry::driversRootDir()
-                + QStringLiteral("/disabled.json"));
-        m_disabledJsonExisted = f.exists();
-        if (m_disabledJsonExisted && f.open(QIODevice::ReadOnly))
-            m_disabledJsonBackup = f.readAll();
-        DriverRegistry::instance()->initialize();
-        DriverRegistry::instance()->setDriverEnabled(
-            QStringLiteral("zlg"), false);
-    }
+    // 外置 ZLG 驱动正常启用（DEF-06 防御修复已合入：枚举类型表收缩至
+    // zlgcan.dll 明确支持的 FD/E-U 系列、去掉 isOnline 探测、消除枚举
+    // 循环内临时对象）——不再禁用 zlg，主窗口构造真实走一遍设备枚举
+    // 链作为修复验收（无真机时枚举返回空列表，链路同样完整）。
+    DriverRegistry::instance()->initialize();
 
+    // DEF-08 回归断言：启动阶段不允许出现任何 connect 断连警告
+    g_connectWarnings.clear();
+    g_prevHandler = qInstallMessageHandler(connectWarnHandler);
     m_win = new MainWindow();
     m_win->show();
+    qInstallMessageHandler(g_prevHandler);   // 恢复默认，后续用例警告不再收集
+    QVERIFY2(g_connectWarnings.isEmpty(),
+             qPrintable(QStringLiteral("启动阶段出现 connect 断连警告:\n- ")
+                        + g_connectWarnings.join(QStringLiteral("\n- "))));
 }
 
 void TestUiOffscreen::cleanupTestCase()
 {
     delete m_win;
     m_win = nullptr;
-
-    // 还原 drivers/disabled.json 现场（清除禁用 zlg 的落盘副作用）
-    {
-        QFile f(DriverRegistry::driversRootDir()
-                + QStringLiteral("/disabled.json"));
-        if (m_disabledJsonExisted) {
-            if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
-                f.write(m_disabledJsonBackup);
-        } else if (f.exists()) {
-            f.remove();
-        }
-    }
 }
 
 QWidget *TestUiOffscreen::findFirstInstance(const char *className) const
@@ -202,11 +198,9 @@ void TestUiOffscreen::frameFlowDrivesTrace()
     // 总门 m_measurementRunning + simulator 启动）
     QVERIFY(QMetaObject::invokeMethod(m_win, "onMeasurementToggled",
                                       Q_ARG(bool, true)));
-    qWarning("[step] measurement toggled on");
     // Trace 实例门控：flow 块启用链（isBlockEnabled）对懒创建场景不稳定，
     // 直接置运行态（TraceTab 与测试同模块链接，直调可靠且幂等）
     traceTab->setRunning(true);
-    qWarning("[step] trace running set, injecting frames");
     // 帧流入
     for (int i = 0; i < 20; ++i) {
         QVERIFY(QMetaObject::invokeMethod(m_win, "onFrameReceived",

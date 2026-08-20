@@ -1,4 +1,5 @@
 #include "spliteditorarea.h"
+#include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
 #include <QMenu>
 #include <QAction>
 #include <QTabBar>
@@ -244,10 +245,13 @@ void SplitEditorArea::setupCloseButton(QTabWidget *tabs, int index)
     });
     // 主题切换 → 重刷关闭按钮图标颜色
     // DEF-08 字符串信号（同 filterheaderview）
-    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)), btn, [btn]() {
+    auto *closeBtnRelay = new SignalRelay(btn);
+    closeBtnRelay->fire0 = [btn]() {
         btn->setIcon(svgIcon(":/icons/close.svg",
-                             ThemeManager::instance()->currentTheme().text, 14));
-    });
+                            ThemeManager::instance()->currentTheme().text, 14));
+    };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            closeBtnRelay, SLOT(fire()));
     tabs->tabBar()->setTabButton(index, QTabBar::RightSide, btn);
     // 固定标签页隐藏关闭按钮
     bool pinned = w && w->property("pinned").toBool();

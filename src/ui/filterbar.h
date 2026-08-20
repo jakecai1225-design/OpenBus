@@ -41,6 +41,8 @@ signals:
     void filterCleared();
     /// 刷新率变化（Phase 2: High=50ms / Medium=100ms / Low=200ms / Paused=0）
     void refreshRateChanged(int intervalMs);
+    /// 清空整个报文列表（区别于 filterCleared 的仅清过滤表达式）
+    void clearListRequested();
 
 private slots:
     void onApply();
@@ -57,6 +59,7 @@ private:
     QToolButton *m_helpBtn;
     QToolButton *m_presetBtn;
     QToolButton *m_settingsBtn;
+    QToolButton *m_clearListBtn;   // 清空列表（数据，非过滤表达式）
     QLabel *m_statusIcon;
     QLabel *m_packetCountLabel;
     FilterPresetManager *m_presetMgr = nullptr;

@@ -1,4 +1,5 @@
 #include "traceview.h"
+#include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
 #include "filterbar.h"
 #include "filterheaderview.h"
 #include "models/cantracemodel.h"
@@ -2185,6 +2186,13 @@ TraceTab::TraceTab(QWidget *parent)
 
     m_filterBar->settingsButton()->setMenu(settingsMenu);
 
+    // ---- 清空列表（工具栏图标入口 + 设置菜单选项，双入口同一动作）----
+    settingsMenu->addSeparator();
+    auto *clearListAct = settingsMenu->addAction(QStringLiteral("清空列表"));
+    clearListAct->setToolTip(QStringLiteral("删除当前 Trace 的全部报文数据"));
+    connect(clearListAct, &QAction::triggered, this, &TraceTab::clearTrace);
+    connect(m_filterBar, &FilterBar::clearListRequested, this, &TraceTab::clearTrace);
+
     connect(m_timeFormatGroup, &QActionGroup::triggered, this,
             [this](QAction *act) {
         int mode = act->data().toInt();
@@ -2266,10 +2274,11 @@ TraceTab::TraceTab(QWidget *parent)
     });
 
     // 视窗位置变化 → 更新缩略图（DEF-08 字符串信号：models 层类定义于 data.dll）
-    connect(m_viewportProxy, SIGNAL(viewportChanged()),
-            this, [this]() {
+    auto *viewportRelay = new SignalRelay(this);
+    viewportRelay->fire0 = [this]() {
         m_viewportOverview->update();
-    });
+    };
+    connect(m_viewportProxy, SIGNAL(viewportChanged()), viewportRelay, SLOT(fire()));
 
     // Phase 1: 可见行范围 → CanTraceModel 行缓存淘汰
     connect(m_traceView->verticalScrollBar(), &QScrollBar::valueChanged,
@@ -2282,24 +2291,27 @@ TraceTab::TraceTab(QWidget *parent)
     });
 
     // Phase 2: 帧提交后更新分组统计 + 视窗自动跟随（DEF-08 字符串信号）
-    connect(m_traceModel, SIGNAL(framesCommitted(int)),
-            this, [this](int) {
+    auto *commitRelay = new SignalRelay(this);
+    commitRelay->fire0 = [this]() {
         m_packetCountDirty = true;
         // 自动跟随: 视窗滚动到末尾显示最新数据
         if (m_autoScrollViewport && m_traceView->autoScrollEnabled())
             m_traceView->scrollToBottom();
         // 标记缩略图缓存为脏
         m_viewportOverview->markCacheDirty();
-    });
+    };
+    connect(m_traceModel, SIGNAL(framesCommitted(int)), commitRelay, SLOT(fire()));
 
     // 过滤/排序变化后重置视窗到开头（DEF-08 字符串信号）
-    connect(m_proxyModel, SIGNAL(layoutAboutToBeChanged()),
-            this, [this]() { m_autoScrollViewport = true; });
-    connect(m_proxyModel, SIGNAL(packetCountChanged(int,int)),
-            this, [this](int, int) {
+    auto *layoutRelay = new SignalRelay(this);
+    layoutRelay->fire0 = [this]() { m_autoScrollViewport = true; };
+    connect(m_proxyModel, SIGNAL(layoutAboutToBeChanged()), layoutRelay, SLOT(fire()));
+    auto *packetRelay = new SignalRelay(this);
+    packetRelay->fire0 = [this]() {
         m_viewportOverview->markCacheDirty();
         m_viewportOverview->update();
-    });
+    };
+    connect(m_proxyModel, SIGNAL(packetCountChanged(int,int)), packetRelay, SLOT(fire()));
 
     // 分组计数防抖 — 高频帧到达时最多每 100ms 刷新一次
     m_packetCountTimer = new QTimer(this);
@@ -2309,13 +2321,15 @@ TraceTab::TraceTab(QWidget *parent)
     m_packetCountTimer->start();
 
     // 过滤条件变化时立即更新（不防抖；DEF-08 字符串信号）
-    connect(m_proxyModel, SIGNAL(packetCountChanged(int,int)),
-            this, [this](int captured, int displayed) {
+    auto *filterCountRelay = new SignalRelay(this);
+    filterCountRelay->fnIntInt = [this](int captured, int displayed) {
         int marked = m_traceModel->markedRows().size();
         m_filterBar->setPacketCountText(
             QStringLiteral("捕获: %1 | 显示: %2 | 标记: %3").arg(captured).arg(displayed).arg(marked));
         m_packetCountDirty = false;
-    });
+    };
+    connect(m_proxyModel, SIGNAL(packetCountChanged(int,int)),
+            filterCountRelay, SLOT(fireIntInt(int,int)));
 
     // 启用拖放
     setAcceptDrops(true);
@@ -2413,12 +2427,13 @@ void TraceTab::updateViewportOverview()
 {
     if (!m_viewportOverview || !m_viewportProxy)
         return;
-    int total = m_viewportProxy->sourceRowCount();
-    int vpSize = m_viewportProxy->viewportSize();
     // 标记缓存为脏 + 重绘缩略图
+    // 注：缩略图常显（不再按 total > viewportSize 隐藏）——旧行为下
+    // clearTrace（total=0）后隐藏，后续数据涨超视窗也无人恢复显隐
+    // （updateViewportOverview 不在 framesCommitted 数据链上），
+    // 造成"有时不显示"；数据不足时绘制空底即可
     m_viewportOverview->markCacheDirty();
-    // 数据不足时隐藏缩略图
-    m_viewportOverview->setVisible(total > vpSize);
+    m_viewportOverview->update();
 }
 
 void TraceTab::onPacketCountTimer()

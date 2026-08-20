@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: tests
+title: openbus 验收测试套件（Qt Test + offscreen UI）
+scope:
+    - tests/
+    - doc/测试报告.md
+    - doc/测试验收方案.md
+source_files: []
+depends_on: []
+related_to: []

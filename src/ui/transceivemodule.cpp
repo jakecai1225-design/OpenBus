@@ -373,9 +373,9 @@ QWidget *TransceiveModule::createRecordPage(ShellContext &ctx)
             m_triggerRecorder = new TriggerRecorder(tab);
             // DEF-08 字符串信号：simulator/deviceManager 定义于 data.dll
             QObject::connect(m_ctx.simulator, SIGNAL(frameGenerated(CanFrame)),
-                             m_triggerRecorder, &TriggerRecorder::onFrame);
+                             m_triggerRecorder, SLOT(onFrame(CanFrame)));
             QObject::connect(m_ctx.deviceManager, SIGNAL(frameGenerated(CanFrame)),
-                             m_triggerRecorder, &TriggerRecorder::onFrame);
+                             m_triggerRecorder, SLOT(onFrame(CanFrame)));
         }
 
         TriggerRecorder::Config config;

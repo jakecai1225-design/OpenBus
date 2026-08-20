@@ -7,6 +7,8 @@ set(SRC_CORE
     core/canframe.h
     core/logging.h
     core/logging.cpp
+    core/signalrelay.h
+    core/signalrelay.cpp
     core/recorder.h
     core/recorder.cpp
     core/player.h
@@ -618,10 +620,11 @@ target_link_libraries(openbus PRIVATE
     # flow 模块（B4）：main() 经 C 工厂 openbus_createFlowModule 注册，
     # shell 经 createPage/invoke/query 操控 Flow/设备连接页与测量编排
     openbus_flow
-    # trace 模块（B5）：TraceTab 页面模块 + 过滤/着色规则/统计
-    openbus_trace
-    # graphic 模块（B5）：GraphicView/DataWindow 模块 + qcustomplot
-    openbus_graphic
+    # 注（O-4）：trace/graphic 模块拆分（B5）未完成——tracemodule.cpp /
+    # graphicmodule.cpp 仅为迁移物料，无 add_library 目标；TraceTab/GraphicView
+    # 仍编入 openbus_ui 静态库由壳直接创建，main.cpp 亦未注册这两个模块
+    # 工厂，故此处不链接（旧引用曾致 ld 找不到 -lopenbus_trace/-lopenbus_graphic，
+    # 主程序自 8/19 后无法链接重建）。
 )
 
 # ============================================================

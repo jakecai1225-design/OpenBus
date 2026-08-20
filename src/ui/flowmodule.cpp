@@ -1,4 +1,5 @@
 #include "flowmodule.h"
+#include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
 
 #include "measurementsetupview.h"
 #include "deviceconnectiontab.h"
@@ -86,20 +87,24 @@ QWidget *FlowModule::createSetupPage(ShellContext &ctx)
         dbcFiles << f.fileName;
     view->setDbcFiles(dbcFiles);
     // DEF-08 字符串信号：DbcManager 定义于 data.dll，本模块在 openbus_flow.dll
-    QObject::connect(ctx.dbcManager, SIGNAL(dbcLoaded(QString)), view,
-                     [view, ctx](const QString &) {
+    auto *dbcLoadedRelay = new SignalRelay(view);
+    dbcLoadedRelay->fire0 = [view, ctx]() {
         QStringList files;
         for (const auto &f : ctx.dbcManager->files())
             files << f.fileName;
         view->setDbcFiles(files);
-    });
-    QObject::connect(ctx.dbcManager, SIGNAL(dbcUnloaded(QString)), view,
-                     [view, ctx](const QString &) {
+    };
+    QObject::connect(ctx.dbcManager, SIGNAL(dbcLoaded(QString)),
+                     dbcLoadedRelay, SLOT(fire()));
+    auto *dbcUnloadedRelay = new SignalRelay(view);
+    dbcUnloadedRelay->fire0 = [view, ctx]() {
         QStringList files;
         for (const auto &f : ctx.dbcManager->files())
             files << f.fileName;
         view->setDbcFiles(files);
-    });
+    };
+    QObject::connect(ctx.dbcManager, SIGNAL(dbcUnloaded(QString)),
+                     dbcUnloadedRelay, SLOT(fire()));
 
     // 数据源切换：直接操作数据层（停另一侧数据源）
     QObject::connect(view, &MeasurementSetupView::sourceChanged, view, [ctx](int src) {
