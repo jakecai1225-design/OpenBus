@@ -13,12 +13,15 @@
 //  - UI-03 数据驱动：onMeasurementToggled 门控 + onFrameReceived
 //    帧流入 → Trace 模型行数增长（私有槽经元对象调用）
 //  - UI-04 主题切换：Dark/Light 往返不破坏窗口
+//  - UI-05 清空列表 + 预览窗常显：FilterBar::clearListRequested →
+//    TraceTab::clearTrace 清空全部报文；缩略图不再按数据量隐藏（T3/T4）
 // ============================================================
 #include <QtTest>
 #include <QApplication>
 #include <QDockWidget>
 #include <QLabel>
 #include <QStatusBar>
+#include <QTabWidget>
 #include <QAbstractItemModel>
 #include <QAbstractItemView>
 
@@ -29,6 +32,7 @@
 #include "core/module/moduleregistry.h"
 #include "ui/mainwindow.h"
 #include "ui/traceview.h"
+#include "ui/filterbar.h"
 #include "ui/thememanager.h"
 
 // 业务模块唯一导出的 C 工厂（同 src/main.cpp；壳不 include 模块头）
@@ -77,6 +81,7 @@ private slots:
     void windowConstructs();
     void defaultInstances();
     void frameFlowDrivesTrace();
+    void clearListClearsTrace();
     void themeSwitchSurvives();
 
 private:
@@ -84,6 +89,10 @@ private:
 
     /// 按 metaObject 类名查找子孙部件（避免依赖具体部件头文件）
     QWidget *findFirstInstance(const char *className) const;
+
+    /// 在 TraceTab 子树内精确定位 TraceView（TraceTab 内还有 T8 详情树
+    /// 等视图，findChildren 顺序不保证；其模型反映提交后的真实行数）
+    QAbstractItemView *traceViewOf(QWidget *traceTab) const;
 };
 
 void TestUiOffscreen::initTestCase()
@@ -146,6 +155,17 @@ QWidget *TestUiOffscreen::findFirstInstance(const char *className) const
     return nullptr;
 }
 
+QAbstractItemView *TestUiOffscreen::traceViewOf(QWidget *traceTab) const
+{
+    for (auto *v : traceTab->findChildren<QAbstractItemView*>()) {
+        if (QLatin1String(v->metaObject()->className())
+                == QLatin1String("TraceView")) {
+            return v;
+        }
+    }
+    return nullptr;
+}
+
 // ---- UI-01：主窗口构造 ----
 void TestUiOffscreen::windowConstructs()
 {
@@ -184,17 +204,9 @@ void TestUiOffscreen::frameFlowDrivesTrace()
     QVERIFY(traceTabWidget);
     auto *traceTab = static_cast<TraceTab *>(traceTabWidget);
 
-    // 精确定位 TraceView（TraceTab 内还有 T8 详情树等 QAbstractItemView，
-    // findChildren 顺序不能保证 TraceView 在首位；其模型为
-    // ViewportProxyModel，反映 CanTraceModel 提交后的真实行数）
-    QAbstractItemView *traceView = nullptr;
-    for (auto *v : traceTab->findChildren<QAbstractItemView*>()) {
-        if (QLatin1String(v->metaObject()->className())
-                == QLatin1String("TraceView")) {
-            traceView = v;
-            break;
-        }
-    }
+    // 精确定位 TraceView（其模型为 ViewportProxyModel，
+    // 反映 CanTraceModel 提交后的真实行数）
+    QAbstractItemView *traceView = traceViewOf(traceTab);
     QVERIFY2(traceView, "TraceView 未找到");
     QAbstractItemModel *model = traceView->model();
     QVERIFY(model != nullptr);
@@ -230,6 +242,67 @@ void TestUiOffscreen::frameFlowDrivesTrace()
     }
     QTest::qWait(150);
     QCOMPARE(model->rowCount(), after);
+}
+
+// ---- UI-05：清空列表 + 预览窗常显（T3/T4 回归防线） ----
+void TestUiOffscreen::clearListClearsTrace()
+{
+    // 前置：UI-03 已创建测量配置页（QtTest 用例按声明顺序执行），
+    // 无需重复 onOpenMeasurementSetup
+    QWidget *traceTabWidget = findFirstInstance("TraceTab");
+    QVERIFY(traceTabWidget);
+    auto *traceTab = static_cast<TraceTab *>(traceTabWidget);
+
+    QAbstractItemView *traceView = traceViewOf(traceTab);
+    QVERIFY2(traceView, "TraceView 未找到");
+    QAbstractItemModel *model = traceView->model();
+    QVERIFY(model != nullptr);
+
+    QVERIFY(QMetaObject::invokeMethod(m_win, "onMeasurementToggled",
+                                      Q_ARG(bool, true)));
+    traceTab->setRunning(true);
+    for (int i = 0; i < 20; ++i) {
+        QVERIFY(QMetaObject::invokeMethod(m_win, "onFrameReceived",
+                                          Q_ARG(CanFrame, mkUiFrame(i))));
+    }
+    QTest::qWait(150);
+    QVERIFY2(model->rowCount() > 0, "20 帧流入后 Trace 行数未增长");
+
+    // T4 防线①：视窗缩略图（左侧预览）常显——旧行为 total(20) <
+    // 视窗 2000 时被 setVisible(false) 隐藏。先切回 Trace 标签
+    // （UI-03 后当前页可能停在测量配置页，后台标签下 isVisible()
+    // 恒为 false），再断言真实可见性；isHidden() 精确对应
+    // setVisible(false) 的显式隐藏，不受祖先页状态影响
+    auto *overview = traceTab->findChild<ViewportOverview*>();
+    QVERIFY2(overview, "ViewportOverview 未找到");
+    for (QWidget *p = traceTabWidget->parentWidget(); p; p = p->parentWidget()) {
+        if (auto *tw = qobject_cast<QTabWidget *>(p)) {
+            tw->setCurrentWidget(traceTabWidget);
+            break;
+        }
+    }
+    QTest::qWait(50);
+    QVERIFY2(!overview->isHidden(), "预览窗被数据量逻辑显式隐藏（T4）");
+    QVERIFY2(overview->isVisible(), "数据量小于视窗时预览窗不可见（T4）");
+
+    // 先停数据源（门控同时停 simulator，带在途帧刷盘等待）再清空：
+    // simulator 持续灌帧下清空后立刻重填，与清空动作竞态
+    QVERIFY(QMetaObject::invokeMethod(m_win, "onMeasurementToggled",
+                                      Q_ARG(bool, false)));
+    QTest::qWait(150);
+    QVERIFY2(model->rowCount() > 0, "停源后存量帧丢失");
+
+    // T3 防线：FilterBar::clearListRequested（工具栏图标/菜单选项同源
+    // 信号）→ TraceTab::clearTrace 清空全部报文
+    FilterBar *filterBar = traceTab->filterBar();
+    QVERIFY(filterBar != nullptr);
+    emit filterBar->clearListRequested();
+    QTest::qWait(150);
+    QCOMPARE(model->rowCount(), 0);
+
+    // T4 防线②：清空后预览窗仍显示（旧行为 clearTrace 隐藏后无人恢复）
+    QVERIFY2(!overview->isHidden(), "清空列表后预览窗被隐藏（T4）");
+    QVERIFY2(overview->isVisible(), "清空列表后预览窗不可见（T4）");
 }
 
 // ---- UI-04：主题切换 ----
