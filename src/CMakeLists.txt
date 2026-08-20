@@ -616,8 +616,12 @@ target_link_libraries(openbus PRIVATE
     # 壳经 createPage("detail", 文件名, ctx) 打开 DBC 详情页
     openbus_dbc
     # flow 模块（B4）：main() 经 C 工厂 openbus_createFlowModule 注册，
-    # 壳经 createPage/invoke/query 操控 Flow/设备连接页与测量编排
+    # shell 经 createPage/invoke/query 操控 Flow/设备连接页与测量编排
     openbus_flow
+    # trace 模块（B5）：TraceTab 页面模块 + 过滤/着色规则/统计
+    openbus_trace
+    # graphic 模块（B5）：GraphicView/DataWindow 模块 + qcustomplot
+    openbus_graphic
 )
 
 # ============================================================

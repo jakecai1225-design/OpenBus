@@ -5,6 +5,8 @@
 #include "core/canframe.h"
 #include "core/dbcmanager.h"
 #include "core/candevicemanager.h"
+#include "core/player.h"
+#include "core/cansimulator.h"
 
 #include <QPointer>
 #include <QFileDialog>
@@ -257,6 +259,11 @@ void FlowModule::invoke(const QString &action, const QVariant &arg)
             if (l.size() == 2)
                 msv->removeModuleInstance(l.at(0).toString(), l.at(1).toString());
         }
+    } else if (action == QStringLiteral("clearTraceGraphicInstances")) {
+        // 工程状态恢复前清空旧实例块（B4：applyProjectState → 模块）
+        if (auto *msv = qobject_cast<MeasurementSetupView *>(
+                m_pages.value(QStringLiteral("setup"))))
+            msv->clearTraceGraphicInstances();
     } else if (action == QStringLiteral("rebuildScene")) {
         if (auto *msv = qobject_cast<MeasurementSetupView *>(
                 m_pages.value(QStringLiteral("setup"))))

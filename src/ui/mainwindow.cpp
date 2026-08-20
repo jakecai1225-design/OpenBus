@@ -3206,16 +3206,15 @@ void MainWindow::applyProjectState()
         m_graphicCount = qMax(m_graphicCount, 1);
     }
 
-    // 8. 更新 flow 视图
-    if (m_setupView) {
-        // 先清除旧工程的 Trace/Graphic 实例块，再添加新工程的实例
-        m_setupView->clearTraceGraphicInstances();
-        for (const auto &t : st.traces)
-            m_setupView->addModuleInstance("trace", t.id, t.title);
-        for (const auto &g : st.graphics)
-            m_setupView->addModuleInstance("graphic", g.id, g.title);
-        m_setupView->rebuildScene();
-    }
+    // 8. 更新 flow 视图（经 flow 模块，拆分方案 B4）
+    flowInvoke(QStringLiteral("clearTraceGraphicInstances"), {});
+    for (const auto &t : st.traces)
+        flowInvoke(QStringLiteral("addModuleInstance"),
+                   QVariantList{ QStringLiteral("trace"), t.id, t.title });
+    for (const auto &g : st.graphics)
+        flowInvoke(QStringLiteral("addModuleInstance"),
+                   QVariantList{ QStringLiteral("graphic"), g.id, g.title });
+    flowInvoke(QStringLiteral("rebuildScene"), {});
 
     // 9. 恢复活跃标签页
     if (m_editorArea && !st.activeTab.isEmpty()) {
