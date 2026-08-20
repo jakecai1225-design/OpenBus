@@ -1,0 +1,27 @@
+﻿ControlType.Window | id=QApplication.MainWindow.LeftDock | name='侧边栏' | rect=260,107,288x837
+ControlType.Group | id=QApplication.MainWindow.LeftDock.QWidget | name='' | rect=Infinity,Infinity,-Infinityx-Infinity
+ControlType.Group | id=QApplication.MainWindow.LeftDock.LeftContainer | name='' | rect=260,107,288x837
+ControlType.Custom | id=QApplication.MainWindow.LeftDock.LeftContainer.SideBar | name='' | rect=308,107,240x837
+ControlType.Group | id=QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ProjectPanel | name='' | rect=308,107,240x837
+ControlType.Group | id=QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ProjectPanel.QWidget | name='' | rect=308,137,240x807
+ControlType.Button | id=QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ProjectPanel.QWidget.QPushButton | name='删除' | rect=487,906,53x32
+ControlType.Button | id=QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ProjectPanel.QWidget.QPushButton | name='保存' | rect=430,906,53x32
+ControlType.Button | id=QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ProjectPanel.QWidget.QPushButton | name='打开' | rect=373,906,53x32
+ControlType.Button | id=QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ProjectPanel.QWidget.QPushButton | name='新建' | rect=316,906,53x32
+ControlType.List | id=QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ProjectPanel.QWidget.QListWidget | name='' | rect=308,800,240x100
+ControlType.ListItem | id=QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ProjectPanel.QWidget.QListWidget | name='工程 2' | rect=308,832,240x32
+ControlType.ListItem | id=QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ProjectPanel.QWidget.QListWidget | name='默认工程' | rect=308,800,240x32
+ControlType.Text | id=QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ProjectPanel.QWidget.SidePanelSubTitle | name='最近打开' | rect=308,772,240x28
+ControlType.Tree | id=QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ProjectPanel.QWidget.ProjectTree | name='' | rect=308,137,240x635
+ControlType.TreeItem | id=QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ProjectPanel.QWidget.ProjectTree | name='默认工程  (当前)' | rect=324,137,224x30
+ControlType.Text | id=QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ProjectPanel.SidePanelTitle | name='工程列表' | rect=308,107,240x30
+ControlType.Group | id=QApplication.MainWindow.LeftDock.LeftContainer.ActivityBar | name='' | rect=260,107,48x837
+ControlType.CheckBox | id=QApplication.MainWindow.LeftDock.LeftContainer.ActivityBar.ActivityBtn | name='' | rect=260,896,48x48
+ControlType.CheckBox | id=QApplication.MainWindow.LeftDock.LeftContainer.ActivityBar.ActivityBtn | name='' | rect=260,443,48x48
+ControlType.CheckBox | id=QApplication.MainWindow.LeftDock.LeftContainer.ActivityBar.ActivityBtn | name='' | rect=260,395,48x48
+ControlType.CheckBox | id=QApplication.MainWindow.LeftDock.LeftContainer.ActivityBar.ActivityBtn | name='' | rect=260,347,48x48
+ControlType.CheckBox | id=QApplication.MainWindow.LeftDock.LeftContainer.ActivityBar.ActivityBtn | name='' | rect=260,299,48x48
+ControlType.CheckBox | id=QApplication.MainWindow.LeftDock.LeftContainer.ActivityBar.ActivityBtn | name='' | rect=260,251,48x48
+ControlType.CheckBox | id=QApplication.MainWindow.LeftDock.LeftContainer.ActivityBar.ActivityBtn | name='' | rect=260,203,48x48
+ControlType.CheckBox | id=QApplication.MainWindow.LeftDock.LeftContainer.ActivityBar.ActivityBtn | name='' | rect=260,155,48x48
+ControlType.CheckBox | id=QApplication.MainWindow.LeftDock.LeftContainer.ActivityBar.ActivityBtn | name='' | rect=260,107,48x48

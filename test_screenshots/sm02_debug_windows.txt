@@ -1,0 +1,3 @@
+﻿hwnd=0x7D0E92 class=Qt683QWindowToolTipDropShadowSaveBits title='openbus' rect=(286,147,363,183)
+hwnd=0x790B90 class=SysShadow title='' rect=(286,147,368,188)
+hwnd=0x50D4A class=Qt683QWindowIcon title='openbus - CAN/CAN FD 报文分析工具' rect=(260,66,1660,966)

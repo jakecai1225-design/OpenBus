@@ -1,0 +1,4 @@
+﻿State before final reset test: SideBar=collapsed BottomBar=SHOWN RightBar=SHOWN
+(menu screenshot saved)
+State after clicking Reset Layout (330,224): SideBar=collapsed BottomBar=SHOWN RightBar=SHOWN
+(final screenshot SM-06_after_reset.png saved)

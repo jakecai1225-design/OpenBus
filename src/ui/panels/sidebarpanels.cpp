@@ -1045,20 +1045,24 @@ TransceivePanel::TransceivePanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
-    auto *sendBtn = new QPushButton("发送  →  点击打开发送标签页", this);
+    auto *sendBtn = new QPushButton(QStringLiteral("发送"), this);
     sendBtn->setObjectName("SidePanelButton");
+    sendBtn->setToolTip(QStringLiteral("点击打开发送标签页"));
     cl->addWidget(sendBtn);
 
-    auto *playbackBtn = new QPushButton("回放  →  点击打开回放标签页", this);
+    auto *playbackBtn = new QPushButton(QStringLiteral("回放"), this);
     playbackBtn->setObjectName("SidePanelButton");
+    playbackBtn->setToolTip(QStringLiteral("点击打开回放标签页"));
     cl->addWidget(playbackBtn);
 
-    auto *offlineBtn = new QPushButton("离线分析  →  点击打开离线分析标签页", this);
+    auto *offlineBtn = new QPushButton(QStringLiteral("离线分析"), this);
     offlineBtn->setObjectName("SidePanelButton");
+    offlineBtn->setToolTip(QStringLiteral("点击打开离线分析标签页"));
     cl->addWidget(offlineBtn);
 
-    auto *recordBtn = new QPushButton("录制  →  点击打开录制标签页", this);
+    auto *recordBtn = new QPushButton(QStringLiteral("录制"), this);
     recordBtn->setObjectName("SidePanelButton");
+    recordBtn->setToolTip(QStringLiteral("点击打开录制标签页"));
     cl->addWidget(recordBtn);
 
     cl->addStretch();

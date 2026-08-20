@@ -1,0 +1,4 @@
+﻿Before: VISIBLE rect=308,107 w=240 h=837 title='?'
+After Invoke btn[0] (collapse attempt): COLLAPSED (SideBar not found)
+(screenshot: SM-04_collapsed.png)
+After Invoke btn[0] again (expand attempt): VISIBLE rect=308,107 w=240 h=837 title='?'

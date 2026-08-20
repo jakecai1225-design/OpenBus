@@ -1,0 +1,10 @@
+﻿SM-02 ActivityBar tooltips:
+Btn[0] center=(284,131) tooltipHwnd=0xDA0994 rect=(286,147,363,183) text='工程管理'
+Btn[1] center=(284,179) tooltipHwnd=0xDA0994 rect=(286,195,340,231) text='Flow'
+Btn[2] center=(284,227) tooltipHwnd=0xDA0994 rect=(286,243,363,279) text='设备连接'
+Btn[3] center=(284,275) tooltipHwnd=0xDA0994 rect=(286,291,343,327) text='Trace'
+Btn[4] center=(284,323) tooltipHwnd=0xDA0994 rect=(286,339,356,375) text='Graphic'
+Btn[5] center=(284,371) tooltipHwnd=0xDA0994 rect=(286,387,351,423) text='数据库'
+Btn[6] center=(284,419) tooltipHwnd=0xDA0994 rect=(286,435,339,471) text='收发'
+Btn[7] center=(284,467) tooltipHwnd=0xDA0994 rect=(286,483,547,519) text='插件市场 — 驱动与插件的安装 / 管理 / 搜索'
+Btn[8] center=(284,920) tooltipHwnd=0xDA0994 rect=(286,936,339,972) text='配置'

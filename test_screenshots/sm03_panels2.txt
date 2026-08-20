@@ -1,0 +1,13 @@
+﻿SM-03 panel titles (tree walk):
+Current (after market click earlier): 删除 ; 保存 ; 打开 ; 新建 ; 工程 2 ; 默认工程 ; 最近打开 ; 默认工程  (当前) ; 工程列表
+After Invoke[0] 工程管理: SideBar NOT FOUND
+After Invoke[1] Flow: 
+• 点击“flow”打开画布
+• 点击模块块可启用/禁用
+• 双击模块块可打开对应标签页 ; flow ; Flow
+After Invoke[2] 设备连接: 扫描设备 ; 新增设备 ;   (校验失败: driver_zlg.dll) ; ZLG 致远电子驱动 ;   SLCAN (未检测到硬件) ; SLCAN ;   PEAK System (未检测到硬件) ; PEAK System ;   Kvaser (未检测到硬件) ; Kvaser ;   Candle / GS_USB (未检测到硬件) ; Candle / GS_USB ; openbus 模拟器 ; 设备连接
+After Invoke[3] Trace: 删除 ; 新建 Trace ; Trace1 ; Trace
+After Invoke[4] Graphic: 删除 ; 新建 Graphic ; Graphic1 ; Graphic 页面列表
+After Invoke[5] 数据库: 删除 ; 加载数据库文件 ; 数据库
+After Invoke[6] 收发: 录制 ; 离线分析 ; 回放 ; 发送 ; 收发
+After Invoke[7] 插件市场: 已就绪 ; v1.0.0 · sin ; dbc-tool ; 已就绪 ; v1.0.0 · sin ; blf-converter ; 已就绪 ; v1.0.0 · sin ; canopen-explorer ; 已就绪 ; v1.0.0 · sin ; bus-statistics ; 已就绪 ; v1.1.0 · sin ; uds-diagnostic

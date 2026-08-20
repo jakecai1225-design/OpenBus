@@ -27,6 +27,7 @@
 | [doc/Graphic模块设计文档.md](doc/Graphic模块设计文档.md) | 信号波形核心视图：多轴堆叠、卡尺测量、视口降采样、数学运算、游标联动 | CANoe Graphics Window |
 | [doc/插件系统方案.md](doc/插件系统方案.md) | 插件系统方案：v2 架构设计（进程模型/双通道通信/二进制协议/订阅制推送）、Python SDK 与清单贡献点、插件扩展机制实施版、PyQt6 独立窗口 UI | VS Code Extension 模型 |
 | [doc/驱动系统方案.md](doc/驱动系统方案.md) | 驱动插件系统：原生驱动插件（主进程内加载）、`.odp` 驱动包格式与 sha256 校验、DriverRegistry 热加载/禁用/卸载、设备市场（market.json 双索引 + 搜索/图文详情/一键安装） | CANoe Hardware Config + TSMaster 硬件管理 |
+| [doc/测试验收方案.md](doc/测试验收方案.md) | 全功能业务级验收：8 业务域 + 4 专项、152 条用例、P0-P12 阶段计划、缺陷分级与准出标准 | — |
 
 ## 功能特性
 
