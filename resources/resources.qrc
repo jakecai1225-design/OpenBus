@@ -39,5 +39,8 @@
         <file>icons/help.svg</file>
         <file>icons/list.svg</file>
         <file>icons/search.svg</file>
+        <file>icons/win-minimize.svg</file>
+        <file>icons/win-maximize.svg</file>
+        <file>icons/win-restore.svg</file>
     </qresource>
 </RCC>

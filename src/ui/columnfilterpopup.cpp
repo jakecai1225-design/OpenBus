@@ -1,4 +1,6 @@
 #include "columnfilterpopup.h"
+#include "thememanager.h"
+#include "utils/svg_icon.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -19,9 +21,9 @@ ColumnFilterPopup::ColumnFilterPopup(int column, QWidget *parent)
     : QFrame(parent, Qt::Popup)
     , m_column(column)
 {
+    // 主题样式由全局 QSS 的 #ColumnFilterPopup 规则接管（随主题明暗切换）
     setFrameShape(QFrame::StyledPanel);
-    setStyleSheet("QFrame { background: white; border: 1px solid #c0c0c0; }"
-                  "QListWidget { border: none; }");
+    setObjectName(QStringLiteral("ColumnFilterPopup"));
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(6, 6, 6, 6);
@@ -31,6 +33,8 @@ ColumnFilterPopup::ColumnFilterPopup(int column, QWidget *parent)
     m_searchEdit = new QLineEdit(this);
     m_searchEdit->setPlaceholderText(QStringLiteral("搜索..."));
     m_searchEdit->setClearButtonEnabled(true);
+    // 原生清除按钮 × 不随主题（深色下不可见）→ 换主题色 SVG 图标
+    applyClearButtonIcon(m_searchEdit, ThemeManager::instance()->currentTheme().text);
     layout->addWidget(m_searchEdit);
 
     // 全选/清除/反选 按钮行

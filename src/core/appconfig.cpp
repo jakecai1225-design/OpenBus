@@ -160,7 +160,7 @@ json AppConfig::defaultConfig()
 {
     return {
         // ---- 通用 ----
-        {"theme", "Dark+ (default dark)"},
+        {"theme", "Light"},
         {"font.family", "Consolas"},
         {"font.size", 10},
         {"window.rememberGeometry", true},

@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QLabel>
 #include <QJsonValue>
+#include <QVariant>
 #include "core/canframe.h"
 
 class CanTraceModel;
@@ -14,24 +15,18 @@ class FilterBar;
 class FrameInfoWidget;
 class SignalDecodeWidget;
 class SplitEditorArea;
-class SignalSendTab;
-class PlaybackTab;
-class OfflineAnalysisTab;
-class RecordTab;
-class DbcDetailTab;
+// class DbcDetailTab 随 DBC 页迁入 openbus_dbc.dll（拆分方案 B3）
 class Recorder;
 class Player;
 class CanSimulator;
 class CanDeviceManager;
-class TriggerRecorder;
 class DbcManager;
+struct ShellContext;
 class ActivityBar;
 class SideBar;
 class BottomPanel;
 class RightPanel;
-class MeasurementSetupView;
-class DeviceConnectionTab;
-class MarketTab;
+// MeasurementSetupView / DeviceConnectionTab 随 Flow 页迁入 openbus_flow.dll（拆分方案 B4）
 class BusStatistics;
 class FilterPresetManager;
 class BookmarkManager;
@@ -61,6 +56,7 @@ public:
 protected:
     void closeEvent(QCloseEvent *event) override;
     bool eventFilter(QObject *obj, QEvent *event) override;
+    void changeEvent(QEvent *event) override;
 #ifdef Q_OS_WIN
     bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
 #endif
@@ -119,12 +115,7 @@ private slots:
     void onOpenIOGraph();
     void onOpenColorRuleEditor();
     void onBookmarkJumped(int frameIndex);
-    void onTriggerRecording(const QString &dir, const QString &prefix,
-                              const QString &format, bool splitBySize, int sizeMb,
-                              bool splitByTime, int timeSec, bool ringMode,
-                              int maxFiles, const QString &triggerExpr,
-                              double preTriggerSec, double postTriggerSec,
-                              bool repeatTrigger);
+    // onTriggerRecording 随 setupRecordTab 迁入 transceive 模块（拆分方案 B2）
 
     // 工程
     void onOpenProject();
@@ -170,19 +161,34 @@ private:
     void createLayout();
     void createStatusBar();
     void createWindowButtons();
+    void refreshWindowButtonIcons();   // 窗口按钮 SVG 图标（主题色 + 最大化/还原切换）
     void updateActions();
     void updateStatistics();
     void setupTraceTab(TraceTab *tab);
-    void setupSendTab(SignalSendTab *tab);
-    void setupPlaybackTab(PlaybackTab *tab);
-    void setupOfflineAnalysisTab(OfflineAnalysisTab *tab);
-    void setupRecordTab(RecordTab *tab);
-    void setupDeviceTab(DeviceConnectionTab *tab);
+    // setupSendTab/setupPlaybackTab/setupOfflineAnalysisTab/setupRecordTab
+    // 已迁入 TransceiveModule（拆分方案 B2：模块自己连接自己的信号槽）
+    // setupDeviceTab/setupMeasurementTab 已迁入 FlowModule（拆分方案 B4）
     void processCommand(const QString &cmd);
     void openTab(QWidget *widget, const QString &label);
     void refreshPanelLists();
-    void setupMarketTab();  // 创建/重建 MarketTab（统一插件市场）并连接信号
+    void setupMarketTab();  // 创建/重建插件市场页（经 ModuleRegistry "market" 模块，方案 §13 / 拆分方案 B0）
+    void marketInvoke(const QString &action, const QVariant &arg = {});  // 市场模块动作转发（invoke 字符串约定见 imodule.h）
     void linkGraphicCursor(GraphicView *gv);  // 新建 GraphicView 时与已有视图建立游标联动
+
+    // ---- transceive 模块（拆分方案 B2）----
+    ShellContext makeShellContext();           // 构造含数据层服务指针与壳回调的上下文
+    void transceiveInvoke(const QString &action, const QVariant &arg = {});  // 收发模块动作转发
+    QVariant transceiveQuery(const QString &what, const QVariant &arg = {}); // 收发模块查询转发
+
+    // ---- flow 模块（拆分方案 B4）----
+    void flowInvoke(const QString &action, const QVariant &arg = {});   // flow 模块动作转发
+    QVariant flowQuery(const QString &what, const QVariant &arg = {});  // flow 模块查询转发
+    void onMeasurementToggled(bool running);       // 测量启停编排（离线加载 + Trace/Graphic 门控）
+    void onModuleToggled(const QString &blockId, const QString &name, bool enabled);
+    void onModuleOpened(const QString &moduleId, const QString &instanceId);
+    void onModuleInstanceClosed(const QString &moduleId, const QString &instanceId);
+    void openDevicePage();                         // 查找/新建设备连接页（无参变体，Real 块入口）
+    void unloadDbcFile(const QString &fileName);   // DBC 卸载：关关联标签页 + unloadDbc
 
     // ---- 布局 ----
     ActivityBar *m_activityBar = nullptr;
@@ -210,22 +216,19 @@ private:
     // ---- UI (Main tabs) ----
     TraceTab *m_traceTab = nullptr;
     GraphicView *m_graphicView = nullptr;
-    SignalSendTab *m_sendTab = nullptr;
-    PlaybackTab *m_playbackTab = nullptr;
-    OfflineAnalysisTab *m_offlineTab = nullptr;
-    RecordTab *m_recordTab = nullptr;
-    DeviceConnectionTab *m_deviceTab = nullptr;
-    MarketTab *m_marketTab = nullptr;   // 统一插件市场（驱动 + 插件，方案 §13）
+    // m_sendTab/m_playbackTab/m_offlineTab/m_recordTab 随收发四页迁入
+    // openbus_transceive.dll（拆分方案 B2；壳经 createPage/invoke/query 操控）
+    // m_deviceTab/m_setupView 随 Flow 页迁入 openbus_flow.dll（拆分方案 B4；页面单实例缓存在模块内）
+    QWidget *m_marketWidget = nullptr;   // 统一插件市场（经 ModuleRegistry "market" 模块创建，方案 §13 / 拆分方案 B0）
 
     // ---- 核心引擎 ----
     Recorder *m_recorder = nullptr;
     Player *m_player = nullptr;
-    TriggerRecorder *m_triggerRecorder = nullptr;
+    // m_triggerRecorder 随录制页迁入 transceive 模块（B2）
     CanSimulator *m_simulator = nullptr;
     CanDeviceManager *m_deviceManager = nullptr;  ///< 硬件设备管理器（ZLG/PEAK/...）
 
-    // ---- 周期发送 ----
-    QHash<int, QTimer *> m_periodicSenders;  ///< 行号 → 周期发送定时器
+    // 周期发送定时器（m_periodicSenders）随发送页迁入 transceive 模块（B2）
 
     // ---- 菜单 Action ----
     QAction *m_recordAction = nullptr;
@@ -261,7 +264,6 @@ private:
     // ---- 实例跟踪（flow 页面模块实例）----
     QMap<QString, QWidget*> m_traceInstances;    // "trace1" → TraceTab*
     QMap<QString, QWidget*> m_graphicInstances;  // "graphic1" → GraphicView*
-    MeasurementSetupView *m_setupView = nullptr;
 
     // ---- 窗口控制按钮 ----
     QToolButton *m_minBtn = nullptr;

@@ -179,6 +179,8 @@ void MarketTab::buildUi()
     m_searchEdit->setPlaceholderText(
         QStringLiteral("搜索驱动与插件（型号 / 厂商 / 关键词）"));
     m_searchEdit->setClearButtonEnabled(true);
+    // 原生清除按钮 × 不随主题（深色下不可见）→ 换主题色 SVG 图标
+    applyClearButtonIcon(m_searchEdit, ThemeManager::instance()->currentTheme().text);
     connect(m_searchEdit, &QLineEdit::textChanged,
             this, &MarketTab::onSearchChanged);
     bar->addWidget(m_searchEdit, 1);

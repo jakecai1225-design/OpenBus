@@ -2,6 +2,7 @@
 #define MARKETMODEL_H
 
 #include <QFrame>
+#include <QMetaType>
 #include <QPixmap>
 #include <QString>
 #include <QStringList>
@@ -19,6 +20,9 @@ struct MarketItem {
 
     bool operator==(const MarketItem &o) const { return kind == o.kind && id == o.id; }
 };
+
+/// 允许 MarketItem 经 QVariant 跨模块接口传递（IBusinessModule::invoke）
+Q_DECLARE_METATYPE(MarketItem)
 
 /// 市场列表行组件（VS Code 扩展列表风格）。
 /// 无 Q_OBJECT（用动态属性 marketRow 标记，选中态刷新以 property 识别）。
