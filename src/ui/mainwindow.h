@@ -15,7 +15,7 @@ class FilterBar;
 class FrameInfoWidget;
 class SignalDecodeWidget;
 class SplitEditorArea;
-class DbcDetailTab;
+// class DbcDetailTab 随 DBC 页迁入 openbus_dbc.dll（拆分方案 B3）
 class Recorder;
 class Player;
 class CanSimulator;
@@ -26,8 +26,7 @@ class ActivityBar;
 class SideBar;
 class BottomPanel;
 class RightPanel;
-class MeasurementSetupView;
-class DeviceConnectionTab;
+// MeasurementSetupView / DeviceConnectionTab 随 Flow 页迁入 openbus_flow.dll（拆分方案 B4）
 class BusStatistics;
 class FilterPresetManager;
 class BookmarkManager;
@@ -168,7 +167,7 @@ private:
     void setupTraceTab(TraceTab *tab);
     // setupSendTab/setupPlaybackTab/setupOfflineAnalysisTab/setupRecordTab
     // 已迁入 TransceiveModule（拆分方案 B2：模块自己连接自己的信号槽）
-    void setupDeviceTab(DeviceConnectionTab *tab);
+    // setupDeviceTab/setupMeasurementTab 已迁入 FlowModule（拆分方案 B4）
     void processCommand(const QString &cmd);
     void openTab(QWidget *widget, const QString &label);
     void refreshPanelLists();
@@ -180,6 +179,16 @@ private:
     ShellContext makeShellContext();           // 构造含数据层服务指针与壳回调的上下文
     void transceiveInvoke(const QString &action, const QVariant &arg = {});  // 收发模块动作转发
     QVariant transceiveQuery(const QString &what, const QVariant &arg = {}); // 收发模块查询转发
+
+    // ---- flow 模块（拆分方案 B4）----
+    void flowInvoke(const QString &action, const QVariant &arg = {});   // flow 模块动作转发
+    QVariant flowQuery(const QString &what, const QVariant &arg = {});  // flow 模块查询转发
+    void onMeasurementToggled(bool running);       // 测量启停编排（离线加载 + Trace/Graphic 门控）
+    void onModuleToggled(const QString &blockId, const QString &name, bool enabled);
+    void onModuleOpened(const QString &moduleId, const QString &instanceId);
+    void onModuleInstanceClosed(const QString &moduleId, const QString &instanceId);
+    void openDevicePage();                         // 查找/新建设备连接页（无参变体，Real 块入口）
+    void unloadDbcFile(const QString &fileName);   // DBC 卸载：关关联标签页 + unloadDbc
 
     // ---- 布局 ----
     ActivityBar *m_activityBar = nullptr;
@@ -209,7 +218,7 @@ private:
     GraphicView *m_graphicView = nullptr;
     // m_sendTab/m_playbackTab/m_offlineTab/m_recordTab 随收发四页迁入
     // openbus_transceive.dll（拆分方案 B2；壳经 createPage/invoke/query 操控）
-    DeviceConnectionTab *m_deviceTab = nullptr;
+    // m_deviceTab/m_setupView 随 Flow 页迁入 openbus_flow.dll（拆分方案 B4；页面单实例缓存在模块内）
     QWidget *m_marketWidget = nullptr;   // 统一插件市场（经 ModuleRegistry "market" 模块创建，方案 §13 / 拆分方案 B0）
 
     // ---- 核心引擎 ----
@@ -255,7 +264,6 @@ private:
     // ---- 实例跟踪（flow 页面模块实例）----
     QMap<QString, QWidget*> m_traceInstances;    // "trace1" → TraceTab*
     QMap<QString, QWidget*> m_graphicInstances;  // "graphic1" → GraphicView*
-    MeasurementSetupView *m_setupView = nullptr;
 
     // ---- 窗口控制按钮 ----
     QToolButton *m_minBtn = nullptr;

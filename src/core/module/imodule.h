@@ -60,6 +60,21 @@ struct ShellContext {
      *  - "clearTraceGraphic"              清空全部 Trace/Graphic 视图数据
      *  - "updateActions"                  刷新菜单/工具栏动作状态
      *  - "statusMessage" (arg = QString)  状态栏消息
+     *  - "signalDoubleClicked" (arg = QVariantList{canId, signalName})
+     *  - "signalAddToTrace"    (arg = QVariantList{canId, signalName})
+     *      DBC 详情页信号联动（B3）：双击/加到 Graphic 走壳的信号→Graphic 编排，
+     *      加到 Trace 走壳的信号→Trace 编排
+     *  - "openOfflineAnalysis" / "openDevicePage"
+     *      Flow 页跳转请求（B4）→ 壳打开对应标签页
+     *  - "measurementToggled" (arg = bool)
+     *      Flow 测量启停（B4）→ 壳离线加载 + Trace/Graphic 实例门控
+     *  - "moduleToggled" (arg = QVariantList{blockId, name, enabled})
+     *  - "moduleOpened"   (arg = QVariantList{moduleId, instanceId})
+     *  - "moduleInstanceClosed" (arg = QVariantList{moduleId, instanceId})
+     *      Flow 画布块操作（B4）→ 壳实例编排
+     *  - "dbcRemoveRequested" (arg = QString 文件名) → 壳关关联页 + unloadDbc
+     *  - "connMessage" (arg = QString) / "deviceDisconnected"
+     *      设备连接页状态反馈（B4）→ 状态栏/测量状态/Trace 门控
      */
     std::function<void(const QString &action, const QVariant &arg)> shellInvoke;
 };
@@ -124,6 +139,21 @@ public:
         Q_UNUSED(pageId);
         Q_UNUSED(ctx);
         return nullptr;
+    }
+
+    /**
+     * @brief 创建带参数页面（B3 增；只增不改原则下的参数化扩展）
+     *
+     * param 语义由 pageId 约定：
+     *  - dbc  "detail"  : param = QString（DBC 文件名，多实例页，每次调用新建）
+     *  - flow "device"  : param = QVariantList{deviceKind, devIndex, deviceName, deviceType}
+     *
+     * 默认转发到无参版本，旧模块不受影响。
+     */
+    virtual QWidget *createPage(const QString &pageId, const QVariant &param, ShellContext &ctx)
+    {
+        Q_UNUSED(param);
+        return createPage(pageId, ctx);
     }
 
     /**

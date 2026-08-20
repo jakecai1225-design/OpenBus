@@ -162,17 +162,12 @@ set(SRC_UI
     ui/datawindow.cpp
     ui/colorruleeditor.h
     ui/colorruleeditor.cpp
-    ui/dbcdetailtab.h
-    ui/dbcdetailtab.cpp
+    # dbcdetailtab/tools/dbcsignallistview 迁入 openbus_dbc.dll（拆分方案 B3）
     # thememanager 迁入 openbus_data（拆分方案 §4.3：被全部业务使用，须与单例们同 DLL）
     # markettab/marketmodel/marketmodule 迁入 openbus_market.dll（拆分方案 B1）
-    ui/measurementsetupview.h
-    ui/measurementsetupview.cpp
-    ui/deviceconnectiontab.h
-    ui/deviceconnectiontab.cpp
+    # measurementsetupview/deviceconnectiontab 迁入 openbus_flow.dll（拆分方案 B4）
     # 工具集 — 内置分析工具（原 blfasconverter/dbctoolview/loganalysisview 已插件化，见 plugins/）
-    ui/tools/dbcsignallistview.h
-    ui/tools/dbcsignallistview.cpp
+    # dbcsignallistview 迁入 openbus_dbc.dll（拆分方案 B3）
     ui/tools/iographview.h
     ui/tools/iographview.cpp
 )
@@ -405,6 +400,129 @@ target_precompile_headers(openbus_transceive PRIVATE
 )
 
 # ============================================================
+#  openbus_dbc — DBC 业务 DLL（拆分方案 B3）
+#  DBC 详情页（多实例，每文件一页）+ 信号清单工具 + DbcModule 适配器，
+#  唯一导出 C 工厂 openbus_createDbcModule()。
+#  依赖：openbus_data（dbcManager 单例经 ShellContext 指针使用）+ Qt Widgets/Svg
+#  注：dbcimportdialog 留在 openbus_transceive（唯一使用者发送页，见 B2 备注）
+# ============================================================
+add_library(openbus_dbc SHARED
+    ui/dbcdetailtab.h
+    ui/dbcdetailtab.cpp
+    ui/tools/dbcsignallistview.h
+    ui/tools/dbcsignallistview.cpp
+    ui/dbcmodule.h
+    ui/dbcmodule.cpp
+)
+
+target_link_libraries(openbus_dbc PUBLIC
+    openbus_data
+    Qt6::Widgets
+    Qt6::Svg
+)
+
+# PCH — DBC 页以树/表 Widget 为主
+target_precompile_headers(openbus_dbc PRIVATE
+    <QObject>
+    <QWidget>
+    <QFrame>
+    <QVBoxLayout>
+    <QHBoxLayout>
+    <QSplitter>
+    <QLabel>
+    <QPushButton>
+    <QLineEdit>
+    <QTreeWidget>
+    <QTreeWidgetItem>
+    <QTableWidget>
+    <QTableWidgetItem>
+    <QHeaderView>
+    <QStackedWidget>
+    <QScrollArea>
+    <QGroupBox>
+    <QMenu>
+    <QAction>
+    <QMessageBox>
+    <QFileDialog>
+    <QFile>
+    <QFileInfo>
+    <QDir>
+    <QTimer>
+    <vector>
+    <string>
+    <memory>
+    <functional>
+    <algorithm>
+)
+
+# ============================================================
+#  openbus_flow — 测量流程业务 DLL（拆分方案 B4）
+#  Flow 测量配置页（MeasurementSetupView）+ 设备连接页（DeviceConnectionTab）
+#  + FlowModule 适配器，唯一导出 C 工厂 openbus_createFlowModule()。
+#  依赖：openbus_data（player/simulator/deviceManager/dbcManager 单例
+#  经 ShellContext 指针使用）+ Qt Widgets/Svg
+# ============================================================
+add_library(openbus_flow SHARED
+    ui/measurementsetupview.h
+    ui/measurementsetupview.cpp
+    ui/deviceconnectiontab.h
+    ui/deviceconnectiontab.cpp
+    ui/flowmodule.h
+    ui/flowmodule.cpp
+)
+
+target_link_libraries(openbus_flow PUBLIC
+    openbus_data
+    Qt6::Widgets
+    Qt6::Svg
+)
+
+# PCH — Flow 页为 QGraphicsScene/View + 表单组合
+target_precompile_headers(openbus_flow PRIVATE
+    <QObject>
+    <QWidget>
+    <QFrame>
+    <QVBoxLayout>
+    <QHBoxLayout>
+    <QGridLayout>
+    <QFormLayout>
+    <QGroupBox>
+    <QLabel>
+    <QPushButton>
+    <QToolButton>
+    <QAction>
+    <QToolBar>
+    <QComboBox>
+    <QCheckBox>
+    <QLineEdit>
+    <QListWidget>
+    <QGraphicsScene>
+    <QGraphicsView>
+    <QGraphicsRectItem>
+    <QGraphicsTextItem>
+    <QGraphicsPathItem>
+    <QPainterPath>
+    <QLinearGradient>
+    <QPen>
+    <QBrush>
+    <QMenu>
+    <QMessageBox>
+    <QFileDialog>
+    <QInputDialog>
+    <QDialog>
+    <QTimer>
+    <QScrollBar>
+    <QFileInfo>
+    <QMouseEvent>
+    <cmath>
+    <vector>
+    <string>
+    <memory>
+    <functional>
+    <algorithm>
+)
+
+# ============================================================
 #  openbus_ui — 壳 UI 静态库 (剩余界面组件；thin archive 打包)
 #  改 UI 代码时只需重编译此库 + 最终链接，不影响 data/market
 # ============================================================
@@ -494,6 +612,12 @@ target_link_libraries(openbus PRIVATE
     # 收发模块（B2）：main() 经 C 工厂 openbus_createTransceiveModule 注册，
     # 壳经 ModuleRegistry::createPage/invoke/query 操控四页面
     openbus_transceive
+    # DBC 模块（B3）：main() 经 C 工厂 openbus_createDbcModule 注册，
+    # 壳经 createPage("detail", 文件名, ctx) 打开 DBC 详情页
+    openbus_dbc
+    # flow 模块（B4）：main() 经 C 工厂 openbus_createFlowModule 注册，
+    # 壳经 createPage/invoke/query 操控 Flow/设备连接页与测量编排
+    openbus_flow
 )
 
 # ============================================================

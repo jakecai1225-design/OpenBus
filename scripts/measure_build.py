@@ -49,10 +49,11 @@ CORE_TOUCH_FILE = PROJECT_ROOT / "src" / "core" / "appconfig.cpp"
 # 关键步骤（始终单独列出，便于横向对比）
 KEY_STEPS = [
     "openbus.exe",
-    "libopenbus_ui.a",      # 壳 UI 静态库（thin archive）
+    "libopenbus_ui.a",           # 壳 UI 静态库（thin archive）
     "libqcustomplot.a",
-    "openbus_data.dll",     # B1：公共底座 DLL（原 openbus_core 静态库）
-    "openbus_market.dll",   # B1：首个业务模块 DLL
+    "openbus_data.dll",          # B1：公共底座 DLL（原 openbus_core 静态库）
+    "openbus_market.dll",        # B1：首个业务模块 DLL
+    "openbus_transceive.dll",    # B2：收发模块 DLL（四页面）
 ]
 
 
