@@ -1,10 +1,19 @@
 # openbus 多协议通用 Flow 架构方案
 
-> **状态：设计稿 v1.1（2026-08-21）——尚未实施**
+> **状态：设计稿 v1.3（2026-08-21）——尚未实施**
 >
 > **目标**：将 openbus 从「CAN 单协议分析工具」逐步演进为「多协议通用数据流分析平台」。
 > 第一步落地 Flow 侧栏折叠栏的多协议流处理模式（CAN Flow / EtherCAT Flow / 通用 Flow /
 > 第三方协议扩展），并以此为牵引，建立协议无关的统一报文模型、协议适配层与解析器角色。
+>
+> **v1.3 增补（2026-08-21）**：§三 新增**角色管线模型（§3.5）**——一个 Flow 由
+> **Source（源）→ Filter（流级过滤）→ Parser（解析）→ Trace/Graphic（视图消费）**
+> 四类角色串联组成；新增**流级过滤**角色（FlowSession 过滤链，复用 `FilterEngine`
+> 原语泛化到 BusMessage），并明确流级与视图级（Trace FilterEngine 现状）两级过滤边界。
+>
+> **v1.2 增补（2026-08-21）**：新增 **§十三 最小改动预埋方案（M 系列）**——将 F1 拆出
+> UI 预埋（M1）/ 数据层接口预埋（M2）/ 冷路径试点（M3）三个薄切片先行落地，CAN 为首个
+> 样板，热路径与既有管理器零改动，UI 先行预留；§十 增加 M 系列先行说明。
 >
 > **v1.1 增补（2026-08-21）**：画布中「DBC 数据库」块抽象为通用**解析器（Parser）**
 > 角色（§六）——解析器与流类型解耦，不同类型的 Flow 所支持的解析器（可加载的协议
@@ -116,6 +125,10 @@ Player（文件回放）           ─┘                                       
 
 ## 三、总体架构
 
+> **角色管线模型（2026-08-21 增补，详见 §3.5）**：一个 Flow（流会话）由四类角色串联——
+> **Source（源）→ Filter（流级过滤）→ Parser（解析）→ Trace/Graphic（视图消费）**，
+> 录制 / 统计作为同级消费者挂接在分发之后。
+
 ### 3.1 分层视图
 
 ```
@@ -147,7 +160,7 @@ Player（文件回放）           ─┘                                       
 | `IProtocolAdapter` | 协议适配器（流类型）：身份、源能力、通道语义、接受的解析器集合、解码、Trace 列定义、文件格式 | 接口头在 openbus_data；实现分布在 data / ethercat DLL / 插件包 |
 | `IBusParser` + `ParserRegistry` | 解析器角色（§六）：协议描述文件 → 统一报文/信号定义；与流类型解耦，按流会话绑定 | openbus_data（接口 + 内置实现；.oflow 插件可自带） |
 | `ProtocolRegistry` | 进程内注册表：枚举适配器、按 protocolId 查找；内置注册 + 插件注册 | openbus_data（仿 DbcManager 单例模式） |
-| `FlowSession` | 流会话：某协议的一个流处理实例（源绑定 + 通道数 + 解析器绑定 + 使能） | openbus_data（结构体）+ openbus_flow（UI 管理） |
+| `FlowSession` | 流会话：某协议的一个流处理实例（源绑定 + 通道数 + 流级过滤链 + 解析器绑定 + 使能；角色构成见 §3.5） | openbus_data（结构体）+ openbus_flow（UI 管理） |
 
 ### 3.3 数据流（目标态）
 
@@ -156,7 +169,7 @@ Player（文件回放）           ─┘                                       
   │  适配器 ingestion：协议原始帧 ──► BusMessage（扁平字段）
   ▼
 FlowCore（openbus_data）
-  │  全局时间轴标准化 timestampNs ──► 按测量门控 + 流会话使能分发
+  │  全局时间轴标准化 timestampNs ──► 按测量门控 + 流会话使能 + 流会话过滤链（§3.5）分发
   ▼
 业务模块 invoke("onBus", BusMessage)
   ├─► Trace：适配器 traceColumns() 渲染列；详情面板走适配器冷路径解码（信号定义来自解析器）
@@ -175,6 +188,47 @@ FlowCore（openbus_data）
   不做协议解析。
 - **openbus_trace / openbus_graphic / openbus_transceive**：只依赖 BusMessage 与
   适配器提供的展示/解码元数据，不 include 协议私有头。
+
+### 3.5 角色管线模型（Flow 的构成）
+
+一个 Flow（流会话）= 四类角色的有序管线（逻辑视图；物理数据流见 §3.3）：
+
+```
+Source 源（设备采集 / 文件回放 / 仿真）
+  │  原始帧（CanFrame / General 字节流）
+  ▼
+Filter 流级过滤（FlowSession 过滤链）
+  │  通过帧：BusMessage 扁平属性表达式，热路径零解码
+  │  丢弃帧：不进环形缓冲 · 不录制 · 不分发
+  ▼
+Parser 解析（协议描述定义：DBC / ARXML / J1939 / ENI / 字段布局）
+  │  定义经 BusDefinitionStore 供给消费侧；逐帧解码在消费侧冷路径执行（非热路径必经阶段）
+  ▼
+Trace / Graphic 视图消费（录制 / 统计同级挂接）
+```
+
+| 角色 | 职责 | 现状对应 | 目标态落点 |
+|------|------|---------|-----------|
+| **Source 源** | 产出原始报文：硬件采集 / 离线文件回放 / 仿真 | CanDeviceManager / Player（canfileio）/ CanSimulator | 源/文件抽象层（§3.1 底层）；`FlowSession.sourceBinding` |
+| **Filter 流级过滤** | 按 BusMessage 扁平字段筛选进入管线的帧；被滤掉的帧不进 Trace 环形缓冲、不录制、不分发（对标 CANoe Measurement Setup 的 Filter 配置） | 无流级过滤；`FilterEngine`（src/core/filter_engine.h）已是帧级原始属性表达式引擎，仅宿主在 Trace（视图级） | `FlowSession.filterChain`（F1 定义字段 / F2 实施 UI+执行）；画布过滤块（§8.1）；`FilterEngine` 泛化 `evaluate(const BusMessage&)` 后两级宿主复用 |
+| **Parser 解析** | 协议描述文件 → 统一定义；逐帧解码由消费侧经适配器冷路径执行 | DbcManager（单协议） | §六 解析器角色：IBusParser / ParserRegistry / BusDefinitionStore |
+| **Trace/Graphic 视图** | 消费渲染；录制 / 统计为同级消费者挂接 | Trace / Graphic / Recorder / BusStatistics | `invoke("onBus")` 下游（§3.3） |
+
+**过滤的两级（边界约定）**：
+
+- **流级（本管线中的 Filter 角色）**：位于源与解析器之间、分发枢纽之内执行；只看
+  BusMessage 扁平字段（id / channel / flags / payload 长度 / 字节序列），热路径零解码；
+  **影响录制与环形缓冲**（滤掉即不落盘，对标 CANoe 测量级过滤语义）。
+- **视图级（现状已有，不动）**：Trace 的 FilterEngine + CanTraceProxyModel——只影响
+  显示，不影响环形缓冲与录制；可引用解码后的列（Name 等）。Graphic 侧暂无，GV 系列
+  按需引入。
+- **值级过滤**（谓词引用解析器信号值）天然属于视图级——需要解码结果；流级保持原始
+  属性过滤，避免热路径依赖解析器。
+
+**执行原语复用**：`FilterEngine` 现有语法（`id` / `dlc` / `ch` / flag 位 /
+`data contains`）即帧级原始属性过滤；泛化签名为 `evaluate(const BusMessage&)`（变量集
+由适配器扩展）后，流级（FlowSession 过滤链）与视图级（Trace 代理）两个宿主复用同一
+引擎与同一语法。
 
 ---
 
@@ -498,7 +552,7 @@ BusMessage（热路径分发，不经解析器）
 |------|------|
 | 单击流实例行 | 打开/聚焦该流的画布分组（画布滚动定位到对应协议分组框） |
 | 单击状态点 / 复选框 | 启停该流会话（等价画布分组框整体使能；未运行测量时仅切换使能态） |
-| 双击流实例行 | 打开该流的配置标签页（源绑定/通道/解析器，经 flow 模块 `createPage("flowcfg:<sessionId>")`） |
+| 双击流实例行 | 打开该流的配置标签页（源绑定/通道/流级过滤/解析器，经 flow 模块 `createPage("flowcfg:<sessionId>")`） |
 | 右键流实例行 | 重命名 / 复制配置 / 删除（删除前确认；等价画布分组右键） |
 | 「＋ 新建 X Flow」 | 创建该协议新流会话：默认源绑定 + 默认通道数；画布出现新分组 |
 | 折叠节标题行 | 展开/收起（单节独立记忆，QSettings 持久化） |
@@ -518,7 +572,7 @@ BusMessage（热路径分发，不经解析器）
 
 - FlowSession 列表序列化进工程状态 JSON（`ProjectContext.stateJson`，键
   `"flows": [{sessionId, protocolId, name, sourceBinding, channelCount,
-  parsers: [{parserId, filePath, enabled}], enabled}]`），随工程保存/切换恢复
+  filters: [{expr, enabled}], parsers: [{parserId, filePath, enabled}], enabled}]`），随工程保存/切换恢复
   （对齐既有 layoutConfig 机制）。
 - 折叠节展开状态 → QSettings（用户偏好，不进工程文件）。
 - 流会话与画布分组、解析器面板、模块实例门控三方联动：
@@ -559,6 +613,9 @@ Real 实时  ──►  ┌─ CAN Flow 1 ────────────�
   的文件对话框过滤项 = 该流类型适配器的 `acceptedParsers()` 声明（CAN Flow
   可选 DBC/ARXML/J1939，EtherCAT Flow 仅 ENI/ESI，通用 Flow 仅字段布局）；
   单个解析器文件可独立启停/卸载；通用 Flow 不加载解析器时连线直连模块列。
+- **过滤块（F2，角色定义见 §3.5）**：每个协议流分组可挂一个过滤块（列 2 与列 3 之间），
+  承载该 FlowSession 的流级过滤链（BusMessage 扁平属性表达式，复用 FilterEngine 语法）；
+  无规则时连线直连（与解析器块可选同理）。
 - 模块块保持全局共享（Trace/Graphic/统计/录制不按协议拆分）；
   每个模块块增加「订阅协议」过滤入口（F2：模块实例可选只接收某些协议的数据，
   默认全部——保持现行为）。
@@ -599,6 +656,18 @@ struct BlockItem {
 
 > 估时为净开发人日，含单测与冒烟；每阶段结束跑全量 ctest + 真机 CAN 回归
 > （对齐 doc/构建基线.md 的验收口径）。
+
+### M 系列 — 最小改动预埋（先行薄切片，约 5-7 人日，详见 §十三）
+
+> 2026-08-21 增补：F1 一步跨度较大，先拆出三个**最小改动薄切片**先行落地——UI 先行
+> 预留、接口预埋不接线、冷路径试点；CAN 为首个样板，热路径与既有管理器零改动。
+> M 系列完成后 F1 剩余约 3-5 人日。
+
+| 切片 | 内容 | 工时 |
+|------|------|------|
+| **M1** | UI 预埋与身份标识：CollapsibleSection 组件 + Flow/Trace/Graphic 三侧栏折叠分节 + 「新建」下拉（单项）+ protocolId/formId 尾部追加与持久化回填 | ~2 人日 |
+| **M2** | 数据层接口预埋：busmessage.h + IProtocolAdapter/ProtocolRegistry + CanProtocolAdapter 薄实现 + IBusParser/ParserRegistry/BusDefinitionStore + DbcParser 直通（纯新增不接线） | ~2-3 人日 |
+| **M3** | 冷路径试点：画布「DBC 数据库」块经「注册表 → 解析器 → DbcManager」管道加载（行为零变化，样板代码路径） | ~1-2 人日 |
 
 ### F1 — 地基：统一模型 + CAN 适配器 + 解析器抽象 + 侧栏折叠栏（约 8-10 人日）
 
@@ -665,6 +734,88 @@ struct BlockItem {
 | doc/插件系统方案.md | F4 的 Python 插件 onBus 转发与协议订阅声明扩展其宿主协议 |
 | doc/需求文档.md | Trace 多协议列与 B16 自定义列协同（适配器列与自定义列同管道；B16-3 的 DBC 信号值引用同步泛化为解析器信号引用）；后续 Flow 相关需求编号从 B18 起接续 |
 | doc/Trace模块设计文档.md / Graphic模块设计文档.md | 列模型与信号管道泛化的详细设计在其文档内各自补章节；Trace 视图形态（TraceForm，六种基础形态 + TR 系列路线）见 Trace模块设计文档.md §十，`traceColumns()` 落地时预留形态接口；Graphic 可视化形态（GraphicForm，六种基础形态 + GV 系列路线）见 Graphic模块设计文档.md §十一，`decode()` 输出即各形态统一数据源，`BusSignalDef` 预留 valueType/值表字段 |
+
+## 十三、最小改动预埋方案（M 系列：渐进式落地路径）
+
+> 2026-08-21 增补。§十 F1 是完整的首次落地（约 8-10 人日，含热路径切换与录制容器），
+> 一步跨度大、回归面广。本章将其拆出**三个薄切片先行**（M1/M2/M3，合计约 5-7 人日），
+> 每个切片独立编译、独立验收、CAN 零回归；**CAN 分析即首个落地样板**——所有通用化机制
+> 先以 CAN 跑通、形成标准代码路径，再接新协议（EtherCAT / 通用 Flow / 第三方）。UI 先行
+> 预留（折叠栏 / 新建下拉 / 身份字段），数据层接口预埋但不接线，热路径与既有管理器
+> （DbcManager / CanTraceModel / GraphicView）零改动。
+
+### 13.1 拆薄原则
+
+1. **预埋不改流**：热路径保持 `onFrameReceived(CanFrame)` 原样；BusMessage / 适配器 /
+   解析器仅落地接口与 CAN 实现，不改任何既有调用链。
+2. **UI 先行预留**：侧栏折叠分节、「新建」下拉、协议 / 形态身份字段先就位——F1 剩余与
+   TR / GV 系列落地时 UI 不再返工。
+3. **每步零回归门禁**：每切片结束跑全量 ctest（7/8 基线）+ 真机 CAN 冒烟；可感知行为
+   变化仅限侧栏视觉（分节与下拉）。
+4. **样板代码路径**：M3 的「UI → 注册表 → 适配器 / 解析器 → 既有管理器」闭环是后续所有
+   协议接入的标准路径（新协议照抄此模式，只换协议侧实现）。
+
+### 13.2 M1 — UI 预埋与身份标识（约 2 人日，纯壳层）
+
+| 项 | 内容 | 涉及 |
+|----|------|------|
+| 折叠栏组件 | CollapsibleSection（§7.3 设计：箭头旋转 + 标题 + 徽标位 + 内容区收起过渡） | 新增 `src/ui/panels/collapsiblesection.{h,cpp}` |
+| Flow 侧栏 | MeasurementSetupPanel 改折叠栏：「CAN Flow」一节收纳现有画布入口（行为不变）；底部预留「从市场添加协议流」入口（置灰，F4 启用） | sidebarpanels.{h,cpp} |
+| Trace 侧栏 | 现有实例列表收进「帧列表 Trace」一节；「新建 Trace」按钮改带下拉菜单（当前仅「帧列表」一项；TR1 后由形态注册表填充） | sidebarpanels.{h,cpp}（详见 Trace模块设计文档.md §10.7） |
+| Graphic 侧栏 | 同上：「时序波形 Graphic」一节 + 「新建」下拉（仅一项；GV1 后填充） | sidebarpanels.{h,cpp}（详见 Graphic模块设计文档.md §11.7） |
+| 身份预埋 | TraceTab / GraphicTab / 画布 BlockItem 尾部追加 `protocolId`（默认 "can"）与 `formId`（"framelist" / "waveform"）；工程持久化 JSON 写入新字段，读取缺省回填（旧工程兼容） | trace / graphic / flow 模块 + 工程持久化 |
+
+**验收**：① CAN 全功能回归（ctest 基线 + 真机冒烟）② 三个侧栏呈现折叠分节 ③ 旧工程
+文件可打开且身份字段回填正确。
+
+### 13.3 M2 — 数据层接口预埋（约 2-3 人日，纯新增不接线）
+
+| 项 | 内容 |
+|----|------|
+| 统一报文 | `busmessage.h`：BusMessage 结构（§四）+ CanFrame⇄BusMessage 转换函数（canframe.h 旁纯新增） |
+| 适配器 | IProtocolAdapter 接口（§5.1；新增虚函数一律带默认实现并放接口末尾）+ ProtocolRegistry + CanProtocolAdapter 薄实现：`traceColumns()` 输出现有 12 列定义、`decode()` 复用 DbcManager、`acceptedParsers()={"dbc"}` |
+| 解析器 | IBusParser + ParserRegistry + BusDefinitionStore + DbcParser 直通实现（内部调 DbcManager，输出 BusDefinitionSet，§6.3） |
+| 侧栏接线 | Flow 侧栏折叠节从 M1 硬编码改为 `ProtocolRegistry::adapters()` 枚举生成（仅 CAN 注册，视觉零变化）——注册表首个消费点 |
+| 纪律 | 全部纯新增 + 单测；热路径不动；CanTraceModel / GraphicView / DbcManager 零改动；接口一经注册 ABI 冻结（只增不改） |
+
+**验收**：① ctest 基线不降 ② 新增单测覆盖报文转换 / 注册表枚举 / DbcParser 直通
+（BusDefinitionSet 与 DbcManager 查询结果一致）③ 程序行为与 M1 完全一致。
+
+### 13.4 M3 — 冷路径试点接线（约 1-2 人日，画布解析器块）
+
+| 项 | 内容 |
+|----|------|
+| 加载入口 | 画布「DBC 数据库」块右键「加载解析器…」：文件过滤器由 `acceptedParsers()` 生成（CAN 下仍 *.dbc，行为一致） |
+| 加载管道 | 加载动作经 ParserRegistry → DbcParser → DbcManager 直通（外部行为不变，内部走注册表管道）；DbcManager 保持原样，双入口并存 |
+| 样板意义 | 验证「UI → 注册表 → 适配器 / 解析器 → 既有管理器」闭环——后续 EtherCAT（ENI/ESI）、通用 Flow（字段布局 JSON）、第三方协议接入照抄此代码路径 |
+
+**验收**：① 经注册表管道加载 DBC 后，Trace 报文名 / Graphic 信号 / 画布块与直连
+DbcManager 完全一致 ② 新增端到端单测（加载 → 查询 → 比对）。
+
+### 13.5 不做清单（明确推迟，保证「最少修改量」）
+
+| 推迟项 | 去向 |
+|--------|------|
+| 热路径 `invoke("onBus", BusMessage)` 分发切换 | F1 剩余 |
+| .sin v2 录制容器（BusType 前缀，写新读新旧） | F1 剩余 |
+| DbcManager 冻结为兼容壳（findMessage 转发） | F1 剩余 |
+| CanTraceModel 列模型接 `traceColumns()` | F1 剩余（M2 的 traceColumns 仅供注册表输出） |
+| TraceFormRegistry / GraphicFormRegistry | TR1 / GV1（M1 下拉先硬编码单项） |
+| 流级过滤链（`FlowSession.filterChain` + 画布过滤块 + FilterEngine 泛化） | F1 剩余（FlowSession 字段定义）/ F2（UI + 分发枢纽执行） |
+| 画布流会话分组（FlowSession 绑定） | F1 剩余（M1 仅 BlockItem 加协议字段） |
+| 数据库面板 → 解析器面板 | F1 剩余 |
+| ARXML 解析器接入注册表 | F1 剩余（M2 仅 DBC 直通，验证模式即可） |
+
+### 13.6 与 F1-F4 / TR / GV 的关系
+
+- **M 系列 = F1 的先行薄切片**：M1-M3（约 5-7 人日）完成后，F1 剩余约 3-5 人日
+  （热路径切换、.sin v2、DbcManager 兼容壳、模块原子切换、画布会话分组、解析器面板、
+  ARXML 接入）。
+- **M1 是 TR1 / GV1 的公共前置**：Trace / Graphic 侧栏分节与新建下拉在 M1 就位，TR1 /
+  GV1 落地注册表后下拉项自动扩充，UI 不再返工（Trace §10.7 / Graphic §11.7）。
+- **风险与对策**：M2 预埋接口若长期不接线易腐化——单测进 CI、接口注册即 ABI 冻结；
+  M3 端到端单测保证注册表管道与直连行为一致；侧栏视觉变化集中在 M1 一次性交付，
+  避免多次打扰用户。
 
 ---
 

@@ -5,6 +5,8 @@
 
 > **2026-08-21 增补**：多协议 Graphic 形态扩展方向（**§十一**）——侧栏 Graphic 折叠栏当前仅一种形态（多轨道时序波形，多实例），面向不同信号数据类型与协议场景归纳出六种基础可视化形态（时序波形 / XY 关联 / 数字总线 / 状态时间线 / 仪表盘 / 柱状统计），作为战略扩展方向，与 doc/flow.md、Trace模块设计文档.md §十 配套。
 
+> **2026-08-21 增补（二）**：最小改动预埋（**§11.7**）——M 系列（doc/flow.md §十三）的 Graphic 切片 M1-Graphic：侧栏折叠分节 + 「新建」下拉 + formId/protocolId 身份预埋，可在 GV1 之前先行落地，数据层零改动。
+
 ---
 
 ## 一、定位与对标
@@ -269,8 +271,9 @@ replot() — 恒定 O(视口宽度) 渲染成本
 | **G5** | 数据导出 CSV + 配置持久化（含显示模式/颜色随 G7 一并持久化） | 🟠 P2 | 2 天 |
 | **G6** | 对比模式 + 注释标记 | 🟢 P3 | 3 天 |
 | **GV 系列** | 多协议 Graphic 形态（GV1 形态框架 → GV2 XY 关联 → GV3 状态时间线 → GV4 数字总线 → GV5 仪表盘 → GV6 柱状统计） | ⚪ 战略规划 | — |
+| **M1-Graphic** | 侧栏折叠分节（时序波形 Graphic 节）+ 「新建」下拉（单形态）+ formId/protocolId 身份预埋（flow.md §十三 M1 的 Graphic 切片，GV1 公共前置） | 🟡 近期 | ~0.5 天 |
 
-依赖：G1 ✅、G2 ✅ 已完成；**G7a/b/c 独立于 G3-G6 可立即开始**（建议 G7a → G7b → G7c 顺序，每步均可独立编译验证）；G3-G6 保持原优先级不变。
+依赖：G1 ✅、G2 ✅ 已完成；**G7a/b/c 独立于 G3-G6 可立即开始**（建议 G7a → G7b → G7c 顺序，每步均可独立编译验证）；G3-G6 保持原优先级不变；**M1-Graphic 独立可先行**（仅依赖 CollapsibleSection 组件随 flow.md M1 落地，详见 §11.7）。
 
 ---
 
@@ -936,9 +939,33 @@ Trace 侧栏一致；现状的单列表 + 新建按钮收编为「时序波形 G
 | 既有项 | 关系 |
 |--------|------|
 | doc/flow.md | 上下游配套：`decode()` 输出是各形态统一数据源；`BusSignalDef` 扩展 valueType/值表在解析器层落地（flow.md §十二 已互链） |
+| doc/flow.md §3.5 角色管线 | Graphic 无视图级过滤（按需于 GV 系列引入）；流级过滤在 FlowSession 过滤链统一实施，对管线下游各形态一律生效 |
 | Trace模块设计文档.md §十 | 同构的形态框架（ITraceForm / IGraphicForm 同注册模式）；侧栏折叠栏交互一致；Trace ③ 聚合监视与 Graphic ⑤ 仪表盘同源不同皮 |
 | §九 #10 XY 模式 | 收编为 GV2（原"设计文档另行"落位于此） |
 | §七 Data Window | Data Window（CANoe C3 对标，表格皮）与 GV5 仪表盘（图形皮）同源——最新值监视的两种呈现，数据管道共用 |
 | G3 数学信号 | 跨形态通用派生源（计算信号可喂任意形态） |
 | G4 区域统计 / G6 注释标记 | ① 时序波形形态内的测量增强，不属新形态 |
 | §六 实施计划 | GV 系列列为战略项，不占 G1-G8 批次 |
+
+### 11.7 最小改动预埋（M1-Graphic，对接 flow.md §十三）
+
+多形态框架（GV1-GV6）之前，先落 **M1 的 Graphic 切片**（flow.md §十三 M1，约 0.5 人日）——
+UI 先行预留、数据层零改动，作为 GV1 的公共前置：
+
+- **侧栏折叠分节**：`GraphicConfigPanel` 现有页面列表收进「时序波形 Graphic」一节
+  （CollapsibleSection 组件随 flow.md M1 落地）；节标题带形态徽标位，展开状态
+  QSettings 持久化。
+- **「新建」下拉**：「新建 Graphic」按钮改带下拉菜单，当前仅「时序波形」一项可用——GV1
+  落地 `GraphicFormRegistry` 后下拉项由注册表枚举自动扩充，UI 不再返工。
+- **身份预埋**：GraphicTab 尾部追加 `protocolId`（默认 "can"）与 `formId`（默认
+  "waveform"）字段；工程持久化 JSON 写入新字段，读取缺省回填（旧工程兼容）。
+- **明确不做**：GraphicView / GraphicPalette / G1 降采样 / G2 联动 / 信号结构
+  （`Signal` 仍绑定 `DbcSignal`）全部不动；`decode()`（flow.md M2 落地）仅供注册表
+  输出，不接 Graphic UI。
+
+**验收**：① CAN Graphic 全功能回归（多轨道波形 / 卡尺 / 缩放历史 / 主题联动）② 侧栏呈现
+「时序波形 Graphic」分节与单项下拉 ③ 旧工程恢复后身份字段回填正确。
+
+**与 GV1 的交接**：GV1 落地 IGraphicForm / GraphicFormRegistry 时，仅需把 M1 的硬编码
+下拉项替换为注册表枚举 + `createWidget()` 分发——分节结构与交互模式已在 M1 定型，GV1
+不再动侧栏布局。

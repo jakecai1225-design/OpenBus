@@ -35,6 +35,8 @@
 
 > **2026-08-21 增补**：多协议 Trace 形态扩展方向（**§十**）——侧栏 Trace 折叠栏当前仅一种形态（CAN 帧列表，多实例），面向市面常见协议调研归纳出六种基础视图形态（帧列表 / 事务配对 / 聚合监视 / 文本日志流 / 字节流 / 时序段），作为战略扩展方向，与 doc/flow.md 多协议 Flow 方案配套。
 
+> **2026-08-21 增补（二）**：最小改动预埋（**§10.7**）——M 系列（doc/flow.md §十三）的 Trace 切片 M1-Trace：侧栏折叠分节 + 「新建」下拉 + formId/protocolId 身份预埋，可在 TR1 之前先行落地，数据层零改动。
+
 ### 1.2 核心差异化
 
 - **Wireshark 风格导航体验**：帧编号 + Delta 时间 + 表达式过滤 + Go to Packet
@@ -335,8 +337,9 @@ CanTraceModel → CanTraceProxyModel(增量过滤) → ViewportProxyModel(视窗
 | **T6** | 统计增强（周期抖动 + 错误分类） | 🟢 低 | 2-3 天 | §4.5 |
 | 暂缓 | 行内展开 / Marker 条 / 覆盖淡出 / 混合事件流 | ⚪ 规划 | — | §九 G-F4/G-F9 等 |
 | **TR 系列** | 多协议 Trace 形态（TR1 形态框架 → TR2 聚合监视 → TR3 事务配对 → TR4 文本·字节流 → TR5 时序段 → TR6 混合事件流） | ⚪ 战略规划 | — | §十 |
+| **M1-Trace** | 侧栏折叠分节（帧列表 Trace 节）+ 「新建」下拉（单形态）+ formId/protocolId 身份预埋（flow.md §十三 M1 的 Trace 切片，TR1 公共前置） | 🟡 近期 | ~0.5 天 | §10.7 |
 
-依赖关系：T1、T7 独立可先行；T8 外壳先行，T9/T10 依赖 T8 容器；T2/T3/T4 相互独立可并行；G-F9 混合事件流挂接插件 v2 协议冻结后统一设计。实施批次建议见 §9.4。
+依赖关系：T1、T7 独立可先行；T8 外壳先行，T9/T10 依赖 T8 容器；T2/T3/T4 相互独立可并行；G-F9 混合事件流挂接插件 v2 协议冻结后统一设计；**M1-Trace 独立可先行**（仅依赖 CollapsibleSection 组件随 flow.md M1 落地）。实施批次建议见 §9.4。
 
 ---
 
@@ -570,8 +573,30 @@ CanTraceModel → CanTraceProxyModel(增量过滤) → ViewportProxyModel(视窗
 | 既有项 | 关系 |
 |--------|------|
 | doc/flow.md | 上下游配套：Flow 管「数据怎么来、怎么解析」，本节管「以什么形态看」；flow.md §九 openbus_trace 行落地 `traceColumns()` 时同步预留形态接口（flow.md §十二 已互链） |
+| doc/flow.md §3.5 角色管线 | Trace `FilterEngine` + `CanTraceProxyModel` = 管线中的**视图级过滤**（只影响显示，不影响环形缓冲/录制）；**流级过滤**（影响录制/缓冲）属 FlowSession 过滤链（F1 字段/F2 实施），FilterEngine 泛化到 BusMessage 后两级复用 |
 | Graphic模块设计文档.md §十一 | 同构的形态框架（ITraceForm / IGraphicForm 同注册模式），侧栏折叠栏交互一致；Trace ③ 聚合监视与 Graphic ⑤ 仪表盘同源不同皮（最新值监视的表格皮 / 图形皮） |
 | §九 G-F9 混合事件流 | 收编为 TR6，触发条件（插件 v2 协议冻结）不变 |
 | §1.1 覆盖模式 | 聚合监视型（③）的退化形式：固定模式非周期事件只留最新一行 |
 | §4.5 统计面板 | 聚合监视型的伴生视图（同数据源分视角） |
 | §七 实施计划 | TR 系列列为战略项，不占 T1-T13 近期批次 |
+
+### 10.7 最小改动预埋（M1-Trace，对接 flow.md §十三）
+
+多形态框架（TR1-TR6）之前，先落 **M1 的 Trace 切片**（flow.md §十三 M1，约 0.5 人日）——
+UI 先行预留、数据层零改动，作为 TR1 的公共前置：
+
+- **侧栏折叠分节**：`TracePanel` 现有实例列表收进「帧列表 Trace」一节（CollapsibleSection
+  组件随 flow.md M1 落地）；节标题带形态徽标位，展开状态 QSettings 持久化。
+- **「新建」下拉**：「新建 Trace」按钮改带下拉菜单，当前仅「帧列表」一项可用——TR1 落地
+  `TraceFormRegistry` 后下拉项由注册表枚举自动扩充，UI 不再返工。
+- **身份预埋**：TraceTab 尾部追加 `protocolId`（默认 "can"）与 `formId`（默认
+  "framelist"）字段；工程持久化 JSON 写入新字段，读取缺省回填（旧工程兼容）。
+- **明确不做**：CanTraceModel 列枚举 / 代理链 / FilterEngine / Trace Explorer 全部不动；
+  `traceColumns()`（flow.md M2 落地）仅供注册表输出，不接 Trace UI。
+
+**验收**：① CAN Trace 全功能回归（12 列 / 过滤 / 卡尺导航 / 统计差异视图）② 侧栏呈现
+「帧列表 Trace」分节与单项下拉 ③ 旧工程恢复后身份字段回填正确。
+
+**与 TR1 的交接**：TR1 落地 ITraceForm / TraceFormRegistry 时，仅需把 M1 的硬编码下拉项
+替换为注册表枚举 + `createWidget()` 分发——分节结构与交互模式已在 M1 定型，TR1 不再动
+侧栏布局。
