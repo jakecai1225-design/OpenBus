@@ -1,4 +1,4 @@
-#include "settingsdialog.h"
+#include "settingspage.h"
 #include "core/appconfig.h"
 #include "core/logging.h"
 #include "thememanager.h"
@@ -24,18 +24,17 @@
 #include <QFont>
 #include <QFrame>
 
-SettingsDialog::SettingsDialog(QWidget *parent)
-    : QDialog(parent)
+SettingsPage::SettingsPage(QWidget *parent)
+    : QWidget(parent)
 {
     setWindowTitle("设置");
-    setMinimumSize(800, 500);
     setupUi();
     setupMetas();
     populateCategoryTree();
     populateSettingsTree(QString(), QString());
 }
 
-void SettingsDialog::setupUi()
+void SettingsPage::setupUi()
 {
     auto *root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
@@ -136,15 +135,14 @@ void SettingsDialog::setupUi()
 
     m_resetBtn = new QPushButton("重置为默认", bottomBar);
     m_saveBtn = new QPushButton("保存", bottomBar);
-    m_saveBtn->setDefault(true);
     bottomLayout->addWidget(m_resetBtn);
     bottomLayout->addWidget(m_saveBtn);
 
     root->addWidget(bottomBar);
 
     // ---- 连接 ----
-    connect(m_searchEdit, &QLineEdit::textChanged, this, &SettingsDialog::onSearchChanged);
-    connect(m_categoryTree, &QTreeWidget::itemClicked, this, &SettingsDialog::onCategorySelected);
+    connect(m_searchEdit, &QLineEdit::textChanged, this, &SettingsPage::onSearchChanged);
+    connect(m_categoryTree, &QTreeWidget::itemClicked, this, &SettingsPage::onCategorySelected);
     connect(jsonBtn, &QPushButton::toggled, this, [this, jsonBtn](bool checked) {
         if (checked) {
             m_jsonEdit->setPlainText(AppConfig::instance()->toJsonString());
@@ -155,12 +153,12 @@ void SettingsDialog::setupUi()
             jsonBtn->setText("编辑 JSON");
         }
     });
-    connect(m_jsonEdit, &QPlainTextEdit::textChanged, this, &SettingsDialog::onJsonEdited);
-    connect(m_saveBtn, &QPushButton::clicked, this, &SettingsDialog::onSave);
-    connect(m_resetBtn, &QPushButton::clicked, this, &SettingsDialog::onReset);
+    connect(m_jsonEdit, &QPlainTextEdit::textChanged, this, &SettingsPage::onJsonEdited);
+    connect(m_saveBtn, &QPushButton::clicked, this, &SettingsPage::onSave);
+    connect(m_resetBtn, &QPushButton::clicked, this, &SettingsPage::onReset);
 }
 
-void SettingsDialog::setupMetas()
+void SettingsPage::setupMetas()
 {
     // 定义所有设置项的元数据
     m_metas.clear();
@@ -207,7 +205,7 @@ void SettingsDialog::setupMetas()
     add("log.maxFiles", "日志文件最大数量", "日志", "int", "轮转保留的日志文件数");
 }
 
-void SettingsDialog::populateCategoryTree()
+void SettingsPage::populateCategoryTree()
 {
     // 收集去重分类
     QStringList categories;
@@ -231,7 +229,7 @@ void SettingsDialog::populateCategoryTree()
     m_categoryTree->setCurrentItem(allItem);
 }
 
-void SettingsDialog::populateSettingsTree(const QString &categoryFilter, const QString &textFilter)
+void SettingsPage::populateSettingsTree(const QString &categoryFilter, const QString &textFilter)
 {
     m_settingsTree->clear();
 
@@ -325,7 +323,25 @@ void SettingsDialog::populateSettingsTree(const QString &categoryFilter, const Q
     m_statusLabel->setText(QString("共 %1 项设置").arg(m_settingsTree->topLevelItemCount()));
 }
 
-void SettingsDialog::onSearchChanged(const QString &text)
+void SettingsPage::setCategory(const QString &category)
+{
+    // 侧栏设置面板条目 → 定位分类树（"通用设置"→"通用" 映射在壳侧完成）
+    for (int i = 0; i < m_categoryTree->topLevelItemCount(); ++i) {
+        auto *item = m_categoryTree->topLevelItem(i);
+        if (item->data(0, Qt::UserRole).toString() == category) {
+            m_categoryTree->setCurrentItem(item);
+            populateSettingsTree(category, m_searchEdit->text());
+            return;
+        }
+    }
+    // 未匹配（含空串）→ 回到"全部设置"
+    if (auto *all = m_categoryTree->topLevelItem(0)) {
+        m_categoryTree->setCurrentItem(all);
+        populateSettingsTree(QString(), m_searchEdit->text());
+    }
+}
+
+void SettingsPage::onSearchChanged(const QString &text)
 {
     // 获取当前分类
     auto *catItem = m_categoryTree->currentItem();
@@ -333,19 +349,19 @@ void SettingsDialog::onSearchChanged(const QString &text)
     populateSettingsTree(cat, text);
 }
 
-void SettingsDialog::onCategorySelected(QTreeWidgetItem *item)
+void SettingsPage::onCategorySelected(QTreeWidgetItem *item)
 {
     if (!item) return;
     QString cat = item->data(0, Qt::UserRole).toString();
     populateSettingsTree(cat, m_searchEdit->text());
 }
 
-void SettingsDialog::onJsonEdited()
+void SettingsPage::onJsonEdited()
 {
     m_statusLabel->setText("JSON 已修改 — 点击保存生效");
 }
 
-void SettingsDialog::onSave()
+void SettingsPage::onSave()
 {
     // 如果当前在 JSON 页面，先解析 JSON
     if (m_rightStack->currentIndex() == 1) {
@@ -357,10 +373,10 @@ void SettingsDialog::onSave()
     }
     AppConfig::instance()->save();
     m_statusLabel->setText("已保存");
-    spdlog::info("SettingsDialog: 配置已保存");
+    spdlog::info("SettingsPage: 配置已保存");
 }
 
-void SettingsDialog::onReset()
+void SettingsPage::onReset()
 {
     AppConfig::instance()->fromJsonString(
         QString::fromStdString(AppConfig::defaultConfig().dump(4)));
@@ -369,12 +385,12 @@ void SettingsDialog::onReset()
     m_statusLabel->setText("已重置为默认值");
 }
 
-void SettingsDialog::switchToJsonPage()
+void SettingsPage::switchToJsonPage()
 {
     m_rightStack->setCurrentIndex(1);
 }
 
-void SettingsDialog::switchToSettingsPage()
+void SettingsPage::switchToSettingsPage()
 {
     m_rightStack->setCurrentIndex(0);
 }

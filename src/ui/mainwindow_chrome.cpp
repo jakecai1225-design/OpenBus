@@ -1,0 +1,625 @@
+#include "mainwindow.h"
+#include <QTimer>
+#include "core/canframe.h"
+#include "core/recorder.h"
+#include "core/player.h"
+#include "core/cansimulator.h"
+#include "core/candevicemanager.h"
+#include "core/dbcmanager.h"
+#include "core/dbcdata.h"
+#include "core/canfileio/canfileio.h"
+#include "core/canfileio/canfileio_factory.h"
+#include "models/cantracemodel.h"
+#include "models/cantraceproxymodel.h"
+#include "ui/activitybar.h"
+#include "ui/panels/sidebarpanels.h"
+#include "ui/thememanager.h"
+#include "ui/bottompanel.h"
+#include "ui/rightpanel.h"
+#include "ui/spliteditorarea.h"
+// ui/measurementsetupview.h / ui/deviceconnectiontab.h 已移除 —
+// Flow/设备连接页经 ModuleRegistry "flow" 模块创建（拆分方案 B4）
+#include "core/driver/driverregistry.h"
+#include "core/module/moduleregistry.h"
+#include "core/module/imodule.h"
+#include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
+#include "core/marketmodel.h"   // MarketItem（ExtensionsPanel 信号类型，经 QVariant 传给市场模块；B5-5 迁 data 层）
+// ui/udsview.h, ui/canopenview.h 已移除 — UDS/CANopen 由插件 uds-diagnostic/canopen-explorer 提供
+// ui/markettab.h 已移除 — 插件市场页经 ModuleRegistry "market" 模块创建（拆分方案 B0）
+// ui/signalsendtab.h / playbacktab.h / offlineanalysistab.h / recordtab.h 已移除 —
+// 收发四页经 ModuleRegistry "transceive" 模块创建（拆分方案 B2）
+// ui/dbcdetailtab.h / ui/tools/dbcsignallistview.h 已移除 —
+// DBC 页经 ModuleRegistry "dbc" 模块创建（拆分方案 B3）
+// ui/traceview.h / ui/graphicview.h / ui/datawindow.h / ui/filterbar.h /
+// ui/colorruleeditor.h 已移除 — Trace/Graphic/DataWindow/着色规则经
+// ModuleRegistry "trace"/"graphic" 模块创建与操控（拆分方案 B5）
+#include "ui/tools/iographview.h"
+#include "core/busstatistics.h"
+// core/filterpresetmanager.h 已移除 — 过滤预设随 Trace 页迁入 TraceModule（B5）
+#include "core/bookmarkmanager.h"
+// core/triggerrecorder.h 已移除 — 触发录制随录制页迁入 transceive 模块（拆分方案 B2）
+#include "utils/canutils.h"
+#include "core/appconfig.h"
+#include "core/projectmanager.h"
+#include "utils/svg_icon.h"
+#include "ui/settingspage.h"
+#include "ui/shortcutspage.h"
+#include "core/file_import/file_importer.h"
+#include "core/plugin/pluginmanager.h"
+#include "core/plugin/plugininfo.h"
+#include "models/viewportproxy.h"
+
+#include <QMenuBar>
+#include <QMenu>
+#include <QAction>
+#include <QDockWidget>
+#include <QTabWidget>
+#include <QVBoxLayout>
+#include <QSpinBox>
+#include <QHBoxLayout>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QCloseEvent>
+#include <QDateTime>
+#include <QStatusBar>
+#include <QApplication>
+#include <QFileInfo>
+#include <QDir>
+#include <QPlainTextEdit>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QTextBrowser>
+#include <QToolButton>
+#include <QMouseEvent>
+#include <QWindow>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QLineEdit>
+#include <QSlider>
+#include <QComboBox>
+#include <QProgressDialog>
+#include <QRegularExpression>
+#include <algorithm>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <windowsx.h>
+#endif
+
+// ============================================================
+//  MainWindow 窗口骨架（B6 拆分自 mainwindow.cpp）
+//  菜单栏 / 自绘窗口按钮 / 主布局 / 状态栏 / ActivityBar 同步 /
+//  dock 切换 / eventFilter / nativeEvent（无边框拖拽）
+// ============================================================
+
+// ============================================================
+//  菜单栏
+// ============================================================
+
+void MainWindow::createMenuBar()
+{
+    // ---- 文件 ----
+    auto *fileMenu = menuBar()->addMenu("文件(&F)");
+
+    m_openAction = new QAction("打开文件...", this);
+    m_openAction->setShortcut(QKeySequence::Open);
+    m_openAction->setToolTip("打开报文文件 (BLF/ASC/CSV/PCAP/TRC) 或 DBC 文件");
+    fileMenu->addAction(m_openAction);
+    connect(m_openAction, &QAction::triggered, this, &MainWindow::onOpenFile);
+
+    auto *openProj = new QAction("打开工程...", this);
+    openProj->setShortcut(QKeySequence("Ctrl+Shift+O"));
+    fileMenu->addAction(openProj);
+    connect(openProj, &QAction::triggered, this, &MainWindow::onOpenProject);
+
+    auto *saveProj = new QAction("保存工程", this);
+    saveProj->setShortcut(QKeySequence("Ctrl+Shift+S"));
+    fileMenu->addAction(saveProj);
+    connect(saveProj, &QAction::triggered, this, &MainWindow::onSaveProject);
+
+    fileMenu->addSeparator();
+
+    m_importAction = new QAction("导入日志文件...", this);
+    m_importAction->setShortcut(QKeySequence("Ctrl+I"));
+    m_importAction->setToolTip("导入 BLF/ASC/CSV 日志文件到 Trace");
+    fileMenu->addAction(m_importAction);
+    connect(m_importAction, &QAction::triggered, this, &MainWindow::onImportLog);
+
+    fileMenu->addSeparator();
+    fileMenu->addAction("退出(&Q)", QKeySequence("Alt+F4"), this, &QApplication::quit);
+
+    // ---- 视图 ----
+    auto *viewMenu = menuBar()->addMenu("视图(&V)");
+
+    auto *toggleLeft = new QAction("左侧栏", this);
+    toggleLeft->setCheckable(true);
+    toggleLeft->setChecked(true);
+    viewMenu->addAction(toggleLeft);
+    connect(toggleLeft, &QAction::triggered, this, &MainWindow::toggleLeftDock);
+
+    auto *toggleBottom = new QAction("底部栏", this);
+    toggleBottom->setCheckable(true);
+    toggleBottom->setChecked(false);
+    viewMenu->addAction(toggleBottom);
+    connect(toggleBottom, &QAction::triggered, this, &MainWindow::toggleBottomDock);
+
+    auto *toggleRight = new QAction("右侧栏", this);
+    toggleRight->setCheckable(true);
+    toggleRight->setChecked(false);
+    viewMenu->addAction(toggleRight);
+    connect(toggleRight, &QAction::triggered, this, &MainWindow::toggleRightDock);
+
+    viewMenu->addSeparator();
+    viewMenu->addAction("重置布局", this, &MainWindow::resetLayout);
+
+    // ---- 工具 ----
+    // 原“工具集/协议”侧边栏功能已插件化（blf-converter / dbc-tool / bus-statistics /
+    // uds-diagnostic / canopen-explorer），在「插件市场」安装使用；内置工具保留在此菜单
+    auto *toolsMenu = menuBar()->addMenu("工具(&T)");
+    toolsMenu->addAction("Data Window", QKeySequence("Ctrl+Shift+D"),
+                         this, &MainWindow::onOpenDataWindow);
+    toolsMenu->addAction("I/O Graph", QKeySequence("Ctrl+Shift+G"),
+                         this, &MainWindow::onOpenIOGraph);
+    toolsMenu->addSeparator();
+    toolsMenu->addAction("着色规则编辑器...", this, &MainWindow::onOpenColorRuleEditor);
+
+    // ---- 工具操作 (不创建菜单, QAction 挂到主窗口, 快捷键仍然生效) ----
+    m_recordAction = new QAction("录制", this);
+    m_recordAction->setCheckable(true);
+    m_recordAction->setShortcut(QKeySequence("Ctrl+R"));
+    addAction(m_recordAction);
+    connect(m_recordAction, &QAction::triggered, this, &MainWindow::onRecord);
+
+    m_playAction = new QAction("播放", this);
+    m_playAction->setShortcut(QKeySequence(Qt::Key_Space));
+    addAction(m_playAction);
+    connect(m_playAction, &QAction::triggered, this, &MainWindow::onPlay);
+
+    m_pauseAction = new QAction("暂停", this);
+    addAction(m_pauseAction);
+    connect(m_pauseAction, &QAction::triggered, this, &MainWindow::onPause);
+
+    m_stopAction = new QAction("停止", this);
+    addAction(m_stopAction);
+    connect(m_stopAction, &QAction::triggered, this, &MainWindow::onStop);
+
+    m_clearAction = new QAction("清空 Trace", this);
+    addAction(m_clearAction);
+    connect(m_clearAction, &QAction::triggered, this, &MainWindow::onClear);
+
+    m_autoScrollAction = new QAction("自动滚动", this);
+    m_autoScrollAction->setCheckable(true);
+    m_autoScrollAction->setChecked(true);
+    addAction(m_autoScrollAction);
+    connect(m_autoScrollAction, &QAction::toggled, this, &MainWindow::onAutoScrollToggled);
+
+    m_simAction = new QAction("模拟器开关", this);
+    m_simAction->setCheckable(true);
+    addAction(m_simAction);
+    connect(m_simAction, &QAction::toggled, this, [this](bool on) {
+        if (on) m_simulator->start();
+        else    m_simulator->stop();
+    });
+
+    // ---- 插件入口已统一至插件市场（侧边栏迷你市场 + 插件市场页，方案 §13.10） ----
+
+    // ---- 帮助 ----
+    auto *helpMenu = menuBar()->addMenu("帮助(&H)");
+
+    helpMenu->addAction("关于 openbus", this, &MainWindow::showAboutDialog);
+    helpMenu->addSeparator();
+    helpMenu->addAction("文档", this, []() {
+        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus"));
+    });
+    helpMenu->addAction("官方网站", this, []() {
+        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus"));
+    });
+    helpMenu->addAction("Gitee 仓库", this, []() {
+        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus"));
+    });
+    helpMenu->addSeparator();
+    helpMenu->addAction("报告问题", this, []() {
+        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus/issues"));
+    });
+    helpMenu->addAction("检查更新", this, &MainWindow::showCheckUpdate);
+    helpMenu->addAction("发版记录", this, &MainWindow::showReleaseNotes);
+    helpMenu->addSeparator();
+    helpMenu->addAction("快捷键", this, &MainWindow::showShortcuts);
+    helpMenu->addAction("许可证", this, &MainWindow::showLicenseDialog);
+    helpMenu->addSeparator();
+    helpMenu->addAction("商业合作", this, &MainWindow::showBusinessCoop);
+}
+
+// ============================================================
+//  窗口控制按钮
+// ============================================================
+
+void MainWindow::createWindowButtons()
+{
+    auto *container = new QWidget(this);
+    container->setObjectName("WindowButtons");
+    container->setFixedHeight(30);
+    auto *layout = new QHBoxLayout(container);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    // VS Code 风格窗口控制按钮：真实 SVG 图标（替代 ─ □ ✕ 文字符号，
+    // 文字符号在部分字体下渲染成方块或粗细不一）
+    m_minBtn = new QToolButton(container);
+    m_minBtn->setObjectName("WinMinBtn");
+    m_minBtn->setIconSize(QSize(10, 10));
+    m_minBtn->setFixedSize(46, 30);
+    m_minBtn->setAutoRaise(true);
+    m_minBtn->setToolTip("最小化");
+
+    m_maxBtn = new QToolButton(container);
+    m_maxBtn->setObjectName("WinMaxBtn");
+    m_maxBtn->setIconSize(QSize(10, 10));
+    m_maxBtn->setFixedSize(46, 30);
+    m_maxBtn->setAutoRaise(true);
+    m_maxBtn->setToolTip("最大化");
+
+    m_closeBtn = new QToolButton(container);
+    m_closeBtn->setObjectName("WinCloseBtn");
+    m_closeBtn->setIconSize(QSize(10, 10));
+    m_closeBtn->setFixedSize(46, 30);
+    m_closeBtn->setAutoRaise(true);
+    m_closeBtn->setToolTip("关闭");
+
+    layout->addWidget(m_minBtn);
+    layout->addWidget(m_maxBtn);
+    layout->addWidget(m_closeBtn);
+
+    menuBar()->setCornerWidget(container, Qt::TopRightCorner);
+
+    connect(m_minBtn, &QToolButton::clicked, this, &QWidget::showMinimized);
+    connect(m_maxBtn, &QToolButton::clicked, this, [this]() {
+        if (isMaximized()) showNormal();
+        else showMaximized();
+    });
+    connect(m_closeBtn, &QToolButton::clicked, this, &QWidget::close);
+
+    refreshWindowButtonIcons();
+    // 主题切换 → 重刷窗口按钮图标颜色（DEF-08 字符串信号）
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            this, SLOT(refreshWindowButtonIcons()));
+}
+
+void MainWindow::refreshWindowButtonIcons()
+{
+    const QString c = ThemeManager::instance()->currentTheme().barFg;
+    m_minBtn->setIcon(svgIcon(":/icons/win-minimize.svg", c, 10));
+    m_maxBtn->setIcon(svgIcon(isMaximized() ? ":/icons/win-restore.svg"
+                                             : ":/icons/win-maximize.svg", c, 10));
+    m_closeBtn->setIcon(svgIcon(":/icons/close.svg", c, 10));
+}
+
+void MainWindow::changeEvent(QEvent *event)
+{
+    QMainWindow::changeEvent(event);
+    // Aero Snap / 双击标题栏等途径也会切换最大化状态 → 同步最大化/还原图标
+    if (event->type() == QEvent::WindowStateChange && m_maxBtn)
+        refreshWindowButtonIcons();
+}
+
+// ============================================================
+//  停靠面板布局
+// ============================================================
+
+void MainWindow::createLayout()
+{
+    // ---- 左侧 Dock ----
+    auto *leftContainer = new QWidget(this);
+    leftContainer->setObjectName("LeftContainer");
+    leftContainer->setAttribute(Qt::WA_StyledBackground, true);
+    auto *leftLayout = new QHBoxLayout(leftContainer);
+    leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->setSpacing(0);
+
+    m_activityBar = new ActivityBar(this);
+    m_sideBar = new SideBar(this);
+
+    leftLayout->addWidget(m_activityBar);
+    leftLayout->addWidget(m_sideBar, 1);
+
+    m_leftDock = new QDockWidget("侧边栏", this);
+    m_leftDock->setObjectName("LeftDock");
+    m_leftDock->setWidget(leftContainer);
+    m_leftDock->setFeatures(QDockWidget::DockWidgetMovable |
+                            QDockWidget::DockWidgetClosable |
+                            QDockWidget::DockWidgetFloatable);
+    m_leftDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_leftDock->setTitleBarWidget(new QWidget());
+    m_leftDock->setMinimumWidth(0);
+    addDockWidget(Qt::LeftDockWidgetArea, m_leftDock);
+
+    // ---- 中央: 可拆分编辑器区域 ----
+    m_editorArea = new SplitEditorArea(this);
+    setCentralWidget(m_editorArea);
+
+    // 默认标签页：Flow + 设备连接（其他不打开）
+    onOpenMeasurementSetup();
+
+    // 设备连接页经 flow 模块创建（拆分方案 B4；单实例缓存在模块内）
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("flow"))) {
+        ShellContext ctx = makeShellContext();
+        if (QWidget *page = mod->createPage(QStringLiteral("device"), ctx))
+            openTab(page, QStringLiteral("设备连接"));
+    }
+
+    // ---- 右侧 Dock ----
+    m_rightPanel = new RightPanel(this);
+    m_rightPanel->setAttribute(Qt::WA_StyledBackground, true);
+    m_rightDock = new QDockWidget("右侧栏", this);
+    m_rightDock->setObjectName("RightDock");
+    m_rightDock->setWidget(m_rightPanel);
+    m_rightDock->setFeatures(QDockWidget::DockWidgetMovable |
+                             QDockWidget::DockWidgetClosable |
+                             QDockWidget::DockWidgetFloatable);
+    m_rightDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_rightDock->setTitleBarWidget(new QWidget());
+    addDockWidget(Qt::RightDockWidgetArea, m_rightDock);
+
+    // ---- 底部 Dock ----
+    m_bottomPanel = new BottomPanel(this);
+    m_bottomPanel->setAttribute(Qt::WA_StyledBackground, true);
+    m_bottomDock = new QDockWidget("输出", this);
+    m_bottomDock->setObjectName("BottomDock");
+    m_bottomDock->setWidget(m_bottomPanel);
+    m_bottomDock->setFeatures(QDockWidget::DockWidgetMovable |
+                              QDockWidget::DockWidgetClosable |
+                              QDockWidget::DockWidgetFloatable);
+    m_bottomDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
+    m_bottomDock->setTitleBarWidget(new QWidget());
+    addDockWidget(Qt::BottomDockWidgetArea, m_bottomDock);
+
+    resizeDocks({m_leftDock}, {280}, Qt::Horizontal);
+    resizeDocks({m_rightDock}, {260}, Qt::Horizontal);
+    resizeDocks({m_bottomDock}, {200}, Qt::Vertical);
+
+    // 默认隐藏右侧栏和底部栏
+    m_rightDock->setVisible(false);
+    m_bottomDock->setVisible(false);
+}
+
+// ============================================================
+//  状态栏
+// ============================================================
+
+void MainWindow::createStatusBar()
+{
+    m_statusLabel = new QLabel("就绪", this);
+    m_connLabel = new QLabel("未连接", this);
+    m_errorLabel = new QLabel("", this);
+    m_tabLabel = new QLabel("Trace", this);
+    m_rowCountLabel = new QLabel("0行", this);
+    m_selectedLabel = new QLabel("选中0行", this);
+    m_filterLabel = new QLabel("过滤0/0", this);
+    m_frameCountLabel = new QLabel("0 帧", this);
+    m_timeLabel = new QLabel("0.000s", this);
+
+    statusBar()->addWidget(m_statusLabel, 1);
+    statusBar()->addWidget(m_connLabel);
+    statusBar()->addWidget(m_errorLabel);
+    statusBar()->addPermanentWidget(m_tabLabel);
+    statusBar()->addPermanentWidget(m_rowCountLabel);
+    statusBar()->addPermanentWidget(m_selectedLabel);
+    statusBar()->addPermanentWidget(m_filterLabel);
+    statusBar()->addPermanentWidget(m_frameCountLabel);
+    statusBar()->addPermanentWidget(m_timeLabel);
+}
+
+// ============================================================
+//  ActivityBar → 侧边栏 + 主标签页联动
+// ============================================================
+
+void MainWindow::onActivityChanged(int activity)
+{
+    m_sideBar->showPanel(activity);
+    if (!m_sideBarVisible) {
+        // 从收起状态展开：恢复 dock 宽度
+        m_sideBar->setVisible(true);
+        m_leftDock->setMinimumWidth(0);
+        m_leftDock->setMaximumWidth(QWIDGETSIZE_MAX);
+        m_leftDock->resize(m_savedDockWidth, m_leftDock->height());
+        m_sideBarVisible = true;
+    }
+
+    // 联动主标签页
+    if (activity == ActivityBar::Trace) {
+        // 在所有拆分组中查找 Trace 标签页
+        const auto allTabs = m_editorArea->allTabWidgets();
+        bool found = false;
+        for (auto *tw : allTabs) {
+            for (int i = tw->count() - 1; i >= 0; --i) {
+                if (tw->tabText(i).contains("Trace")) {
+                    tw->setCurrentIndex(i);
+                    m_tabLabel->setText(tw->tabText(i));
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+        if (!found)
+            onOpenTraceTab();
+    } else if (activity == ActivityBar::Graphic) {
+        // 在所有拆分组中查找 Graphic 标签页
+        const auto allTabs = m_editorArea->allTabWidgets();
+        bool found = false;
+        for (auto *tw : allTabs) {
+            for (int i = tw->count() - 1; i >= 0; --i) {
+                if (tw->tabText(i).contains("Graphic")) {
+                    tw->setCurrentIndex(i);
+                    m_tabLabel->setText(tw->tabText(i));
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+        if (!found)
+            onNewGraphicRequested();
+    } else if (activity == ActivityBar::Transceive) {
+        // 收发面板：只切换侧边栏显示，不自动打开标签页
+        // 用户点击侧边栏内的按钮才打开对应标签页
+    } else if (activity == ActivityBar::Device) {
+        // 切换到已存在的设备连接标签页
+        const auto allTabs = m_editorArea->allTabWidgets();
+        bool found = false;
+        for (auto *tw : allTabs) {
+            for (int i = tw->count() - 1; i >= 0; --i) {
+                if (tw->tabText(i).contains("设备连接")) {
+                    tw->setCurrentIndex(i);
+                    m_tabLabel->setText(tw->tabText(i));
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+        if (!found) {
+            // 设备页存在但不在任何标签组 → 重新挂回（经 flow 模块查询，拆分方案 B4）
+            if (QWidget *page = flowQuery(QStringLiteral("devicePage")).value<QWidget *>())
+                m_editorArea->addTab(page, QStringLiteral("设备连接"));
+        }
+    } else if (activity == ActivityBar::Analysis) {
+        onOpenMeasurementSetup();
+    } else if (activity == ActivityBar::Extensions) {
+        // 插件市场：打开统一插件市场标签页（v2，方案 §13.5）
+        const auto allTabs = m_editorArea->allTabWidgets();
+        bool found = false;
+        for (auto *tw : allTabs) {
+            for (int i = tw->count() - 1; i >= 0; --i) {
+                if (tw->tabText(i).contains(QStringLiteral("插件市场"))) {
+                    tw->setCurrentIndex(i);
+                    m_tabLabel->setText(tw->tabText(i));
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+        if (found) {
+            if (m_marketWidget)
+                marketInvoke(QStringLiteral("refreshInstalled"));
+        } else {
+            onOpenMarketTab();
+        }
+    }
+}
+
+void MainWindow::onActivityToggled(int)
+{
+    if (m_sideBarVisible) {
+        // 收起：保存当前宽度，将 dock 缩小到仅 ActivityBar 宽度
+        m_savedDockWidth = m_leftDock->width();
+        m_sideBar->setVisible(false);
+        m_leftDock->setFixedWidth(m_activityBar->width());
+    } else {
+        // 展开：恢复保存的宽度
+        m_sideBar->setVisible(true);
+        m_leftDock->setMinimumWidth(0);
+        m_leftDock->setMaximumWidth(QWIDGETSIZE_MAX);
+        m_leftDock->resize(m_savedDockWidth, m_leftDock->height());
+    }
+    m_sideBarVisible = !m_sideBarVisible;
+}
+
+
+// ============================================================
+//  视图菜单
+// ============================================================
+
+void MainWindow::toggleLeftDock()
+{
+    m_leftDock->setVisible(!m_leftDock->isVisible());
+}
+
+void MainWindow::toggleRightDock()
+{
+    m_rightDock->setVisible(!m_rightDock->isVisible());
+}
+
+void MainWindow::toggleBottomDock()
+{
+    m_bottomDock->setVisible(!m_bottomDock->isVisible());
+}
+
+void MainWindow::resetLayout()
+{
+    m_leftDock->setVisible(true);
+    m_rightDock->setVisible(true);
+    m_bottomDock->setVisible(true);
+    resizeDocks({m_leftDock}, {280}, Qt::Horizontal);
+    resizeDocks({m_rightDock}, {260}, Qt::Horizontal);
+    resizeDocks({m_bottomDock}, {200}, Qt::Vertical);
+}
+
+
+// ============================================================
+//  事件过滤器
+// ============================================================
+
+bool MainWindow::eventFilter(QObject *obj, QEvent *event)
+{
+    if (obj == menuBar()) {
+        if (event->type() == QEvent::MouseButtonPress) {
+            auto *me = static_cast<QMouseEvent *>(event);
+            if (me->button() == Qt::LeftButton) {
+                QAction *act = menuBar()->actionAt(me->pos());
+                if (!act) {
+                    if (windowHandle())
+                        windowHandle()->startSystemMove();
+                }
+            }
+        } else if (event->type() == QEvent::MouseButtonDblClick) {
+            auto *me = static_cast<QMouseEvent *>(event);
+            QAction *act = menuBar()->actionAt(me->pos());
+            if (!act) {
+                if (isMaximized())
+                    showNormal();
+                else
+                    showMaximized();
+                return true;
+            }
+        }
+    }
+    return QMainWindow::eventFilter(obj, event);
+}
+
+// ============================================================
+//  Windows 原生事件
+// ============================================================
+
+#ifdef Q_OS_WIN
+bool MainWindow::nativeEvent(const QByteArray &eventType, void *message, qintptr *result)
+{
+    if (eventType == "windows_generic_MSG" || eventType == "windows_dispatcher_MSG") {
+        MSG *msg = static_cast<MSG *>(message);
+        if (msg->message == WM_NCHITTEST) {
+            const int borderWidth = 5;
+            RECT winrect;
+            GetWindowRect(msg->hwnd, &winrect);
+            long x = GET_X_LPARAM(msg->lParam);
+            long y = GET_Y_LPARAM(msg->lParam);
+
+            bool left   = x >= winrect.left && x < winrect.left + borderWidth;
+            bool right  = x < winrect.right && x >= winrect.right - borderWidth;
+            bool top    = y >= winrect.top && y < winrect.top + borderWidth;
+            bool bottom = y < winrect.bottom && y >= winrect.bottom - borderWidth;
+
+            if (top && left)     { *result = HTTOPLEFT;     return true; }
+            if (top && right)    { *result = HTTOPRIGHT;    return true; }
+            if (bottom && left)  { *result = HTBOTTOMLEFT;  return true; }
+            if (bottom && right) { *result = HTBOTTOMRIGHT; return true; }
+            if (left)            { *result = HTLEFT;         return true; }
+            if (right)           { *result = HTRIGHT;        return true; }
+            if (top)             { *result = HTTOP;          return true; }
+            if (bottom)          { *result = HTBOTTOM;       return true; }
+        }
+    }
+    return QMainWindow::nativeEvent(eventType, message, result);
+}
+#endif
+

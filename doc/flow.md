@@ -1,0 +1,682 @@
+# openbus 多协议通用 Flow 架构方案
+
+> **状态：设计稿 v1.1（2026-08-21）——尚未实施**
+>
+> **目标**：将 openbus 从「CAN 单协议分析工具」逐步演进为「多协议通用数据流分析平台」。
+> 第一步落地 Flow 侧栏折叠栏的多协议流处理模式（CAN Flow / EtherCAT Flow / 通用 Flow /
+> 第三方协议扩展），并以此为牵引，建立协议无关的统一报文模型、协议适配层与解析器角色。
+>
+> **v1.1 增补（2026-08-21）**：画布中「DBC 数据库」块抽象为通用**解析器（Parser）**
+> 角色（§六）——解析器与流类型解耦，不同类型的 Flow 所支持的解析器（可加载的协议
+> 描述文件）各不相同。v1.0（2026-08-20）：初版。
+>
+> **定位**：本方案是 README「整体架构设计」中 `IBusSource` / `BusMessage` 多总线愿景
+> （CAN/CAN FD/EtherCAT、多总线时间对齐）在当前模块化架构（doc/拆分应用方案.md）下的
+> 落地路径，实施遵循「CAN 零回归、增量演进」原则。
+
+---
+
+## 一、背景与目标
+
+### 1.1 背景
+
+openbus 当前是一条 **CAN 单协议流水线**：数据模型（`CanFrame`）、采集设备
+（`CanDeviceManager`）、解码（`DbcManager`）、文件格式（canfileio：ASC/BLF/CSV/PCAP/TRC）、
+显示（Trace 12 固定列）、录制回放（`Recorder`/`Player`）全部以 CAN/CAN FD 为中心。
+README 的总体架构设计从一开始就规划了多总线能力（统一报文结构体 `BusMessage`、
+`bus_type` 字段、CAN + EtherCAT 多总线全局时间对齐、soem 组件选型），但实现阶段
+尚未兑现。
+
+用户需求：**提高整个 openbus 对不同协议数据的适应能力**。典型场景：
+
+- 同一次测量中同时接入 CAN（动力域）与 EtherCAT（伺服/IO 总线）数据，统一时间轴分析；
+- 接入非标协议或自定义字节流（串口、TCP/UDP、原始文件），复用 Trace/Graphic/录制回放；
+- 未来按需扩展 LIN / FlexRay / AUTOSAR以太网 等协议，**不重构上层 UI 与业务模块**。
+
+### 1.2 目标
+
+| # | 目标 | 说明 |
+|---|------|------|
+| G1 | Flow 侧栏折叠栏多协议流模式 | 侧栏 Flow 面板按协议分折叠节：CAN Flow / EtherCAT Flow / 通用 Flow…，每节内管理该协议的流实例 |
+| G2 | 协议无关统一报文模型 | 全流水线以 `BusMessage` 为唯一数据单元，CAN 为首个内置适配器 |
+| G3 | 协议适配层与解析器层可扩展 | 内置 CAN/General/EtherCAT 三个适配器；解析器（Parser）与流类型解耦（DBC/ARXML/J1939/ENI/ESI/字段布局…）；第三方协议与解析器以插件包形式接入 |
+| G4 | 业务模块协议无关 | Trace / Graphic / 统计 / 录制回放不感知具体协议，协议差异由适配器消化 |
+| G5 | CAN 零回归 | 既有 CAN 功能在演进过程中行为不变，`.sin` 旧录制文件可读 |
+
+### 1.3 设计原则
+
+1. **只增不改**（同 doc/拆分应用方案.md §4.2、doc/驱动系统方案.md §3.2）：
+   `IBusinessModule` / `ShellContext` / 适配器接口只追加新动作、新字段，不改既有签名；
+   新增虚函数一律带默认实现并放接口末尾。
+2. **适配器消化差异**：协议特有的字段语义、列定义、解码、文件格式全部收敛在
+   `IProtocolAdapter` 实现内，越过适配器层的代码只看见统一模型。
+3. **热路径扁平、冷路径扩展**：分发热路径只走 `BusMessage` 扁平字段
+   （禁止每帧构造 `QVariantMap`）；详情/解码等冷路径才使用扩展属性。
+4. **数据源无关**（既有约定延续）：上层模块不区分硬件采集、离线文件、仿真源；
+   协议流实例对三者统一绑定。
+5. **解析器与流类型解耦**：协议描述文件的加载与建模（Parser，§六）独立于协议流
+   （Adapter）——流类型声明可接受的解析器集合（acceptedParsers），同一解析器可
+   服务多种流、同一流可加载多种解析器（混合解码）。
+
+---
+
+## 二、现状分析
+
+### 2.1 当前数据流水线（实测代码路径）
+
+```
+采集源                                  壳分发枢纽                          业务模块
+────────                               ──────────                        ────────
+CanSimulator（软件模拟）    ─┐
+CanDeviceManager            ─┤          MainWindow::onFrameReceived()      openbus_trace   （invoke "onFrame"）
+  ├ CanDeviceZLG            │              (mainwindow_frameflow.cpp)      openbus_graphic （invoke "onFrame")
+  ├ CanDevicePeak           ├──────────►   测量门控 m_measurementRunning ─► openbus_flow    （invoke "onFrame"）
+  ├ CanDeviceCandle/Kvaser  │              帧计数/状态栏                    Recorder.recordFrame()
+  └ CanDeviceSlcan          │                                              BusStatistics.onFrame()
+Player（文件回放）           ─┘                                              IoGraph / PluginManager
+   └ canfileio: ASC/BLF/CSV/PCAP/TRC        解码：DbcManager（仅 DBC）
+```
+
+- 测量启停由 Flow 画布（`MeasurementSetupView`）发起，经
+  `shellInvoke("measurementToggled"/"moduleToggled"/...)` 回调壳侧编排
+  （mainwindow_frameflow.cpp:342-441）。
+- 画布拓扑：`Real 实时 / File 开关 → CAN 通道 1..N → DBC 数据库 →
+  Trace / Graphic / Data 统计 / 录制 Record`，通道块可动态增删
+  （measurementsetupview.cpp buildTopology）。
+- 侧栏 Flow 面板（`MeasurementSetupPanel`，sidebarpanels.cpp:1132）目前只有一个
+  "flow" 列表项，点击打开画布页——**没有按协议组织的折叠栏**。
+
+### 2.2 CAN 绑定点盘点（本方案需要解耦的位置）
+
+| # | 绑定点 | 位置 | 现状 |
+|---|--------|------|------|
+| 1 | `CanFrame` | src/core/canframe.h | 全流水线唯一数据单元，CAN/CAN FD 字段 |
+| 2 | 模块入口动作 `"onFrame"(CanFrame)` | src/core/module/imodule.h 约定 | trace/graphic/flow 三模块的帧入口 |
+| 3 | `DbcManager` | src/core/dbcmanager.h | 唯一解码器（DBC；arxml importer 已有雏形）——本方案演进为 DBC 解析器兼容壳（§6.4） |
+| 4 | `CanDeviceManager` / `ICanDevice` | src/core/candevice*.h | 采集设备层全部为 CAN |
+| 5 | canfileio | src/core/canfileio/ | ASC/BLF/CSV/PCAP/TRC 全为 CAN 格式 |
+| 6 | `Recorder` / `Player` | src/core/recorder.h、player.h | QDataStream 直写 CanFrame（`.sin`） |
+| 7 | Flow 画布 | src/ui/measurementsetupview.h | 通道块标题硬编码「CAN 通道 N」 |
+| 8 | `CanTraceModel` | src/models/cantracemodel.h | 12 固定列全 CAN 语义（ID/DLC/BRS/ESI…） |
+| 9 | `BusStatistics` | src/core/busstatistics.h | 总线负载/错误统计仅 CAN 语义 |
+| 10 | Graphic 信号 | sigMap 约定（imodule.h:133-138） | 信号经 dbcSignalToMap 序列化，隐含 DBC |
+
+### 2.3 已具备的多协议基础（可复用资产）
+
+| 资产 | 位置 | 复用方式 |
+|------|------|---------|
+| README 多总线愿景（`IBusSource`/`BusMessage`/时间对齐） | README.md 整体架构设计 | 本方案的模型命名与分层直接承接 |
+| 数据库面板协议分类树 | sidebarpanels.h DbcPanel（CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR 分类节点） | 文件分类展示已就绪，演进为按 ParserRegistry 动态生成的解析器面板（§6.4） |
+| 驱动插件 ABI 模式 | src/core/driver/candriverplugin.h（Q_DECLARE_INTERFACE + IID 版本 + 只增不改） | 协议适配器插件的 ABI 契约直接复用该模式 |
+| 模块 DLL + ModuleRegistry + ShellContext | src/core/module/ | 壳与业务模块的协议无关契约已建立，新增 `"onBus"` 动作即可承载新模型 |
+| ARXML 导入器 | src/core/dbc/arxml_importer.{h,cpp} | AUTOSAR 报文描述解析的起步代码 |
+| 时间戳统一 | CanDeviceManager 已统一 steady_clock 纳秒时间戳（canframe.h:21-24） | 多总线统一时间轴的基础设施已在位 |
+
+---
+
+## 三、总体架构
+
+### 3.1 分层视图
+
+```
+┌──────────────────────────── UI 交互层（壳 openbus.exe） ─────────────────────────────┐
+│  Flow 侧栏折叠栏      Flow 画布        Trace       Graphic     录制/回放    设置      │
+│  （多协议流实例）    （分组拓扑）     （多协议列） （适配器解码）                    │
+├──────────────────────────── 业务模块层（openbus_*.dll） ────────────────────────────┤
+│  openbus_flow · openbus_trace · openbus_graphic · openbus_transceive · …             │
+│        统一经 IBusinessModule::invoke("onBus", BusMessage) 接收数据                  │
+├──────────────────────────── 核心数据层（openbus_data.dll） ─────────────────────────┤
+│  ProtocolRegistry ──► IProtocolAdapter 实例                                          │
+│      ├ 内置：CanProtocolAdapter（包装既有 CAN 全家桶）                               │
+│      ├ 内置：GeneralProtocolAdapter（通用字节流，F2）                                │
+│      ├ 内置/DLL：EthercatProtocolAdapter（F3，openbus_ethercat.dll）                │
+│      └ 插件：第三方协议包 .oflow（F4，QPluginLoader 加载）                            │
+│  ParserRegistry ──► IBusParser（DBC/ARXML/J1939/ENI/ESI/布局）                       │
+│  FlowCore：BusMessage 分发 · FlowSession 流会话管理 · 全局时间轴                     │
+│  既有服务：DbcManager · CanDeviceManager · CanSimulator · Player · Recorder          │
+├──────────────────────────── 源/文件抽象层 ──────────────────────────────────────────┤
+│  硬件采集（驱动插件 .odp） │ 离线文件（busfileio 多协议） │ 仿真源（各协议模拟器）      │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3.2 核心抽象（五个）
+
+| 抽象 | 职责 | 归属 |
+|------|------|------|
+| `BusMessage` | 协议无关统一报文（统一纳秒时间戳 / bus_type / channel / id / payload / flags） | openbus_data（canframe.h 旁新增 busmessage.h） |
+| `IProtocolAdapter` | 协议适配器（流类型）：身份、源能力、通道语义、接受的解析器集合、解码、Trace 列定义、文件格式 | 接口头在 openbus_data；实现分布在 data / ethercat DLL / 插件包 |
+| `IBusParser` + `ParserRegistry` | 解析器角色（§六）：协议描述文件 → 统一报文/信号定义；与流类型解耦，按流会话绑定 | openbus_data（接口 + 内置实现；.oflow 插件可自带） |
+| `ProtocolRegistry` | 进程内注册表：枚举适配器、按 protocolId 查找；内置注册 + 插件注册 | openbus_data（仿 DbcManager 单例模式） |
+| `FlowSession` | 流会话：某协议的一个流处理实例（源绑定 + 通道数 + 解析器绑定 + 使能） | openbus_data（结构体）+ openbus_flow（UI 管理） |
+
+### 3.3 数据流（目标态）
+
+```
+源（硬件/文件/仿真）
+  │  适配器 ingestion：协议原始帧 ──► BusMessage（扁平字段）
+  ▼
+FlowCore（openbus_data）
+  │  全局时间轴标准化 timestampNs ──► 按测量门控 + 流会话使能分发
+  ▼
+业务模块 invoke("onBus", BusMessage)
+  ├─► Trace：适配器 traceColumns() 渲染列；详情面板走适配器冷路径解码（信号定义来自解析器）
+  ├─► Graphic：适配器 decode() 结合解析器统一定义提取 DecodedSignal（DBC/ARXML/J1939 信号 / PDO 映射 / 布局字段）
+  ├─► 录制：busfileio 按适配器支持的格式落盘（.sin v2 容器）
+  ├─► 统计：按 bus_type 分别计数（每协议一个 BusStatistics 实例）
+  └─► 插件宿主：onBus 转发（Python 插件，F4 再开放）
+```
+
+### 3.4 与现有模块的边界
+
+- **壳（mainwindow_frameflow.cpp）**：`onFrameReceived(CanFrame)` 改为薄包装——
+  CAN 适配器负责 CanFrame→BusMessage 转换后进入 `onBusReceived(BusMessage)`；
+  分发目标、测量门控、状态栏逻辑保持原结构。
+- **openbus_flow**：画布与流会话 UI（侧栏折叠栏 + 画布分组拓扑）；纯展示与编排，
+  不做协议解析。
+- **openbus_trace / openbus_graphic / openbus_transceive**：只依赖 BusMessage 与
+  适配器提供的展示/解码元数据，不 include 协议私有头。
+
+---
+
+## 四、统一报文模型 BusMessage
+
+### 4.1 结构定义（src/core/busmessage.h，编入 openbus_data）
+
+```cpp
+enum class BusType : quint8 {
+    Unknown  = 0,
+    Can      = 1,   // CAN / CAN FD（CanFrame 全字段无损映射）
+    Ethercat = 2,   // EtherCAT 数据帧（过程数据 / 邮箱 / 寄存器访问）
+    General  = 3,   // 通用字节流（自定义协议 / 串口 / TCP/UDP / 原始文件）
+    // 4-15 预留官方协议；第三方协议插件从 16 起经 ProtocolRegistry 动态分配
+};
+
+struct BusMessage
+{
+    quint64 timestampNs = 0;   // 全局单调纳秒时间戳（多总线统一时间轴）
+    BusType bus = BusType::Unknown;
+    quint8  channel = 0;       // 协议内通道号（1-based；语义由适配器定义）
+    quint8  direction = 0;     // 0=Rx 1=Tx
+    quint32 id = 0;            // 协议内标识（CAN ID / EtherCAT 命令字 / 流 ID）
+    quint32 flags = 0;         // 位标志；bit 语义由适配器定义（CAN 复用 CanFrame 现有 flag 位）
+    QByteArray payload;        // 原始数据（CAN 0-64B / EtherCAT 帧体 / General 任意长）
+    // 注意：无 QVariantMap 热路径字段。协议扩展信息一律由适配器按需从扁平字段解码。
+};
+
+Q_DECLARE_METATYPE(BusMessage)
+```
+
+设计取舍：
+
+- **扁平结构 + QByteArray payload**：跨 DLL 以 QVariant 传输（与 CanFrame 同通道），
+  无堆上map开销；拷贝成本与 CanFrame 相当（QByteArray 隐式共享）。
+- **flags 复用位约定**：CAN 适配器直接沿用 canframe.h:92-97 的位布局
+  （extended/fd/brs/esi/error/direction），保证语义无损迁移。
+- **id 语义由适配器解释**：CAN=标识符；EtherCAT=datagram 命令字（LRW/LRD/APRD…）；
+  General=用户定义的流编号（无则为 0）。
+
+### 4.2 各协议映射
+
+| 协议 | timestampNs | channel | id | payload | flags（示例） |
+|------|-------------|---------|----|---------|--------------|
+| CAN/CAN FD | 既有 steady_clock 纳秒 | 物理通道 1..N | CAN ID | 0-64B 数据 | ext/fd/brs/esi/err |
+| EtherCAT | 采集纳秒时间戳 | EtherCAT 主站端口/网口 | datagram 命令字 | 帧体（去掉 Ethernet 头） | 邮箱/过程数据/错误/WKC 异常 |
+| General | 到达时间 | 流实例编号 | 用户流 ID | 任意长字节 | 起始/结束帧标记、校验错误 |
+
+### 4.3 兼容与序列化
+
+1. **CanFrame 保留**：作为 CAN 适配器内部表示与 `ICanDevice` 层契约不变
+   （驱动插件 ABI 不动）；仅在 ingestion/egress 边界做 BusMessage 转换
+   （`BusMessage toBusMessage(const CanFrame&)` / `CanFrame toCanFrame(const BusMessage&)`，
+   编入 openbus_data）。
+2. **模块动作并行**：`invoke("onBus", BusMessage)` 为新约定（imodule.h 注释块追加）；
+   F1 期间 trace/graphic/flow 三模块原子切换到 onBus（同一源码树统一构建，无双轨期），
+   `"onFrame"` 动作字符串保留不删（只增不改），仅不再被壳调用。
+3. **录制容器 v2**：`.sin` 新增带版本头容器——记录块 = `BusType` + BusMessage 字段；
+   读取端按版本回退到既有 CanFrame 直读格式（旧文件兼容，G5）。
+4. **QVariant 传输**：BusMessage 经 Q_DECLARE_METATYPE 注册后走既有
+   `invoke(action, QVariant::fromValue(msg))` 通道，MinGW 跨 DLL 注意事项同 CanFrame
+   （DEF-08：字符串槽 + SignalRelay 桥接场景不受影响）。
+
+---
+
+## 五、协议适配层 IProtocolAdapter
+
+### 5.1 接口定义（src/core/protocol/iprotocoladapter.h，编入 openbus_data）
+
+ABI 契约复用驱动插件模式（同 Qt 6.8.x + MinGW-w64 13.1 + C++17；跨边界仅
+Qt 值类型/POD；接口只增不改，新增虚函数追加末尾并升 IID）：
+
+```cpp
+class IProtocolAdapter
+{
+public:
+    virtual ~IProtocolAdapter() = default;
+
+    // ---- 身份 ----
+    virtual QString protocolId() const = 0;    // "can" / "ethercat" / "general" / 第三方
+    virtual QString displayName() const = 0;   // "CAN Flow" / "EtherCAT Flow" / "通用 Flow"
+    virtual QString iconPath() const = 0;      // :/icons/protocols/can.svg ...
+
+    // ---- 源能力 ----
+    virtual QStringList supportedSources() const = 0;   // {"hardware","file","simulator"} 子集
+    /// 协议专属源配置页（经 flow 模块以 createPage("source:<protocolId>") 创建）
+    virtual QWidget *createSourceConfigPage(const FlowSession &session,
+                                            QWidget *parent) = 0;
+
+    // ---- 通道 ----
+    virtual int maxChannels() const = 0;       // CAN=16 / EtherCAT=1(网口) / General=8
+
+    // ---- 解析器（协议描述文件；角色定义详见 §六） ----
+    virtual QStringList acceptedParsers() const = 0;  // {"dbc","arxml","j1939dbc"} / {"eni","esi"} / {"layout"}
+
+    // ---- 解码（冷路径：详情/Graphic/导出用；信号定义来自流会话已加载的解析器） ----
+    struct DecodedSignal { QString name; double value; QString unit; QString raw; };
+    virtual QList<DecodedSignal> decode(const BusMessage &msg) const = 0;
+
+    // ---- Trace 展示 ----
+    struct TraceColumnDef { QString key; QString title; int width; };
+    virtual QList<TraceColumnDef> traceColumns() const = 0;   // 协议专属列
+    virtual QString formatField(const BusMessage &msg, const QString &key) const = 0;
+
+    // ---- 文件 IO ----
+    virtual QStringList fileFilters() const = 0;   // "*.blf *.asc" / "*.pcapng" / "*.bin *.csv"
+};
+
+Q_DECLARE_INTERFACE(IProtocolAdapter, "com.sin.openbus.IProtocolAdapter/1.0")
+```
+
+### 5.2 内置 CAN 适配器（CanProtocolAdapter，F1）
+
+- **零重构包装**：源能力 = CanDeviceManager（硬件）+ Player/canfileio（文件）+
+  CanSimulator（仿真）；解析器 = 接受 DBC / ARXML / J1939 DBC（DBC 经 DbcManager
+  兼容壳提供，ARXML 复用既有 arxml_importer）；
+  `traceColumns()` 输出现有 CanTraceModel 12 列定义；
+  `decode()` 输出 DBC 信号物理值（复用 findMessage→signalList 解码路径）。
+- Flow 画布现有「CAN 通道 N」块全部归属该适配器的流会话，行为不变。
+
+### 5.3 通用 Flow 适配器（GeneralProtocolAdapter，F2）
+
+- **源**：原始字节文件（.bin/.hex）、CSV、串口（QSerialPort）、TCP/UDP（QTcpSocket）。
+- **通道**：一个流实例一个通道；`maxChannels()=8`（可同时挂多条流）。
+- **解析器**：可选「字段布局」解析器（JSON：偏移/长度/缩放/单位；图形化编辑器
+  为 F2 后期增强项），`decode()` 按布局提取字段；不加载解析器时按原始字节流处理。
+- **Trace 列**：No./Time/Delta/Ch/Dir/Length/Data（十六进制）+ 用户布局字段列。
+- 定位：**接入非标协议的最短路径**——任何能变成字节流的数据都能进 Trace/Graphic/录制。
+
+### 5.4 EtherCAT 适配器（EthercatProtocolAdapter，F3，openbus_ethercat.dll）
+
+- **形态**：独立业务 DLL（经 ProtocolRegistry C 工厂注册，仿 openbus_*.dll 模式），
+  同时验证「协议适配器可独立成 DLL」的第三方扩展路径。
+- **解析器**：接受 ENI（网络配置：PDO 映射、从站拓扑）+ ESI（设备描述）解析器；
+  ENI 解析自研（XML，约 400 行）；侧栏解析器面板 ENI/ESI 节点激活。
+- **帧解析**：Ethernet 帧抽出（Ethertype 0x88A4）→ EtherCAT 头 → datagram 遍历
+  （命令字/地址/IRQ/WKC）；自研解析器约 600 行，不引 soem（分析器不需要主站栈，
+  soem 为 LGPL 需评估，README 已列为备选）。
+- **源**：F3 先离线（pcap/pcapng 抓包文件回放，canfileio 的 pcap_reader 泛化）+
+  内置 EtherCAT 仿真源（可配置 PDO 周期帧）；实时网口采集（raw socket/Npcap）
+  作为 F3 末期或 F4 项。
+- **解码**：LRW/LRD 过程映像按 ENI PDO 映射表切信号 → DecodedSignal，
+  Graphic 直接绘制（与 DBC 信号同管道）。
+
+### 5.5 第三方协议插件（.oflow 协议包，F4）
+
+- 打包格式对齐驱动包（.odp）/插件包（.opk）：`protocol.json`（清单：id/名称/版本/
+  依赖 ABI 版本、自带解析器声明）+ 原生 DLL（实现 IProtocolAdapter，可同时实现
+  IBusParser 一并注册，QPluginLoader 加载）。
+- 入口：Flow 侧栏折叠栏底部「＋ 从市场添加协议流」→ 统一插件市场（驱动系统方案 v2
+  的统一市场架构，市场条目类型扩一类「协议」）。
+- 安全边界：协议插件运行在主进程内（同驱动插件 ABI 约束）；解析崩溃即主程序崩溃，
+  市场上架审核 + 崩溃率遥测（复用驱动市场既有机制）。
+
+---
+
+## 六、解析器角色 Parser（协议描述文件通用加载与统一建模）
+
+### 6.1 角色定位
+
+需求截图红框中的「DBC 数据库」块，本方案抽象为通用**解析器（Parser）**角色：
+不再与 CAN DBC 绑定，而是独立的「协议描述文件 → 统一报文/信号定义」建模层。
+
+- **解析器与流类型解耦**：解析器只负责把描述文件变成统一定义（报文表 + 信号表），
+  不关心数据从哪条流来；流类型（适配器）通过 `acceptedParsers()` 声明自己
+  **接受哪些解析器**——即「不同类型的 Flow，所支持的解析器、可加载的协议描述
+  文件各不相同」。
+- **同一流类型可加载多种解析器**：如 CAN Flow 同时挂 DBC、ARXML、J1939 DBC——
+  混合解码（不同描述文件分管不同 ID 区间的报文）。
+- **同一解析器可服务多种流**：DBC 家族解析器既服务 CAN Flow，也可服务未来的
+  J1939 Flow。
+- 画布红框块从「DBC 数据库」泛化为「解析器」块：块内容 = 该流会话已加载的
+  解析器文件列表（按解析器类型分组，见 §8.1）。
+
+**流类型 × 解析器接受矩阵**（内置）：
+
+| 流类型 | 接受的解析器（acceptedParsers） | 说明 |
+|--------|--------------------------------|------|
+| CAN Flow | DBC / ARXML / J1939 DBC | J1939 DBC 为 DBC 方言（29 位 PGN 编码 ID、SPN 信号），初期可并入 DBC 解析器（PDU1/PDU2 专有位处理），按需独立 |
+| EtherCAT Flow | ENI / ESI | ENI 为主（PDO 映射驱动帧解码）；ESI 供从站对象字典浏览 |
+| 通用 Flow | 字段布局（JSON） | 可选；描述字节流帧内字段偏移/长度/缩放 |
+| 第三方流 | 协议包自带解析器声明 | .oflow 清单声明 acceptedParsers，或直接自带新解析器 |
+
+### 6.2 统一定义模型（BusDefinition）
+
+解析器的输出不是各协议私有结构，而是统一「报文/信号定义」模型
+（src/core/protocol/busdefinition.h，编入 openbus_data）：
+
+```cpp
+struct BusSignalDef {
+    QString name;          // 信号名（DBC 信号 / PDO 映射对象 / 布局字段名）
+    int startBit = 0;      // 起始位（相对所在报文 / 过程映像区）
+    int bitLength = 0;
+    bool littleEndian = true;
+    double factor = 1.0;   // 缩放
+    double offset = 0.0;   // 偏移
+    QString unit;          // 单位
+    QString comment;       // 注释 / SPN 描述
+    // 值表（物理值 ↔ 含义）以 QVariantList 序列化追加（只增不改）
+};
+
+struct BusMessageDef {
+    quint32 id = 0;        // 协议内报文标识（CAN ID / PDO 过程映像区基址 / 流帧编号）
+    QString name;          // 报文名（DBC message / PDO 名 / 布局帧名）
+    int length = 0;        // 长度（字节数）
+    QList<BusSignalDef> signals;
+};
+
+struct BusDefinitionSet {           // 一个描述文件的解析结果
+    QString parserId;               // "dbc" / "arxml" / "j1939dbc" / "eni" / "esi" / "layout"
+    QString filePath;
+    QString protocolHint;           // 目标流类型提示（可空；加载时校验与流类型兼容）
+    QList<BusMessageDef> messages;
+};
+```
+
+各协议描述文件到该模型的映射：
+
+| 描述文件 | message 对应 | signal 对应 | 说明 |
+|---------|-------------|------------|------|
+| DBC | message（ID/DLC） | signal（startbit/length/字节序/factor/offset/unit） | 与现有 DbcMessage/DbcSignal 一一对应 |
+| ARXML | ISignalIPdu | ISignal | 复用既有 arxml_importer 产出结构 |
+| J1939 DBC | message（PGN 编码 29 位 ID） | SPN 信号 | PDU1/PDU2 专有位处理 |
+| ENI | 过程映像区（PDO 分段） | PDO 映射对象（位偏移） | LRW 帧 payload 按偏移切信号 |
+| ESI | 邮箱对象字典条目 | 对象（CoE 索引） | 详情浏览用，不参与帧解码 |
+| 字段布局 JSON | 帧布局 | 字段（offset/len/type/scale） | 通用流字段提取 |
+
+### 6.3 解析器接口与注册表
+
+```cpp
+class IBusParser
+{
+public:
+    virtual ~IBusParser() = default;
+
+    virtual QString parserId() const = 0;      // "dbc" / "arxml" / "j1939dbc" / "eni" / "esi" / "layout"
+    virtual QString displayName() const = 0;   // "DBC 数据库" / "ARXML" / "ENI (EtherCAT)" ...
+    virtual QString iconPath() const = 0;
+    virtual QStringList fileExtensions() const = 0;   // {"dbc"} / {"arxml"} / {"eni","xml"} ...
+
+    /// 解析描述文件 → 统一定义集（失败返回空集并经 error 上报）
+    virtual BusDefinitionSet parse(const QString &filePath, QString *error) const = 0;
+};
+
+Q_DECLARE_INTERFACE(IBusParser, "com.sin.openbus.IBusParser/1.0")
+```
+
+- **ParserRegistry**（openbus_data，与 ProtocolRegistry 并列）：枚举解析器类型；
+  `.oflow` 协议包可同时注册适配器与解析器。
+- **BusDefinitionStore**（openbus_data）：持有全部已加载 BusDefinitionSet，提供
+  `findMessage(protocolId, id)` / `findSignal(...)` 索引查找——接替 DbcManager 的
+  跨文件 O(1) 索引职责（多解析器命名空间按「流会话 + parserId + 文件」隔离，
+  避免不同解析器的同名报文互相覆盖）。
+
+### 6.4 与 DbcManager 的演进关系（兼容策略）
+
+- DbcManager **保留**：现有 `loadDbc/unloadDbc/findMessage` API 是壳与各模块的
+  既有依赖（mainwindow_frameflow.cpp、dbc 模块详情页等），F1 不动其调用方。
+- 演进路径：DbcManager 内部实现改为「DBC 解析器 + BusDefinitionStore」的薄壳
+  （findMessage 转发到 store 的 CAN 命名空间查询），对外行为零变化；
+  新代码一律走 store / 适配器管道，DbcManager 冻结不再扩能力。
+- 侧栏「数据库面板」（DbcPanel）演进为**解析器面板**：分类树节点从静态协议分类
+  改为 ParserRegistry 动态生成（DBC / ARXML / J1939 / ENI / ESI / 字段布局…），
+  点击文件 → 加载进对应流会话的解析器绑定（多会话时弹出目标选择）。
+
+### 6.5 解析器在数据流中的位置
+
+```
+描述文件（.dbc / .arxml / .eni / …）
+        │  IBusParser::parse()（加载时，一次性）
+        ▼
+BusDefinitionSet ──► BusDefinitionStore（消息/信号索引）
+                            ▲ 查询（冷路径）
+适配器 decode(msg) ────────┘
+        ▲ payload / id
+BusMessage（热路径分发，不经解析器）
+```
+
+- **热路径不经过解析器**：BusMessage 分发与解码无关的链路（录制 / 统计 /
+  Trace 原始列）零开销；解析器只在「Graphic 添加信号 / Trace 详情解码 /
+  报文名列渲染」等按需查询时介入——与现状 DbcManager::findMessage 的
+  使用时机一致（冷路径原则 §1.3-3）。
+
+---
+
+## 七、Flow 侧栏折叠栏设计（本方案交互重点）
+
+### 7.1 现状与差距
+
+- 现状：`MeasurementSetupPanel`（侧栏 ActivityBar「Flow」图标对应面板）仅一个
+  "flow" 列表项 + 提示文案，点击打开画布页。
+- 差距：无法表达「多种协议数据流的流处理模式」；无法在不打开画布的情况下
+  管理（新建/启停/删除）流实例。
+
+### 7.2 交互设计（目标态）
+
+```
+┌─ Flow（侧栏面板，沿用现有标题） ──────────────────┐
+│                                                    │
+│  ▾ [CAN]  CAN Flow                     2 个流      │   ← 折叠节（内置适配器）
+│  │  ● CAN Flow 1            ON  · 2通道 · 解析器×2  │   ← 流实例行（FlowSession）
+│  │  ● CAN Flow 2            OFF · 1通道 · 无解析器  │
+│  │  ＋ 新建 CAN Flow                                │
+│                                                    │
+│  ▸ [ECAT] EtherCAT Flow                0 个流      │   ← 折叠节（F3；未建实例时折叠）
+│                                                    │
+│  ▾ [GEN]  通用 Flow                    1 个流      │   ← 折叠节（F2）
+│  │  ● 串口流 1              ON  · COM3 · 115200     │
+│  │  ＋ 新建通用流                                   │
+│                                                    │
+│  ─────────────────────────────────────             │
+│  ＋ 从市场添加协议流                                │   ← F4 生态入口
+│                                                    │
+│  ▸ 画布（打开 Flow 拓扑页）                         │   ← 保留原 "flow" 入口
+└────────────────────────────────────────────────────┘
+```
+
+交互规则：
+
+| 操作 | 行为 |
+|------|------|
+| 单击流实例行 | 打开/聚焦该流的画布分组（画布滚动定位到对应协议分组框） |
+| 单击状态点 / 复选框 | 启停该流会话（等价画布分组框整体使能；未运行测量时仅切换使能态） |
+| 双击流实例行 | 打开该流的配置标签页（源绑定/通道/解析器，经 flow 模块 `createPage("flowcfg:<sessionId>")`） |
+| 右键流实例行 | 重命名 / 复制配置 / 删除（删除前确认；等价画布分组右键） |
+| 「＋ 新建 X Flow」 | 创建该协议新流会话：默认源绑定 + 默认通道数；画布出现新分组 |
+| 折叠节标题行 | 展开/收起（单节独立记忆，QSettings 持久化） |
+| 「从市场添加协议流」 | 打开统一插件市场并筛选「协议」类目（F4） |
+
+### 7.3 折叠栏组件（CollapsibleSection）
+
+- 新增通用侧栏组件 `src/ui/panels/collapsiblesection.{h,cpp}`：
+  `QToolButton`（箭头图标旋转动画 + 标题 + 右侧徽标/按钮）+ 内容区
+  （`QWidget` 容器，收起时 `setMaximumHeight(0)` 过渡）。
+- 风格与现有侧栏一致（SidePanel 标题栏样式、QSS 主题变量），不引入新依赖。
+- 各节内容由 FlowModule 按适配器枚举动态生成：
+  `ProtocolRegistry::adapters()` → 每适配器一节；节内实例列表数据源为
+  FlowSession 列表（openbus_data 持有，flow 模块读）。
+
+### 7.4 状态与持久化
+
+- FlowSession 列表序列化进工程状态 JSON（`ProjectContext.stateJson`，键
+  `"flows": [{sessionId, protocolId, name, sourceBinding, channelCount,
+  parsers: [{parserId, filePath, enabled}], enabled}]`），随工程保存/切换恢复
+  （对齐既有 layoutConfig 机制）。
+- 折叠节展开状态 → QSettings（用户偏好，不进工程文件）。
+- 流会话与画布分组、解析器面板、模块实例门控三方联动：
+  删除 CAN Flow 会话 = 画布移除该分组下全部通道块 + 该会话解析器绑定解绑
+  （描述文件本身不从面板卸载）。
+
+---
+
+## 八、Flow 画布多协议化
+
+### 8.1 拓扑分组演进
+
+现状画布（见需求截图）：`Real/File → CAN 通道 1、CAN 通道 2 → DBC 数据库 →
+Trace/Graphic/Data/Record`。目标态两处泛化：通道列引入**协议流分组框**
+（首轮截图红框——CAN 通道分组——的产品化，分组框成为实际渲染的容器）；
+原「DBC 数据库」块抽象为通用**解析器（Parser）块**（本轮截图红框，角色定义
+见 §六）——按流会话挂载该流类型所接受的解析器文件：
+
+```
+列1 数据源        列2 协议流分组（按适配器分块）      列3 解析器 Parser     列4 模块
+─────────       ─────────────────────────        ──────────────       ─────────
+Real 实时  ──►  ┌─ CAN Flow 1 ──────────────┐    ┌ 解析器(CAN) ─┐      Trace1
+(File 开关)     │  CAN 通道 1   ON ●        │ ─► │ DBC×2 J1939×1│ ─►   Graphic1
+                │  CAN 通道 2   ON ●        │    └──────────────┘      Data 统计
+                └───────────────────────────┘                        录制 Record
+                ┌─ EtherCAT Flow 1 ─────────┐    ┌ 解析器(ECAT)─┐
+                │  ECAT 帧流    ON ●        │ ─► │ ENI×1       │
+                └───────────────────────────┘    └──────────────┘
+                ┌─ 通用 Flow 1 ─────────────┐    （解析器可选：
+                │  串口流 COM3  ON ●        │ ─►   字段布局 JSON）
+                └───────────────────────────┘
+```
+
+- 分组框整体可点击使能（等价该 FlowSession 启停）；框内通道块保留现有
+  单块交互（点击切换/双击配置/右键增删）。
+- **解析器块为通用角色**：每个协议流分组带一个解析器块，块内列出该流会话
+  已加载的解析器文件（按类型分组，如 `DBC×2 J1939×1`）；右键「加载解析器…」
+  的文件对话框过滤项 = 该流类型适配器的 `acceptedParsers()` 声明（CAN Flow
+  可选 DBC/ARXML/J1939，EtherCAT Flow 仅 ENI/ESI，通用 Flow 仅字段布局）；
+  单个解析器文件可独立启停/卸载；通用 Flow 不加载解析器时连线直连模块列。
+- 模块块保持全局共享（Trace/Graphic/统计/录制不按协议拆分）；
+  每个模块块增加「订阅协议」过滤入口（F2：模块实例可选只接收某些协议的数据，
+  默认全部——保持现行为）。
+
+### 8.2 BlockItem 扩展（只增字段）
+
+```cpp
+struct BlockItem {
+    // ... 既有字段不变 ...
+    QString protocolId;    // 新增：块所属协议（"" = 全局块：source/module）
+    QString sessionId;     // 新增：块所属流会话（channel 分组块 / parser 解析器块）
+};
+```
+
+- 侧栏折叠栏 ↔ 画布分组双向联动：`moduleToggled` shellInvoke 参数
+  QVariantList 尾部追加 `protocolId`、`sessionId`（只增不改：旧接收端按位置
+  解包不受影响）。
+
+---
+
+## 九、业务模块影响分析
+
+| 模块 | 改造点 | 阶段 |
+|------|--------|------|
+| 壳 frameflow | `onBusReceived(BusMessage)` 分发枢纽；`onFrameReceived(CanFrame)` 保留为 CAN 包装入口；状态栏帧计数按 bus_type 分列 | F1 |
+| 数据层 openbus_data | IBusParser/ParserRegistry/BusDefinitionStore 落地（§六）；DbcManager 冻结为 DBC 解析器兼容壳（findMessage 等 API 行为零变化） | F1 |
+| openbus_trace | 数据入口切 `"onBus"`；列模型 = 通用基础列（No./Time/Delta/Ch/Dir/Protocol）+ 适配器 traceColumns() 动态列（CAN 下与现 12 列一致）；详情面板经适配器 decode() 冷路径（信号定义来自解析器） | F1（CAN）→F2/F3（列泛化） |
+| openbus_graphic | `addSignal` sigMap 追加 `protocolId` 字段（尾部追加）；信号源从 DBC 查找改为「解析器统一定义 + 适配器 decode()」管道（CAN 输出不变） | F1（协议字段）→F3（EtherCAT 信号） |
+| openbus_transceive | 录制：busfileio + .sin v2 容器（BusType 前缀）；回放：Player 按版本读新旧格式；发送页保持 CAN（协议发送页 = 适配器 createSourceConfigPage 体系内的能力，F2+） | F1（录制容器）→F2 |
+| openbus_flow | 侧栏折叠栏 + FlowSession 管理 + 画布分组拓扑 + 解析器块 + 流配置页 `flowcfg:<sessionId>` | F1（CAN 单节）→F2/F3 |
+| BusStatistics | 每协议一实例（QHash<BusType, BusStatistics*>），总线负载分协议显示 | F2 |
+| PluginManager | Python 插件 onBus 转发与协议订阅声明（plugin.json `buses: []`） | F4 |
+| 数据库面板 DbcPanel | 演进为解析器面板（§6.4）：分类树按 ParserRegistry 动态生成（DBC/ARXML/J1939/ENI/ESI/字段布局）；加载文件即绑定到流会话的解析器 | F1（DBC/ARXML）→F3（ENI/ESI） |
+
+---
+
+## 十、实施阶段划分
+
+> 估时为净开发人日，含单测与冒烟；每阶段结束跑全量 ctest + 真机 CAN 回归
+> （对齐 doc/构建基线.md 的验收口径）。
+
+### F1 — 地基：统一模型 + CAN 适配器 + 解析器抽象 + 侧栏折叠栏（约 8-10 人日）
+
+| 项 | 内容 |
+|----|------|
+| 数据层 | busmessage.h + IProtocolAdapter/IBusParser 接口 + ProtocolRegistry/ParserRegistry + BusDefinitionStore + DBC/ARXML 解析器（DbcManager 演进为兼容壳）+ CanProtocolAdapter（包装 CanDeviceManager/canfileio/CanSimulator） |
+| 壳 | onBusReceived 分发枢纽 + onFrameReceived 薄包装 + invoke("onBus") 约定 |
+| 模块 | trace/graphic/flow 原子切换 onBus（同一构建无兼容窗口）；sigMap 尾部 +protocolId |
+| 录制 | .sin v2 容器（写新读新旧双格式） |
+| UI | CollapsibleSection 组件 + Flow 侧栏折叠栏（CAN Flow 单节）+ 画布 BlockItem 协议分组（CAN）+ 解析器块（DBC/ARXML 加载）+ 数据库面板 → 解析器面板（DBC/ARXML） |
+| 验收 | ① CAN 全功能回归（Trace 12 列、Graphic 信号、录制回放、离线分析、Flow 画布）② 旧 .sin 可回放 ③ ctest 7/8 基线不降 ④ 侧栏折叠栏新建/启停/删除 CAN 流会话闭环 ⑤ 同一 CAN Flow 会话同时加载 DBC 与 ARXML 解析器文件，Trace 报文名 / Graphic 信号混合解码正确 |
+
+### F2 — 通用 Flow（约 4-5 人日）
+
+| 项 | 内容 |
+|----|------|
+| 适配器 | GeneralProtocolAdapter：原始文件/CSV/串口/TCP-UDP 源、字段布局解析器（JSON 布局文件经 ParserRegistry 注册）、通用 Trace 列 |
+| UI | 侧栏「通用 Flow」折叠节 + 流配置页（源参数/字段布局编辑器基础版）+ 画布通用分组 |
+| 统计 | 分协议 BusStatistics + 状态栏分协议帧计数 |
+| 验收 | 串口/TCP 字节流 → Trace 显示 → 字段提取 → Graphic 绘制 → 录制回放全链路 |
+
+### F3 — EtherCAT Flow（约 10-14 人日）
+
+| 项 | 内容 |
+|----|------|
+| DLL | openbus_ethercat.dll：ENI/ESI 解析器（经 ParserRegistry 注册）、datagram 解析器、PDO 信号解码、EtherCAT 仿真源 |
+| 源 | pcap/pcapng 离线回放（pcap_reader 泛化到 EtherType 0x88A4）；实时网口采集列为独立后续项 |
+| UI | 侧栏 EtherCAT 折叠节 + 解析器面板 ENI/ESI 节点 + Trace EtherCAT 列/详情 |
+| 验收 | 抓包文件 → 过程数据信号 → Graphic 绘制 → 与 CAN 流同窗时间对齐显示 |
+
+### F4 — 协议插件生态（约 5-6 人日）
+
+| 项 | 内容 |
+|----|------|
+| 打包 | .oflow 协议包格式（适配器 + 可选自带解析器）+ QPluginLoader 加载 + ABI 版本校验 |
+| 市场 | 统一插件市场新增「协议」类目；侧栏「＋ 从市场添加协议流」入口 |
+| 插件宿主 | Python 插件 onBus 转发与协议订阅 |
+| 验收 | 官方示例协议包（如 LIN 或 CANopen 精简版）从市场安装 → 侧栏出现折叠节 → 全链路可用 |
+
+---
+
+## 十一、风险与对策
+
+| # | 风险 | 影响 | 对策 |
+|---|------|------|------|
+| R1 | CAN 回归风险（F1 动到分发枢纽） | 核心功能劣化 | 适配器零重构包装（不重写 CAN 路径）；F1 验收含全量 CAN 回归清单；分发枢纽逻辑保持原顺序 |
+| R2 | BusMessage QVariant 跨 DLL 传输（MinGW DEF-08 已知坑） | 信号连接静默失败 | 与 CanFrame 同机制（Q_DECLARE_METATYPE + invoke 字符串动作）；ui_offscreen 冒烟覆盖 |
+| R3 | 热路径性能（多协议并发帧率） | Trace 卡顿/丢帧 | 扁平结构无 map 构造；分发仍单线程顺序（与现架构一致）；必要时按 bus_type 分队列 |
+| R4 | .sin 格式切换 | 旧工程/旧文件不可读 | v2 容器向后兼容读；canfileio 单测加旧格式用例 |
+| R5 | EtherCAT 解析复杂度（ENI 变体、多从站拓扑） | F3 超期 | F3 范围收敛为「单主站 pcap + ENI 静态解析」；邮箱/CoE 解析列为 F3.5 增量 |
+| R6 | 协议插件崩溃传导主进程 | 稳定性 | 市场上架审核 + 崩溃率遥测；高价值低频协议可后移 Python 插件宿主（进程隔离）实现 |
+| R7 | 接口只增不改被破坏 | 生态 ABI 混乱 | IProtocolAdapter/IBusParser 新增能力一律「末尾虚函数 + 默认实现 + IID 升版本」（驱动插件既有纪律） |
+| R8 | 统一定义模型表达力（各协议描述语义差异：J1939 PGN/SPN、ENI 过程映像、ESI 对象字典） | 解析结果失真或解析器堆积特例 | BusDefinition 采用「公共字段 + 尾部追加扩展」演化（只增不改）；无法映射的语义留在解析器内部消化（decode() 自解释），不污染统一模型 |
+
+---
+
+## 十二、与既有文档的关系
+
+| 文档 | 关系 |
+|------|------|
+| README.md 整体架构设计 | 本方案是其 `IBusSource`/`BusMessage`/多总线时间对齐愿景的实施路径；README 该节在 F1 落地后补「已实现」标注 |
+| doc/拆分应用方案.md / 拆分应用实施方案.md | 适配器/解析器/DLL 边界遵循其模块化原则；openbus_ethercat.dll 为新增业务 DLL，注册方式对齐 ModuleRegistry 模式 |
+| doc/驱动系统方案.md | ABI 只增不改纪律与统一市场架构复用；.oflow 包对齐 .odp 打包与上架机制 |
+| doc/插件系统方案.md | F4 的 Python 插件 onBus 转发与协议订阅声明扩展其宿主协议 |
+| doc/需求文档.md | Trace 多协议列与 B16 自定义列协同（适配器列与自定义列同管道；B16-3 的 DBC 信号值引用同步泛化为解析器信号引用）；后续 Flow 相关需求编号从 B18 起接续 |
+| doc/Trace模块设计文档.md / Graphic模块设计文档.md | 列模型与信号管道泛化的详细设计在其文档内各自补章节；Trace 视图形态（TraceForm，六种基础形态 + TR 系列路线）见 Trace模块设计文档.md §十，`traceColumns()` 落地时预留形态接口；Graphic 可视化形态（GraphicForm，六种基础形态 + GV 系列路线）见 Graphic模块设计文档.md §十一，`decode()` 输出即各形态统一数据源，`BusSignalDef` 预留 valueType/值表字段 |
+
+---
+
+## 附：术语表
+
+| 术语 | 含义 |
+|------|------|
+| 协议适配器（Protocol Adapter） | 实现 IProtocolAdapter 的协议封装单元（流类型），消化协议差异 |
+| 解析器（Parser） | 实现 IBusParser 的协议描述文件加载单元：DBC/ARXML/J1939 DBC/ENI/ESI/字段布局… → 统一报文/信号定义（§六）；与流类型解耦，按流会话绑定 |
+| 统一定义模型（BusDefinition） | 解析器输出的协议无关报文/信号定义（BusMessageDef/BusSignalDef），供解码与列渲染共享 |
+| 流会话（FlowSession） | 某协议的一个流处理实例：源绑定 + 通道 + 解析器绑定 + 使能态 |
+| 流处理模式 | 侧栏折叠栏中按协议组织的流实例管理形态（CAN Flow / EtherCAT Flow / 通用 Flow…） |
+| 协议流分组 | Flow 画布中同一流会话的通道块集合（首轮需求截图红框概念的产品化） |
+| 解析器块（Parser 块） | 画布中挂载流会话已加载解析器文件的通用块（原「DBC 数据库」块，本轮截图红框的泛化） |
+| .oflow | 第三方协议插件包（原生 DLL + protocol.json 清单，可含适配器与解析器） |

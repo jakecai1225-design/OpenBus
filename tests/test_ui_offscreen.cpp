@@ -36,6 +36,8 @@ extern "C" IBusinessModule *openbus_createMarketModule();       // openbus_marke
 extern "C" IBusinessModule *openbus_createTransceiveModule();   // openbus_transceive.dll
 extern "C" IBusinessModule *openbus_createDbcModule();          // openbus_dbc.dll
 extern "C" IBusinessModule *openbus_createFlowModule();         // openbus_flow.dll
+extern "C" IBusinessModule *openbus_createTraceModule();        // openbus_trace.dll（B5 拆出）
+extern "C" IBusinessModule *openbus_createGraphicModule();      // openbus_graphic.dll（B5 拆出）
 
 // DEF-08 回归防线：捕获启动阶段的 connect 断连警告（"QObject::connect:
 // signal/slot not in..."）——跨 DLL 字符串化修复后 MainWindow 构造期间
@@ -103,6 +105,10 @@ void TestUiOffscreen::initTestCase()
         QStringLiteral("dbc"), &openbus_createDbcModule);
     ModuleRegistry::instance()->registerModule(
         QStringLiteral("flow"), &openbus_createFlowModule);
+    ModuleRegistry::instance()->registerModule(
+        QStringLiteral("trace"), &openbus_createTraceModule);
+    ModuleRegistry::instance()->registerModule(
+        QStringLiteral("graphic"), &openbus_createGraphicModule);
     ThemeManager::instance()->applyTheme("Light");
     AppConfig::instance()->load();
     SessionManager::instance()->load();
@@ -199,7 +205,7 @@ void TestUiOffscreen::frameFlowDrivesTrace()
     QVERIFY(QMetaObject::invokeMethod(m_win, "onMeasurementToggled",
                                       Q_ARG(bool, true)));
     // Trace 实例门控：flow 块启用链（isBlockEnabled）对懒创建场景不稳定，
-    // 直接置运行态（TraceTab 与测试同模块链接，直调可靠且幂等）
+    // 直接置运行态（TraceTab 在 openbus_trace.dll，经导入库直调可靠且幂等）
     traceTab->setRunning(true);
     // 帧流入
     for (int i = 0; i < 20; ++i) {

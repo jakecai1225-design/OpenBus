@@ -75,6 +75,14 @@ struct ShellContext {
      *  - "dbcRemoveRequested" (arg = QString 文件名) → 壳关关联页 + unloadDbc
      *  - "connMessage" (arg = QString) / "deviceDisconnected"
      *      设备连接页状态反馈（B4）→ 状态栏/测量状态/Trace 门控
+     *  - "frameDoubleClicked" (arg = CanFrame)
+     *      Trace 双击帧（B5）→ 壳的帧→过滤 + 帧信号→Graphic 编排
+     *  - "frameAddToGraphic" (arg = CanFrame)
+     *      Trace 右键"添加信号到 Graphic"（B5）→ 壳查 DBC 加全部信号
+     *  - "traceSelectionChanged" (arg = int rows)
+     *      Trace 选中行数变化（B5）→ 状态栏"选中N行"
+     *  - "traceFileLoaded" (arg = int frameCount)
+     *      Trace 文件拖放加载完成（B5）→ 底部输出 + 状态栏帧数
      */
     std::function<void(const QString &action, const QVariant &arg)> shellInvoke;
 };
@@ -114,6 +122,20 @@ public:
      *                "setFileInfo"（arg = QVariantList {name, total, totalTime}）
      *                "setProgress"（arg = QVariantList {cur, total, curTime, totalTime}）
      *                "setPlayerLoaded"（arg = QVariantList {loaded, playing}）
+     *  - trace（B5）: "onFrame"(CanFrame) / "setAutoScroll"(bool)
+     *                / "setRunning"(QVariantList{id, bool}) / "setRunningAll"(bool)
+     *                / "clearTraceAll" / "clearAll"
+     *                / "appendFrames"(QVariantList{QWidget* target, QVariantList frames})
+     *                / "setFilterExpression"(QVariantList{QWidget*, expr, report})
+     *                / "jumpToFrame"(QVariantList{QWidget*, int}) / "editColorRules"
+     *  - graphic（B5）: "onFrame"(CanFrame) / "setFlowEnabled"(QVariantList{QWidget*, bool})
+     *                / "clearDataAll"
+     *                / "addSignal"(QVariantList{QWidget*, sigMap}) — sigMap 字段：
+     *                  {name, canId, extended, color?, dbcSig?}，dbcSig 用
+     *                  core/dbcdata.h 的 dbcSignalToMap() 序列化
+     *                / "addSignals"(QVariantList{QWidget*, QVariantList<sigMap>})
+     *                / "loadSignalConfigs"(QVariantList{QWidget*, QVariantList<sigMap>})
+     *                  — sigMap 追加 displayMode 字段
      *
      * 默认实现为空操作；不支持的动作静默忽略。
      */
@@ -161,6 +183,13 @@ public:
      *
      * 已约定查询：
      *  - transceive: "offlineFiles"（离线分析页文件列表 → QStringList）
+     *  - trace: "isTrace"(QWidget*→bool) / "instance"(id→QWidget*)
+     *           / "filterExpression"(id→QString) / "frameCount"(QWidget*→int)
+     *           / "activeInstance"(→QWidget* 首个存活实例)
+     *  - graphic: "isGraphic"(QWidget*→bool) / "instance"(id→QWidget*)
+     *             / "lastInstance"(→QWidget*) / "signalConfigs"(QWidget*→
+     *             QVariantList{name, canId, extended, displayMode, dbcSig, color})
+     *             / "dataWindow"(→QWidget*)
      */
     virtual QVariant query(const QString &what, const QVariant &arg = {})
     {

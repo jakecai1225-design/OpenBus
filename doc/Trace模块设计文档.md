@@ -33,6 +33,8 @@
 
 > **2026-08 按 CANoe Trace 工具栏逐项复查**：补记已实现能力（值勾选列筛选、时间精度、书签文件导出导入、标记跳转菜单），新增 9 项功能差距与 5 项 UI 风格差距，详见 **§九**。
 
+> **2026-08-21 增补**：多协议 Trace 形态扩展方向（**§十**）——侧栏 Trace 折叠栏当前仅一种形态（CAN 帧列表，多实例），面向市面常见协议调研归纳出六种基础视图形态（帧列表 / 事务配对 / 聚合监视 / 文本日志流 / 字节流 / 时序段），作为战略扩展方向，与 doc/flow.md 多协议 Flow 方案配套。
+
 ### 1.2 核心差异化
 
 - **Wireshark 风格导航体验**：帧编号 + Delta 时间 + 表达式过滤 + Go to Packet
@@ -332,6 +334,7 @@ CanTraceModel → CanTraceProxyModel(增量过滤) → ViewportProxyModel(视窗
 | **T5** | QHexEdit2 集成 + DBC 信号高亮 | 🟢 低 | 2-3 天 | §4.4 |
 | **T6** | 统计增强（周期抖动 + 错误分类） | 🟢 低 | 2-3 天 | §4.5 |
 | 暂缓 | 行内展开 / Marker 条 / 覆盖淡出 / 混合事件流 | ⚪ 规划 | — | §九 G-F4/G-F9 等 |
+| **TR 系列** | 多协议 Trace 形态（TR1 形态框架 → TR2 聚合监视 → TR3 事务配对 → TR4 文本·字节流 → TR5 时序段 → TR6 混合事件流） | ⚪ 战略规划 | — | §十 |
 
 依赖关系：T1、T7 独立可先行；T8 外壳先行，T9/T10 依赖 T8 容器；T2/T3/T4 相互独立可并行；G-F9 混合事件流挂接插件 v2 协议冻结后统一设计。实施批次建议见 §9.4。
 
@@ -440,4 +443,135 @@ CanTraceModel → CanTraceProxyModel(增量过滤) → ViewportProxyModel(视窗
 1. **第一批（性能 + 速赢，约 1 周）**：✅ 已完成（2026-08-17）：T1 增量过滤代理 + T7 速赢包（Name 列 / 标记导航 / 字体缩放 / 默认配色），另附 FilterEngine 新增 `error` 标识符
 2. **第二批（分析工作流，1-2 周）**：✅ T8/T9/T10 已完成（2026-08-17：Trace Explorer 标签外壳 + 选中帧统计视图 + 差异对比视图）；T2 书签工程集成 / T4 预定义过滤集未开始（T3 已完成）
 3. **第三批（体验完善）**：T11 结构化详情、T12 工具栏、T13 Pass/Stop、T5 QHexEdit2、T6 统计增强
-4. **战略项**：G-F9 混合事件流，待插件 v2 协议冻结后与 dataOutputs 通道统一设计
+4. **战略项**：G-F9 混合事件流，待插件 v2 协议冻结后与 dataOutputs 通道统一设计（已收编入 §十 TR6 多形态路线）
+
+---
+
+## 十、多协议 Trace 形态扩展方向（战略规划，尚未实施）
+
+> 2026-08-21 增补。现状：Trace 侧栏（`TracePanel`）点开后的折叠列表只支持**一种** Trace
+> 形态——CAN 帧列表（可多实例，`onOpenTraceTab` 每次新建一个同构 `TraceTab`）。但"一行
+> 一帧"的帧列表并不适配所有协议的分析工作流：诊断协议关心请求-响应**配对**，串口数据是
+> **文本流**，周期过程数据更适合"**最新值**"聚合视角。本节调研市面常见协议的 Trace 形态，
+> 归纳为六种基础形态，作为后续扩展方向。与 doc/flow.md 互为配套：Flow 解决「数据从哪来、
+> 怎么解析」（BusMessage / 适配器 / 解析器），本节解决「以什么形态看」。
+
+### 10.1 现状与差距
+
+- **现状**：`TracePanel`（sidebarpanels.cpp:700）= Trace 实例列表 + 「新建 Trace」按钮；
+  每个实例是同构的 `TraceTab`（帧列表形态，§2.3 的 12 列），多实例相互独立。
+- **形态被焊死在控件链上的位置**：
+  - `CanTraceModel` 的 12 列枚举（ColNo…ColName）全部是 CAN 帧语义
+  - `TraceTab` 组装（FilterBar + TraceView(QTableView) + ViewportOverview）整链面向"一行一帧"
+  - UDS 诊断走独立 `UdsView` 页面，不进 Trace 流（§九 G-F9 已指出）
+- **差距**：**形态**（怎么呈现）与**协议**（数据是什么）耦合在一个控件链里。flow.md 的
+  `traceColumns()` 只解决**列差异**（同一形态内换列）；换**形态**（诊断事务配对、文本流、
+  聚合监视）无处安放。列 × 形态是两个正交维度。
+
+### 10.2 市面协议 × Trace 形态调研
+
+| 协议 | 市场工具与 Trace 形态 | 关键列 / 字段 | 归纳形态 |
+|------|----------------------|--------------|---------|
+| CAN / CAN FD | CANoe Trace、PCAN-View：一行一帧 | No./Time/Ch/Dir/ID/DLC/Data/Flags（= 现有 12 列） | ① 帧列表型 |
+| SAE J1939 | CANoe J1939 Trace：PGN 视角 | PGN/SA/DA/优先级；TP 多包（BAM/RTS-CTS）重组为一条 | ① + 事务重组 |
+| LIN | CANoe LIN Trace | PID/校验和类型/从机响应时间/调度表槽位 | ① 变体 + ⑥ 时序段型 |
+| FlexRay | CANoe FlexRay Trace | Slot/Cycle/通道 A/B/静态·动态段 | ① 变体 + ⑥ 时序段型 |
+| CANopen | CANoe CANopen Trace | SDO 请求-响应配对（Index/Subindex）、NMT/心跳 | ② 事务配对型 |
+| UDS（ISO 14229） | CANoe Diagnostics、各诊断工具 | 服务配对（请求-响应/超时/NRC）、ISO-TP 多帧重组 | ② 事务配对型 |
+| Modbus RTU/TCP | Modbus Poll、Wireshark | 功能码/寄存器地址与值/异常码，一问一答 | ② 事务配对型 |
+| SOME/IP · DoIP | Wireshark | 源/目的 IP:端口、协议分层树、UDP/TCP 流重组 | ① + 分层详情树（T11） |
+| EtherCAT | acontis EC-Engineer、TwinCAT | 过程映像（周期数据最新值）+ 邮箱 CoE 事务 | ③ 聚合监视 + ② 事务配对 |
+| 串口 / UART（ASCII） | 串口助手、Serial Studio | 时间戳 + 文本行滚动日志 | ④ 文本日志流型 |
+| 通用二进制流 | Hex 查看 / 协议分析工具 | 时间戳 + 连续字节 Hex dump | ⑤ 字节流型 |
+| 系统事件 / 插件输出 / 变量 | CANoe 混合事件流 Trace | 事件类型标签 + 按事件类型差异化 Column Layout | ① 混合事件流（= §九 G-F9） |
+
+**观察结论**：
+
+1. CANoe 的做法是**按总线/协议提供专属 Trace 窗口**（CAN / LIN / FlexRay / 诊断各有 Trace
+   变体）——形态跟着协议的分析工作流走，而非一种 Trace 通吃。
+2. Wireshark 反其道：**一套分组列表 + Protocol/Info 列 + 分层详情树**统一所有协议，代价是
+   详情树承担全部协议差异（对应本方案 T11 结构化详情 + flow.md `decode()` 冷路径）。
+3. openbus 路线 = 两者结合：**形态泛化（本节）+ 协议差异下沉到适配器（flow.md）**。
+
+### 10.3 六种基础形态抽象
+
+| # | 形态 | 一行代表 | 典型协议 | 与现有架构的关系 |
+|---|------|---------|---------|----------------|
+| ① | 帧列表型 Frame List | 一帧 / 一分组 | CAN、车载以太网、混合事件流 | **现有形态**：Phase 1-4 全链路（环形缓冲/批量提交/增量过滤/视窗代理）直接复用 |
+| ② | 事务配对型 Transaction | 一组请求-响应（含 pending/超时/NRC 状态） | UDS、CANopen SDO、Modbus、CoE 邮箱 | 帧列表之上加**事务装配层**（TransactionAssembler：配对窗口 + 超时状态机），子行可展开回原始帧 |
+| ③ | 聚合监视型 Aggregated Watch | 一个报文 ID / 信号，最新值原地更新 | EtherCAT 过程映像、CAN 周期报文监视 | 现有**覆盖模式**（同 ID 留最新，§1.1）是其退化形式；数据源复用 DBC 解码路径 |
+| ④ | 文本日志流型 Text Log | 一行文本 | 串口 ASCII、插件输出、系统事件 | QPlainTextEdit + 最大行数环形 + 追加节流，**不走虚拟表格链** |
+| ⑤ | 字节流型 Byte Stream | 一个带时间戳的数据块 | 通用二进制、串口 HEX 模式 | Hex dump 分块渲染（QHexEdit2，T5 引入后复用），可选 ASCII 列 |
+| ⑥ | 时序段型 Timeline | 一段时间轴 | LIN 调度表、FlexRay 周期、总线占用 | 远期；与 Graphic 时间轴共用坐标体系 |
+
+**设计约束**：
+
+1. **性能地基共享**：①②③ 复用「环形缓冲 + 批量提交 + 刷新率节流」（Phase 2/4）；④⑤
+   复用「追加 + 节流」纪律但渲染控件不同；视窗代理（ViewportProxyModel）仅虚拟表格形态
+   需要。Phase 1-4 的性能投资在新形态下不浪费。
+2. **形态与协议解耦**：形态声明典型适用协议，但同一协议可开多种形态实例（CAN 也能开
+   聚合监视型）；协议可声明默认形态。
+3. **过滤引擎按形态裁剪标识符集**：现有标识符（id/dlc/ch/…，§2.2）是帧列表形态的方言；
+   事务型增加 `service/nrc/state`，文本型仅 `time/content`。
+4. **多实例独立原则不变**（§八 约束 5）：每个形态实例拥有独立数据链与过滤上下文。
+
+### 10.4 架构方向
+
+侧栏折叠栏按**形态**分节（复用 flow.md §7.3 的 CollapsibleSection 组件，交互与 Flow
+侧栏一致；现状的单列表 + 新建按钮收编为「帧列表 Trace」一节）：
+
+```
+┌─ Trace（侧栏面板） ────────────────────────────┐
+│ ▾ 帧列表 Trace（CAN / 混合事件流）             │
+│ │  ● Trace1         [CAN]  ▶ 运行中            │
+│ │  ● Trace2         [CAN]  ⏸ 已暂停            │
+│ │  ＋ 新建帧列表 Trace                         │
+│ ▸ 聚合监视 Trace（周期报文最新值）             │
+│ ▸ 诊断事务 Trace（UDS / SDO 配对）             │
+│ ▸ 文本流 Trace（串口 / 日志）                  │
+│ ▸ 字节流 Trace（原始 Hex）                     │
+└────────────────────────────────────────────────┘
+```
+
+交互沿用 Flow 侧栏规则（flow.md §7.2）：单击实例行聚焦标签页；「＋ 新建」创建该形态
+新实例；折叠节展开状态 QSettings 持久化；右键重命名/删除。
+
+组件与接口（方向性设计）：
+
+- **TraceForm 注册表**：`ITraceForm` 接口（formId / displayName / icon / 典型协议 /
+  createWidget()）+ `TraceFormRegistry`，与 flow.md 的 `ProtocolRegistry` 同构同址
+  （openbus_data，内置 ①-⑥，插件可扩展）。
+- **协议适配器尾部追加**（ABI 只增不改，对齐 flow.md §1.3-1）：`IProtocolAdapter` 增加
+  `preferredTraceForms()` / `defaultTraceForm()`；`traceColumns()`（flow.md §5.1）继续
+  服务帧列表型 / 聚合型的列差异。
+- **TraceTab 泛化**：tab = 形态实例 + 列定义 + 独立过滤上下文；Trace Explorer 底部标签
+  （详情/信号/统计/差异）在事务配对型下天然适配「子行展开回原始帧」。
+- **事务装配层**（② 的关键增量）：在数据链上插入 TransactionAssembler（配对窗口 / 超时
+  状态机 / 事务分组），与过滤代理正交可组合。
+- **混合事件流汇合（收编 G-F9）**：多形态框架落地后，混合事件流 = 帧列表形态的多协议
+  实例 + 事件类型标签 + 按事件类型差异化 Column Layout（对标 CANoe）；「与插件 v2
+  `dataOutputs` 统一设计」的既有结论不变。
+- **数据入口依赖**：全部依赖 flow.md 的 `invoke("onBus", BusMessage)` 统一入口与
+  `bus_type` 分流——**本节是 flow.md F1 之后的下游消费方**，不独立先行。
+
+### 10.5 实施路线（TR 系列，远期）
+
+| 阶段 | 内容 | 依赖 |
+|------|------|------|
+| TR1 | 形态框架：ITraceForm / TraceFormRegistry + Trace 侧栏折叠栏按形态分节 + 帧列表型收编为内置形态（CAN 零回归验收） | flow.md F1 |
+| TR2 | 聚合监视型：CAN 周期报文最新值表（覆盖模式的推广 + 信号解码列，与 §4.5 统计协同） | TR1 |
+| TR3 | 事务配对型：TransactionAssembler + UDS/ISO-TP 服务配对（与 `UdsView` 融合评估） | TR1 + 诊断模块深化 |
+| TR4 | 文本日志流型 + 字节流型：串口 / TCP / 文件源（通用 Flow 场景，QHexEdit2 复用 T5 成果） | flow.md F2 |
+| TR5 | 时序段型：LIN 调度表 / FlexRay 周期视图（与 Graphic 时间轴共用坐标体系） | LIN / FlexRay 协议接入 |
+| TR6 | 混合事件流：多协议同流 + 事件类型差异化列（收编 §九 G-F9） | 插件 v2 协议冻结 |
+
+### 10.6 与既有规划的关系
+
+| 既有项 | 关系 |
+|--------|------|
+| doc/flow.md | 上下游配套：Flow 管「数据怎么来、怎么解析」，本节管「以什么形态看」；flow.md §九 openbus_trace 行落地 `traceColumns()` 时同步预留形态接口（flow.md §十二 已互链） |
+| Graphic模块设计文档.md §十一 | 同构的形态框架（ITraceForm / IGraphicForm 同注册模式），侧栏折叠栏交互一致；Trace ③ 聚合监视与 Graphic ⑤ 仪表盘同源不同皮（最新值监视的表格皮 / 图形皮） |
+| §九 G-F9 混合事件流 | 收编为 TR6，触发条件（插件 v2 协议冻结）不变 |
+| §1.1 覆盖模式 | 聚合监视型（③）的退化形式：固定模式非周期事件只留最新一行 |
+| §4.5 统计面板 | 聚合监视型的伴生视图（同数据源分视角） |
+| §七 实施计划 | TR 系列列为战略项，不占 T1-T13 近期批次 |

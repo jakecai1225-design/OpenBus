@@ -8,9 +8,9 @@
 #include "core/driver/driverregistry.h"
 #include "core/appconfig.h"
 #include "core/sessionmanager.h"
-#include "ui/graphicview.h"
+// ui/graphicview.h 已移除 — Graphic 视图经 ModuleRegistry "graphic" 模块操控（B5-5）
 #include "ui/thememanager.h"
-#include "ui/marketmodel.h"
+#include "core/marketmodel.h"
 #include "core/driver/marketindex.h"
 #include "core/plugin/pluginmanager.h"
 
@@ -826,10 +826,8 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
             this, &GraphicConfigPanel::onContextMenu);
 }
 
-void GraphicConfigPanel::setGraphicView(GraphicView *view)
-{
-    m_graphicView = view;
-}
+// setGraphicView 已随 B5-5 移除 — 面板不再持有 GraphicView 指针，
+// Graphic 实例编排统一经壳 → ModuleRegistry "graphic" 模块
 
 void GraphicConfigPanel::onNewGraphic()
 {

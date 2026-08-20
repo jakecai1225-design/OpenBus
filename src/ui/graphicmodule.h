@@ -2,6 +2,10 @@
 #define GRAPHIC_MODULE_H
 
 #include "core/module/imodule.h"
+
+#include <QList>
+#include <QMap>
+#include <QPointer>
 #include <QVector>
 #include <QVariantMap>
 
@@ -40,26 +44,8 @@ public:
 private:
     QMap<QString, QPointer<GraphicView>> m_instances;             ///< instance id → GraphicView* (tracked)
     QList<QPointer<GraphicView>> m_viewList;                      ///< All created views (for iteration onFrame/clearDataAll)
-    QList<QPointer<GraphicView>> m_cursorLinkedViews;              ///< Views with cursor linkage established
     DataWindow *m_dataWindow = nullptr;                            ///< Cached DataWindow instance (single)
     ShellContext m_ctx;                                           ///< Stored context for dialog/dataWindow parent
-
-    /**
-     * @brief Convert DbcSignal struct to QVariantMap (serializable across DLL boundaries)
-     */
-    static QVariantMap dbcSignalToVariantMap(const DbcSignal &sig);
-
-    /**
-     * @brief Convert QVariantMap back to DbcSignal
-     */
-    static DbcSignal variantMapToDbcSignal(const QVariantMap &map);
-
-    /**
-     * @brief Build full GraphicView::Signal from name/canId/extended + DbcSignal lookup
-     * Used by shell when forwarding onFrameDoubleClicked/onSignalDoubleClicked results
-     */
-    static QVariantMap buildSignalMap(qint32 canId, bool extended, const QString &name,
-                                       const QVariantMap &dbcSigOverride);
 };
 
 #endif // GRAPHIC_MODULE_H

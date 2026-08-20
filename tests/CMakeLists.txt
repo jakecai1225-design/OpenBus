@@ -70,6 +70,8 @@ target_link_libraries(test_ui_offscreen PRIVATE
     openbus_transceive
     openbus_dbc
     openbus_flow
+    openbus_trace       # B5：Trace/Graphic 页迁独立 DLL——默认实例创建与
+    openbus_graphic     # TraceTab 直调门控（setRunning）需链入导入库
     Qt6::Test
 )
 if(WIN32)

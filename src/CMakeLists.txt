@@ -97,6 +97,9 @@ set(SRC_CORE
     core/plugin/pluginconvertjob.cpp
     core/plugin/pluginmanager.h
     core/plugin/pluginmanager.cpp
+    # 市场数据聚合（B5-5 自 ui/ 迁入：侧栏/壳/市场页共用，聚合源全在 core）
+    core/marketmodel.h
+    core/marketmodel.cpp
     # 业务模块接口（拆分方案 §4.2 — 壳与业务 DLL 的唯一契约）
     core/module/imodule.h
     core/module/moduleregistry.h
@@ -123,31 +126,30 @@ set(SRC_UTILS
 )
 
 # ui 层 — 界面组件
+# （trace/graphic 文件簇已迁出（拆分方案 B5）：见 openbus_trace / openbus_graphic）
 set(SRC_UI
     ui/mainwindow.h
     ui/mainwindow.cpp
-    ui/traceview.h
-    ui/traceview.cpp
-    ui/tracestatisticswidget.h
-    ui/tracestatisticswidget.cpp
-    ui/tracediffwidget.h
-    ui/tracediffwidget.cpp
-    ui/filterheaderview.h
-    ui/filterheaderview.cpp
-    ui/columnfilterpopup.h
-    ui/columnfilterpopup.cpp
-    ui/graphicview.h
-    ui/graphicview.cpp
-    ui/graphic/downsample.h
-    ui/graphic/downsample.cpp
-    ui/filterbar.h
-    ui/filterbar.cpp
-    ui/signalconfigdialog.h
-    ui/signalconfigdialog.cpp
+    # B6 瘦身：mainwindow 同一类拆为部分实现文件（doc/拆分应用实施方案.md §4.5）
+    ui/mainwindow_setup.cpp      # 构造分阶段装配（服务/插件/数据管线/侧栏/工程接线）
+    ui/mainwindow_chrome.cpp     # 菜单栏/窗口按钮/布局/状态栏/dock 切换/eventFilter
+    ui/mainwindow_actions.cpp    # 录制/回放/导入/快捷按钮/终端命令/统计
+    ui/mainwindow_frameflow.cpp  # 帧管线/回放进度/DBC 信号联动/测量门控编排
+    ui/mainwindow_pages.cpp      # 页面打开槽 + 面板列表刷新
+    ui/mainwindow_project.cpp    # 工程与会话生命周期 + closeEvent
+    ui/mainwindow_dialogs.cpp    # 帮助对话框 + 插件集成槽
+    # traceview/tracestatisticswidget/tracediffwidget/filterheaderview/
+    # columnfilterpopup/filterbar/colorruleeditor 迁入 openbus_trace.dll（B5）
+    # graphicview/graphic/downsample/signalconfigdialog/datawindow 迁入
+    # openbus_graphic.dll（B5）
     # dbcimportdialog 迁入 openbus_transceive.dll（拆分方案 B2：
     # 唯一使用者 signalsendtab；B3 openbus_dbc 落地时可再评估归属）
-    ui/settingsdialog.h
-    ui/settingsdialog.cpp
+    # settingsdialog 已改造为 settingspage（QWidget 标签页形态，侧栏设置条目
+    # 不再弹窗）；shortcutspage 为快捷键参考标签页
+    ui/settingspage.h
+    ui/settingspage.cpp
+    ui/shortcutspage.h
+    ui/shortcutspage.cpp
     ui/activitybar.h
     ui/activitybar.cpp
     ui/bottompanel.h
@@ -160,13 +162,10 @@ set(SRC_UI
     ui/spliteditorarea.cpp
     # signalsendtab/playbacktab/offlineanalysistab/recordtab 迁入
     # openbus_transceive.dll（拆分方案 B2）
-    ui/datawindow.h
-    ui/datawindow.cpp
-    ui/colorruleeditor.h
-    ui/colorruleeditor.cpp
     # dbcdetailtab/tools/dbcsignallistview 迁入 openbus_dbc.dll（拆分方案 B3）
     # thememanager 迁入 openbus_data（拆分方案 §4.3：被全部业务使用，须与单例们同 DLL）
-    # markettab/marketmodel/marketmodule 迁入 openbus_market.dll（拆分方案 B1）
+    # markettab/marketmodule 迁入 openbus_market.dll（拆分方案 B1）；
+    # marketmodel 迁入 openbus_data（B5-5：侧栏/壳/市场页共用）
     # measurementsetupview/deviceconnectiontab 迁入 openbus_flow.dll（拆分方案 B4）
     # 工具集 — 内置分析工具（原 blfasconverter/dbctoolview/loganalysisview 已插件化，见 plugins/）
     # dbcsignallistview 迁入 openbus_dbc.dll（拆分方案 B3）
@@ -272,15 +271,14 @@ target_precompile_headers(openbus_data PRIVATE
 
 # ============================================================
 #  openbus_market — 插件市场业务 DLL（拆分方案 B1，模块模板）
-#  markettab / marketmodel / marketmodule + 唯一导出的 C 工厂
+#  markettab / marketmodule + 唯一导出的 C 工厂
 #  openbus_createMarketModule()（§4.2 决策 1：最小 ABI 面）
-#  依赖：openbus_data（单例经 DLL 共享）+ Qt Widgets/Network/Svg
+#  依赖：openbus_data（单例经 DLL 共享；marketmodel 聚合层 B5-5 已迁 data）
+#  + Qt Widgets/Network/Svg
 # ============================================================
 add_library(openbus_market SHARED
     ui/markettab.h
     ui/markettab.cpp
-    ui/marketmodel.h
-    ui/marketmodel.cpp
     ui/marketmodule.h
     ui/marketmodule.cpp
 )
@@ -525,6 +523,134 @@ target_precompile_headers(openbus_flow PRIVATE
 )
 
 # ============================================================
+#  openbus_trace — Trace 业务 DLL（拆分方案 B5）
+#  TraceTab（Wireshark 风格三栏：过滤栏 + 报文列表 + Explorer 底栏）及其
+#  组件簇（TraceView/统计/差异/列过滤/FilterBar/着色规则编辑器）
+#  + TraceModule 适配器，唯一导出 C 工厂 openbus_createTraceModule()。
+#  依赖：openbus_data（dbcManager 单例经 ShellContext 指针使用）+ Qt Widgets/Svg
+# ============================================================
+add_library(openbus_trace SHARED
+    ui/traceview.h
+    ui/traceview.cpp
+    ui/tracestatisticswidget.h
+    ui/tracestatisticswidget.cpp
+    ui/tracediffwidget.h
+    ui/tracediffwidget.cpp
+    ui/filterheaderview.h
+    ui/filterheaderview.cpp
+    ui/columnfilterpopup.h
+    ui/columnfilterpopup.cpp
+    ui/filterbar.h
+    ui/filterbar.cpp
+    ui/colorruleeditor.h
+    ui/colorruleeditor.cpp
+    ui/tracemodule.h
+    ui/tracemodule.cpp
+)
+
+target_link_libraries(openbus_trace PUBLIC
+    openbus_data
+    Qt6::Widgets
+    Qt6::Svg
+)
+
+# PCH — Trace 页以表格视图为主
+target_precompile_headers(openbus_trace PRIVATE
+    <QObject>
+    <QWidget>
+    <QFrame>
+    <QVBoxLayout>
+    <QHBoxLayout>
+    <QSplitter>
+    <QLabel>
+    <QPushButton>
+    <QToolButton>
+    <QTableView>
+    <QHeaderView>
+    <QLineEdit>
+    <QMenu>
+    <QAction>
+    <QTabWidget>
+    <QComboBox>
+    <QCheckBox>
+    <QMessageBox>
+    <QFileDialog>
+    <QTimer>
+    <QSettings>
+    <vector>
+    <string>
+    <memory>
+    <functional>
+    <algorithm>
+)
+
+# ============================================================
+#  openbus_graphic — Graphic 业务 DLL（拆分方案 B5）
+#  GraphicView（qcustomplot 曲线多实例）+ 降采样 + 信号配置对话框 +
+#  DataWindow 实时信号表格 + GraphicModule 适配器，唯一导出 C 工厂
+#  openbus_createGraphicModule()。
+#  依赖：openbus_data + qcustomplot + Qt Widgets/Svg/PrintSupport
+# ============================================================
+add_library(openbus_graphic SHARED
+    ui/graphicview.h
+    ui/graphicview.cpp
+    ui/graphic/downsample.h
+    ui/graphic/downsample.cpp
+    ui/signalconfigdialog.h
+    ui/signalconfigdialog.cpp
+    ui/datawindow.h
+    ui/datawindow.cpp
+    ui/graphicmodule.h
+    ui/graphicmodule.cpp
+)
+
+target_link_libraries(openbus_graphic PUBLIC
+    openbus_data
+    Qt6::Widgets
+    Qt6::Svg
+)
+
+# qcustomplot: 仅 graphicview.cpp 使用（前向声明）→ PRIVATE；
+# qcustomplot 传递依赖 Qt6::PrintSupport
+target_link_libraries(openbus_graphic PRIVATE
+    qcustomplot
+)
+
+# PCH — Graphic 页以 qcustomplot 自绘为主
+target_precompile_headers(openbus_graphic PRIVATE
+    <QObject>
+    <QWidget>
+    <QVBoxLayout>
+    <QHBoxLayout>
+    <QLabel>
+    <QPushButton>
+    <QToolButton>
+    <QComboBox>
+    <QCheckBox>
+    <QSpinBox>
+    <QDoubleSpinBox>
+    <QMenu>
+    <QAction>
+    <QDialog>
+    <QDialogButtonBox>
+    <QTableWidget>
+    <QTableWidgetItem>
+    <QHeaderView>
+    <QMessageBox>
+    <QFileDialog>
+    <QTimer>
+    <QSettings>
+    <QPen>
+    <QBrush>
+    <QPainter>
+    <vector>
+    <string>
+    <memory>
+    <functional>
+    <algorithm>
+)
+
+# ============================================================
 #  openbus_ui — 壳 UI 静态库 (剩余界面组件；thin archive 打包)
 #  改 UI 代码时只需重编译此库 + 最终链接，不影响 data/market
 # ============================================================
@@ -538,13 +664,10 @@ target_link_libraries(openbus_ui PUBLIC
     Qt6::Widgets
 )
 
-# qcustomplot: 仅 graphicview.cpp 使用，graphicview.h 用前向声明 → PRIVATE
 # Qt6::Svg: SVG 线条图标渲染 (activitybar / sidebarpanels)
-# Qt6::Network: MarketTab 市场下载/图标加载 (marketindex)
+# Qt6::Network: 侧栏 ExtensionsPanel 图标异步加载（marketmodel B5-5 已迁 data）
 target_link_libraries(openbus_ui PRIVATE
-    qcustomplot
     Qt6::Svg
-    Qt6::Network
 )
 
 # Windows: psapi 用于进程资源监控 (ExtensionsTab)
@@ -607,9 +730,9 @@ qt_add_executable(openbus
 
 target_link_libraries(openbus PRIVATE
     openbus_ui
-    # 过渡（B5 解耦前）：sidebarpanels 仍引用 MarketModel:: 聚合函数与
-    # MarketItem/FrameRow 类型（§4.3 已知簇间耦合）。MinGW 全符号导出，
-    # 链接 market.dll 导入库即可解析；main() 经 C 工厂注册模块。
+    # 过渡（B5-5 已解耦）：marketmodel 已迁 openbus_data，壳不再链接
+    # openbus_market 亦可解析 MarketItem/MarketModel 符号；保留链接仅为
+    # main() 经 C 工厂注册模块（§4.2 决策 1）
     openbus_market
     # 收发模块（B2）：main() 经 C 工厂 openbus_createTransceiveModule 注册，
     # 壳经 ModuleRegistry::createPage/invoke/query 操控四页面
@@ -620,11 +743,12 @@ target_link_libraries(openbus PRIVATE
     # flow 模块（B4）：main() 经 C 工厂 openbus_createFlowModule 注册，
     # shell 经 createPage/invoke/query 操控 Flow/设备连接页与测量编排
     openbus_flow
-    # 注（O-4）：trace/graphic 模块拆分（B5）未完成——tracemodule.cpp /
-    # graphicmodule.cpp 仅为迁移物料，无 add_library 目标；TraceTab/GraphicView
-    # 仍编入 openbus_ui 静态库由壳直接创建，main.cpp 亦未注册这两个模块
-    # 工厂，故此处不链接（旧引用曾致 ld 找不到 -lopenbus_trace/-lopenbus_graphic，
-    # 主程序自 8/19 后无法链接重建）。
+    # trace 模块（B5）：main() 经 C 工厂 openbus_createTraceModule 注册，
+    # 壳经 createPage/invoke/query 操控 Trace 页与帧分发/过滤/着色
+    openbus_trace
+    # graphic 模块（B5）：main() 经 C 工厂 openbus_createGraphicModule 注册，
+    # 壳经 createPage/invoke/query 操控 Graphic 页/DataWindow 与信号添加
+    openbus_graphic
 )
 
 # ============================================================

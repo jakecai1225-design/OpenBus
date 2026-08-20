@@ -3,7 +3,7 @@
 #include <QObject>   // connect/emit（PCH 已含，显式声明保证独立可编译）
 #include <QWidget>
 
-#include "marketmodel.h"
+#include "core/marketmodel.h"
 #include "markettab.h"
 #include "core/plugin/pluginmanager.h"
 

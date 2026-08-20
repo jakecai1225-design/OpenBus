@@ -8,7 +8,7 @@
 #include <QColor>
 #include <QRectF>
 
-#include "ui/marketmodel.h"   // MarketItem / FrameRow / MarketEntryData（§13.10）
+#include "core/marketmodel.h" // MarketItem / FrameRow / MarketEntryData（§13.10，B5 迁 openbus_data）
 
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -22,7 +22,6 @@ class QPushButton;
 class QLineEdit;
 class QToolButton;
 class DbcManager;
-class GraphicView;
 class CanSimulator;
 
 // ============================================================
@@ -182,7 +181,6 @@ class GraphicConfigPanel : public SidePanel
 public:
     explicit GraphicConfigPanel(QWidget *parent = nullptr);
 
-    void setGraphicView(GraphicView *view);
     void refreshList(const QStringList &names);
 
 signals:
@@ -200,7 +198,6 @@ private slots:
 private:
     QListWidget *m_pageList;
     QPushButton *m_delBtn = nullptr;
-    GraphicView *m_graphicView = nullptr;
 };
 
 // ============================================================

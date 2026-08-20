@@ -137,6 +137,48 @@ struct DbcSignal
 };
 
 /**
+ * @brief DbcSignal → QVariantMap（跨模块接口传递；B5-5）
+ *
+ * graphic 模块 invoke("addSignal"/"addSignals"/"loadSignalConfigs") 的
+ * sigMap["dbcSig"] 字段约定使用本序列化（见 imodule.h）。仅覆盖 GraphicView
+ * 所需字段（muxType/valueTable 未用，默认值）。
+ */
+inline QVariantMap dbcSignalToMap(const DbcSignal &sig)
+{
+    QVariantMap map;
+    map["name"] = sig.name;
+    map["startBit"] = sig.startBit;
+    map["bitLength"] = sig.bitLength;
+    map["littleEndian"] = sig.littleEndian;
+    map["isSigned"] = sig.isSigned;
+    map["factor"] = sig.factor;
+    map["offset"] = sig.offset;
+    map["minimum"] = sig.minimum;
+    map["maximum"] = sig.maximum;
+    map["unit"] = sig.unit;
+    map["receiver"] = sig.receiver;
+    return map;
+}
+
+/// QVariantMap → DbcSignal（dbcSignalToMap 的逆变换，缺省字段取默认值）
+inline DbcSignal dbcSignalFromMap(const QVariantMap &map)
+{
+    DbcSignal sig;
+    sig.name = map.value("name").toString();
+    sig.startBit = map.value("startBit").toInt();
+    sig.bitLength = map.value("bitLength", 1).toInt();
+    sig.littleEndian = map.value("littleEndian", true).toBool();
+    sig.isSigned = map.value("isSigned").toBool();
+    sig.factor = map.value("factor", 1.0).toDouble();
+    sig.offset = map.value("offset").toDouble();
+    sig.minimum = map.value("minimum").toDouble();
+    sig.maximum = map.value("maximum").toDouble();
+    sig.unit = map.value("unit").toString();
+    sig.receiver = map.value("receiver").toString();
+    return sig;
+}
+
+/**
  * @brief DBC 报文定义
  */
 struct DbcMessage

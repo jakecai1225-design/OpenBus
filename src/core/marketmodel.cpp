@@ -1,4 +1,4 @@
-#include "marketmodel.h"
+#include "core/marketmodel.h"
 
 #include "core/driver/driverregistry.h"
 #include "core/driver/marketindex.h"
@@ -12,6 +12,7 @@
 #include <QFont>
 #include <QGuiApplication>
 #include <QIcon>
+#include <QJsonObject>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QNetworkAccessManager>

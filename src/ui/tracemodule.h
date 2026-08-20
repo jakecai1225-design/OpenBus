@@ -3,6 +3,10 @@
 
 #include "core/module/imodule.h"
 
+#include <QList>
+#include <QMap>
+#include <QPointer>
+
 class TraceTab;
 class FilterPresetManager;
 
@@ -33,9 +37,12 @@ public:
 
     /**
      * @brief Invoke actions
-     * @param action: "onFrame", "setAutoScroll", "setRunning"/"setRunningAll", 
-     *                "clearTraceAll", "clearAll", "setFilterExpression", "jumpToFrame",
-     *                "editColorRules", "addSignal" (internal)
+     * @param action: "onFrame"(CanFrame), "setAutoScroll"(bool),
+     *                "setRunning"(QVariantList{id, bool}), "setRunningAll"(bool),
+     *                "clearTraceAll", "clearAll",
+     *                "appendFrames"(QVariantList{QWidget* target, QVariantList frames}),
+     *                "setFilterExpression"(QVariantList{QWidget*, expr, report}),
+     *                "jumpToFrame"(QVariantList{QWidget*, int}), "editColorRules"
      * @param arg: can vary per action
      */
     void invoke(const QString &action, const QVariant &arg) override;
@@ -44,6 +51,7 @@ public:
      * @brief Query handlers
      * @param what: "isTrace"(QWidget*→bool), "instance"(id→QWidget*),
      *              "filterExpression"(id→QString), "frameCount"(QWidget*→int),
+     *              "selectedFrames"(QWidget*→QVariantList<CanFrame>),
      *              "colorRules"(QVariantList of maps)
      */
     QVariant query(const QString &what, const QVariant &arg) override;

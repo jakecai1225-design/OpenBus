@@ -1,0 +1,426 @@
+#include "mainwindow.h"
+#include <QTimer>
+#include "core/canframe.h"
+#include "core/recorder.h"
+#include "core/player.h"
+#include "core/cansimulator.h"
+#include "core/candevicemanager.h"
+#include "core/dbcmanager.h"
+#include "core/dbcdata.h"
+#include "core/canfileio/canfileio.h"
+#include "core/canfileio/canfileio_factory.h"
+#include "models/cantracemodel.h"
+#include "models/cantraceproxymodel.h"
+#include "ui/activitybar.h"
+#include "ui/panels/sidebarpanels.h"
+#include "ui/thememanager.h"
+#include "ui/bottompanel.h"
+#include "ui/rightpanel.h"
+#include "ui/spliteditorarea.h"
+// ui/measurementsetupview.h / ui/deviceconnectiontab.h 已移除 —
+// Flow/设备连接页经 ModuleRegistry "flow" 模块创建（拆分方案 B4）
+#include "core/driver/driverregistry.h"
+#include "core/module/moduleregistry.h"
+#include "core/module/imodule.h"
+#include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
+#include "core/marketmodel.h"   // MarketItem（ExtensionsPanel 信号类型，经 QVariant 传给市场模块；B5-5 迁 data 层）
+// ui/udsview.h, ui/canopenview.h 已移除 — UDS/CANopen 由插件 uds-diagnostic/canopen-explorer 提供
+// ui/markettab.h 已移除 — 插件市场页经 ModuleRegistry "market" 模块创建（拆分方案 B0）
+// ui/signalsendtab.h / playbacktab.h / offlineanalysistab.h / recordtab.h 已移除 —
+// 收发四页经 ModuleRegistry "transceive" 模块创建（拆分方案 B2）
+// ui/dbcdetailtab.h / ui/tools/dbcsignallistview.h 已移除 —
+// DBC 页经 ModuleRegistry "dbc" 模块创建（拆分方案 B3）
+// ui/traceview.h / ui/graphicview.h / ui/datawindow.h / ui/filterbar.h /
+// ui/colorruleeditor.h 已移除 — Trace/Graphic/DataWindow/着色规则经
+// ModuleRegistry "trace"/"graphic" 模块创建与操控（拆分方案 B5）
+#include "ui/tools/iographview.h"
+#include "core/busstatistics.h"
+// core/filterpresetmanager.h 已移除 — 过滤预设随 Trace 页迁入 TraceModule（B5）
+#include "core/bookmarkmanager.h"
+// core/triggerrecorder.h 已移除 — 触发录制随录制页迁入 transceive 模块（拆分方案 B2）
+#include "utils/canutils.h"
+#include "core/appconfig.h"
+#include "core/projectmanager.h"
+#include "utils/svg_icon.h"
+#include "ui/settingspage.h"
+#include "ui/shortcutspage.h"
+#include "core/file_import/file_importer.h"
+#include "core/plugin/pluginmanager.h"
+#include "core/plugin/plugininfo.h"
+#include "models/viewportproxy.h"
+
+#include <QMenuBar>
+#include <QMenu>
+#include <QAction>
+#include <QDockWidget>
+#include <QTabWidget>
+#include <QVBoxLayout>
+#include <QSpinBox>
+#include <QHBoxLayout>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QCloseEvent>
+#include <QDateTime>
+#include <QStatusBar>
+#include <QApplication>
+#include <QFileInfo>
+#include <QDir>
+#include <QPlainTextEdit>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QTextBrowser>
+#include <QToolButton>
+#include <QMouseEvent>
+#include <QWindow>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QLineEdit>
+#include <QSlider>
+#include <QComboBox>
+#include <QProgressDialog>
+#include <QRegularExpression>
+#include <algorithm>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <windowsx.h>
+#endif
+
+// ============================================================
+//  MainWindow 页面打开槽（B6 拆分自 mainwindow.cpp）
+//  侧边栏入口 → 各业务页（经 ModuleRegistry 创建）+ 杂项页面 +
+//  面板列表刷新
+// ============================================================
+
+void MainWindow::onOpenMarketTab()
+{
+    // 标签页可能已被关闭并删除，需要重建
+    if (!m_marketWidget)
+        setupMarketTab();
+    if (!m_marketWidget)
+        return;
+    openTab(m_marketWidget, QStringLiteral("插件市场"));
+    marketInvoke(QStringLiteral("refreshInstalled"));
+    // ＋新增设备跳转后直接聚焦搜索（方案 §13.6）
+    marketInvoke(QStringLiteral("focusSearch"));
+}
+
+void MainWindow::onOpenTraceTab()
+{
+    // 经 trace 模块创建（拆分方案 B5）；注册为实例以纳入 Flow 门控与帧分发
+    createTraceInstance(QString("trace%1").arg(++m_traceCount));
+}
+
+void MainWindow::onTracePageSelected(int row)
+{
+    const auto allTabs = m_editorArea->allTabWidgets();
+    int traceIdx = 0;
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains("Trace")) {
+                if (traceIdx == row) {
+                    tw->setCurrentIndex(i);
+                    m_tabLabel->setText(tw->tabText(i));
+                    return;
+                }
+                traceIdx++;
+            }
+        }
+    }
+}
+
+void MainWindow::onOpenSendTab()
+{
+    // 在所有拆分组中查找已有的发送标签页
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains("发送")) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
+                return;
+            }
+        }
+    }
+    // 未找到则经收发模块创建（拆分方案 B2：页面归 openbus_transceive.dll，
+    // 装配逻辑在模块内完成，壳只提供 ShellContext）
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("transceive"))) {
+        ShellContext ctx = makeShellContext();
+        if (QWidget *page = mod->createPage(QStringLiteral("signalsend"), ctx))
+            openTab(page, "发送");
+    }
+}
+
+void MainWindow::onOpenPlaybackTab()
+{
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains("回放")) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
+                return;
+            }
+        }
+    }
+    // 未找到则经收发模块创建（拆分方案 B2）
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("transceive"))) {
+        ShellContext ctx = makeShellContext();
+        if (QWidget *page = mod->createPage(QStringLiteral("playback"), ctx))
+            openTab(page, "回放");
+    }
+}
+
+void MainWindow::onOpenOfflineAnalysisTab()
+{
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains(QStringLiteral("离线分析"))) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
+                return;
+            }
+        }
+    }
+    // 未找到则经收发模块创建（拆分方案 B2）
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("transceive"))) {
+        ShellContext ctx = makeShellContext();
+        if (QWidget *page = mod->createPage(QStringLiteral("offlineanalysis"), ctx))
+            openTab(page, QStringLiteral("离线分析"));
+    }
+}
+
+void MainWindow::onOpenRecordTab()
+{
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains("录制")) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
+                return;
+            }
+        }
+    }
+    // 未找到则经收发模块创建（拆分方案 B2）
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("transceive"))) {
+        ShellContext ctx = makeShellContext();
+        if (QWidget *page = mod->createPage(QStringLiteral("record"), ctx))
+            openTab(page, "录制");
+    }
+}
+
+// setupSendTab/setupPlaybackTab/setupOfflineAnalysisTab/setupRecordTab 已随
+// 收发四页迁入 TransceiveModule（拆分方案 B2 §4.5：模块自己连接自己的信号槽）
+
+void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName, int deviceType)
+{
+    // 查找已有的设备连接标签页
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains("设备连接")) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
+                flowInvoke(QStringLiteral("setDevice"),
+                           QVariantList{ deviceKind, devIndex, deviceName, deviceType });
+                return;
+            }
+        }
+    }
+
+    // 未找到则经 flow 模块创建（拆分方案 B4：param 携带 DevicePanel 选中设备）
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("flow"))) {
+        ShellContext ctx = makeShellContext();
+        if (QWidget *page = mod->createPage(
+                QStringLiteral("device"),
+                QVariantList{ deviceKind, devIndex, deviceName, deviceType }, ctx))
+            openTab(page, QStringLiteral("设备连接"));
+    }
+}
+
+void MainWindow::openDevicePage()
+{
+    // Real 块入口：查找已有设备连接页，未找到则经 flow 模块创建（不指定设备）
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains(QStringLiteral("设备连接"))) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
+                return;
+            }
+        }
+    }
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("flow"))) {
+        ShellContext ctx = makeShellContext();
+        if (QWidget *page = mod->createPage(QStringLiteral("device"), ctx))
+            openTab(page, QStringLiteral("设备连接"));
+    }
+}
+
+// setupDeviceTab 已随设备连接页迁入 FlowModule（拆分方案 B4：
+// 数据层操作模块内完成，状态栏/实例门控经 shellInvoke 回调壳）
+
+// linkGraphicCursor 已随 Graphic 页迁入 GraphicModule::createPage（拆分方案 B5：
+// 视图间游标联动在模块内逐对互连，壳不再持有 GraphicView 类型）
+
+void MainWindow::onNewGraphicRequested()
+{
+    // 经 graphic 模块创建（拆分方案 B5：装配/游标联动在模块内完成）
+    createGraphicInstance(QString("graphic%1").arg(++m_graphicCount));
+}
+
+void MainWindow::onOpenMeasurementSetup()
+{
+    // 查找已有的 flow 标签页
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains("Flow", Qt::CaseInsensitive)) {
+                tw->setCurrentIndex(i);
+                m_tabLabel->setText(tw->tabText(i));
+                return;
+            }
+        }
+    }
+
+    // 创建新的 flow 标签页（拆分方案 B4：装配在 flow 模块内完成，
+    // 数据层操作模块侧处理，跨模块编排经 shellInvoke 回调壳槽）
+    QWidget *view = nullptr;
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("flow"))) {
+        ShellContext ctx = makeShellContext();
+        view = mod->createPage(QStringLiteral("setup"), ctx);
+    }
+    if (!view)
+        return;
+    // measurementToggled/moduleToggled/moduleOpened/moduleInstanceClosed 等
+    // 编排连接已迁入 FlowModule → 经 shellInvoke 回调壳槽（拆分方案 B4）
+
+    // moduleInstanceClosed/dbcSelectRequested/dbcRemoveRequested/channelFilterRequested
+    // 连接已迁入 FlowModule（拆分方案 B4：前者经 shellInvoke 回调壳，后三者模块侧完成）
+
+    // 先打开 Flow 标签页，确保标签页顺序为 Flow → Trace1 → Graphic1
+    openTab(view, "Flow");
+
+    // 注册默认 Trace1/Graphic1 实例到 flow 画布（经模块创建或复用现有实例，
+    // 拆分方案 B5；createXxxInstance 内部完成 openTab + flow 注册 + destroyed 清理）
+    createTraceInstance(QStringLiteral("trace1"));
+    createGraphicInstance(QStringLiteral("graphic1"));
+}
+
+
+// ============================================================
+//  P0/P1 新增功能实现
+// ============================================================
+
+void MainWindow::onOpenDataWindow()
+{
+    // Data Window 随 Graphic 页迁入 openbus_graphic.dll（拆分方案 B5：
+    // 单实例缓存在模块内，壳只负责开标签页）
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("graphic"))) {
+        ShellContext ctx = makeShellContext();
+        if (QWidget *page = mod->createPage(QStringLiteral("datawindow"), ctx))
+            openTab(page, QStringLiteral("Data Window"));
+    }
+}
+
+void MainWindow::onOpenIOGraph()
+{
+    if (!m_ioGraph) {
+        m_ioGraph = new IOGraphView(this);
+    }
+    openTab(m_ioGraph, QStringLiteral("I/O Graph"));
+}
+
+void MainWindow::onOpenColorRuleEditor()
+{
+    // 着色规则编辑随 Trace 页迁入 TraceModule（拆分方案 B5：ColorRuleEditor
+    // 归模块所有，规则加载/应用到全部实例在模块内完成）
+    traceInvoke(QStringLiteral("editColorRules"));
+}
+
+void MainWindow::onBookmarkJumped(int frameIndex)
+{
+    // 跳转到指定帧（经 trace 模块，拆分方案 B5；当前页非 Trace 时忽略）
+    QWidget *traceTab = m_editorArea->currentWidget();
+    if (!traceQuery(QStringLiteral("isTrace"), QVariant::fromValue(traceTab)).toBool())
+        return;
+    traceInvoke(QStringLiteral("jumpToFrame"),
+                QVariantList{ QVariant::fromValue(traceTab), frameIndex });
+}
+
+// onTriggerRecording 已随录制页迁入 TransceiveModule（拆分方案 B2；
+// TriggerRecorder 归模块所有，状态栏提示经 ctx.shellInvoke("statusMessage")）
+
+void MainWindow::onGraphicPageSelected(int row)
+{
+    const auto allTabs = m_editorArea->allTabWidgets();
+    int graphicIdx = 0;
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            if (tw->tabText(i).contains("Graphic")) {
+                if (graphicIdx == row) {
+                    tw->setCurrentIndex(i);
+                    m_tabLabel->setText(tw->tabText(i));
+                    return;
+                }
+                graphicIdx++;
+            }
+        }
+    }
+    // 如果没找到匹配的标签页，创建新的
+    onNewGraphicRequested();
+}
+
+void MainWindow::onSettingsRequested(const QString &section)
+{
+    // 侧栏设置面板条目 → 统一以标签页打开（不再弹模态对话框）：
+    //   "快捷键"   → 快捷键参考页（ShortcutsPage，单实例）
+    //   "通用设置" → 设置页（SettingsPage，定位"通用"分类；"设置"后缀剥离）
+    //   其他条目   → 设置页（分类未匹配时页内回落"全部设置"）
+    // 标签页关闭即销毁（SplitEditorArea::closeTab → deleteLater），destroyed 回调置空单例指针。
+    if (section == QStringLiteral("快捷键")) {
+        if (!m_shortcutsPage) {
+            m_shortcutsPage = new ShortcutsPage(this);
+            connect(m_shortcutsPage, &QObject::destroyed, this, [this]() {
+                m_shortcutsPage = nullptr;
+            });
+        }
+        openTab(m_shortcutsPage, QStringLiteral("快捷键"));
+        return;
+    }
+
+    if (!m_settingsPage) {
+        m_settingsPage = new SettingsPage(this);
+        connect(m_settingsPage, &QObject::destroyed, this, [this]() {
+            m_settingsPage = nullptr;
+        });
+    }
+    openTab(m_settingsPage, QStringLiteral("设置"));
+
+    // "通用设置" → "通用"；其余去尾"设置"后按分类名匹配（未匹配回落"全部设置"）
+    QString category = section;
+    if (category.endsWith(QStringLiteral("设置")))
+        category.chop(2);
+    m_settingsPage->setCategory(category);
+}
+
+void MainWindow::refreshPanelLists()
+{
+    QStringList traceNames, graphicNames;
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            QString name = tw->tabText(i);
+            if (name.contains("Trace"))
+                traceNames << name;
+            if (name.contains("Graphic"))
+                graphicNames << name;
+        }
+    }
+    m_sideBar->tracePanel()->refreshList(traceNames);
+    m_sideBar->graphicConfigPanel()->refreshList(graphicNames);
+}
+

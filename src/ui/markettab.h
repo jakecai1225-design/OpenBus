@@ -6,7 +6,7 @@
 #include <QUrl>
 
 #include "core/driver/marketindex.h"
-#include "marketmodel.h"   // MarketItem / FrameRow / MarketModel 共享层（方案 §13.10）
+#include "core/marketmodel.h"   // MarketItem / FrameRow / MarketModel 共享层（方案 §13.10；B5-5 迁 data 层）
 
 class QLabel;
 class QLineEdit;

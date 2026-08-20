@@ -15,6 +15,8 @@ extern "C" IBusinessModule *openbus_createMarketModule();       // openbus_marke
 extern "C" IBusinessModule *openbus_createTransceiveModule();   // openbus_transceive.dll（B2）
 extern "C" IBusinessModule *openbus_createDbcModule();          // openbus_dbc.dll（B3）
 extern "C" IBusinessModule *openbus_createFlowModule();         // openbus_flow.dll（B4）
+extern "C" IBusinessModule *openbus_createTraceModule();        // openbus_trace.dll（B5）
+extern "C" IBusinessModule *openbus_createGraphicModule();      // openbus_graphic.dll（B5）
 
 int main(int argc, char *argv[])
 {
@@ -36,8 +38,8 @@ int main(int argc, char *argv[])
     // 加载会话状态（含从 AppConfig 迁移 project.recent）
     SessionManager::instance()->load();
 
-    // 注册业务模块（拆分方案 B1/B2/B3：market、transceive、dbc 迁入各自 DLL，
-    // 经其 C 工厂注册；后续模块 DLL 逐个在此追加）
+    // 注册业务模块（拆分方案 B1/B2/B3/B4/B5：market、transceive、dbc、flow、
+    // trace、graphic 迁入各自 DLL，经其 C 工厂注册）
     ModuleRegistry::instance()->registerModule(
         QStringLiteral("market"), &openbus_createMarketModule);
     ModuleRegistry::instance()->registerModule(
@@ -46,6 +48,10 @@ int main(int argc, char *argv[])
         QStringLiteral("dbc"), &openbus_createDbcModule);
     ModuleRegistry::instance()->registerModule(
         QStringLiteral("flow"), &openbus_createFlowModule);
+    ModuleRegistry::instance()->registerModule(
+        QStringLiteral("trace"), &openbus_createTraceModule);
+    ModuleRegistry::instance()->registerModule(
+        QStringLiteral("graphic"), &openbus_createGraphicModule);
 
     // 应用主题
     ThemeManager::instance()->applyTheme("Light");

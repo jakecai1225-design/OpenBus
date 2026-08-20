@@ -1,7 +1,7 @@
-#ifndef SETTINGSDIALOG_H
-#define SETTINGSDIALOG_H
+#ifndef SETTINGSPAGE_H
+#define SETTINGSPAGE_H
 
-#include <QDialog>
+#include <QWidget>
 #include <QJsonObject>
 
 class QTreeWidget;
@@ -13,17 +13,22 @@ class QPushButton;
 class QLabel;
 
 /**
- * @brief VS Code 风格设置对话框
+ * @brief VS Code 风格设置页（标签页形态）
  *
  * 左侧分类树 + 右侧设置项列表，顶部搜索栏。
  * 支持直接编辑 JSON（类似 VS Code 的 settings.json 编辑器）。
+ * 原为模态 SettingsDialog（弹窗）；侧栏设置面板条目改为统一以
+ * 标签页打开后重构为 QWidget 页面，编辑区即所见即所得。
  */
-class SettingsDialog : public QDialog
+class SettingsPage : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit SettingsDialog(QWidget *parent = nullptr);
+    explicit SettingsPage(QWidget *parent = nullptr);
+
+    /// 定位到指定分类（如"通用"/"Trace"；空或未匹配则回到"全部设置"）
+    void setCategory(const QString &category);
 
 private slots:
     void onSearchChanged(const QString &text);
@@ -68,4 +73,4 @@ private:
     void switchToSettingsPage();
 };
 
-#endif // SETTINGSDIALOG_H
+#endif // SETTINGSPAGE_H

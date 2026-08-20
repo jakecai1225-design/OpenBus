@@ -28,57 +28,6 @@ QIcon GraphicModule::icon() const
     return QIcon(QStringLiteral(":/icons/graphic.svg")); // Reuse existing icon if exists
 }
 
-QVariantMap GraphicModule::dbcSignalToVariantMap(const DbcSignal &sig)
-{
-    QVariantMap map;
-    map["name"] = sig.name;
-    map["startBit"] = sig.startBit;
-    map["bitLength"] = sig.bitLength;
-    map["littleEndian"] = sig.littleEndian;
-    map["isSigned"] = sig.isSigned;
-    map["factor"] = sig.factor;
-    map["offset"] = sig.offset;
-    map["minimum"] = sig.minimum;
-    map["maximum"] = sig.maximum;
-    map["unit"] = sig.unit;
-    map["receiver"] = sig.receiver;
-    // Optional fields: muxType, valueTable etc. omitted for brevity (not used by GraphicView currently)
-    return map;
-}
-
-DbcSignal GraphicModule::variantMapToDbcSignal(const QVariantMap &map)
-{
-    DbcSignal sig;
-    sig.name = map.value("name").toString();
-    sig.startBit = map.value("startBit").toInt();
-    sig.bitLength = map.value("bitLength").toInt();
-    sig.littleEndian = map.value("littleEndian").toBool();
-    sig.isSigned = map.value("isSigned").toBool();
-    sig.factor = map.value("factor").toDouble();
-    sig.offset = map.value("offset").toDouble();
-    sig.minimum = map.value("minimum").toDouble();
-    sig.maximum = map.value("maximum").toDouble();
-    sig.unit = map.value("unit").toString();
-    sig.receiver = map.value("receiver").toString();
-    return sig;
-}
-
-QVariantMap GraphicModule::buildSignalMap(qint32 canId, bool extended, const QString &name,
-                                           const QVariantMap &dbcSigOverride)
-{
-    QVariantMap sig;
-    sig["name"] = name;
-    sig["canId"] = static_cast<uint>(canId);
-    sig["extended"] = extended;
-    if (dbcSigOverride.isEmpty()) {
-        // Default values when no DBC signal provided (e.g., frame double-click without DBC)
-        sig["dbcSig"] = dbcSignalToVariantMap(DbcSignal()); // default-constructed DbcSignal
-    } else {
-        sig["dbcSig"] = dbcSigOverride;
-    }
-    return sig;
-}
-
 // ============================================================
 //  Interface Implementation
 // ============================================================
@@ -96,38 +45,32 @@ QWidget *GraphicModule::createPage(const QString &pageId, const QVariant &param,
             m_ctx.addProblem = ctx.addProblem;
         }
 
-        // Register instance
-        QString id = param.canConvert(QString::metaType()) ? param.toString() : QString();
+        // Register instance（param 为壳/flow 页传入的 instanceId）
+        QString id = param.userType() == QMetaType::QString
+                         ? param.toString() : QString();
         if (!id.isEmpty()) {
             m_instances.insert(id, gv);
         }
         m_viewList.append(gv);
 
-        // Cursor linkage: connect to ALL already-created views (bidirectional sync)
-        for (auto *other : qAsConst(m_viewList)) {
-            if (other != gv && !m_cursorLinkedViews.contains(other)) {
-                connect(gv, &GraphicView::cursorMoved, other, &GraphicView::onSyncCursor, Qt::UniqueConnection);
-                connect(other, &GraphicView::cursorMoved, gv, &GraphicView::onSyncCursor, Qt::UniqueConnection);
-                m_cursorLinkedViews.append(other);
-            }
+        // Cursor linkage: bidirectional sync with all existing views
+        // (UniqueConnection 去重；首个视图无对端、第二个起逐对互连；
+        //  模块非 QObject，接收端为对端 GraphicView 本身)
+        for (const auto &otherPtr : qAsConst(m_viewList)) {
+            GraphicView *other = otherPtr.data();
+            if (!other || other == gv)
+                continue;
+            QObject::connect(gv, &GraphicView::cursorMoved, other, &GraphicView::onSyncCursor,
+                    Qt::UniqueConnection);
+            QObject::connect(other, &GraphicView::cursorMoved, gv, &GraphicView::onSyncCursor,
+                    Qt::UniqueConnection);
         }
-        m_cursorLinkedViews.append(gv);
 
-        QObject::connect(gv, &QObject::destroyed, this, [this, gv]() {
-            // Remove from cursor linked list
-            int idx = m_cursorLinkedViews.indexOf(gv);
-            if (idx >= 0)
-                m_cursorLinkedViews.removeAt(idx);
-            // Remove from maps (using pointer value)
-            QString idToRemove;
-            for (auto it = m_instances.begin(); it != m_instances.end(); ++it) {
-                if (it.value().data() == gv) {
-                    idToRemove = it.key();
-                    break;
-                }
-            }
-            if (!idToRemove.isEmpty())
-                m_instances.remove(idToRemove);
+        QObject::connect(gv, &QObject::destroyed, gv, [this, id, gv]() {
+            // strongref 归零先于 destroyed 发射——QPointer::data() 已为空，
+            // 按捕获的 id 移除（指针比较永远失配）；m_viewList 里只有本条目
+            // 的 data() 为空，removeAll 依"空指针等值"恰好只移除本条目
+            m_instances.remove(id);
             m_viewList.removeAll(gv);
         });
 
@@ -135,9 +78,14 @@ QWidget *GraphicModule::createPage(const QString &pageId, const QVariant &param,
 
     } else if (pageId == QStringLiteral("datawindow")) {
         // Data Window is a cached single-instance auxiliary page
+        // （标签页关闭即 widget 销毁 → 置空缓存，下次调用重建）
         if (!m_dataWindow) {
             m_dataWindow = new DataWindow(ctx.mainWindow);
             m_dataWindow->setDbcManager(ctx.dbcManager);
+            // 模块非 QObject：以 DataWindow 自身为接收上下文
+            QObject::connect(m_dataWindow, &QObject::destroyed, m_dataWindow, [this]() {
+                m_dataWindow = nullptr;
+            });
         }
         return m_dataWindow;
     }
@@ -150,7 +98,9 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
     if (action == QStringLiteral("onFrame")) {
         // Dispatch frame to all live GraphicViews that have flowEnabled=true
         const CanFrame frame = arg.value<CanFrame>();
-        for (auto *gv : qAsConst(m_viewList)) {
+        const auto views = m_viewList;   // 快照：分发中视图销毁不使迭代器失效
+        for (const auto &gvPtr : views) {
+            GraphicView *gv = gvPtr.data();
             if (!gv)
                 continue;
             // Check flowEnabled property (default true if not set)
@@ -176,7 +126,9 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
         }
     } else if (action == QStringLiteral("clearDataAll")) {
         // Clear all GraphicViews data (does NOT clear DataWindow per original semantics)
-        for (auto *gv : qAsConst(m_viewList)) {
+        const auto views = m_viewList;
+        for (const auto &gvPtr : views) {
+            GraphicView *gv = gvPtr.data();
             if (gv)
                 gv->clearData();
         }
@@ -197,7 +149,7 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
                 gsig.extended = smap.value("extended").toBool();
                 gsig.color = smap.value("color", QColor()).value<QColor>();
                 if (smap.contains("dbcSig"))
-                    gsig.dbcSig = variantMapToDbcSignal(smap.value("dbcSig").toMap());
+                    gsig.dbcSig = dbcSignalFromMap(smap.value("dbcSig").toMap());
                 // Other fields: displayMode, yAxisMode etc. optional defaults
 
                 if (auto *gv = qobject_cast<GraphicView *>(w))
@@ -219,7 +171,7 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
                     gsig.extended = smap.value("extended").toBool();
                     gsig.color = smap.value("color", QColor()).value<QColor>();
                     if (smap.contains("dbcSig"))
-                        gsig.dbcSig = variantMapToDbcSignal(smap.value("dbcSig").toMap());
+                        gsig.dbcSig = dbcSignalFromMap(smap.value("dbcSig").toMap());
                     gv->addSignal(gsig);
                 }
             }
@@ -242,7 +194,7 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
                             gsig.extended = smap.value("extended").toBool();
                             gsig.color = smap.value("color", QColor()).value<QColor>();
                             if (smap.contains("dbcSig"))
-                                gsig.dbcSig = variantMapToDbcSignal(smap.value("dbcSig").toMap());
+                                gsig.dbcSig = dbcSignalFromMap(smap.value("dbcSig").toMap());
                             gv->addSignal(gsig);
                         }
                     }
@@ -268,7 +220,7 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
                                 gs.extended = smap.value("extended").toBool();
                                 gs.displayMode = smap.value("displayMode", 1).toInt();
                                 if (smap.contains("dbcSig"))
-                                    gs.dbcSig = variantMapToDbcSignal(smap.value("dbcSig").toMap());
+                                    gs.dbcSig = dbcSignalFromMap(smap.value("dbcSig").toMap());
                                 sigs.append(gs);
                             }
                         }
@@ -289,9 +241,11 @@ QVariant GraphicModule::query(const QString &what, const QVariant &arg)
         return QVariant::fromValue<QWidget*>(m_instances.value(arg.toString()));
     } else if (what == QStringLiteral("lastInstance")) {
         // Return most recently created live GraphicView (for target resolution)
-        for (auto it = m_instances.rbegin(); it != m_instances.rend(); ++it) {
-            if (it.value())
-                return QVariant::fromValue<QWidget*>(it.value().data());
+        // （Qt6 QMap 无 rbegin/rend，且 QMap 按键排序非创建序——倒序遍历
+        //  创建序列表 m_viewList 才是"最近创建"语义）
+        for (int i = m_viewList.size() - 1; i >= 0; --i) {
+            if (GraphicView *gv = m_viewList.at(i).data())
+                return QVariant::fromValue<QWidget*>(gv);
         }
     } else if (what == QStringLiteral("signalConfigs")) {
         // Get signal configs from a specific GraphicView (for captureProjectState)
@@ -305,7 +259,7 @@ QVariant GraphicModule::query(const QString &what, const QVariant &arg)
                 m["canId"] = sig.canId;
                 m["extended"] = sig.extended;
                 m["displayMode"] = sig.displayMode;
-                m["dbcSig"] = dbcSignalToVariantMap(sig.dbcSig);
+                m["dbcSig"] = dbcSignalToMap(sig.dbcSig);
                 m["color"] = sig.color.name();
                 sigList.append(m);
             }
