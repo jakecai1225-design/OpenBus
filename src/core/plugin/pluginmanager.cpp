@@ -53,8 +53,12 @@ static CanFrame jsonToFrame(const QJsonObject &obj)
 
 PluginManager *PluginManager::instance()
 {
-    static PluginManager inst;
-    return &inst;
+    // 有意泄漏不析构（DEF-07）：静态对象析构在 DLL 宿主场景发生于
+    // DLL_PROCESS_DETACH（loader lock）——~PluginHost → stop() → QProcess
+    // 写管道 → QWindowsPipeWriter 创建线程池等待对象，在加载器锁下崩溃。
+    // Python 宿主改经 qApp aboutToQuit 优雅关闭（见 startHostIfNeeded）。
+    static PluginManager *inst = new PluginManager();
+    return inst;
 }
 
 PluginManager::PluginManager(QObject *parent)
@@ -177,6 +181,13 @@ void PluginManager::startHostIfNeeded()
     }
 
     m_host = new PluginHost(this);
+
+    // 单例有意泄漏不析构（见 instance()，DEF-07）：Python 宿主改经
+    // qApp aboutToQuit 优雅关闭（事件循环仍在 → QProcess I/O 合法），
+    // 避免 DLL 卸载阶段静态析构触发加载器锁崩溃
+    if (qApp)
+        connect(qApp, &QCoreApplication::aboutToQuit,
+                this, &PluginManager::shutdown);
 
     connect(m_host, &PluginHost::messageReceived,
             this, &PluginManager::handleHostMessage);

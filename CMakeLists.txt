@@ -37,8 +37,15 @@ if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 
     # thin archive：只记录对象路径不复制内容，静态库重打包降为毫秒级。
     # 静态库仅供本构建树内部链接使用，不出库/不安装，thin 引用始终有效。
-    # 回退方式：删除下面一行即恢复 ar qc 实档案。
+    # 回退方式：删除下面两行即恢复 ar qc 实档案。
+    #
+    # APPEND 必须同样带 T：对象列表超 Windows 命令行长度限制时 CMake 会分批
+    # 归档（第一批 CREATE，后续批 APPEND）。默认 APPEND 规则不带 T（ar q），
+    # 对已存在的 thin archive 报 "Cannot convert existing thin library to
+    # normal format"（2026-08-20 vector_blf 全量重编时实测）。qT 追加路径条目
+    # 为 binutils 官方支持，与 qcT 闭环兼容。
     set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> qcT <TARGET> <LINK_FLAGS> <OBJECTS>")
+    set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> qT <TARGET> <OBJECTS>")
 
     # 链接器结论（2026-08-19 实测，勿再尝试）：
     #  - ld.bfd（默认）：唯一可靠选择
@@ -72,6 +79,11 @@ add_subdirectory(src)
 
 # 驱动插件（.odp 外置驱动，输出到 build/bin/drivers/<id>/）
 add_subdirectory(drivers)
+
+# 测试 — L1 核心逻辑集成测试（Qt Test，见 doc/测试验收方案.md v2.0）
+# build.py test 子命令：构建 tests 聚合目标 + ctest 执行
+enable_testing()
+add_subdirectory(tests)
 
 # ============================================================
 #  安装规则

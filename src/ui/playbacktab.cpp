@@ -169,7 +169,8 @@ PlaybackTab::PlaybackTab(QWidget *parent)
     connect(m_autoScrollChk, &QCheckBox::toggled, this, &PlaybackTab::autoScrollToggled);
 
     // 主题切换 → 重刷全部按钮图标颜色
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+    // DEF-08 字符串信号：ThemeManager 定义于 data.dll
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)), this, [this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
         m_playBtn->setIcon(svgIcon(":/icons/play.svg", c, 16));
         m_pauseBtn->setIcon(svgIcon(":/icons/pause.svg", c, 16));

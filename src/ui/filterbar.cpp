@@ -75,7 +75,8 @@ FilterBar::FilterBar(QWidget *parent)
     connect(m_edit, &QLineEdit::textChanged, this, &FilterBar::onTextChanged);
 
     // 主题切换 → 重刷图标颜色（状态图标由 onTextChanged 按当前状态重渲染）
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+    // DEF-08 字符串信号（同 filterheaderview）
+connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             this, [this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
         m_helpBtn->setIcon(svgIcon(":/icons/help.svg", c, 16));

@@ -1,9 +1,0 @@
-﻿Initial BottomDock: NOT FOUND
-Initial RightDock: NOT FOUND
-After enable BottomBar: BottomDock=FOUND rect=260,744 w=1400 h=200
-(shot SM-05_bottombar_shown.png)
-After disable BottomBar: BottomDock=FOUND rect=260,744 w=1400 h=200
-After enable RightBar: RightDock=FOUND rect=1400,107 w=260 h=633
-After disable RightBar: RightDock=FOUND rect=1400,107 w=260 h=633
-Final BottomDock: FOUND rect=260,744 w=1400 h=200
-Final RightDock: FOUND rect=1400,107 w=260 h=633

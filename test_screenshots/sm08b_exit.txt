@@ -1,7 +1,0 @@
-﻿BEFORE windows=
- h=331082 t=openbus - CAN/CAN FD 报文分析工具
-exited via menu Enter
-PROCESS EXITED
-AFTER windows=0
-WerFault=0
-

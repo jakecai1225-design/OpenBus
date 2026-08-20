@@ -24,7 +24,8 @@ FilterHeaderView::FilterHeaderView(Qt::Orientation orientation, QWidget *parent)
     setSortIndicatorShown(false);
 
     // 主题切换 → 重绘（图标颜色取自 ThemeManager，而非硬编码）
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+    // DEF-08 字符串信号：ThemeManager 定义于 data.dll，跨 DLL PMF connect 断连
+connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             this, [this]() { viewport()->update(); });
 }
 

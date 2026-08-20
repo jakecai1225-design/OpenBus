@@ -411,8 +411,9 @@ private:
 
 class Parser {
 public:
-    explicit Parser(const QString &input, size_t numData = 0)
-        : m_tok(input), m_numData(numData) {}
+    explicit Parser(const QString &input, size_t numData = 0,
+                const std::array<QByteArray, kMaxDataMatches> *patterns = nullptr)
+        : m_tok(input), m_numData(numData), m_patterns(patterns) {}
 
     std::unique_ptr<ASTNode> parse()
     {
@@ -435,6 +436,7 @@ private:
     Token m_cur;
     QString m_error;
     size_t m_numData;
+    const std::array<QByteArray, kMaxDataMatches> *m_patterns = nullptr;
 
     void advance() { m_cur = m_tok.next(); }
     Token peek()   { return m_tok.peek(); }
@@ -563,11 +565,21 @@ private:
             QString name = m_cur.strVal;
             int vidx = varIndex(name);
             if (vidx < 0) {
-                // __data_N__ 变量（预处理器已提取，不应出现在此）
+                // 预处理器提取的 data contains 模式 → 生成 DataContains 节点。
+                // （曾为 makeVar(9) 占位，求值落到 error 变量：普通帧恒 false、
+                // 错误帧误匹配 — B2 套件 dataContains 用例攻破，2026-08-20 修复）
                 if (name.startsWith("__data_") && name.endsWith("__")) {
-                    // 作为 truthy 变量处理
-                    advance();
-                    return ASTNode::makeVar(9); // 占位，实际值由预处理器设置
+                    const int idx = QStringView(name)
+                                        .mid(7, name.size() - 9)
+                                        .toInt();
+                    if (m_patterns && idx >= 0
+                        && idx < static_cast<int>(m_numData)) {
+                        advance();
+                        return ASTNode::makeDataContains(
+                            (*m_patterns)[static_cast<size_t>(idx)]);
+                    }
+                    m_error = QString("内部错误: 无效 data 模式 '%1'").arg(name);
+                    return nullptr;
                 }
                 m_error = QString("未知变量: '%1'").arg(name);
                 return nullptr;
@@ -717,7 +729,9 @@ struct FilterEngine::Impl
     std::array<QByteArray, kMaxDataMatches> dataPatterns;
     size_t numData = 0;
     bool compiled = false;
-    bool empty = false;
+    // 未设置表达式 = 无过滤（与 evaluate 对未编译透传一致；
+    // 曾默认 false，新构造实例 isEmpty() 误报非空 — B2 emptyExpr 用例攻破）
+    bool empty = true;
     QString errorMsg;
 };
 
@@ -753,8 +767,8 @@ bool FilterEngine::compile(const QString &expr)
     for (size_t i = 0; i < pp.numData(); ++i)
         m_impl->dataPatterns[i] = pp.dataPattern(i);
 
-    // 解析为 AST
-    Parser parser(processed, pp.numData());
+    // 解析为 AST（dataPatterns 已拷入 m_impl，Parser 据此生成 DataContains 节点）
+    Parser parser(processed, pp.numData(), &m_impl->dataPatterns);
     m_impl->ast = parser.parse();
 
     if (!m_impl->ast) {

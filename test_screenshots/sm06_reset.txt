@@ -1,6 +1,0 @@
-﻿Initial: SideBar=VISIBLE BottomBar=hidden RightBar=hidden
-After collapse sidebar: SideBar=collapsed BottomBar=hidden RightBar=hidden
-After enable bottom bar: SideBar=collapsed BottomBar=SHOWN RightBar=hidden
-After enable right bar (messed layout): SideBar=collapsed BottomBar=SHOWN RightBar=SHOWN
-After Reset Layout: SideBar=collapsed BottomBar=SHOWN RightBar=SHOWN
-(screenshots: _debug_messed_layout.png, SM-06_after_reset.png)

@@ -126,6 +126,10 @@ private slots:
     void captureProjectState();
     void applyProjectState();
 
+    // 测量启停编排（离线加载 + Trace/Graphic 门控；flow 经 invoke("measurementToggled")
+    // 直调——slot 声明保证元对象可达（L2 UI 驱动测试经 invokeMethod 驱动，DEF-09）
+    void onMeasurementToggled(bool running);
+
     // 右侧面板快捷按钮
     void onQuickRecord();
     void onQuickStopRecord();
@@ -183,7 +187,6 @@ private:
     // ---- flow 模块（拆分方案 B4）----
     void flowInvoke(const QString &action, const QVariant &arg = {});   // flow 模块动作转发
     QVariant flowQuery(const QString &what, const QVariant &arg = {});  // flow 模块查询转发
-    void onMeasurementToggled(bool running);       // 测量启停编排（离线加载 + Trace/Graphic 门控）
     void onModuleToggled(const QString &blockId, const QString &name, bool enabled);
     void onModuleOpened(const QString &moduleId, const QString &instanceId);
     void onModuleInstanceClosed(const QString &moduleId, const QString &instanceId);

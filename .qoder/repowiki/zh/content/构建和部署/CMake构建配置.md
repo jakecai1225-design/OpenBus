@@ -5,49 +5,43 @@
 - [CMakeLists.txt](file://CMakeLists.txt)
 - [src/CMakeLists.txt](file://src/CMakeLists.txt)
 - [third_party/Dependencies.cmake](file://third_party/Dependencies.cmake)
+- [src/core/module/imodule.h](file://src/core/module/imodule.h)
+- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
+- [src/ui/marketmodule.h](file://src/ui/marketmodule.h)
+- [src/ui/transceivemodule.h](file://src/ui/transceivemodule.h)
 - [resources/resources.qrc](file://resources/resources.qrc)
 - [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
-- [src/ui/activitybar.cpp](file://src/ui/activitybar.cpp)
-- [src/ui/columnfilterpopup.h](file://src/ui/columnfilterpopup.h)
-- [src/ui/columnfilterpopup.cpp](file://src/ui/columnfilterpopup.cpp)
-- [src/ui/filterheaderview.h](file://src/ui/filterheaderview.h)
-- [src/ui/filterheaderview.cpp](file://src/ui/filterheaderview.cpp)
-- [src/core/plugin/pluginmanager.h](file://src/core/plugin/pluginmanager.h)
-- [src/core/plugin/pluginhost.h](file://src/core/plugin/pluginhost.h)
-- [src/core/plugin/plugininfo.h](file://src/core/plugin/plugininfo.h)
-- [scripts/sin_host.py](file://scripts/sin_host.py)
-- [plugins/frame-counter/plugin.json](file://plugins/frame-counter/plugin.json)
-- [plugins/hello-world/plugin.json](file://plugins/hello-world/plugin.json)
-- [sdk/sin/__init__.py](file://sdk/sin/__init__.py)
-- [src/core/canfileio/blf.cpp](file://src/core/canfileio/blf.cpp)
 </cite>
 
 ## 更新摘要
 **所做更改**
-- 项目名从 `sin` 标准化为 `openbus`，目标名称从 `sin_core/sin_ui` 更新为 `openbus_core/openbus_ui`
-- 添加 BLF 支持的条件编译标志 `HAS_VECTOR_BLF`，支持可选的 vector_blf 库集成
-- 增强依赖管理，支持条件编译和可选功能模块
-- 更新构建系统以支持模块化架构和灵活的依赖配置
+- **重大架构变更**：从两个静态库（openbus_core, openbus_ui）重构为分层共享库架构，包含公共底座DLL（openbus_data）和多个业务DLL
+- **新增业务模块DLL**：openbus_market、openbus_transceive、openbus_dbc、openbus_flow等独立业务模块
+- **增强PCH配置**：为每个业务DLL配置专门的预编译头优化
+- **模块化依赖管理**：通过ModuleRegistry实现壳与业务模块的松耦合通信
+- **改进构建系统**：支持thin archive、Dev构建档、更好的链接器兼容性
 
 ## 目录
 1. [项目概述](#项目概述)
 2. [根目录CMakeLists.txt配置](#根目录cmakeliststxt配置)
-3. [src/CMakeLists.txt核心配置](#srccmakeliststxt核心配置)
-4. [插件系统架构](#插件系统架构)
-5. [Excel风格列筛选系统](#excel风格列筛选系统)
-6. [SVG图标系统集成](#svg图标系统集成)
-7. [设备驱动支持配置](#设备驱动支持配置)
-8. [第三方库依赖管理](#第三方库依赖管理)
-9. [平台特定配置](#平台特定配置)
-10. [构建优化配置](#构建优化配置)
-11. [安装目标配置](#安装目标配置)
+3. [分层共享库架构](#分层共享库架构)
+4. [业务模块DLL配置](#业务模块dll配置)
+5. [模块接口与注册机制](#模块接口与注册机制)
+6. [预编译头优化配置](#预编译头优化配置)
+7. [第三方库依赖管理](#第三方库依赖管理)
+8. [平台特定配置](#平台特定配置)
+9. [安装目标配置](#安装目标配置)
+10. [构建流程总结](#构建流程总结)
 
 ## 项目概述
 
-本项目是一个基于Qt6的CAN总线报文分析工具，采用模块化架构设计。CMake构建系统支持多平台编译，包括Windows、macOS和Linux。项目结构清晰，分为core（核心逻辑）、models（数据模型）、ui（用户界面）和utils（工具函数）四个主要层次。**项目已重命名为 openbus**，提供完整的Python插件系统支持，允许通过Python扩展功能，提供动态加载和执行外部功能的强大能力。
+本项目是一个基于Qt6的CAN总线报文分析工具，采用先进的分层共享库架构设计。CMake构建系统支持多平台编译，包括Windows、macOS和Linux。**项目已重命名为 openbus**，实现了从单体静态库到模块化共享库的重大架构升级，提供完整的Python插件系统支持和动态业务模块加载能力。
+
+新的架构将核心功能封装在`openbus_data`共享库中，各个业务功能（市场、收发、DBC、流程等）作为独立的业务DLL，通过统一的模块接口进行通信，实现了高度的模块化和可维护性。
 
 **章节来源**
 - [CMakeLists.txt:3-7](file://CMakeLists.txt#L3-L7)
+- [src/CMakeLists.txt:175-188](file://src/CMakeLists.txt#L175-L188)
 
 ## 根目录CMakeLists.txt配置
 
@@ -75,15 +69,16 @@ project(openbus
 - `CMAKE_AUTORCC`: 自动处理资源文件
 
 ### Qt6组件查找配置
-**已更新** 新增Qt6 Svg组件支持，用于SVG图标渲染功能：
+**已更新** 新增Qt6 Network组件支持，用于市场索引和网络功能：
 ```cmake
-find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport Svg)
+find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport Svg Network)
 ```
 
 支持的Qt6组件包括：
 - **Widgets**: 图形界面框架
 - **PrintSupport**: 打印支持
 - **Svg**: SVG图标渲染支持
+- **Network**: 网络通信支持
 
 ### 输出目录配置
 所有可执行文件输出到`bin`目录：
@@ -91,591 +86,272 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport Svg)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 ```
 
+### 构建系统改进
+**新增** 增强的构建配置说明和优化选项：
+- PCH（预编译头）在 src/CMakeLists.txt 中配置
+- 使用默认 ld.bfd 链接器以获得最佳兼容性
+- Dev 构建档（日常开发）：-O1 -g1，独立 build-dev/ 目录
+- thin archive：只记录对象路径不复制内容，静态库重打包降为毫秒级
+
 **章节来源**
 - [CMakeLists.txt:9-14](file://CMakeLists.txt#L9-L14)
 - [CMakeLists.txt:16-21](file://CMakeLists.txt#L16-L21)
-- [CMakeLists.txt:40-45](file://CMakeLists.txt#L40-L45)
-- [CMakeLists.txt:37](file://CMakeLists.txt#L37)
+- [CMakeLists.txt:58-61](file://CMakeLists.txt#L58-L61)
+- [CMakeLists.txt:23-31](file://CMakeLists.txt#L23-L31)
 
-## src/CMakeLists.txt核心配置
+## 分层共享库架构
 
-### 源文件组织结构
+### 架构设计原则
+项目采用了清晰的分层共享库架构，将原来的两个静态库重构为：
 
-#### Core层源文件
-Core层包含核心业务逻辑，按功能模块组织：
-- **数据结构**: canframe.h, dbcdata.h
-- **录制回放**: recorder.cpp, player.cpp, cansimulator.cpp
-- **DBC处理**: dbcmanager.cpp, dbc_adapter.cpp
-- **过滤引擎**: filter_engine.cpp
-- **应用配置**: appconfig.cpp
-- **项目管理**: projectmanager.cpp
-- **日志系统**: logging.cpp
-- **插件系统**: plugininfo.h/cpp, pluginhost.h/cpp, pluginmanager.h/cpp
+```mermaid
+graph TD
+A[openbus.exe] --> B[openbus_ui 静态库]
+B --> C[openbus_data 共享库]
+A --> D[openbus_market 业务DLL]
+A --> E[openbus_transceive 业务DLL]
+A --> F[openbus_dbc 业务DLL]
+A --> G[openbus_flow 业务DLL]
+A --> H[openbus_trace 业务DLL]
+A --> I[openbus_graphic 业务DLL]
+C --> J[Qt6::Widgets]
+C --> K[spdlog]
+C --> L[nlohmann_json]
+C --> M[concurrentqueue]
+```
 
-#### CanFileIO模块源文件
-新增的canfileio模块支持多种文件格式：
-- **接口定义**: canfileio.h, canfileio.cpp
-- **工厂模式**: canfileio_factory.h, canfileio_factory.cpp
-- **BLF格式**: blf.h, blf.cpp (Vector二进制格式)
-- **ASC格式**: asc.h, asc.cpp (Vector文本格式)
-- **CSV格式**: csv.h, csv.cpp (通用文本格式)
-- **PCAP格式**: pcap_reader.h, pcap_reader.cpp (网络捕获格式)
-- **TRC格式**: trc_reader.h, trc_reader.cpp (Vector旧版格式)
-
-#### Models层源文件
-Qt数据模型实现：
-- cantracemodel.h/cpp: CAN轨迹数据模型
-- canfilterproxymodel.h/cpp: 过滤器代理模型
-
-#### Utils层源文件
-工具函数库：
-- canutils.h/cpp: CAN总线工具函数
-- message_queue.h: 消息队列实现
-- logging.h: 日志工具
-- **svg_icon.h**: SVG图标渲染工具
-
-#### UI层源文件
-完整的用户界面组件：
-- 主窗口: mainwindow.h/cpp
-- 视图组件: traceview.h/cpp, graphicview.h/cpp
-- 控制面板: activitybar.h/cpp, bottompanel.h/cpp, rightpanel.h/cpp
-- 对话框: signalconfigdialog.h/cpp, dbcimportdialog.h/cpp, settingsdialog.h/cpp
-- 标签页: signalsendtab.h/cpp, playbacktab.h/cpp, recordtab.h/cpp, dbcdetailtab.h/cpp
-- 特殊视图: udsview.h/cpp, canopenview.h/cpp
-- 主题管理: thememanager.h/cpp
-- 测量设置: measurementsetupview.h/cpp
-- **列筛选**: columnfilterpopup.h/cpp
-- **表头视图**: filterheaderview.h/cpp
-
-**章节来源**
-- [src/CMakeLists.txt:5-87](file://src/CMakeLists.txt#L5-L87)
-- [src/CMakeLists.txt:89-169](file://src/CMakeLists.txt#L89-L169)
-
-### 静态库构建配置
-
-#### openbus_core静态库
-**已更新** 核心功能库，包含所有业务逻辑：
+### openbus_data - 公共底座DLL
+**全新架构** 核心功能库，包含所有业务逻辑和数据层：
 ```cmake
-add_library(openbus_core STATIC
+add_library(openbus_data SHARED
     ${SRC_CORE}
     ${SRC_MODELS}
     ${SRC_UTILS}
+    ui/thememanager.h
+    ui/thememanager.cpp
 )
 ```
 
-#### openbus_ui静态库
-**已更新** 用户界面库，独立于核心逻辑：
+该库包含了：
+- **Core层**：数据结构、录制回放、模拟器、DBC处理、文件格式I/O
+- **Models层**：Qt数据模型实现
+- **Utils层**：工具函数库
+- **ThemeManager**：主题管理单例
+
+### 依赖关系设计
+**已更新** 通过PUBLIC依赖确保头文件正确传播：
 ```cmake
-add_library(openbus_ui STATIC
-    ${SRC_UI}
+target_include_directories(openbus_data PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(openbus_data PUBLIC Qt6::Widgets)
+target_link_libraries(openbus_data PRIVATE z)
+```
+
+**章节来源**
+- [src/CMakeLists.txt:175-188](file://src/CMakeLists.txt#L175-L188)
+- [src/CMakeLists.txt:190-235](file://src/CMakeLists.txt#L190-L235)
+
+## 业务模块DLL配置
+
+### 模块架构设计
+每个业务功能都作为独立的共享库实现，通过统一的模块接口与主程序通信：
+
+#### openbus_market - 插件市场业务DLL
+```cmake
+add_library(openbus_market SHARED
+    ui/markettab.h
+    ui/markettab.cpp
+    ui/marketmodel.h
+    ui/marketmodel.cpp
+    ui/marketmodule.h
+    ui/marketmodule.cpp
 )
 ```
 
-### 依赖链接配置
-
-#### PUBLIC依赖
-对外暴露的头文件和库：
-- Qt6::Widgets: Qt图形界面框架
-- spdlog: 日志库
-- nlohmann_json: JSON解析库
-- concurrentqueue: 并发队列库
-
-#### PRIVATE依赖
-内部使用的库，不对外暴露：
-- vector_blf: Vector BLF文件格式库（条件编译）
-- qcustomplot: 图表绘制库
-- **Qt6::Svg**: SVG图标渲染支持
-
-**章节来源**
-- [src/CMakeLists.txt:175-179](file://src/CMakeLists.txt#L175-L179)
-- [src/CMakeLists.txt:258-260](file://src/CMakeLists.txt#L258-L260)
-- [src/CMakeLists.txt:210-215](file://src/CMakeLists.txt#L210-L215)
-- [src/CMakeLists.txt:270-273](file://src/CMakeLists.txt#L270-L273)
-
-## 插件系统架构
-
-### 插件系统整体架构
-
-项目实现了完整的Python插件系统，支持动态加载和执行外部功能：
-
-```mermaid
-graph TD
-A[主程序] --> B[PluginManager]
-B --> C[PluginHost]
-C --> D[sing_host.py]
-D --> E[插件SDK]
-E --> F[插件模块]
-F --> G[plugin.json]
-H[Python解释器] --> D
-I[plugins目录] --> J[插件发现]
-J --> K[插件加载]
-K --> L[插件激活]
-```
-
-### 插件管理器核心组件
-
-#### PluginManager - 插件管理器
-负责插件的发现、生命周期管理和消息分发：
-- **插件发现**: 扫描`plugins/`目录，读取每个插件的`plugin.json`配置文件
-- **生命周期管理**: 控制插件的激活、停用的状态转换
-- **事件分发**: 将CAN帧、命令等事件转发给相应的插件
-- **进程管理**: 启动和管理Python宿主进程
-
-#### PluginHost - 插件宿主
-管理Python宿主进程的通信：
-- **进程启动**: 启动独立的Python进程运行`sing_host.py`
-- **JSON-RPC通信**: 通过stdin/stdout与宿主进程进行JSON-RPC 2.0通信
-- **错误处理**: 处理宿主进程崩溃和通信异常
-
-#### PluginInfo - 插件信息
-描述插件的元数据和配置：
-- **基本信息**: 名称、版本、作者、描述
-- **激活事件**: 定义插件在何时被激活（onStartup、onFrame、onCommand等）
-- **贡献点**: 声明插件提供的功能（命令、文件格式等）
-
-**章节来源**
-- [src/core/plugin/pluginmanager.h:17-25](file://src/core/plugin/pluginmanager.h#L17-L25)
-- [src/core/plugin/plugininfo.h:8-53](file://src/core/plugin/plugininfo.h#L8-L53)
-- [scripts/sin_host.py:1-10](file://scripts/sin_host.py#L1-L10)
-
-### 插件发现机制
-
-插件系统通过以下步骤发现可用插件：
-
-1. **目录扫描**: 扫描`plugins/`目录下的所有子目录
-2. **配置文件读取**: 读取每个插件目录中的`plugin.json`文件
-3. **元数据验证**: 验证插件配置文件的完整性和有效性
-4. **重复检测**: 防止同名插件冲突
-
-```cpp
-void PluginManager::discoverPlugins() {
-    // 查找插件目录
-    QString pluginsDir = findAppBaseDir() + "/plugins";
-    
-    if (!pluginsDir.exists()) {
-        spdlog::info("PluginManager: 插件目录不存在");
-        return;
-    }
-    
-    // 扫描插件目录
-    QStringList entries = pluginsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-    for (const auto &entry : entries) {
-        QString pluginDir = pluginsDir.absoluteFilePath(entry);
-        PluginInfo info;
-        if (info.loadFromDirectory(pluginDir)) {
-            m_plugins.insert(info.name, info);
-        }
-    }
-}
-```
-
-### 插件生命周期管理
-
-插件系统支持完整的生命周期管理：
-
-#### 激活阶段
-- **onStartup**: 应用程序启动时激活
-- **onFrame**: 接收到CAN帧时激活
-- **onCommand**: 执行特定命令时激活
-
-#### 运行阶段
-- **帧处理**: 接收并处理CAN帧数据
-- **命令执行**: 响应主程序的命令请求
-- **状态维护**: 保持插件的内部状态
-
-#### 停用阶段
-- **资源清理**: 释放插件占用的资源
-- **状态保存**: 可选地保存插件状态
-
-**章节来源**
-- [src/core/plugin/pluginmanager.cpp:145-183](file://src/core/plugin/pluginmanager.cpp#L145-L183)
-- [src/core/plugin/pluginmanager.cpp:226-238](file://src/core/plugin/pluginmanager.cpp#L226-L238)
-- [src/core/plugin/pluginmanager.cpp:240-278](file://src/core/plugin/pluginmanager.cpp#L240-L278)
-
-### Python宿主进程通信
-
-插件系统通过JSON-RPC 2.0协议与Python宿主进程通信：
-
-#### 通信协议
-- **传输方式**: stdin/stdout管道
-- **数据格式**: newline-delimited JSON
-- **协议版本**: JSON-RPC 2.0
-
-#### 消息类型
-- **activate/deactivate**: 插件生命周期控制
-- **frameReceived**: CAN帧数据传递
-- **executeCommand**: 命令执行请求
-- **output.append**: 输出消息
-- **registerCommand**: 命令注册
-
-#### 错误处理
-- **进程崩溃检测**: 监控宿主进程状态
-- **通信异常处理**: 处理JSON解析和传输错误
-- **插件异常隔离**: 单个插件错误不影响其他插件
-
-**章节来源**
-- [scripts/sin_host.py:225-261](file://scripts/sin_host.py#L225-L261)
-- [scripts/sin_host.py:276-305](file://scripts/sin_host.py#L276-L305)
-
-### 插件SDK接口
-
-插件通过Python SDK与主程序交互：
-
-#### 核心API
-- **openbus.output**: 输出消息到主程序面板
-- **openbus.frames**: 访问CAN帧数据
-- **openbus.commands**: 注册和执行命令
-- **openbus.workspace**: 工作区操作
-- **openbus.signals**: 信号处理
-
-#### UI支持
-- **PyQt6集成**: 可选的GUI功能支持
-- **窗口管理**: 插件自定义界面的创建和管理
-- **事件循环**: 与Qt事件系统集成的能力
-
-**章节来源**
-- [sdk/sin/__init__.py:1-31](file://sdk/sin/__init__.py#L1-L31)
-- [plugins/frame-counter/main.py:1-54](file://plugins/frame-counter/main.py#L1-L54)
-
-## Excel风格列筛选系统
-
-### ColumnFilterPopup组件架构
-
-实现了完整的Excel风格列筛选弹出面板，提供强大的数据过滤功能：
-
-```mermaid
-graph TD
-A[ColumnFilterPopup] --> B[搜索框]
-A --> C[操作按钮组]
-A --> D[值列表]
-A --> E[确认取消按钮]
-B --> F[实时搜索过滤]
-C --> G[全选/清除/反选]
-D --> H[复选框列表]
-E --> I[应用筛选/清除筛选]
-H --> J[显示值和计数]
-```
-
-### 核心功能特性
-
-#### 搜索功能
-- 实时搜索：输入时立即过滤显示结果
-- 大小写不敏感搜索
-- 支持部分匹配
-
-#### 批量操作
-- **全选**：选择所有当前可见项
-- **清除**：取消选择所有当前可见项  
-- **反选**：切换当前可见项的选择状态
-
-#### 值显示
-- 显示原始值文本
-- 显示出现次数统计
-- 支持复选框状态管理
-
-### 信号与槽机制
-
-ColumnFilterPopup提供了完整的信号接口：
-
-```cpp
-signals:
-    void filterApplied(int column, const QSet<QString> &selected);
-    void filterCleared(int column);
-```
-
-### FilterHeaderView集成
-
-表头视图集成了漏斗图标和排序指示器：
-
-```cpp
-// 自定义绘制漏斗图标
-void drawFilterIcon(QPainter *painter, const QRect &rect,
-                    bool active, bool hovered) const;
-
-// 检测漏斗图标点击区域
-int sectionAtFilter(const QPoint &pos) const;
-```
-
-### 用户界面设计
-
-#### 布局结构
-- **顶部**：搜索框，支持清空按钮
-- **中部**：全选/清除/反选按钮行
-- **主体**：可滚动的值列表，最大高度300px
-- **底部**：清除筛选和确定按钮
-
-#### 视觉样式
-- 白色背景，灰色边框
-- 激活状态蓝色高亮
-- 悬停状态深灰色提示
-- 始终可见的浅灰色漏斗图标
-
-**章节来源**
-- [src/ui/columnfilterpopup.h:15-85](file://src/ui/columnfilterpopup.h#L15-L85)
-- [src/ui/columnfilterpopup.cpp:18-79](file://src/ui/columnfilterpopup.cpp#L18-L79)
-- [src/ui/filterheaderview.h:8-69](file://src/ui/filterheaderview.h#L8-L69)
-- [src/ui/filterheaderview.cpp:181-229](file://src/ui/filterheaderview.cpp#L181-L229)
-
-## SVG图标系统集成
-
-### SVG图标渲染架构
-
-项目实现了完整的SVG图标系统，支持动态颜色渲染和双状态图标显示：
-
-```mermaid
-graph TD
-A[SVG资源文件] --> B[SVG图标工具函数]
-B --> C[ActivityBar按钮]
-B --> D[Sidebar面板]
-C --> E[QToolButton]
-D --> F[QWidget]
-E --> G[QIcon]
-F --> H[QPixmap]
-G --> I[渲染图标]
-H --> I
-```
-
-### SVG图标工具函数
-
-SVG图标渲染工具提供了灵活的图标处理能力：
-
-```cpp
-// 读取 SVG 文件，替换 currentColor 为指定颜色，渲染为 QPixmap
-inline QPixmap renderSvgPixmap(const QString &resourcePath, const QString &color, int size = 22)
-{
-    QFile file(resourcePath);
-    if (!file.open(QIODevice::ReadOnly))
-        return {};
-    QString svg = QString::fromUtf8(file.readAll());
-    svg.replace(QStringLiteral("currentColor"), color);
-    QSvgRenderer renderer(svg.toUtf8());
-    QPixmap pixmap(size, size);
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
-    renderer.render(&painter);
-    return pixmap;
-}
-```
-
-### ActivityBar中的SVG图标使用
-
-ActivityBar使用SVG图标实现双状态显示：
-
-```cpp
-static QIcon makeActivityIcon(const QString &resourcePath)
-{
-    QIcon icon;
-    icon.addPixmap(renderSvgPixmap(resourcePath, "#858585", 24), QIcon::Normal, QIcon::Off);
-    icon.addPixmap(renderSvgPixmap(resourcePath, "#c8c8c8", 24), QIcon::Active, QIcon::Off);
-    icon.addPixmap(renderSvgPixmap(resourcePath, "#ffffff", 24), QIcon::Normal, QIcon::On);
-    return icon;
-}
-```
-
-### 资源文件管理
-
-QRC资源文件包含了所有SVG图标：
-
-```xml
-<RCC>
-    <qresource prefix="/">
-        <file>styles/default.qss</file>
-        <file>styles/theme.qss</file>
-        <file>icons/project.svg</file>
-        <file>icons/trace.svg</file>
-        <file>icons/graphic.svg</file>
-        <file>icons/database.svg</file>
-        <file>icons/send.svg</file>
-        <file>icons/record.svg</file>
-        <file>icons/device.svg</file>
-        <file>icons/protocol.svg</file>
-        <file>icons/flow.svg</file>
-        <file>icons/tools.svg</file>
-        <file>icons/settings.svg</file>
-        <file>icons/file.svg</file>
-    </qresource>
-</RCC>
-```
-
-**章节来源**
-- [src/utils/svg_icon.h:11-31](file://src/utils/svg_icon.h#L11-L31)
-- [src/ui/activitybar.cpp:8-15](file://src/ui/activitybar.cpp#L8-L15)
-- [resources/resources.qrc:1-19](file://resources/resources.qrc#L1-L19)
-- [src/CMakeLists.txt:270-273](file://src/CMakeLists.txt#L270-L273)
-
-## 设备驱动支持配置
-
-### 驱动DLL自动复制机制
-
-改进了设备驱动的构建后处理：
-
+#### openbus_transceive - 收发业务DLL
+包含发送、回放、离线分析、录制四个页面：
 ```cmake
-if(EXISTS "${CMAKE_SOURCE_DIR}/driver")
-    add_custom_command(TARGET openbus POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/driver"
-                "$<TARGET_FILE_DIR:openbus>"
-        COMMENT "Copying driver DLLs to output directory"
-    )
-    # 安装规则 — 安装包包含驱动 DLL
-    install(DIRECTORY "${CMAKE_SOURCE_DIR}/driver/"
-            DESTINATION bin
-            FILES_MATCHING PATTERN "*.dll"
-    )
-endif()
-```
-
-### ZLG设备驱动支持
-
-项目集成了ZLG USB-CAN设备的完整驱动支持：
-- **内核驱动**: kerneldlls目录下包含各种设备驱动
-- **配置文件**: devices_property目录包含设备属性配置
-- **头文件**: zlgcan.h提供API接口定义
-
-### 驱动目录结构
-
-```
-driver/
-├── kerneldlls/
-│   ├── ZPS/
-│   │   ├── resources/
-│   │   └── source/
-│   ├── devices_property/
-│   ├── USBCAN.xml
-│   ├── VCI_USBCAN2.xml
-│   └── dll_cfg.ini
-└── zlgcan.h
-```
-
-**章节来源**
-- [src/CMakeLists.txt:345-357](file://src/CMakeLists.txt#L345-357)
-
-## 第三方库依赖管理
-
-### vector_blf库配置
-
-**已更新** vector_blf库是Vector BLF文件格式的C++实现，采用GPL-3.0许可证，支持条件编译：
-
-```cmake
-# 查找zlib依赖
-find_package(ZLIB QUIET)
-if(NOT ZLIB_FOUND OR NOT ZLIB_LIBRARY OR ZLIB_LIBRARY STREQUAL "ZLIB_LIBRARY-NOTFOUND")
-    # 回退到MinGW自带zlib
-    set(ZLIB_INCLUDE_DIRS "D:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include")
-    set(ZLIB_LIBRARIES "D:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/lib/libz.a")
-endif()
-
-# 生成配置文件
-configure_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Vector/BLF/config.h.in
-    ${CMAKE_CURRENT_BINARY_DIR}/src/Vector/BLF/config.h
-    COPYONLY
+add_library(openbus_transceive SHARED
+    ui/signalsendtab.h
+    ui/signalsendtab.cpp
+    ui/playbacktab.h
+    ui/playbacktab.cpp
+    ui/offlineanalysistab.h
+    ui/offlineanalysistab.cpp
+    ui/recordtab.h
+    ui/recordtab.cpp
+    ui/dbcimportdialog.h
+    ui/dbcimportdialog.cpp
+    ui/transceivemodule.h
+    ui/transceivemodule.cpp
 )
-
-# 生成导出头文件
-file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/src/Vector/BLF/vector_blf_export.h
-"#pragma once
-#define VECTOR_BLF_EXPORT
-#define VECTOR_BLF_NO_EXPORT
-#define VECTOR_BLF_DEPRECATED
-")
-
-# 收集源文件并构建静态库
-file(GLOB VECTOR_BLF_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/Vector/BLF/*.cpp")
-add_library(vector_blf STATIC ${VECTOR_BLF_SOURCES})
-
-# 链接依赖库
-target_link_libraries(vector_blf PUBLIC Threads::Threads ${ZLIB_LIBRARIES})
 ```
 
-### BLF支持的条件编译
-
-**新增** 项目支持可选的vector_blf库集成，通过条件编译标志控制：
-
+#### openbus_dbc - DBC业务DLL
 ```cmake
-if(TARGET vector_blf)
-    target_link_libraries(openbus_core PRIVATE vector_blf)
-    target_compile_definitions(openbus_core PRIVATE HAS_VECTOR_BLF)
-endif()
+add_library(openbus_dbc SHARED
+    ui/dbcdetailtab.h
+    ui/dbcdetailtab.cpp
+    ui/tools/dbcsignallistview.h
+    ui/tools/dbcsignallistview.cpp
+    ui/dbcmodule.h
+    ui/dbcmodule.cpp
+)
 ```
 
-当启用vector_blf库时，会定义`HAS_VECTOR_BLF`宏，允许代码中使用高级BLF功能：
+#### openbus_flow - 测量流程业务DLL
+```cmake
+add_library(openbus_flow SHARED
+    ui/measurementsetupview.h
+    ui/measurementsetupview.cpp
+    ui/deviceconnectiontab.h
+    ui/deviceconnectiontab.cpp
+    ui/flowmodule.h
+    ui/flowmodule.cpp
+)
+```
 
+### 模块依赖管理
+每个业务DLL都依赖openbus_data并链接相应的Qt组件：
+```cmake
+target_link_libraries(openbus_market PUBLIC
+    openbus_data
+    Qt6::Widgets
+    Qt6::Network
+    Qt6::Svg
+)
+```
+
+**章节来源**
+- [src/CMakeLists.txt:271-334](file://src/CMakeLists.txt#L271-L334)
+- [src/CMakeLists.txt:336-400](file://src/CMakeLists.txt#L336-L400)
+- [src/CMakeLists.txt:402-456](file://src/CMakeLists.txt#L402-L456)
+- [src/CMakeLists.txt:458-523](file://src/CMakeLists.txt#L458-L523)
+
+## 模块接口与注册机制
+
+### 统一模块接口设计
+项目实现了完整的模块接口体系，定义了壳与业务模块之间的契约：
+
+```mermaid
+graph TD
+A[ShellContext] --> B[Player*]
+A --> C[Recorder*]
+A --> D[CanDeviceManager*]
+A --> E[CanSimulator*]
+A --> F[DbcManager*]
+A --> G[回调函数]
+H[IBusinessModule] --> I[id() - 模块标识]
+H --> J[title() - 模块标题]
+H --> K[icon() - 模块图标]
+H --> L[createWidget() - 创建界面]
+H --> M[invoke() - 动作调用]
+H --> N[query() - 状态查询]
+```
+
+### ShellContext - 模块上下文
+**新增** 模块间通信的核心结构体：
 ```cpp
-#ifdef HAS_VECTOR_BLF
-#include <Vector/BLF.h>
-// 使用vector_blf库的高级功能
-#else
-// 使用内置的BLF解析实现
-#endif
+struct ShellContext {
+    QWidget *mainWindow = nullptr;
+    Player *player = nullptr;
+    Recorder *recorder = nullptr;
+    CanDeviceManager *deviceManager = nullptr;
+    CanSimulator *simulator = nullptr;
+    DbcManager *dbcManager = nullptr;
+    std::function<void(const QString &)> appendOutput;
+    std::function<void(int level, const QString &source, const QString &message)> addProblem;
+    std::function<void(const QString &action, const QVariant &arg)> shellInvoke;
+};
 ```
 
-### 其他第三方库
+### IBusinessModule - 业务模块接口
+**新增** 统一的模块接口定义：
+```cpp
+class IBusinessModule {
+public:
+    virtual ~IBusinessModule() = default;
+    virtual QString id() const = 0;
+    virtual QString title() const = 0;
+    virtual QIcon icon() const = 0;
+    virtual QWidget *createWidget(ShellContext &ctx) = 0;
+    virtual void invoke(const QString &action, const QVariant &arg = {}) {}
+    virtual QStringList pages() const { return {}; }
+    virtual QWidget *createPage(const QString &pageId, ShellContext &ctx) { return nullptr; }
+    virtual QVariant query(const QString &what, const QVariant &arg = {}) { return {}; }
+};
+```
 
-#### spdlog日志库
-- **用途**: 高性能C++日志库
-- **集成方式**: 直接包含头文件
-- **路径**: third_party/spdlog/include
+### ModuleRegistry - 模块注册表
+**新增** 模块发现和管理机制：
+```cpp
+class ModuleRegistry {
+public:
+    using ModuleFactory = std::function<IBusinessModule *()>;
+    static ModuleRegistry *instance();
+    void registerModule(const QString &id, ModuleFactory factory);
+    IBusinessModule *module(const QString &id) const;
+    QStringList ids() const;
+};
+```
 
-#### nlohmann_json JSON库
-- **用途**: 现代C++ JSON解析库
-- **集成方式**: 单头文件库
-- **路径**: third_party/nlohmann_json
+### 模块实现示例
+每个业务模块都实现IBusinessModule接口：
 
-#### concurrentqueue并发队列
-- **用途**: 无锁并发队列实现
-- **集成方式**: 单头文件库
-- **路径**: third_party/concurrentqueue
+#### MarketModule实现
+```cpp
+class MarketModule : public IBusinessModule {
+public:
+    QString id() const override;
+    QString title() const override;
+    QIcon icon() const override;
+    QWidget *createWidget(ShellContext &ctx) override;
+    void invoke(const QString &action, const QVariant &arg) override;
+private:
+    MarketTab *m_tab = nullptr;
+};
+```
 
-#### qcustomplot图表库
-- **用途**: Qt图表绘制库
-- **集成方式**: 静态库链接
-- **用途**: 仅graphicview.cpp使用
+#### TransceiveModule多页面实现
+```cpp
+class TransceiveModule : public IBusinessModule {
+public:
+    QString id() const override;
+    QString title() const override;
+    QIcon icon() const override;
+    QWidget *createWidget(ShellContext &ctx) override;
+    QStringList pages() const override;
+    QWidget *createPage(const QString &pageId, ShellContext &ctx) override;
+    void invoke(const QString &action, const QVariant &arg) override;
+    QVariant query(const QString &what, const QVariant &arg = {}) override;
+private:
+    QWidget *createSendPage(ShellContext &ctx);
+    QWidget *createPlaybackPage(ShellContext &ctx);
+    QWidget *createOfflinePage(ShellContext &ctx);
+    QWidget *createRecordPage(ShellContext &ctx);
+    ShellContext m_ctx;
+    QHash<QString, QWidget *> m_pages;
+};
+```
 
 **章节来源**
-- [third_party/Dependencies.cmake:1-32](file://third_party/Dependencies.cmake#L1-L32)
-- [src/CMakeLists.txt:210-220](file://src/CMakeLists.txt#L210-L220)
-- [src/core/canfileio/blf.cpp:10-12](file://src/core/canfileio/blf.cpp#L10-L12)
+- [src/core/module/imodule.h:31-80](file://src/core/module/imodule.h#L31-L80)
+- [src/core/module/imodule.h:82-171](file://src/core/module/imodule.h#L82-L171)
+- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
+- [src/ui/marketmodule.h:18-28](file://src/ui/marketmodule.h#L18-L28)
+- [src/ui/transceivemodule.h:28-51](file://src/ui/transceivemodule.h#L28-L51)
 
-## 平台特定配置
+## 预编译头优化配置
 
-### Windows平台配置
+### 分层PCH策略
+**新增** 为每个库配置专门的预编译头以优化编译时间：
 
-#### GUI程序设置
-```cmake
-if(WIN32)
-    set_target_properties(openbus PROPERTIES
-        WIN32_EXECUTABLE TRUE
-    )
-endif()
-```
-
-#### 链接器配置
-**已更新** 移除了LLD链接器的使用，改用默认的ld.bfd链接器以获得更好的兼容性：
-```cmake
-if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    message(STATUS "使用默认 ld.bfd 链接器")
-endif()
-```
-
-### macOS和Linux平台
-- 默认使用系统提供的编译器
-- 依赖库通过包管理器或源码编译获取
-- 无需特殊的GUI程序设置
-
-**章节来源**
-- [CMakeLists.txt:30-32](file://CMakeLists.txt#L30-L32)
-- [src/CMakeLists.txt:334-338](file://src/CMakeLists.txt#L334-L338)
-
-## 构建优化配置
-
-### 预编译头(PCH)优化
-
-#### Core层PCH配置
+#### openbus_data PCH配置
 针对核心层使用精简的Qt头文件列表：
 ```cmake
-target_precompile_headers(openbus_core PRIVATE
+target_precompile_headers(openbus_data PRIVATE
     <QObject>
     <QString>
     <QStringList>
@@ -707,66 +383,203 @@ target_precompile_headers(openbus_core PRIVATE
 )
 ```
 
-#### UI层PCH配置
-针对UI层使用完整的Qt Widget头文件列表：
+#### 业务模块PCH配置
+每个业务DLL都有针对性的PCH配置：
+
+**openbus_market** - 市场模块PCH：
 ```cmake
-target_precompile_headers(openbus_ui PRIVATE
+target_precompile_headers(openbus_market PRIVATE
+    <QObject>
     <QWidget>
-    <QMainWindow>
+    <QFrame>
     <QVBoxLayout>
     <QHBoxLayout>
-    <QSplitter>
-    <QToolBar>
-    <QAction>
-    <QMenu>
-    <QMenuBar>
-    <QStatusBar>
     <QLabel>
     <QPushButton>
     <QToolButton>
-    <QTreeWidget>
     <QTableWidget>
-    <QListWidget>
-    <QComboBox>
-    <QLineEdit>
-    <QCheckBox>
     <QHeaderView>
-    <QDockWidget>
-    <QTabWidget>
-    <QFileDialog>
+    <QLineEdit>
+    <QMenu>
     <QMessageBox>
-    <QCloseEvent>
-    <QMouseEvent>
-    <QApplication>
-    <QSettings>
+    <QFileDialog>
+    <QProgressBar>
+    <QScrollArea>
+    <QSplitter>
     <QJsonDocument>
-    <QJsonObject>
     <QJsonArray>
-    <QDateTime>
-    <QTimer>
-    <QThread>
+    <QJsonObject>
+    <QDir>
+    <QFile>
     <QFileInfo>
-    <QDebug>
+    <QStandardPaths>
+    <QTemporaryFile>
+    <QProcess>
+    <QPointer>
+    <QNetworkAccessManager>
+    <QNetworkReply>
+    <QNetworkRequest>
+    <QSvgRenderer>
+    <QCryptographicHash>
+    <QTimer>
     <vector>
     <string>
     <memory>
     <functional>
+    <algorithm>
 )
 ```
 
-### 编译器优化选项
-
-#### Debug构建优化
-- 使用默认调试级别
-- 提升编译和链接速度
-
-#### Release构建优化
-- 使用默认的优化级别
-- 移除调试信息
+**openbus_transceive** - 收发模块PCH：
+```cmake
+target_precompile_headers(openbus_transceive PRIVATE
+    <QObject>
+    <QWidget>
+    <QFrame>
+    <QVBoxLayout>
+    <QHBoxLayout>
+    <QGridLayout>
+    <QGroupBox>
+    <QLabel>
+    <QPushButton>
+    <QToolButton>
+    <QTableWidget>
+    <QTableWidgetItem>
+    <QHeaderView>
+    <QLineEdit>
+    <QComboBox>
+    <QCheckBox>
+    <QSpinBox>
+    <QDoubleSpinBox>
+    <QSlider>
+    <QSplitter>
+    <QMenu>
+    <QMessageBox>
+    <QFileDialog>
+    <QDateTime>
+    <QTimer>
+    <QDir>
+    <QFile>
+    <QFileInfo>
+    <QSvgRenderer>
+    <vector>
+    <string>
+    <memory>
+    <functional>
+    <algorithm>
+)
+```
 
 **章节来源**
-- [src/CMakeLists.txt:223-252](file://src/CMakeLists.txt#L223-L252)
-- [src/CMakeLists.txt:276-317](file://src/CMakeLists.txt#L276-L317)
+- [src/CMakeLists.txt:237-269](file://src/CMakeLists.txt#L237-L269)
+- [src/CMakeLists.txt:294-334](file://src/CMakeLists.txt#L294-L334)
+- [src/CMakeLists.txt:364-400](file://src/CMakeLists.txt#L364-L400)
+- [src/CMakeLists.txt:424-456](file://src/CMakeLists.txt#L424-L456)
+- [src/CMakeLists.txt:480-523](file://src/CMakeLists.txt#L480-L523)
+- [src/CMakeLists.txt:553-596](file://src/CMakeLists.txt#L553-L596)
+
+## 第三方库依赖管理
+
+### 依赖管理架构
+**已更新** 改进的第三方库依赖管理系统：
+
+#### spdlog日志库
+- **用途**: 高性能C++日志库
+- **集成方式**: INTERFACE IMPORTED目标
+- **路径**: third_party/spdlog/include
+
+#### nlohmann_json JSON库
+- **用途**: 现代C++ JSON解析库
+- **集成方式**: 单头文件库
+- **路径**: third_party/nlohmann_json
+
+#### concurrentqueue并发队列
+- **用途**: 无锁并发队列实现
+- **集成方式**: 单头文件库
+- **路径**: third_party/concurrentqueue
+
+#### qcustomplot图表库
+- **用途**: Qt图表绘制库
+- **集成方式**: 静态库构建
+- **条件编译**: 仅在存在源文件时构建
+
+#### vector_blf库配置
+**已更新** Vector BLF文件格式的C++实现，支持条件编译：
+```cmake
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/vector_blf/CMakeLists.txt")
+    add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/vector_blf ${CMAKE_BINARY_DIR}/vector_blf)
+endif()
+```
+
+### 条件编译支持
+**新增** 通过宏定义控制可选功能：
+```cmake
+if(TARGET vector_blf)
+    target_link_libraries(openbus_data PRIVATE vector_blf)
+    target_compile_definitions(openbus_data PRIVATE HAS_VECTOR_BLF)
+endif()
+```
+
+当启用vector_blf库时，会定义`HAS_VECTOR_BLF`宏，允许代码中使用高级BLF功能。
+
+**章节来源**
+- [third_party/Dependencies.cmake:5-31](file://third_party/Dependencies.cmake#L5-L31)
+- [src/CMakeLists.txt:198-235](file://src/CMakeLists.txt#L198-L235)
+
+## 平台特定配置
+
+### Windows平台配置
+**已更新** 增强的Windows平台支持：
+
+#### GUI程序设置
+```cmake
+if(WIN32)
+    set_target_properties(openbus PROPERTIES
+        WIN32_EXECUTABLE TRUE
+    )
+endif()
+```
+
+#### 链接器配置
+**已更新** 移除了LLD链接器的使用，改用默认的ld.bfd链接器以获得更好的兼容性：
+```cmake
+if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    message(STATUS "使用默认 ld.bfd 链接器")
+    
+    # Dev 档 — 日常开发：O1 + 行号级调试信息，链接体积/耗时数量级下降
+    set(CMAKE_CXX_FLAGS_DEV "-O1 -g1")
+    
+    # thin archive：只记录对象路径不复制内容，静态库重打包降为毫秒级
+    set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> qcT <TARGET> <LINK_FLAGS> <OBJECTS>")
+endif()
+```
+
+#### 驱动DLL自动复制
+**已更新** 改进了设备驱动的构建后处理：
+```cmake
+if(EXISTS "${CMAKE_SOURCE_DIR}/driver")
+    add_custom_command(TARGET openbus POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/driver"
+                "$<TARGET_FILE_DIR:openbus>"
+        COMMENT "Copying driver DLLs to output directory"
+    )
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/driver/"
+            DESTINATION bin
+            FILES_MATCHING PATTERN "*.dll"
+    )
+endif()
+```
+
+### macOS和Linux平台
+- 默认使用系统提供的编译器
+- 依赖库通过包管理器或源码编译获取
+- 无需特殊的GUI程序设置
+
+**章节来源**
+- [CMakeLists.txt:32-48](file://CMakeLists.txt#L32-L48)
+- [src/CMakeLists.txt:627-634](file://src/CMakeLists.txt#L627-L634)
+- [src/CMakeLists.txt:636-653](file://src/CMakeLists.txt#L636-L653)
 
 ## 安装目标配置
 
@@ -774,24 +587,6 @@ target_precompile_headers(openbus_ui PRIVATE
 ```cmake
 install(TARGETS openbus
     RUNTIME DESTINATION bin
-)
-```
-
-### 库文件安装
-当前配置未包含库文件的安装规则，如需安装openbus_core和openbus_ui库，可以添加：
-```cmake
-install(TARGETS openbus_core openbus_ui
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-)
-```
-
-### 头文件安装
-如需安装公共头文件，可以添加：
-```cmake
-install(DIRECTORY core/ models/ utils/
-    DESTINATION include/openbus
-    FILES_MATCHING PATTERN "*.h"
 )
 ```
 
@@ -804,58 +599,64 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/driver/"
 )
 ```
 
-### 插件系统安装
-插件系统的安装配置：
-- **插件目录**: 自动复制`plugins/`目录到安装位置
-- **SDK模块**: 包含Python SDK供插件开发使用
-- **宿主脚本**: 部署`sing_host.py`到安装目录
+### 业务模块安装
+**新增** 业务DLL的安装配置：
+```cmake
+# 各业务DLL会自动随主程序一起安装
+# 通过target_link_libraries声明的依赖会被正确处理
+```
 
 **章节来源**
-- [CMakeLists.txt:60-62](file://CMakeLists.txt#L60-L62)
-- [src/CMakeLists.txt:362-364](file://src/CMakeLists.txt#L362-364)
-- [src/CMakeLists.txt:352-357](file://src/CMakeLists.txt#L352-357)
+- [CMakeLists.txt:81-86](file://CMakeLists.txt#L81-L86)
+- [src/CMakeLists.txt:655-660](file://src/CMakeLists.txt#L655-L660)
 
 ## 构建流程总结
 
-### 依赖关系图
+### 新的分层构建架构
 ```mermaid
 graph TD
-A[openbus可执行文件] --> B[openbus_ui静态库]
-B --> C[openbus_core静态库]
-C --> D[Qt6::Widgets]
-C --> E[spdlog]
-C --> F[nlohmann_json]
-C --> G[concurrentqueue]
-C --> H[vector_blf]
-H --> I[zlib]
-H --> J[Threads]
-B --> K[qcustomplot]
-B --> L[Qt6::Svg]
-B --> M[columnfilterpopup组件]
-M --> N[FilterHeaderView]
-C --> O[插件系统]
-O --> P[PluginManager]
-O --> Q[PluginHost]
-O --> R[PluginInfo]
+A[openbus.exe] --> B[openbus_ui 静态库]
+B --> C[openbus_data 共享库]
+A --> D[openbus_market 业务DLL]
+A --> E[openbus_transceive 业务DLL]
+A --> F[openbus_dbc 业务DLL]
+A --> G[openbus_flow 业务DLL]
+A --> H[openbus_trace 业务DLL]
+A --> I[openbus_graphic 业务DLL]
+C --> J[Qt6::Widgets]
+C --> K[spdlog]
+C --> L[nlohmann_json]
+C --> M[concurrentqueue]
+C --> N[zlib]
+D --> O[Qt6::Network]
+E --> P[Qt6::Svg]
+F --> Q[Qt6::Svg]
+G --> R[Qt6::Svg]
 ```
 
 ### 构建步骤
 1. **配置阶段**: CMake检查依赖项并生成构建系统
 2. **编译阶段**: 
-   - 先编译openbus_core核心库
-   - 再编译openbus_ui界面库
-   - 最后链接openbus可执行文件
+   - 先编译openbus_data核心共享库
+   - 再编译各个业务DLL（market、transceive、dbc、flow等）
+   - 最后编译openbus_ui静态库和openbus可执行文件
 3. **链接阶段**: 链接所有依赖库生成最终可执行文件
-4. **安装阶段**: 将可执行文件、驱动文件和插件系统安装到指定目录
+4. **安装阶段**: 将可执行文件、驱动文件和业务模块安装到指定目录
 
 ### 性能优化效果
-- **编译时间**: 通过PCH和优化选项减少编译时间
-- **链接时间**: 使用默认链接器确保稳定性
+- **编译时间**: 通过分层PCH和优化选项显著减少编译时间
+- **链接时间**: 使用thin archive和默认链接器确保稳定性
 - **内存占用**: 精简调试信息减少内存占用
 - **启动时间**: 优化的二进制文件提升应用程序启动速度
-- **用户体验**: 新增的列筛选功能和插件系统提供更高效的数据过滤能力和扩展性
+- **模块化**: 业务DLL支持独立开发和测试，提高开发效率
+
+### 架构优势
+- **松耦合**: 通过ModuleRegistry实现模块间的松耦合通信
+- **可扩展性**: 新业务模块可以轻松添加，不影响现有代码
+- **可维护性**: 职责分离，每个DLL专注于特定功能领域
+- **可测试性**: 业务模块可以独立进行测试和验证
 
 **章节来源**
-- [src/CMakeLists.txt:175-179](file://src/CMakeLists.txt#L175-L179)
-- [src/CMakeLists.txt:322-329](file://src/CMakeLists.txt#L322-329)
-- [src/CMakeLists.txt:81-87](file://src/CMakeLists.txt#L81-L87)
+- [src/CMakeLists.txt:598-625](file://src/CMakeLists.txt#L598-L625)
+- [src/CMakeLists.txt:175-188](file://src/CMakeLists.txt#L175-L188)
+- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)

@@ -99,7 +99,8 @@ OfflineAnalysisTab::OfflineAnalysisTab(QWidget *parent)
     connect(m_moveDownBtn, &QPushButton::clicked, this, &OfflineAnalysisTab::onMoveDown);
 
     // 主题切换 → 重刷工具栏按钮图标颜色
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+    // DEF-08 字符串信号：ThemeManager 定义于 data.dll
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)), this, [this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
         m_addFileBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
         m_removeFileBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));

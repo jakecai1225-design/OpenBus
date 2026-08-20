@@ -219,7 +219,8 @@ GraphicView::GraphicView(QWidget *parent)
     m_zoomPushTimer.setSingleShot(true);
 
     // 主题切换 → 全视图重刷配色
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+    // DEF-08 字符串信号：ThemeManager 定义于 data.dll，跨 DLL PMF connect 断连
+connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             this, [this]() { applyPalette(); });
 
     // 卡尺/时间线/跟踪线用 ptAbsolute 像素定位（updateCursorDecorations 统一维护），
@@ -505,7 +506,8 @@ void GraphicView::setupUi()
             svgIcon(":/icons/dash.svg", th.text, 14), QStringLiteral("删除信号"), leftWidget);
     removeBtn->setStyleSheet(buttonQss(th.buttonBg, th.border));
     // 主题切换 → 重刷按钮图标颜色
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+    // DEF-08 字符串信号（同上）
+connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             leftWidget, [addBtn, removeBtn]() {
         const QString &c = ThemeManager::instance()->currentTheme().text;
         addBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));

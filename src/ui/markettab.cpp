@@ -213,8 +213,8 @@ void MarketTab::buildUi()
     refreshBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     refreshBtn->setToolTip(QStringLiteral("重新拉取市场索引与本地已装列表"));
     connect(refreshBtn, &QToolButton::clicked, this, &MarketTab::onRefreshClicked);
-    // 主题切换 → 重刷按钮图标颜色
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this, [refreshBtn]() {
+    // 主题切换 → 重刷按钮图标颜色（DEF-08 字符串信号）
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)), this, [refreshBtn]() {
         refreshBtn->setIcon(svgIcon(":/icons/refresh.svg",
                                     ThemeManager::instance()->currentTheme().text, 14));
     });
@@ -227,8 +227,8 @@ void MarketTab::buildUi()
     installBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     installBtn->setToolTip(QStringLiteral("从本地包文件安装（.odp 驱动 / .opk 插件）"));
     connect(installBtn, &QToolButton::clicked, this, &MarketTab::onInstallFromFile);
-    // 主题切换 → 重刷按钮图标颜色
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged, this, [installBtn]() {
+    // 主题切换 → 重刷按钮图标颜色（DEF-08 字符串信号）
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)), this, [installBtn]() {
         installBtn->setIcon(svgIcon(":/icons/kebab.svg",
                                     ThemeManager::instance()->currentTheme().text, 14));
     });
@@ -277,11 +277,11 @@ void MarketTab::buildUi()
     splitter->setSizes({ 360, 900 });
     root->addWidget(splitter, 1);
 
-    // ---- 数据源信号 ----
-    connect(MarketIndex::instance(), &MarketIndex::loaded,
+    // ---- 数据源信号（DEF-08 字符串信号：data.dll 类跨 DLL connect）----
+    connect(MarketIndex::instance(), SIGNAL(loaded(bool,QString)),
             this, &MarketTab::onMarketLoaded);
     // 安装/禁用/卸载（含 scanAndLoad）后自动刷新已装分组
-    connect(DriverRegistry::instance(), &DriverRegistry::driversChanged,
+    connect(DriverRegistry::instance(), SIGNAL(driversChanged()),
             this, &MarketTab::refreshInstalled);
 }
 

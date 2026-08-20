@@ -371,9 +371,10 @@ QWidget *TransceiveModule::createRecordPage(ShellContext &ctx)
                    bool repeatTrigger) {
         if (!m_triggerRecorder) {
             m_triggerRecorder = new TriggerRecorder(tab);
-            QObject::connect(m_ctx.simulator, &CanSimulator::frameGenerated,
+            // DEF-08 字符串信号：simulator/deviceManager 定义于 data.dll
+            QObject::connect(m_ctx.simulator, SIGNAL(frameGenerated(CanFrame)),
                              m_triggerRecorder, &TriggerRecorder::onFrame);
-            QObject::connect(m_ctx.deviceManager, &CanDeviceManager::frameGenerated,
+            QObject::connect(m_ctx.deviceManager, SIGNAL(frameGenerated(CanFrame)),
                              m_triggerRecorder, &TriggerRecorder::onFrame);
         }
 

@@ -519,7 +519,8 @@ QWidget *SignalSendTab::createOpWidget()
     });
 
     // 主题切换 → 重刷行操作图标颜色（widget 作为接收者，随控件销毁自动断开）
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged, widget,
+    // DEF-08 字符串信号：ThemeManager 定义于 data.dll
+connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)), widget,
             [sendBtn, stopBtn, delBtn, upBtn, downBtn]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
         sendBtn->setIcon(svgIcon(":/icons/play.svg", c, 14));

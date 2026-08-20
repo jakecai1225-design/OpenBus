@@ -1,8 +1,0 @@
-﻿=== Top-level windows of openbus after View menu open ===
-0x50D4A class=Qt683QWindowIcon
-=== Search menu items in main window tree ===
-ControlType.MenuItem name='帮助(H)' rect=455,66 id=QApplication.MainWindow.QMenuBar.QAction
-ControlType.MenuItem name='工具(T)' rect=390,66 id=QApplication.MainWindow.QMenuBar.QAction
-ControlType.MenuItem name='视图(V)' rect=324,66 id=QApplication.MainWindow.QMenuBar.QAction
-ControlType.MenuItem name='文件(F)' rect=260,66 id=QApplication.MainWindow.QMenuBar.QAction
-(screenshot _debug_view_menu.png)

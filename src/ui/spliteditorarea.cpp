@@ -243,7 +243,8 @@ void SplitEditorArea::setupCloseButton(QTabWidget *tabs, int index)
             closeTab(tabs, i);
     });
     // 主题切换 → 重刷关闭按钮图标颜色
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged, btn, [btn]() {
+    // DEF-08 字符串信号（同 filterheaderview）
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)), btn, [btn]() {
         btn->setIcon(svgIcon(":/icons/close.svg",
                              ThemeManager::instance()->currentTheme().text, 14));
     });

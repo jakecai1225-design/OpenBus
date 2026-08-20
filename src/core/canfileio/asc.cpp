@@ -68,12 +68,13 @@ void AscWriter::writeFrame(const CanFrame &frame)
         m_stream << " ";
     }
 
-    // CAN ID
+    // CAN ID（CANoe ASC 规范：扩展帧 ID 后缀 x，如 1ABCDEFx；与 AscReader 的
+    // 后缀判定闭环，且与 CANoe 导出的 ASC 文件互换）
     QString idStr = QString("%1")
         .arg(frame.id & (frame.extended ? 0x1FFFFFFF : 0x7FF),
              frame.extended ? 8 : 3, 16, QChar('0')).toUpper();
     if (frame.extended)
-        m_stream << "x" << idStr;
+        m_stream << idStr << "x";
     else
         m_stream << idStr;
 

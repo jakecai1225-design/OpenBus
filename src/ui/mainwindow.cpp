@@ -106,14 +106,18 @@ MainWindow::MainWindow(QWidget *parent)
     m_bookmarkMgr = new BookmarkManager(this);
 
     // ---- 插件系统 ----
+    // 注（DEF-08）：下列信号所属类定义于 libopenbus_data.dll，本文件编译于
+    // openbus_ui（链入 exe）——MinGW 下 PMF 元方法解析失败，connect 静默断连。
+    // 统一改用 SIGNAL() 字符串形式（运行期字符串匹配不走 PMF 解析），
+    // 槽端保留新式写法。全库同类调用点均已同步改造。
     m_pluginManager = PluginManager::instance();
-    connect(m_pluginManager, &PluginManager::outputMessage,
+    connect(m_pluginManager, SIGNAL(outputMessage(QString)),
             this, &MainWindow::onPluginOutput);
-    connect(m_pluginManager, &PluginManager::commandRegistered,
+    connect(m_pluginManager, SIGNAL(commandRegistered(QString,QString)),
             this, &MainWindow::onPluginCommandRegistered);
-    connect(m_pluginManager, &PluginManager::sendFrameRequested,
+    connect(m_pluginManager, SIGNAL(sendFrameRequested(CanFrame)),
             this, &MainWindow::onPluginSendFrame);
-    connect(m_pluginManager, &PluginManager::requestSelectedFrames,
+    connect(m_pluginManager, SIGNAL(requestSelectedFrames(QJsonValue)),
             this, &MainWindow::onPluginRequestSelectedFrames);
     m_pluginManager->initialize();
 
@@ -217,20 +221,20 @@ MainWindow::MainWindow(QWidget *parent)
 
     // pluginListChanged → 刷新市场页已装列表（连接在 manager 上，标签页删除后仍安全）
     if (m_pluginManager) {
-        connect(m_pluginManager, &PluginManager::pluginListChanged,
+        connect(m_pluginManager, SIGNAL(pluginListChanged()),
                 this, [this]() {
             if (m_marketWidget) marketInvoke(QStringLiteral("refreshInstalled"));
         });
     }
 
-    // 模拟器 → 帧接收
-    connect(m_simulator, &CanSimulator::frameGenerated,
+    // 模拟器 → 帧接收（DEF-08 字符串信号）
+    connect(m_simulator, SIGNAL(frameGenerated(CanFrame)),
             this, &MainWindow::onFrameReceived);
 
     // 硬件设备管理器 → 帧接收（与模拟器同信号）
-    connect(m_deviceManager, &CanDeviceManager::frameGenerated,
+    connect(m_deviceManager, SIGNAL(frameGenerated(CanFrame)),
             this, &MainWindow::onFrameReceived);
-    connect(m_deviceManager, &CanDeviceManager::connectionChanged,
+    connect(m_deviceManager, SIGNAL(connectionChanged(bool,QString)),
             this, [this](bool connected, const QString &name) {
         if (connected) {
             m_connLabel->setText(QStringLiteral("已连接: %1").arg(name));
@@ -240,25 +244,25 @@ MainWindow::MainWindow(QWidget *parent)
             m_bottomPanel->appendOutput(QStringLiteral("硬件已断开"));
         }
     });
-    connect(m_deviceManager, &CanDeviceManager::errorOccurred,
+    connect(m_deviceManager, SIGNAL(errorOccurred(QString)),
             this, [this](const QString &msg) {
         m_bottomPanel->appendOutput(QStringLiteral("%1").arg(msg));
     });
 
     // 回放器
-    connect(m_player, &Player::framePlayed, this, &MainWindow::onFramePlayed);
-    connect(m_player, &Player::progressChanged, this, &MainWindow::onPlayerProgress);
-    connect(m_player, &Player::stateChanged, this, &MainWindow::onPlayerStateChanged);
-    connect(m_player, &Player::finished, this, &MainWindow::onPlayerFinished);
+    connect(m_player, SIGNAL(framePlayed(CanFrame)), this, &MainWindow::onFramePlayed);
+    connect(m_player, SIGNAL(progressChanged(int,int,double,double)), this, &MainWindow::onPlayerProgress);
+    connect(m_player, SIGNAL(stateChanged(bool)), this, &MainWindow::onPlayerStateChanged);
+    connect(m_player, SIGNAL(finished()), this, &MainWindow::onPlayerFinished);
 
     // 录制器
-    connect(m_recorder, &Recorder::recordingStarted, this, [this](const QString &) {
+    connect(m_recorder, SIGNAL(recordingStarted(QString)), this, [this](const QString &) {
         m_recording = true;
         m_bottomPanel->appendOutput("录制开始");
         transceiveInvoke(QStringLiteral("setRecording"), true);
         updateActions();
     });
-    connect(m_recorder, &Recorder::recordingStopped, this, [this](const QString &path, int count) {
+    connect(m_recorder, SIGNAL(recordingStopped(QString,int)), this, [this](const QString &path, int count) {
         m_recording = false;
         m_bottomPanel->appendOutput(QString("录制结束: %1 (%2 帧)").arg(path).arg(count));
         transceiveInvoke(QStringLiteral("setRecording"), false);
@@ -334,8 +338,8 @@ MainWindow::MainWindow(QWidget *parent)
     });
     connect(m_sideBar->settingsPanel(), &SettingsPanel::settingsRequested,
             this, &MainWindow::onSettingsRequested);
-    // 主题切换后刷新 ActivityBar 图标颜色
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+    // 主题切换后刷新 ActivityBar 图标颜色（DEF-08 字符串信号）
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             m_activityBar, &ActivityBar::refreshIcons);
     // 设备连接面板 — 点击设备条目打开标签页
     connect(m_sideBar->devicePanel(), &DevicePanel::deviceOpenRequested,
@@ -420,8 +424,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_bottomPanel, &BottomPanel::commandEntered,
             this, &MainWindow::onCommandEntered);
 
-    // DBC 加载通知
-    connect(m_dbcManager, &DbcManager::dbcLoaded, this, [this](const QString &name) {
+    // DBC 加载通知（DEF-08 字符串信号）
+    connect(m_dbcManager, SIGNAL(dbcLoaded(QString)), this, [this](const QString &name) {
         m_bottomPanel->appendOutput("DBC 已加载: " + name);
     });
 
@@ -511,7 +515,20 @@ MainWindow::MainWindow(QWidget *parent)
     flowInvoke(QStringLiteral("rebuildScene"), {});
 }
 
-MainWindow::~MainWindow() = default;
+MainWindow::~MainWindow()
+{
+    // DEF-11：析构体最先执行、派生类成员仍有效——在此断开实例的
+    // destroyed 回调。基类 deleteChildren 阶段成员已析构完毕，回调里
+    // m_traceInstances/m_graphicInstances.remove(...) 会访问已释放的
+    // QMap 节点（UAF：退出阶段 SegFault，堆中毒 0xFEEEFEEE）。
+    // 标签页运行期关闭时 widget 先于窗口析构，连接随对象消亡，不受影响。
+    if (m_marketWidget)
+        disconnect(m_marketWidget, &QObject::destroyed, this, nullptr);
+    for (QWidget *w : m_traceInstances.values())
+        disconnect(w, &QObject::destroyed, this, nullptr);
+    for (QWidget *w : m_graphicInstances.values())
+        disconnect(w, &QObject::destroyed, this, nullptr);
+}
 
 // ============================================================
 //  菜单栏
@@ -701,8 +718,8 @@ void MainWindow::createWindowButtons()
     connect(m_closeBtn, &QToolButton::clicked, this, &QWidget::close);
 
     refreshWindowButtonIcons();
-    // 主题切换 → 重刷窗口按钮图标颜色
-    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+    // 主题切换 → 重刷窗口按钮图标颜色（DEF-08 字符串信号）
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             this, &MainWindow::refreshWindowButtonIcons);
 }
 

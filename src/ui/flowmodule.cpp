@@ -55,6 +55,14 @@ QWidget *FlowModule::createPage(const QString &pageId, const QVariant &param, Sh
     return nullptr;
 }
 
+QWidget *FlowModule::createPage(const QString &pageId, ShellContext &ctx)
+{
+    // 两参重载转发（DEF-10）：接口默认实现返回 nullptr，壳侧无参调用
+    // （onOpenMeasurementSetup 的 "setup" / onOpenDeviceTab 的 "device"）
+    // 会拿到空页导致 Flow 页打不开
+    return createPage(pageId, QVariant(), ctx);
+}
+
 void FlowModule::cachePage(const QString &pageId, QWidget *page)
 {
     m_pages.insert(pageId, page);
@@ -77,14 +85,15 @@ QWidget *FlowModule::createSetupPage(ShellContext &ctx)
     for (const auto &f : ctx.dbcManager->files())
         dbcFiles << f.fileName;
     view->setDbcFiles(dbcFiles);
-    QObject::connect(ctx.dbcManager, &DbcManager::dbcLoaded, view,
+    // DEF-08 字符串信号：DbcManager 定义于 data.dll，本模块在 openbus_flow.dll
+    QObject::connect(ctx.dbcManager, SIGNAL(dbcLoaded(QString)), view,
                      [view, ctx](const QString &) {
         QStringList files;
         for (const auto &f : ctx.dbcManager->files())
             files << f.fileName;
         view->setDbcFiles(files);
     });
-    QObject::connect(ctx.dbcManager, &DbcManager::dbcUnloaded, view,
+    QObject::connect(ctx.dbcManager, SIGNAL(dbcUnloaded(QString)), view,
                      [view, ctx](const QString &) {
         QStringList files;
         for (const auto &f : ctx.dbcManager->files())

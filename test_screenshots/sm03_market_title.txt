@@ -1,2 +1,0 @@
-﻿[QApplication.MainWindow.LeftDock.LeftContainer.SideBar.ExtensionsPanel.SidePanelTitle] = '插件市场'
-After click btn[0] back: '工程列表'

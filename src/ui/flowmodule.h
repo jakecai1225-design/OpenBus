@@ -30,6 +30,10 @@ public:
 
     QStringList pages() const override;
     QWidget *createPage(const QString &pageId, const QVariant &param, ShellContext &ctx) override;
+    // 两参重载必须显式转发（DEF-10）：壳侧 onOpenMeasurementSetup /
+    // onOpenDeviceTab 调两参版，接口默认实现返回 nullptr——B4 拆分后
+    // 遗漏此覆写导致 Flow 测量配置页与设备连接页打不开
+    QWidget *createPage(const QString &pageId, ShellContext &ctx) override;
 
     void invoke(const QString &action, const QVariant &arg) override;
     QVariant query(const QString &what, const QVariant &arg) override;

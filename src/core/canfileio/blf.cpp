@@ -433,14 +433,13 @@ int BlfReader::parseUncompressedObjects(const QByteArray &data, QVector<CanFrame
 
         quint16 headerSize = qFromLittleEndian<quint16>(
             reinterpret_cast<const uchar *>(raw + offset + 4));
-        quint16 headerVersion = qFromLittleEndian<quint16>(
-            reinterpret_cast<const uchar *>(raw + offset + 6));
         quint32 objectSize = qFromLittleEndian<quint32>(
             reinterpret_cast<const uchar *>(raw + offset + 8));
         quint32 objectType = qFromLittleEndian<quint32>(
             reinterpret_cast<const uchar *>(raw + offset + 12));
 
-        if (objectSize == 0 || offset + objectSize > dataSize)
+        if (objectSize == 0
+            || objectSize > static_cast<quint32>(dataSize - offset))
             break;
 
         int objDataStart = offset + headerSize;
@@ -450,15 +449,17 @@ int BlfReader::parseUncompressedObjects(const QByteArray &data, QVector<CanFrame
 
         const char *objData = raw + objDataStart;
 
-        // 提取时间戳 (headerVersion >= 1 时扩展头中有 objectTimeStamp)
+        // 提取时间戳 — ObjectHeader (v1, headerSize=32):
+        //   objectFlags u32@16 (TimeTenMics=0x01, TimeOneNans=0x02),
+        //   clientIndex u16@20, objectVersion u16@22, objectTimeStamp u64@24
+        // （布局依据 vector_blf ObjectHeader.h / 各消息类声明顺序 = 序列化顺序）
         double timestamp = 0.0;
-        if (headerVersion >= 1 && headerSize >= 22) {
-            // 基础头 16 字节之后: offset+16: u8 objectFlags, offset+17: u8 reserved, offset+18: u32 objectTimeStamp
-            quint32 ts = qFromLittleEndian<quint32>(
-                reinterpret_cast<const uchar *>(raw + offset + 18));
-            // 检查 TimeOneNans 或 TimeTenMics 标志
-            quint8 flags = static_cast<quint8>(raw[offset + 16]);
-            if (flags & 0x02) { // TimeOneNans
+        if (headerSize >= 32) {
+            quint32 objFlags = qFromLittleEndian<quint32>(
+                reinterpret_cast<const uchar *>(raw + offset + 16));
+            quint64 ts = qFromLittleEndian<quint64>(
+                reinterpret_cast<const uchar *>(raw + offset + 24));
+            if (objFlags & 0x02) { // TimeOneNans
                 timestamp = static_cast<double>(ts) / 1e9;
             } else { // TimeTenMics
                 timestamp = static_cast<double>(ts) * 1e-5;
@@ -470,111 +471,106 @@ int BlfReader::parseUncompressedObjects(const QByteArray &data, QVector<CanFrame
 
         switch (objectType) {
         case BLF_OBJTYPE_CAN_MESSAGE: {
-            // CanMessage (type 1, deprecated, data[8])
-            if (objDataLen >= 12) {
+            // CanMessage (type 1, deprecated):
+            //   channel u16@0, flags u8@2 (bit0=TX), dlc u8@3,
+            //   id u32@4 (bit31=EFF), data[8]@8
+            if (objDataLen >= 8) {
                 frame.channel = static_cast<quint8>(qFromLittleEndian<quint16>(
                     reinterpret_cast<const uchar *>(objData)));
-                // offset+2: u16 dlc
-                frame.dlc = static_cast<quint8>(qFromLittleEndian<quint16>(
-                    reinterpret_cast<const uchar *>(objData + 2)));
-                // offset+6: u32 id
+                quint8 msgFlags = static_cast<quint8>(objData[2]);
+                frame.dlc = static_cast<quint8>(objData[3]);
                 frame.id = qFromLittleEndian<quint32>(
-                    reinterpret_cast<const uchar *>(objData + 6));
-                // offset+10: u8 flags (bit 0 = TX/RX)
-                // offset+11: u8 data[8] or somewhere
-                // The CanMessage structure has a fixed data[8] at offset 12
+                    reinterpret_cast<const uchar *>(objData + 4));
+                frame.extended = (frame.id & 0x80000000) != 0;
+                frame.id &= 0x7FFFFFFF;
+                frame.direction = (msgFlags & 0x01) ? CanFrame::Tx : CanFrame::Rx;
                 int dataLen = qMin(static_cast<int>(frame.dlc), 8);
-                if (objDataLen >= 12 + dataLen) {
-                    frame.data = QByteArray(objData + 12, dataLen);
-                    frameValid = true;
+                dataLen = qMin(dataLen, objDataLen - 8);
+                if (dataLen > 0) {
+                    frame.data = QByteArray(objData + 8, dataLen);
                 }
+                frameValid = true;
             }
             break;
         }
         case BLF_OBJTYPE_CAN_MESSAGE2: {
-            // CanMessage2 (type 86, variable data)
-            if (objDataLen >= 12) {
+            // CanMessage2 (type 86):
+            //   channel u16@0, flags u8@2 (bit0=TX), dlc u8@3,
+            //   id u32@4 (bit31=EFF), data@8 (len=dlc ≤ 8), frameLength u32, bitCount u8...
+            if (objDataLen >= 8) {
                 frame.channel = static_cast<quint8>(qFromLittleEndian<quint16>(
                     reinterpret_cast<const uchar *>(objData)));
-                frame.dlc = static_cast<quint8>(qFromLittleEndian<quint16>(
-                    reinterpret_cast<const uchar *>(objData + 2)));
-                // offset+4: u16 flags
-                quint16 msgFlags = qFromLittleEndian<quint16>(
-                    reinterpret_cast<const uchar *>(objData + 4));
-                frame.extended = (msgFlags & 0x08) != 0;
-                frame.direction = (msgFlags & 0x01) ? CanFrame::Tx : CanFrame::Rx;
-                // offset+6: u32 id
+                quint8 msgFlags = static_cast<quint8>(objData[2]);
+                frame.dlc = static_cast<quint8>(objData[3]);
                 frame.id = qFromLittleEndian<quint32>(
-                    reinterpret_cast<const uchar *>(objData + 6));
-                // offset+10: u8 data[]
-                int dataLen = qMin(static_cast<int>(frame.dlc), objDataLen - 12);
+                    reinterpret_cast<const uchar *>(objData + 4));
+                frame.extended = (frame.id & 0x80000000) != 0;
+                frame.id &= 0x7FFFFFFF;
+                frame.direction = (msgFlags & 0x01) ? CanFrame::Tx : CanFrame::Rx;
+                int dataLen = qMin(static_cast<int>(frame.dlc), objDataLen - 8);
                 if (dataLen > 0) {
-                    frame.data = QByteArray(objData + 12, dataLen);
+                    frame.data = QByteArray(objData + 8, dataLen);
                 }
                 frameValid = true;
             }
             break;
         }
         case BLF_OBJTYPE_CAN_FD: {
-            // CanFdMessage (type 100, fixed data[64])
-            if (objDataLen >= 14) {
+            // CanFdMessage (type 100):
+            //   channel u16@0, flags u8@2 (bit0=TX), dlc u8@3, id u32@4 (bit31=EFF),
+            //   frameLength u32@8, arbBitCount u8@12, canFdFlags u8@13
+            //   (bit0=EDL, bit1=BRS, bit2=ESI), validDataBytes u8@14, data[64]@20
+            if (objDataLen >= 20) {
                 frame.channel = static_cast<quint8>(qFromLittleEndian<quint16>(
                     reinterpret_cast<const uchar *>(objData)));
-                // offset+2: u8 dlc
-                frame.dlc = static_cast<quint8>(objData[2]);
-                // offset+3: u8 validDataBytes
-                quint8 validBytes = static_cast<quint8>(objData[3]);
-                // offset+4: u32 id
+                quint8 msgFlags = static_cast<quint8>(objData[2]);
+                frame.dlc = static_cast<quint8>(objData[3]);
                 frame.id = qFromLittleEndian<quint32>(
                     reinterpret_cast<const uchar *>(objData + 4));
-                // offset+8: u8 flags (bit 0 = TX/RX)
-                quint8 msgFlags = static_cast<quint8>(objData[8]);
+                frame.extended = (frame.id & 0x80000000) != 0;
+                frame.id &= 0x7FFFFFFF;
                 frame.direction = (msgFlags & 0x01) ? CanFrame::Tx : CanFrame::Rx;
-                // offset+10: u16 canFdFlags (bit 4 = EDL, bit 5 = BRS, bit 6 = ESI)
-                // Wait, CanFdMessage structure has different layout
-                // Let's use: offset+10: u8 canFdFlags
-                quint8 fdFlags = static_cast<quint8>(objData[10]);
-                frame.fd = (fdFlags & 0x10) != 0;
-                frame.bitrateSwitch = (fdFlags & 0x20) != 0;
-                frame.errorState = (fdFlags & 0x40) != 0;
-
-                int dataLen = validBytes > 0 ? qMin(static_cast<int>(validBytes), 64)
-                                             : CanFrame::dlcToLength(frame.dlc);
-                dataLen = qMin(dataLen, qMin(64, objDataLen - 14));
+                quint8 fdFlags = static_cast<quint8>(objData[13]);
+                quint8 validBytes = static_cast<quint8>(objData[14]);
+                frame.fd = (fdFlags & 0x01) != 0;           // EDL
+                frame.bitrateSwitch = (fdFlags & 0x02) != 0; // BRS
+                frame.errorState = (fdFlags & 0x04) != 0;    // ESI
+                int dataLen = validBytes > 0 ? validBytes : CanFrame::dlcToLength(frame.dlc);
+                dataLen = qMin(dataLen, qMin(64, objDataLen - 20));
                 if (dataLen > 0) {
-                    frame.data = QByteArray(objData + 14, dataLen);
+                    frame.data = QByteArray(objData + 20, dataLen);
                 }
                 frameValid = true;
             }
             break;
         }
         case BLF_OBJTYPE_CAN_FD64: {
-            // CanFdMessage64 (type 101, variable data)
-            if (objDataLen >= 12) {
-                frame.channel = static_cast<quint8>(qFromLittleEndian<quint16>(
-                    reinterpret_cast<const uchar *>(objData)));
-                // offset+2: u8 dlc
-                frame.dlc = static_cast<quint8>(objData[2]);
-                // offset+3: u8 validDataBytes
-                quint8 validBytes = static_cast<quint8>(objData[3]);
-                // offset+4: u32 id
+            // CanFdMessage64 (type 101):
+            //   channel u8@0, dlc u8@1, validDataBytes u8@2, txCount u8@3,
+            //   id u32@4 (bit31=EFF), frameLength u32@8, flags u32@12
+            //   (bit6=TXA, bit12=EDL, bit13=BRS, bit14=ESI), bitCount u16@32,
+            //   dir u8@34, ..., data@40
+            if (objDataLen >= 40) {
+                frame.channel = static_cast<quint8>(objData[0]);
+                frame.dlc = static_cast<quint8>(objData[1]);
+                quint8 validBytes = static_cast<quint8>(objData[2]);
                 frame.id = qFromLittleEndian<quint32>(
                     reinterpret_cast<const uchar *>(objData + 4));
-                // offset+8: u16 flags (bit 6 = TX, bit 12 = EDL, bit 13 = BRS, bit 14 = ESI)
-                quint16 msgFlags = qFromLittleEndian<quint16>(
-                    reinterpret_cast<const uchar *>(objData + 8));
-                frame.direction = (msgFlags & 0x40) ? CanFrame::Tx : CanFrame::Rx;
+                frame.extended = (frame.id & 0x80000000) != 0;
+                frame.id &= 0x7FFFFFFF;
+                quint32 msgFlags = qFromLittleEndian<quint32>(
+                    reinterpret_cast<const uchar *>(objData + 12));
+                quint8 dir = static_cast<quint8>(objData[34]);
+                frame.direction = (dir != 0 || (msgFlags & 0x40)) ? CanFrame::Tx : CanFrame::Rx;
                 frame.fd = (msgFlags & 0x1000) != 0;
                 frame.bitrateSwitch = (msgFlags & 0x2000) != 0;
                 frame.errorState = (msgFlags & 0x4000) != 0;
-                frame.extended = (frame.id & 0x80000000) != 0;
-                frame.id &= 0x7FFFFFFF;
 
                 int dataLen = validBytes > 0 ? qMin(static_cast<int>(validBytes), 64)
                                              : CanFrame::dlcToLength(frame.dlc);
-                dataLen = qMin(dataLen, objDataLen - 12);
+                dataLen = qMin(dataLen, objDataLen - 40);
                 if (dataLen > 0) {
-                    frame.data = QByteArray(objData + 12, dataLen);
+                    frame.data = QByteArray(objData + 40, dataLen);
                 }
                 frameValid = true;
             }

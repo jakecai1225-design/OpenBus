@@ -11,6 +11,7 @@ openbus 项目构建脚本
   rebuild    - 重新构建 (清理 + 配置 + 编译)
   deploy     - 部署 Qt 运行时依赖
   all        - 完整流程 (配置 + 编译 + 部署 + 运行)
+  test       - 运行测试套件 (L1 集成测试，ctest)
   status     - 显示环境状态
   open       - 在资源管理器中打开构建目录
 
@@ -435,12 +436,86 @@ def cmd_status(env, args):
 
 def cmd_open(env, args):
     """在资源管理器中打开构建输出目录"""
+    header("打开输出目录")
     target = EXECUTABLE.parent if EXECUTABLE.parent.exists() else BUILD_DIR
     if target.exists():
         subprocess.run(["explorer", str(target)])
         ok(f"已打开: {target}")
     else:
         fail(f"目录不存在: {target}")
+
+
+def cmake_needs_reconfigure():
+    """任一 CMakeLists.txt 比构建系统主文件新 → 需要 reconfigure。
+
+    无条件 reconfigure 会重写全部 flags.make（mtime 更新），Makefile 生成器
+    按时间戳判定 → 触发全量重编。仅在 CMake 变化后首次跑一次。
+    """
+    masters = [BUILD_DIR / "Makefile", BUILD_DIR / "build.ninja"]
+    master = next((m for m in masters if m.exists()), None)
+    if master is None:
+        return True
+    master_ts = master.stat().st_mtime
+    for cm in PROJECT_ROOT.rglob("CMakeLists.txt"):
+        # 跳过构建树副本（build/、build-dev/ 等）
+        if any(p.lower().startswith("build") for p in cm.parts):
+            continue
+        if cm.stat().st_mtime > master_ts:
+            return True
+    return False
+
+
+def cmd_test(env, args):
+    """运行测试套件 (构建 tests 聚合目标 + ctest，见 doc/测试验收方案.md v2.0)
+
+    只构建测试目标不重链主程序；套件各自独立进程，失败输出 qDebug 基线 diff。
+    """
+    header("运行测试")
+
+    if not (BUILD_DIR / "CMakeCache.txt").exists():
+        info("构建目录未配置，自动执行 configure...")
+        cmd_configure(env, args)
+
+    jobs = str(args.jobs or os.cpu_count() or 8)
+
+    # Makefile 生成器限制：新 target（如新增测试套件）不在旧 Makefile 中时，
+    # make 直接报 No rule 而不会先自动重生成。仅当 CMakeLists.txt 有更新时
+    # 才做增量 reconfigure（避免每次全量重编；Ninja 生成器下也无害）。
+    if cmake_needs_reconfigure():
+        info("$ cmake 增量 reconfigure (CMakeLists.txt 有更新) ...")
+        reconf_rc = subprocess.run(
+            [str(env.cmake), "-B", str(BUILD_DIR), "-S", str(PROJECT_ROOT)]
+        ).returncode
+        if reconf_rc != 0:
+            fail(f"CMake 增量配置失败 (退出码: {reconf_rc})")
+            sys.exit(1)
+    else:
+        info("CMake 配置已是最新，跳过 reconfigure")
+
+    # 仅构建测试聚合目标（避免主程序无谓重链）
+    info("$ 构建测试目标 (tests) ...")
+    build_rc = subprocess.run(
+        [str(env.cmake), "--build", str(BUILD_DIR), "--target", "tests", "-j", jobs]
+    ).returncode
+    if build_rc != 0:
+        fail(f"测试目标构建失败 (退出码: {build_rc})")
+        sys.exit(1)
+
+    # ctest 执行（失败用例输出完整 stdout/stderr）
+    ctest = env.cmake.with_name("ctest.exe")
+    if not ctest.exists():
+        fail(f"ctest 未找到: {ctest}")
+        sys.exit(1)
+    info("$ ctest --output-on-failure ...")
+    test_rc = subprocess.run(
+        [str(ctest), "--test-dir", str(BUILD_DIR), "--output-on-failure"]
+    ).returncode
+
+    if test_rc == 0:
+        ok("全部测试套件通过")
+    else:
+        fail(f"存在失败的测试套件 (退出码: {test_rc})")
+    sys.exit(test_rc)
 
 
 # ============================================================
@@ -468,6 +543,7 @@ def main():
   python scripts/build.py all                             完整流程
   python scripts/build.py status                          环境状态
   python scripts/build.py open                            打开输出目录
+  python scripts/build.py test                            运行测试套件 (ctest)
 
 构建系统 (放在 tools/ 目录自动检测):
   tools/ninja/ninja.exe    Ninja 构建系统 (编译调度快 2-3x)
@@ -550,6 +626,14 @@ def main():
     p = sub.add_parser("open", help="在资源管理器中打开输出目录")
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_open)
+
+    # test
+    p = sub.add_parser("test", help="运行测试套件 (L1 集成测试，ctest)")
+    p.add_argument("-j", "--jobs", type=int, help="并行任务数 (默认: CPU 核心数)")
+    p.add_argument("--build-type", choices=BUILD_TYPES, default="Debug",
+                   help="自动配置时的构建类型")
+    add_build_dir_opt(p)
+    p.set_defaults(func=cmd_test)
 
     args = parser.parse_args()
 

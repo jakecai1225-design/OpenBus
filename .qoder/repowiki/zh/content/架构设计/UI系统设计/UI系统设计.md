@@ -62,39 +62,53 @@
 - [src/core/plugin/pluginhost.h](file://src/core/plugin/pluginhost.h)
 - [src/core/plugin/pluginmanager.h](file://src/core/plugin/pluginmanager.h)
 - [scripts/sin_host.py](file://scripts/sin_host.py)
+- [src/core/module/imodule.h](file://src/core/module/imodule.h)
+- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
+- [src/core/module/moduleregistry.cpp](file://src/core/module/moduleregistry.cpp)
+- [src/ui/marketmodule.h](file://src/ui/marketmodule.h)
+- [src/ui/transceivemodule.h](file://src/ui/transceivemodule.h)
+- [src/ui/dbcmodule.h](file://src/ui/dbcmodule.h)
+- [src/ui/flowmodule.h](file://src/ui/flowmodule.h)
+- [src/ui/tracemodule.h](file://src/ui/tracemodule.h)
+- [src/ui/graphicmodule.h](file://src/ui/graphicmodule.h)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- 更新了设备连接标签页的智能连接门控功能，根据驱动可用性自动启用/禁用连接按钮
-- 增强了图形视图的视觉一致性，使用SVG箭头图标替换了基于文本的光标手柄
-- 全面更新了侧边栏面板图标，为导入DBC文件、创建跟踪和添加图形提供了主题化的SVG图标，支持动态颜色切换
-- 改进了设备连接界面的用户体验，提供了更直观的连接状态反馈
+- 新增模块化UI架构章节，详细说明market、transceive、DBC、flow、trace和graphic模块作为独立DLL的工厂创建机制
+- 更新核心组件分析，增加IBusinessModule接口和ModuleRegistry注册表的设计说明
+- 重构架构总览图，展示新的模块化工厂模式
+- 新增模块系统详细分析，包括各模块的职责划分和通信机制
+- 更新依赖关系分析，反映新的DLL化架构
+- 增强故障排查指南，包含模块加载和工厂创建相关问题
 
 ## 目录
 1. [简介](#简介)
 2. [项目结构](#项目结构)
 3. [核心组件](#核心组件)
 4. [架构总览](#架构总览)
-5. [详细组件分析](#详细组件分析)
-6. [增强图形组件](#增强图形组件)
-7. [插件系统集成](#插件系统集成)
-8. [专用Tab组件系统](#专用Tab组件系统)
-9. [工具集系统](#工具集系统)
-10. [依赖关系分析](#依赖关系分析)
-11. [性能考虑](#性能考虑)
-12. [故障排查指南](#故障排查指南)
-13. [结论](#结论)
-14. [附录](#附录)
+5. [模块化UI架构](#模块化ui架构)
+6. [详细组件分析](#详细组件分析)
+7. [增强图形组件](#增强图形组件)
+8. [插件系统集成](#插件系统集成)
+9. [专用Tab组件系统](#专用tab组件系统)
+10. [工具集系统](#工具集系统)
+11. [依赖关系分析](#依赖关系分析)
+12. [性能考虑](#性能考虑)
+13. [故障排查指南](#故障排查指南)
+14. [结论](#结论)
+15. [附录](#附录)
 
 ## 简介
 本文件面向基于Qt Widgets和现代Web技术的混合UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
 
-**更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新针对UI系统进行了全面增强，包括SVG图标支持系统、样式系统重构、现代化界面设计改进，以及设备连接界面的优化。新增的ThemeManager主题管理器支持多种内置主题和运行时切换，SVG图标系统提供动态颜色替换功能，设备连接界面提供了完整的CAN/CAN FD配置选项和时序预设管理。活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置，反映了其在测量设置工作流程中的重要性。各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。**
+**最新更新** 本文档现已重点说明从单体单文件结构到模块化组件系统的完整重构过程，包括新的Web前端原型系统和Qt后端架构的集成模式。新增了基于HTML部分的组件化架构、JavaScript模块系统和CSS样式管理，实现了前后端分离的开发模式和更好的代码组织结构。**特别重要的是，最新的更新针对UI系统进行了全面增强，包括SVG图标支持系统、样式系统重构、现代化界面设计改进，以及设备连接界面的优化。新增的ThemeManager主题管理器支持多种内置主题和运行时切换，SVG图标系统提供动态颜色替换功能，设备连接界面提供了完整的CAN/CAN FD配置选项和时序预设管理。活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置，反映了其在测量设置工作流程中的重要性。各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。**
 
 **最新增强** GraphicView组件现已完全重构，集成了QCustomPlot库，提供了专业的信号可视化功能。支持多轴信号绘图、实时数据流处理、交互式光标系统和高性能的批处理渲染。主题管理系统得到了显著增强，支持7种内置主题（Light、Dark、VS Code Dark+、VS Code Light+、Monokai、Solarized Light、Solarized Dark）和运行时动态切换。**新增的高性能视口降采样功能模块通过downsample算法实现Min/Max、Average、First、Decimate四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，支持拖拽式视窗控制和点击跳转功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数和厂商特定设置。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。**
 
 **插件系统增强** 系统现在集成了完整的Python插件架构，支持动态加载和执行外部Python脚本。GraphicView组件通过扩展点接口允许插件自定义信号可视化行为，包括添加自定义图表类型、修改渲染逻辑和扩展用户交互。插件系统采用JSON-RPC协议进行主程序与Python宿主进程间的通信，提供了稳定的异步消息传递机制。
+
+**模块化架构增强** 系统现已完成从单体架构向模块化DLL架构的重构，将市场、收发、DBC、流程、跟踪和图形等核心功能模块拆分为独立的DLL，通过工厂模式进行创建和管理。这种架构设计提高了系统的可扩展性、可维护性和部署灵活性，支持按需加载和功能模块的动态管理。
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式，结合了传统Qt Widgets架构和现代Web前端技术：
@@ -149,6 +163,9 @@ B --> KK["scripts/sin_host.py"]
 KK --> LL["plugins/*"]
 LL --> MM["plugin.json"]
 LL --> NN["main.py"]
+B --> OO["src/core/module/*"]
+OO --> PP["imodule.h"]
+OO --> QQ["moduleregistry.h/.cpp"]
 ```
 
 **图表来源**
@@ -163,6 +180,8 @@ LL --> NN["main.py"]
 - [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 - [third_party/qcustomplot/qcustomplot.h](file://third_party/qcustomplot/qcustomplot.h)
 - [scripts/sin_host.py](file://scripts/sin_host.py)
+- [src/core/module/imodule.h](file://src/core/module/imodule.h)
+- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
 
 章节来源
 - [CMakeLists.txt](file://CMakeLists.txt)
@@ -187,6 +206,8 @@ LL --> NN["main.py"]
 - **新增** PluginManager: 插件管理器，负责插件发现、激活和生命周期管理
 - **新增** PluginHost: Python插件宿主进程管理，支持JSON-RPC通信
 - **新增** sin_host.py: Python插件宿主脚本，提供插件执行环境
+- **新增** IBusinessModule: 业务模块接口，定义模块契约和工厂创建机制
+- **新增** ModuleRegistry: 模块注册表，管理模块工厂和实例生命周期
 
 **更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过Min/Max、Average、First、Decimate四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
@@ -206,7 +227,7 @@ LL --> NN["main.py"]
 - [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 
 ## 架构总览
-整体采用"入口初始化 + 主窗口容器 + 样式/资源分离 + Web前端集成 + 插件系统"的混合架构模式：
+整体采用"入口初始化 + 主窗口容器 + 样式/资源分离 + Web前端集成 + 插件系统 + 模块化DLL架构"的混合架构模式：
 - 入口负责生命周期与全局样式注入
 - 主窗口作为UI根节点，组织子控件与布局
 - 样式通过ThemeManager集中管理，支持运行时切换
@@ -218,6 +239,7 @@ LL --> NN["main.py"]
 - **新增** TransceivePanel提供统一的收发功能入口
 - **新增** Downsample模块提供高性能视口降采样算法
 - **新增** 插件系统提供Python脚本执行环境和动态扩展能力
+- **新增** 模块化DLL架构提供功能模块的独立编译和动态加载
 
 **更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数。FilterHeaderView组件通过自定义排序指示器和漏斗图标，提供了Wireshark风格的表头界面，增强了数据表的交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
 
@@ -229,6 +251,16 @@ MW["MainWindow<br/>主窗口"]
 TM["ThemeManager<br/>主题管理器"]
 SD["SettingsDialog<br/>设置对话框"]
 PM["PluginManager<br/>插件管理器"]
+MR["ModuleRegistry<br/>模块注册表"]
+end
+subgraph "模块系统层"
+IM["IBusinessModule<br/>模块接口"]
+MM["MarketModule<br/>市场模块"]
+TMOD["TransceiveModule<br/>收发模块"]
+DM["DbcModule<br/>DBC模块"]
+FM["FlowModule<br/>流程模块"]
+TRM["TraceModule<br/>跟踪模块"]
+GM["GraphicModule<br/>图形模块"]
 end
 subgraph "插件系统层"
 PH["PluginHost<br/>插件宿主"]
@@ -287,6 +319,7 @@ M --> MW
 M --> TM
 M --> SD
 M --> PM
+M --> MR
 M --> WPH
 WPH --> WL
 WPH --> WP
@@ -328,6 +361,13 @@ SH --> PL
 VPM --> CFPM
 FHV --> CFPM
 TPN --> TR
+MR --> IM
+IM --> MM
+IM --> TMOD
+IM --> DM
+IM --> FM
+IM --> TRM
+IM --> GM
 ```
 
 **图表来源**
@@ -346,6 +386,263 @@ TPN --> TR
 - [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
 - [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 - [third_party/qcustomplot/qcustomplot.h](file://third_party/qcustomplot/qcustomplot.h)
+- [src/core/module/imodule.h](file://src/core/module/imodule.h)
+- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
+
+## 模块化UI架构
+
+### 模块接口设计（IBusinessModule）
+模块接口定义了业务模块与壳程序之间的唯一契约，遵循以下设计原则：
+- 业务DLL只导出一个C工厂函数返回模块接口指针
+- 模块内部所有类均为DLL私有，不跨边界导出类或符号
+- 接口只依赖Qt基础类型与数据层类型，禁止出现壳的具体类型
+- 接口只增不改：新增能力以新的虚函数或ShellContext新字段追加
+
+**核心接口特性**
+- id(): 模块标识符（如"trace"、"graphic"、"market"等），全局唯一
+- title(): 模块默认标题，支持本地化文案
+- icon(): 模块图标，使用资源路径格式
+- createWidget(): 创建模块主标签页内容widget
+- invoke(): 模块通用动作处理，支持字符串约定的动作命令
+- pages(): 多页面模块支持，返回全部页面ID列表
+- createPage(): 创建指定页面的widget，支持参数化页面创建
+- query(): 模块状态查询，返回无效QVariant表示不支持该查询
+
+**ShellContext上下文**
+ShellContext为模块提供壳程序服务入口，包含：
+- QWidget* mainWindow: 主窗口指针，用于对话框parent和居中定位
+- Player* player: 回放器服务
+- Recorder* recorder: 录制器服务  
+- CanDeviceManager* deviceManager: 设备管理服务
+- CanSimulator* simulator: 模拟器服务
+- DbcManager* dbcManager: DBC管理服务
+- appendOutput: 底部输出回调函数
+- addProblem: 问题面板回调函数
+- shellInvoke: 模块到壳的反向动作调用
+
+```mermaid
+classDiagram
+class IBusinessModule {
++QString id() const
++QString title() const
++QIcon icon() const
++QWidget* createWidget(ShellContext& ctx)
++void invoke(QString action, QVariant arg = {})
++QStringList pages() const
++QWidget* createPage(QString pageId, ShellContext& ctx)
++QWidget* createPage(QString pageId, QVariant param, ShellContext& ctx)
++QVariant query(QString what, QVariant arg = {})
+}
+class ShellContext {
++QWidget* mainWindow
++Player* player
++Recorder* recorder
++CanDeviceManager* deviceManager
++CanSimulator* simulator
++DbcManager* dbcManager
++appendOutput function
++addProblem function
++shellInvoke function
+}
+class MarketModule {
++QString id()
++QString title()
++QIcon icon()
++QWidget* createWidget(ShellContext& ctx)
++void invoke(QString action, QVariant arg)
+}
+class TransceiveModule {
++QString id()
++QString title()
++QIcon icon()
++QWidget* createWidget(ShellContext& ctx)
++QStringList pages()
++QWidget* createPage(QString pageId, ShellContext& ctx)
++void invoke(QString action, QVariant arg)
++QVariant query(QString what, QVariant arg)
+}
+IBusinessModule <|-- MarketModule
+IBusinessModule <|-- TransceiveModule
+ShellContext --> IBusinessModule : "传递给模块"
+```
+
+**图表来源**
+- [src/core/module/imodule.h](file://src/core/module/imodule.h)
+- [src/ui/marketmodule.h](file://src/ui/marketmodule.h)
+- [src/ui/transceivemodule.h](file://src/ui/transceivemodule.h)
+
+### 模块注册表（ModuleRegistry）
+模块注册表负责管理模块工厂和实例的生命周期，提供线程安全的模块访问接口：
+
+**核心功能**
+- registerModule(): 注册模块工厂，重复id时后者覆盖前者
+- module(): 获取模块实例，首次访问时惰性创建并缓存
+- ids(): 枚举已注册的模块ID列表
+
+**工厂模式实现**
+- 使用std::function存储模块工厂函数
+- 支持静态链接验证期（B0）和DLL化部署（B1起）两种模式
+- 模块实例懒加载，减少启动时间和内存占用
+
+```mermaid
+classDiagram
+class ModuleRegistry {
++static ModuleRegistry* instance()
++registerModule(QString id, ModuleFactory factory)
++module(QString id) IBusinessModule*
++ids() QStringList
++Entry {
++ModuleFactory factory
++IBusinessModule* instance
+}
++m_entries QHash~QString, Entry~
+}
+class ModuleFactory {
+<<function>>
+IBusinessModule* operator()()
+}
+ModuleRegistry --> ModuleFactory : "存储"
+ModuleRegistry --> IBusinessModule : "创建"
+```
+
+**图表来源**
+- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
+- [src/core/module/moduleregistry.cpp](file://src/core/module/moduleregistry.cpp)
+
+### 市场模块（MarketModule）
+市场模块负责插件市场的UI和业务逻辑，支持插件的安装、管理和搜索功能：
+
+**主要功能**
+- 插件市场界面显示和管理
+- 插件安装、卸载、启用/禁用操作
+- 插件搜索和分类浏览
+- 与PluginManager的直接通信
+
+**模块特点**
+- 单页面模块，仅实现createWidget方法
+- 通过invoke方法处理市场相关动作
+- 直接访问数据层的PluginManager，无需经壳中转
+
+### 收发模块（TransceiveModule）
+收发模块是复杂的多页面模块，整合发送、回放、离线分析和录制四个功能页面：
+
+**页面结构**
+- send: 信号发送页面
+- playback: 数据回放页面  
+- offline: 离线分析页面
+- record: 数据录制页面
+
+**模块特性**
+- 多页面模块，实现pages()和createPage()方法
+- 页面生命周期管理，支持页面缓存和销毁
+- 周期发送定时器管理
+- 触发录制器集成
+
+**通信机制**
+- 通过ShellContext访问数据层服务
+- 使用ctx.shellInvoke进行壳程序编排操作
+- 支持离线文件查询等功能
+
+### DBC模块（DbcModule）
+DBC模块提供数据库文件的可视化管理和信号处理能力：
+
+**页面功能**
+- detail: DBC详情页，支持多实例（每个文件一页）
+- signallist: 信号清单导出工具
+
+**模块特性**
+- 支持参数化页面创建，detail页面接收文件名参数
+- 信号联动功能，通过shellInvoke实现双击/添加到Graphic/Trace
+- 与DbcManager集成进行数据库解析
+
+### 流程模块（FlowModule）
+流程模块负责测量流程和设备连接的统一管理：
+
+**页面功能**
+- setup: 测量配置页面（MeasurementSetupView）
+- device: 设备连接页面（DeviceConnectionTab）
+
+**职责划分**
+- 模块侧：纯数据层操作（设备configure/start/stop、DBC列表同步等）
+- 壳侧：跨模块编排（测量启停、实例打开/关闭、标签页切换等）
+
+**页面缓存**
+- 单实例缓存机制，避免重复创建
+- 支持设备连接参数的传递和处理
+
+### 跟踪模块（TraceModule）
+跟踪模块提供CANoe风格的Trace页面管理，支持多实例和帧数据处理：
+
+**核心功能**
+- TraceTab页面创建和管理（多实例，每用户新建一页Tab）
+- Frame分发、过滤和着色规则管理
+- 书签跳转、颜色规则编辑器、统计显示
+- 文件加载反馈和流控管理
+
+**模块特性**
+- 多实例管理，支持多个Trace标签页同时运行
+- 颜色规则持久化和应用
+- 自动滚动状态管理
+- 过滤预设管理器集成
+
+### 图形模块（GraphicModule）
+图形模块提供CANoe风格的Graphic页面管理，支持信号可视化和数据分析：
+
+**核心功能**
+- GraphicView页面创建和管理（多实例，每用户新建一页Graph）
+- Frame分发（仅启用flowEnabled的视图）
+- 信号配置加载/保存
+- Signal add/apply功能
+- DataWindow辅助窗口
+
+**模块特性**
+- 多实例管理，支持多个Graphic视图同时运行
+- 光标联动功能，支持多视图同步
+- 数据窗口缓存机制
+- DBC信号转换和序列化支持
+
+```mermaid
+graph TB
+subgraph "模块注册"
+MR["ModuleRegistry<br/>模块注册表"]
+MF["工厂函数<br/>openbus_createXxxModule"]
+end
+subgraph "模块实例"
+MM["MarketModule<br/>市场模块"]
+TM["TransceiveModule<br/>收发模块"]
+DM["DbcModule<br/>DBC模块"]
+FM["FlowModule<br/>流程模块"]
+TRM["TraceModule<br/>跟踪模块"]
+GM["GraphicModule<br/>图形模块"]
+end
+subgraph "页面管理"
+PW["页面创建<br/>createWidget/createPage"]
+LC["生命周期管理<br/>实例缓存/销毁"]
+end
+MR --> MF
+MF --> MM
+MF --> TM
+MF --> DM
+MF --> FM
+MF --> TRM
+MF --> GM
+MM --> PW
+TM --> PW
+DM --> PW
+FM --> PW
+TRM --> PW
+GM --> PW
+PW --> LC
+```
+
+**图表来源**
+- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
+- [src/ui/marketmodule.h](file://src/ui/marketmodule.h)
+- [src/ui/transceivemodule.h](file://src/ui/transceivemodule.h)
+- [src/ui/dbcmodule.h](file://src/ui/dbcmodule.h)
+- [src/ui/flowmodule.h](file://src/ui/flowmodule.h)
+- [src/ui/tracemodule.h](file://src/ui/tracemodule.h)
+- [src/ui/graphicmodule.h](file://src/ui/graphicmodule.h)
 
 ## 详细组件分析
 
@@ -362,6 +659,7 @@ TPN --> TR
 - 高DPI与字体设置影响后续所有控件的绘制与度量
 - 支持Web前端原型的集成和通信
 - **新增** 插件系统初始化，启动Python宿主进程
+- **新增** 模块注册表初始化，注册各业务模块工厂
 
 ```mermaid
 sequenceDiagram
@@ -370,6 +668,7 @@ participant Main as "main.cpp"
 participant Style as "QSS加载器"
 participant Theme as "ThemeManager"
 participant Plugin as "PluginManager"
+participant Module as "ModuleRegistry"
 participant Win as "MainWindow"
 participant Web as "Web前端"
 Main->>App : 创建实例
@@ -378,6 +677,8 @@ Main->>Theme : 初始化主题管理器
 Theme-->>Main : 主题就绪
 Main->>Plugin : 初始化插件管理器
 Plugin-->>Main : 插件系统就绪
+Main->>Module : 注册业务模块工厂
+Module-->>Main : 模块系统就绪
 Style-->>Main : 样式就绪
 Main->>Win : 构造主窗口
 Main->>Web : 初始化Web前端
@@ -399,6 +700,7 @@ App->>App : 进入事件循环
 - 与资源系统协作加载图标、图片等
 - 集成Web前端原型和JavaScript通信
 - **新增** 插件系统协调，管理插件生命周期
+- **新增** 模块系统协调，管理业务模块实例
 
 类关系与数据流
 - 继承自 QWidget/QMainWindow（由 .ui 生成基类）
@@ -406,6 +708,7 @@ App->>App : 进入事件循环
 - 通过信号槽机制与子控件通信
 - 支持Web前端的原型验证和交互测试
 - **新增** 与插件管理器的集成，处理插件相关事件
+- **新增** 与模块注册表的集成，管理业务模块生命周期
 
 **更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，新增了ThemeManager主题管理器的集成，支持运行时主题切换；设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项；侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理。活动栏导航系统已重新组织，'Flow'按钮被移动到更显眼的位置，与CANoe Measurement Setup行业标准保持一致。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。设备连接行为已升级为V2接口，支持更完整的设备配置参数。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**主窗口作为协调者，统一管理各组件的生命周期和数据流，并支持与Web前端原型的无缝集成。
 
@@ -428,6 +731,9 @@ class MainWindow {
 +setupDeviceTab(tab)
 +initializePlugins()
 +handlePluginEvent(event)
++initializeModules()
++getModuleInstance(moduleId)
++handleModuleAction(action, arg)
 }
 class ActivityBar {
 +addActivityItem(item)
@@ -2432,6 +2738,7 @@ MW --> TM["ThemeManager<br/>主题管理器"]
 MW --> SD["SettingsDialog<br/>设置对话框"]
 MW --> TPANEL["TransceivePanel<br/>新增统一入口"]
 MW --> PM["PluginManager<br/>插件管理器"]
+MW --> MR["ModuleRegistry<br/>模块注册表"]
 SEA --> FB["FilterBar<br/>刷新率控制增强"]
 SEA --> GV["GraphicView<br/>QCustomPlot集成<br/>Downsample模块集成<br/>插件集成增强"]
 SEA --> TV["TraceView"]
@@ -2485,6 +2792,13 @@ FHV --> CFPM
 TPANEL --> SendTab["发送标签页"]
 TPANEL --> PlaybackTab["回放标签页"]
 TPANEL --> RecordTab["录制标签页"]
+MR --> IM["IBusinessModule<br/>模块接口"]
+IM --> MM["MarketModule<br/>市场模块"]
+IM --> TMOD["TransceiveModule<br/>收发模块"]
+IM --> DM["DbcModule<br/>DBC模块"]
+IM --> FM["FlowModule<br/>流程模块"]
+IM --> TRM["TraceModule<br/>跟踪模块"]
+IM --> GM["GraphicModule<br/>图形模块"]
 ```
 
 **图表来源**
@@ -2504,6 +2818,8 @@ TPANEL --> RecordTab["录制标签页"]
 - [src/core/plugin/pluginmanager.h](file://src/core/plugin/pluginmanager.h)
 - [src/core/plugin/pluginhost.h](file://src/core/plugin/pluginhost.h)
 - [scripts/sin_host.py](file://scripts/sin_host.py)
+- [src/core/module/imodule.h](file://src/core/module/imodule.h)
+- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
 
 章节来源
 - [src/CMakeLists.txt](file://src/CMakeLists.txt)
@@ -2612,6 +2928,13 @@ TPANEL --> RecordTab["录制标签页"]
   - 插件内存使用监控和垃圾回收
   - 插件崩溃检测和自动重启机制
   - 插件间通信通过消息队列避免直接依赖
+- **模块化架构性能优化**
+  - 模块DLL按需加载，减少主程序启动时间
+  - 模块实例懒创建，避免不必要的内存占用
+  - 模块间通信通过ShellContext接口，降低耦合度
+  - 模块工厂模式支持动态模块发现和加载
+  - 模块注册表提供高效的模块查找和缓存机制
+  - 模块生命周期管理确保资源正确释放
 
 [本节为通用指导，无需特定文件引用]
 
@@ -2751,6 +3074,15 @@ TPANEL --> RecordTab["录制标签页"]
   - 插件命令执行失败需要检查命令注册和参数传递
   - 插件UI显示异常需要检查PyQt6集成和环境
   - 插件帧数据处理错误需要检查数据格式和类型转换
+- **模块化架构问题**
+  - 模块DLL加载失败需要检查模块路径和依赖
+  - 模块工厂函数找不到需要检查模块注册
+  - 模块实例创建失败需要检查ShellContext参数
+  - 模块间通信异常需要检查ShellContext回调
+  - 模块生命周期管理问题需要检查实例销毁
+  - 模块注册表冲突需要检查模块ID唯一性
+  - 模块页面创建失败需要检查createPage实现
+  - 模块查询功能异常需要检查query方法实现
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
@@ -2770,6 +3102,9 @@ TPANEL --> RecordTab["录制标签页"]
 - [src/core/plugin/pluginmanager.h](file://src/core/plugin/pluginmanager.h)
 - [src/core/plugin/pluginhost.h](file://src/core/plugin/pluginhost.h)
 - [scripts/sin_host.py](file://scripts/sin_host.py)
+- [src/core/module/imodule.h](file://src/core/module/imodule.h)
+- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
+- [src/core/module/moduleregistry.cpp](file://src/core/module/moduleregistry.cpp)
 
 ## 结论
 本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面，**特别是侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件。**
@@ -2779,6 +3114,8 @@ TPANEL --> RecordTab["录制标签页"]
 **最新增强** GraphicView组件现已完全重构，集成了QCustomPlot库，提供了专业的信号可视化功能。支持多轴信号绘图、实时数据流处理、交互式光标系统和高性能的批处理渲染。主题管理系统得到了显著增强，支持7种内置主题和运行时动态切换。**新增的高性能视口降采样功能模块通过downsample算法实现Min/Max、Average、First、Decimate四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数和厂商特定设置。跟踪视图组件也得到了显著增强，新增了刷新率控制功能，支持高(50ms)、中(100ms)、低(200ms)、暂停四种刷新模式，有效平衡了实时性和性能需求。过滤器栏集成了批处理模型，通过CanTraceModel的批量数据处理能力，大幅提升了大数据集的处理效率。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程，整合了发送、回放、录制三个功能。播放系统增强了循环回放功能，支持多种循环模式和播放控制。录制系统增强了暂停/恢复功能，提供更灵活的录制控制。这些增强功能通过完善的设置菜单和信号槽机制实现，确保了系统的可扩展性和可维护性。**
 
 **插件系统增强** 系统现在集成了完整的Python插件架构，为UI系统提供了强大的扩展能力。GraphicView组件通过插件集成能力，允许开发者通过Python脚本自定义信号可视化行为，添加新的图表类型和分析功能。插件系统采用JSON-RPC协议进行主程序与Python宿主进程间的通信，提供了稳定可靠的异步消息传递机制。插件管理器负责插件的发现、激活和生命周期管理，支持动态加载和卸载插件。Python宿主进程提供了完整的执行环境，支持PyQt6 GUI开发和丰富的Python生态系统。这种插件化架构使得系统具有极高的可扩展性，社区可以贡献各种分析工具和可视化插件，极大地丰富了系统的功能生态。
+
+**模块化架构增强** 系统现已完成从单体架构向模块化DLL架构的重构，将市场、收发、DBC、流程、跟踪和图形等核心功能模块拆分为独立的DLL，通过工厂模式进行创建和管理。这种架构设计提高了系统的可扩展性、可维护性和部署灵活性，支持按需加载和功能模块的动态管理。模块接口IBusinessModule定义了统一的模块契约，模块注册表ModuleRegistry提供了模块工厂和实例的生命周期管理。各模块通过ShellContext上下文进行通信，实现了模块间的松耦合和高内聚。
 
 **最新改进** 设备连接界面实现了智能连接门控机制，根据驱动可用性自动启用/禁用连接按钮，大大提升了用户体验。图形视图组件使用了SVG箭头图标替换了基于文本的光标手柄，提供了更好的视觉一致性和用户体验。侧边栏面板系统的所有按钮都使用了主题化的SVG图标，支持动态颜色切换，确保在不同主题下都有良好的视觉效果。
 
@@ -2890,6 +3227,15 @@ TPANEL --> RecordTab["录制标签页"]
   - 插件应遵守内存使用限制和性能要求
   - 插件应提供完整的文档和使用说明
   - 插件应支持插件间的通信和数据共享
+- **模块化架构规范**
+  - 模块必须实现IBusinessModule接口
+  - 模块工厂函数必须遵循命名约定
+  - 模块间通信必须通过ShellContext接口
+  - 模块生命周期必须由ModuleRegistry管理
+  - 模块页面必须支持参数化创建
+  - 模块查询功能必须返回有效的QVariant
+  - 模块错误处理必须提供适当的异常处理
+  - 模块资源管理必须遵循RAII原则
 
 ### 样式定制指南
 - 主题设计
@@ -3019,6 +3365,15 @@ TPANEL --> RecordTab["录制标签页"]
   - 插件应实现资源清理和内存管理
   - 插件应提供单元测试和集成测试
   - 插件应遵循插件接口规范，确保兼容性
+- **模块化架构最佳实践**
+  - 模块设计应遵循单一职责原则
+  - 模块接口应保持向后兼容性
+  - 模块间通信应通过标准接口进行
+  - 模块生命周期应由注册表统一管理
+  - 模块错误处理应提供适当的异常恢复
+  - 模块资源管理应遵循RAII原则
+  - 模块测试应包含单元测试和集成测试
+  - 模块文档应包含接口说明和使用示例
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -3086,6 +3441,13 @@ TPANEL --> RecordTab["录制标签页"]
 61. **智能连接门控测试**：验证设备连接按钮的自动启用/禁用功能
 62. **SVG箭头图标测试**：验证图形视图中SVG箭头图标的使用效果
 63. **主题化图标测试**：验证侧边栏面板中主题化SVG图标的颜色切换功能
+64. **模块系统测试**：验证IBusinessModule接口的正确实现
+65. **模块注册测试**：验证ModuleRegistry的模块工厂注册功能
+66. **模块通信测试**：验证ShellContext上下文的正确传递
+67. **模块生命周期测试**：验证模块实例的创建和销毁机制
+68. **模块页面测试**：验证多页面模块的页面创建功能
+69. **模块查询测试**：验证模块查询功能的正确实现
+70. **模块错误处理测试**：验证模块异常处理和错误恢复机制
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
@@ -3104,3 +3466,6 @@ TPANEL --> RecordTab["录制标签页"]
 - [src/core/plugin/pluginmanager.h](file://src/core/plugin/pluginmanager.h)
 - [src/core/plugin/pluginhost.h](file://src/core/plugin/pluginhost.h)
 - [scripts/sin_host.py](file://scripts/sin_host.py)
+- [src/core/module/imodule.h](file://src/core/module/imodule.h)
+- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
+- [src/core/module/moduleregistry.cpp](file://src/core/module/moduleregistry.cpp)

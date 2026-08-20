@@ -2265,8 +2265,8 @@ TraceTab::TraceTab(QWidget *parent)
         m_autoScrollViewport = false;
     });
 
-    // 视窗位置变化 → 更新缩略图
-    connect(m_viewportProxy, &ViewportProxyModel::viewportChanged,
+    // 视窗位置变化 → 更新缩略图（DEF-08 字符串信号：models 层类定义于 data.dll）
+    connect(m_viewportProxy, SIGNAL(viewportChanged()),
             this, [this]() {
         m_viewportOverview->update();
     });
@@ -2281,8 +2281,8 @@ TraceTab::TraceTab(QWidget *parent)
         m_traceModel->setVisibleRange(first, last);
     });
 
-    // Phase 2: 帧提交后更新分组统计 + 视窗自动跟随
-    connect(m_traceModel, &CanTraceModel::framesCommitted,
+    // Phase 2: 帧提交后更新分组统计 + 视窗自动跟随（DEF-08 字符串信号）
+    connect(m_traceModel, SIGNAL(framesCommitted(int)),
             this, [this](int) {
         m_packetCountDirty = true;
         // 自动跟随: 视窗滚动到末尾显示最新数据
@@ -2292,10 +2292,10 @@ TraceTab::TraceTab(QWidget *parent)
         m_viewportOverview->markCacheDirty();
     });
 
-    // 过滤/排序变化后重置视窗到开头
-    connect(m_proxyModel, &CanTraceProxyModel::layoutAboutToBeChanged,
+    // 过滤/排序变化后重置视窗到开头（DEF-08 字符串信号）
+    connect(m_proxyModel, SIGNAL(layoutAboutToBeChanged()),
             this, [this]() { m_autoScrollViewport = true; });
-    connect(m_proxyModel, &CanTraceProxyModel::packetCountChanged,
+    connect(m_proxyModel, SIGNAL(packetCountChanged(int,int)),
             this, [this](int, int) {
         m_viewportOverview->markCacheDirty();
         m_viewportOverview->update();
@@ -2308,8 +2308,8 @@ TraceTab::TraceTab(QWidget *parent)
     connect(m_packetCountTimer, &QTimer::timeout, this, &TraceTab::onPacketCountTimer);
     m_packetCountTimer->start();
 
-    // 过滤条件变化时立即更新（不防抖）
-    connect(m_proxyModel, &CanTraceProxyModel::packetCountChanged,
+    // 过滤条件变化时立即更新（不防抖；DEF-08 字符串信号）
+    connect(m_proxyModel, SIGNAL(packetCountChanged(int,int)),
             this, [this](int captured, int displayed) {
         int marked = m_traceModel->markedRows().size();
         m_filterBar->setPacketCountText(
