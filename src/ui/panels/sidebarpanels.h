@@ -145,7 +145,7 @@ private:
 };
 
 // ============================================================
-//  Trace 面板 — Trace 标签页列表 + 新建按钮
+//  Trace 面板 — 形态模板平铺 + 已打开实例列表
 // ============================================================
 class TracePanel : public SidePanel
 {
@@ -162,18 +162,19 @@ signals:
     void traceDeleteRequested(int row);
 
 private slots:
-    void onTraceClicked();
+    void onTemplateClicked(QListWidgetItem *item);
     void onPageSelected(int row);
     void onDeleteTrace();
     void onContextMenu(const QPoint &pos);
 
 private:
+    QListWidget *m_templateList = nullptr;  ///< 形态模板平铺行（doc/flow.md §7.2 平铺修订）
     QListWidget *m_traceList;
     QPushButton *m_delBtn = nullptr;
 };
 
 // ============================================================
-//  Graphic 配置面板 — Graphic 页面列表
+//  Graphic 配置面板 — 形态模板平铺 + 已打开页面列表
 // ============================================================
 class GraphicConfigPanel : public SidePanel
 {
@@ -190,12 +191,13 @@ signals:
     void graphicDeleteRequested(int row);
 
 private slots:
-    void onNewGraphic();
+    void onTemplateClicked(QListWidgetItem *item);
     void onPageSelected(int row);
     void onDeleteGraphic();
     void onContextMenu(const QPoint &pos);
 
 private:
+    QListWidget *m_templateList = nullptr;  ///< 形态模板平铺行（doc/flow.md §7.2 平铺修订）
     QListWidget *m_pageList;
     QPushButton *m_delBtn = nullptr;
 };
@@ -288,7 +290,7 @@ private:
 };
 
 // ============================================================
-//  分析配置面板 — 侧边栏入口（点击打开 flow 标签页）
+//  分析配置面板 — 协议流模板平铺（doc/flow.md §7.2）
 // ============================================================
 class MeasurementSetupPanel : public SidePanel
 {
@@ -301,10 +303,12 @@ signals:
     void openMeasurementSetupRequested();
 
 private slots:
-    void onItemClicked(QListWidgetItem *item);
+    void onTemplateClicked(QListWidgetItem *item);
+    /// 重灌模板行：注册表适配器变化 / 主题切换（DEF-08 字符串槽经 SignalRelay 桥接）
+    void rebuildTemplates();
 
 private:
-    QListWidget *m_list;
+    QListWidget *m_templateList = nullptr;  ///< 协议流模板平铺行
 };
 
 // ============================================================

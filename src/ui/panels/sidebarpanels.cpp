@@ -1,5 +1,7 @@
 #include "sidebarpanels.h"
 #include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
+#include "core/protocol/protocolregistry.h"   // M2：Flow 模板行注册表枚举（doc/flow.md §13.3）
+#include "core/protocol/iprotocoladapter.h"   // M2：适配器接口完整类型（枚举访问）
 #include "utils/svg_icon.h"
 #include "core/dbcmanager.h"
 #include "core/cansimulator.h"
@@ -694,13 +696,53 @@ void DbcPanel::onItemClicked(QTreeWidgetItem *item, int)
 }
 
 // ============================================================
-//  TracePanel — Trace 标签页列表 + 新建按钮
+//  TracePanel — 形态模板平铺 + 已打开实例列表
 // ============================================================
 
 TracePanel::TracePanel(QWidget *parent)
     : SidePanel("Trace", parent)
 {
     auto *cl = contentLayout();
+
+    // 模板平铺（doc/flow.md §7.2 平铺修订）：一形态一行，已实现可点击新建，
+    // 未实现置灰占位（TR 系列落地后启用）——不再分节嵌套
+    m_templateList = new QListWidget(this);
+    const QString tmplIconCol = ThemeManager::instance()->currentTheme().text;
+    auto addTemplate = [this, tmplIconCol](const QString &name,
+                                           const QString &formId,
+                                           const QString &tip, bool enabled) {
+        auto *row = new QListWidgetItem(m_templateList);
+        row->setText(name);
+        row->setData(Qt::UserRole, formId);
+        row->setToolTip(tip);
+        if (enabled)
+            row->setIcon(svgIcon(":/icons/plus.svg", tmplIconCol, 14));
+        else {
+            row->setFlags(Qt::NoItemFlags);   // 置灰占位：不可选中不可点击
+            row->setIcon(svgIcon(":/icons/plus.svg", "#6c6c6c", 14));
+        }
+    };
+    addTemplate(QStringLiteral("帧列表"), QStringLiteral("framelist"),
+                QStringLiteral("新建帧列表 Trace（TR1，当前形态）"), true);
+    addTemplate(QStringLiteral("事务配对"), QStringLiteral("transaction"),
+                QStringLiteral("UDS / CANopen SDO 请求-响应事务视图（TR 系列规划）"), false);
+    addTemplate(QStringLiteral("聚合监视"), QStringLiteral("aggregwatch"),
+                QStringLiteral("报文 / 信号最新值监视（TR 系列规划）"), false);
+    addTemplate(QStringLiteral("文本日志流"), QStringLiteral("textlog"),
+                QStringLiteral("串口 ASCII / 插件输出 / 系统事件（TR 系列规划）"), false);
+    addTemplate(QStringLiteral("字节流"), QStringLiteral("bytestream"),
+                QStringLiteral("通用二进制 / HEX 模式（TR 系列规划）"), false);
+    addTemplate(QStringLiteral("时序段"), QStringLiteral("timeline"),
+                QStringLiteral("LIN 调度表 / FlexRay 周期时间轴（TR 系列规划）"), false);
+    cl->addWidget(m_templateList);
+
+    connect(m_templateList, &QListWidget::itemClicked,
+            this, &TracePanel::onTemplateClicked);
+
+    // 已打开实例列表（原交互保留：切换 / 右键 / 删除）
+    auto *openedLabel = new QLabel(QStringLiteral("已打开"), this);
+    openedLabel->setObjectName("SidePanelSubTitle");
+    cl->addWidget(openedLabel);
 
     m_traceList = new QListWidget(this);
     m_traceList->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -709,26 +751,26 @@ TracePanel::TracePanel(QWidget *parent)
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(8, 6, 8, 6);
     btnBar->setSpacing(4);
-    const QString traceIconCol = ThemeManager::instance()->currentTheme().text;
-    auto *newBtn = new QPushButton(
-        svgIcon(":/icons/plus.svg", traceIconCol, 14), "新建 Trace", this);
     m_delBtn = new QPushButton(
-        svgIcon(":/icons/dash.svg", traceIconCol, 14), "删除", this);
-    // 主题切换 → 重刷按钮图标颜色
+        svgIcon(":/icons/dash.svg", ThemeManager::instance()->currentTheme().text, 14),
+        "删除", this);
+    // 主题切换 → 重刷模板行与删除按钮图标颜色
     auto *traceBtnRelay = new SignalRelay(this);
-    traceBtnRelay->fire0 = [newBtn, this]() {
+    traceBtnRelay->fire0 = [this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
-        newBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
         m_delBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
+        for (int i = 0; i < m_templateList->count(); ++i) {
+            auto *row = m_templateList->item(i);
+            if (row->flags().testFlag(Qt::ItemIsEnabled))
+                row->setIcon(svgIcon(":/icons/plus.svg", c, 14));
+        }
     };
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             traceBtnRelay, SLOT(fire()));
-    btnBar->addWidget(newBtn);
     btnBar->addWidget(m_delBtn);
     btnBar->addStretch();
     cl->addLayout(btnBar);
 
-    connect(newBtn, &QPushButton::clicked, this, &TracePanel::onTraceClicked);
     connect(m_delBtn, &QPushButton::clicked, this, &TracePanel::onDeleteTrace);
     connect(m_traceList, &QListWidget::currentRowChanged,
             this, &TracePanel::onPageSelected);
@@ -748,8 +790,12 @@ void TracePanel::refreshList(const QStringList &names)
     m_traceList->blockSignals(false);
 }
 
-void TracePanel::onTraceClicked()
+void TracePanel::onTemplateClicked(QListWidgetItem *item)
 {
+    // 模板行点击：仅已实现形态可新建（当前仅帧列表）；置灰占位行不响应。
+    // TR1 落地 TraceFormRegistry 后按 formId 分发到对应形态工厂
+    if (!item || !item->flags().testFlag(Qt::ItemIsEnabled))
+        return;
     emit openTraceRequested();
 }
 
@@ -784,13 +830,53 @@ void TracePanel::onContextMenu(const QPoint &pos)
 }
 
 // ============================================================
-//  GraphicConfigPanel — Graphic 页面列表
+//  GraphicConfigPanel — 形态模板平铺 + 已打开页面列表
 // ============================================================
 
 GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
     : SidePanel("Graphic 页面列表", parent)
 {
     auto *cl = contentLayout();
+
+    // 模板平铺（doc/flow.md §7.2 平铺修订）：一形态一行，已实现可点击新建，
+    // 未实现置灰占位（GV 系列落地后启用）——不再分节嵌套
+    m_templateList = new QListWidget(this);
+    const QString tmplIconCol = ThemeManager::instance()->currentTheme().text;
+    auto addTemplate = [this, tmplIconCol](const QString &name,
+                                           const QString &formId,
+                                           const QString &tip, bool enabled) {
+        auto *row = new QListWidgetItem(m_templateList);
+        row->setText(name);
+        row->setData(Qt::UserRole, formId);
+        row->setToolTip(tip);
+        if (enabled)
+            row->setIcon(svgIcon(":/icons/plus.svg", tmplIconCol, 14));
+        else {
+            row->setFlags(Qt::NoItemFlags);   // 置灰占位：不可选中不可点击
+            row->setIcon(svgIcon(":/icons/plus.svg", "#6c6c6c", 14));
+        }
+    };
+    addTemplate(QStringLiteral("时序波形"), QStringLiteral("waveform"),
+                QStringLiteral("新建时序波形 Graphic（当前形态）"), true);
+    addTemplate(QStringLiteral("XY 关联"), QStringLiteral("xyplot"),
+                QStringLiteral("X/Y 信号关联轨迹图（GV 系列规划）"), false);
+    addTemplate(QStringLiteral("数字总线"), QStringLiteral("digital"),
+                QStringLiteral("位信号方波轨道（逻辑分析仪风格，GV 系列规划）"), false);
+    addTemplate(QStringLiteral("状态时间线"), QStringLiteral("statetimeline"),
+                QStringLiteral("枚举值色带段 + 状态图例（GV 系列规划）"), false);
+    addTemplate(QStringLiteral("仪表盘"), QStringLiteral("gauge"),
+                QStringLiteral("表盘 / 条形 / LED / 数值组件网格（GV 系列规划）"), false);
+    addTemplate(QStringLiteral("柱状统计"), QStringLiteral("barstats"),
+                QStringLiteral("时间分桶聚合柱 / 面积图（GV 系列规划）"), false);
+    cl->addWidget(m_templateList);
+
+    connect(m_templateList, &QListWidget::itemClicked,
+            this, &GraphicConfigPanel::onTemplateClicked);
+
+    // 已打开页面列表（原交互保留：切换 / 右键 / 删除）
+    auto *openedLabel = new QLabel(QStringLiteral("已打开"), this);
+    openedLabel->setObjectName("SidePanelSubTitle");
+    cl->addWidget(openedLabel);
 
     m_pageList = new QListWidget(this);
     m_pageList->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -799,26 +885,26 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(8, 6, 8, 6);
     btnBar->setSpacing(4);
-    const QString graphIconCol = ThemeManager::instance()->currentTheme().text;
-    auto *newBtn = new QPushButton(
-        svgIcon(":/icons/plus.svg", graphIconCol, 14), "新建 Graphic", this);
     m_delBtn = new QPushButton(
-        svgIcon(":/icons/dash.svg", graphIconCol, 14), "删除", this);
-    // 主题切换 → 重刷按钮图标颜色
-    auto *traceBtnRelay = new SignalRelay(this);
-    traceBtnRelay->fire0 = [newBtn, this]() {
+        svgIcon(":/icons/dash.svg", ThemeManager::instance()->currentTheme().text, 14),
+        "删除", this);
+    // 主题切换 → 重刷模板行与删除按钮图标颜色
+    auto *graphBtnRelay = new SignalRelay(this);
+    graphBtnRelay->fire0 = [this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
-        newBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
         m_delBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
+        for (int i = 0; i < m_templateList->count(); ++i) {
+            auto *row = m_templateList->item(i);
+            if (row->flags().testFlag(Qt::ItemIsEnabled))
+                row->setIcon(svgIcon(":/icons/plus.svg", c, 14));
+        }
     };
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
-            traceBtnRelay, SLOT(fire()));
-    btnBar->addWidget(newBtn);
+            graphBtnRelay, SLOT(fire()));
     btnBar->addWidget(m_delBtn);
     btnBar->addStretch();
     cl->addLayout(btnBar);
 
-    connect(newBtn, &QPushButton::clicked, this, &GraphicConfigPanel::onNewGraphic);
     connect(m_delBtn, &QPushButton::clicked, this, &GraphicConfigPanel::onDeleteGraphic);
     connect(m_pageList, &QListWidget::currentRowChanged,
             this, &GraphicConfigPanel::onPageSelected);
@@ -829,8 +915,12 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
 // setGraphicView 已随 B5-5 移除 — 面板不再持有 GraphicView 指针，
 // Graphic 实例编排统一经壳 → ModuleRegistry "graphic" 模块
 
-void GraphicConfigPanel::onNewGraphic()
+void GraphicConfigPanel::onTemplateClicked(QListWidgetItem *item)
 {
+    // 模板行点击：仅已实现形态可新建（当前仅时序波形）；置灰占位行不响应。
+    // GV1 落地 GraphicFormRegistry 后按 formId 分发到对应形态工厂
+    if (!item || !item->flags().testFlag(Qt::ItemIsEnabled))
+        return;
     emit newGraphicRequested();
 }
 
@@ -1126,7 +1216,7 @@ void SettingsPanel::onItemClicked(QListWidgetItem *item)
 }
 
 // ============================================================
-//  MeasurementSetupPanel — 侧边栏入口面板
+//  MeasurementSetupPanel — 协议流模板平铺
 // ============================================================
 
 MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
@@ -1134,28 +1224,82 @@ MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
-    m_list = new QListWidget(this);
-    m_list->addItem(new QListWidgetItem("flow"));
-    cl->addWidget(m_list);
+    // 协议流模板平铺（doc/flow.md §7.2 平铺修订）：注册表适配器 → 可点击行；
+    // 未落地协议 → 置灰占位行（同 protocolId 适配器注册后由 rebuildTemplates 接管）
+    m_templateList = new QListWidget(this);
+    cl->addWidget(m_templateList);
+    rebuildTemplates();
+
+    connect(m_templateList, &QListWidget::itemClicked,
+            this, &MeasurementSetupPanel::onTemplateClicked);
 
     auto *hint = new QLabel("\n"
-                           "\xE2\x80\xA2 点击“flow”打开画布\n"
-                           "\xE2\x80\xA2 点击模块块可启用/禁用\n"
-                           "\xE2\x80\xA2 双击模块块可打开对应标签页", this);
+                            "\xE2\x80\xA2 点击 CAN Flow 打开画布\n"
+                            "\xE2\x80\xA2 点击模块块可启用/禁用\n"
+                            "\xE2\x80\xA2 双击模块块可打开对应标签页", this);
     hint->setWordWrap(true);
     hint->setObjectName("SidePanelHint");
     cl->addWidget(hint);
 
-    connect(m_list, &QListWidget::itemClicked,
-            this, &MeasurementSetupPanel::onItemClicked);
+    cl->addStretch();
+
+    // M1 预埋：新增协议流占位入口（协议市场 F1 剩余就绪前禁用）
+    auto *addFlowBtn = new QPushButton(QStringLiteral("从市场添加协议流"), this);
+    addFlowBtn->setEnabled(false);
+    addFlowBtn->setToolTip(QStringLiteral("协议市场就绪后启用（doc/flow.md §十三 M1）"));
+    auto *addFlowBar = new QHBoxLayout;
+    addFlowBar->setContentsMargins(8, 6, 8, 6);
+    addFlowBar->addWidget(addFlowBtn);
+    cl->addLayout(addFlowBar);
+
+    // 模板行重灌：注册表适配器注册（F4 协议包）或主题切换（图标颜色）
+    auto *registryRelay = new SignalRelay(this);
+    registryRelay->fire0 = [this]() { rebuildTemplates(); };
+    connect(ProtocolRegistry::instance(), SIGNAL(adapterRegistered(QString)),
+            registryRelay, SLOT(fire()));
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            registryRelay, SLOT(fire()));
 }
 
-void MeasurementSetupPanel::onItemClicked(QListWidgetItem *item)
+void MeasurementSetupPanel::rebuildTemplates()
 {
-    if (!item) return;
-    QString text = item->text();
-    if (text.contains("flow"))
-        emit openMeasurementSetupRequested();
+    m_templateList->clear();
+    const QString iconCol = ThemeManager::instance()->currentTheme().text;
+
+    // ① 注册表适配器 → 可点击模板行（点击新建/打开该协议流）
+    QStringList registered;
+    for (auto *adapter : ProtocolRegistry::instance()->adapters()) {
+        registered << adapter->protocolId();
+        auto *row = new QListWidgetItem(adapter->displayName(), m_templateList);
+        row->setData(Qt::UserRole, adapter->protocolId());
+        row->setIcon(svgIcon(":/icons/plus.svg", iconCol, 14));
+    }
+
+    // ② 未落地协议 → 置灰占位行（预埋模板入口；F 系列落地/协议包安装后启用）
+    struct Placeholder { const char *pid; const char *title; const char *tip; };
+    static const Placeholder placeholders[] = {
+        { "ethercat", "EtherCAT Flow", "EtherCAT 适配器（F3）落地后启用" },
+        { "canopen",  "CANopen Flow",  "CANopen 适配器落地后启用（规划中）" },
+        { "general",  "通用 Flow",     "通用 Flow 适配器（F2）落地后启用" },
+    };
+    for (const auto &p : placeholders) {
+        if (registered.contains(QLatin1String(p.pid)))
+            continue;   // 注册表已接管：占位行让位
+        auto *row = new QListWidgetItem(QString::fromUtf8(p.title), m_templateList);
+        row->setFlags(Qt::NoItemFlags);   // 置灰占位：不可选中不可点击
+        row->setToolTip(QString::fromUtf8(p.tip));
+        row->setData(Qt::UserRole, QLatin1String(p.pid));
+        row->setIcon(svgIcon(":/icons/plus.svg", "#6c6c6c", 14));
+    }
+}
+
+void MeasurementSetupPanel::onTemplateClicked(QListWidgetItem *item)
+{
+    // 模板行点击：仅注册表行可点（当前仅 CAN Flow，打开/聚焦画布页）；
+    // F1 FlowSession 落地后按 protocolId 创建新流实例
+    if (!item || !item->flags().testFlag(Qt::ItemIsEnabled))
+        return;
+    emit openMeasurementSetupRequested();
 }
 
 // ============================================================

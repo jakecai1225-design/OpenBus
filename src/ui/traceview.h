@@ -325,6 +325,12 @@ public:
     /// 更新分组统计显示
     void updatePacketCount();
 
+    /// M1 预埋：协议 / 形态身份（doc/flow.md §十三）——多协议就绪前恒为 can/framelist
+    QString protocolId() const { return m_protocolId; }
+    void setProtocolId(const QString &id) { m_protocolId = id; }
+    QString formId() const { return m_formId; }
+    void setFormId(const QString &id) { m_formId = id; }
+
 signals:
     /// 文件拖放后加载完成
     void fileLoaded(int frameCount);
@@ -360,8 +366,12 @@ private:
 
     // ---- 设置菜单 ----
     QActionGroup *m_timeFormatGroup = nullptr;  ///< 时间格式互斥动作组
-    QTimer *m_packetCountTimer = nullptr;  ///< 分组计数防抖定时器
-    bool m_packetCountDirty = false;       ///< 分组计数待更新标记
+    QTimer *m_packetCountTimer = nullptr;      ///< 分组计数防抖定时器
+    bool m_packetCountDirty = false;           ///< 分组计数待更新标记
+
+    // ---- M1 预埋：协议 / 形态身份（doc/flow.md §十三）----
+    QString m_protocolId = QStringLiteral("can");
+    QString m_formId = QStringLiteral("framelist");
 };
 
 #endif // TRACEVIEW_H

@@ -203,13 +203,15 @@ json ProjectManager::stateToJson(const ProjectState &st,
         dbcArr.push_back(f.toStdString());
     j["dbc"]["files"] = dbcArr;
 
-    // ---- Trace / Graphic 实例（格式不变）----
+    // ---- Trace / Graphic 实例（格式不变；M1 新增 protocolId/formId 身份字段）----
     json traceArr = json::array();
     for (const auto &t : st.traces) {
         json tj;
         tj["id"] = t.id.toStdString();
         tj["title"] = t.title.toStdString();
         tj["filter"] = t.filterExpression.toStdString();
+        tj["protocolId"] = t.protocolId.toStdString();
+        tj["formId"] = t.formId.toStdString();
         traceArr.push_back(tj);
     }
     j["traces"] = traceArr;
@@ -219,6 +221,8 @@ json ProjectManager::stateToJson(const ProjectState &st,
         json gj;
         gj["id"] = g.id.toStdString();
         gj["title"] = g.title.toStdString();
+        gj["protocolId"] = g.protocolId.toStdString();
+        gj["formId"] = g.formId.toStdString();
         json sigArr = json::array();
         for (const auto &s : g.sigList) {
             json sj;
@@ -335,6 +339,11 @@ ProjectState ProjectManager::jsonToState(const json &j,
             if (t.contains("title")) ti.title = QString::fromStdString(t["title"].get<std::string>());
             if (t.contains("filter") && t["filter"].is_string())
                 ti.filterExpression = QString::fromStdString(t["filter"].get<std::string>());
+            // M1 身份字段：旧工程缺省时经结构体默认值回填 can/framelist
+            if (t.contains("protocolId") && t["protocolId"].is_string())
+                ti.protocolId = QString::fromStdString(t["protocolId"].get<std::string>());
+            if (t.contains("formId") && t["formId"].is_string())
+                ti.formId = QString::fromStdString(t["formId"].get<std::string>());
             st.traces.append(ti);
         }
     }
@@ -345,6 +354,11 @@ ProjectState ProjectManager::jsonToState(const json &j,
             ProjectGraphicInstance gi;
             if (g.contains("id")) gi.id = QString::fromStdString(g["id"].get<std::string>());
             if (g.contains("title")) gi.title = QString::fromStdString(g["title"].get<std::string>());
+            // M1 身份字段：旧工程缺省时经结构体默认值回填 can/waveform
+            if (g.contains("protocolId") && g["protocolId"].is_string())
+                gi.protocolId = QString::fromStdString(g["protocolId"].get<std::string>());
+            if (g.contains("formId") && g["formId"].is_string())
+                gi.formId = QString::fromStdString(g["formId"].get<std::string>());
             if (g.contains("signals") && g["signals"].is_array()) {
                 for (const auto &s : g["signals"]) {
                     ProjectSigCfg sc;

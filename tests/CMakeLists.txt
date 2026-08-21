@@ -53,6 +53,9 @@ openbus_add_test(market_driver)
 # ---- B7 工程配置（PRJ-01..06）----
 openbus_add_test(project)
 
+# ---- M2 多协议数据层预埋（doc/flow.md §13.3：报文转换/注册表/DbcParser 直通）----
+openbus_add_test(protocol)
+
 # ============================================================
 #  C L2 offscreen UI 驱动（复刻 main.cpp 初始化链，驱动真实
 #  MainWindow；无法用 openbus_add_test：需链接壳 UI 静态库 +
@@ -104,6 +107,7 @@ add_custom_target(tests
             test_sim_rec_play
             test_market_driver
             test_project
+            test_protocol
             test_ui_offscreen
     COMMENT "聚合测试目标（L1 集成 + L2 offscreen UI 驱动）"
 )

@@ -45,6 +45,21 @@ set(SRC_CORE
     core/dbc/arxml_importer.cpp
     core/dbc/arxml_exporter.h
     core/dbc/arxml_exporter.cpp
+    # M2 预埋：多协议数据层接口（doc/flow.md §十三）——纯新增不接线
+    core/busmessage.h
+    core/protocol/busdefinition.h
+    core/protocol/iprotocoladapter.h
+    core/protocol/protocolregistry.h
+    core/protocol/protocolregistry.cpp
+    core/protocol/canprotocoladapter.h
+    core/protocol/canprotocoladapter.cpp
+    core/protocol/ibusparser.h
+    core/protocol/parserregistry.h
+    core/protocol/parserregistry.cpp
+    core/protocol/dbcparser.h
+    core/protocol/dbcparser.cpp
+    core/protocol/busdefinitionstore.h
+    core/protocol/busdefinitionstore.cpp
     core/busstatistics.h
     core/busstatistics.cpp
     core/logsplitter.h

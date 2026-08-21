@@ -12,11 +12,17 @@ using json = nlohmann::json;
 
 /**
  * @brief Trace 实例配置
+ *
+ * M1 预埋（doc/flow.md §十三）：protocolId / formId 身份字段 —
+ * 多协议 / 多形态（TR1-TR6）就绪前，旧工程反序列化经默认值
+ * 自动回填为 CAN 帧列表。
  */
 struct ProjectTraceInstance {
     QString id;
     QString title;
     QString filterExpression;
+    QString protocolId = QStringLiteral("can");     ///< 协议身份（M2 ProtocolRegistry 键）
+    QString formId = QStringLiteral("framelist");   ///< 形态身份（TR1；后续 TraceFormRegistry 键）
 };
 
 /**
@@ -30,11 +36,16 @@ struct ProjectSigCfg {
 
 /**
  * @brief Graphic 实例配置
+ *
+ * M1 预埋（doc/flow.md §十三）：protocolId / formId 身份字段 —
+ * 默认 CAN 时序波形，旧工程反序列化经默认值自动回填。
  */
 struct ProjectGraphicInstance {
     QString id;
     QString title;
     QList<ProjectSigCfg> sigList;
+    QString protocolId = QStringLiteral("can");     ///< 协议身份（M2 ProtocolRegistry 键）
+    QString formId = QStringLiteral("waveform");    ///< 形态身份（GV1；后续 GraphicFormRegistry 键）
 };
 
 /**

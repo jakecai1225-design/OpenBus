@@ -108,6 +108,12 @@ public:
     void setTimeWindow(double seconds) { m_timeWindow = seconds; refreshTimeAxis(); }
     double timeWindow() const { return m_timeWindow; }
 
+    /// M1 预埋：协议 / 形态身份（doc/flow.md §十三）——多协议就绪前恒为 can/waveform
+    QString protocolId() const { return m_protocolId; }
+    void setProtocolId(const QString &id) { m_protocolId = id; }
+    QString formId() const { return m_formId; }
+    void setFormId(const QString &id) { m_formId = id; }
+
     QSize minimumSizeHint() const override { return {400, 200}; }
     QSize sizeHint() const override { return {800, 400}; }
 
@@ -423,6 +429,10 @@ private:
 
     /// 更新底部状态栏
     void updateStatusBar();
+
+    // ---- M1 预埋：协议 / 形态身份（doc/flow.md §十三）----
+    QString m_protocolId = QStringLiteral("can");
+    QString m_formId = QStringLiteral("waveform");
 };
 
 #endif // GRAPHICVIEW_H

@@ -8,6 +8,9 @@
 #include "core/candevicemanager.h"
 #include "core/player.h"
 #include "core/cansimulator.h"
+#include "core/protocol/protocolregistry.h"     // M3：注册表管道（doc/flow.md §13.4）
+#include "core/protocol/parserregistry.h"
+#include "core/protocol/busdefinitionstore.h"
 
 #include <QPointer>
 #include <QFileDialog>
@@ -158,13 +161,50 @@ QWidget *FlowModule::createSetupPage(ShellContext &ctx)
             m_ctx.shellInvoke(QStringLiteral("dbcRemoveRequested"), fileName);
     });
 
-    // DBC 选择：模块侧完成（对话框 parent = 壳窗口，加载走数据层）
+    // 解析器选择：模块侧完成（对话框 parent = 壳窗口，加载走数据层）
+    // M3 冷路径试点（doc/flow.md §13.4）：文件过滤器由 acceptedParsers()
+    // 生成，加载动作经 ParserRegistry → DbcParser → DbcManager 直通
+    // ——「UI → 注册表 → 适配器/解析器 → 既有管理器」样板代码路径，
+    // 后续 EtherCAT / 通用 Flow / 第三方协议接入照抄此模式
     QObject::connect(view, &MeasurementSetupView::dbcSelectRequested, view, [this]() {
+        // 1) 过滤器：CAN 适配器声明的解析器扩展名聚合（当前 *.dbc，行为一致）
+        QStringList nameFilters;
+        auto *can = ProtocolRegistry::instance()->findAdapter(QStringLiteral("can"));
+        if (can) {
+            for (const QString &pid : can->acceptedParsers()) {
+                if (auto *p = ParserRegistry::instance()->findParser(pid)) {
+                    for (const QString &ext : p->fileExtensions())
+                        nameFilters << QStringLiteral("*.") + ext.toLower();
+                }
+            }
+        }
+        if (nameFilters.isEmpty())
+            nameFilters << QStringLiteral("*.dbc");   // 注册表缺项兜底
+        const QString filter = QStringLiteral("协议描述文件 (%1);;所有文件 (*.*)")
+                                   .arg(nameFilters.join(QLatin1Char(' ')));
+
         const QString path = QFileDialog::getOpenFileName(
-            m_ctx.mainWindow, QStringLiteral("导入 DBC 文件"), {},
-            QStringLiteral("DBC 文件 (*.dbc);;所有文件 (*.*)"));
+            m_ctx.mainWindow, QStringLiteral("导入协议描述文件"), {}, filter);
         if (path.isEmpty())
             return;
+
+        // 2) 管道：按扩展名路由解析器 → 定义集入 store（统一建模）
+        IBusParser *parser = ParserRegistry::instance()->findParserForExtension(
+            QFileInfo(path).suffix());
+        if (!parser) {
+            m_ctx.addProblem(1, QStringLiteral("DBC"),
+                             QStringLiteral("无匹配解析器: ") + path);
+            return;
+        }
+        QString parseError;
+        const BusDefinitionSet set = parser->parse(path, &parseError);
+        if (set.isEmpty()) {
+            m_ctx.addProblem(1, QStringLiteral("DBC"), parseError);
+            return;
+        }
+        BusDefinitionStore::instance()->addDefinitionSet(set);
+
+        // 3) 直通：DbcManager 保持原样加载（外部行为不变，双入口并存，§6.4）
         if (m_ctx.dbcManager->loadDbc(path))
             m_ctx.appendOutput(QStringLiteral("已加载 DBC: ")
                                + QFileInfo(path).fileName());

@@ -600,3 +600,9 @@ UI 先行预留、数据层零改动，作为 TR1 的公共前置：
 **与 TR1 的交接**：TR1 落地 ITraceForm / TraceFormRegistry 时，仅需把 M1 的硬编码下拉项
 替换为注册表枚举 + `createWidget()` 分发——分节结构与交互模式已在 M1 定型，TR1 不再动
 侧栏布局。
+
+**已实施（2026-08-21）**：M1-Trace 切片已随 flow.md §十三落地——TracePanel 折叠分节
+（节名「帧列表」，settingsKey `sidebar/section/trace/framelist`）、单项「新建」下拉、
+TraceTab `protocolId`/`formId` 身份字段与工程持久化回填均已实施（见上文「身份预埋」）；
+构建通过、`test_protocol` 9/9、全量 ctest 8/9（唯一失败为既有 canfileio BLF roundtrip
+用例，与本次改动无关）。实现取舍详见 flow.md §13.2 落地记录。

@@ -122,6 +122,9 @@ public:
         QString icon;           ///< emoji 图标
         QString category;       ///< "source" | "channel" | "database" | "module"
         QString moduleName;     ///< 模块类型名（如 "trace"），用于区分独立块
+        /// M1 预埋：块所属协议身份（doc/flow.md §十三）——多协议就绪前恒为 "can"；
+        /// 多协议画布落地后由建块的协议角色写入，驱动 Parser/Adapter 管线选择
+        QString protocolId = QStringLiteral("can");
         QRectF rect;            ///< 位置和大小
         bool enabled = true;    ///< 是否启用
         QColor color;           ///< 主题色

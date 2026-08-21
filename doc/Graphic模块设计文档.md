@@ -969,3 +969,9 @@ UI 先行预留、数据层零改动，作为 GV1 的公共前置：
 **与 GV1 的交接**：GV1 落地 IGraphicForm / GraphicFormRegistry 时，仅需把 M1 的硬编码
 下拉项替换为注册表枚举 + `createWidget()` 分发——分节结构与交互模式已在 M1 定型，GV1
 不再动侧栏布局。
+
+**已实施（2026-08-21）**：M1-Graphic 切片已随 flow.md §十三落地——GraphicConfigPanel
+折叠分节（节名「时序波形」，settingsKey `sidebar/section/graphic/waveform`）、单项
+「新建」下拉、GraphicView `protocolId`/`formId` 身份字段与工程持久化回填均已实施
+（见上文「身份预埋」）；构建通过、`test_protocol` 9/9、全量 ctest 8/9（唯一失败为既有
+canfileio BLF roundtrip 用例，与本次改动无关）。实现取舍详见 flow.md §13.2 落地记录。
