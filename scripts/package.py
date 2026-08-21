@@ -62,9 +62,11 @@ BIN_FILES = [
     "libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll",  # MinGW
     "D3Dcompiler_47.dll", "opengl32sw.dll",   # Qt RHI 渲染兜底
 ]
-# staging 从 build-rel/bin 拷贝的目录白名单（整目录）
+# staging 从 build-rel/bin 拷贝的目录白名单（整目录）。
+# drivers/ 不预装（用户决策 2026-08-21）：驱动 .odp 一律从市场安装，
+# 由 driver_tool.py install 自建 drivers/ 目录（makedirs exist_ok）
 BIN_DIRS = ["platforms", "imageformats", "iconengines", "styles",
-            "tls", "networkinformation", "drivers"]
+            "tls", "networkinformation"]
 
 # 源码树拷入项：plugins/sdk 剔除缓存与测试；scripts 只带宿主与工具脚本
 PY_IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", "tests",
@@ -328,10 +330,12 @@ def step_stage():
                 qm.unlink()
     shutil.copytree(REL_BIN / "lib" / "fonts", STAGE / "lib" / "fonts",
                     dirs_exist_ok=True)
-    ok("构建产物: exe + 业务/Qt/MinGW DLL + 插件目录 + drivers/")
+    ok("构建产物: exe + 业务/Qt/MinGW DLL + 插件目录")
 
     # ---- 源码树运行时物料 ----
-    copy_tree(PROJECT_ROOT / "plugins", STAGE / "plugins", PY_IGNORE)
+    # plugins/ 不预装（用户决策 2026-08-21）：.opk 插件一律从市场安装，
+    # 首次安装时 plugin_tool.py 自建 plugins/ 目录；纯净启动下
+    # discoverPlugins 对不存在的目录优雅跳过（仅 info 日志）
     copy_tree(PROJECT_ROOT / "sdk", STAGE / "sdk", PY_IGNORE)
     for name in HOST_SCRIPTS:
         src = PROJECT_ROOT / "scripts" / name
@@ -340,13 +344,17 @@ def step_stage():
             shutil.copy2(src, STAGE / "scripts" / name)
         else:
             warn(f"宿主脚本缺失: {src}")
-    ok("源码树: plugins/ + sdk/ + scripts/{sin_host,driver_tool,plugin_tool}.py")
+    ok("源码树: sdk/ + scripts/{sin_host,driver_tool,plugin_tool}.py（插件/驱动从市场装）")
 
-    # ---- driver/：整体不随包（ZLG 组件归 ZCANPRO，见常量区注释） ----
-    # 注：BIN_DIRS 的 drivers/（复数，5 个 .odp 内置驱动）与此无关，照常拷贝
-    ok("driver/: 不随包（zlgcan.dll 及配套归 ZCANPRO，方案 §7）")
+    # ---- driver/ 与 drivers/：均不预装 ----
+    # driver/（ZLG 运行时）：zlgcan.dll 及配套归 ZCANPRO（方案 §7）。
+    # drivers/（.odp 外置驱动）：从市场安装（make_market 产物在 market/ 内）
+    ok("driver/ 与 drivers/: 均不随包（驱动一律从市场安装）")
 
-    # ---- market（本地市场索引兜底，方案 §2.2） ----
+    # ---- market（本地市场索引：插件/驱动的安装源，方案 §2.2） ----
+    # 市场化分发（用户决策 2026-08-21）：纯净机器离线可装——market/ 随包
+    # 携带 market.json + 3 .odp + 5 .opk + assets，MarketIndex 优先加载
+    # exe 同级 market/market.json，resolveUrl 以 file:// 解析相对路径
     for market_src in (REL_BUILD / "market", PROJECT_ROOT / "build" / "market"):
         if (market_src / "market.json").exists():
             shutil.copytree(market_src, STAGE / "market", dirs_exist_ok=True)
@@ -561,6 +569,10 @@ def step_verify_deps(tc):
 # ============================================================
 
 def dir_size_mb(path):
+    # rglob("*") 对文件返回空迭代器——不判 is_file 会把根目录所有
+    # 单文件（exe / Qt DLL 等）算成 0.0 MB（首版实测合计少了 ~64 MB）
+    if path.is_file():
+        return path.stat().st_size / 1024 / 1024
     total = sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
     return total / 1024 / 1024
 

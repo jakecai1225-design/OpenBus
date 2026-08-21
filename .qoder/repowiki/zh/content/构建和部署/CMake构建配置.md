@@ -6,17 +6,18 @@
 - [src/CMakeLists.txt](file://src/CMakeLists.txt)
 - [tests/CMakeLists.txt](file://tests/CMakeLists.txt)
 - [third_party/Dependencies.cmake](file://third_party/Dependencies.cmake)
+- [scripts/build.py](file://scripts/build.py)
+- [scripts/package.py](file://scripts/package.py)
 - [doc/构建基线.md](file://doc/构建基线.md)
 </cite>
 
 ## 更新摘要
 **所做更改**
-- **重大架构变更**：从两个静态库（openbus_core, openbus_ui）重构为分层共享库架构，包含公共底座DLL（openbus_data）和多个业务DLL
-- **新增业务模块DLL**：openbus_market、openbus_transceive、openbus_dbc、openbus_flow等独立业务模块
-- **增强PCH配置**：为每个业务DLL配置专门的预编译头优化
-- **模块化依赖管理**：通过ModuleRegistry实现壳与业务模块的松耦合通信
-- **改进构建系统**：支持thin archive、Dev构建档、更好的链接器兼容性
-- **增强测试框架**：集成Qt Test和CTest，提供完整的自动化测试执行环境
+- **增强构建系统集成**：新增完整的自动化打包流水线，支持一键构建、部署、验证和分发
+- **新增打包目标依赖**：为自动化包装管道添加了额外的目标和依赖管理
+- **改进构建脚本**：增强了build.py和package.py的集成能力，支持Dev构建档和并行构建
+- **完善测试框架**：扩展了测试执行器，支持L1核心逻辑测试和L2 UI驱动测试
+- **优化第三方库管理**：改进了spdlog、nlohmann_json、qcustomplot等库的条件编译支持
 
 ## 目录
 1. [项目概述](#项目概述)
@@ -29,7 +30,8 @@
 8. [平台特定配置](#平台特定配置)
 9. [测试框架集成](#测试框架集成)
 10. [安装目标配置](#安装目标配置)
-11. [构建流程总结](#构建流程总结)
+11. [自动化打包流水线](#自动化打包流水线)
+12. [构建流程总结](#构建流程总结)
 
 ## 项目概述
 
@@ -671,6 +673,103 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/driver/"
 - [CMakeLists.txt:81-86](file://CMakeLists.txt#L81-L86)
 - [src/CMakeLists.txt:655-660](file://src/CMakeLists.txt#L655-L660)
 
+## 自动化打包流水线
+
+### 构建脚本增强
+**新增** 完整的构建脚本支持，提供丰富的命令行接口：
+
+#### build.py 主要功能
+- **configure**: CMake配置，支持多种构建类型（Debug、Release、Dev）
+- **build**: 增量编译，支持并行构建和Ninja加速
+- **run**: 运行程序，自动处理文件锁问题
+- **debug**: GDB调试支持
+- **deploy**: Qt运行时依赖部署
+- **test**: 测试套件执行
+
+#### package.py 打包流水线
+**新增** 完整的自动化打包流程：
+
+```mermaid
+graph TD
+A[开始] --> B[步骤1: Release构建]
+B --> C[步骤2: windeployqt部署]
+C --> D[步骤3: 组装staging]
+D --> E[步骤4: Python运行时捆绑]
+E --> F[步骤5: 附加文件]
+F --> G[步骤6: 依赖完整性校验]
+G --> H[步骤7: 体积与内容报告]
+H --> I[步骤8a: 便携版zip]
+H --> J[步骤8b: Inno Setup安装器]
+I --> K[完成]
+J --> K
+```
+
+### 打包流程详解
+
+#### 步骤1: Release构建
+- 复用build.py子命令进行构建
+- 支持跳过构建（--skip-build）
+- 验证驱动布局完整性
+
+#### 步骤2: windeployqt部署
+- 部署Qt运行时依赖
+- 手动补充Qt6PrintSupport.dll
+- 回拷中文翻译文件
+- 创建lib/fonts目录
+
+#### 步骤3: 组装staging
+- 白名单文件拷贝机制
+- 源码树物料整理
+- 本地市场索引准备
+
+#### 步骤4: Python运行时捆绑
+- 本机安装版Python精简拷贝
+- PyQt6裁剪子集集成
+- ._pth隔离环境配置
+- 运行时自验证
+
+#### 步骤5: 附加文件
+- THIRD_PARTY_NOTICES.md
+- README-PORTABLE.txt
+- LICENSE.txt
+
+#### 步骤6: 依赖完整性校验
+- objdump导入表分析
+- 系统DLL白名单验证
+- 缺失依赖检测
+
+#### 步骤7: 体积与内容报告
+- 目录大小统计
+- 完整目录树报告
+- 体积优化建议
+
+#### 步骤8: 产物输出
+- 便携版zip压缩
+- Inno Setup安装器编译
+- 版本信息自动提取
+
+### 构建类型支持
+**新增** 多种构建类型支持：
+
+| 构建类型 | 优化级别 | 调试信息 | 适用场景 |
+|---------|----------|----------|----------|
+| Debug | -O0 | 完整调试信息 | 开发调试 |
+| Release | -O2 | 无调试信息 | 正式发布 |
+| Dev | -O1 | 行号级调试 | 日常开发 |
+| RelWithDebInfo | -O2 | 最小调试信息 | 发布调试 |
+| MinSizeRel | -Os | 无调试信息 | 体积优化 |
+
+### 并行构建优化
+**新增** 智能并行构建支持：
+- Ninja构建系统自动检测
+- MinGW Makefiles并行支持
+- CPU核心数自动探测
+- 增量reconfigure优化
+
+**章节来源**
+- [scripts/build.py:1-662](file://scripts/build.py#L1-L662)
+- [scripts/package.py:1-710](file://scripts/package.py#L1-L710)
+
 ## 构建流程总结
 
 ### 新的分层构建架构
@@ -704,6 +803,7 @@ G --> R[Qt6::Svg]
 3. **链接阶段**: 链接所有依赖库生成最终可执行文件
 4. **安装阶段**: 将可执行文件、驱动文件和业务模块安装到指定目录
 5. **测试阶段**: 构建并执行所有测试套件
+6. **打包阶段**: 自动化打包和分发
 
 ### 性能优化效果
 - **编译时间**: 通过分层PCH和优化选项显著减少编译时间
@@ -712,20 +812,24 @@ G --> R[Qt6::Svg]
 - **启动时间**: 优化的二进制文件提升应用程序启动速度
 - **模块化**: 业务DLL支持独立开发和测试，提高开发效率
 
-### 架构优势
-- **松耦合**: 通过ModuleRegistry实现模块间的松耦合通信
-- **可扩展性**: 新业务模块可以轻松添加，不影响现有代码
-- **可维护性**: 职责分离，每个DLL专注于特定功能领域
-- **可测试性**: 业务模块可以独立进行测试和验证
-
 ### Thin Archive性能提升
 **新增** 通过thin archive技术实现的构建性能优化：
 - **静态库重打包**：从分钟级降至毫秒级
 - **增量构建**：修改单个文件后的重新构建时间大幅减少
 - **存储优化**：只记录对象路径，不复制实际内容
 
+### 自动化优势
+**新增** 自动化打包流水线带来的优势：
+- **一键构建**：简化复杂的多步骤构建流程
+- **质量保证**：内置依赖检查和完整性验证
+- **版本管理**：自动版本信息提取和文件命名
+- **多格式输出**：同时生成便携版和安装器
+- **可重复性**：幂等构建，支持CI/CD集成
+
 **章节来源**
 - [src/CMakeLists.txt:598-625](file://src/CMakeLists.txt#L598-L625)
 - [src/CMakeLists.txt:175-188](file://src/CMakeLists.txt#L175-L188)
 - [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
 - [doc/构建基线.md:22-39](file://doc/构建基线.md#L22-L39)
+- [scripts/build.py:225-267](file://scripts/build.py#L225-L267)
+- [scripts/package.py:227-264](file://scripts/package.py#L227-L264)
