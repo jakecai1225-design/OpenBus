@@ -24,10 +24,11 @@ class QLabel;
  * 以标签页形式展示，包含：
  *   - 工具栏：数据源切换(硬件/文件) | 开始/停止测量 | 文件选择
  *   - 大画布：QGraphicsScene 绘制流程拓扑
- *     数据源 → 通道 → DBC数据库 → [Trace, Graphic, Data, 录制]
- *   - 每个块可点击切换启用/禁用，双击可配置
+ *     数据源 → Filter 过滤（多 CAN 通道块收编为单块）→ DBC数据库
+ *     → [Trace, Graphic, Data, 录制]
+ *   - 块交互：未启用块单击 = 启用；已启用块单击/双击 = 进入配置；
+ *     右键菜单 = 配置 / 启停 / 增删（数据流过滤统一在 Filter 块配置）
  *   - 模块块内展示已打开的实例列表，单击实例跳转对应标签页
- *   - 右键菜单支持增删通道块和模块实例
  */
 class MeasurementSetupView : public QWidget
 {
@@ -61,6 +62,9 @@ public:
 public slots:
     void setSource(Source src);
     void setFilePath(const QString &path);
+    /// 复位启停按钮状态（离线回放结束/未真正启动时由壳经 flow 模块调用；
+    /// 纯状态设置，不发 measurementToggled）
+    void setRunning(bool running);
     void onFrame(const class CanFrame &frame);
 
 signals:
@@ -76,8 +80,8 @@ signals:
     void dbcSelectRequested();
     /// 请求卸载指定 DBC 文件（由 MainWindow 调用 DbcManager::unloadDbc）
     void dbcRemoveRequested(const QString &fileName);
-    /// 请求配置通道过滤条件
-    void channelFilterRequested(const QString &channelId);
+    /// Filter 块过滤规则变更（规则摘要列表；通道块收编后替代 channelFilterRequested）
+    void filterRulesChanged(const QStringList &rules);
     /// 请求跳转到设备连接界面（点击 Real 块时触发）
     void realBlockClicked();
     /// 请求跳转到离线分析标签页（双击离线分析块时触发）
@@ -120,7 +124,7 @@ public:
         QString id;             ///< 唯一标识
         QString title;          ///< 显示标题
         QString icon;           ///< emoji 图标
-        QString category;       ///< "source" | "channel" | "database" | "module"
+        QString category;       ///< "source" | "filter" | "database" | "module"
         QString moduleName;     ///< 模块类型名（如 "trace"），用于区分独立块
         /// M1 预埋：块所属协议身份（doc/flow.md §十三）——多协议就绪前恒为 "can"；
         /// 多协议画布落地后由建块的协议角色写入，驱动 Parser/Adapter 管线选择
@@ -136,7 +140,6 @@ public:
     void rebuildScene();
 private:
     QMap<QString, BlockItem> m_blocks;
-    int m_nextChannelNum = 3;   ///< 下一个通道块的编号
 
     // ---- 连线 ----
     struct Connection {
@@ -153,6 +156,10 @@ private:
     void updateConnections();
     BlockItem *blockAt(const QPointF &scenePos);
     void toggleBlock(const QString &id);
+    /// 设置块使能状态（数据源块除外；变化时发 moduleToggled）
+    void setBlockEnabled(const QString &id, bool enabled);
+    /// 块配置统一入口（已启用块单击 / 双击 / 右键「配置」共用）
+    void openBlockConfig(const QString &blockId);
 
     /// 查找点击位置所在的实例
     /// @param scenePos 场景坐标
@@ -162,8 +169,6 @@ private:
     bool instanceAt(const QPointF &scenePos, QString &moduleId, QString &instanceId);
 
     // ---- 动态增删 ----
-    void addChannelBlock();
-    void removeChannelBlock(const QString &blockId);
     void removeModuleBlock(const QString &blockId);
     /// 重新排列所有模块块（Trace / Graphic / Data+Record 分行水平排列）
     void relayoutModuleBlocks();
@@ -185,8 +190,12 @@ private:
 
     // ---- 右键弹窗对话框 ----
     void showFileConfigDialog();
-    void showChannelFilterDialog(const QString &channelId);
+    void showFilterConfigDialog();
     void showDbcSelectDialog();
+    /// Filter 块当前规则摘要列表（块内实例行标题）
+    QStringList filterRules() const;
+    /// 清空 Filter 块全部过滤规则
+    void clearFilterRules();
 };
 
 #endif // MEASUREMENTSETUPVIEW_H

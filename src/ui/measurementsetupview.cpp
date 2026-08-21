@@ -57,6 +57,8 @@ public:
     void setTitle(const QString &t) { m_title = t; update(); }
     void setInstances(const QStringList &list) { m_instances = list; update(); }
     void setHorizontalLayout(bool h) { m_horizontalLayout = h; update(); }
+    /// Filter 块模式：实例行 = 过滤规则行（副标题显示规则数）
+    void setRuleMode(bool r) { m_ruleMode = r; update(); }
 
 protected:
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *) override
@@ -108,6 +110,10 @@ protected:
         QString sub;
         if (m_isSource)
             sub = m_active ? "已激活" : "未激活";
+        else if (m_ruleMode)
+            sub = m_instances.isEmpty()
+                      ? (m_active ? "ON" : "OFF")
+                      : QStringLiteral("%1 条规则").arg(m_instances.size());
         else if (!m_instances.isEmpty())
             sub = QStringLiteral("%1 个实例").arg(m_instances.size());
         else
@@ -176,14 +182,15 @@ protected:
                 }
             }
         } else if (!m_isSource && m_instances.isEmpty() && m_active) {
-            // 无实例提示
+            // 无实例提示（Filter 块提示过滤配置入口）
             QFont hintFont("Microsoft YaHei UI", 8);
             painter->setFont(hintFont);
             painter->setPen(QColor(255, 255, 255, 150));
             painter->drawText(QRectF(r.left() + 42, headerRect.bottom(),
                                      r.width() - 50, 20),
                               Qt::AlignVCenter | Qt::AlignLeft,
-                              "双击或右键添加实例");
+                              m_ruleMode ? "单击/双击配置过滤条件"
+                                         : "单击/双击打开对应标签页");
         }
     }
 
@@ -193,6 +200,7 @@ private:
     bool m_active;
     bool m_isSource;
     bool m_horizontalLayout = false;
+    bool m_ruleMode = false;
     QStringList m_instances;
 };
 
@@ -410,40 +418,30 @@ void MeasurementSetupView::buildTopology()
 
     x += srcW + gapX;
 
-    // ---- 第 2 列: 通道 ----
-    qreal chY1 = srcY1 + 5;
-    qreal chY2 = srcY2 + 5;
-    qreal chW = bw - 30;
+    // ---- 第 2 列: Filter 过滤块（flow.md §8.1 Filter 角色 UI 前置；
+    //      多个 CAN 通道块收编为单块，数据流过滤统一在此配置） ----
+    const qreal filterW = bw - 30;
+    const qreal centerY = (srcY1 + srcY2 + srcH) / 2;  // 两数据源块的垂直中心
 
-    BlockItem ch1;
-    ch1.id = "channel1";
-    ch1.title = "CAN 通道 1";
-    ch1.icon = "";
-    ch1.category = "channel";
-    ch1.rect = QRectF(x, chY1, chW, bh);
-    ch1.color = QColor(0x00, 0x79, 0x8C);
-    m_blocks["channel1"] = ch1;
+    BlockItem filt;
+    filt.id = "filter";
+    filt.title = QStringLiteral("Filter 过滤");
+    filt.icon = "";
+    filt.category = "filter";
+    filt.moduleName = "filter";
+    filt.rect = QRectF(x, centerY - bh / 2, filterW, bh);
+    filt.color = QColor(0x00, 0x79, 0x8C);
+    m_blocks["filter"] = filt;
 
-    BlockItem ch2;
-    ch2.id = "channel2";
-    ch2.title = "CAN 通道 2";
-    ch2.icon = "";
-    ch2.category = "channel";
-    ch2.rect = QRectF(x, chY2, chW, bh);
-    ch2.color = QColor(0x00, 0x79, 0x8C);
-    m_blocks["channel2"] = ch2;
+    x += filterW + gapX;
 
-    x += chW + gapX;
-
-    // ---- 第 3 列: DBC 数据库 ----
-    qreal dbY = (chY1 + chY2 + bh) / 2 - bh / 2;  // 垂直居中
-
+    // ---- 第 3 列: DBC 数据库（与 Filter 块同一水平线） ----
     BlockItem dbc;
     dbc.id = "database";
     dbc.title = "DBC 数据库";
     dbc.icon = "";
     dbc.category = "database";
-    dbc.rect = QRectF(x, dbY, bw, bh);
+    dbc.rect = QRectF(x, centerY - bh / 2, bw, bh);
     dbc.color = QColor(0x7B, 0x1F, 0xA2);
     m_blocks["database"] = dbc;
 
@@ -482,14 +480,10 @@ void MeasurementSetupView::buildTopology()
         c.pathItem = nullptr;
         m_connections.append(c);
     };
-    // 数据源 → 通道
-    addConn("source_real", "channel1");
-    addConn("source_real", "channel2");
-    addConn("source_file", "channel1");
-    addConn("source_file", "channel2");
-    // 通道 → DBC
-    addConn("channel1", "database");
-    addConn("channel2", "database");
+    // 数据源 → Filter → DBC
+    addConn("source_real", "filter");
+    addConn("source_file", "filter");
+    addConn("filter", "database");
     // DBC → 各模块
     addConn("database", "trace1");
     addConn("database", "graphic1");
@@ -509,8 +503,9 @@ void MeasurementSetupView::rebuildScene()
     const qreal rowH = 22;
     for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
         auto &b = it.value();
-        if (b.category == "module") {
-            // Trace / Graphic 块独占一行，无子实例；其他模块根据实例数量动态调整高度
+        if (b.category == "module" || b.category == "filter") {
+            // Trace / Graphic 块独占一行，无子实例；其他模块与 Filter 块
+            // （实例行 = 过滤规则行）根据行数动态调整高度
             if (b.moduleName != "trace" && b.moduleName != "graphic") {
                 qreal h = baseH;
                 if (!b.instances.isEmpty())
@@ -533,7 +528,7 @@ void MeasurementSetupView::rebuildScene()
     for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
         auto &b = it.value();
         bool active = b.enabled;
-        // 通道块始终启用 — 逻辑通道概念，不区分硬件/文件数据源
+        // 数据源块：活跃数据源高亮，非活跃灰显
         if (b.category == "source") {
             bool isReal = (b.id == "source_real");
             b.color = isReal ? QColor(0x4a, 0x90, 0xd9) : QColor(0x4C, 0xAF, 0x50);
@@ -545,13 +540,16 @@ void MeasurementSetupView::rebuildScene()
 
         auto *item = new SetupBlockGfx(b.rect, b.icon, b.title, b.color, active,
                                         b.category == "source");
-        // 传递实例列表给渲染图元
-        if (b.category == "module" && b.moduleName != "trace" && b.moduleName != "graphic") {
+        // 传递实例列表给渲染图元（Filter 块实例行 = 过滤规则行）
+        if ((b.category == "module" || b.category == "filter")
+            && b.moduleName != "trace" && b.moduleName != "graphic") {
             QStringList instTitles;
             for (const auto &inst : b.instances)
                 instTitles << inst.title;
             item->setInstances(instTitles);
         }
+        if (b.category == "filter")
+            item->setRuleMode(true);
         m_scene->addItem(item);
         b.gfxItem = item;
     }
@@ -655,7 +653,7 @@ void MeasurementSetupView::updateBlockVisual(const QString &id)
         auto *gfx = dynamic_cast<SetupBlockGfx*>(b.gfxItem);
         if (gfx) {
             bool active = b.enabled;
-            // 通道块始终启用
+            // 数据源块以「当前激活数据源」点亮（非激活侧呈灰态）
             if (b.category == "source") {
                 if (b.id == "source_real") {
                     gfx->setTitle(QStringLiteral("Real 实时"));
@@ -698,12 +696,44 @@ void MeasurementSetupView::toggleBlock(const QString &id)
 {
     auto it = m_blocks.find(id);
     if (it == m_blocks.end()) return;
-    auto &b = it.value();
-    if (b.category == "source") return; // 数据源不可禁用
+    setBlockEnabled(id, !it->enabled);
+}
 
-    b.enabled = !b.enabled;
+void MeasurementSetupView::setBlockEnabled(const QString &id, bool enabled)
+{
+    auto it = m_blocks.find(id);
+    if (it == m_blocks.end()) return;
+    auto &b = it.value();
+    if (b.category == "source") return; // 数据源经开关/块点击切换，不可禁用
+    if (b.enabled == enabled) return;
+
+    b.enabled = enabled;
     rebuildScene();
     emit moduleToggled(b.id, b.moduleName, b.enabled);
+}
+
+void MeasurementSetupView::openBlockConfig(const QString &blockId)
+{
+    // 块配置统一入口（已启用块单击 / 双击 / 右键「配置」共用）
+    auto it = m_blocks.find(blockId);
+    if (it == m_blocks.end()) return;
+    const auto &b = it.value();
+
+    if (b.category == "filter") {
+        // Filter 块：配置数据流过滤规则
+        showFilterConfigDialog();
+    } else if (b.category == "database") {
+        // 数据库块：选择 DBC 文件
+        showDbcSelectDialog();
+    } else if (b.category == "module") {
+        if (b.moduleName == "trace") {
+            emit moduleOpened("trace", b.id);
+        } else if (b.moduleName == "graphic") {
+            emit moduleOpened("graphic", b.id);
+        } else {
+            emit moduleOpened(b.id, "");
+        }
+    }
 }
 
 // ============================================================
@@ -812,74 +842,6 @@ bool MeasurementSetupView::isBlockEnabled(const QString &blockId) const
     return it->enabled;
 }
 
-void MeasurementSetupView::addChannelBlock()
-{
-    QString id = QString("channel%1").arg(m_nextChannelNum++);
-    int chNum = m_nextChannelNum - 1;
-
-    auto refIt = m_blocks.find("channel1");
-    qreal chX = refIt != m_blocks.end() ? refIt->rect.left() : 260;
-    qreal chW = refIt != m_blocks.end() ? refIt->rect.width() : 190;
-    qreal chH = refIt != m_blocks.end() ? refIt->rect.height() : 60;
-    qreal gapY = 30;  // 垂直间距
-
-    // 在通道列最下方添加新通道
-    qreal maxY = 0;
-    for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
-        if (it.value().category == "channel")
-            maxY = qMax(maxY, it.value().rect.bottom());
-    }
-    if (maxY == 0) maxY = 85;
-
-    BlockItem ch;
-    ch.id = id;
-    ch.title = QString("CAN 通道 %1").arg(chNum);
-    ch.icon = "";
-    ch.category = "channel";
-    ch.color = QColor(0x00, 0x79, 0x8C);
-    ch.rect = QRectF(chX, maxY + gapY, chW, chH);
-    m_blocks[id] = ch;
-
-    Connection c1;
-    c1.fromId = "source_real";
-    c1.toId = id;
-    c1.pathItem = nullptr;
-    m_connections.append(c1);
-
-    Connection c1b;
-    c1b.fromId = "source_file";
-    c1b.toId = id;
-    c1b.pathItem = nullptr;
-    m_connections.append(c1b);
-
-    Connection c2;
-    c2.fromId = id;
-    c2.toId = "database";
-    c2.pathItem = nullptr;
-    m_connections.append(c2);
-
-    rebuildScene();
-}
-
-void MeasurementSetupView::removeChannelBlock(const QString &blockId)
-{
-    int channelCount = 0;
-    for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
-        if (it.value().category == "channel")
-            channelCount++;
-    }
-    if (channelCount <= 1) return;
-
-    m_blocks.remove(blockId);
-
-    for (int i = m_connections.size() - 1; i >= 0; --i) {
-        if (m_connections[i].fromId == blockId || m_connections[i].toId == blockId)
-            m_connections.removeAt(i);
-    }
-
-    rebuildScene();
-}
-
 void MeasurementSetupView::removeModuleBlock(const QString &blockId)
 {
     m_blocks.remove(blockId);
@@ -958,24 +920,24 @@ void MeasurementSetupView::onSceneClicked(const QPointF &scenePos)
     auto *b = blockAt(scenePos);
     if (!b) return;
 
+    // 统一块交互规则：未启用块单击 = 启用；已启用块单击 = 进入配置
     if (b->category == "source") {
-        if (b->id == "source_real") {
-            // 点击 Real 块: 切换到 Hardware 源并跳转设备连接界面
-            if (m_source != Source::Hardware) {
-                setSource(Source::Hardware);
-                emit sourceChanged(static_cast<int>(Source::Hardware));
-            }
-            emit realBlockClicked();
+        if (b->id != activeSourceId()) {
+            // 未激活数据源：单击 = 激活（切换数据源）
+            Source newSrc = (b->id == "source_real") ? Source::Hardware : Source::File;
+            setSource(newSrc);
+            emit sourceChanged(static_cast<int>(newSrc));
         } else {
-            // 点击 File 块: 切换到 File 源
-            if (m_source != Source::File) {
-                setSource(Source::File);
-                emit sourceChanged(static_cast<int>(Source::File));
-            }
+            // 已激活数据源：单击 = 打开对应配置页
+            if (b->id == "source_real")
+                emit realBlockClicked();
+            else
+                emit fileBlockClicked();
         }
+    } else if (!b->enabled) {
+        setBlockEnabled(b->id, true);
     } else {
-        // Trace / Graphic / 其他模块块: 单击切换使能/禁用
-        toggleBlock(b->id);
+        openBlockConfig(b->id);
     }
 }
 
@@ -984,28 +946,27 @@ void MeasurementSetupView::onSceneDoubleClicked(const QPointF &scenePos)
     auto *b = blockAt(scenePos);
     if (!b) return;
 
-    if (b->category == "module") {
-        if (b->moduleName == "trace") {
-            // Trace 块: 跳转到对应的 Trace 标签页
-            emit moduleOpened("trace", b->id);
-        } else if (b->moduleName == "graphic") {
-            // Graphic 块: 跳转到对应的 Graphic 标签页
-            emit moduleOpened("graphic", b->id);
-        } else {
-            emit moduleOpened(b->id, "");
-        }
-    } else if (b->category == "source") {
-        // 双击数据源块 → 跳转对应配置界面
-        if (b->id == "source_real")
+    // 统一块交互规则：已启用块双击 = 进入配置；未启用块双击 = 启用 + 进入配置
+    // （双击的第一击已先行触发单击分支：未启用块此时已启用，此处幂等）
+    if (b->category == "source") {
+        // 数据源块：双击 = 激活（若未激活）并打开对应配置页
+        if (b->id == "source_real") {
+            if (m_source != Source::Hardware) {
+                setSource(Source::Hardware);
+                emit sourceChanged(static_cast<int>(Source::Hardware));
+            }
             emit realBlockClicked();
-        else
+        } else {
+            if (m_source != Source::File) {
+                setSource(Source::File);
+                emit sourceChanged(static_cast<int>(Source::File));
+            }
             emit fileBlockClicked();
-    } else if (b->category == "channel") {
-        // 双击通道 → 配置过滤条件
-        showChannelFilterDialog(b->id);
-    } else if (b->category == "database") {
-        // 双击数据库 → 选择 DBC 文件
-        showDbcSelectDialog();
+        }
+    } else {
+        if (!b->enabled)
+            setBlockEnabled(b->id, true);
+        openBlockConfig(b->id);
     }
 }
 
@@ -1018,11 +979,21 @@ void MeasurementSetupView::setSource(Source src)
     if (m_blocks.contains("source_file"))
         m_blocks["source_file"].enabled = (src == Source::File);
     // 更新连线: 将旧数据源的连线替换为新数据源
+    // （去重——同一数据源来回切换不再累积重叠连线）
     QString oldId = (src == Source::Hardware) ? "source_file" : "source_real";
     QString newId = (src == Source::Hardware) ? "source_real" : "source_file";
     for (auto &conn : m_connections) {
         if (conn.fromId == oldId)
             conn.fromId = newId;
+    }
+    for (int i = m_connections.size() - 1; i >= 0; --i) {
+        for (int j = 0; j < i; ++j) {
+            if (m_connections[j].fromId == m_connections[i].fromId
+                && m_connections[j].toId == m_connections[i].toId) {
+                m_connections.removeAt(i);
+                break;
+            }
+        }
     }
     rebuildScene();
 }
@@ -1038,19 +1009,24 @@ void MeasurementSetupView::onFrame(const CanFrame &)
     // 帧数统计由 MainWindow 状态栏统一显示，此处无需处理
 }
 
+void MeasurementSetupView::setRunning(bool running)
+{
+    // 纯状态复位（离线回放结束/未真正启动时由壳经 flow 模块调用）：
+    // 只同步按钮态，不发 measurementToggled——启停编排归壳侧，避免二次停止
+    m_running = running;
+    m_startAct->setEnabled(!running);
+    m_stopAct->setEnabled(running);
+}
+
 void MeasurementSetupView::onStartClicked()
 {
-    m_running = true;
-    m_startAct->setEnabled(false);
-    m_stopAct->setEnabled(true);
+    setRunning(true);
     emit measurementToggled(true);
 }
 
 void MeasurementSetupView::onStopClicked()
 {
-    m_running = false;
-    m_startAct->setEnabled(true);
-    m_stopAct->setEnabled(false);
+    setRunning(false);
     emit measurementToggled(false);
 }
 
@@ -1158,39 +1134,31 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
         });
     }
 
-    // ---- 通道块 ----
-    else if (blockCategory == "channel") {
+    // ---- Filter 过滤块 ----
+    else if (blockCategory == "filter") {
+        // 数据流过滤配置统一入口（原各 CAN 通道块右键收编合并至此）
         auto *actFilter = m_rightMenu->addAction("配置过滤条件...");
-        actFilter->setStatusTip("设置 CAN ID 范围、扩展帧、CAN FD 等过滤参数");
-        connect(actFilter, &QAction::triggered, this, [this, blockId]() {
-            showChannelFilterDialog(blockId);
+        actFilter->setStatusTip("设置 CAN ID 范围、帧类型、方向等过滤规则");
+        connect(actFilter, &QAction::triggered, this, [this]() {
+            showFilterConfigDialog();
         });
+
+        // 清空规则（有规则时显示）
+        const int ruleCount = block->instances.size();
+        if (ruleCount > 0) {
+            auto *actClear = m_rightMenu->addAction(
+                QString("清空过滤规则（%1 条）").arg(ruleCount));
+            actClear->setStatusTip("移除全部规则，数据流直连不过滤");
+            connect(actClear, &QAction::triggered, this, [this]() {
+                clearFilterRules();
+            });
+        }
 
         m_rightMenu->addSeparator();
 
-        auto *actToggle = m_rightMenu->addAction(blockEnabled ? "禁用通道" : "启用通道");
+        auto *actToggle = m_rightMenu->addAction(blockEnabled ? "禁用过滤" : "启用过滤");
         connect(actToggle, &QAction::triggered, this, [this, blockId]() {
             toggleBlock(blockId);
-        });
-
-        m_rightMenu->addSeparator();
-
-        auto *actAddCh = m_rightMenu->addAction(
-            svgIcon(":/icons/plus.svg",
-                    ThemeManager::instance()->currentTheme().text, 16),
-            "添加通道");
-        connect(actAddCh, &QAction::triggered, this, [this]() {
-            addChannelBlock();
-        });
-
-        auto *actDelCh = m_rightMenu->addAction("- 删除此通道");
-        int channelCount = 0;
-        for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
-            if (it.value().category == "channel") channelCount++;
-        }
-        actDelCh->setEnabled(channelCount > 1);
-        connect(actDelCh, &QAction::triggered, this, [this, blockId]() {
-            removeChannelBlock(blockId);
         });
     }
 
@@ -1257,8 +1225,8 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
 
         m_rightMenu->addSeparator();
 
-        // Trace 块: 跳转到对应标签页; 其他模块: 跳转（新建）
-        auto *actOpen = m_rightMenu->addAction("跳转到对应标签页");
+        // 模块块统一配置入口：打开/切换对应标签页
+        auto *actOpen = m_rightMenu->addAction("配置 / 跳转标签页");
         actOpen->setStatusTip("在中心区域打开/切换到该模块的标签页");
         connect(actOpen, &QAction::triggered, this, [this, blockModule, blockId]() {
             if (blockModule == "trace" || blockModule == "graphic")
@@ -1303,11 +1271,6 @@ void MeasurementSetupView::buildEmptyAreaMenu(const QPointF &)
     titleFont.setBold(true);
     titleAct->setFont(titleFont);
     m_rightMenu->addSeparator();
-
-    auto *actAddCh = m_rightMenu->addAction(" 添加 CAN 通道");
-    connect(actAddCh, &QAction::triggered, this, [this]() {
-        addChannelBlock();
-    });
 
     // Trace: 总是可以添加新块
     auto *actAddTrace = m_rightMenu->addAction("添加 Trace 视图");
@@ -1437,31 +1400,53 @@ void MeasurementSetupView::showFileConfigDialog()
 }
 
 // ============================================================
-//  通道过滤条件配置对话框
+//  Filter 块过滤规则配置对话框（数据流过滤统一配置入口）
 // ============================================================
-// NOTE: Real 硬件参数配置已移至设备连接界面 (DeviceConnectionTab)
-//       点击 Flow 页面的 Real 块将跳转到设备连接标签页
-void MeasurementSetupView::showChannelFilterDialog(const QString &channelId)
+// NOTE: 原「CAN 通道 N」各自的过滤对话框已随通道块收编合并为一个
+//       Filter 块；规则以摘要行形式挂在 Filter 块实例列表内展示
+void MeasurementSetupView::showFilterConfigDialog()
 {
     QDialog dlg(this);
-    dlg.setWindowTitle(QString("配置 %1 过滤条件").arg(channelId));
-    dlg.setMinimumWidth(380);
-    auto *form = new QFormLayout(&dlg);
+    dlg.setWindowTitle("Filter 过滤规则配置");
+    dlg.setMinimumWidth(440);
+    auto *lay = new QVBoxLayout(&dlg);
+
+    auto *hint = new QLabel("规则列表（命中任一规则即放行，空列表 = 不过滤）:", &dlg);
+    lay->addWidget(hint);
+
+    // 规则列表（实时反映 Filter 块实例行）
+    auto *ruleList = new QListWidget(&dlg);
+    ruleList->setAlternatingRowColors(true);
+    ruleList->setMinimumHeight(140);
+    ruleList->setMaximumHeight(200);
+    lay->addWidget(ruleList);
+
+    // 刷新规则列表显示
+    auto refreshList = [this, ruleList]() {
+        ruleList->clear();
+        for (const auto &r : filterRules())
+            ruleList->addItem(r);
+    };
+    refreshList();
+
+    // ---- 新建规则表单 ----
+    auto *formGroup = new QGroupBox("新建规则", &dlg);
+    auto *form = new QFormLayout(formGroup);
 
     // CAN ID 范围
-    auto *idMin = new QSpinBox(&dlg);
+    auto *idMin = new QSpinBox(formGroup);
     idMin->setRange(0, 0x7FF);
     idMin->setDisplayIntegerBase(16);
     idMin->setPrefix("0x");
     idMin->setValue(0);
 
-    auto *idMax = new QSpinBox(&dlg);
+    auto *idMax = new QSpinBox(formGroup);
     idMax->setRange(0, 0x7FF);
     idMax->setDisplayIntegerBase(16);
     idMax->setPrefix("0x");
     idMax->setValue(0x7FF);
 
-    auto *idRangeWidget = new QWidget(&dlg);
+    auto *idRangeWidget = new QWidget(formGroup);
     auto *idRangeLay = new QHBoxLayout(idRangeWidget);
     idRangeLay->setContentsMargins(0, 0, 0, 0);
     idRangeLay->addWidget(idMin);
@@ -1470,52 +1455,110 @@ void MeasurementSetupView::showChannelFilterDialog(const QString &channelId)
     form->addRow("ID 范围:", idRangeWidget);
 
     // 帧类型选项
-    auto *chkStd   = new QCheckBox("标准帧 (11-bit ID)", &dlg);
-    auto *chkExt   = new QCheckBox("扩展帧 (29-bit ID)", &dlg);
-    auto *chkFD    = new QCheckBox("CAN FD 帧", &dlg);
-    auto *chkRTR   = new QCheckBox("RTR 远程帧", &dlg);
+    auto *chkStd   = new QCheckBox("标准帧", formGroup);
+    auto *chkExt   = new QCheckBox("扩展帧", formGroup);
+    auto *chkFD    = new QCheckBox("CAN FD", formGroup);
+    auto *chkRTR   = new QCheckBox("RTR", formGroup);
     chkStd->setChecked(true);
     chkExt->setChecked(true);
 
-    auto *frameTypes = new QGroupBox("帧类型过滤", &dlg);
-    auto *ftLay = new QVBoxLayout(frameTypes);
-    ftLay->addWidget(chkStd);
-    ftLay->addWidget(chkExt);
-    ftLay->addWidget(chkFD);
-    ftLay->addWidget(chkRTR);
-    form->addRow(frameTypes);
+    auto *typeWidget = new QWidget(formGroup);
+    auto *typeLay = new QHBoxLayout(typeWidget);
+    typeLay->setContentsMargins(0, 0, 0, 0);
+    typeLay->addWidget(chkStd);
+    typeLay->addWidget(chkExt);
+    typeLay->addWidget(chkFD);
+    typeLay->addWidget(chkRTR);
+    form->addRow("帧类型:", typeWidget);
 
     // 方向过滤
-    auto *comboDir = new QComboBox(&dlg);
+    auto *comboDir = new QComboBox(formGroup);
     comboDir->addItems({"全部", "仅 Tx (发送)", "仅 Rx (接收)"});
     form->addRow("方向:", comboDir);
 
-    // 按钮
-    auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
-    form->addRow(btns);
+    lay->addWidget(formGroup);
 
-    connect(btns, &QDialogButtonBox::accepted, this, [this, channelId, idMin, idMax, chkStd, chkExt, chkFD, chkRTR, comboDir, &dlg]() {
-        // 将过滤配置信息输出到底部输出栏
-        QStringList filterDesc;
-        filterDesc << QString("%1: ID 0x%2~0x%3")
-                      .arg(channelId)
-                      .arg(idMin->value(), 0, 16)
-                      .arg(idMax->value(), 0, 16);
+    // ---- 增删按钮 ----
+    auto *btnLay = new QHBoxLayout();
+    auto *addBtn = new QPushButton("+ 添加规则", &dlg);
+    auto *delBtn = new QPushButton("- 移除选中规则", &dlg);
+    btnLay->addWidget(addBtn);
+    btnLay->addWidget(delBtn);
+    btnLay->addStretch();
+    lay->addLayout(btnLay);
+
+    // 添加规则：立即生效（挂到 Filter 块规则行并刷新画布）
+    QObject::connect(addBtn, &QPushButton::clicked, this,
+                     [this, idMin, idMax, chkStd, chkExt, chkFD, chkRTR, comboDir, &refreshList]() {
         QStringList types;
         if (chkStd->isChecked()) types << "Std";
         if (chkExt->isChecked()) types << "Ext";
         if (chkFD->isChecked())  types << "FD";
         if (chkRTR->isChecked()) types << "RTR";
-        filterDesc << QString("帧类型: %1").arg(types.join(", "));
-        filterDesc << QString("方向: %1").arg(comboDir->currentText());
-        qDebug() << "Channel filter configured:" << filterDesc;
-        // 通知 MainWindow
-        emit channelFilterRequested(channelId);
-        dlg.accept();
+        if (types.isEmpty())
+            types << "全部";
+
+        auto it = m_blocks.find("filter");
+        if (it == m_blocks.end())
+            return;
+        InstanceItem rule;
+        rule.id = QStringLiteral("rule%1").arg(it->instances.size() + 1);
+        rule.title = QStringLiteral("ID 0x%1~0x%2 · %3 · %4")
+                         .arg(idMin->value(), 0, 16)
+                         .arg(idMax->value(), 0, 16)
+                         .arg(types.join("+"))
+                         .arg(comboDir->currentText());
+        it->instances.append(rule);
+
+        rebuildScene();
+        refreshList();
+        emit filterRulesChanged(filterRules());
+        qDebug() << "Filter rule added:" << rule.title;
     });
-    connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    // 移除选中规则：立即生效
+    QObject::connect(delBtn, &QPushButton::clicked, this,
+                     [this, ruleList, &refreshList]() {
+        int row = ruleList->currentRow();
+        auto it = m_blocks.find("filter");
+        if (row < 0 || it == m_blocks.end() || row >= it->instances.size())
+            return;
+        const QString removed = it->instances[row].title;
+        it->instances.removeAt(row);
+
+        rebuildScene();
+        refreshList();
+        emit filterRulesChanged(filterRules());
+        qDebug() << "Filter rule removed:" << removed;
+    });
+
+    // 关闭（规则增删即时生效，无需确认按钮）
+    auto *btns = new QDialogButtonBox(QDialogButtonBox::Close, &dlg);
+    lay->addWidget(btns);
+    QObject::connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
 
     dlg.exec();
+}
+
+QStringList MeasurementSetupView::filterRules() const
+{
+    QStringList rules;
+    auto it = m_blocks.constFind("filter");
+    if (it == m_blocks.constEnd())
+        return rules;
+    for (const auto &inst : it->instances)
+        rules << inst.title;
+    return rules;
+}
+
+void MeasurementSetupView::clearFilterRules()
+{
+    auto it = m_blocks.find("filter");
+    if (it == m_blocks.end() || it->instances.isEmpty())
+        return;
+    it->instances.clear();
+    rebuildScene();
+    emit filterRulesChanged(QStringList());
 }
 
 // ============================================================

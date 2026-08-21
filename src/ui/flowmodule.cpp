@@ -213,11 +213,11 @@ QWidget *FlowModule::createSetupPage(ShellContext &ctx)
                              QStringLiteral("加载失败: ") + path);
     });
 
-    // 通道过滤提示
-    QObject::connect(view, &MeasurementSetupView::channelFilterRequested, view,
-                     [this](const QString &channelId) {
+    // Filter 块过滤规则变更提示（v1.6：多 CAN 通道块收编为单 Filter 块）
+    QObject::connect(view, &MeasurementSetupView::filterRulesChanged, view,
+                     [this](const QStringList &rules) {
         m_ctx.appendOutput(
-            QStringLiteral("通道 %1 过滤条件已配置").arg(channelId));
+            QStringLiteral("Flow 过滤规则已更新（%1 条）").arg(rules.size()));
     });
 
     cachePage(QStringLiteral("setup"), view);
@@ -331,6 +331,12 @@ void FlowModule::invoke(const QString &action, const QVariant &arg)
         if (auto *msv = qobject_cast<MeasurementSetupView *>(
                 m_pages.value(QStringLiteral("setup"))))
             msv->setFilePath(arg.toString());
+    } else if (action == QStringLiteral("setMeasurementRunning")) {
+        // 离线回放结束/取消：复位 Flow 页启停按钮（壳 onPlayerFinished /
+        // onMeasurementToggled 早退路径回调，「开始」恢复可点）
+        if (auto *msv = qobject_cast<MeasurementSetupView *>(
+                m_pages.value(QStringLiteral("setup"))))
+            msv->setRunning(arg.toBool());
     } else if (action == QStringLiteral("setDeviceConfig")) {
         // 恢复设备连接页界面配置（不连接设备，仅恢复参数）
         const QVariantMap cfg = arg.toMap();

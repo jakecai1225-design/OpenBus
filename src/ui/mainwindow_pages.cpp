@@ -298,7 +298,7 @@ void MainWindow::onOpenMeasurementSetup()
     // measurementToggled/moduleToggled/moduleOpened/moduleInstanceClosed 等
     // 编排连接已迁入 FlowModule → 经 shellInvoke 回调壳槽（拆分方案 B4）
 
-    // moduleInstanceClosed/dbcSelectRequested/dbcRemoveRequested/channelFilterRequested
+    // moduleInstanceClosed/dbcSelectRequested/dbcRemoveRequested/filterRulesChanged
     // 连接已迁入 FlowModule（拆分方案 B4：前者经 shellInvoke 回调壳，后三者模块侧完成）
 
     // 先打开 Flow 标签页，确保标签页顺序为 Flow → Trace1 → Graphic1

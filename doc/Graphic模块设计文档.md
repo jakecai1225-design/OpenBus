@@ -3,9 +3,9 @@
 > Graphic 是信号级分析的核心视图，对标 CANoe Graphics Window。
 > 目标：多信号实时波形监控 + 游标精确测量 + 大数据流畅渲染。
 
-> **2026-08-21 增补**：多协议 Graphic 形态扩展方向（**§十一**）——侧栏 Graphic 折叠栏当前仅一种形态（多轨道时序波形，多实例），面向不同信号数据类型与协议场景归纳出六种基础可视化形态（时序波形 / XY 关联 / 数字总线 / 状态时间线 / 仪表盘 / 柱状统计），作为战略扩展方向，与 doc/flow.md、Trace模块设计文档.md §十 配套。
+> **2026-08-21 增补**：多协议 Graphic 形态扩展方向（**§十一**）——侧栏 Graphic 当前仅一种形态（多轨道时序波形，多实例），面向不同信号数据类型与协议场景归纳出六种基础可视化形态（时序波形 / XY 关联 / 数字总线 / 状态时间线 / 仪表盘 / 柱状统计），作为战略扩展方向，与 doc/flow.md、Trace模块设计文档.md §十 配套。
 
-> **2026-08-21 增补（二）**：最小改动预埋（**§11.7**）——M 系列（doc/flow.md §十三）的 Graphic 切片 M1-Graphic：侧栏折叠分节 + 「新建」下拉 + formId/protocolId 身份预埋，可在 GV1 之前先行落地，数据层零改动。
+> **2026-08-21 增补（二）**：最小改动预埋（**§11.7**）——M 系列（doc/flow.md §十三）的 Graphic 切片 M1-Graphic：形态模板平铺（v1.5 修订）+ formId/protocolId 身份预埋，可在 GV1 之前先行落地，数据层零改动。
 
 ---
 
@@ -271,9 +271,9 @@ replot() — 恒定 O(视口宽度) 渲染成本
 | **G5** | 数据导出 CSV + 配置持久化（含显示模式/颜色随 G7 一并持久化） | 🟠 P2 | 2 天 |
 | **G6** | 对比模式 + 注释标记 | 🟢 P3 | 3 天 |
 | **GV 系列** | 多协议 Graphic 形态（GV1 形态框架 → GV2 XY 关联 → GV3 状态时间线 → GV4 数字总线 → GV5 仪表盘 → GV6 柱状统计） | ⚪ 战略规划 | — |
-| **M1-Graphic** | 侧栏折叠分节（时序波形 Graphic 节）+ 「新建」下拉（单形态）+ formId/protocolId 身份预埋（flow.md §十三 M1 的 Graphic 切片，GV1 公共前置） | 🟡 近期 | ~0.5 天 |
+| **M1-Graphic** | 形态模板平铺（时序波形可点击，五形态置灰占位）+「已打开」页面列表 + formId/protocolId 身份预埋（flow.md §十三 M1 的 Graphic 切片，GV1 公共前置） | 🟡 近期 | ~0.5 天 |
 
-依赖：G1 ✅、G2 ✅ 已完成；**G7a/b/c 独立于 G3-G6 可立即开始**（建议 G7a → G7b → G7c 顺序，每步均可独立编译验证）；G3-G6 保持原优先级不变；**M1-Graphic 独立可先行**（仅依赖 CollapsibleSection 组件随 flow.md M1 落地，详见 §11.7）。
+依赖：G1 ✅、G2 ✅ 已完成；**G7a/b/c 独立于 G3-G6 可立即开始**（建议 G7a → G7b → G7c 顺序，每步均可独立编译验证）；G3-G6 保持原优先级不变；**M1-Graphic 独立可先行**（随 flow.md M1 落地，无组件依赖，详见 §11.7）。
 
 ---
 
@@ -881,25 +881,25 @@ int axisZoneAt(const QPoint &pos, int *outIdx = nullptr) const;
 
 ### 11.4 架构方向
 
-侧栏折叠栏按**形态**分节（复用 flow.md §7.3 的 CollapsibleSection 组件，交互与 Flow /
-Trace 侧栏一致；现状的单列表 + 新建按钮收编为「时序波形 Graphic」一节）：
+侧栏按**形态**平铺模板入口（与 flow.md §7.2 v1.5 平铺修订一致，不再分节嵌套；
+现状的单列表收编为「已打开」区，新建按钮改为模板行）：
 
 ```
 ┌─ Graphic（侧栏面板） ─────────────────────────┐
-│ ▾ 时序波形 Graphic（信号-时间曲线）           │
-│ │  ● Graphic1       [CAN]  ▶ 运行中           │
-│ │  ● Graphic2       [CAN]  ⏸ 已暂停           │
-│ │  ＋ 新建时序波形 Graphic                    │
-│ ▸ XY 关联 Graphic（信号-信号轨迹）            │
-│ ▸ 数字总线 Graphic（位方波/解码叠加）         │
-│ ▸ 状态时间线 Graphic（枚举值色带）            │
-│ ▸ 仪表盘 Graphic（表盘/条形/LED）             │
-│ ▸ 柱状统计 Graphic（速率/负载分桶）           │
+│  ＋ 时序波形    （可点击：新建时序波形）       │
+│  ＋ XY 关联     （置灰占位，GV 系列落地启用）  │
+│  ＋ 数字总线    （置灰占位）                   │
+│  ＋ 状态时间线  （置灰占位）                   │
+│  ＋ 仪表盘      （置灰占位）                   │
+│  ＋ 柱状统计    （置灰占位）                   │
+│  ── 已打开 ──                                  │
+│  ● Graphic1       [CAN]  ▶ 运行中              │
+│  ● Graphic2       [CAN]  ⏸ 已暂停              │
 └───────────────────────────────────────────────┘
 ```
 
-交互沿用 Flow / Trace 侧栏规则（flow.md §7.2）：单击实例行聚焦标签页；「＋ 新建」创建
-该形态新实例；折叠节展开状态 QSettings 持久化；右键重命名/删除。
+交互沿用 Flow / Trace 侧栏规则（flow.md §7.2）：单击模板行创建该形态新实例（置灰
+占位行不响应，tooltip 标注落地阶段）；「已打开」实例行单击聚焦标签页、右键重命名/删除。
 
 组件与接口（方向性设计）：
 
@@ -924,7 +924,7 @@ Trace 侧栏一致；现状的单列表 + 新建按钮收编为「时序波形 G
 
 | 阶段 | 内容 | 依赖 |
 |------|------|------|
-| GV1 | 形态框架：IGraphicForm / GraphicFormRegistry + Graphic 侧栏折叠栏按形态分节 + 时序波形型收编为内置形态（CAN 零回归验收） | flow.md F1 |
+| GV1 | 形态框架：IGraphicForm / GraphicFormRegistry + Graphic 侧栏模板行由注册表枚举生成（接管 M1 平铺占位） + 时序波形型收编为内置形态（CAN 零回归验收） | flow.md F1 |
 | GV2 | XY 关联型：X 轴绑定信号 + 轨迹绘制（收编 §九 #10） | GV1 |
 | GV3 | 状态时间线型：值表映射 + 色带渲染 + 状态图例 | GV1 + 解析器值表扩展 |
 | GV4 | 数字总线型：位信号方波 + 解码文本叠加（逻辑分析仪风格） | GV1 |
@@ -940,7 +940,7 @@ Trace 侧栏一致；现状的单列表 + 新建按钮收编为「时序波形 G
 |--------|------|
 | doc/flow.md | 上下游配套：`decode()` 输出是各形态统一数据源；`BusSignalDef` 扩展 valueType/值表在解析器层落地（flow.md §十二 已互链） |
 | doc/flow.md §3.5 角色管线 | Graphic 无视图级过滤（按需于 GV 系列引入）；流级过滤在 FlowSession 过滤链统一实施，对管线下游各形态一律生效 |
-| Trace模块设计文档.md §十 | 同构的形态框架（ITraceForm / IGraphicForm 同注册模式）；侧栏折叠栏交互一致；Trace ③ 聚合监视与 Graphic ⑤ 仪表盘同源不同皮 |
+| Trace模块设计文档.md §十 | 同构的形态框架（ITraceForm / IGraphicForm 同注册模式）；侧栏模板平铺交互一致；Trace ③ 聚合监视与 Graphic ⑤ 仪表盘同源不同皮 |
 | §九 #10 XY 模式 | 收编为 GV2（原"设计文档另行"落位于此） |
 | §七 Data Window | Data Window（CANoe C3 对标，表格皮）与 GV5 仪表盘（图形皮）同源——最新值监视的两种呈现，数据管道共用 |
 | G3 数学信号 | 跨形态通用派生源（计算信号可喂任意形态） |
@@ -950,28 +950,33 @@ Trace 侧栏一致；现状的单列表 + 新建按钮收编为「时序波形 G
 ### 11.7 最小改动预埋（M1-Graphic，对接 flow.md §十三）
 
 多形态框架（GV1-GV6）之前，先落 **M1 的 Graphic 切片**（flow.md §十三 M1，约 0.5 人日）——
-UI 先行预留、数据层零改动，作为 GV1 的公共前置：
+UI 先行预留、数据层零改动，作为 GV1 的公共前置（v1.5 修订：模板平铺，不再分节嵌套）：
 
-- **侧栏折叠分节**：`GraphicConfigPanel` 现有页面列表收进「时序波形 Graphic」一节
-  （CollapsibleSection 组件随 flow.md M1 落地）；节标题带形态徽标位，展开状态
-  QSettings 持久化。
-- **「新建」下拉**：「新建 Graphic」按钮改带下拉菜单，当前仅「时序波形」一项可用——GV1
-  落地 `GraphicFormRegistry` 后下拉项由注册表枚举自动扩充，UI 不再返工。
+- **形态模板平铺**：`GraphicConfigPanel` 顶部直接平铺六形态模板入口一行一个——
+  「时序波形」可点击（= 新建 Graphic，行为同原「新建」按钮）；其余五形态（XY 关联 /
+  数字总线 / 状态时间线 / 仪表盘 / 柱状统计）置灰占位，tooltip 标注 GV 系列规划——
+  GV1 落地 `GraphicFormRegistry` 后模板行由注册表枚举自动扩充，UI 不再返工。
+- **已打开页面列表**：现有页面列表平铺于模板区下方（「已打开」小标题），切换 /
+  右键 / 删除交互原样保留。
 - **身份预埋**：GraphicTab 尾部追加 `protocolId`（默认 "can"）与 `formId`（默认
   "waveform"）字段；工程持久化 JSON 写入新字段，读取缺省回填（旧工程兼容）。
 - **明确不做**：GraphicView / GraphicPalette / G1 降采样 / G2 联动 / 信号结构
   （`Signal` 仍绑定 `DbcSignal`）全部不动；`decode()`（flow.md M2 落地）仅供注册表
   输出，不接 Graphic UI。
 
-**验收**：① CAN Graphic 全功能回归（多轨道波形 / 卡尺 / 缩放历史 / 主题联动）② 侧栏呈现
-「时序波形 Graphic」分节与单项下拉 ③ 旧工程恢复后身份字段回填正确。
+**验收**：① CAN Graphic 全功能回归（多轨道波形 / 卡尺 / 缩放历史 / 主题联动）② 侧栏平铺
+呈现六形态模板入口（时序波形可用，其余置灰）+「已打开」页面列表 ③ 旧工程恢复后身份
+字段回填正确。
 
 **与 GV1 的交接**：GV1 落地 IGraphicForm / GraphicFormRegistry 时，仅需把 M1 的硬编码
-下拉项替换为注册表枚举 + `createWidget()` 分发——分节结构与交互模式已在 M1 定型，GV1
+模板行替换为注册表枚举 + `createWidget()` 分发——平铺结构与交互模式已在 M1 定型，GV1
 不再动侧栏布局。
 
 **已实施（2026-08-21）**：M1-Graphic 切片已随 flow.md §十三落地——GraphicConfigPanel
-折叠分节（节名「时序波形」，settingsKey `sidebar/section/graphic/waveform`）、单项
-「新建」下拉、GraphicView `protocolId`/`formId` 身份字段与工程持久化回填均已实施
-（见上文「身份预埋」）；构建通过、`test_protocol` 9/9、全量 ctest 8/9（唯一失败为既有
-canfileio BLF roundtrip 用例，与本次改动无关）。实现取舍详见 flow.md §13.2 落地记录。
+形态模板平铺（时序波形可点击新建；XY 关联 / 数字总线 / 状态时间线 / 仪表盘 / 柱状统计
+置灰占位，`Qt::NoItemFlags`）、「已打开」页面列表（切换 / 右键 / 删除原样保留）、
+GraphicView `protocolId`/`formId` 身份字段与工程持久化回填均已实施（见上文
+「身份预埋」）；构建通过、`test_protocol` 9/9、全量 ctest 8/9（唯一失败为既有
+canfileio BLF roundtrip 用例，与本次改动无关）。**v1.5 修订（同日）**：初版为
+「折叠分节 + 新建下拉」方案（CollapsibleSection 组件），产品评审后改为模板平铺，
+组件移除。实现取舍详见 flow.md §13.2 落地记录。

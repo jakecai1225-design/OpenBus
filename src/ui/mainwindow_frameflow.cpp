@@ -237,6 +237,14 @@ void MainWindow::onPlayerFinished()
 {
     m_statusLabel->setText("回放完成");
     updateActions();
+    // 离线测量经 Player 回放：文件分析完毕后复位 Flow 页启停按钮，
+    // 「开始」恢复可点（再次点击即重新回放）——否则按钮停留在运行态
+    if (m_measurementRunning && flowQuery(QStringLiteral("currentSource"))
+                                     .toString() == QStringLiteral("file")) {
+        m_measurementRunning = false;
+        m_bottomPanel->appendOutput("离线分析完成");
+        flowInvoke(QStringLiteral("setMeasurementRunning"), false);
+    }
 }
 
 void MainWindow::onSpeedChanged(double speed)
@@ -364,7 +372,12 @@ void MainWindow::onMeasurementToggled(bool running)
             if (paths.isEmpty()) {
                 // 无文件 → 回退到文件选择框
                 onOpenFile();
-                if (!m_player->isLoaded()) return;
+                if (!m_player->isLoaded()) {
+                    // 用户取消选择：测量未真正启动，复位 Flow 页按钮状态
+                    m_measurementRunning = false;
+                    flowInvoke(QStringLiteral("setMeasurementRunning"), false);
+                    return;
+                }
             } else {
                 // 逐个文件加载帧并合并
                 QVector<CanFrame> allFrames;
@@ -390,6 +403,9 @@ void MainWindow::onMeasurementToggled(bool running)
                 if (allFrames.isEmpty()) {
                     QMessageBox::warning(this, QStringLiteral("离线分析"),
                         QStringLiteral("所有文件解析失败或为空"));
+                    // 测量未真正启动：复位 Flow 页按钮状态
+                    m_measurementRunning = false;
+                    flowInvoke(QStringLiteral("setMeasurementRunning"), false);
                     return;
                 }
                 // 按时间戳排序合并帧

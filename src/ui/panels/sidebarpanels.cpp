@@ -1235,8 +1235,9 @@ MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
 
     auto *hint = new QLabel("\n"
                             "\xE2\x80\xA2 点击 CAN Flow 打开画布\n"
-                            "\xE2\x80\xA2 点击模块块可启用/禁用\n"
-                            "\xE2\x80\xA2 双击模块块可打开对应标签页", this);
+                            "\xE2\x80\xA2 未启用块：单击启用\n"
+                            "\xE2\x80\xA2 已启用块：单击/双击进入配置\n"
+                            "\xE2\x80\xA2 右键菜单：配置 / 启停 / 增删", this);
     hint->setWordWrap(true);
     hint->setObjectName("SidePanelHint");
     cl->addWidget(hint);

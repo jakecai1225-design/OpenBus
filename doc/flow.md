@@ -1,10 +1,16 @@
 # openbus 多协议通用 Flow 架构方案
 
-> **状态：设计稿 v1.5（2026-08-21）——M1/M2/M3 已实施（§十三），F1 剩余未实施**
+> **状态：设计稿 v1.6（2026-08-21）——M1/M2/M3 已实施（§十三），F1 剩余未实施**
 >
 > **目标**：将 openbus 从「CAN 单协议分析工具」逐步演进为「多协议通用数据流分析平台」。
 > 第一步落地 Flow 侧栏的多协议流处理模式（CAN Flow / EtherCAT Flow / 通用 Flow /
 > 第三方协议扩展），并以此为牵引，建立协议无关的统一报文模型、协议适配层与解析器角色。
+>
+> **v1.6 增补（2026-08-21）**：画布**通道块收编为单 Filter 块**（§8.1 前置落地）——
+> 「CAN 通道 1..N」多块合并为一个 **Filter 过滤块**（§3.5 Filter 角色 UI 前置），
+> 数据流过滤配置统一至该块（双击 / 右键「配置过滤条件」，规则以摘要行展示在块内）；
+> 块交互统一为：**未启用块单击 = 启用、已启用块单击/双击 = 进入配置、右键 = 配置/启停/增删**；
+> 空白区右键不再提供「添加 CAN 通道」。
 >
 > **v1.5 增补（2026-08-21）**：§七 侧栏交互改为**模板平铺**——Flow / Trace /
 > Graphic 三侧栏不再分节嵌套，直接平铺各协议 / 形态**模板入口**一行一个
@@ -98,11 +104,12 @@ Player（文件回放）           ─┘                                       
 - 测量启停由 Flow 画布（`MeasurementSetupView`）发起，经
   `shellInvoke("measurementToggled"/"moduleToggled"/...)` 回调壳侧编排
   （mainwindow_frameflow.cpp:342-441）。
-- 画布拓扑：`Real 实时 / File 开关 → CAN 通道 1..N → DBC 数据库 →
-  Trace / Graphic / Data 统计 / 录制 Record`，通道块可动态增删
-  （measurementsetupview.cpp buildTopology）。
-- 侧栏 Flow 面板（`MeasurementSetupPanel`，sidebarpanels.cpp）目前只有一个
-  "flow" 列表项，点击打开画布页——**没有多协议模板入口**。
+- 画布拓扑（v1.6 起）：`Real 实时 / File 开关 → Filter 过滤（单块，规则行内嵌展示，
+  数据流过滤统一配置入口）→ DBC 数据库 → Trace / Graphic / Data 统计 / 录制 Record`
+  （measurementsetupview.cpp buildTopology；v1.5 前为「CAN 通道 1..N」多块动态增删）。
+- 侧栏 Flow 面板（`MeasurementSetupPanel`，sidebarpanels.cpp）写作本文时只有一个
+  "flow" 列表项，点击打开画布页——**没有多协议模板入口**（M1 落地后已改为
+  协议流模板平铺，见 §7.2 / §13.2）。
 
 ### 2.2 CAN 绑定点盘点（本方案需要解耦的位置）
 
@@ -546,7 +553,7 @@ BusMessage（热路径分发，不经解析器）
 │  ＋ CANopen Flow    ← 置灰占位（规划中）                     │
 │  ＋ 通用 Flow       ← 置灰占位（F2）                        │
 │                                                    │
-│  （画布操作提示：点击模块块启用/禁用、双击打开标签页）        │
+│  （画布操作提示：未启用块单击启用，已启用块单击/双击进配置，右键配置/启停/增删）│
 │  ＋ 从市场添加协议流  ← F4 生态入口（禁用）                  │
 └────────────────────────────────────────────────────┘
 ```
@@ -574,7 +581,7 @@ Graphic模块设计文档.md §11.7）：
 | 单击已启用模板行 | 新建该协议流 / 形态实例（F1 FlowSession 落地前，CAN Flow = 打开/聚焦既有画布页） |
 | 置灰占位行 | 不可点击；tooltip 标注落地阶段（F2/F3/规划/TR·GV 系列） |
 | 协议包安装（F4） | `adapterRegistered` → 模板行重灌：占位行自动转为正式可点击行 |
-| 流实例管理 | 经画布页分组框交互（点击使能/双击配置/右键增删，§8.1）；F1 需要侧栏实例管理时再于「已打开」区扩展 |
+| 流实例管理 | 经画布页分组框交互（v1.6 统一规则：未启用单击 = 启用、已启用单击/双击 = 配置、右键 = 配置/启停/增删，§8.1）；F1 需要侧栏实例管理时再于「已打开」区扩展 |
 | 「从市场添加协议流」 | 打开统一插件市场并筛选「协议」类目（F4） |
 
 ### 7.3 模板行生成（注册表驱动）
@@ -605,8 +612,9 @@ Graphic模块设计文档.md §11.7）：
 
 ### 8.1 拓扑分组演进
 
-现状画布（见需求截图）：`Real/File → CAN 通道 1、CAN 通道 2 → DBC 数据库 →
-Trace/Graphic/Data/Record`。目标态两处泛化：通道列引入**协议流分组框**
+现状画布（v1.6 起）：`Real/File → Filter 过滤（单块，原「CAN 通道 1、
+CAN 通道 2」多块已收编，规则行内嵌块内）→ DBC 数据库 → Trace/Graphic/Data/Record`。
+目标态两处泛化：Filter 块所在列引入**协议流分组框**
 （首轮截图红框——CAN 通道分组——的产品化，分组框成为实际渲染的容器）；
 原「DBC 数据库」块抽象为通用**解析器（Parser）块**（本轮截图红框，角色定义
 见 §六）——按流会话挂载该流类型所接受的解析器文件：
@@ -626,16 +634,21 @@ Real 实时  ──►  ┌─ CAN Flow 1 ────────────�
                 └───────────────────────────┘
 ```
 
-- 分组框整体可点击使能（等价该 FlowSession 启停）；框内通道块保留现有
-  单块交互（点击切换/双击配置/右键增删）。
+- 分组框整体可点击使能（等价该 FlowSession 启停）；框内块沿用 v1.6 统一交互规则：
+  未启用块单击 = 启用、已启用块单击/双击 = 进入配置、右键 = 配置/启停/增删
+  （空白区右键不再提供「添加 CAN 通道」——通道块已收编为 Filter 块）。
 - **解析器块为通用角色**：每个协议流分组带一个解析器块，块内列出该流会话
   已加载的解析器文件（按类型分组，如 `DBC×2 J1939×1`）；右键「加载解析器…」
   的文件对话框过滤项 = 该流类型适配器的 `acceptedParsers()` 声明（CAN Flow
   可选 DBC/ARXML/J1939，EtherCAT Flow 仅 ENI/ESI，通用 Flow 仅字段布局）；
   单个解析器文件可独立启停/卸载；通用 Flow 不加载解析器时连线直连模块列。
-- **过滤块（F2，角色定义见 §3.5）**：每个协议流分组可挂一个过滤块（列 2 与列 3 之间），
-  承载该 FlowSession 的流级过滤链（BusMessage 扁平属性表达式，复用 FilterEngine 语法）；
-  无规则时连线直连（与解析器块可选同理）。
+- **过滤块（F2，角色定义见 §3.5；v1.6 已前置落地单 Filter 块）**：目标态每个
+  协议流分组可挂一个过滤块（列 2 与列 3 之间），承载该 FlowSession 的流级过滤链
+  （BusMessage 扁平属性表达式，复用 FilterEngine 语法）；无规则时连线直连
+  （与解析器块可选同理）。现状（v1.6）：画布已有一个全局 Filter 过滤块
+  （`source → filter → database`），双击/右键「配置过滤条件」打开规则对话框
+  （ID 范围 / 帧类型 / 方向逐条添加），规则以摘要行展示在块内并即时生效
+  （`filterRulesChanged` 信号，规则链接线留给 F2 FlowSession 落地）。
 - 模块块保持全局共享（Trace/Graphic/统计/录制不按协议拆分）；
   每个模块块增加「订阅协议」过滤入口（F2：模块实例可选只接收某些协议的数据，
   默认全部——保持现行为）。
@@ -795,6 +808,23 @@ struct BlockItem {
 ——CollapsibleSection 组件及 QSS 样式移除，三侧栏改为平铺模板入口行（QListWidget，
 已落地行可点击、占位行 `Qt::NoItemFlags` 置灰）；Flow 模板行注册表驱动生成，
 `adapterRegistered` / 主题切换经 SignalRelay 重灌（占位行随适配器注册自动让位）。
+
+**后续修补（2026-08-21）**：离线测量结束后 Flow 页「开始」按钮停留在灰化运行态
+（Player 回放至文件末尾后无人复位启停按钮）——`onPlayerFinished` 增加复位链：
+壳侧在 `m_measurementRunning` 且数据源为离线时，经 `flowInvoke("setMeasurementRunning",
+false)` 复位画布启停按钮（`MeasurementSetupView::setRunning` 纯状态设置，不发
+measurementToggled，避免二次停止编排），再次点击「开始」即重放；`onMeasurementToggled`
+的两处早退路径（用户取消文件选择 / 全部文件解析失败）同样复位按钮状态。
+
+**后续修补（2026-08-21，v1.6）**：画布「CAN 通道 1..N」多块收编为单 **Filter 过滤块**
+（§8.1 前置落地）——`buildTopology` 以 `source_real/source_file → filter → database`
+连线替代通道列；`addChannelBlock`/`removeChannelBlock`/`showChannelFilterDialog` 及
+`channelFilterRequested` 信号全部移除，新增 `filterRulesChanged(QStringList)`；
+`showFilterConfigDialog` 规则对话框（ID 范围/帧类型/方向逐条增删，即时生效）统一承载
+数据流过滤配置，空白区与块右键不再出现「添加 CAN 通道」；块交互同步统一为
+「未启用单击 = 启用、已启用单击/双击 = 进入配置、右键 = 配置/启停/增删」
+（`onSceneClicked`/`onSceneDoubleClicked` 重写，单击建立在 Qt 先 click 后 dblclick
+的事件序列上，双击分支天然幂等）。
 
 ### 13.3 M2 — 数据层接口预埋（约 2-3 人日，纯新增不接线）
 
