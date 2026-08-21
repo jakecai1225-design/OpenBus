@@ -98,6 +98,9 @@ struct ProjectState {
     // 录制文件
     QStringList recordFiles;
 
+    // 离线分析文件（离线分析页加载的报文文件列表）
+    QStringList offlineFiles;
+
     // 打开的标签页顺序
     QStringList openTabs;
     QString activeTab;

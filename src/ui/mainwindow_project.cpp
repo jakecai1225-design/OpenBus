@@ -267,28 +267,39 @@ void MainWindow::captureProjectState()
             st.dbcFiles << f.filePath;
     }
 
-    // Trace 实例 — 只保存 trace1 (默认实例；过滤表达式经 trace 模块查询，B5)
+    // Trace 实例 — 遍历全部实例（过滤表达式经 trace 模块查询，B5）
     st.traces.clear();
     {
-        QWidget *tab = m_traceInstances.value("trace1");
-        if (tab) {
+        QStringList ids = m_traceInstances.keys();
+        std::sort(ids.begin(), ids.end(),
+                  [](const QString &a, const QString &b) {
+                      return a.mid(5).toInt() < b.mid(5).toInt();
+                  });
+        for (const auto &id : ids) {
             ProjectTraceInstance ti;
-            ti.id = "trace1";
-            ti.title = "Trace1";
+            ti.id = id;
+            ti.title = QString("Trace%1").arg(id.mid(5).toInt());
             ti.filterExpression = traceQuery(QStringLiteral("filterExpression"),
-                                             QStringLiteral("trace1")).toString();
+                                             id).toString();
             st.traces.append(ti);
         }
     }
 
-    // Graphic 实例 — 只保存 graphic1 (默认实例；信号配置经 graphic 模块查询，B5)
+    // Graphic 实例 — 遍历全部实例（信号配置经 graphic 模块查询，B5）
     st.graphics.clear();
     {
-        QWidget *gv = m_graphicInstances.value("graphic1");
-        if (gv) {
+        QStringList ids = m_graphicInstances.keys();
+        std::sort(ids.begin(), ids.end(),
+                  [](const QString &a, const QString &b) {
+                      return a.mid(7).toInt() < b.mid(7).toInt();
+                  });
+        for (const auto &id : ids) {
+            QWidget *gv = m_graphicInstances.value(id);
+            if (!gv)
+                continue;
             ProjectGraphicInstance gi;
-            gi.id = "graphic1";
-            gi.title = "Graphic1";
+            gi.id = id;
+            gi.title = QString("Graphic%1").arg(id.mid(7).toInt());
             const auto sigList = graphicQuery(QStringLiteral("signalConfigs"),
                                               QVariant::fromValue(gv)).toList();
             for (const auto &sigVar : sigList) {
@@ -302,6 +313,9 @@ void MainWindow::captureProjectState()
             st.graphics.append(gi);
         }
     }
+
+    // 离线分析文件列表（经收发模块查询）
+    st.offlineFiles = transceiveQuery(QStringLiteral("offlineFiles")).toStringList();
 
     // 标签页顺序
     st.openTabs.clear();
@@ -329,7 +343,8 @@ void MainWindow::applyProjectState()
     m_simulator->stop();
     m_player->stop();
 
-    // 2. 关闭当前所有 Trace/Graphic 标签页
+    // 2. 关闭当前所有 Trace/Graphic 标签页及收发四页（回放/离线分析/录制/
+    //    发送，切换工程时旧页指向旧工程数据）。
     //    使用 delete 而非 deleteLater — 必须在 DBC 卸载前销毁 widget，
     //    防止旧 TraceTab/GraphicView 在 DBC 卸载后访问已释放的 DBC 数据
     if (m_editorArea) {
@@ -337,7 +352,11 @@ void MainWindow::applyProjectState()
         for (auto *tw : allTabs) {
             for (int i = tw->count() - 1; i >= 0; --i) {
                 QString text = tw->tabText(i);
-                if (text.contains("Trace") || text.contains("Graphic")) {
+                if (text.contains("Trace") || text.contains("Graphic") ||
+                    text.contains(QStringLiteral("回放")) ||
+                    text.contains(QStringLiteral("离线分析")) ||
+                    text.contains(QStringLiteral("录制")) ||
+                    text.contains(QStringLiteral("发送"))) {
                     QWidget *w = tw->widget(i);
                     tw->removeTab(i);
                     delete w;  // 立即销毁，防止 use-after-free
@@ -349,6 +368,9 @@ void MainWindow::applyProjectState()
     m_graphicInstances.clear();
     m_traceCount = 0;
     m_graphicCount = 0;
+    // 关页触发的 Queued removeModuleInstance 立即派发，防止其在
+    // 下文重建实例完成后误删新注册的 flow 画布块
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::MetaCall);
 
     // 3. 卸载所有 DBC 并重新加载
     auto dbcFiles = m_dbcManager->files();
@@ -377,24 +399,51 @@ void MainWindow::applyProjectState()
     devCfg.insert(QStringLiteral("fdBaudrate"), st.deviceConfig.fdBaudrate);
     flowInvoke(QStringLiteral("setDeviceConfig"), devCfg);
 
-    // 6. 创建 Trace 实例 — 只恢复 trace1（经 trace 模块创建+装配，拆分方案 B5）
+    // 6. 按保存顺序重建标签页（Trace/Graphic 先仅创建，配置在步骤 7/8
+    //    回填；DBC 详情/预览等复杂页面暂不重建，后续版本支持）
+    for (const QString &tabName : st.openTabs) {
+        if (tabName.compare(QStringLiteral("Flow"), Qt::CaseInsensitive) == 0) {
+            // 创建 Flow 页 + 默认 trace1/graphic1（已存在则复用）
+            onOpenMeasurementSetup();
+        } else if (tabName.contains(QStringLiteral("Trace"))) {
+            QString numPart = tabName;
+            numPart.remove(QStringLiteral("Trace"), Qt::CaseInsensitive);
+            createTraceInstance(QString("trace%1").arg(numPart.toInt()));
+        } else if (tabName.contains(QStringLiteral("Graphic"))) {
+            QString numPart = tabName;
+            numPart.remove(QStringLiteral("Graphic"), Qt::CaseInsensitive);
+            createGraphicInstance(QString("graphic%1").arg(numPart.toInt()));
+        } else if (tabName.contains(QStringLiteral("发送"))) {
+            onOpenSendTab();
+        } else if (tabName.contains(QStringLiteral("回放"))) {
+            onOpenPlaybackTab();
+        } else if (tabName.contains(QStringLiteral("离线分析"))) {
+            onOpenOfflineAnalysisTab();
+        } else if (tabName.contains(QStringLiteral("录制"))) {
+            onOpenRecordTab();
+        }
+    }
+
+    // 7. 创建 Trace 实例（补建 openTabs 之外的实例）+ 过滤表达式回填
+    //   （经 trace 模块创建+装配，拆分方案 B5）
     for (const auto &t : st.traces) {
-        if (t.id != "trace1")
-            continue;  // 忽略多余的 Trace 实例
-        QWidget *tab = createTraceInstance(QStringLiteral("trace1"));
+        QWidget *tab = m_traceInstances.contains(t.id)
+                           ? m_traceInstances.value(t.id)
+                           : createTraceInstance(t.id);
         if (tab && !t.filterExpression.isEmpty())
             traceInvoke(QStringLiteral("setFilterExpression"),
                         QVariantList{ QVariant::fromValue(tab), t.filterExpression });
     }
-    // 若保存状态中没有 trace1，则创建默认的
-    if (!m_traceInstances.contains("trace1"))
+    // 若保存状态中没有 Trace 实例，则创建默认的
+    if (m_traceInstances.isEmpty())
         createTraceInstance(QStringLiteral("trace1"));
 
-    // 7. 创建 Graphic 实例 — 只恢复 graphic1（经 graphic 模块创建，拆分方案 B5）
+    // 8. 创建 Graphic 实例（补建 openTabs 之外的实例）+ 信号配置回填
+    //   （经 graphic 模块创建，拆分方案 B5）
     for (const auto &g : st.graphics) {
-        if (g.id != "graphic1")
-            continue;  // 忽略多余的 Graphic 实例
-        QWidget *gv = createGraphicInstance(QStringLiteral("graphic1"));
+        QWidget *gv = m_graphicInstances.contains(g.id)
+                          ? m_graphicInstances.value(g.id)
+                          : createGraphicInstance(g.id);
         if (!gv)
             continue;
         // 重建信号配置（dbcSig 从当前已加载的 DBC 查补完整定义，未找到用默认值）
@@ -409,11 +458,15 @@ void MainWindow::applyProjectState()
             graphicInvoke(QStringLiteral("loadSignalConfigs"),
                           QVariantList{ QVariant::fromValue(gv), sigMaps });
     }
-    // 若保存状态中没有 graphic1，则创建默认的
-    if (!m_graphicInstances.contains("graphic1"))
+    // 若保存状态中没有 Graphic 实例，则创建默认的
+    if (m_graphicInstances.isEmpty())
         createGraphicInstance(QStringLiteral("graphic1"));
 
-    // 8. 更新 flow 视图（经 flow 模块，拆分方案 B4）
+    // 9. 恢复离线分析文件列表（经收发模块转发；页面未开时静默忽略）
+    if (!st.offlineFiles.isEmpty())
+        transceiveInvoke(QStringLiteral("addOfflineFiles"), st.offlineFiles);
+
+    // 10. 更新 flow 视图（经 flow 模块，拆分方案 B4）
     flowInvoke(QStringLiteral("clearTraceGraphicInstances"), {});
     for (const auto &t : st.traces)
         flowInvoke(QStringLiteral("addModuleInstance"),
@@ -423,7 +476,7 @@ void MainWindow::applyProjectState()
                    QVariantList{ QStringLiteral("graphic"), g.id, g.title });
     flowInvoke(QStringLiteral("rebuildScene"), {});
 
-    // 9. 恢复活跃标签页
+    // 11. 恢复活跃标签页
     if (m_editorArea && !st.activeTab.isEmpty()) {
         const auto allTabs = m_editorArea->allTabWidgets();
         for (auto *tw : allTabs) {
@@ -437,7 +490,7 @@ void MainWindow::applyProjectState()
         }
     }
 
-    // 10. 更新窗口标题
+    // 12. 更新窗口标题
     setWindowTitle(QStringLiteral("openbus - %1").arg(st.name));
 
     m_bottomPanel->appendOutput(QStringLiteral("工程现场已恢复: %1").arg(st.name));

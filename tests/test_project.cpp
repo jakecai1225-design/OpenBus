@@ -66,6 +66,9 @@ void TestProject::fillState(ProjectState &st)
     st.openTabs << QStringLiteral("trace-1") << QStringLiteral("graphic-1");
     st.activeTab = QStringLiteral("graphic-1");
 
+    st.offlineFiles << QStringLiteral("D:/logs/trace1.asc")
+                    << QStringLiteral("D:/logs/trace2.blf");
+
     st.meta.author = QStringLiteral("测试");
     st.meta.tags << QStringLiteral("验收") << QStringLiteral("demo");
     st.meta.notes = QStringLiteral("B7 roundtrip");
@@ -131,6 +134,10 @@ void TestProject::jsonRoundtrip()
              QStringList({QStringLiteral("trace-1"), QStringLiteral("graphic-1")}));
     QCOMPARE(st.activeTab, QStringLiteral("graphic-1"));
 
+    QCOMPARE(st.offlineFiles,
+             QStringList({QStringLiteral("D:/logs/trace1.asc"),
+                          QStringLiteral("D:/logs/trace2.blf")}));
+
     QCOMPARE(st.meta.author, QStringLiteral("测试"));
     QCOMPARE(st.meta.tags,
              QStringList({QStringLiteral("验收"), QStringLiteral("demo")}));
@@ -152,12 +159,16 @@ void TestProject::saveLoadFile()
     // 资源与工程文件同盘（QTemporaryDir），相对化后可无损还原
     const QString dbc = dir.filePath(QStringLiteral("a.dbc"));
     const QString rec = dir.filePath(QStringLiteral("r.blf"));
+    const QString offline = dir.filePath(QStringLiteral("offline.asc"));
     QFile f1(dbc);
     QVERIFY(f1.open(QIODevice::WriteOnly));
     f1.close();
     QFile f2(rec);
     QVERIFY(f2.open(QIODevice::WriteOnly));
     f2.close();
+    QFile f3(offline);
+    QVERIFY(f3.open(QIODevice::WriteOnly));
+    f3.close();
     const QString path = dir.filePath(QStringLiteral("p.openbusproj"));
 
     ProjectManager *pm = ProjectManager::instance();
@@ -165,6 +176,9 @@ void TestProject::saveLoadFile()
     fillState(pm->currentStateRef());
     pm->currentStateRef().dbcFiles << dbc;
     pm->currentStateRef().recordFiles << rec;
+    // 清掉 fillState 填入的跨盘路径（无法相对化），聚焦同目录相对化往返
+    pm->currentStateRef().offlineFiles.clear();
+    pm->currentStateRef().offlineFiles << offline;
 
     QSignalSpy saved(pm, SIGNAL(projectSaved(QString)));
     QVERIFY(pm->saveAs(path));
@@ -191,6 +205,7 @@ void TestProject::saveLoadFile()
     QCOMPARE(st.name, QStringLiteral("files"));
     QCOMPARE(st.dbcFiles, QStringList({dbc})); // 相对化 → resolve 无损还原
     QCOMPARE(st.recordFiles, QStringList({rec}));
+    QCOMPARE(st.offlineFiles, QStringList({offline}));
     QCOMPARE(st.deviceConfig.fdBaudrate, 5000000);
     QCOMPARE(st.traces.first().filterExpression,
              QStringLiteral("id in (0x100 0x200) fd"));

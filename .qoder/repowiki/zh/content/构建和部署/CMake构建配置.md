@@ -8,16 +8,18 @@
 - [third_party/Dependencies.cmake](file://third_party/Dependencies.cmake)
 - [scripts/build.py](file://scripts/build.py)
 - [scripts/package.py](file://scripts/package.py)
-- [doc/构建基线.md](file://doc/构建基线.md)
+- [doc/打包安装方案.md](file://doc/打包安装方案.md)
+- [installer/openbus.iss](file://installer/openbus.iss)
+- [scripts/package_assets/README-PORTABLE.txt](file://scripts/package_assets/README-PORTABLE.txt)
 </cite>
 
 ## 更新摘要
 **所做更改**
-- **增强构建系统集成**：新增完整的自动化打包流水线，支持一键构建、部署、验证和分发
-- **新增打包目标依赖**：为自动化包装管道添加了额外的目标和依赖管理
-- **改进构建脚本**：增强了build.py和package.py的集成能力，支持Dev构建档和并行构建
-- **完善测试框架**：扩展了测试执行器，支持L1核心逻辑测试和L2 UI驱动测试
+- **新增完整的自动化打包流水线**：集成了package.py与CMake构建系统，实现一键构建、部署、验证和分发
+- **增强构建脚本功能**：build.py支持Dev构建档、并行构建和多目标构建
+- **完善测试框架集成**：扩展了测试执行器，支持L1核心逻辑测试和L2 UI驱动测试
 - **优化第三方库管理**：改进了spdlog、nlohmann_json、qcustomplot等库的条件编译支持
+- **新增双格式输出**：同时生成便携版zip和Inno Setup安装器
 
 ## 目录
 1. [项目概述](#项目概述)
@@ -473,7 +475,7 @@ target_precompile_headers(openbus_transceive PRIVATE
 **章节来源**
 - [src/CMakeLists.txt:237-269](file://src/CMakeLists.txt#L237-L269)
 - [src/CMakeLists.txt:294-334](file://src/CMakeLists.txt#L294-L334)
-- [src/CMakeLists.txt:364-400](file://src/CMakeLists.txt#L364-L400)
+- [src/CMakeLists.txt:364-400](file://src/CMakeLists.txt#L364-400)
 - [src/CMakeLists.txt:424-456](file://src/CMakeLists.txt#L424-L456)
 - [src/CMakeLists.txt:480-523](file://src/CMakeLists.txt#L480-L523)
 - [src/CMakeLists.txt:553-596](file://src/CMakeLists.txt#L553-L596)

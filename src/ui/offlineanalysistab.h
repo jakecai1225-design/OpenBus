@@ -28,6 +28,9 @@ public:
     /// 列表是否为空
     bool isEmpty() const { return m_fileList->rowCount() == 0; }
 
+    /// 追加文件到列表（不经文件对话框；工程恢复用）
+    void addFiles(const QStringList &paths);
+
 private slots:
     void onAddFile();
     void onRemoveFile();

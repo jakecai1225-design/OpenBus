@@ -185,6 +185,11 @@ json ProjectManager::stateToJson(const ProjectState &st,
         logRel.push_back(resolver.relativize(f).toStdString());
     j["resources"]["logs"] = logRel;
 
+    json offRel = json::array();
+    for (const auto &f : st.offlineFiles)
+        offRel.push_back(resolver.relativize(f).toStdString());
+    j["resources"]["offline"] = offRel;
+
     // ---- device（v2 新增）----
     j["device"]["type"] = st.deviceConfig.type.toStdString();
     j["device"]["channel"] = st.channel;
@@ -296,6 +301,11 @@ ProjectState ProjectManager::jsonToState(const json &j,
             for (const auto &f : r["logs"])
                 if (f.is_string())
                     st.recordFiles << resolver.resolve(QString::fromStdString(f.get<std::string>()));
+        }
+        if (r.contains("offline") && r["offline"].is_array()) {
+            for (const auto &f : r["offline"])
+                if (f.is_string())
+                    st.offlineFiles << resolver.resolve(QString::fromStdString(f.get<std::string>()));
         }
     }
 

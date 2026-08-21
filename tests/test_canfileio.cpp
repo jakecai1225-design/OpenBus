@@ -142,6 +142,52 @@ private slots:
             verifyFrameInvariants(f);
     }
 
+    // ---- TC-02 扩展：第三方 ASC（CANoe 7.0 导出）----
+    // CANFD 关键字 + ID 前置格式B + flags 列 + dlc码/dataLen 分离
+    void readAscV7ThirdParty()
+    {
+        const QString path = testData(QStringLiteral("can_20250526210818.asc"));
+        if (!QFile::exists(path))
+            QSKIP("样本文件不存在");
+        auto reader = CanFileIOFactory::createReader(path);
+        QVERIFY2(reader, "asc 读取器创建失败");
+        QVERIFY2(reader->open(path), "打开样本失败");
+        QVector<CanFrame> frames;
+        const int n = reader->readAll(frames);
+        reader->close();
+        QVERIFY2(n > 0, qPrintable(QStringLiteral("读出帧数 %1").arg(n)));
+        qDebug() << "CANoe 7.0 ASC 帧数:" << n;
+        bool anyFd = false;
+        for (const CanFrame &f : frames) {
+            verifyFrameInvariants(f);
+            anyFd |= f.fd;
+        }
+        QVERIFY2(anyFd, "样本含 CANFD 帧但未解析出任何 FD 帧");
+    }
+
+    // ---- TC-02 扩展：第三方 ASC（CANoe 15.7 导出）----
+    // 头部含 internal events logged / Begin TriggerBlock，行尾附加列
+    void readAscV15ThirdParty()
+    {
+        const QString path = testData(QStringLiteral("test_L035.asc"));
+        if (!QFile::exists(path))
+            QSKIP("样本文件不存在");
+        auto reader = CanFileIOFactory::createReader(path);
+        QVERIFY2(reader, "asc 读取器创建失败");
+        QVERIFY2(reader->open(path), "打开样本失败");
+        QVector<CanFrame> frames;
+        const int n = reader->readAll(frames);
+        reader->close();
+        QVERIFY2(n > 0, qPrintable(QStringLiteral("读出帧数 %1").arg(n)));
+        qDebug() << "CANoe 15.7 ASC 帧数:" << n;
+        bool anyFd = false;
+        for (const CanFrame &f : frames) {
+            verifyFrameInvariants(f);
+            anyFd |= f.fd;
+        }
+        QVERIFY2(anyFd, "样本含 CANFD 帧但未解析出任何 FD 帧");
+    }
+
     // ---- TC-05/ST-01：大 BLF 加载计时（基线记录） ----
     void readLargeBlfTiming()
     {
