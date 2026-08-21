@@ -98,10 +98,21 @@ public:
 
     explicit GraphicView(QWidget *parent = nullptr);
 
-    void addSignal(const Signal &sig);
+    /// 添加信号；history 非空时回填历史帧前缀（离线回放场景：添加即
+    /// 显示到当前进度的完整曲线，仅写本信号、不影响既有信号；
+    /// historyCount < 0 表示全部，否则取前 historyCount 帧）
+    void addSignal(const Signal &sig,
+                   const QVector<CanFrame> *history = nullptr,
+                   int historyCount = -1);
     void removeSignal(int index);
     void clearSignals();
     QVector<Signal> signalConfigs() const;
+    /// 查询第 index 个信号的显示数据点数（视口抽稀后；越界返回 -1）。
+    /// 只读诊断接口：offscreen 回归用例以此断言“波形可见”（0 = 无波形）
+    int displayedPointCount(int index) const;
+    /// 查询第 index 个信号的原始数据点数（环形缓冲；越界返回 -1）。
+    /// 只读诊断接口：offscreen 回归用例精确断言回填帧数
+    int rawSampleCount(int index) const;
     /// 批量加载信号配置（清除原有后添加）
     void loadSignalConfigs(const QVector<Signal> &configs);
 

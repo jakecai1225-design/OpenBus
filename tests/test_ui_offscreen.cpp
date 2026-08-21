@@ -32,6 +32,7 @@
 #include "core/module/moduleregistry.h"
 #include "ui/mainwindow.h"
 #include "ui/traceview.h"
+#include "ui/graphicview.h"
 #include "ui/filterbar.h"
 #include "ui/thememanager.h"
 
@@ -83,6 +84,7 @@ private slots:
     void frameFlowDrivesTrace();
     void clearListClearsTrace();
     void themeSwitchSurvives();
+    void graphicReplayAddSignalKeepsWave();
 
 private:
     MainWindow *m_win = nullptr;
@@ -312,6 +314,124 @@ void TestUiOffscreen::themeSwitchSurvives()
     ThemeManager::instance()->applyTheme("Light");
     QVERIFY(m_win->isVisible());
     QVERIFY(findFirstInstance("TraceTab")); // 实例不被重建破坏
+}
+
+// ---- UI-06：离线回放中途添加信号，既有波形必须保留（用户实测反馈复现） ----
+// 场景：离线分析点开始 → Graphic 有曲线 → 中途添加信号 → 波形全部消失。
+// 直接驱动 GraphicView::onFrame 模拟回放帧流（不经壳门控），逐步断言：
+//   1) 回放前半段后旧信号有波形（基线）
+//   2) 添加动作本身不得清空既有波形
+//   3) 后半段继续后新旧信号都有波形
+//   4) 回放结束后再添加信号：新信号无历史数据（缺陷基线，修复后翻转）
+void TestUiOffscreen::graphicReplayAddSignalKeepsWave()
+{
+    QWidget *gvWidget = findFirstInstance("GraphicView");
+    QVERIFY2(gvWidget, "默认 Graphic 实例未创建");
+    auto *gv = static_cast<GraphicView *>(gvWidget);
+
+    // 用例隔离：清空信号与数据
+    gv->clearSignals();
+
+    // 信号 A：ID 0x100，byte0 物理值
+    GraphicView::Signal sigA;
+    sigA.name = QStringLiteral("SigA");
+    sigA.canId = 0x100;
+    sigA.dbcSig.name = sigA.name;
+    sigA.dbcSig.startBit = 0;
+    sigA.dbcSig.bitLength = 8;
+    sigA.dbcSig.littleEndian = true;
+    sigA.dbcSig.factor = 1.0;
+    sigA.dbcSig.offset = 0.0;
+    gv->addSignal(sigA);
+
+    auto mkFrame = [](int seq, quint32 id, quint8 v) {
+        CanFrame f;
+        f.timestamp = seq * 0.001;
+        f.timestampNs = static_cast<quint64>(seq) * 1000000;
+        f.id = id;
+        f.dlc = 8;
+        f.data = QByteArray(8, 0);
+        f.data[0] = char(v);
+        f.channel = 1;
+        return f;
+    };
+
+    // 1) 回放前半段：t = 0..1s，1000 帧
+    for (int i = 0; i < 1000; ++i)
+        gv->onFrame(mkFrame(i, 0x100, quint8(i % 256)));
+    QTest::qWait(120);   // 等 50ms replot 定时器把视口抽稀结果落盘
+    QVERIFY2(gv->displayedPointCount(0) > 0,
+             "回放前半段后信号 A 无波形（基线失败）");
+
+    // 2) 中途添加信号 B（用户实测操作）
+    GraphicView::Signal sigB;
+    sigB.name = QStringLiteral("SigB");
+    sigB.canId = 0x200;
+    sigB.dbcSig.name = sigB.name;
+    sigB.dbcSig.startBit = 0;
+    sigB.dbcSig.bitLength = 8;
+    sigB.dbcSig.littleEndian = true;
+    sigB.dbcSig.factor = 1.0;
+    sigB.dbcSig.offset = 0.0;
+    gv->addSignal(sigB);
+    QVERIFY2(gv->displayedPointCount(0) > 0,
+             "中途添加信号 B 后信号 A 波形消失（复现用户反馈）");
+
+    // 3) 后半段继续：t = 1..2s，两 ID 并流
+    for (int i = 1000; i < 2000; ++i) {
+        gv->onFrame(mkFrame(i, 0x100, quint8(i % 256)));
+        gv->onFrame(mkFrame(i, 0x200, quint8((i * 3) % 256)));
+    }
+    QTest::qWait(120);
+    QVERIFY2(gv->displayedPointCount(0) > 0,
+             "回放后半段后信号 A 波形消失（复现用户反馈）");
+    QVERIFY2(gv->displayedPointCount(1) > 0,
+             "中途添加的信号 B 在后续帧流后无波形");
+
+    // 4) 回放结束后再添加信号 C（带离线历史回填）：新信号立即显示
+    // 全部已播历史曲线（F1 修复目标行为，原缺陷为 0 点空白轨道）
+    QVector<CanFrame> replaySrc;
+    for (int i = 0; i < 2000; ++i) {
+        replaySrc << mkFrame(i, 0x100, quint8(i % 256))
+                  << mkFrame(i, 0x200, quint8((i * 3) % 256))
+                  << mkFrame(i, 0x300, quint8((i * 5) % 256));
+    }
+    GraphicView::Signal sigC;
+    sigC.name = QStringLiteral("SigC");
+    sigC.canId = 0x300;
+    sigC.dbcSig.name = sigC.name;
+    sigC.dbcSig.startBit = 0;
+    sigC.dbcSig.bitLength = 8;
+    sigC.dbcSig.littleEndian = true;
+    sigC.dbcSig.factor = 1.0;
+    sigC.dbcSig.offset = 0.0;
+    gv->addSignal(sigC, &replaySrc, replaySrc.size());
+    QTest::qWait(120);
+    QVERIFY2(gv->rawSampleCount(2) == 2000,
+             "信号 C 回填帧数不等于历史中全部匹配帧（F1 失败）");
+    QVERIFY2(gv->displayedPointCount(2) > 0,
+             "回放结束后添加信号 C 未回填历史（F1 失败）");
+    QVERIFY2(gv->displayedPointCount(0) > 0,
+             "回放结束后添加信号导致既有波形消失");
+
+    // 5) 回放中途添加（historyCount 截断到当前进度）：新信号只含
+    // 已播前缀数据，不“剧透”未播数据（graphicmodule 用 Player 的
+    // currentFrameIndex 作截断，此处直接验证截断语义）
+    GraphicView::Signal sigD;
+    sigD.name = QStringLiteral("SigD");
+    sigD.canId = 0x100;   // 匹配 replaySrc 中每 seq 一帧的 ID
+    sigD.dbcSig.name = sigD.name;
+    sigD.dbcSig.startBit = 0;
+    sigD.dbcSig.bitLength = 8;
+    sigD.dbcSig.littleEndian = true;
+    sigD.dbcSig.factor = 1.0;
+    sigD.dbcSig.offset = 0.0;
+    gv->addSignal(sigD, &replaySrc, replaySrc.size() / 2);
+    QTest::qWait(120);
+    QCOMPARE(gv->rawSampleCount(3), 1000);   // 前缀一半 = seq 0..999 的 0x100 帧
+    QVERIFY2(gv->displayedPointCount(3) > 0, "截断回填后信号 D 无波形");
+    QVERIFY2(gv->displayedPointCount(0) > 0,
+             "带历史添加信号导致既有波形消失");
 }
 
 QTEST_MAIN(TestUiOffscreen)

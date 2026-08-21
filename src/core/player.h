@@ -34,6 +34,9 @@ public:
     int totalFrames() const { return m_frames.size(); }
     int currentFrameIndex() const { return m_currentIndex; }
 
+    /// 已加载帧序列的只读访问（离线回放历史回填用；QVector 隐式共享零拷贝）
+    const QVector<CanFrame> &frames() const { return m_frames; }
+
     double totalTime() const;
     double currentTime() const;
 

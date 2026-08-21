@@ -3,6 +3,7 @@
 #include "datawindow.h"
 #include "core/dbcmanager.h"
 #include "core/dbcdata.h"
+#include "core/player.h"   // 离线回放历史回填（F1：ShellContext.player → addSignal history）
 
 #include <QFileIconProvider>
 #include <QFileDialog>
@@ -40,6 +41,7 @@ QWidget *GraphicModule::createPage(const QString &pageId, const QVariant &param,
         // Store context for later use
         if (!m_ctx.mainWindow) {
             m_ctx.mainWindow = ctx.mainWindow;
+            m_ctx.player = ctx.player;
             m_ctx.shellInvoke = ctx.shellInvoke;
             m_ctx.appendOutput = ctx.appendOutput;
             m_ctx.addProblem = ctx.addProblem;
@@ -152,8 +154,11 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
                     gsig.dbcSig = dbcSignalFromMap(smap.value("dbcSig").toMap());
                 // Other fields: displayMode, yAxisMode etc. optional defaults
 
-                if (auto *gv = qobject_cast<GraphicView *>(w))
-                    gv->addSignal(gsig);
+                if (auto *gv = qobject_cast<GraphicView *>(w)) {
+                    int histCount = -1;
+                    const auto *hist = replayHistory(&histCount);
+                    gv->addSignal(gsig, hist, histCount);
+                }
             } else if (!w && sigData.canConvert(QVariant::Map)) {
                 // No target: shell should have resolved target; skip
                 qDebug() << "addSignal: no target widget provided";
@@ -172,7 +177,9 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
                     gsig.color = smap.value("color", QColor()).value<QColor>();
                     if (smap.contains("dbcSig"))
                         gsig.dbcSig = dbcSignalFromMap(smap.value("dbcSig").toMap());
-                    gv->addSignal(gsig);
+                    int histCount = -1;
+                    const auto *hist = replayHistory(&histCount);
+                    gv->addSignal(gsig, hist, histCount);
                 }
             }
         }
@@ -185,6 +192,8 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
                 auto w = l[0].value<QWidget *>();
                 if (auto *gv = qobject_cast<GraphicView *>(w)) {
                     auto sigMaps = l[1].toList();
+                    int histCount = -1;
+                    const auto *hist = replayHistory(&histCount);
                     for (const auto &sigVar : sigMaps) {
                         if (sigVar.canConvert(QVariant::Map)) {
                             auto smap = sigVar.toMap();
@@ -195,7 +204,7 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
                             gsig.color = smap.value("color", QColor()).value<QColor>();
                             if (smap.contains("dbcSig"))
                                 gsig.dbcSig = dbcSignalFromMap(smap.value("dbcSig").toMap());
-                            gv->addSignal(gsig);
+                            gv->addSignal(gsig, hist, histCount);
                         }
                     }
                 }
@@ -275,4 +284,19 @@ QVariant GraphicModule::query(const QString &what, const QVariant &arg)
     }
 
     return {};
+}
+
+const QVector<CanFrame> *GraphicModule::replayHistory(int *count) const
+{
+    if (count)
+        *count = -1;
+    // 仅离线回放模式（Player 已加载帧）有历史可回填；
+    // 实时采集流不回头，返回 nullptr 维持现状行为
+    if (!m_ctx.player || !m_ctx.player->isLoaded())
+        return nullptr;
+    // 已播前缀（不“剧透”未播数据）：播放中 = 当前位置之前，
+    // 播完/暂停 = 全量/暂停点
+    if (count)
+        *count = m_ctx.player->currentFrameIndex();
+    return &m_ctx.player->frames();
 }
