@@ -69,35 +69,43 @@
 - [src/ui/transceivemodule.h](file://src/ui/transceivemodule.h)
 - [src/ui/dbcmodule.h](file://src/ui/dbcmodule.h)
 - [src/ui/flowmodule.h](file://src/ui/flowmodule.h)
+- [src/ui/flowmodule.cpp](file://src/ui/flowmodule.cpp)
 - [src/ui/tracemodule.h](file://src/ui/tracemodule.h)
 - [src/ui/graphicmodule.h](file://src/ui/graphicmodule.h)
+- [src/core/protocol/iprotocoladapter.h](file://src/core/protocol/iprotocoladapter.h)
+- [src/core/protocol/canprotocoladapter.h](file://src/core/protocol/canprotocoladapter.h)
+- [src/core/protocol/canprotocoladapter.cpp](file://src/core/protocol/canprotocoladapter.cpp)
+- [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
+- [src/core/protocol/parserregistry.h](file://src/core/protocol/parserregistry.h)
+- [src/core/protocol/ibusparser.h](file://src/core/protocol/ibusparser.h)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- 新增模块化UI架构章节，详细说明market、transceive、DBC、flow、trace和graphic模块作为独立DLL的工厂创建机制
-- 更新核心组件分析，增加IBusinessModule接口和ModuleRegistry注册表的设计说明
-- 重构架构总览图，展示新的模块化工厂模式
-- 新增模块系统详细分析，包括各模块的职责划分和通信机制
-- 更新依赖关系分析，反映新的DLL化架构
-- 增强故障排查指南，包含模块加载和工厂创建相关问题
+- 新增Flow架构与协议抽象系统章节，详细说明IBusinessModule接口、ModuleRegistry注册表和协议适配器模式
+- 更新模块化UI架构章节，增加Flow模块的完整实现和协议适配层设计
+- 重构架构总览图，展示新的Flow架构和协议抽象系统
+- 新增协议适配器详细分析，包括IProtocolAdapter接口和CanProtocolAdapter实现
+- 更新依赖关系分析，反映新的协议抽象系统和Flow模块集成
+- 增强故障排查指南，包含Flow模块加载和协议适配器相关问题
 
 ## 目录
 1. [简介](#简介)
 2. [项目结构](#项目结构)
 3. [核心组件](#核心组件)
 4. [架构总览](#架构总览)
-5. [模块化UI架构](#模块化ui架构)
-6. [详细组件分析](#详细组件分析)
-7. [增强图形组件](#增强图形组件)
-8. [插件系统集成](#插件系统集成)
-9. [专用Tab组件系统](#专用tab组件系统)
-10. [工具集系统](#工具集系统)
-11. [依赖关系分析](#依赖关系分析)
-12. [性能考虑](#性能考虑)
-13. [故障排查指南](#故障排查指南)
-14. [结论](#结论)
-15. [附录](#附录)
+5. [Flow架构与协议抽象系统](#flow架构与协议抽象系统)
+6. [模块化UI架构](#模块化ui架构)
+7. [详细组件分析](#详细组件分析)
+8. [增强图形组件](#增强图形组件)
+9. [插件系统集成](#插件系统集成)
+10. [专用Tab组件系统](#专用tab组件系统)
+11. [工具集系统](#工具集系统)
+12. [依赖关系分析](#依赖关系分析)
+13. [性能考虑](#性能考虑)
+14. [故障排查指南](#故障排查指南)
+15. [结论](#结论)
+16. [附录](#附录)
 
 ## 简介
 本文件面向基于Qt Widgets和现代Web技术的混合UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
@@ -109,6 +117,8 @@
 **插件系统增强** 系统现在集成了完整的Python插件架构，支持动态加载和执行外部Python脚本。GraphicView组件通过扩展点接口允许插件自定义信号可视化行为，包括添加自定义图表类型、修改渲染逻辑和扩展用户交互。插件系统采用JSON-RPC协议进行主程序与Python宿主进程间的通信，提供了稳定的异步消息传递机制。
 
 **模块化架构增强** 系统现已完成从单体架构向模块化DLL架构的重构，将市场、收发、DBC、流程、跟踪和图形等核心功能模块拆分为独立的DLL，通过工厂模式进行创建和管理。这种架构设计提高了系统的可扩展性、可维护性和部署灵活性，支持按需加载和功能模块的动态管理。
+
+**Flow架构增强** 系统现已引入全新的Flow架构和协议抽象系统，通过IBusinessModule接口和ModuleRegistry注册表实现了模块化的业务逻辑管理。新增的协议适配器模式支持多种总线协议（CAN、EtherCAT等）的统一接口访问，为未来的协议扩展奠定了坚实基础。Flow模块作为测量流程的核心，整合了测量配置和设备连接功能，提供了统一的工作流程管理界面。
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式，结合了传统Qt Widgets架构和现代Web前端技术：
@@ -166,6 +176,11 @@ LL --> NN["main.py"]
 B --> OO["src/core/module/*"]
 OO --> PP["imodule.h"]
 OO --> QQ["moduleregistry.h/.cpp"]
+B --> RR["src/core/protocol/*"]
+RR --> SS["iprotocoladapter.h"]
+RR --> TT["canprotocoladapter.h/.cpp"]
+RR --> UU["protocolregistry.h"]
+RR --> VV["parserregistry.h"]
 ```
 
 **图表来源**
@@ -182,6 +197,10 @@ OO --> QQ["moduleregistry.h/.cpp"]
 - [scripts/sin_host.py](file://scripts/sin_host.py)
 - [src/core/module/imodule.h](file://src/core/module/imodule.h)
 - [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
+- [src/core/protocol/iprotocoladapter.h](file://src/core/protocol/iprotocoladapter.h)
+- [src/core/protocol/canprotocoladapter.h](file://src/core/protocol/canprotocoladapter.h)
+- [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
+- [src/core/protocol/parserregistry.h](file://src/core/protocol/parserregistry.h)
 
 章节来源
 - [CMakeLists.txt](file://CMakeLists.txt)
@@ -205,9 +224,12 @@ OO --> QQ["moduleregistry.h/.cpp"]
 - **新增** Downsample模块: 高性能视口降采样算法，支持四种抽稀策略
 - **新增** PluginManager: 插件管理器，负责插件发现、激活和生命周期管理
 - **新增** PluginHost: Python插件宿主进程管理，支持JSON-RPC通信
-- **新增** sin_host.py: Python插件宿主脚本，提供插件执行环境
 - **新增** IBusinessModule: 业务模块接口，定义模块契约和工厂创建机制
 - **新增** ModuleRegistry: 模块注册表，管理模块工厂和实例生命周期
+- **新增** IProtocolAdapter: 协议适配器接口，支持多种总线协议的统一访问
+- **新增** CanProtocolAdapter: CAN协议适配器实现，提供CAN总线协议的具体功能
+- **新增** ProtocolRegistry: 协议适配器注册表，管理协议适配器的发现和加载
+- **新增** ParserRegistry: 解析器注册表，管理协议描述文件的解析器
 
 **更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过Min/Max、Average、First、Decimate四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
 
@@ -227,7 +249,7 @@ OO --> QQ["moduleregistry.h/.cpp"]
 - [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
 
 ## 架构总览
-整体采用"入口初始化 + 主窗口容器 + 样式/资源分离 + Web前端集成 + 插件系统 + 模块化DLL架构"的混合架构模式：
+整体采用"入口初始化 + 主窗口容器 + 样式/资源分离 + Web前端集成 + 插件系统 + 模块化DLL架构 + Flow架构"的混合架构模式：
 - 入口负责生命周期与全局样式注入
 - 主窗口作为UI根节点，组织子控件与布局
 - 样式通过ThemeManager集中管理，支持运行时切换
@@ -240,6 +262,7 @@ OO --> QQ["moduleregistry.h/.cpp"]
 - **新增** Downsample模块提供高性能视口降采样算法
 - **新增** 插件系统提供Python脚本执行环境和动态扩展能力
 - **新增** 模块化DLL架构提供功能模块的独立编译和动态加载
+- **新增** Flow架构提供测量流程管理和协议抽象能力
 
 **更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数。FilterHeaderView组件通过自定义排序指示器和漏斗图标，提供了Wireshark风格的表头界面，增强了数据表的交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
 
@@ -252,13 +275,18 @@ TM["ThemeManager<br/>主题管理器"]
 SD["SettingsDialog<br/>设置对话框"]
 PM["PluginManager<br/>插件管理器"]
 MR["ModuleRegistry<br/>模块注册表"]
+PR["ProtocolRegistry<br/>协议注册表"]
+end
+subgraph "Flow架构层"
+IM["IBusinessModule<br/>模块接口"]
+FM["FlowModule<br/>流程模块"]
+PA["IProtocolAdapter<br/>协议适配器"]
+CA["CanProtocolAdapter<br/>CAN适配器"]
 end
 subgraph "模块系统层"
-IM["IBusinessModule<br/>模块接口"]
 MM["MarketModule<br/>市场模块"]
 TMOD["TransceiveModule<br/>收发模块"]
 DM["DbcModule<br/>DBC模块"]
-FM["FlowModule<br/>流程模块"]
 TRM["TraceModule<br/>跟踪模块"]
 GM["GraphicModule<br/>图形模块"]
 end
@@ -320,6 +348,7 @@ M --> TM
 M --> SD
 M --> PM
 M --> MR
+M --> PR
 M --> WPH
 WPH --> WL
 WPH --> WP
@@ -368,6 +397,8 @@ IM --> DM
 IM --> FM
 IM --> TRM
 IM --> GM
+PR --> PA
+PA --> CA
 ```
 
 **图表来源**
@@ -388,6 +419,425 @@ IM --> GM
 - [third_party/qcustomplot/qcustomplot.h](file://third_party/qcustomplot/qcustomplot.h)
 - [src/core/module/imodule.h](file://src/core/module/imodule.h)
 - [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
+- [src/core/protocol/iprotocoladapter.h](file://src/core/protocol/iprotocoladapter.h)
+- [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
+
+## Flow架构与协议抽象系统
+
+### Flow架构概述
+Flow架构是系统的核心业务流程管理框架，通过模块化的设计实现了测量流程的统一管理和协议抽象。该架构包含两个主要组成部分：业务模块接口系统和协议适配器系统。
+
+**核心设计理念**
+- 解耦业务逻辑与具体实现，提高系统的可扩展性
+- 统一的模块接口定义，支持动态加载和卸载
+- 协议抽象层屏蔽不同总线协议的差异
+- 支持多种数据源（硬件、文件、模拟器）的统一管理
+
+### 业务模块接口（IBusinessModule）
+业务模块接口定义了模块与壳程序之间的唯一契约，遵循以下设计原则：
+- 业务DLL只导出一个C工厂函数返回模块接口指针
+- 模块内部所有类均为DLL私有，不跨边界导出类或符号
+- 接口只依赖Qt基础类型与数据层类型，禁止出现壳的具体类型
+- 接口只增不改：新增能力以新的虚函数或ShellContext新字段追加
+
+**核心接口特性**
+- id(): 模块标识符（如"flow"、"trace"、"graphic"等），全局唯一
+- title(): 模块默认标题，支持本地化文案
+- icon(): 模块图标，使用资源路径格式
+- createWidget(): 创建模块主标签页内容widget
+- invoke(): 模块通用动作处理，支持字符串约定的动作命令
+- pages(): 多页面模块支持，返回全部页面ID列表
+- createPage(): 创建指定页面的widget，支持参数化页面创建
+- query(): 模块状态查询，返回无效QVariant表示不支持该查询
+
+**ShellContext上下文**
+ShellContext为模块提供壳程序服务入口，包含：
+- QWidget* mainWindow: 主窗口指针，用于对话框parent和居中定位
+- Player* player: 回放器服务
+- Recorder* recorder: 录制器服务  
+- CanDeviceManager* deviceManager: 设备管理服务
+- CanSimulator* simulator: 模拟器服务
+- DbcManager* dbcManager: DBC管理服务
+- appendOutput: 底部输出回调函数
+- addProblem: 问题面板回调函数
+- shellInvoke: 模块到壳的反向动作调用
+
+```mermaid
+classDiagram
+class IBusinessModule {
++QString id() const
++QString title() const
++QIcon icon() const
++QWidget* createWidget(ShellContext& ctx)
++void invoke(QString action, QVariant arg = {})
++QStringList pages() const
++QWidget* createPage(QString pageId, ShellContext& ctx)
++QWidget* createPage(QString pageId, QVariant param, ShellContext& ctx)
++QVariant query(QString what, QVariant arg = {})
+}
+class ShellContext {
++QWidget* mainWindow
++Player* player
++Recorder* recorder
++CanDeviceManager* deviceManager
++CanSimulator* simulator
++DbcManager* dbcManager
++appendOutput function
++addProblem function
++shellInvoke function
+}
+class FlowModule {
++QString id()
++QString title()
++QIcon icon()
++QWidget* createWidget(ShellContext& ctx)
++QStringList pages()
++QWidget* createPage(QString pageId, QVariant param, ShellContext& ctx)
++void invoke(QString action, QVariant arg)
++QVariant query(QString what, QVariant arg)
+}
+IBusinessModule <|-- FlowModule
+ShellContext --> IBusinessModule : "传递给模块"
+```
+
+**图表来源**
+- [src/core/module/imodule.h:93-200](file://src/core/module/imodule.h#L93-L200)
+- [src/ui/flowmodule.h:24-48](file://src/ui/flowmodule.h#L24-L48)
+
+### 模块注册表（ModuleRegistry）
+模块注册表负责管理模块工厂和实例的生命周期，提供线程安全的模块访问接口：
+
+**核心功能**
+- registerModule(): 注册模块工厂，重复id时后者覆盖前者
+- module(): 获取模块实例，首次访问时惰性创建并缓存
+- ids(): 枚举已注册的模块ID列表
+
+**工厂模式实现**
+- 使用std::function存储模块工厂函数
+- 支持静态链接验证期（B0）和DLL化部署（B1起）两种模式
+- 模块实例懒加载，减少启动时间和内存占用
+
+```mermaid
+classDiagram
+class ModuleRegistry {
++static ModuleRegistry* instance()
++registerModule(QString id, ModuleFactory factory)
++module(QString id) IBusinessModule*
++ids() QStringList
++Entry {
++ModuleFactory factory
++IBusinessModule* instance
+}
++m_entries QHash~QString, Entry~
+}
+class ModuleFactory {
+<<function>>
+IBusinessModule* operator()()
+}
+ModuleRegistry --> ModuleFactory : "存储"
+ModuleRegistry --> IBusinessModule : "创建"
+```
+
+**图表来源**
+- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
+- [src/core/module/moduleregistry.cpp:3-22](file://src/core/module/moduleregistry.cpp#L3-L22)
+
+### 协议适配器接口（IProtocolAdapter）
+协议适配器接口定义了不同总线协议的统一访问接口，支持多种协议的扩展：
+
+**核心功能**
+- protocolId(): 协议标识符（如"can"、"ethercat"等）
+- displayName(): 协议显示名称
+- supportedSources(): 支持的源类型（hardware、file、simulator）
+- decode(): 总线消息解码为信号值
+- traceColumns(): Trace视图的列定义
+- fileFilters(): 支持的文件过滤器
+
+**协议适配器特性**
+- 零重构包装：复用现有数据层功能
+- 热路径不经过适配器：M2预埋，F1剩余时接线
+- ABI冻结：接口一经注册不再修改
+- 支持第三方协议扩展
+
+```mermaid
+classDiagram
+class IProtocolAdapter {
++QString protocolId() const
++QString displayName() const
++QString iconPath() const
++QStringList supportedSources() const
++int maxChannels() const
++QStringList acceptedParsers() const
++QList~DecodedSignal~ decode(BusMessage msg) const
++QList~TraceColumnDef~ traceColumns() const
++QString formatField(BusMessage msg, QString key) const
++QStringList fileFilters() const
++DecodedSignal {
++QString name
++double value
++QString unit
++QString raw
+}
++TraceColumnDef {
++QString key
++QString title
++int width
+}
+}
+class CanProtocolAdapter {
++QString protocolId()
++QString displayName()
++QStringList supportedSources()
++int maxChannels()
++QStringList acceptedParsers()
++QList~DecodedSignal~ decode(BusMessage msg)
++QList~TraceColumnDef~ traceColumns()
++QString formatField(BusMessage msg, QString key)
++QStringList fileFilters()
++setDbcManager(DbcManager* mgr)
+}
+IProtocolAdapter <|-- CanProtocolAdapter
+```
+
+**图表来源**
+- [src/core/protocol/iprotocoladapter.h:24-65](file://src/core/protocol/iprotocoladapter.h#L24-L65)
+- [src/core/protocol/canprotocoladapter.h:17-44](file://src/core/protocol/canprotocoladapter.h#L17-L44)
+
+### CAN协议适配器（CanProtocolAdapter）
+CAN协议适配器是内置的CAN总线协议实现，提供完整的CAN协议功能：
+
+**核心功能**
+- 支持硬件、文件和模拟器三种数据源
+- 最大支持16个通道
+- 支持DBC解析器
+- 提供CAN帧的解码和格式化功能
+
+**技术实现**
+- 复用DbcManager进行信号解码
+- 使用CanUtils进行数据格式化
+- 与现有CanTraceModel保持12列定义一致
+- 支持BLF、ASC、SIN文件格式
+
+```mermaid
+classDiagram
+class CanProtocolAdapter {
++QString protocolId()
++QString displayName()
++QString iconPath()
++QStringList supportedSources()
++int maxChannels()
++QStringList acceptedParsers()
++QList~DecodedSignal~ decode(BusMessage msg)
++QList~TraceColumnDef~ traceColumns()
++QString formatField(BusMessage msg, QString key)
++QStringList fileFilters()
++setDbcManager(DbcManager* mgr)
+-m_dbcManager DbcManager*
+}
+class BusMessage {
++BusType bus
++uint32_t id
++QByteArray payload
++double timestampNs
++int channel
++BusMessageFlags flags
+}
+class DecodedSignal {
++QString name
++double value
++QString unit
++QString raw
+}
+CanProtocolAdapter --> BusMessage : "解码"
+CanProtocolAdapter --> DecodedSignal : "生成"
+```
+
+**图表来源**
+- [src/core/protocol/canprotocoladapter.cpp:10-107](file://src/core/protocol/canprotocoladapter.cpp#L10-L107)
+
+### 协议注册表（ProtocolRegistry）
+协议注册表管理所有已注册的协议适配器，提供协议发现和查找功能：
+
+**核心功能**
+- registerAdapter(): 注册协议适配器
+- findAdapter(): 按协议ID查找适配器
+- adapters(): 获取所有已注册适配器
+- count(): 获取已注册协议数量
+
+**设计特点**
+- 全进程唯一单例模式
+- 支持内置和第三方协议
+- 自动注册内置协议
+- 支持F4协议包动态加载
+
+```mermaid
+classDiagram
+class ProtocolRegistry {
++static ProtocolRegistry* instance()
++registerAdapter(IProtocolAdapter* adapter) bool
++findAdapter(QString protocolId) IProtocolAdapter*
++adapters() QList~IProtocolAdapter*~
++count() int
++adapterRegistered(QString protocolId) signal
++m_adapters QList~IProtocolAdapter*~
+}
+class IProtocolAdapter {
+<<interface>>
+}
+ProtocolRegistry --> IProtocolAdapter : "管理"
+```
+
+**图表来源**
+- [src/core/protocol/protocolregistry.h:18-45](file://src/core/protocol/protocolregistry.h#L18-L45)
+
+### 解析器注册表（ParserRegistry）
+解析器注册表管理协议描述文件的解析器，支持多种文件格式：
+
+**核心功能**
+- registerParser(): 注册解析器
+- findParser(): 按解析器ID查找
+- findParserForExtension(): 按文件扩展名查找
+- parsers(): 获取所有已注册解析器
+
+**支持的解析器**
+- DBC解析器：CAN数据库文件
+- ARXML解析器：AUTOSAR配置文件
+- J1939 DBC解析器：J1939协议数据库
+- ENI/ESI解析器：EtherCAT设备信息
+
+```mermaid
+classDiagram
+class ParserRegistry {
++static ParserRegistry* instance()
++registerParser(IBusParser* parser) bool
++findParser(QString parserId) IBusParser*
++findParserForExtension(QString ext) IBusParser*
++parsers() QList~IBusParser*~
++count() int
++parserRegistered(QString parserId) signal
++m_parsers QList~IBusParser*~
+}
+class IBusParser {
+<<interface>>
++QString parserId()
++QString displayName()
++QString iconPath()
++QStringList fileExtensions()
++BusDefinitionSet parse(QString filePath, QString* error)
+}
+ParserRegistry --> IBusParser : "管理"
+```
+
+**图表来源**
+- [src/core/protocol/parserregistry.h:17-47](file://src/core/protocol/parserregistry.h#L17-L47)
+- [src/core/protocol/ibusparser.h:17-31](file://src/core/protocol/ibusparser.h#L17-L31)
+
+### Flow模块（FlowModule）
+Flow模块是测量流程的核心实现，提供测量配置和设备连接功能：
+
+**页面结构**
+- setup: 测量配置页面（MeasurementSetupView）
+- device: 设备连接页面（DeviceConnectionTab）
+
+**核心功能**
+- 测量流程管理：数据源切换、测量启停控制
+- 设备连接管理：设备配置、连接状态管理
+- DBC文件管理：加载、同步、卸载
+- 模块实例管理：Trace和Graphic实例的生命周期
+
+**通信机制**
+- 通过ShellContext访问数据层服务
+- 使用ctx.shellInvoke进行壳程序编排操作
+- 支持跨模块的事件通信
+
+```mermaid
+classDiagram
+class FlowModule {
++QString id()
++QString title()
++QIcon icon()
++QWidget* createWidget(ShellContext& ctx)
++QStringList pages()
++QWidget* createPage(QString pageId, QVariant param, ShellContext& ctx)
++QWidget* createPage(QString pageId, ShellContext& ctx)
++void invoke(QString action, QVariant arg)
++QVariant query(QString what, QVariant arg)
+-private :
++createSetupPage(ShellContext& ctx) QWidget*
++createDevicePage(QVariant param, ShellContext& ctx) QWidget*
++cachePage(QString pageId, QWidget* page)
++m_ctx ShellContext
++m_pages QMap~QString, QPointer~QWidget~~
+}
+class MeasurementSetupView {
++Source currentSource()
++void setSource(Source source)
++void setFilePath(QString path)
++bool isBlockEnabled(QString blockId)
++void addModuleInstance(QString moduleId, QString instanceId, QString title)
++void removeModuleInstance(QString moduleId, QString instanceId)
++void clearTraceGraphicInstances()
++void rebuildScene()
+}
+class DeviceConnectionTab {
++void setDevice(int kind, int index, QString name, int type)
++void setBaudrate(int baudrate)
++void setChannel(int channel)
++void setCanFd(bool enabled)
++void setDataBaudrate(int baudrate)
++int deviceKind()
++int baudrate()
++int channel()
++bool isCanFd()
+}
+FlowModule --> MeasurementSetupView : "管理"
+FlowModule --> DeviceConnectionTab : "管理"
+```
+
+**图表来源**
+- [src/ui/flowmodule.h:24-48](file://src/ui/flowmodule.h#L24-L48)
+- [src/ui/flowmodule.cpp:27-394](file://src/ui/flowmodule.cpp#L27-L394)
+
+### Flow模块工作流程
+Flow模块的工作流程展示了测量配置的完整过程：
+
+```mermaid
+sequenceDiagram
+participant User as "用户"
+participant MSV as "MeasurementSetupView"
+participant Flow as "FlowModule"
+participant Shell as "ShellContext"
+participant Data as "数据层"
+User->>MSV : 选择数据源
+MSV->>Flow : sourceChanged信号
+Flow->>Data : 停止其他数据源
+Data-->>Flow : 停止确认
+User->>MSV : 点击开始测量
+MSV->>Flow : measurementToggled(true)
+Flow->>Shell : shellInvoke("measurementToggled", true)
+Shell->>Data : 启动数据流
+Data-->>Shell : 数据流开始
+Shell-->>MSV : 更新UI状态
+User->>MSV : 选择DBC文件
+MSV->>Flow : dbcSelectRequested
+Flow->>Data : 加载DBC文件
+Data-->>Flow : 加载成功
+Flow-->>MSV : 更新DBC列表
+```
+
+**图表来源**
+- [src/ui/flowmodule.cpp:112-224](file://src/ui/flowmodule.cpp#L112-L224)
+
+**章节来源**
+- [src/core/module/imodule.h:93-200](file://src/core/module/imodule.h#L93-L200)
+- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
+- [src/core/protocol/iprotocoladapter.h:24-65](file://src/core/protocol/iprotocoladapter.h#L24-L65)
+- [src/core/protocol/canprotocoladapter.h:17-44](file://src/core/protocol/canprotocoladapter.h#L17-L44)
+- [src/core/protocol/canprotocoladapter.cpp:10-107](file://src/core/protocol/canprotocoladapter.cpp#L10-L107)
+- [src/core/protocol/protocolregistry.h:18-45](file://src/core/protocol/protocolregistry.h#L18-L45)
+- [src/core/protocol/parserregistry.h:17-47](file://src/core/protocol/parserregistry.h#L17-L47)
+- [src/ui/flowmodule.h:24-48](file://src/ui/flowmodule.h#L24-L48)
+- [src/ui/flowmodule.cpp:27-394](file://src/ui/flowmodule.cpp#L27-L394)
 
 ## 模块化UI架构
 
@@ -467,9 +917,9 @@ ShellContext --> IBusinessModule : "传递给模块"
 ```
 
 **图表来源**
-- [src/core/module/imodule.h](file://src/core/module/imodule.h)
-- [src/ui/marketmodule.h](file://src/ui/marketmodule.h)
-- [src/ui/transceivemodule.h](file://src/ui/transceivemodule.h)
+- [src/core/module/imodule.h:93-200](file://src/core/module/imodule.h#L93-L200)
+- [src/ui/marketmodule.h:18-28](file://src/ui/marketmodule.h#L18-L28)
+- [src/ui/transceivemodule.h:28-51](file://src/ui/transceivemodule.h#L28-L51)
 
 ### 模块注册表（ModuleRegistry）
 模块注册表负责管理模块工厂和实例的生命周期，提供线程安全的模块访问接口：
@@ -506,8 +956,8 @@ ModuleRegistry --> IBusinessModule : "创建"
 ```
 
 **图表来源**
-- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
-- [src/core/module/moduleregistry.cpp](file://src/core/module/moduleregistry.cpp)
+- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
+- [src/core/module/moduleregistry.cpp:3-22](file://src/core/module/moduleregistry.cpp#L3-L22)
 
 ### 市场模块（MarketModule）
 市场模块负责插件市场的UI和业务逻辑，支持插件的安装、管理和搜索功能：
@@ -636,13 +1086,13 @@ PW --> LC
 ```
 
 **图表来源**
-- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
-- [src/ui/marketmodule.h](file://src/ui/marketmodule.h)
-- [src/ui/transceivemodule.h](file://src/ui/transceivemodule.h)
-- [src/ui/dbcmodule.h](file://src/ui/dbcmodule.h)
-- [src/ui/flowmodule.h](file://src/ui/flowmodule.h)
-- [src/ui/tracemodule.h](file://src/ui/tracemodule.h)
-- [src/ui/graphicmodule.h](file://src/ui/graphicmodule.h)
+- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
+- [src/ui/marketmodule.h:18-28](file://src/ui/marketmodule.h#L18-L28)
+- [src/ui/transceivemodule.h:28-51](file://src/ui/transceivemodule.h#L28-L51)
+- [src/ui/dbcmodule.h:18-30](file://src/ui/dbcmodule.h#L18-L30)
+- [src/ui/flowmodule.h:24-48](file://src/ui/flowmodule.h#L24-L48)
+- [src/ui/tracemodule.h:24-70](file://src/ui/tracemodule.h#L24-L70)
+- [src/ui/graphicmodule.h:27-49](file://src/ui/graphicmodule.h#L27-L49)
 
 ## 详细组件分析
 
@@ -660,6 +1110,7 @@ PW --> LC
 - 支持Web前端原型的集成和通信
 - **新增** 插件系统初始化，启动Python宿主进程
 - **新增** 模块注册表初始化，注册各业务模块工厂
+- **新增** 协议注册表初始化，注册内置协议适配器
 
 ```mermaid
 sequenceDiagram
@@ -669,6 +1120,7 @@ participant Style as "QSS加载器"
 participant Theme as "ThemeManager"
 participant Plugin as "PluginManager"
 participant Module as "ModuleRegistry"
+participant Protocol as "ProtocolRegistry"
 participant Win as "MainWindow"
 participant Web as "Web前端"
 Main->>App : 创建实例
@@ -679,6 +1131,8 @@ Main->>Plugin : 初始化插件管理器
 Plugin-->>Main : 插件系统就绪
 Main->>Module : 注册业务模块工厂
 Module-->>Main : 模块系统就绪
+Main->>Protocol : 注册协议适配器
+Protocol-->>Main : 协议系统就绪
 Style-->>Main : 样式就绪
 Main->>Win : 构造主窗口
 Main->>Web : 初始化Web前端
@@ -687,7 +1141,7 @@ App->>App : 进入事件循环
 ```
 
 **图表来源**
-- [src/main.cpp](file://src/main.cpp)
+- [src/main.cpp:14-19](file://src/main.cpp#L14-L19)
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -2739,6 +3193,7 @@ MW --> SD["SettingsDialog<br/>设置对话框"]
 MW --> TPANEL["TransceivePanel<br/>新增统一入口"]
 MW --> PM["PluginManager<br/>插件管理器"]
 MW --> MR["ModuleRegistry<br/>模块注册表"]
+MW --> PR["ProtocolRegistry<br/>协议注册表"]
 SEA --> FB["FilterBar<br/>刷新率控制增强"]
 SEA --> GV["GraphicView<br/>QCustomPlot集成<br/>Downsample模块集成<br/>插件集成增强"]
 SEA --> TV["TraceView"]
@@ -2799,6 +3254,8 @@ IM --> DM["DbcModule<br/>DBC模块"]
 IM --> FM["FlowModule<br/>流程模块"]
 IM --> TRM["TraceModule<br/>跟踪模块"]
 IM --> GM["GraphicModule<br/>图形模块"]
+PR --> PA["IProtocolAdapter<br/>协议适配器"]
+PA --> CA["CanProtocolAdapter<br/>CAN适配器"]
 ```
 
 **图表来源**
@@ -2820,6 +3277,8 @@ IM --> GM["GraphicModule<br/>图形模块"]
 - [scripts/sin_host.py](file://scripts/sin_host.py)
 - [src/core/module/imodule.h](file://src/core/module/imodule.h)
 - [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
+- [src/core/protocol/iprotocoladapter.h](file://src/core/protocol/iprotocoladapter.h)
+- [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
 
 章节来源
 - [src/CMakeLists.txt](file://src/CMakeLists.txt)
@@ -2935,6 +3394,13 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - 模块工厂模式支持动态模块发现和加载
   - 模块注册表提供高效的模块查找和缓存机制
   - 模块生命周期管理确保资源正确释放
+- **Flow架构性能优化**
+  - Flow模块使用页面缓存机制避免重复创建
+  - 协议适配器采用懒加载减少启动开销
+  - 解析器注册表提供高效的解析器查找
+  - 模块间通信通过ShellContext接口，降低耦合度
+  - 数据源切换优化，避免不必要的数据流中断
+  - 设备连接状态管理优化，减少状态同步开销
 
 [本节为通用指导，无需特定文件引用]
 
@@ -3083,6 +3549,24 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - 模块注册表冲突需要检查模块ID唯一性
   - 模块页面创建失败需要检查createPage实现
   - 模块查询功能异常需要检查query方法实现
+- **Flow架构问题**
+  - Flow模块加载失败需要检查模块注册和工厂函数
+  - 协议适配器注册失败需要检查协议ID唯一性
+  - 解析器查找失败需要检查文件扩展名匹配
+  - 数据源切换异常需要检查数据流状态管理
+  - 设备连接失败需要检查设备配置和驱动状态
+  - 模块间通信异常需要检查ShellContext回调实现
+  - 页面缓存失效需要检查页面生命周期管理
+  - 协议解码失败需要检查DBC文件和数据格式
+- **协议适配器问题**
+  - 协议适配器加载失败需要检查ABI兼容性
+  - 协议ID冲突需要检查注册表中的唯一性
+  - 解码功能异常需要检查DBC管理器配置
+  - 文件过滤器不生效需要检查协议声明
+  - 协议能力查询失败需要检查supportedSources实现
+  - 通道数量限制异常需要检查maxChannels实现
+  - 协议图标加载失败需要检查资源路径
+  - 协议显示名称异常需要检查displayName实现
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
@@ -3105,6 +3589,11 @@ IM --> GM["GraphicModule<br/>图形模块"]
 - [src/core/module/imodule.h](file://src/core/module/imodule.h)
 - [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
 - [src/core/module/moduleregistry.cpp](file://src/core/module/moduleregistry.cpp)
+- [src/core/protocol/iprotocoladapter.h](file://src/core/protocol/iprotocoladapter.h)
+- [src/core/protocol/canprotocoladapter.h](file://src/core/protocol/canprotocoladapter.h)
+- [src/core/protocol/canprotocoladapter.cpp](file://src/core/protocol/canprotocoladapter.cpp)
+- [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
+- [src/core/protocol/parserregistry.h](file://src/core/protocol/parserregistry.h)
 
 ## 结论
 本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面，**特别是侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件。**
@@ -3116,6 +3605,8 @@ IM --> GM["GraphicModule<br/>图形模块"]
 **插件系统增强** 系统现在集成了完整的Python插件架构，为UI系统提供了强大的扩展能力。GraphicView组件通过插件集成能力，允许开发者通过Python脚本自定义信号可视化行为，添加新的图表类型和分析功能。插件系统采用JSON-RPC协议进行主程序与Python宿主进程间的通信，提供了稳定可靠的异步消息传递机制。插件管理器负责插件的发现、激活和生命周期管理，支持动态加载和卸载插件。Python宿主进程提供了完整的执行环境，支持PyQt6 GUI开发和丰富的Python生态系统。这种插件化架构使得系统具有极高的可扩展性，社区可以贡献各种分析工具和可视化插件，极大地丰富了系统的功能生态。
 
 **模块化架构增强** 系统现已完成从单体架构向模块化DLL架构的重构，将市场、收发、DBC、流程、跟踪和图形等核心功能模块拆分为独立的DLL，通过工厂模式进行创建和管理。这种架构设计提高了系统的可扩展性、可维护性和部署灵活性，支持按需加载和功能模块的动态管理。模块接口IBusinessModule定义了统一的模块契约，模块注册表ModuleRegistry提供了模块工厂和实例的生命周期管理。各模块通过ShellContext上下文进行通信，实现了模块间的松耦合和高内聚。
+
+**Flow架构增强** 系统现已引入全新的Flow架构和协议抽象系统，通过IBusinessModule接口和ModuleRegistry注册表实现了模块化的业务逻辑管理。新增的协议适配器模式支持多种总线协议（CAN、EtherCAT等）的统一接口访问，为未来的协议扩展奠定了坚实基础。Flow模块作为测量流程的核心，整合了测量配置和设备连接功能，提供了统一的工作流程管理界面。协议适配器系统通过IProtocolAdapter接口定义了统一的协议访问接口，CanProtocolAdapter提供了CAN协议的具体实现，ProtocolRegistry和ParserRegistry分别管理协议适配器和解析器的注册与查找。
 
 **最新改进** 设备连接界面实现了智能连接门控机制，根据驱动可用性自动启用/禁用连接按钮，大大提升了用户体验。图形视图组件使用了SVG箭头图标替换了基于文本的光标手柄，提供了更好的视觉一致性和用户体验。侧边栏面板系统的所有按钮都使用了主题化的SVG图标，支持动态颜色切换，确保在不同主题下都有良好的视觉效果。
 
@@ -3236,6 +3727,17 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - 模块查询功能必须返回有效的QVariant
   - 模块错误处理必须提供适当的异常处理
   - 模块资源管理必须遵循RAII原则
+- **Flow架构规范**
+  - Flow模块必须实现IBusinessModule接口
+  - 协议适配器必须实现IProtocolAdapter接口
+  - 解析器必须实现IBusParser接口
+  - 模块注册必须通过ModuleRegistry进行
+  - 协议注册必须通过ProtocolRegistry进行
+  - 解析器注册必须通过ParserRegistry进行
+  - 模块间通信必须通过ShellContext接口
+  - 协议适配器必须声明支持的源类型和解析器
+  - 数据源切换必须保证数据流的正确管理
+  - 设备连接必须支持V2接口和智能门控机制
 
 ### 样式定制指南
 - 主题设计
@@ -3374,6 +3876,16 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - 模块资源管理应遵循RAII原则
   - 模块测试应包含单元测试和集成测试
   - 模块文档应包含接口说明和使用示例
+- **Flow架构最佳实践**
+  - Flow模块设计应遵循单一职责原则
+  - 协议适配器应实现统一的接口规范
+  - 解析器应支持多种文件格式
+  - 模块间通信应通过ShellContext接口
+  - 协议注册应保证唯一性和可扩展性
+  - 数据源切换应保证数据流的正确管理
+  - 设备连接应支持多种设备和配置选项
+  - 模块测试应包含单元测试和集成测试
+  - 协议测试应包含模拟数据和真实数据验证
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -3448,6 +3960,16 @@ IM --> GM["GraphicModule<br/>图形模块"]
 68. **模块页面测试**：验证多页面模块的页面创建功能
 69. **模块查询测试**：验证模块查询功能的正确实现
 70. **模块错误处理测试**：验证模块异常处理和错误恢复机制
+71. **Flow架构测试**：验证Flow模块的测量流程管理功能
+72. **协议适配器测试**：验证IProtocolAdapter接口的正确实现
+73. **CAN适配器测试**：验证CanProtocolAdapter的CAN协议功能
+74. **协议注册测试**：验证ProtocolRegistry的协议注册功能
+75. **解析器注册测试**：验证ParserRegistry的解析器注册功能
+76. **数据源切换测试**：验证Flow模块的数据源切换功能
+77. **设备连接测试**：验证Flow模块的设备连接管理功能
+78. **协议解码测试**：验证协议适配器的信号解码功能
+79. **文件过滤器测试**：验证协议适配器的文件过滤器功能
+80. **Trace列定义测试**：验证协议适配器的Trace列定义功能
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
@@ -3469,3 +3991,8 @@ IM --> GM["GraphicModule<br/>图形模块"]
 - [src/core/module/imodule.h](file://src/core/module/imodule.h)
 - [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
 - [src/core/module/moduleregistry.cpp](file://src/core/module/moduleregistry.cpp)
+- [src/core/protocol/iprotocoladapter.h](file://src/core/protocol/iprotocoladapter.h)
+- [src/core/protocol/canprotocoladapter.h](file://src/core/protocol/canprotocoladapter.h)
+- [src/core/protocol/canprotocoladapter.cpp](file://src/core/protocol/canprotocoladapter.cpp)
+- [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
+- [src/core/protocol/parserregistry.h](file://src/core/protocol/parserregistry.h)

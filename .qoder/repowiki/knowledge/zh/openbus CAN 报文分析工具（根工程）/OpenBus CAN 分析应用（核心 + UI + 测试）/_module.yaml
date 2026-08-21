@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: core_application
+title: OpenBus CAN 分析应用（核心 + UI + 测试）
+scope:
+    - src/
+    - tests/
+source_files: []
+depends_on: []
+related_to:
+    - path: drivers
+    - path: plugins

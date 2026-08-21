@@ -1,0 +1,112 @@
+openbus staging 报告 — D:\sin\sin_20260727\sin\dist\stage\openbus
+
+  D3Dcompiler_47.dll            0.0 MB
+  drivers                       3.0 MB
+  iconengines                   0.1 MB
+  imageformats                  0.7 MB
+  lib                           0.0 MB
+  libgcc_s_seh-1.dll            0.0 MB
+  libopenbus_data.dll           0.0 MB
+  libopenbus_dbc.dll            0.0 MB
+  libopenbus_flow.dll           0.0 MB
+  libopenbus_graphic.dll        0.0 MB
+  libopenbus_market.dll         0.0 MB
+  libopenbus_trace.dll          0.0 MB
+  libopenbus_transceive.dll      0.0 MB
+  libstdc++-6.dll               0.0 MB
+  libwinpthread-1.dll           0.0 MB
+  LICENSE.txt                   0.0 MB
+  market                        5.0 MB
+  networkinformation            0.1 MB
+  openbus.exe                   0.0 MB
+  opengl32sw.dll                0.0 MB
+  platforms                     1.2 MB
+  plugins                       0.1 MB
+  Qt6Core.dll                   0.0 MB
+  Qt6Gui.dll                    0.0 MB
+  Qt6Network.dll                0.0 MB
+  Qt6PrintSupport.dll           0.0 MB
+  Qt6Svg.dll                    0.0 MB
+  Qt6Widgets.dll                0.0 MB
+  README-PORTABLE.txt           0.0 MB
+  runtime                      72.8 MB
+  scripts                       0.0 MB
+  sdk                           0.0 MB
+  styles                        0.2 MB
+  THIRD_PARTY_NOTICES.md        0.0 MB
+  tls                           0.3 MB
+  translations                  0.1 MB
+  (合计)                         83.7 MB
+
+目录树（深度 2）:
+  openbus/
+  ├─ drivers  (3.0 MB)
+  │  ├─ candle  (0.6 MB)
+  │  ├─ kvaser  (0.6 MB)
+  │  ├─ peak  (0.6 MB)
+  │  ├─ slcan  (0.6 MB)
+  │  └─ zlg  (0.6 MB)
+  ├─ iconengines  (0.1 MB)
+  │  └─ qsvgicon.dll
+  ├─ imageformats  (0.7 MB)
+  │  ├─ qgif.dll
+  │  ├─ qico.dll
+  │  ├─ qjpeg.dll
+  │  └─ qsvg.dll
+  ├─ lib  (0.0 MB)
+  │  └─ fonts  (0.0 MB)
+  ├─ market  (5.0 MB)
+  │  ├─ assets  (0.0 MB)
+  │  ├─ opk  (0.0 MB)
+  │  ├─ kvaser-driver_1.0.0_x64.odp
+  │  ├─ market.json
+  │  ├─ peak-driver_1.0.0_x64.odp
+  │  └─ zlg-driver_1.0.0_x64.odp
+  ├─ networkinformation  (0.1 MB)
+  │  └─ qnetworklistmanager.dll
+  ├─ platforms  (1.2 MB)
+  │  ├─ qoffscreen.dll
+  │  └─ qwindows.dll
+  ├─ plugins  (0.1 MB)
+  │  ├─ blf-converter  (0.0 MB)
+  │  ├─ bus-statistics  (0.0 MB)
+  │  ├─ canopen-explorer  (0.0 MB)
+  │  ├─ dbc-tool  (0.0 MB)
+  │  └─ uds-diagnostic  (0.1 MB)
+  ├─ runtime  (72.8 MB)
+  │  └─ python  (72.8 MB)
+  ├─ scripts  (0.0 MB)
+  │  ├─ driver_tool.py
+  │  ├─ plugin_tool.py
+  │  └─ sin_host.py
+  ├─ sdk  (0.0 MB)
+  │  └─ sin  (0.0 MB)
+  ├─ styles  (0.2 MB)
+  │  └─ qmodernwindowsstyle.dll
+  ├─ tls  (0.3 MB)
+  │  ├─ qcertonlybackend.dll
+  │  └─ qschannelbackend.dll
+  ├─ translations  (0.1 MB)
+  │  └─ qtbase_zh_CN.qm
+  ├─ D3Dcompiler_47.dll
+  ├─ libgcc_s_seh-1.dll
+  ├─ libopenbus_data.dll
+  ├─ libopenbus_dbc.dll
+  ├─ libopenbus_flow.dll
+  ├─ libopenbus_graphic.dll
+  ├─ libopenbus_market.dll
+  ├─ libopenbus_trace.dll
+  ├─ libopenbus_transceive.dll
+  ├─ libstdc++-6.dll
+  ├─ libwinpthread-1.dll
+  ├─ LICENSE.txt
+  ├─ openbus.exe
+  ├─ opengl32sw.dll
+  ├─ Qt6Core.dll
+  ├─ Qt6Gui.dll
+  ├─ Qt6Network.dll
+  ├─ Qt6PrintSupport.dll
+  ├─ Qt6Svg.dll
+  ├─ Qt6Widgets.dll
+  ├─ README-PORTABLE.txt
+  └─ THIRD_PARTY_NOTICES.md

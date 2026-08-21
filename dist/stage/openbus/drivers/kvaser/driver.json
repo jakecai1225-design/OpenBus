@@ -1,0 +1,20 @@
+{
+    "id": "kvaser",
+    "name": "Kvaser CANLIB 驱动",
+    "version": "1.0.0",
+    "vendor": "Kvaser",
+    "minAppVersion": "0.1.0",
+    "abiVersion": "1.0",
+    "busType": "can",
+    "devices": [
+        { "type": 0, "name": "Kvaser USBcan II",    "channels": 2, "canFd": false },
+        { "type": 1, "name": "Kvaser Leaf",         "channels": 1, "canFd": false },
+        { "type": 2, "name": "Kvaser Leaf Light",   "channels": 1, "canFd": false },
+        { "type": 3, "name": "Kvaser USBcan Hybrid","channels": 2, "canFd": true  }
+    ],
+    "vendorSdk": {
+        "dll": "vendor/canlib32.dll",
+        "bundled": false,
+        "license": "Proprietary - Kvaser 授权条款；未随包分发时从 Kvaser 驱动安装目录或官网获取"
+    }
+}

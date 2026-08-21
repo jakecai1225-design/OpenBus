@@ -1,0 +1,16 @@
+{
+    "id": "slcan",
+    "name": "SLCAN 串口 CAN 驱动（Lawicel 协议）",
+    "version": "1.0.0",
+    "vendor": "Lawicel 兼容固件 / 开源社区",
+    "minAppVersion": "0.1.0",
+    "abiVersion": "1.0",
+    "busType": "can",
+    "devices": [
+        { "type": 0, "name": "通用 SLCAN 适配器",   "channels": 1, "canFd": false, "hasHwTimestamp": false },
+        { "type": 1, "name": "Lawicel CANUSB",       "channels": 1, "canFd": false, "hasHwTimestamp": false },
+        { "type": 2, "name": "CANable (slcan 固件)", "channels": 1, "canFd": false, "hasHwTimestamp": false },
+        { "type": 3, "name": "USBtin",               "channels": 1, "canFd": false, "hasHwTimestamp": false },
+        { "type": 4, "name": "ESP32 / Arduino DIY",  "channels": 1, "canFd": false, "hasHwTimestamp": false }
+    ]
+}

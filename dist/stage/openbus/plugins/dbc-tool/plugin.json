@@ -1,0 +1,16 @@
+{
+    "name": "dbc-tool",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "DBC 查看编辑工具 — 报文/信号树、信号属性编辑、保存/另存为（宿主 C++ 解析引擎）",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:dbcTool.open"
+    ],
+    "contributes": {
+        "commands": [
+            { "id": "dbcTool.open", "title": "工具: DBC 工具" }
+        ]
+    }
+}

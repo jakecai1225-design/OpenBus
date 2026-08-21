@@ -7,85 +7,67 @@ scope:
 source_files:
     - CMakeLists.txt
     - src/CMakeLists.txt
-    - drivers/CMakeLists.txt
-    - third_party/Dependencies.cmake
-    - tests/CMakeLists.txt
     - scripts/build.py
-    - manual_compile.txt
+    - third_party/Dependencies.cmake
+    - drivers/CMakeLists.txt
+    - tests/CMakeLists.txt
 ---
 
-## 1. 使用的系统与工具
+## 1. 构建系统与工具链
 
-- **构建系统**: CMake 3.21+，作为唯一顶层构建配置入口；生成器优先使用项目内嵌的 `tools/ninja/ninja.exe`（Ninja），回退到 MinGW Makefiles。
-- **编译器与工具链**: Windows 平台固定为 MinGW GCC (g++/gcc 13.1 x64)，Qt 6.8.3 (mingw_64)；通过环境变量 `SIN_QT_DIR`、`SIN_MINGW_DIR`、`SIN_CMAKE_DIR` 覆盖默认路径。
-- **打包/部署**: `windeployqt` 自动收集 Qt 运行时依赖，并手动补充 `Qt6PrintSupport.dll`（qcustomplot 静态库对 PrintSupport 的传递依赖）。
-- **测试**: Qt Test (`QTEST_GUILESS_MAIN`)，通过 `ctest` 执行；每个测试套件是独立可执行进程，隔离 core 层单例状态。
-- **Python 构建编排**: `scripts/build.py` 提供 `configure / build / run / debug / clean / rebuild / deploy / all / status / open / test` 子命令，封装 CMake 调用、环境 PATH 注入、运行中进程终止、并行编译等。
+项目采用 **CMake 3.21+** 作为核心构建系统，配合自研的 **Python 构建脚本 `scripts/build.py`** 封装配置、编译、运行、调试、部署、测试等完整工作流。编译器为 **MinGW g++ 13 (x64)**，目标语言标准为 **C++17**（强制开启，禁止扩展）。Qt 版本固定为 **Qt6**，启用 `qt_standard_project_setup()` 及 AUTOMOC/AUTOUIC/AUTORCC。
 
-## 2. 关键文件
+构建生成器优先使用本地自带的 **Ninja**（位于 `tools/ninja/`），未检测到时回退到 **MinGW Makefiles**。链接器固定使用默认 `ld.bfd`（注释明确禁用 LLD/gold，因 Windows 文件锁问题）；归档器通过 `ar qcT/qT` 使用 **thin archive** 将静态库重打包降为毫秒级。
 
-| 文件 | 作用 |
-|---|---|
-| `CMakeLists.txt` | 根工程：C++17、Qt AUTOMOC/UIC/RCC、输出目录 `build/bin`、版本 `0.1.0`、包含第三方依赖、添加 `src/drivers/tests` 子目录 |
-| `src/CMakeLists.txt` | 定义全部目标：`openbus_data`(SHARED)、`openbus_market`/`openbus_transceive`/`openbus_dbc`/`openbus_flow`/`openbus_ui`(STATIC)、最终 `openbus` 可执行，以及各模块 PCH 头清单 |
-| `drivers/CMakeLists.txt` | 驱动插件聚合：每个厂商子目录产出 `.odp` 安装单元，POST_BUILD 拷贝 `driver.json` |
-| `third_party/Dependencies.cmake` | 声明 `spdlog`(INTERFACE)、`qcustomplot`(STATIC)、`vector_blf`(可选 subdirectory) 等三方依赖 |
-| `tests/CMakeLists.txt` | 定义 `openbus_add_test()` 宏，链接 `openbus_data` + `Qt6::Test`，注册 `tests` 聚合目标 |
-| `scripts/build.py` | 统一构建入口：检测 Ninja/MinGW、设置 PATH、调用 CMake、执行 windeployqt、启动 GDB、运行 ctest |
-| `doc/构建基线.md` | 文档化构建环境与约束（见下文“约定与约束”） |
+构建类型支持 `Dev`（-O1 -g1，日常开发快速档）、`Debug`、`Release`、`RelWithDebInfo`、`MinSizeRel`。Dev 档建议独立目录 `build-dev/`，与全量 Debug (`build/`) 并存避免切换重编。
 
-## 3. 架构与约定
+## 2. 关键文件与目录
 
-### 3.1 模块化 DLL 拆分
-主程序被拆分为多个共享库，通过 C 工厂函数暴露 ABI 契约（如 `openbus_createMarketModule()`、`openbus_createTransceiveModule()`、`openbus_createDbcModule()`、`openbus_createFlowModule()`），由 `main.cpp` 经 `ModuleRegistry` 动态加载。分层如下：
-- `openbus_data`：公共底座 SHARED DLL，包含 core/models/utils/thememanager，所有 core 单例（AppConfig/DbcManager/PluginManager/ThemeManager/ModuleRegistry）保持全进程唯一实例。
-- `openbus_market`、`openbus_transceive`、`openbus_dbc`、`openbus_flow`：业务功能 DLL，各自仅导出一个 C 工厂。
-- `openbus_ui`：静态库，承载剩余 UI 组件，减少主程序重链开销。
-- `openbus`：GUI 可执行（`WIN32_EXECUTABLE TRUE`，不弹出控制台窗口），链接上述所有 DLL。
+- `CMakeLists.txt`：根工程定义、Qt6 查找、第三方依赖引入、子目录组织
+- `src/CMakeLists.txt`：核心构建逻辑——定义 `openbus_data`、`openbus_market`、`openbus_transceive`、`openbus_dbc`、`openbus_flow` 五个共享 DLL，`openbus_ui` 静态库，以及最终 `openbus` 可执行体
+- `scripts/build.py`：统一入口，封装 configure/build/run/debug/clean/rebuild/deploy/test/status/open 等子命令
+- `third_party/Dependencies.cmake`：声明 spdlog（INTERFACE）、qcustomplot（STATIC）、vector_blf（可选 subdirectory）
+- `drivers/CMakeLists.txt`：驱动插件聚合，每个驱动（zlg/peak/kvaser/slcan/candle）输出到 `build/bin/drivers/<id>/`
+- `tests/CMakeLists.txt`：L1 集成测试（Qt Test，每个套件独立进程）+ L2 offscreen UI 测试，聚合目标 `tests`
 
-### 3.2 驱动插件体系
-`drivers/<vendor>/` 下每个驱动是一个独立的 CMake target，输出到 `build/bin/drivers/<id>/`，结构为 `driver_<id>.dll + driver.json [+ icon.svg/assets/vendor]`，由 `scripts/driver_tool.py` 打包成 `.odp` 安装单元。驱动 ABI 要求与主程序同 Qt 版本 + 同编译器（MinGW 13.1 x64, C++17）。
+## 3. 架构与设计约定
 
-### 3.3 预编译头 (PCH)
-每个目标通过 `target_precompile_headers(... PRIVATE ...)` 显式声明所用 Qt 头集合，按模块裁剪（core 层不含 Widget 头，UI 层包含完整 Widget 头），显著缩短编译时间。
+### 3.1 模块化 DLL 拆分（“壳 + 业务模块”）
+主程序 `openbus` 仅负责启动和模块注册，核心能力拆分为多个 DLL：
+- `openbus_data`（SHARED）：公共底座，包含 core/models/utils/thememanager，所有 core 单例（AppConfig/DbcManager/PluginManager/ThemeManager/ModuleRegistry）在此保持全进程唯一实例
+- `openbus_market` / `openbus_transceive` / `openbus_dbc` / `openbus_flow`：各业务模块 DLL，通过 C 工厂函数（如 `openbus_createMarketModule()`）暴露最小 ABI 面
+- `openbus_ui`（STATIC）：剩余界面组件，改 UI 代码只重编译此库 + 最终链接
 
-### 3.4 构建类型与目录
-支持 `Dev`/`Debug`/`Release`/`RelWithDebInfo`/`MinSizeRel` 五种构建类型；`Dev` 档使用 `-O1 -g1`，建议放在独立 `build-dev/` 目录与全量 Debug 并存，避免切换时全量重编。
+### 3.2 预编译头（PCH）策略
+每个目标分别定义 `target_precompile_headers`，按层裁剪 Qt 头范围：`openbus_data` 仅含 QObject/QString 等轻量头，UI 层才引入 QWidget/QMainWindow 等重型头，显著缩短编译时间。
 
-### 3.5 第三方依赖管理
-- 源码级嵌入：`third_party/` 下直接存放 spdlog、nlohmann_json、qcustomplot、pugixml、concurrentqueue、dbcppp、vector_blf 等。
-- 通过 `add_library(... INTERFACE IMPORTED)` 或 `add_subdirectory` 引入，`if(EXISTS ...)` 条件判断保证部分依赖缺失时仍可配置。
-- qcustomplot 以静态库形式编译并链接。
+### 3.3 驱动插件机制
+驱动以 `.odp` 包形式分发，每个驱动子目录含 `driver.json` 清单、`*_driver_plugin.cpp/h` 实现，编译后自动拷贝 `driver.json` 至输出目录，由 `DriverRegistry` 在 `<exe>/drivers/<id>/` 扫描加载。ABI 契约要求与主程序同 Qt 版本 + 同编译器。
 
-## 4. 约定与约束
+### 3.4 资源与依赖管理
+- Qt 资源通过 `resources/resources.qrc` 编译进二进制
+- 第三方库以源码形式置于 `third_party/`，通过条件 `if(EXISTS ...)` 按需启用
+- ZLG SDK 的 `driver/` 目录在 POST_BUILD 阶段复制到 exe 同级目录（`zlgcan.dll` 必须与 exe 同目录）
 
-- **必须使用 MinGW g++ 13.1 x64**：根 CMakeLists 注释明确禁用 ccache（与 MinGW g++ 13 的 PCH 不兼容，会静默崩溃）、禁用 LLD 链接器（Windows 上导致文件锁问题），只允许默认 `ld.bfd`。
-- **构建前自动终止运行中的 `openbus.exe`**：`build.py` 在 build/run/debug 前调用 `taskkill /F /IM openbus.exe`，等待文件锁释放，避免链接失败。
-- **Ninja 优先**：`scripts/build.py` 自动检测 `tools/ninja/ninja.exe`，若存在则使用 Ninja 生成器（比 MinGW Makefiles 快 2–3x）。
-- **Qt 路径通过环境变量配置**：`SIN_QT_DIR`、`SIN_MINGW_DIR`、`SIN_CMAKE_DIR`，默认指向本地固定路径（`C:/Qt/6.8.3/mingw_64` 等）。
-- **驱动 DLL 部署规则**：`src/CMakeLists.txt` 的 POST_BUILD 将 `driver/` 整个目录复制到 exe 同级目录，因为 ZLG SDK 的 `zlgcan.dll` 必须在同一目录才能找到 USB 驱动。
-- **测试隔离**：每个测试套件是独立进程，工作目录设为 `${CMAKE_BINARY_DIR}/bin`，以便自动解析 `openbus_data` DLL。
-- **thin archive**：MinGW 下启用 `ar qcT` 仅记录对象路径不复制内容，使静态库重打包降为毫秒级。
-- **资源文件**：通过 Qt RCC (`resources.qrc`) 打包 SVG 图标与样式，无需外部资源路径。
-- **安装规则**：`install(TARGETS openbus RUNTIME DESTINATION bin)`，驱动 DLL 通过 `install(DIRECTORY ... FILES_MATCHING PATTERN "*.dll")` 一并安装。
+## 4. 构建流程与约束
 
-## 5. 典型构建流程
-
+### 4.1 标准工作流
 ```bash
-# 配置（首次自动检测 Ninja/MinGW/Qt）
-python scripts/build.py configure --build-type Release
-
-# 增量编译（自动跳过已编译目标）
+python scripts/build.py configure --build-type Dev --build-dir build-dev
 python scripts/build.py build -j8
-
-# 部署 Qt 运行时依赖
-python scripts/build.py deploy
-
-# 运行
 python scripts/build.py run
-
-# 运行 L1 集成测试
-python scripts/build.py test
+python scripts/build.py deploy          # windeployqt + 手动补 Qt6PrintSupport.dll
+python scripts/build.py test            # ctest 执行 L1/L2 测试
 ```
+环境变量 `SIN_QT_DIR` / `SIN_MINGW_DIR` / `SIN_CMAKE_DIR` 覆盖默认路径。
 
-该构建系统围绕 CMake 组织，由 Python 脚本统一编排，采用多 DLL 模块化设计，并通过 PCH、thin archive、Ninja 等手段优化 Windows/MinGW 下的编译性能与稳定性。
+### 4.2 强制约束
+- **禁用 ccache**：与 MinGW g++ 13 的 PCH 不兼容，会静默崩溃
+- **禁用 LLD/gold**：Windows 上导致文件锁或子系统选项错误
+- **构建前自动终止 openbus.exe**：通过 `taskkill` 释放文件锁，避免链接失败
+- **测试套件隔离**：每个测试独立进程，避免 core 层单例状态污染
+- **Offscreen UI 测试**：通过 `QT_QPA_PLATFORM=offscreen` 在无头环境运行 UI 测试
+- **windeployqt 限制处理**：无法检测 qcustomplot 对 Qt6PrintSupport 的传递依赖，需手动复制；Qt 6 Windows 不再自带字体，需创建空 `lib/fonts/` 目录消警
+
+### 4.3 安装规则
+`install(TARGETS openbus RUNTIME DESTINATION bin)`，并递归安装 `driver/` 下所有 `.dll` 到 `bin/`。

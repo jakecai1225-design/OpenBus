@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: sdk
+title: sin 插件 SDK（Python 宿主通信层）
+scope:
+    - sdk/
+source_files: []
+depends_on: []
+related_to:
+    - path: plugins

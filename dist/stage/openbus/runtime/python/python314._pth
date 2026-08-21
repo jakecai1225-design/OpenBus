@@ -1,0 +1,8 @@
+python314.zip
+.
+DLLs
+Lib
+Lib/site-packages
+
+# 取消注释以自动运行 site.main()
+import site

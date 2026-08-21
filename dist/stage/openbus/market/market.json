@@ -1,0 +1,281 @@
+{
+  "schema": 2,
+  "version": "2026.8.18",
+  "updated": "2026-08-18",
+  "base": ".",
+  "drivers": [
+    {
+      "id": "zlg",
+      "name": "ZLG 致远电子驱动",
+      "vendor": "ZLG",
+      "version": "1.0.0",
+      "package": "zlg-driver_1.0.0_x64.odp",
+      "sha256": "33ff01263250942f445a3b2e1445856397b6240cc5a02bf062165cda3729f607",
+      "size": 1760192,
+      "icon": "assets/zlg-usbcanfd.svg",
+      "image": "assets/zlg-usbcanfd.svg",
+      "summary": "ZLG USBCAN / USBCANFD 全系列 USB-CAN 接口卡驱动",
+      "readme": "## 概述\n\nZLG 致远电子 USBCAN / USBCANFD 系列 USB-CAN 接口卡驱动插件，覆盖经典 USBCAN-I/II 与 USBCANFD 全系常用型号。\n\n## 特性\n\n- USBCANFD 系列：仲裁段 1 Mbps / 数据段 8 Mbps，硬件微秒级时间戳\n- 经典 USBCAN 系列：1 Mbps\n- USB 供电，免外接电源\n\n## 厂商 SDK\n\n依赖 zlgcan.dll（厂商 SDK，随包不分发）。请先安装 ZLG 官方驱动包，或将 zlgcan.dll 置于驱动目录 vendor/ 下。\n\n## 授权\n\n驱动插件遵循 openbus 插件条款；ZLG SDK 归致远电子所有。",
+      "keywords": "zlg 致远 usbcan usbcanfd 200u 100u 800u mini canfd",
+      "devices": [
+        {
+          "model": "USBCAN-1",
+          "channels": 8,
+          "canFd": false,
+          "maxBaud": "1 Mbps",
+          "timestamp": "软件时间戳"
+        },
+        {
+          "model": "USBCAN-2",
+          "channels": 2,
+          "canFd": false,
+          "maxBaud": "1 Mbps",
+          "timestamp": "软件时间戳"
+        },
+        {
+          "model": "USBCAN-E-U",
+          "channels": 1,
+          "canFd": false,
+          "maxBaud": "1 Mbps",
+          "timestamp": "软件时间戳"
+        },
+        {
+          "model": "USBCAN-2E-U",
+          "channels": 2,
+          "canFd": false,
+          "maxBaud": "1 Mbps",
+          "timestamp": "软件时间戳"
+        },
+        {
+          "model": "USBCAN-4E-U",
+          "channels": 4,
+          "canFd": false,
+          "maxBaud": "1 Mbps",
+          "timestamp": "软件时间戳"
+        },
+        {
+          "model": "USBCANFD-200U",
+          "channels": 2,
+          "canFd": true,
+          "maxBaud": "8 Mbps (数据段)",
+          "timestamp": "硬件时间戳",
+          "summary": "2 通道 CAN FD 板卡，ZLG 旗舰入门款"
+        },
+        {
+          "model": "USBCANFD-100U",
+          "channels": 1,
+          "canFd": true,
+          "maxBaud": "8 Mbps (数据段)",
+          "timestamp": "硬件时间戳",
+          "summary": "单通道 CAN FD 板卡，便携调试首选"
+        },
+        {
+          "model": "USBCANFD-MINI",
+          "channels": 1,
+          "canFd": true,
+          "maxBaud": "1 Mbps",
+          "timestamp": "软件时间戳"
+        },
+        {
+          "model": "USBCANFD-800U",
+          "channels": 8,
+          "canFd": true,
+          "maxBaud": "1 Mbps",
+          "timestamp": "软件时间戳"
+        }
+      ],
+      "minAppVersion": "0.9.0",
+      "abiVersion": "1.0",
+      "license": "Proprietary - 厂商授权条款",
+      "updatedAt": "2026-08-18"
+    },
+    {
+      "id": "peak",
+      "name": "PEAK System PCAN 驱动",
+      "vendor": "PEAK System",
+      "version": "1.0.0",
+      "package": "peak-driver_1.0.0_x64.odp",
+      "sha256": "14ede1bf6191bee2f5d367c7ac1414748a52f104089c4e642b3c6dacf0786832",
+      "size": 1707972,
+      "icon": "assets/peak-pcan.svg",
+      "image": "assets/peak-pcan.svg",
+      "summary": "PEAK PCAN-USB 系列 CAN / CAN FD 接口卡驱动",
+      "readme": "## 概述\n\nPEAK System PCAN-USB 系列 CAN / CAN FD 接口卡驱动插件，兼容 PCAN-Basic / PCAN-View 工具链生态。\n\n## 特性\n\n- PCAN-USB：1 Mbps 经典 CAN\n- PCAN-USB FD / Pro FD：数据段最高 8 Mbps，硬件微秒级时间戳\n- D-Sub 9 标准接口，USB 供电\n\n## 厂商 SDK\n\n依赖 PCAN-Basic DLL（厂商 SDK，随包不分发）。请先安装 PEAK 官方驱动包，或将 DLL 置于驱动目录 vendor/ 下。",
+      "keywords": "peak pcan pcan-usb pcan light pro fd canfd",
+      "devices": [
+        {
+          "model": "PCAN-USB",
+          "channels": 1,
+          "canFd": false,
+          "maxBaud": "1 Mbps",
+          "timestamp": "软件时间戳"
+        },
+        {
+          "model": "PCAN-USB FD",
+          "channels": 1,
+          "canFd": true,
+          "maxBaud": "8 Mbps (数据段)",
+          "timestamp": "硬件时间戳",
+          "summary": "单通道 CAN FD，PCAN-Basic 生态标准卡"
+        },
+        {
+          "model": "PCAN-USB Pro FD",
+          "channels": 2,
+          "canFd": true,
+          "maxBaud": "8 Mbps (数据段)",
+          "timestamp": "硬件时间戳",
+          "summary": "双通道 CAN FD 专业卡，高精度时间戳"
+        }
+      ],
+      "minAppVersion": "0.9.0",
+      "abiVersion": "1.0",
+      "license": "Proprietary - 厂商授权条款",
+      "updatedAt": "2026-08-18"
+    },
+    {
+      "id": "kvaser",
+      "name": "Kvaser CANLIB 驱动",
+      "vendor": "Kvaser",
+      "version": "1.0.0",
+      "package": "kvaser-driver_1.0.0_x64.odp",
+      "sha256": "d4db9196d9c1e19653558f5a9a12401f02cffb7d2762159d3fe000ec5f6df57e",
+      "size": 1700041,
+      "icon": "assets/kvaser-leaf.svg",
+      "image": "assets/kvaser-leaf.svg",
+      "summary": "Kvaser Leaf / USBcan 系列 CAN / CAN FD 接口卡驱动",
+      "readme": "## 概述\n\nKvaser Leaf / USBcan 系列 CAN / CAN FD 接口卡驱动插件，canlib 生态兼容性极佳。\n\n## 特性\n\n- Leaf 系列：单通道经典 CAN，1 Mbps\n- USBcan Hybrid：CAN FD + LIN 双协议\n- canlib 完整 API 生态\n\n## 厂商 SDK\n\n依赖 canlib32.dll（厂商 SDK，随包不分发）。请先安装 Kvaser 官方驱动包，或将 DLL 置于驱动目录 vendor/ 下。",
+      "keywords": "kvaser canlib leaf usbcan hybrid canfd lin",
+      "devices": [
+        {
+          "model": "Kvaser USBcan II",
+          "channels": 2,
+          "canFd": false,
+          "maxBaud": "1 Mbps",
+          "timestamp": "软件时间戳"
+        },
+        {
+          "model": "Kvaser Leaf",
+          "channels": 1,
+          "canFd": false,
+          "maxBaud": "1 Mbps",
+          "timestamp": "软件时间戳"
+        },
+        {
+          "model": "Kvaser Leaf Light",
+          "channels": 1,
+          "canFd": false,
+          "maxBaud": "1 Mbps",
+          "timestamp": "软件时间戳"
+        },
+        {
+          "model": "Kvaser USBcan Hybrid",
+          "channels": 2,
+          "canFd": true,
+          "maxBaud": "1 Mbps",
+          "timestamp": "软件时间戳"
+        }
+      ],
+      "minAppVersion": "0.9.0",
+      "abiVersion": "1.0",
+      "license": "Proprietary - 厂商授权条款",
+      "updatedAt": "2026-08-18"
+    }
+  ],
+  "plugins": [
+    {
+      "id": "blf-converter",
+      "name": "BLF 日志转换器",
+      "publisher": "sin",
+      "version": "1.0.0",
+      "description": "报文日志格式转换工具 — BLF/ASC/CSV/PCAP/TRC 互转（宿主 C++ 引擎，后台线程执行）",
+      "icon": "assets/plugin-blf-converter.svg",
+      "package": "opk/blf-converter_1.0.0.opk",
+      "sha256": "3c07658183c1073bccba0248911ecf770776463fcab8ed0259b8f388a391fbb5",
+      "size": 3887,
+      "readme": "报文日志格式转换工具 — BLF/ASC/CSV/PCAP/TRC 互转（宿主 C++ 引擎，后台线程执行）\n\n## 功能\n\n- BLF / ASC / CSV / PCAP / TRC 五种格式互转\n- 支持通道映射与时间基准设置",
+      "tags": [
+        "日志",
+        "转换"
+      ],
+      "keywords": "blf asc csv pcap trc 日志 转换 vector",
+      "minAppVersion": "0.9.0",
+      "updatedAt": "2026-08-18"
+    },
+    {
+      "id": "bus-statistics",
+      "name": "总线统计分析",
+      "publisher": "sin",
+      "version": "1.0.0",
+      "description": "总线统计分析 — 按 ID 统计帧数/周期/频率/字节数，总线负载率（替代原 C++ FrameStatisticsView）",
+      "icon": "assets/plugin-bus-statistics.svg",
+      "package": "opk/bus-statistics_1.0.0.opk",
+      "sha256": "e1208394508b2e429b46caea26635df157ef2fe17d2af7e2007dc6c5cfa9949c",
+      "size": 4034,
+      "readme": "总线统计分析 — 按 ID 统计帧数/周期/频率/字节数，总线负载率（替代原 C++ FrameStatisticsView）\n\n## 功能\n\n- 按 ID 统计帧数/字节/频率/负载\n- 总线负载率实时计算",
+      "tags": [
+        "分析",
+        "统计"
+      ],
+      "keywords": "统计 bus load 负载 帧 频率 字节",
+      "minAppVersion": "0.9.0",
+      "updatedAt": "2026-08-18"
+    },
+    {
+      "id": "canopen-explorer",
+      "name": "CANopen 总线浏览器",
+      "publisher": "sin",
+      "version": "1.0.0",
+      "description": "CANopen 工具（CiA 301）— NMT 节点控制、SDO 读写、Heartbeat 监控、Emergency 解析（替代原 C++ CanOpenView）",
+      "icon": "assets/plugin-canopen-explorer.svg",
+      "package": "opk/canopen-explorer_1.0.0.opk",
+      "sha256": "1a44234f471702905d774adb7564d69d057d8f434c749fec1b3165a84bf11f27",
+      "size": 5204,
+      "readme": "CANopen 工具（CiA 301）— NMT 节点控制、SDO 读写、Heartbeat 监控、Emergency 解析（替代原 C++ CanOpenView）\n\n## 功能\n\n- NMT 节点控制 / SDO 读写\n- Heartbeat 监测 / 对象字典浏览",
+      "tags": [
+        "协议",
+        "CANopen"
+      ],
+      "keywords": "canopen cia301 nmt sdo pdo heartbeat",
+      "minAppVersion": "0.9.0",
+      "updatedAt": "2026-08-18"
+    },
+    {
+      "id": "dbc-tool",
+      "name": "DBC 查看编辑器",
+      "publisher": "sin",
+      "version": "1.0.0",
+      "description": "DBC 查看编辑工具 — 报文/信号树、信号属性编辑、保存/另存为（宿主 C++ 解析引擎）",
+      "icon": "assets/plugin-dbc-tool.svg",
+      "package": "opk/dbc-tool_1.0.0.opk",
+      "sha256": "d4960d305438c4278a225cebb5e078fae867968daa5517c5fd529d6f39d80db8",
+      "size": 5417,
+      "readme": "DBC 查看编辑工具 — 报文/信号树、信号属性编辑、保存/另存为（宿主 C++ 解析引擎）\n\n## 功能\n\n- 报文/信号浏览与信号编辑\n- 属性查看 / 导出 C++ 解析代码",
+      "tags": [
+        "数据库",
+        "DBC"
+      ],
+      "keywords": "dbc 数据库 信号 报文 编辑 c 代码生成",
+      "minAppVersion": "0.9.0",
+      "updatedAt": "2026-08-18"
+    },
+    {
+      "id": "uds-diagnostic",
+      "name": "UDS 诊断客户端",
+      "publisher": "sin",
+      "version": "1.1.0",
+      "description": "UDS 诊断客户端（ISO 14229，G10 强化版）— 完整 ISO-TP 流控（BS/STmin/FC 状态机）、P2/P2* 超时与 0x78 续等、服务表单+响应解码、DID 字典/周期轮询、DTC 管理、种子-密钥安全访问（三种算法）、34/36/37 刷写助手，对标 ZCANPro/CANoe/TSMaster",
+      "icon": "assets/plugin-uds-diagnostic.svg",
+      "package": "opk/uds-diagnostic_1.1.0.opk",
+      "sha256": "432cd267517fbb59c118c1f03ffc0a578b3c31aeec4a701634166c4b24485044",
+      "size": 30775,
+      "readme": "UDS 诊断客户端（ISO 14229，G10 强化版）— 完整 ISO-TP 流控（BS/STmin/FC 状态机）、P2/P2* 超时与 0x78 续等、服务表单+响应解码、DID 字典/周期轮询、DTC 管理、种子-密钥安全访问（三种算法）、34/36/37 刷写助手，对标 ZCANPro/CANoe/TSMaster\n\n## 功能\n\n- ISO-TP 传输层（BS/STmin/FC 状态机，P2/P2* 超时与 0x78 延续）\n- 会话/安全访问、DID 读写/周期查询、DTC 三列表\n- 刷写算法（34/36/37）对标 ZCANPro / CANoe / TSMaster",
+      "tags": [
+        "诊断",
+        "UDS"
+      ],
+      "keywords": "uds 14229 isotp 诊断 did dtc 刷写 34 36 37",
+      "minAppVersion": "0.9.0",
+      "updatedAt": "2026-08-18"
+    }
+  ]
+}

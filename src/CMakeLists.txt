@@ -681,8 +681,12 @@ target_link_libraries(openbus_ui PUBLIC
 
 # Qt6::Svg: SVG 线条图标渲染 (activitybar / sidebarpanels)
 # Qt6::Network: 侧栏 ExtensionsPanel 图标异步加载（marketmodel B5-5 已迁 data）
+# qcustomplot: I/O Graph 工具页 (ui/tools/iographview)——主窗口工具页而非
+# Graphic 模块页面，B5 拆分后 qcustomplot 虽集中于 openbus_graphic，壳侧
+# 此一处使用仍留在 openbus_ui（静态库仅编译期依赖，无 DLL 分发影响）
 target_link_libraries(openbus_ui PRIVATE
     Qt6::Svg
+    qcustomplot
 )
 
 # Windows: psapi 用于进程资源监控 (ExtensionsTab)
