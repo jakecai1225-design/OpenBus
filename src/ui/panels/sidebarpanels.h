@@ -93,6 +93,7 @@ private:
     /// 从 stateJson 解析关键文件信息列表
     QStringList extractDbcFiles(const QString &stateJson) const;
     QStringList extractRecordFiles(const QString &stateJson) const;
+    QStringList extractOfflineFiles(const QString &stateJson) const;
     QString extractPlaybackFile(const QString &stateJson) const;
 };
 

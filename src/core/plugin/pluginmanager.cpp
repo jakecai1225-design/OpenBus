@@ -94,6 +94,14 @@ QString PluginManager::findPythonExecutable() const
     if (!envPython.isEmpty())
         candidates << envPython;
 
+    // 捆绑运行时 Python（<exeDir>/runtime/python/python.exe）——
+    // 便携版/安装包自带（打包方案 §6.1），优先于系统 Python；
+    // SIN_PYTHON 环境变量仍最高优先，便于用户替换自带解释器
+    const QString bundled = QDir(QCoreApplication::applicationDirPath())
+                                .filePath(QStringLiteral("runtime/python/python.exe"));
+    if (QFileInfo::exists(bundled))
+        candidates << QDir::toNativeSeparators(bundled);
+
     // 系统路径中的 python / python3
     candidates << "python3"
                << "python"

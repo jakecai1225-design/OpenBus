@@ -233,6 +233,10 @@ void MainWindow::connectDataPipeline()
         m_recording = false;
         m_bottomPanel->appendOutput(QString("录制结束: %1 (%2 帧)").arg(path).arg(count));
         transceiveInvoke(QStringLiteral("setRecording"), false);
+        // 记入工程状态（工程树"录制文件"节点数据来源）
+        auto &st = ProjectManager::instance()->currentStateRef();
+        if (!st.recordFiles.contains(path))
+            st.recordFiles << path;
         updateActions();
     };
     connect(m_recorder, SIGNAL(recordingStopped(QString,int)),

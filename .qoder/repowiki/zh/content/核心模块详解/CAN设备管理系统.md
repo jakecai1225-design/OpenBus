@@ -49,11 +49,14 @@
 
 ## 更新摘要
 **已进行的更改**
-- 新增SLCAN驱动支持Lawicel CANUSB协议家族，覆盖50+种USB转CAN适配器，支持自动波特率检测和软件时间戳
-- 新增GS_USB/Candle驱动支持candleLight固件家族，实现完整的GS_USB协议握手序列，VID/PID白名单支持7种设备家族，完整CAN FD支持和硬件时间戳
-- 扩展设备品牌枚举，新增SLCAN和Candle品牌标识
-- 增强设备工厂模式，支持新驱动的动态创建和枚举
-- 完善驱动插件架构，提供标准化的外部驱动接入机制
+- **ZLG设备枚举系统重大稳定性改进**：实现了两阶段枚举方法分离设备信息收集和堆分配，解决了内存损坏问题
+- **移除不稳定设备类型支持**：移除了USBCAN-1和USBCAN-2设备类型支持，简化了设备检测逻辑
+- **优化SDK调用策略**：减少了不必要的SDK调用，降低了堆损坏风险
+- **新增SLCAN驱动支持**：Lawicel CANUSB协议家族，覆盖50+种USB转CAN适配器
+- **新增GS_USB/Candle驱动支持**：candleLight固件家族，实现完整的GS_USB协议握手序列
+- **扩展设备品牌枚举**：新增SLCAN和Candle品牌标识
+- **增强设备工厂模式**：支持新驱动的动态创建和枚举
+- **完善驱动插件架构**：提供标准化的外部驱动接入机制
 
 ## 目录
 1. [简介](#简介)
@@ -70,7 +73,7 @@
 ## 简介
 本系统是一款面向汽车电子与总线调试的CAN/CAN FD报文分析工具，提供实时录制、文件回放、DBC信号解析、Trace列表展示、Graphic波形视图等能力。整体采用Qt6 + C++17构建，UI风格参考VS Code，支持无边框窗口、可停靠面板与多标签编辑区。系统通过统一的设备抽象层隔离硬件差异，结合无锁消息队列与发布订阅机制，实现高吞吐、低延迟的数据流处理。
 
-**最新更新**：系统现已完全重构驱动管理系统，引入DriverRegistry统一管理平台，支持内置驱动（ZLG、Kvaser、Peak Systems）和外置驱动的混合管理。**重大增强**：新增SLCAN和GS_USB/Candle两大开源设备驱动，大幅扩展硬件兼容性。SLCAN驱动支持Lawicel CANUSB协议家族，覆盖50+种USB转CAN适配器；Candle驱动支持candleLight固件家族，提供完整的GS_USB协议支持和硬件时间戳功能。系统支持驱动的热重载和动态加载，无需重启应用程序即可更新驱动配置。
+**最新更新**：系统现已完全重构驱动管理系统，引入DriverRegistry统一管理平台，支持内置驱动（ZLG、Kvaser、Peak Systems）和外置驱动的混合管理。**重大增强**：新增SLCAN和GS_USB/Candle两大开源设备驱动，大幅扩展硬件兼容性。SLCAN驱动支持Lawicel CANUSB协议家族，覆盖50+种USB转CAN适配器；Candle驱动支持candleLight固件家族，提供完整的GS_USB协议支持和硬件时间戳功能。**稳定性改进**：ZLG设备枚举系统经过重大优化，实现了两阶段枚举方法分离设备信息收集和堆分配，显著降低了内存损坏风险，提升了设备检测的可靠性。系统支持驱动的热重载和动态加载，无需重启应用程序即可更新驱动配置。
 
 ## 项目结构
 - 顶层CMake工程负责Qt6查找、子模块集成与安装规则
@@ -167,7 +170,7 @@ F --> AA["src/utils/message_queue.h"]
 ## 架构总览
 系统采用"中心化发布订阅"思想：设备抽象层（HAL）将在线采集、离线回放、仿真源统一为标准帧流；核心内核层进行时间对齐与分发；业务服务层订阅数据并执行日志、统计、解析等任务；UI交互层仅消费数据，不直接访问底层。
 
-**重大更新**：系统现在通过DriverRegistry统一管理所有驱动，支持内置驱动（ZLG、Kvaser、Peak Systems）和外置驱动的混合管理模式。**特别增强**：新增SLCAN和GS_USB/Candle两大开源设备驱动，大幅扩展硬件兼容性。SLCAN驱动支持Lawicel CANUSB协议家族，覆盖50+种USB转CAN适配器；Candle驱动支持candleLight固件家族，提供完整的GS_USB协议支持和硬件时间戳功能。系统支持驱动的热重载和动态加载，无需重启应用程序即可更新驱动配置。
+**重大更新**：系统现在通过DriverRegistry统一管理所有驱动，支持内置驱动（ZLG、Kvaser、Peak Systems）和外置驱动的混合管理模式。**特别增强**：新增SLCAN和GS_USB/Candle两大开源设备驱动，大幅扩展硬件兼容性。SLCAN驱动支持Lawicel CANUSB协议家族，覆盖50+种USB转CAN适配器；Candle驱动支持candleLight固件家族，提供完整的GS_USB协议支持和硬件时间戳功能。**稳定性改进**：ZLG设备枚举系统经过重大优化，实现了两阶段枚举方法分离设备信息收集和堆分配，显著降低了内存损坏风险。**特别增强**：系统支持驱动的热重载和动态加载，无需重启应用程序即可更新驱动配置。
 
 ```mermaid
 graph TB
@@ -378,6 +381,36 @@ Plugin-->>Registry : 设备实例
 **章节来源**
 - [src/core/driver/candriverplugin.h:1-49](file://src/core/driver/candriverplugin.h#L1-L49)
 
+### ZLG设备驱动稳定性改进
+**重大更新**：ZLG设备枚举系统经过重大稳定性改进，实现了两阶段枚举方法分离设备信息收集和堆分配，解决了内存损坏问题。
+
+#### 稳定性改进内容
+- **两阶段枚举方法**：第一阶段只收集POD结果（不含堆对象），全部open/close完成后再统一构造DeviceInfo，避免在SDK竞态窗口中进行堆分配
+- **移除不稳定设备类型**：移除了USBCAN-1和USBCAN-2设备类型的枚举支持，这些属于ControlCAN生态的老型号，向zlgcan.dll传不支持类型的行为无文档保证，是真机在场时探测循环堆损坏的头号嫌疑
+- **简化设备检测逻辑**：仅保留zlgcan.dll明确支持的FD/E-U系列设备，包括USBCANFD-200U、USBCANFD-100U、USBCANFD-mini、USBCANFD-800U、USBCAN-2E-U、USBCAN-4E-U、USBCAN-E-U
+- **优化设备命名机制**：使用静态查表取名，不在push_back表达式内构造/析构CanDeviceZLG临时对象，减小枚举循环里的对象活动面
+- **减少SDK调用**：不再调用ZCAN_IsDeviceOnLine，部分设备/驱动组合下返回0但可正常InitCAN/StartCAN，且真机在场时open后的额外SDK调用面缩小可降低间歇性堆损坏风险
+- **等待厂商线程静默**：在close后等待150ms让厂商接收线程静默，避免堆块被踩导致的崩溃
+
+#### 当前支持的设备类型
+```mermaid
+graph LR
+A["ZLG设备类型"] --> B["USBCANFD-200U (2通道)"]
+A --> C["USBCANFD-100U (1通道)"]
+A --> D["USBCANFD-mini (1通道)"]
+A --> E["USBCANFD-800U (8通道)"]
+A --> F["USBCAN-2E-U (2通道)"]
+A --> G["USBCAN-4E-U (4通道)"]
+A --> H["USBCAN-E-U (1通道)"]
+```
+
+**图表来源**
+- [src/core/candevice_zlg.cpp:741-749](file://src/core/candevice_zlg.cpp#L741-L749)
+
+**章节来源**
+- [src/core/candevice_zlg.cpp:736-785](file://src/core/candevice_zlg.cpp#L736-L785)
+- [src/core/candevice_zlg.h:33-43](file://src/core/candevice_zlg.h#L33-L43)
+
 ### SLCAN设备驱动
 **新增功能**：实现了SLCAN（Lawicel串口文本协议）设备后端，支持广泛的USB转CAN适配器。
 
@@ -484,7 +517,7 @@ Registry-->>UI : ICanDevice指针
 - CanDeviceManager作为QObject桥接层，持有ICanDevice或CanSimulator实例，对外发射frameGenerated信号，屏蔽后端差异，提供统一的硬件滤波控制接口
 - 接收线程通过FrameQueue批量入队，主线程定时drainQueue消费，避免阻塞UI
 
-**重大更新**：CanDeviceManager现在通过DriverRegistry统一管理多种设备类型（模拟器、ZLG、Kvaser、Peak、SLCAN、Candle等），并通过统一的接口管理不同的硬件后端，支持设备工厂模式和动态设备创建。**特别增强**：新增了硬件接收滤波器的统一管理，支持ZLG设备的动态配置API。
+**重大更新**：CanDeviceManager现在通过DriverRegistry统一管理多种设备类型（模拟器、ZLG、Kvaser、Peak、SLCAN、Candle等），并通过统一的接口管理不同的硬件后端，支持设备工厂模式和动态设备创建。**特别增强**：新增了硬件接收滤波器的统一管理，支持ZLG设备的动态配置API。**稳定性改进**：ZLG设备枚举系统的稳定性改进确保了更可靠的设备检测过程。
 
 **章节来源**
 - [src/core/candevice.h:1-127](file://src/core/candevice.h#L1-L127)
@@ -496,9 +529,9 @@ Registry-->>UI : ICanDevice指针
 ### 多品牌设备驱动架构
 **重大更新**：系统现在支持五大主流CAN设备厂商，每个厂商都有独立的设备驱动实现，通过统一的ICanDevice接口进行抽象。
 
-#### ZLG设备驱动
+#### ZLG设备驱动（稳定性改进版）
 - **双句柄管理机制**：设备句柄（devHandle）用于设备级操作，通道句柄（channelHandle）用于通道级操作
-- **支持的ZLG设备类型**：USBCAN-1/2、USBCAN-E-U、USBCAN-2E-U、USBCAN-4E-U、USBCANFD-200U/100U、USBCANFD-mini、USBCANFD-800U等
+- **改进的设备支持**：移除了不稳定的USBCAN-1/2设备类型，专注于稳定的FD/E-U系列设备
 - **CAN FD完整支持**：64字节载荷、BRS/ESI标志、双波特率配置
 - **动态接受过滤**：通过ZCAN_Dynamic_Config结构体实现硬件级动态配置，支持白名单/黑名单模式、ID范围过滤、扩展帧过滤等
 
@@ -524,7 +557,7 @@ Registry-->>UI : ICanDevice指针
 
 **章节来源**
 - [src/core/candevice_zlg.h:1-129](file://src/core/candevice_zlg.h#L1-L129)
-- [src/core/candevice_zlg.cpp:1-769](file://src/core/candevice_zlg.cpp#L1-L769)
+- [src/core/candevice_zlg.cpp:1-785](file://src/core/candevice_zlg.cpp#L1-L785)
 - [src/core/candevice_kvaser.h:1-66](file://src/core/candevice_kvaser.h#L1-L66)
 - [src/core/candevice_kvaser.cpp:1-265](file://src/core/candevice_kvaser.cpp#L1-L265)
 - [src/core/candevice_peak.h:1-124](file://src/core/candevice_peak.h#L1-L124)
@@ -578,7 +611,7 @@ Registry-->>UI : ICanDevice指针
 - **libusb-1.0.dll**用于Candle设备驱动（运行时动态加载）
 - **QPluginLoader**用于外部驱动插件的动态加载
 
-**重大更新**：新增了DriverRegistry和MarketIndex等核心组件，支持驱动的热重载和设备市场的功能。**特别增强**：引入了CanDriverPlugin插件接口，实现了标准化的外部驱动接入机制。新增SLCAN和Candle驱动，大幅扩展了硬件兼容性。
+**重大更新**：新增了DriverRegistry和MarketIndex等核心组件，支持驱动的热重载和设备市场的功能。**特别增强**：引入了CanDriverPlugin插件接口，实现了标准化的外部驱动接入机制。新增SLCAN和Candle驱动，大幅扩展了硬件兼容性。**稳定性改进**：ZLG设备枚举系统的稳定性改进减少了SDK调用，降低了堆损坏风险。
 
 ```mermaid
 graph LR
@@ -627,6 +660,7 @@ ZCFG["ZLG动态配置API"] --> ZLGDRV
 - **新特性**：MarketIndex支持本地缓存，减少网络请求频率
 - **新特性**：Candle设备硬件时间戳提供更高精度的时间同步
 - **新特性**：SLCAN软件时间戳补偿确保时间轴一致性
+- **稳定性改进**：ZLG设备枚举系统优化减少了SDK调用，降低了堆损坏风险，提升了设备检测的可靠性
 
 ## 故障排查指南
 - 设备连接失败：检查ICanDevice::open参数与设备序号；确认驱动与权限
@@ -638,6 +672,9 @@ ZCFG["ZLG动态配置API"] --> ZLGDRV
 - **新增**：设备市场搜索无结果：检查market.json是否加载成功；确认搜索关键词格式
 - **新增**：SLCAN设备连接失败：检查串口名称是否正确；确认波特率设置；验证固件兼容性
 - **新增**：Candle设备连接失败：检查libusb-1.0.dll是否加载；确认VID/PID在白名单中；验证设备驱动安装
+- **新增**：ZLG设备枚举失败：确认设备类型为稳定的FD/E-U系列；检查zlgcan.dll是否正常加载
+- **新增**：USBCAN-1/2设备不可用：这些设备类型已被移除，建议使用更新的USBCANFD系列设备
+- **新增**：设备枚举内存损坏：确认使用的是稳定性改进后的枚举方法，避免在SDK竞态窗口中进行堆分配
 - 帧丢失：监控FrameQueue.approxSize与pendingFrames，确保主线程及时drain
 - 过滤表达式错误：查看FilterEngine.errorString，修正语法
 - 录制失败：确认文件路径与写入器初始化；检查磁盘空间与权限
@@ -651,14 +688,16 @@ ZCFG["ZLG动态配置API"] --> ZLGDRV
 - [src/core/player.h:1-74](file://src/core/player.h#L1-L74)
 - [src/core/driver/driverregistry.cpp:186-272](file://src/core/driver/driverregistry.cpp#L186-L272)
 - [src/core/driver/marketindex.cpp:71-148](file://src/core/driver/marketindex.cpp#L71-L148)
+- [src/core/candevice_zlg.cpp:736-785](file://src/core/candevice_zlg.cpp#L736-L785)
 
 ## 结论
-本系统以清晰的层次化架构与松耦合设计，实现了CAN/CAN FD报文的采集、录制、回放与可视化分析。通过设备抽象、无锁队列与表达式过滤，兼顾了易用性与高性能。**重大更新**：系统现已完全重构驱动管理系统，通过DriverRegistry统一管理所有内置和外置驱动，支持热重载和动态加载。**特别增强**：新增设备市场功能，用户可以直接搜索、下载和安装新的设备驱动，大大简化了设备管理的复杂度。系统现已完全支持ZLG致远电子、Kvaser、Peak Systems、SLCAN和Candle五大主流CAN设备厂商，通过统一的ICanDevice接口和工厂模式实现了多品牌设备的无缝集成。**特别增强**：ZLG设备现在支持硬件级别的动态接受过滤功能，通过ZLG的动态配置API实现高效的帧过滤，可显著降低CPU负载并提高数据处理效率。新增的SLCAN和Candle驱动大幅扩展了硬件兼容性，支持USB-CAN接口、PCIe卡、网络设备等85+种设备类型，以及完整的CAN FD协议增强功能，为汽车电子开发和总线调试提供了强大的工具支持。后续可扩展更多硬件后端、高级统计与脚本能力，满足复杂工程需求。
+本系统以清晰的层次化架构与松耦合设计，实现了CAN/CAN FD报文的采集、录制、回放与可视化分析。通过设备抽象、无锁队列与表达式过滤，兼顾了易用性与高性能。**重大更新**：系统现已完全重构驱动管理系统，通过DriverRegistry统一管理所有内置和外置驱动，支持热重载和动态加载。**特别增强**：新增设备市场功能，用户可以直接搜索、下载和安装新的设备驱动，大大简化了设备管理的复杂度。系统现已完全支持ZLG致远电子、Kvaser、Peak Systems、SLCAN和Candle五大主流CAN设备厂商，通过统一的ICanDevice接口和工厂模式实现了多品牌设备的无缝集成。**稳定性改进**：ZLG设备枚举系统经过重大优化，实现了两阶段枚举方法分离设备信息收集和堆分配，移除了不稳定的USBCAN-1和USBCAN-2设备类型支持，显著降低了内存损坏风险，提升了设备检测的可靠性。**特别增强**：ZLG设备现在支持硬件级别的动态接受过滤功能，通过ZLG的动态配置API实现高效的帧过滤，可显著降低CPU负载并提高数据处理效率。新增的SLCAN和Candle驱动大幅扩展了硬件兼容性，支持USB-CAN接口、PCIe卡、网络设备等85+种设备类型，以及完整的CAN FD协议增强功能，为汽车电子开发和总线调试提供了强大的工具支持。后续可扩展更多硬件后端、高级统计与脚本能力，满足复杂工程需求。
 
 ## 附录
 - 构建与运行：参考README中的安装教程与CMake配置
 - 协议与扩展：预留脚本引擎与AI侧边栏接口，便于未来增强
-- **新增**：ZLG设备支持：USBCAN-1/2、USBCAN-E-U、USBCAN-2E-U、USBCAN-4E-U、USBCANFD-200U/100U、USBCANFD-mini、USBCANFD-800U等设备类型
+- **新增**：ZLG设备支持（稳定性改进版）：USBCANFD-200U、USBCANFD-100U、USBCANFD-mini、USBCANFD-800U、USBCAN-2E-U、USBCAN-4E-U、USBCAN-E-U等稳定设备类型
+- **移除**：USBCAN-1和USBCAN-2设备类型支持（因稳定性问题）
 - **新增**：Kvaser设备支持：USBcan II、Leaf、Leaf Light、Hybrid等系列设备
 - **新增**：Peak设备支持：PCAN-USB、PCAN-USB FD、PCAN-USB Pro FD等设备
 - **新增**：SLCAN设备支持：通用SLCAN适配器、Lawicel CANUSB、CANable (slcan固件)、USBtin、ESP32 / Arduino DIY等设备类型
@@ -673,3 +712,4 @@ ZCFG["ZLG动态配置API"] --> ZLGDRV
 - **新增**：设备市场界面：支持驱动的浏览、搜索、安装和管理
 - **新增**：SLCAN串口通信：基于Lawicel CANUSB协议的串口文本协议，支持自动波特率检测
 - **新增**：Candle GS_USB协议：完整的GS_USB协议握手序列，支持VID/PID白名单和硬件时间戳
+- **稳定性改进**：ZLG设备枚举系统优化，实现了两阶段枚举方法分离设备信息收集和堆分配，移除了不稳定的设备类型，减少了SDK调用，降低了内存损坏风险

@@ -120,6 +120,13 @@ void OfflineAnalysisTab::onAddFile()
         CanFileIO::allFileFilters());
     if (paths.isEmpty()) return;
 
+    addFiles(paths);
+}
+
+void OfflineAnalysisTab::addFiles(const QStringList &paths)
+{
+    if (paths.isEmpty()) return;
+
     for (const auto &path : paths) {
         QFileInfo fi(path);
         int row = m_fileList->rowCount();

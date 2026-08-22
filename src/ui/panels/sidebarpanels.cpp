@@ -199,9 +199,21 @@ void ProjectPanel::refreshList()
             }
         }
 
+        // ---- 子节点：离线分析文件 ----
+        auto offlineFiles = extractOfflineFiles(proj.stateJson);
+        if (!offlineFiles.isEmpty()) {
+            auto *catItem = new QTreeWidgetItem(projItem,
+                {QStringLiteral("离线分析文件 (") + QString::number(offlineFiles.size()) + ")"});
+            for (const auto &f : offlineFiles) {
+                auto *fItem = new QTreeWidgetItem(catItem, {QFileInfo(f).fileName()});
+                fItem->setData(0, Qt::UserRole, f);
+                fItem->setToolTip(0, f);
+            }
+        }
+
         // 无文件时的提示
         if (proj.filePath.isEmpty() && playback.isEmpty() &&
-            dbcFiles.isEmpty() && recFiles.isEmpty()) {
+            dbcFiles.isEmpty() && recFiles.isEmpty() && offlineFiles.isEmpty()) {
             auto *empty = new QTreeWidgetItem(projItem,
                 {QStringLiteral("(无关联文件)")});
             empty->setFlags(Qt::NoItemFlags);
@@ -423,6 +435,23 @@ QString ProjectPanel::extractPlaybackFile(const QString &stateJson) const
             return QString::fromStdString(j["filePath"].get<std::string>());
     } catch (...) {}
     return {};
+}
+
+QStringList ProjectPanel::extractOfflineFiles(const QString &stateJson) const
+{
+    QStringList result;
+    if (stateJson.isEmpty()) return result;
+    try {
+        auto j = nlohmann::json::parse(stateJson.toStdString());
+        // v2 格式: resources.offline
+        if (j.contains("resources") && j["resources"].contains("offline") &&
+            j["resources"]["offline"].is_array()) {
+            for (const auto &f : j["resources"]["offline"])
+                if (f.is_string())
+                    result << QString::fromStdString(f.get<std::string>());
+        }
+    } catch (...) {}
+    return result;
 }
 
 // ============================================================

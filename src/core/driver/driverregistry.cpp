@@ -333,9 +333,12 @@ std::vector<ICanDevice::DeviceInfo> DriverRegistry::enumerateDevices() const
             if (!plugin)
                 continue;
             auto devs = plugin->enumerateDevices();
+            list.reserve(list.size() + devs.size());
             for (auto &d : devs) {
                 d.driverId = e.driverId;
-                list.push_back(d);
+                // move 转移（DEF-06 复现缓解）：逐元素深拷贝需解引用插件侧
+                // 堆字符串（源对象存在被厂商线程踩的风险），move 仅搬指针
+                list.push_back(std::move(d));
             }
             continue;
         }

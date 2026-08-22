@@ -28,13 +28,16 @@
 - [CMakeLists.txt](file://src/CMakeLists.txt)
 - [test_canfileio.cpp](file://tests/test_canfileio.cpp)
 - [测试报告.md](file://doc/测试报告.md)
+- [离线分析ASC兼容与工程现场还原方案.md](file://doc/离线分析ASC兼容与工程现场还原方案.md)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- 修复了BLF读取器的二进制布局问题（DEF-02），包括消息对象二进制布局错位、头部解析位置错误等关键bug
-- 解决了ASC格式扩展帧前后缀不一致问题（DEF-03），确保与CANoe导出文件的往返兼容性
-- 更新了相关测试用例以验证修复效果，包括自写自读闭环测试
+- ASC文件解析器已完全重写以支持第三方CANoe和ZCANPRO等工具的ASC文件格式
+- 新增Format A和Format B格式支持，包括CAN/CANFD关键字、ID前置格式等
+- 增强的头部处理逻辑，支持`internal events logged`、`Begin TriggerBlock`等结构行
+- 向后兼容性保持，确保本软件录制的ASC文件仍能正常解析
+- 统一了AscReader和AscImporter的解析逻辑，消除两套实现的不一致问题
 - 增强了错误处理和边界情况处理能力
 
 ## 目录
@@ -52,7 +55,7 @@
 ## 简介
 本文件面向CAN文件IO子系统，系统化梳理其整体架构、模块职责、数据流与关键算法，帮助读者快速理解并扩展支持新的CAN日志格式。该子系统负责读取多种CAN总线日志文件（如ASC、BLF、CSV、PCAP、TRC），将其统一转换为内部帧模型，并通过工厂模式与导入器进行解耦，便于后续播放、记录与分析。
 
-**更新** 已修复BLF读取器的二进制布局问题（DEF-02）和ASC格式扩展帧前后缀不一致问题（DEF-03），确保了解析的准确性和格式的兼容性。
+**重大更新** ASC文件解析器已完全重写，现在支持第三方工具（CANoe、ZCANPRO等）导出的ASC文件格式，包括Format A和Format B格式支持、增强的头部处理逻辑、向后兼容性保持等重大改进。
 
 ## 项目结构
 CAN文件IO子系统位于 src/core/canfileio 目录下，围绕统一的接口抽象与多格式实现组织代码；与之配套的导入器位于 src/core/file_import，用于将底层解析结果映射为应用层可消费的数据流。
@@ -62,7 +65,7 @@ graph TB
 subgraph "CAN文件IO"
 A["canfileio.h/.cpp<br/>统一接口与基类"]
 B["canfileio_factory.h/.cpp<br/>工厂：按后缀选择解析器"]
-C["asc.h/.cpp<br/>ASC文本解析<br/>已修复前后缀一致性"]
+C["asc.h/.cpp<br/>ASC文本解析<br/>已完全重写支持第三方格式"]
 D["blf.h/.cpp<br/>BLF读写实现<br/>已修复二进制布局"]
 E["csv.h/.cpp<br/>CSV文本解析"]
 F["pcap_reader.h/.cpp<br/>PCAP解析"]
@@ -70,7 +73,7 @@ G["trc_reader.h/.cpp<br/>TRC解析"]
 end
 subgraph "导入器"
 H["file_importer.h/.cpp<br/>导入器基类"]
-I["asc_importer.h/.cpp"]
+I["asc_importer.h/.cpp<br/>与AscReader逻辑统一"]
 J["blf_importer.h/.cpp<br/>简化实现"]
 K["csv_importer.h/.cpp"]
 end
@@ -127,7 +130,7 @@ D --> M
 - 导入器：将解析出的原始帧转换为应用层数据结构，并提供进度、错误回调与批量读取能力。
 - 帧模型：统一表示CAN帧（标识符、DLC、数据、时间戳、通道等）。
 
-**更新** 已修复BLF读取器的二进制布局问题和ASC格式的前后缀一致性问题，确保了解析的准确性。
+**重大更新** ASC解析器现已完全重写，支持第三方工具导出的ASC文件格式，消除了之前两套解析实现不一致的问题。
 
 章节来源
 - [canframe.h](file://src/core/canframe.h)
@@ -155,7 +158,10 @@ App->>Reader : "打开文件"
 Reader-->>App : "成功/失败"
 loop 逐批读取
 App->>Reader : "读取一批帧"
-alt BLF格式
+alt ASC格式已重写
+Reader->>Importer : "使用统一的token化解析逻辑"
+Importer-->>Reader : "标准化帧对象"
+else BLF格式
 Reader->>Importer : "使用修复后的解析逻辑"
 Importer-->>Reader : "标准化帧对象"
 else 其他格式
@@ -207,7 +213,7 @@ class CanFileIO {
 }
 class AscReader {
 +open(path) bool
-+readBatch(count) FrameList
++readAll(frames) int
 +close() void
 }
 class BlfReader {
@@ -278,14 +284,19 @@ Error --> End
 - [canfileio_factory.h](file://src/core/canfileio/canfileio_factory.h)
 - [canfileio_factory.cpp](file://src/core/canfileio/canfileio_factory.cpp)
 
-### ASC解析器（asc）— 已修复前后缀一致性
+### ASC解析器（asc）— 已完全重写支持第三方格式
 - 职责：解析ASCII文本格式的CAN日志，支持时间戳、通道、ID、DLC、数据字段及注释行。
-- **更新** 已修复扩展帧前后缀不一致问题（DEF-03），确保与CANoe导出文件的往返兼容性。
+- **重大更新** 已完全重写以支持第三方CANoe和ZCANPRO等工具的ASC文件格式。
 - 关键点：
-  - 行级状态机解析，忽略注释与空行。
-  - 时间戳归一化（相对/绝对）与精度处理。
-  - **修复**：扩展帧ID现在正确添加"x"后缀，与读取端保持一致。
-  - 错误行跳过与统计计数，保障鲁棒性。
+  - **统一解析逻辑**：将AscImporter的健壮token解析逻辑移植到AscReader中，消除两套实现的不一致。
+  - **Format A支持**：`<time> [CAN|CANFD] <ch> <Dir> [FD[x]] <id> ...`
+  - **Format B支持**：`<time> [CAN|CANFD] <ch> <id> <Dir> ...`（ID在方向之前）
+  - **增强的头部处理**：支持`internal events logged`、`Begin/End TriggerBlock`、版本注释等结构行
+  - **CAN/CANFD关键字**：正确处理CANoe导出的关键字格式
+  - **flags列处理**：跳过CANFD格式中的flags×2字段
+  - **dlc码/dataLen分离**：正确处理十六进制dlc码和十进制dataLen
+  - **行尾附加列**：自动忽略CANoe导出中的持续时间/周期等附加列
+  - **向后兼容**：保持对本软件格式的行尾BRS/ESI检测
 
 ```mermaid
 flowchart TD
@@ -293,12 +304,18 @@ S(["打开文件"]) --> ReadLine["逐行读取"]
 ReadLine --> Parse{"是否为有效帧行?"}
 Parse -- 否 --> Skip["跳过/统计"]
 Skip --> ReadLine
-Parse -- 是 --> Extract["提取字段(ID/DLC/Data/Timestamp)"]
-Extract --> CheckFD{"是否扩展帧?"}
-CheckFD -- 是 --> AddSuffix["添加x后缀"]
-CheckFD -- 否 --> NoSuffix["保持原样"]
-AddSuffix --> Normalize["时间戳归一化"]
-NoSuffix --> Normalize
+Parse -- 是 --> Tokenize["Token化解析"]
+Tokenize --> DetectFormat{"检测格式类型"}
+DetectFormat --> |Format A| ParseFormatA["解析Format A"]
+DetectFormat --> |Format B| ParseFormatB["解析Format B"]
+DetectFormat --> |CAN关键字| ParseWithKW["带关键字解析"]
+ParseFormatA --> ExtractFields["提取字段(ID/DLC/Data/Timestamp)"]
+ParseFormatB --> ExtractFields
+ParseWithKW --> ExtractFields
+ExtractFields --> CheckFD{"是否CAN FD?"}
+CheckFD -- 是 --> HandleFlags["处理flags列和BRS/ESI"]
+CheckFD -- 否 --> Normalize["时间戳归一化"]
+HandleFlags --> Normalize
 Normalize --> Emit["输出帧对象"]
 Emit --> ReadLine
 ReadLine --> EOF{"到达末尾?"}
@@ -452,6 +469,7 @@ End -- 是 --> Close(["关闭文件"])
 ### 导入器体系（file_importer 及其子类）
 - 职责：将解析器输出的原始帧转换为应用层可用的帧集合，提供进度、错误回调、过滤与去重。
 - **更新** BLF导入器现已大幅简化，仅负责调用BlfReader并处理基本错误。
+- **重要更新** AscImporter与AscReader现使用统一的解析逻辑，消除了之前的不一致问题。
 - 关键点：
   - 基类定义统一的导入接口与生命周期。
   - 各格式导入器实现特定的字段映射与规范化。
@@ -466,6 +484,7 @@ class FileImporter {
 }
 class AscImporter {
 +import(...)
++parseLine(line, frame) bool
 }
 class BlfImporter {
 +import(...)
@@ -508,12 +527,12 @@ FileImporter <|-- CsvImporter
 ```mermaid
 graph LR
 App["应用层"] --> Factory["解析器工厂"]
-Factory --> Asc["ASC解析器<br/>已修复前后缀"]
+Factory --> Asc["ASC解析器<br/>已完全重写支持第三方格式"]
 Factory --> Blf["BLF读写器<br/>已修复二进制布局"]
 Factory --> Csv["CSV解析器"]
 Factory --> Pcap["PCAP解析器"]
 Factory --> Trc["TRC解析器"]
-Asc --> Importer["导入器"]
+Asc --> Importer["导入器<br/>与AscReader逻辑统一"]
 Blf --> Importer
 Csv --> Importer
 Pcap --> Importer
@@ -547,12 +566,15 @@ Blf --> Zlib["Zlib压缩库"]
 - 过滤下推：尽可能在解析器侧进行过滤，减少无效数据传输。
 - 并发与线程：导入过程可异步执行，配合消息队列与进度回调，保持UI响应。
 - **更新** Vector BLF库优化：利用库内置的zlib压缩支持和内存映射功能提升大文件处理性能；写入时采用流式模式减少内存占用。
+- **更新** ASC解析优化：使用正则表达式进行高效的头部行匹配，token化解析提高解析效率。
 
 ## 故障排查指南
 - 无法识别格式：检查文件后缀与内容探测逻辑，确认工厂注册表是否包含该格式。
 - 解析失败或乱码：核对编码（UTF-8/ANSI）、列头约定、时间戳单位与精度。
-- **更新** BLF读写问题：检查Vector BLF库是否正确链接，确认文件完整性；验证zlib库可用性；确认二进制布局修复已生效。
-- **更新** ASC格式问题：检查扩展帧前后缀一致性，确保"x"后缀正确添加。
+- **更新** ASC解析问题：检查文件格式是否为CANoe或ZCANPRO导出的格式，确认头部行是否正确跳过。
+- **更新** 第三方ASC文件：验证是否包含CAN/CANFD关键字、flags列、dlc码/dataLen分离等特性。
+- **更新** 格式兼容性：确认Format A和Format B格式都能正确解析。
+- BLF读写问题：检查Vector BLF库是否正确链接，确认文件完整性；验证zlib库可用性；确认二进制布局修复已生效。
 - 构建问题：确保vector_blf库存在且可编译，检查CMake配置中的条件链接逻辑。
 - 性能问题：增大批次大小、启用内存映射、减少不必要的字符串拷贝。
 - 内存泄漏：确保所有打开的文件句柄在异常路径也能正确关闭。
@@ -565,7 +587,7 @@ Blf --> Zlib["Zlib压缩库"]
 - [file_importer.cpp](file://src/core/file_import/file_importer.cpp)
 
 ## 结论
-CAN文件IO子系统通过统一的接口抽象、工厂模式与导入器机制，实现了多格式解析的高内聚、低耦合与可扩展性。**更新** 已修复BLF读取器的二进制布局问题（DEF-02）和ASC格式的前后缀一致性问题（DEF-03），确保了解析的准确性和格式的兼容性。建议在新增格式时优先完善内容探测与时间戳归一化，并在导入器中提供完善的错误与进度反馈，以提升用户体验与系统稳定性。
+CAN文件IO子系统通过统一的接口抽象、工厂模式与导入器机制，实现了多格式解析的高内聚、低耦合与可扩展性。**重大更新** ASC文件解析器已完全重写以支持第三方CANoe和ZCANPRO等工具的ASC文件格式，包括Format A和Format B格式支持、增强的头部处理逻辑、向后兼容性保持等重大改进。同时已修复BLF读取器的二进制布局问题（DEF-02），确保了解析的准确性和格式的兼容性。建议在新增格式时优先完善内容探测与时间戳归一化，并在导入器中提供完善的错误与进度反馈，以提升用户体验与系统稳定性。
 
 ## 附录
 - 术语说明：
@@ -573,19 +595,25 @@ CAN文件IO子系统通过统一的接口抽象、工厂模式与导入器机制
   - 导入器：将解析结果转换为应用层可用数据的中间层。
   - 工厂：根据文件或内容特征选择合适解析器的组件。
   - Vector BLF库：Vector Technologies提供的BLF文件格式读写库。
-- **更新** 最佳实践：
+  - Format A：标准格式 `<time> [CAN|CANFD] <ch> <Dir> [FD[x]] <id> ...`
+  - Format B：ID前置格式 `<time> [CAN|CANFD] <ch> <id> <Dir> ...`
+- **重大更新** 最佳实践：
   - 始终在解析器中做最小必要转换，复杂业务逻辑放在导入器或上层。
   - 对异常输入保持健壮性，记录统计信息以便定位问题。
   - 为大文件提供断点续读与增量导入能力。
   - 充分利用第三方库的功能而非重复实现。
   - BLF写入时使用流式模式，避免大量数据累积在内存中。
   - 正确处理时间戳转换，确保纳秒级精度的准确性。
-  - **新增** 验证修复后的解析逻辑，确保二进制布局正确性和格式兼容性。
+  - **新增** 验证第三方ASC文件格式兼容性，确保Format A和Format B都能正确解析。
+  - **新增** 使用统一的token化解析逻辑，避免两套实现的不一致问题。
+  - **新增** 增强头部处理逻辑，支持各种结构行和注释行。
 
 **修复验证**
 - DEF-02：BLF读取器四类报文对象二进制布局已修复，通过readSmallBlf和readLargeBlfTiming测试用例验证
-- DEF-03：ASC扩展帧前后缀不一致问题已解决，通过writeReadAscRoundtrip测试用例验证往返兼容性
+- **新增** ASC第三方格式支持：通过readAscV7ThirdParty和readAscV15ThirdParty测试用例验证CANoe 7.0和15.7格式兼容性
+- **新增** 格式一致性：通过writeReadAscRoundtrip测试用例验证本软件格式闭环不被破坏
 
 **章节来源**
 - [test_canfileio.cpp](file://tests/test_canfileio.cpp)
 - [测试报告.md](file://doc/测试报告.md)
+- [离线分析ASC兼容与工程现场还原方案.md](file://doc/离线分析ASC兼容与工程现场还原方案.md)

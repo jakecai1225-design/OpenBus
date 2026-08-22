@@ -110,6 +110,11 @@ void TransceiveModule::invoke(const QString &action, const QVariant &arg)
             if (tab && list.size() == 2)
                 tab->setPlayerLoaded(list.at(0).toBool(), list.at(1).toBool());
         }
+    } else if (action == QStringLiteral("addOfflineFiles")) {
+        // 工程恢复：离线分析页不存在时静默忽略（与其他 action 约定一致）
+        if (QWidget *w = m_pages.value(QStringLiteral("offlineanalysis")))
+            if (auto *tab = qobject_cast<OfflineAnalysisTab *>(w))
+                tab->addFiles(arg.toStringList());
     }
 }
 

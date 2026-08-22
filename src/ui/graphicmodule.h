@@ -2,6 +2,7 @@
 #define GRAPHIC_MODULE_H
 
 #include "core/module/imodule.h"
+#include "core/canframe.h"
 
 #include <QList>
 #include <QMap>
@@ -46,6 +47,10 @@ private:
     QList<QPointer<GraphicView>> m_viewList;                      ///< All created views (for iteration onFrame/clearDataAll)
     DataWindow *m_dataWindow = nullptr;                            ///< Cached DataWindow instance (single)
     ShellContext m_ctx;                                           ///< Stored context for dialog/dataWindow parent
+
+    /// 离线回放源（Player 已加载时输出全量帧指针 + 已播前缀计数到 *count；
+    /// 实时采集模式返回 nullptr——数据流不回头，无历史可回填）
+    const QVector<CanFrame> *replayHistory(int *count) const;
 };
 
 #endif // GRAPHIC_MODULE_H

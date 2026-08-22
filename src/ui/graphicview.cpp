@@ -1709,7 +1709,8 @@ void GraphicView::applyYAxisMode()
     m_plot->replot();
 }
 
-void GraphicView::addSignal(const Signal &sig)
+void GraphicView::addSignal(const Signal &sig,
+                            const QVector<CanFrame> *history, int historyCount)
 {
     SignalData sd;
     sd.config = sig;
@@ -1727,6 +1728,10 @@ void GraphicView::addSignal(const Signal &sig)
     QCPAxis *xAxis = sd.axisRect->axis(QCPAxis::atBottom);
     if (QCPAxis *px = primaryXAxis())
         xAxis->setRange(px->range());
+    else if (m_currentTime > 0.0)
+        // 全部轨道隐藏时的兜底：按当前数据时间感知（绝对时间戳文件下
+        // 不再错位到 [0, window] 无数据区）
+        xAxis->setRange(std::max(0.0, m_currentTime - m_timeWindow), m_currentTime);
     else
         xAxis->setRange(0, m_timeWindow);
 
@@ -1765,7 +1770,32 @@ void GraphicView::addSignal(const Signal &sig)
         applyYAxisMode();
     else
         layoutAxisRects();
+
+    // 离线回放历史回填：重扫已播前缀仅写本信号（CANoe 同款——
+    // 添加即显示完整历史曲线；实时采集模式 history 为空、行为不变）
+    if (history && !history->isEmpty()) {
+        const int count = historyCount < 0 ? history->size()
+                                           : qMin(historyCount, history->size());
+        SignalData &ns = m_signals.last();
+        for (int i = 0; i < count; ++i) {
+            const CanFrame &f = history->at(i);
+            if ((f.id & 0x1FFFFFFF) == sig.canId && f.extended == sig.extended) {
+                double val = extractValue(f, sig);
+                if (!std::isnan(val))
+                    pushSample(ns, f.timestamp, val);
+            }
+        }
+        // 回填数据量大，Y 轴按数据范围自适应（同 loadFile 既有逻辑）
+        ensureMinMax(ns);
+        if (QCPAxis *ya = valueAxisFor(ns); ya && ns.hasMinMax) {
+            double margin = (ns.dataMax - ns.dataMin) * 0.05;
+            if (margin <= 0) margin = 1.0;
+            ya->setRange(ns.dataMin - margin, ns.dataMax + margin);
+        }
+    }
+
     updateSignalList();
+    refreshDisplayData();   // 分栏模式补齐（叠加模式经 applyYAxisMode 已含，幂等）
     m_plot->replot();
 }
 
@@ -2298,6 +2328,21 @@ QVector<GraphicView::Signal> GraphicView::signalConfigs() const
     for (const auto &sd : m_signals)
         result.append(sd.config);
     return result;
+}
+
+int GraphicView::displayedPointCount(int index) const
+{
+    if (index < 0 || index >= m_signals.size())
+        return -1;
+    const auto &sd = m_signals.at(index);
+    return sd.graph ? sd.graph->data()->size() : 0;
+}
+
+int GraphicView::rawSampleCount(int index) const
+{
+    if (index < 0 || index >= m_signals.size())
+        return -1;
+    return m_signals.at(index).rawData.size();
 }
 
 void GraphicView::loadSignalConfigs(const QVector<Signal> &configs)

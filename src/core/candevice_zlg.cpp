@@ -751,6 +751,12 @@ std::vector<ICanDevice::DeviceInfo> CanDeviceZLG::enumerate()
     OPENBUS_LOG_INFO("CanDeviceZLG", "enumerate: scanning {} device types",
                  (int)(sizeof(types) / sizeof(types[0])));
 
+    // 探测阶段只收集 POD 结果（不含堆对象）：全部 open/close 完成并等
+    // 厂商接收线程静默后再统一构造 DeviceInfo——name 等堆分配远离
+    // ZCAN_OpenDevice/CloseDevice 竞态窗口（DEF-06 复现缓解）
+    struct Found { DeviceType type; int idx; int channels; };
+    std::vector<Found> found;
+
     for (const auto &e : types) {
         for (int idx = 0; idx < 4; ++idx) {
             // 尝试打开设备 — ZCAN_OpenDevice(type, index, reserved)
@@ -767,16 +773,25 @@ std::vector<ICanDevice::DeviceInfo> CanDeviceZLG::enumerate()
             OPENBUS_LOG_INFO("CanDeviceZLG", "  Opened: type={} idx={}",
                          static_cast<int>(e.type), idx);
             fn_close(h);
-
-            DeviceInfo info;
-            info.deviceType = static_cast<int>(e.type);
-            info.deviceIndex = idx;
-            info.channels = e.channels;
-            // DEF-06：静态查表取名，不在 push_back 表达式内构造/析构
-            // CanDeviceZLG 临时对象（减小枚举循环里的对象活动面）
-            info.name = typeName(e.type) + QStringLiteral(" #%1").arg(idx);
-            list.push_back(info);
+            found.push_back({ e.type, idx, e.channels });
         }
+    }
+
+    // 厂商接收线程在 ZCAN_CloseDevice 后仍短暂活动（崩溃现场曾观察到
+    // close 后继续打印 CCanDeviceRecvDataThread 日志，堆块被踩即此窗口），
+    // 等待其静默后再做堆分配
+    if (!found.empty())
+        QThread::msleep(150);
+
+    for (const auto &f : found) {
+        DeviceInfo info;
+        info.deviceType = static_cast<int>(f.type);
+        info.deviceIndex = f.idx;
+        info.channels = f.channels;
+        // DEF-06：静态查表取名，不在 push_back 表达式内构造/析构
+        // CanDeviceZLG 临时对象（减小枚举循环里的对象活动面）
+        info.name = typeName(f.type) + QStringLiteral(" #%1").arg(f.idx);
+        list.push_back(std::move(info));
     }
 
     OPENBUS_LOG_INFO("CanDeviceZLG", "enumerate: found {} devices", (int)list.size());

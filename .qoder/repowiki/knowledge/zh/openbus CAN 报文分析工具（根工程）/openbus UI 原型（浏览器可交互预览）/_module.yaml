@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: ui_prototype
+title: openbus UI 原型（浏览器可交互预览）
+scope:
+    - UI/
+source_files: []
+depends_on: []
+related_to:
+    - path: resources_and_styles

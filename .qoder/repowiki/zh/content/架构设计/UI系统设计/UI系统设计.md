@@ -67,37 +67,49 @@
 - [src/core/module/moduleregistry.cpp](file://src/core/module/moduleregistry.cpp)
 - [src/ui/marketmodule.h](file://src/ui/marketmodule.h)
 - [src/ui/transceivemodule.h](file://src/ui/transceivemodule.h)
+- [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
 - [src/ui/dbcmodule.h](file://src/ui/dbcmodule.h)
 - [src/ui/flowmodule.h](file://src/ui/flowmodule.h)
+- [src/ui/flowmodule.cpp](file://src/ui/flowmodule.cpp)
 - [src/ui/tracemodule.h](file://src/ui/tracemodule.h)
 - [src/ui/graphicmodule.h](file://src/ui/graphicmodule.h)
+- [src/core/protocol/iprotocoladapter.h](file://src/core/protocol/iprotocoladapter.h)
+- [src/core/protocol/canprotocoladapter.h](file://src/core/protocol/canprotocoladapter.h)
+- [src/core/protocol/canprotocoladapter.cpp](file://src/core/protocol/canprotocoladapter.cpp)
+- [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
+- [src/core/protocol/parserregistry.h](file://src/core/protocol/parserregistry.h)
+- [src/core/ibusparser.h](file://src/core/ibusparser.h)
+- [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
+- [src/ui/offlineanalysistab.cpp](file://src/ui/offlineanalysistab.cpp)
+- [src/ui/mainwindow_project.cpp](file://src/ui/mainwindow_project.cpp)
+- [src/core/projectmanager.h](file://src/core/projectmanager.h)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- 新增模块化UI架构章节，详细说明market、transceive、DBC、flow、trace和graphic模块作为独立DLL的工厂创建机制
-- 更新核心组件分析，增加IBusinessModule接口和ModuleRegistry注册表的设计说明
-- 重构架构总览图，展示新的模块化工厂模式
-- 新增模块系统详细分析，包括各模块的职责划分和通信机制
-- 更新依赖关系分析，反映新的DLL化架构
-- 增强故障排查指南，包含模块加载和工厂创建相关问题
+- 新增transceiver模块的'addOfflineFiles'动作支持，实现离线分析文件的程序化添加功能
+- 增强项目面板中离线分析文件的分类节点显示功能，支持工程状态恢复时的文件列表重建
+- 更新TransceiveModule的动作处理机制，增加对离线分析页面的动态访问和文件管理
+- 完善OfflineAnalysisTab组件的公共接口，提供addFiles方法用于批量文件添加
+- 改进项目状态管理机制，确保离线分析文件在工程加载时正确恢复
 
 ## 目录
 1. [简介](#简介)
 2. [项目结构](#项目结构)
 3. [核心组件](#核心组件)
 4. [架构总览](#架构总览)
-5. [模块化UI架构](#模块化ui架构)
-6. [详细组件分析](#详细组件分析)
-7. [增强图形组件](#增强图形组件)
-8. [插件系统集成](#插件系统集成)
-9. [专用Tab组件系统](#专用tab组件系统)
-10. [工具集系统](#工具集系统)
-11. [依赖关系分析](#依赖关系分析)
-12. [性能考虑](#性能考虑)
-13. [故障排查指南](#故障排查指南)
-14. [结论](#结论)
-15. [附录](#附录)
+5. [Flow架构与协议抽象系统](#flow架构与协议抽象系统)
+6. [模块化UI架构](#模块化ui架构)
+7. [详细组件分析](#详细组件分析)
+8. [增强图形组件](#增强图形组件)
+9. [插件系统集成](#插件系统集成)
+10. [专用Tab组件系统](#专用tab组件系统)
+11. [工具集系统](#工具集系统)
+12. [依赖关系分析](#依赖关系分析)
+13. [性能考虑](#性能考虑)
+14. [故障排查指南](#故障排查指南)
+15. [结论](#结论)
+16. [附录](#附录)
 
 ## 简介
 本文件面向基于Qt Widgets和现代Web技术的混合UI系统，系统化阐述UI架构模式、组件层次与布局策略；详细说明QSS样式体系、主题管理与动态样式更新；解释资源文件组织、Qt资源系统与多语言支持；并给出响应式设计、可访问性与跨平台兼容性的实践建议。同时提供UI组件开发规范、样式定制指南与性能优化建议，辅以设计模式与最佳实践示例，帮助团队在Qt Widgets项目中构建高质量、可维护且高性能的用户界面。
@@ -109,6 +121,10 @@
 **插件系统增强** 系统现在集成了完整的Python插件架构，支持动态加载和执行外部Python脚本。GraphicView组件通过扩展点接口允许插件自定义信号可视化行为，包括添加自定义图表类型、修改渲染逻辑和扩展用户交互。插件系统采用JSON-RPC协议进行主程序与Python宿主进程间的通信，提供了稳定的异步消息传递机制。
 
 **模块化架构增强** 系统现已完成从单体架构向模块化DLL架构的重构，将市场、收发、DBC、流程、跟踪和图形等核心功能模块拆分为独立的DLL，通过工厂模式进行创建和管理。这种架构设计提高了系统的可扩展性、可维护性和部署灵活性，支持按需加载和功能模块的动态管理。
+
+**Flow架构增强** 系统现已引入全新的Flow架构和协议抽象系统，通过IBusinessModule接口和ModuleRegistry注册表实现了模块化的业务逻辑管理。新增的协议适配器模式支持多种总线协议（CAN、EtherCAT等）的统一接口访问，为未来的协议扩展奠定了坚实基础。Flow模块作为测量流程的核心，整合了测量配置和设备连接功能，提供了统一的工作流程管理界面。
+
+**最新改进** 系统新增了transceiver模块的'addOfflineFiles'动作支持，实现了离线分析文件的程序化添加功能。该功能允许在项目状态恢复时自动重建离线分析文件列表，并通过TransceiveModule转发到对应的OfflineAnalysisTab进行处理。项目面板现在支持离线分析文件的分类节点显示，确保工程加载时能够正确恢复用户的分析工作上下文。
 
 ## 项目结构
 本项目采用分层与按功能划分的组织方式，结合了传统Qt Widgets架构和现代Web前端技术：
@@ -166,6 +182,13 @@ LL --> NN["main.py"]
 B --> OO["src/core/module/*"]
 OO --> PP["imodule.h"]
 OO --> QQ["moduleregistry.h/.cpp"]
+B --> RR["src/core/protocol/*"]
+RR --> SS["iprotocoladapter.h"]
+RR --> TT["canprotocoladapter.h/.cpp"]
+RR --> UU["protocolregistry.h"]
+RR --> VV["parserregistry.h"]
+B --> WW["src/ui/offlineanalysistab.h/.cpp"]
+B --> XX["src/ui/transceivemodule.h/.cpp"]
 ```
 
 **图表来源**
@@ -182,6 +205,12 @@ OO --> QQ["moduleregistry.h/.cpp"]
 - [scripts/sin_host.py](file://scripts/sin_host.py)
 - [src/core/module/imodule.h](file://src/core/module/imodule.h)
 - [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
+- [src/core/protocol/iprotocoladapter.h](file://src/core/protocol/iprotocoladapter.h)
+- [src/core/protocol/canprotocoladapter.h](file://src/core/protocol/canprotocoladapter.h)
+- [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
+- [src/core/protocol/parserregistry.h](file://src/core/protocol/parserregistry.h)
+- [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
+- [src/ui/transceivemodule.h](file://src/ui/transceivemodule.h)
 
 章节来源
 - [CMakeLists.txt](file://CMakeLists.txt)
@@ -205,11 +234,18 @@ OO --> QQ["moduleregistry.h/.cpp"]
 - **新增** Downsample模块: 高性能视口降采样算法，支持四种抽稀策略
 - **新增** PluginManager: 插件管理器，负责插件发现、激活和生命周期管理
 - **新增** PluginHost: Python插件宿主进程管理，支持JSON-RPC通信
-- **新增** sin_host.py: Python插件宿主脚本，提供插件执行环境
 - **新增** IBusinessModule: 业务模块接口，定义模块契约和工厂创建机制
 - **新增** ModuleRegistry: 模块注册表，管理模块工厂和实例生命周期
+- **新增** IProtocolAdapter: 协议适配器接口，支持多种总线协议的统一访问
+- **新增** CanProtocolAdapter: CAN协议适配器实现，提供CAN总线协议的具体功能
+- **新增** ProtocolRegistry: 协议适配器注册表，管理协议适配器的发现和加载
+- **新增** ParserRegistry: 解析器注册表，管理协议描述文件的解析器
+- **新增** OfflineAnalysisTab: 离线分析标签页，支持文件列表管理和异步解析
+- **新增** addOfflineFiles动作: TransceiveModule的新增动作，支持程序化添加离线分析文件
 
-**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过Min/Max、Average、First、Decimate四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。
+**更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过Min/Max、Average、First、Decimate四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。**
+
+**最新增强** 系统新增了transceiver模块的'addOfflineFiles'动作支持，实现了离线分析文件的程序化添加功能。该功能通过TransceiveModule的invoke方法处理，当接收到"addOfflineFiles"动作时，会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。项目面板现在支持离线分析文件的分类节点显示，确保工程加载时能够正确恢复用户的分析工作上下文。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -225,9 +261,12 @@ OO --> QQ["moduleregistry.h/.cpp"]
 - [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
 - [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
 - [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
+- [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
+- [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
+- [src/ui/offlineanalysistab.cpp](file://src/ui/offlineanalysistab.cpp)
 
 ## 架构总览
-整体采用"入口初始化 + 主窗口容器 + 样式/资源分离 + Web前端集成 + 插件系统 + 模块化DLL架构"的混合架构模式：
+整体采用"入口初始化 + 主窗口容器 + 样式/资源分离 + Web前端集成 + 插件系统 + 模块化DLL架构 + Flow架构"的混合架构模式：
 - 入口负责生命周期与全局样式注入
 - 主窗口作为UI根节点，组织子控件与布局
 - 样式通过ThemeManager集中管理，支持运行时切换
@@ -240,8 +279,12 @@ OO --> QQ["moduleregistry.h/.cpp"]
 - **新增** Downsample模块提供高性能视口降采样算法
 - **新增** 插件系统提供Python脚本执行环境和动态扩展能力
 - **新增** 模块化DLL架构提供功能模块的独立编译和动态加载
+- **新增** Flow架构提供测量流程管理和协议抽象能力
+- **新增** 离线分析文件管理支持，通过addOfflineFiles动作实现程序化文件添加
 
-**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数。FilterHeaderView组件通过自定义排序指示器和漏斗图标，提供了Wireshark风格的表头界面，增强了数据表的交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。
+**更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数。FilterHeaderView组件通过自定义排序指示器和漏斗图标，提供了Wireshark风格的表头界面，增强了数据表的交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。**
+
+**最新改进** 系统新增了离线分析文件管理功能，通过TransceiveModule的'addOfflineFiles'动作实现了程序化的文件添加机制。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。项目面板现在支持离线分析文件的分类节点显示，提供了更好的文件组织和管理能力。
 
 ```mermaid
 graph TB
@@ -252,13 +295,18 @@ TM["ThemeManager<br/>主题管理器"]
 SD["SettingsDialog<br/>设置对话框"]
 PM["PluginManager<br/>插件管理器"]
 MR["ModuleRegistry<br/>模块注册表"]
+PR["ProtocolRegistry<br/>协议注册表"]
+end
+subgraph "Flow架构层"
+IM["IBusinessModule<br/>模块接口"]
+FM["FlowModule<br/>流程模块"]
+PA["IProtocolAdapter<br/>协议适配器"]
+CA["CanProtocolAdapter<br/>CAN适配器"]
 end
 subgraph "模块系统层"
-IM["IBusinessModule<br/>模块接口"]
 MM["MarketModule<br/>市场模块"]
-TMOD["TransceiveModule<br/>收发模块"]
+TMOD["TransceiveModule<br/>收发模块<br/>新增addOfflineFiles动作"]
 DM["DbcModule<br/>DBC模块"]
-FM["FlowModule<br/>流程模块"]
 TRM["TraceModule<br/>跟踪模块"]
 GM["GraphicModule<br/>图形模块"]
 end
@@ -289,6 +337,7 @@ DBCT["DBCDetailTab<br/>DBC详情标签页"]
 PB["PlaybackTab<br/>播放控制标签页<br/>循环回放增强"]
 RT["RecordTab<br/>录制标签页<br/>暂停恢复增强"]
 TT["TraceTab<br/>跟踪标签页<br/>刷新率控制增强"]
+OAT["OfflineAnalysisTab<br/>离线分析标签页<br/>新增addFiles方法"]
 end
 subgraph "工具集系统层"
 TPN["ToolsPanel<br/>工具集面板"]
@@ -320,6 +369,7 @@ M --> TM
 M --> SD
 M --> PM
 M --> MR
+M --> PR
 M --> WPH
 WPH --> WL
 WPH --> WP
@@ -335,6 +385,7 @@ MW --> PB
 MW --> RT
 MW --> TT
 MW --> TP
+MW --> OAT
 SEA --> FB
 SEA --> GV
 SEA --> TV
@@ -368,6 +419,8 @@ IM --> DM
 IM --> FM
 IM --> TRM
 IM --> GM
+PR --> PA
+PA --> CA
 ```
 
 **图表来源**
@@ -388,6 +441,427 @@ IM --> GM
 - [third_party/qcustomplot/qcustomplot.h](file://third_party/qcustomplot/qcustomplot.h)
 - [src/core/module/imodule.h](file://src/core/module/imodule.h)
 - [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
+- [src/core/protocol/iprotocoladapter.h](file://src/core/protocol/iprotocoladapter.h)
+- [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
+- [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
+- [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
+
+## Flow架构与协议抽象系统
+
+### Flow架构概述
+Flow架构是系统的核心业务流程管理框架，通过模块化的设计实现了测量流程的统一管理和协议抽象。该架构包含两个主要组成部分：业务模块接口系统和协议适配器系统。
+
+**核心设计理念**
+- 解耦业务逻辑与具体实现，提高系统的可扩展性
+- 统一的模块接口定义，支持动态加载和卸载
+- 协议抽象层屏蔽不同总线协议的差异
+- 支持多种数据源（硬件、文件、模拟器）的统一管理
+
+### 业务模块接口（IBusinessModule）
+业务模块接口定义了模块与壳程序之间的唯一契约，遵循以下设计原则：
+- 业务DLL只导出一个C工厂函数返回模块接口指针
+- 模块内部所有类均为DLL私有，不跨边界导出类或符号
+- 接口只依赖Qt基础类型与数据层类型，禁止出现壳的具体类型
+- 接口只增不改：新增能力以新的虚函数或ShellContext新字段追加
+
+**核心接口特性**
+- id(): 模块标识符（如"flow"、"trace"、"graphic"等），全局唯一
+- title(): 模块默认标题，支持本地化文案
+- icon(): 模块图标，使用资源路径格式
+- createWidget(): 创建模块主标签页内容widget
+- invoke(): 模块通用动作处理，支持字符串约定的动作命令
+- pages(): 多页面模块支持，返回全部页面ID列表
+- createPage(): 创建指定页面的widget，支持参数化页面创建
+- query(): 模块状态查询，返回无效QVariant表示不支持该查询
+
+**ShellContext上下文**
+ShellContext为模块提供壳程序服务入口，包含：
+- QWidget* mainWindow: 主窗口指针，用于对话框parent和居中定位
+- Player* player: 回放器服务
+- Recorder* recorder: 录制器服务  
+- CanDeviceManager* deviceManager: 设备管理服务
+- CanSimulator* simulator: 模拟器服务
+- DbcManager* dbcManager: DBC管理服务
+- appendOutput: 底部输出回调函数
+- addProblem: 问题面板回调函数
+- shellInvoke: 模块到壳的反向动作调用
+
+```mermaid
+classDiagram
+class IBusinessModule {
++QString id() const
++QString title() const
++QIcon icon() const
++QWidget* createWidget(ShellContext& ctx)
++void invoke(QString action, QVariant arg = {})
++QStringList pages() const
++QWidget* createPage(QString pageId, ShellContext& ctx)
++QWidget* createPage(QString pageId, QVariant param, ShellContext& ctx)
++QVariant query(QString what, QVariant arg = {})
+}
+class ShellContext {
++QWidget* mainWindow
++Player* player
++Recorder* recorder
++CanDeviceManager* deviceManager
++CanSimulator* simulator
++DbcManager* dbcManager
++appendOutput function
++addProblem function
++shellInvoke function
+}
+class FlowModule {
++QString id()
++QString title()
++QIcon icon()
++QWidget* createWidget(ShellContext& ctx)
++QStringList pages()
++QWidget* createPage(QString pageId, QVariant param, ShellContext& ctx)
++void invoke(QString action, QVariant arg)
++QVariant query(QString what, QVariant arg)
+}
+IBusinessModule <|-- FlowModule
+ShellContext --> IBusinessModule : "传递给模块"
+```
+
+**图表来源**
+- [src/core/module/imodule.h:93-200](file://src/core/module/imodule.h#L93-L200)
+- [src/ui/flowmodule.h:24-48](file://src/ui/flowmodule.h#L24-L48)
+
+### 模块注册表（ModuleRegistry）
+模块注册表负责管理模块工厂和实例的生命周期，提供线程安全的模块访问接口：
+
+**核心功能**
+- registerModule(): 注册模块工厂，重复id时后者覆盖前者
+- module(): 获取模块实例，首次访问时惰性创建并缓存
+- ids(): 枚举已注册的模块ID列表
+
+**工厂模式实现**
+- 使用std::function存储模块工厂函数
+- 支持静态链接验证期（B0）和DLL化部署（B1起）两种模式
+- 模块实例懒加载，减少启动时间和内存占用
+
+```mermaid
+classDiagram
+class ModuleRegistry {
++static ModuleRegistry* instance()
++registerModule(QString id, ModuleFactory factory)
++module(QString id) IBusinessModule*
++ids() QStringList
++Entry {
++ModuleFactory factory
++IBusinessModule* instance
+}
++m_entries QHash~QString, Entry~
+}
+class ModuleFactory {
+<<function>>
+IBusinessModule* operator()()
+}
+ModuleRegistry --> ModuleFactory : "存储"
+ModuleRegistry --> IBusinessModule : "创建"
+```
+
+**图表来源**
+- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
+- [src/core/module/moduleregistry.cpp:3-22](file://src/core/module/moduleregistry.cpp#L3-L22)
+
+### 协议适配器接口（IProtocolAdapter）
+协议适配器接口定义了不同总线协议的统一访问接口，支持多种协议的扩展：
+
+**核心功能**
+- protocolId(): 协议标识符（如"can"、"ethercat"等）
+- displayName(): 协议显示名称
+- supportedSources(): 支持的源类型（hardware、file、simulator）
+- decode(): 总线消息解码为信号值
+- traceColumns(): Trace视图的列定义
+- fileFilters(): 支持的文件过滤器
+
+**协议适配器特性**
+- 零重构包装：复用现有数据层功能
+- 热路径不经过适配器：M2预埋，F1剩余时接线
+- ABI冻结：接口一经注册不再修改
+- 支持第三方协议扩展
+
+```mermaid
+classDiagram
+class IProtocolAdapter {
++QString protocolId() const
++QString displayName() const
++QString iconPath() const
++QStringList supportedSources() const
++int maxChannels() const
++QStringList acceptedParsers() const
++QList~DecodedSignal~ decode(BusMessage msg) const
++QList~TraceColumnDef~ traceColumns() const
++QString formatField(BusMessage msg, QString key) const
++QStringList fileFilters() const
++DecodedSignal {
++QString name
++double value
++QString unit
++QString raw
+}
++TraceColumnDef {
++QString key
++QString title
++int width
+}
+}
+class CanProtocolAdapter {
++QString protocolId()
++QString displayName()
++QStringList supportedSources()
++int maxChannels()
++QStringList acceptedParsers()
++QList~DecodedSignal~ decode(BusMessage msg)
++QList~TraceColumnDef~ traceColumns()
++QString formatField(BusMessage msg, QString key)
++QStringList fileFilters()
++setDbcManager(DbcManager* mgr)
+}
+IProtocolAdapter <|-- CanProtocolAdapter
+```
+
+**图表来源**
+- [src/core/protocol/iprotocoladapter.h:24-65](file://src/core/protocol/iprotocoladapter.h#L24-65)
+- [src/core/protocol/canprotocoladapter.h:17-44](file://src/core/protocol/canprotocoladapter.h#L17-L44)
+
+### CAN协议适配器（CanProtocolAdapter）
+CAN协议适配器是内置的CAN总线协议实现，提供完整的CAN协议功能：
+
+**核心功能**
+- 支持硬件、文件和模拟器三种数据源
+- 最大支持16个通道
+- 支持DBC解析器
+- 提供CAN帧的解码和格式化功能
+
+**技术实现**
+- 复用DbcManager进行信号解码
+- 使用CanUtils进行数据格式化
+- 与现有CanTraceModel保持12列定义一致
+- 支持BLF、ASC、SIN文件格式
+
+```mermaid
+classDiagram
+class CanProtocolAdapter {
++QString protocolId()
++QString displayName()
++QString iconPath()
++QStringList supportedSources()
++int maxChannels()
++QStringList acceptedParsers()
++QList~DecodedSignal~ decode(BusMessage msg)
++QList~TraceColumnDef~ traceColumns()
++QString formatField(BusMessage msg, QString key)
++QStringList fileFilters()
++setDbcManager(DbcManager* mgr)
+-m_dbcManager DbcManager*
+}
+class BusMessage {
++BusType bus
++uint32_t id
++QByteArray payload
++double timestampNs
++int channel
++BusMessageFlags flags
+}
+class DecodedSignal {
++QString name
++double value
++QString unit
++QString raw
+}
+CanProtocolAdapter --> BusMessage : "解码"
+CanProtocolAdapter --> DecodedSignal : "生成"
+```
+
+**图表来源**
+- [src/core/protocol/canprotocoladapter.cpp:10-107](file://src/core/protocol/canprotocoladapter.cpp#L10-L107)
+
+### 协议注册表（ProtocolRegistry）
+协议注册表管理所有已注册的协议适配器，提供协议发现和查找功能：
+
+**核心功能**
+- registerAdapter(): 注册协议适配器
+- findAdapter(): 按协议ID查找适配器
+- adapters(): 获取所有已注册适配器
+- count(): 获取已注册协议数量
+
+**设计特点**
+- 全进程唯一单例模式
+- 支持内置和第三方协议
+- 自动注册内置协议
+- 支持F4协议包动态加载
+
+```mermaid
+classDiagram
+class ProtocolRegistry {
++static ProtocolRegistry* instance()
++registerAdapter(IProtocolAdapter* adapter) bool
++findAdapter(QString protocolId) IProtocolAdapter*
++adapters() QList~IProtocolAdapter*~
++count() int
++adapterRegistered(QString protocolId) signal
++m_adapters QList~IProtocolAdapter*~
+}
+class IProtocolAdapter {
+<<interface>>
+}
+ProtocolRegistry --> IProtocolAdapter : "管理"
+```
+
+**图表来源**
+- [src/core/protocol/protocolregistry.h:18-45](file://src/core/protocol/protocolregistry.h#L18-L45)
+
+### 解析器注册表（ParserRegistry）
+解析器注册表管理协议描述文件的解析器，支持多种文件格式：
+
+**核心功能**
+- registerParser(): 注册解析器
+- findParser(): 按解析器ID查找
+- findParserForExtension(): 按文件扩展名查找
+- parsers(): 获取所有已注册解析器
+
+**支持的解析器**
+- DBC解析器：CAN数据库文件
+- ARXML解析器：AUTOSAR配置文件
+- J1939 DBC解析器：J1939协议数据库
+- ENI/ESI解析器：EtherCAT设备信息
+
+```mermaid
+classDiagram
+class ParserRegistry {
++static ParserRegistry* instance()
++registerParser(IBusParser* parser) bool
++findParser(QString parserId) IBusParser*
++findParserForExtension(QString ext) IBusParser*
++parsers() QList~IBusParser*~
++count() int
++parserRegistered(QString parserId) signal
++m_parsers QList~IBusParser*~
+}
+class IBusParser {
+<<interface>>
++QString parserId()
++QString displayName()
++QString iconPath()
++QStringList fileExtensions()
++BusDefinitionSet parse(QString filePath, QString* error)
+}
+ParserRegistry --> IBusParser : "管理"
+```
+
+**图表来源**
+- [src/core/protocol/parserregistry.h:17-47](file://src/core/protocol/parserregistry.h#L17-L47)
+- [src/core/protocol/ibusparser.h:17-31](file://src/core/protocol/ibusparser.h#L17-L31)
+
+### Flow模块（FlowModule）
+Flow模块是测量流程的核心实现，提供测量配置和设备连接功能：
+
+**页面结构**
+- setup: 测量配置页面（MeasurementSetupView）
+- device: 设备连接页面（DeviceConnectionTab）
+
+**核心功能**
+- 测量流程管理：数据源切换、测量启停控制
+- 设备连接管理：设备配置、连接状态管理
+- DBC文件管理：加载、同步、卸载
+- 模块实例管理：Trace和Graphic实例的生命周期
+
+**通信机制**
+- 通过ShellContext访问数据层服务
+- 使用ctx.shellInvoke进行壳程序编排操作
+- 支持跨模块的事件通信
+
+```mermaid
+classDiagram
+class FlowModule {
++QString id()
++QString title()
++QIcon icon()
++QWidget* createWidget(ShellContext& ctx)
++QStringList pages()
++QWidget* createPage(QString pageId, QVariant param, ShellContext& ctx)
++QWidget* createPage(QString pageId, ShellContext& ctx)
++void invoke(QString action, QVariant arg)
++QVariant query(QString what, QVariant arg)
+-private :
++createSetupPage(ShellContext& ctx) QWidget*
++createDevicePage(QVariant param, ShellContext& ctx) QWidget*
++cachePage(QString pageId, QWidget* page)
++m_ctx ShellContext
++m_pages QMap~QString, QPointer~QWidget~~
+}
+class MeasurementSetupView {
++Source currentSource()
++void setSource(Source source)
++void setFilePath(QString path)
++bool isBlockEnabled(QString blockId)
++void addModuleInstance(QString moduleId, QString instanceId, QString title)
++void removeModuleInstance(QString moduleId, QString instanceId)
++void clearTraceGraphicInstances()
++void rebuildScene()
+}
+class DeviceConnectionTab {
++void setDevice(int kind, int index, QString name, int type)
++void setBaudrate(int baudrate)
++void setChannel(int channel)
++void setCanFd(bool enabled)
++void setDataBaudrate(int baudrate)
++int deviceKind()
++int baudrate()
++int channel()
++bool isCanFd()
+}
+FlowModule --> MeasurementSetupView : "管理"
+FlowModule --> DeviceConnectionTab : "管理"
+```
+
+**图表来源**
+- [src/ui/flowmodule.h:24-48](file://src/ui/flowmodule.h#L24-L48)
+- [src/ui/flowmodule.cpp:27-394](file://src/ui/flowmodule.cpp#L27-L394)
+
+### Flow模块工作流程
+Flow模块的工作流程展示了测量配置的完整过程：
+
+```mermaid
+sequenceDiagram
+participant User as "用户"
+participant MSV as "MeasurementSetupView"
+participant Flow as "FlowModule"
+participant Shell as "ShellContext"
+participant Data as "数据层"
+User->>MSV : 选择数据源
+MSV->>Flow : sourceChanged信号
+Flow->>Data : 停止其他数据源
+Data-->>Flow : 停止确认
+User->>MSV : 点击开始测量
+MSV->>Flow : measurementToggled(true)
+Flow->>Shell : shellInvoke("measurementToggled", true)
+Shell->>Data : 启动数据流
+Data-->>Shell : 数据流开始
+Shell-->>MSV : 更新UI状态
+User->>MSV : 选择DBC文件
+MSV->>Flow : dbcSelectRequested
+Flow->>Data : 加载DBC文件
+Data-->>Flow : 加载成功
+Flow-->>MSV : 更新DBC列表
+```
+
+**图表来源**
+- [src/ui/flowmodule.cpp:112-224](file://src/ui/flowmodule.cpp#L112-L224)
+
+**章节来源**
+- [src/core/module/imodule.h:93-200](file://src/core/module/imodule.h#L93-L200)
+- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
+- [src/core/protocol/iprotocoladapter.h:24-65](file://src/core/protocol/iprotocoladapter.h#L24-65)
+- [src/core/protocol/canprotocoladapter.h:17-44](file://src/core/protocol/canprotocoladapter.h#L17-L44)
+- [src/core/protocol/canprotocoladapter.cpp:10-107](file://src/core/protocol/canprotocoladapter.cpp#L10-L107)
+- [src/core/protocol/protocolregistry.h:18-45](file://src/core/protocol/protocolregistry.h#L18-L45)
+- [src/core/protocol/parserregistry.h:17-47](file://src/core/protocol/parserregistry.h#L17-L47)
+- [src/ui/flowmodule.h:24-48](file://src/ui/flowmodule.h#L24-L48)
+- [src/ui/flowmodule.cpp:27-394](file://src/ui/flowmodule.cpp#L27-L394)
 
 ## 模块化UI架构
 
@@ -467,9 +941,9 @@ ShellContext --> IBusinessModule : "传递给模块"
 ```
 
 **图表来源**
-- [src/core/module/imodule.h](file://src/core/module/imodule.h)
-- [src/ui/marketmodule.h](file://src/ui/marketmodule.h)
-- [src/ui/transceivemodule.h](file://src/ui/transceivemodule.h)
+- [src/core/module/imodule.h:93-200](file://src/core/module/imodule.h#L93-L200)
+- [src/ui/marketmodule.h:18-28](file://src/ui/marketmodule.h#L18-L28)
+- [src/ui/transceivemodule.h:28-51](file://src/ui/transceivemodule.h#L28-L51)
 
 ### 模块注册表（ModuleRegistry）
 模块注册表负责管理模块工厂和实例的生命周期，提供线程安全的模块访问接口：
@@ -506,8 +980,8 @@ ModuleRegistry --> IBusinessModule : "创建"
 ```
 
 **图表来源**
-- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
-- [src/core/module/moduleregistry.cpp](file://src/core/module/moduleregistry.cpp)
+- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
+- [src/core/module/moduleregistry.cpp:3-22](file://src/core/module/moduleregistry.cpp#L3-L22)
 
 ### 市场模块（MarketModule）
 市场模块负责插件市场的UI和业务逻辑，支持插件的安装、管理和搜索功能：
@@ -523,7 +997,7 @@ ModuleRegistry --> IBusinessModule : "创建"
 - 通过invoke方法处理市场相关动作
 - 直接访问数据层的PluginManager，无需经壳中转
 
-### 收发模块（TransceiveModule）
+### 收发模块（TransceiveModule）- 增强
 收发模块是复杂的多页面模块，整合发送、回放、离线分析和录制四个功能页面：
 
 **页面结构**
@@ -542,6 +1016,8 @@ ModuleRegistry --> IBusinessModule : "创建"
 - 通过ShellContext访问数据层服务
 - 使用ctx.shellInvoke进行壳程序编排操作
 - 支持离线文件查询等功能
+
+**最新增强** 收发模块新增了'addOfflineFiles'动作支持，当接收到该动作时会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。
 
 ### DBC模块（DbcModule）
 DBC模块提供数据库文件的可视化管理和信号处理能力：
@@ -609,7 +1085,7 @@ MF["工厂函数<br/>openbus_createXxxModule"]
 end
 subgraph "模块实例"
 MM["MarketModule<br/>市场模块"]
-TM["TransceiveModule<br/>收发模块"]
+TM["TransceiveModule<br/>收发模块<br/>新增addOfflineFiles动作"]
 DM["DbcModule<br/>DBC模块"]
 FM["FlowModule<br/>流程模块"]
 TRM["TraceModule<br/>跟踪模块"]
@@ -636,13 +1112,13 @@ PW --> LC
 ```
 
 **图表来源**
-- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
-- [src/ui/marketmodule.h](file://src/ui/marketmodule.h)
-- [src/ui/transceivemodule.h](file://src/ui/transceivemodule.h)
-- [src/ui/dbcmodule.h](file://src/ui/dbcmodule.h)
-- [src/ui/flowmodule.h](file://src/ui/flowmodule.h)
-- [src/ui/tracemodule.h](file://src/ui/tracemodule.h)
-- [src/ui/graphicmodule.h](file://src/ui/graphicmodule.h)
+- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
+- [src/ui/marketmodule.h:18-28](file://src/ui/marketmodule.h#L18-L28)
+- [src/ui/transceivemodule.h:28-51](file://src/ui/transceivemodule.h#L28-L51)
+- [src/ui/dbcmodule.h:18-30](file://src/ui/dbcmodule.h#L18-L30)
+- [src/ui/flowmodule.h:24-48](file://src/ui/flowmodule.h#L24-L48)
+- [src/ui/tracemodule.h:24-70](file://src/ui/tracemodule.h#L24-L70)
+- [src/ui/graphicmodule.h:27-49](file://src/ui/graphicmodule.h#L27-L49)
 
 ## 详细组件分析
 
@@ -660,6 +1136,7 @@ PW --> LC
 - 支持Web前端原型的集成和通信
 - **新增** 插件系统初始化，启动Python宿主进程
 - **新增** 模块注册表初始化，注册各业务模块工厂
+- **新增** 协议注册表初始化，注册内置协议适配器
 
 ```mermaid
 sequenceDiagram
@@ -669,6 +1146,7 @@ participant Style as "QSS加载器"
 participant Theme as "ThemeManager"
 participant Plugin as "PluginManager"
 participant Module as "ModuleRegistry"
+participant Protocol as "ProtocolRegistry"
 participant Win as "MainWindow"
 participant Web as "Web前端"
 Main->>App : 创建实例
@@ -679,6 +1157,8 @@ Main->>Plugin : 初始化插件管理器
 Plugin-->>Main : 插件系统就绪
 Main->>Module : 注册业务模块工厂
 Module-->>Main : 模块系统就绪
+Main->>Protocol : 注册协议适配器
+Protocol-->>Main : 协议系统就绪
 Style-->>Main : 样式就绪
 Main->>Win : 构造主窗口
 Main->>Web : 初始化Web前端
@@ -687,7 +1167,7 @@ App->>App : 进入事件循环
 ```
 
 **图表来源**
-- [src/main.cpp](file://src/main.cpp)
+- [src/main.cpp:14-19](file://src/main.cpp#L14-L19)
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -712,6 +1192,8 @@ App->>App : 进入事件循环
 
 **更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，新增了ThemeManager主题管理器的集成，支持运行时主题切换；设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项；侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理。活动栏导航系统已重新组织，'Flow'按钮被移动到更显眼的位置，与CANoe Measurement Setup行业标准保持一致。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。设备连接行为已升级为V2接口，支持更完整的设备配置参数。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**主窗口作为协调者，统一管理各组件的生命周期和数据流，并支持与Web前端原型的无缝集成。
 
+**最新改进** 主窗口现在支持离线分析文件的程序化添加功能，通过transceiveInvoke方法调用TransceiveModule的'addOfflineFiles'动作，确保项目状态恢复时能够正确重建离线分析文件列表。
+
 ```mermaid
 classDiagram
 class MainWindow {
@@ -734,6 +1216,7 @@ class MainWindow {
 +initializeModules()
 +getModuleInstance(moduleId)
 +handleModuleAction(action, arg)
++transceiveInvoke(action, arg)
 }
 class ActivityBar {
 +addActivityItem(item)
@@ -1256,7 +1739,181 @@ FilterHeaderView --> TraceView : "信号连接"
 - [src/ui/filterheaderview.cpp](file://src/ui/filterheaderview.cpp)
 - [src/ui/traceview.cpp](file://src/ui/traceview.cpp)
 
-## 增强图形组件
+### 离线分析标签页（OfflineAnalysisTab）- 新增
+功能特性
+- **新增** 离线分析文件列表管理，支持添加、删除、排序操作
+- **新增** 异步文件解析功能，显示帧数、时长和文件大小信息
+- **新增** addFiles方法，支持程序化批量添加文件
+- **新增** filePaths方法，获取当前文件列表的完整路径
+- **增强** 主题化图标支持，随主题切换自动更新图标颜色
+- **增强** 状态显示功能，提供解析进度和结果反馈
+
+技术实现
+- 基于QTableWidget的文件列表展示，包含序号、文件名、帧数、时长、大小五列
+- 使用QTimer实现异步解析，避免阻塞UI线程
+- 通过CanFileIOFactory创建文件阅读器，解析文件元数据
+- 支持文件顺序调整（上移/下移）和批量操作
+- 集成ThemeManager实现主题化图标显示
+
+**最新增强** 新增了addFiles公开方法，允许TransceiveModule通过'addOfflineFiles'动作程序化添加离线分析文件。该方法支持批量文件添加，自动处理文件信息解析和状态更新。
+
+```mermaid
+classDiagram
+class OfflineAnalysisTab {
++OfflineAnalysisTab(parent)
++addFiles(paths)
++filePaths() QStringList
++isEmpty() bool
++onAddFile()
++onRemoveFile()
++onMoveUp()
++onMoveDown()
++onParseTimer()
++parseFileInfo(row)
++renumberRows()
+-private :
++QTableWidget *m_fileList
++QPushButton *m_addFileBtn
++QPushButton *m_removeFileBtn
++QPushButton *m_moveUpBtn
++QPushButton *m_moveDownBtn
++QLabel *m_statusLabel
++QTimer *m_parseTimer
++QQueue<int> m_parseQueue
+}
+class TransceiveModule {
++invoke(action, arg)
++query(what, arg) QVariant
++createPage(pageId, ctx) QWidget*
+}
+class MainWindow {
++transceiveInvoke(action, arg)
++onProjectLoaded()
+}
+OfflineAnalysisTab --> TransceiveModule : "被调用"
+MainWindow --> TransceiveModule : "调用"
+```
+
+**图表来源**
+- [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
+- [src/ui/offlineanalysistab.cpp](file://src/ui/offlineanalysistab.cpp)
+- [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
+
+章节来源
+- [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
+- [src/ui/offlineanalysistab.cpp](file://src/ui/offlineanalysistab.cpp)
+
+### 收发模块（TransceiveModule）- 增强
+功能特性
+- **新增** 'addOfflineFiles'动作支持，实现离线分析文件的程序化添加
+- **增强** 页面管理功能，支持离线分析页面的动态访问
+- **改进** 错误处理机制，页面不存在时静默忽略
+- **优化** 文件路径处理，支持批量文件添加
+
+技术实现
+- 在invoke方法中新增对"addOfflineFiles"动作的处理
+- 通过m_pages查找对应的OfflineAnalysisTab页面
+- 调用OfflineAnalysisTab的addFiles方法进行文件添加
+- 使用qobject_cast进行类型安全转换
+
+**最新增强** 收发模块现在支持通过transceiveInvoke方法调用'addOfflineFiles'动作，当接收到该动作时会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。
+
+```mermaid
+classDiagram
+class TransceiveModule {
++TransceiveModule()
++id() QString
++title() QString
++icon() QIcon
++pages() QStringList
++createWidget(ctx) QWidget*
++createPage(pageId, ctx) QWidget*
++invoke(action, arg)
++query(what, arg) QVariant
+-createSendPage(ctx) QWidget*
+-createPlaybackPage(ctx) QWidget*
+-createOfflinePage(ctx) QWidget*
+-createRecordPage(ctx) QWidget*
++cachePage(pageId, page)
+-private :
++ShellContext m_ctx
++QMap<QString, QWidget*> m_pages
++QMap<int, QTimer*> m_periodicSenders
++TriggerRecorder* m_triggerRecorder
+}
+class OfflineAnalysisTab {
++addFiles(paths)
++filePaths() QStringList
+}
+class MainWindow {
++transceiveInvoke(action, arg)
+}
+TransceiveModule --> OfflineAnalysisTab : "调用addFiles"
+MainWindow --> TransceiveModule : "调用invoke"
+```
+
+**图表来源**
+- [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
+- [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
+
+章节来源
+- [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
+- [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
+
+### 项目状态管理（ProjectState）- 增强
+功能特性
+- **新增** offlineFiles字段，存储离线分析文件列表
+- **增强** 项目状态序列化，支持离线分析文件的保存和恢复
+- **改进** 项目加载流程，确保离线分析文件正确恢复
+
+技术实现
+- 在ProjectState结构体中新增offlineFiles字段
+- 通过ProjectManager进行状态的序列化和反序列化
+- 在主窗口加载项目时调用transceiveInvoke恢复离线分析文件
+
+**最新增强** 项目状态管理现在支持离线分析文件的持久化存储，通过ProjectState结构体的offlineFiles字段保存用户添加的离线分析文件列表。项目加载时会自动恢复这些文件到离线分析标签页中。
+
+```mermaid
+classDiagram
+class ProjectState {
++QString name
++int sourceMode
++QString filePath
++int baudrate
++int channel
++QStringList dbcFiles
++QList<ProjectTraceInstance> traces
++QList<ProjectGraphicInstance> graphics
++QStringList recordFiles
++QStringList offlineFiles
++QStringList openTabs
++QString activeTab
++ProjectMeta meta
++ProjectDeviceConfig deviceConfig
+}
+class ProjectManager {
++currentState() ProjectState
++saveProject(filePath) bool
++loadProject(filePath) bool
++toJsonString() QString
++fromJsonString(jsonStr) bool
+}
+class MainWindow {
++onProjectLoaded()
++transceiveInvoke(action, arg)
+}
+ProjectManager --> ProjectState : "管理"
+MainWindow --> ProjectManager : "使用"
+MainWindow --> TransceiveModule : "恢复离线文件"
+```
+
+**图表来源**
+- [src/core/projectmanager.h](file://src/core/projectmanager.h)
+- [src/ui/mainwindow_project.cpp](file://src/ui/mainwindow_project.cpp)
+
+章节来源
+- [src/core/projectmanager.h](file://src/core/projectmanager.h)
+- [src/ui/mainwindow_project.cpp](file://src/ui/mainwindow_project.cpp)
 
 ### 高性能视口降采样模块（Downsample）- 新增
 功能特性
@@ -2719,6 +3376,8 @@ DbcPanel --> CategoryNode : "使用"
 
 **更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统、设备连接界面和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置，工具提示已增强。新增了ThemeManager主题管理器和SVG图标系统，增强了样式管理和图标渲染能力。设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，包括活动栏工具集按钮、工具集面板、工具路由机制和主窗口的onToolOpened处理函数。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能。FilterHeaderView组件通过自定义排序指示器和漏斗图标，提供了Wireshark风格的表头界面，增强了数据表的交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**
 
+**最新改进** 系统新增了离线分析文件管理功能，通过TransceiveModule的'addOfflineFiles'动作实现了程序化的文件添加机制。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。项目面板现在支持离线分析文件的分类节点显示，提供了更好的文件组织和管理能力。
+
 ```mermaid
 graph LR
 Main["main.cpp"] --> MW["MainWindow"]
@@ -2739,6 +3398,7 @@ MW --> SD["SettingsDialog<br/>设置对话框"]
 MW --> TPANEL["TransceivePanel<br/>新增统一入口"]
 MW --> PM["PluginManager<br/>插件管理器"]
 MW --> MR["ModuleRegistry<br/>模块注册表"]
+MW --> PR["ProtocolRegistry<br/>协议注册表"]
 SEA --> FB["FilterBar<br/>刷新率控制增强"]
 SEA --> GV["GraphicView<br/>QCustomPlot集成<br/>Downsample模块集成<br/>插件集成增强"]
 SEA --> TV["TraceView"]
@@ -2794,11 +3454,15 @@ TPANEL --> PlaybackTab["回放标签页"]
 TPANEL --> RecordTab["录制标签页"]
 MR --> IM["IBusinessModule<br/>模块接口"]
 IM --> MM["MarketModule<br/>市场模块"]
-IM --> TMOD["TransceiveModule<br/>收发模块"]
+IM --> TMOD["TransceiveModule<br/>收发模块<br/>新增addOfflineFiles动作"]
 IM --> DM["DbcModule<br/>DBC模块"]
 IM --> FM["FlowModule<br/>流程模块"]
 IM --> TRM["TraceModule<br/>跟踪模块"]
 IM --> GM["GraphicModule<br/>图形模块"]
+PR --> PA["IProtocolAdapter<br/>协议适配器"]
+PA --> CA["CanProtocolAdapter<br/>CAN适配器"]
+MW --> OAT["OfflineAnalysisTab<br/>离线分析标签页"]
+OAT --> TMOD
 ```
 
 **图表来源**
@@ -2820,10 +3484,10 @@ IM --> GM["GraphicModule<br/>图形模块"]
 - [scripts/sin_host.py](file://scripts/sin_host.py)
 - [src/core/module/imodule.h](file://src/core/module/imodule.h)
 - [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
-
-章节来源
-- [src/CMakeLists.txt](file://src/CMakeLists.txt)
-- [CMakeLists.txt](file://CMakeLists.txt)
+- [src/core/protocol/iprotocoladapter.h](file://src/core/protocol/iprotocoladapter.h)
+- [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
+- [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
+- [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
 
 ## 性能考虑
 - 样式加载
@@ -2859,6 +3523,8 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - **新增** FilterHeaderView使用自定义绘制避免Qt内置指示器的性能开销
   - **新增** TransceivePanel使用轻量级设计，减少内存占用
   - **新增** Downsample模块实现O(视口宽)恒定渲染成本，将百万级原始数据点转换为视口像素级别的显示数据
+  - **新增** OfflineAnalysisTab使用异步解析避免阻塞UI线程
+  - **新增** addOfflineFiles动作支持批量文件处理，提升性能
 - **专用Tab组件性能优化**
   - DBC详情标签页实现大数据集的虚拟滚动
   - 播放控制标签页使用高效的定时器机制
@@ -2900,6 +3566,8 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - **新增** FilterHeaderView的自定义绘制优化了表头渲染性能
   - **新增** TransceivePanel的轻量级设计减少了内存占用
   - **新增** Downsample模块的智能数据裁剪和四种抽稀策略，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能
+  - **新增** OfflineAnalysisTab的异步解析机制避免阻塞UI线程
+  - **新增** addOfflineFiles动作支持批量文件处理，提升性能
 - **批处理模型性能优化**
   - CanTraceModel使用环形缓冲区存储，支持最大帧数限制
   - 批量追加frames()方法优化大数据集处理
@@ -2935,8 +3603,19 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - 模块工厂模式支持动态模块发现和加载
   - 模块注册表提供高效的模块查找和缓存机制
   - 模块生命周期管理确保资源正确释放
-
-[本节为通用指导，无需特定文件引用]
+- **Flow架构性能优化**
+  - Flow模块使用页面缓存机制避免重复创建
+  - 协议适配器采用懒加载减少启动开销
+  - 解析器注册表提供高效的解析器查找
+  - 模块间通信通过ShellContext接口，降低耦合度
+  - 数据源切换优化，避免不必要的数据流中断
+  - 设备连接状态管理优化，减少状态同步开销
+- **离线分析性能优化**
+  - OfflineAnalysisTab使用异步解析避免阻塞UI线程
+  - 文件解析通过CanFileIOFactory创建专用阅读器
+  - 支持批量文件添加，提升处理效率
+  - 状态显示实时更新，提供用户反馈
+  - 主题化图标支持，减少资源重复加载
 
 ## 故障排查指南
 常见问题与定位方法
@@ -2976,6 +3655,8 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - **新增** TransceivePanel按钮点击无响应需要检查信号连接
   - **新增** TransceivePanel面板不显示需要检查索引映射
   - **新增** Downsample模块数据降采样异常需要检查策略选择和参数配置
+  - **新增** OfflineAnalysisTab文件解析失败需要检查文件路径和权限
+  - **新增** addOfflineFiles动作无响应需要检查页面是否存在
 - **专用Tab组件问题**
   - DBC文件加载失败需要检查文件格式与权限
   - 播放控制标签页时间轴不同步需要检查定时器精度
@@ -3026,6 +3707,8 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - **新增** FilterHeaderView的自定义绘制优化了表头渲染性能
   - **新增** TransceivePanel的轻量级设计减少了内存占用
   - **新增** Downsample模块的智能数据裁剪和四种抽稀策略，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能
+  - **新增** OfflineAnalysisTab的异步解析机制避免阻塞UI线程
+  - **新增** addOfflineFiles动作支持批量文件处理，提升性能
 - **DbcPanel多协议分类问题**
   - 协议分类节点不显示需要检查文件扩展名识别
   - DatabaseEntry结构数据丢失需要检查序列化机制
@@ -3083,6 +3766,32 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - 模块注册表冲突需要检查模块ID唯一性
   - 模块页面创建失败需要检查createPage实现
   - 模块查询功能异常需要检查query方法实现
+- **Flow架构问题**
+  - Flow模块加载失败需要检查模块注册和工厂函数
+  - 协议适配器注册失败需要检查协议ID唯一性
+  - 解析器查找失败需要检查文件扩展名匹配
+  - 数据源切换异常需要检查数据流状态管理
+  - 设备连接失败需要检查设备配置和驱动状态
+  - 模块间通信异常需要检查ShellContext回调实现
+  - 页面缓存失效需要检查页面生命周期管理
+  - 协议解码失败需要检查DBC文件和数据格式
+- **协议适配器问题**
+  - 协议适配器加载失败需要检查ABI兼容性
+  - 协议ID冲突需要检查注册表中的唯一性
+  - 解码功能异常需要检查DBC管理器配置
+  - 文件过滤器不生效需要检查协议声明
+  - 协议能力查询失败需要检查supportedSources实现
+  - 通道数量限制异常需要检查maxChannels实现
+  - 协议图标加载失败需要检查资源路径
+  - 协议显示名称异常需要检查displayName实现
+- **离线分析问题**
+  - OfflineAnalysisTab文件解析失败需要检查文件路径和权限
+  - addFiles方法无响应需要检查页面是否存在
+  - 异步解析阻塞需要检查定时器配置
+  - 文件列表显示异常需要检查表格项设置
+  - 主题化图标颜色不正确需要检查ThemeManager集成
+  - 批量文件添加失败需要检查文件路径有效性
+  - 项目状态恢复失败需要检查offlineFiles字段序列化
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
@@ -3105,6 +3814,16 @@ IM --> GM["GraphicModule<br/>图形模块"]
 - [src/core/module/imodule.h](file://src/core/module/imodule.h)
 - [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
 - [src/core/module/moduleregistry.cpp](file://src/core/module/moduleregistry.cpp)
+- [src/core/protocol/iprotocoladapter.h](file://src/core/protocol/iprotocoladapter.h)
+- [src/core/protocol/canprotocoladapter.h](file://src/core/protocol/canprotocoladapter.h)
+- [src/core/protocol/canprotocoladapter.cpp](file://src/core/protocol/canprotocoladapter.cpp)
+- [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
+- [src/core/protocol/parserregistry.h](file://src/core/protocol/parserregistry.h)
+- [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
+- [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
+- [src/ui/offlineanalysistab.cpp](file://src/ui/offlineanalysistab.cpp)
+- [src/ui/mainwindow_project.cpp](file://src/ui/mainwindow_project.cpp)
+- [src/core/projectmanager.h](file://src/core/projectmanager.h)
 
 ## 结论
 本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面，**特别是侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件。**
@@ -3117,7 +3836,9 @@ IM --> GM["GraphicModule<br/>图形模块"]
 
 **模块化架构增强** 系统现已完成从单体架构向模块化DLL架构的重构，将市场、收发、DBC、流程、跟踪和图形等核心功能模块拆分为独立的DLL，通过工厂模式进行创建和管理。这种架构设计提高了系统的可扩展性、可维护性和部署灵活性，支持按需加载和功能模块的动态管理。模块接口IBusinessModule定义了统一的模块契约，模块注册表ModuleRegistry提供了模块工厂和实例的生命周期管理。各模块通过ShellContext上下文进行通信，实现了模块间的松耦合和高内聚。
 
-**最新改进** 设备连接界面实现了智能连接门控机制，根据驱动可用性自动启用/禁用连接按钮，大大提升了用户体验。图形视图组件使用了SVG箭头图标替换了基于文本的光标手柄，提供了更好的视觉一致性和用户体验。侧边栏面板系统的所有按钮都使用了主题化的SVG图标，支持动态颜色切换，确保在不同主题下都有良好的视觉效果。
+**Flow架构增强** 系统现已引入全新的Flow架构和协议抽象系统，通过IBusinessModule接口和ModuleRegistry注册表实现了模块化的业务逻辑管理。新增的协议适配器模式支持多种总线协议（CAN、EtherCAT等）的统一接口访问，为未来的协议扩展奠定了坚实基础。Flow模块作为测量流程的核心，整合了测量配置和设备连接功能，提供了统一的工作流程管理界面。协议适配器系统通过IProtocolAdapter接口定义了统一的协议访问接口，CanProtocolAdapter提供了CAN协议的具体实现，ProtocolRegistry和ParserRegistry分别管理协议适配器和解析器的注册与查找。
+
+**最新改进** 系统新增了transceiver模块的'addOfflineFiles'动作支持，实现了离线分析文件的程序化添加功能。该功能通过TransceiveModule的invoke方法处理，当接收到"addOfflineFiles"动作时，会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。项目面板现在支持离线分析文件的分类节点显示，确保工程加载时能够正确恢复用户的分析工作上下文。设备连接界面实现了智能连接门控机制，根据驱动可用性自动启用/禁用连接按钮，大大提升了用户体验。图形视图组件使用了SVG箭头图标替换了基于文本的光标手柄，提供了更好的视觉一致性和用户体验。侧边栏面板系统的所有按钮都使用了主题化的SVG图标，支持动态颜色切换，确保在不同主题下都有良好的视觉效果。
 
 遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
@@ -3157,6 +3878,8 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - **新增** FilterHeaderView应实现自定义排序指示器和漏斗图标的精确布局
   - **新增** TransceivePanel应提供简洁的收发功能入口
   - **新增** Downsample模块应实现O(视口宽)恒定渲染成本和四种抽稀策略
+  - **新增** OfflineAnalysisTab应支持异步文件解析和批量文件添加
+  - **新增** addOfflineFiles动作应支持程序化文件管理和错误处理
 - **专用Tab组件规范**
   - DBC详情标签页应支持大数据集的虚拟滚动
   - 播放控制标签页需实现精确的时间轴控制
@@ -3195,6 +3918,8 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - **新增** FilterHeaderView应实现自定义绘制避免性能开销
   - **新增** TransceivePanel应使用轻量级设计减少内存占用
   - **新增** Downsample模块应实现O(视口宽)恒定渲染成本和四种抽稀策略
+  - **新增** OfflineAnalysisTab应使用异步解析避免阻塞UI线程
+  - **新增** addOfflineFiles动作应支持批量文件处理和错误恢复
 - **最新规范要求**
   - 图形组件必须包含完善的错误处理和异常恢复机制
   - 所有组件需支持测试数据集的兼容性验证
@@ -3213,6 +3938,8 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - **新增** FilterHeaderView需实现setSortState和clearSortState方法的正确调用
   - **新增** TransceivePanel需实现简洁的收发功能入口
   - **新增** Downsample模块需实现O(视口宽)恒定渲染成本和四种抽稀策略
+  - **新增** OfflineAnalysisTab需实现异步文件解析和批量文件添加
+  - **新增** addOfflineFiles动作需支持程序化文件管理和错误处理
   - **增强** 播放系统需支持多种循环模式和播放控制
   - **增强** 录制系统需支持暂停/恢复功能和状态管理
   - **新增** 设备连接界面需实现智能连接门控机制
@@ -3236,6 +3963,20 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - 模块查询功能必须返回有效的QVariant
   - 模块错误处理必须提供适当的异常处理
   - 模块资源管理必须遵循RAII原则
+- **Flow架构规范**
+  - Flow模块必须实现IBusinessModule接口
+  - 协议适配器必须实现IProtocolAdapter接口
+  - 解析器必须实现IBusParser接口
+  - 模块注册必须通过ModuleRegistry进行
+  - 协议注册必须通过ProtocolRegistry进行
+  - 解析器注册必须通过ParserRegistry进行
+  - 模块间通信必须通过ShellContext接口
+  - 协议适配器必须声明支持的源类型和解析器
+  - 数据源切换必须保证数据流的正确管理
+  - 设备连接必须支持V2接口和智能门控机制
+  - **新增** 离线分析文件管理必须支持程序化文件添加
+  - **新增** addOfflineFiles动作必须支持批量文件处理和错误恢复
+  - **新增** OfflineAnalysisTab必须实现异步文件解析和状态更新
 
 ### 样式定制指南
 - 主题设计
@@ -3293,6 +4034,8 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - **新增** FilterHeaderView应实现自定义绘制避免性能开销
   - **新增** TransceivePanel应提供简洁的收发功能入口
   - **新增** Downsample模块应实现O(视口宽)恒定渲染成本和四种抽稀策略
+  - **新增** OfflineAnalysisTab应使用异步解析避免阻塞UI线程
+  - **新增** addOfflineFiles动作应支持批量文件处理和错误恢复
 - **专用Tab组件最佳实践**
   - DBC详情标签页应实现高效的文件解析与缓存
   - 播放控制标签页需支持精确的时间同步
@@ -3332,6 +4075,8 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - **新增** FilterHeaderView应实现自定义绘制优化性能
   - **新增** TransceivePanel应使用轻量级设计减少内存占用
   - **新增** Downsample模块应实现智能数据裁剪和四种抽稀策略
+  - **新增** OfflineAnalysisTab应使用异步解析避免阻塞UI线程
+  - **新增** addOfflineFiles动作应支持批量文件处理和错误恢复
 - **最新最佳实践**
   - 图形组件必须实现健壮的异常处理和崩溃恢复
   - 所有数据处理组件需包含数据验证和完整性检查
@@ -3351,6 +4096,8 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - **新增** FilterHeaderView需实现自定义排序指示器和漏斗图标的精确布局
   - **新增** TransceivePanel需实现简洁的收发功能入口
   - **新增** Downsample模块需实现O(视口宽)恒定渲染成本和四种抽稀策略
+  - **新增** OfflineAnalysisTab需实现异步文件解析和批量文件添加
+  - **新增** addOfflineFiles动作需支持程序化文件管理和错误处理
   - **增强** 播放系统需支持多种循环模式和播放控制
   - **增强** 录制系统需支持暂停/恢复功能和状态管理
   - **新增** 设备连接界面需实现智能连接门控机制
@@ -3374,6 +4121,19 @@ IM --> GM["GraphicModule<br/>图形模块"]
   - 模块资源管理应遵循RAII原则
   - 模块测试应包含单元测试和集成测试
   - 模块文档应包含接口说明和使用示例
+- **Flow架构最佳实践**
+  - Flow模块设计应遵循单一职责原则
+  - 协议适配器应实现统一的接口规范
+  - 解析器应支持多种文件格式
+  - 模块间通信应通过ShellContext接口
+  - 协议注册应保证唯一性和可扩展性
+  - 数据源切换应保证数据流的正确管理
+  - 设备连接应支持多种设备和配置选项
+  - 模块测试应包含单元测试和集成测试
+  - 协议测试应包含模拟数据和真实数据验证
+  - **新增** 离线分析文件管理应支持程序化文件添加
+  - **新增** addOfflineFiles动作应支持批量文件处理和错误恢复
+  - **新增** OfflineAnalysisTab应使用异步解析避免阻塞UI线程
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -3448,6 +4208,26 @@ IM --> GM["GraphicModule<br/>图形模块"]
 68. **模块页面测试**：验证多页面模块的页面创建功能
 69. **模块查询测试**：验证模块查询功能的正确实现
 70. **模块错误处理测试**：验证模块异常处理和错误恢复机制
+71. **Flow架构测试**：验证Flow模块的测量流程管理功能
+72. **协议适配器测试**：验证IProtocolAdapter接口的正确实现
+73. **CAN适配器测试**：验证CanProtocolAdapter的CAN协议功能
+74. **协议注册测试**：验证ProtocolRegistry的协议注册功能
+75. **解析器注册测试**：验证ParserRegistry的解析器注册功能
+76. **数据源切换测试**：验证Flow模块的数据源切换功能
+77. **设备连接测试**：验证Flow模块的设备连接管理功能
+78. **协议解码测试**：验证协议适配器的信号解码功能
+79. **文件过滤器测试**：验证协议适配器的文件过滤器功能
+80. **Trace列定义测试**：验证协议适配器的Trace列定义功能
+81. **离线分析文件测试**：验证OfflineAnalysisTab的文件管理功能
+82. **addOfflineFiles动作测试**：验证程序化文件添加功能的正确性
+83. **项目状态恢复测试**：验证离线分析文件在项目加载时的正确恢复
+84. **批量文件处理测试**：验证addFiles方法的批量处理性能
+85. **异步解析测试**：验证OfflineAnalysisTab的异步解析机制
+86. **主题化图标测试**：验证离线分析标签页中主题化图标的颜色切换
+87. **错误处理测试**：验证离线分析文件添加时的错误处理机制
+88. **性能测试**：验证离线分析功能对系统性能的影响
+89. **用户体验测试**：验证离线分析功能的易用性和直观性
+90. **回归测试**：确保离线分析功能不影响现有功能的正常运行
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
@@ -3469,3 +4249,13 @@ IM --> GM["GraphicModule<br/>图形模块"]
 - [src/core/module/imodule.h](file://src/core/module/imodule.h)
 - [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
 - [src/core/module/moduleregistry.cpp](file://src/core/module/moduleregistry.cpp)
+- [src/core/protocol/iprotocoladapter.h](file://src/core/protocol/iprotocoladapter.h)
+- [src/core/protocol/canprotocoladapter.h](file://src/core/protocol/canprotocoladapter.h)
+- [src/core/protocol/canprotocoladapter.cpp](file://src/core/protocol/canprotocoladapter.cpp)
+- [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
+- [src/core/protocol/parserregistry.h](file://src/core/protocol/parserregistry.h)
+- [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
+- [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
+- [src/ui/offlineanalysistab.cpp](file://src/ui/offlineanalysistab.cpp)
+- [src/ui/mainwindow_project.cpp](file://src/ui/mainwindow_project.cpp)
+- [src/core/projectmanager.h](file://src/core/projectmanager.h)
