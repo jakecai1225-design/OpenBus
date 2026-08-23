@@ -433,6 +433,11 @@ void MarketTab::buildUi()
         connect(devAct, &QAction::triggered, this, [applySource]() {
             applySource(QStringLiteral("http://127.0.0.1:5173/market/market.json"));
         });
+        auto *officialAct = sourceMenu->addAction(QStringLiteral(
+            "openbus 应用市场 · 官方 (sin.org.cn)"));
+        connect(officialAct, &QAction::triggered, this, [applySource]() {
+            applySource(QStringLiteral("http://sin.org.cn/market/market.json"));
+        });
         auto *customAct = sourceMenu->addAction(QStringLiteral("自定义 URL…"));
         connect(customAct, &QAction::triggered, this, [this, applySource]() {
             const QString curUrl = MarketIndex::instance()->marketUrl().toString();

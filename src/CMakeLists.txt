@@ -808,6 +808,29 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/driver")
 endif()
 
 # ============================================================
+#  插件宿主物料 — sdk/ 与宿主脚本随开发构建进入输出目录
+#  （与 package.py 打包策略一致：plugins/ 不预装，.opk 一律
+#   从市场安装；build/bin 具备 sdk/ 后 PluginManager::
+#   findAppBaseDir 命中 exeDir，插件安装到 build/bin/plugins
+#   而非源码树——本地不再捆绑插件，市场下载安装为准）
+# ============================================================
+if(EXISTS "${CMAKE_SOURCE_DIR}/sdk")
+    add_custom_command(TARGET openbus POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/sdk"
+                "$<TARGET_FILE_DIR:openbus>/sdk"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:openbus>/scripts"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/scripts/sin_host.py"
+                "${CMAKE_SOURCE_DIR}/scripts/plugin_tool.py"
+                "${CMAKE_SOURCE_DIR}/scripts/driver_tool.py"
+                "$<TARGET_FILE_DIR:openbus>/scripts/"
+        COMMENT "Copying plugin host materials (sdk + scripts) to output directory"
+    )
+endif()
+
+# ============================================================
 #  安装规则
 # ============================================================
 install(TARGETS openbus

@@ -1,4 +1,4 @@
-// E2E 校验（插件系统方案 §六.6，不入 CMake）——手动编译（在 sin/build 目录下）：
+// E2E 校验（插件系统方案 §六.6，不入 CMake）——手动编译（在 sin 根目录下，注意源文件是 scripts/ 不是 ../scripts/）：
 //   g++ -std=c++17 -DUNICODE -D_UNICODE -DQT_CORE_LIB -DQT_NETWORK_LIB \
 //     -Ibuild/src/openbus_data_autogen/include -Isrc -Ithird_party/nlohmann_json \
 //     -Ithird_party/spdlog/include \
@@ -7,12 +7,14 @@
 //     -isystem C:/Qt/6.8.3/mingw_64/include/QtNetwork \
 //     -isystem C:/Qt/6.8.3/mingw_64/mkspecs/win32-g++ \
 //     ../scripts/e2e_market_check.cpp -Lbuild/src -lopenbus_data \
+//     （若用上述清单请把源文件路径换为 scripts/e2e_market_check.cpp）
 //     C:/Qt/6.8.3/mingw_64/lib/libQt6Core.a \
 //     C:/Qt/6.8.3/mingw_64/lib/libQt6Network.a -lole32 -luuid -lws2_32 \
 //     -o build/bin/e2e_market_check.exe
-// 运行（需 dev server 已启动；PATH 含 build/bin 与 Qt bin）：
-//   e2e_market_check.exe           # 写入开发源并验证 HTTP 拉取
-//   e2e_market_check.exe default   # 恢复 market.url 为空（自动定位）
+// 运行（PATH 含 build/bin 与 Qt bin）：
+//   e2e_market_check.exe                          # 默认开发源 127.0.0.1:5173
+//   e2e_market_check.exe http://sin.org.cn/market/market.json   # 指定任意源
+//   e2e_market_check.exe default                  # 恢复 market.url 为空（自动定位）
 //
 // 验证内容：
 // 1. 模拟 MarketTab「市场源 → 开发源」：写 settings.json 的 market.url
@@ -32,12 +34,15 @@ int main(int argc, char *argv[])
     app.setApplicationName("openbus");
     app.setOrganizationName("openbus");
 
-    // ① 载入既有配置 → ② 设置市场源（argv[1] 传 "default" 则恢复空）
+    // ① 载入既有配置 → ② 设置市场源（argv[1] 传 "default" 恢复空；传 URL 则用之）
     AppConfig::instance()->load();
     const bool useDefault = argc > 1 && qstrcmp(argv[1], "default") == 0;
+    const QString sourceUrl = (argc > 1 && !useDefault)
+        ? QString::fromUtf8(argv[1])
+        : QStringLiteral("http://127.0.0.1:5173/market/market.json");
     AppConfig::instance()->set(QStringLiteral("market.url"), useDefault
         ? QString()
-        : QStringLiteral("http://127.0.0.1:5173/market/market.json"));
+        : sourceUrl);
     AppConfig::instance()->save();
     const bool saved = QFileInfo::exists(AppConfig::instance()->configPath());
     std::printf("settings_path=%s saved=%d\n",
