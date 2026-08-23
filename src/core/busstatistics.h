@@ -59,6 +59,14 @@ public:
 
     void setBitrate(quint32 bps) { m_bitrate = bps; }
 
+    // ---- 快照读取（Watcher 观测页轮询用；只增不改，信号路径不受影响）----
+    /// 最近一次 1s 计算的逐 ID 统计快照（按 canId 升序）
+    const QVector<IdStats> &lastIdStats() const { return m_lastIdStats; }
+    /// 最近一次计算的汇总快照（uniqueIds/duration/busLoad 已含）
+    Summary lastSummary() const { return m_lastSummary; }
+    /// 错误帧分类计数快照（ErrStuff..ErrCrc，共 ErrCount 项）
+    void lastErrorCounts(quint64 out[ErrCount]) const;
+
 public slots:
     void onFrame(const CanFrame &frame);
     void clear();
@@ -88,6 +96,8 @@ private:
     QHash<quint32, IdData> m_idData;
     quint64 m_errorCounts[ErrCount] = {};
     Summary m_summary;
+    QVector<IdStats> m_lastIdStats;   ///< 最近一次计算快照（Watcher 轮询）
+    Summary m_lastSummary;            ///< 最近一次计算汇总快照（同上）
     quint32 m_bitrate = 500000;  ///< 默认 500kbps
     QTimer m_timer;
     double m_globalFirstTime = 0.0;

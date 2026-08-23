@@ -160,6 +160,8 @@ void MainWindow::createMenuBar()
                          this, &MainWindow::onOpenDataWindow);
     toolsMenu->addAction("I/O Graph", QKeySequence("Ctrl+Shift+G"),
                          this, &MainWindow::onOpenIOGraph);
+    toolsMenu->addAction("Watcher 观测", QKeySequence("Ctrl+Shift+W"),
+                         this, &MainWindow::onOpenWatcher);
     toolsMenu->addSeparator();
     toolsMenu->addAction("着色规则编辑器...", this, &MainWindow::onOpenColorRuleEditor);
 

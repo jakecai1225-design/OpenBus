@@ -74,6 +74,8 @@ void BusStatistics::clear()
     for (int i = 0; i < ErrCount; ++i)
         m_errorCounts[i] = 0;
     m_summary = Summary{};
+    m_lastIdStats.clear();     // 快照同步归零（Watcher 清零后立即显示 0）
+    m_lastSummary = Summary{};
     m_hasFirstFrame = false;
     m_globalFirstTime = 0.0;
     m_globalLastTime = 0.0;
@@ -149,5 +151,17 @@ void BusStatistics::computeStats()
         summary.busLoadPercent = (totalBits / (summary.duration * m_bitrate)) * 100.0;
     }
 
+    // 快照留存（Watcher 轮询；信号路径行为不变）
+    m_lastIdStats = idStats;
+    m_lastSummary = summary;
+
     emit statisticsUpdated(idStats, summary, m_errorCounts);
+}
+
+void BusStatistics::lastErrorCounts(quint64 out[ErrCount]) const
+{
+    if (!out)
+        return;
+    for (int i = 0; i < ErrCount; ++i)
+        out[i] = m_errorCounts[i];
 }

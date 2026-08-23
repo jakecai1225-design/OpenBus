@@ -13,6 +13,19 @@ function switchPanel(name) {
   if (panel) panel.classList.add('active');
 }
 
+// ===== VS Code 风格侧栏分节折叠（草稿 v2） =====
+function toggleSection(el) { el.classList.toggle('collapsed'); }
+// 折叠面板内全部分节与树节点（标题栏「⊟」操作）
+function collapseAllSections(btn) {
+  const panel = btn.closest('.sb-panel');
+  if (panel) panel.querySelectorAll('.sb-section, .tree-node').forEach(s => s.classList.add('collapsed'));
+}
+// 单选条目：同层级互斥高亮（设备列表 / 工程列表等）
+function selectEntry(el) {
+  el.parentElement.querySelectorAll(':scope > .entry-item, :scope > .tree-node').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+}
+
 // ===== 中央标签页切换 =====
 function switchCenterTab(name) {
   document.querySelectorAll('#center-tabs .ctab').forEach(t => t.classList.remove('active'));

@@ -1,146 +1,461 @@
-<!-- 左侧栏（永久停靠） -->
+<!-- 左侧栏（永久停靠，VS Code 风格：分节可折叠 / 已打开在上 / 操作命令在下） -->
 <div class="left-dock">
   <div class="activitybar">
     <div class="act-icon" data-panel="project" title="工程" onclick="switchPanel('project')">&#128193;</div>
+    <div class="act-icon" data-panel="flow" title="Flow" onclick="switchPanel('flow')">&#128279;</div>
     <div class="act-icon active" data-panel="trace" title="Trace" onclick="switchPanel('trace')">&#128203;</div>
     <div class="act-icon" data-panel="graphic" title="Graphic" onclick="switchPanel('graphic')">&#128200;</div>
-    <div class="act-icon" data-panel="dbc" title="DBC" onclick="switchPanel('dbc')">&#128196;</div>
-    <div class="act-icon" data-panel="send" title="发送" onclick="switchPanel('send')">&#128225;</div>
+    <div class="act-icon" data-panel="dbc" title="DBC 数据库" onclick="switchPanel('dbc')">&#128196;</div>
+    <div class="act-icon" data-panel="send" title="信号发送" onclick="switchPanel('send')">&#128225;</div>
     <div class="act-icon" data-panel="record" title="录制" onclick="switchPanel('record')">&#9679;</div>
-    <div class="act-icon" data-panel="device" title="设备" onclick="switchPanel('device')">&#128295;</div>
-    <div class="act-icon" data-panel="settings" title="配置" onclick="switchPanel('settings')">&#9881;</div>
+    <div class="act-icon" data-panel="device" title="设备连接" onclick="switchPanel('device')">&#128295;</div>
+    <div class="act-icon bottom" data-panel="settings" title="设置" onclick="switchPanel('settings')">&#9881;</div>
   </div>
   <div class="sidebar">
 
-    <!-- 工程面板 -->
-    <div class="sb-panel" id="panel-project">
-      <div class="sb-header">工程列表</div>
-      <div class="entry-list">
-        <div class="entry-item active" onclick="alert('打开工程: EngineAnalysis')">
-          <span class="arrow">&#9660;</span> &#128193; EngineAnalysis <span class="badge">当前</span>
+    <!-- 工程面板（VS Code 风格：当前工程置顶、关联文件分节、操作在底部） -->
+    <div class="sb-panel vs-panel" id="panel-project">
+      <div class="sb-header">
+        <span class="hdr-title">工程</span>
+        <span class="hdr-actions">
+          <span class="h-act" title="新建工程" onclick="alert('新建工程')">+</span>
+          <span class="h-act" title="打开工程…" onclick="alert('打开 .sinproj 工程文件')">&#128193;</span>
+          <span class="h-act" title="折叠全部" onclick="collapseAllSections(this)">&#8863;</span>
+        </span>
+      </div>
+
+      <!-- 顶部分节：当前工程（激活条目置顶） -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 当前工程
+        <span class="count">已加载</span>
+        <span class="sec-actions" onclick="event.stopPropagation()" title="工程设置">&#9881;</span>
+      </div>
+      <div class="section-body">
+        <div class="tree-node active" onclick="selectEntry(this)" title="EngineAnalysis.sinproj">
+          &#128193; EngineAnalysis <span class="t-badge">当前</span>
         </div>
-        <div class="entry-item" onclick="alert('打开工程: BodyControl')">
-          <span class="arrow">&#9654;</span> &#128193; BodyControl
+
+        <!-- 嵌套子节：工程关联文件（可单独收拢，对应 ProjectPanel 资源分组） -->
+        <div class="tree-group">
+          <div class="sb-section sub" onclick="toggleSection(this)">
+            <span class="chev">&#9662;</span> 离线分析文件 <span class="count">2</span>
+          </div>
+          <div class="section-body">
+            <div class="tree-node lvl1" onclick="alert('离线分析: session_0821.sin')">&#128196; session_0821.sin</div>
+            <div class="tree-node lvl1" onclick="alert('离线分析: highway.blf')">&#128196; highway.blf</div>
+          </div>
         </div>
-        <div class="entry-item" onclick="alert('打开工程: DebugSession')">
-          <span class="arrow">&#9654;</span> &#128193; DebugSession
+        <div class="tree-group">
+          <div class="sb-section sub collapsed" onclick="toggleSection(this)">
+            <span class="chev">&#9662;</span> DBC 数据库 <span class="count">2</span>
+          </div>
+          <div class="section-body">
+            <div class="tree-node lvl1" onclick="switchPanel('dbc');switchCenterTab('dbc')">&#128196; V5.4.0_INFO_CAN.dbc</div>
+            <div class="tree-node lvl1" onclick="switchPanel('dbc');switchCenterTab('dbc')">&#128196; body.dbc</div>
+          </div>
+        </div>
+        <div class="tree-group">
+          <div class="sb-section sub collapsed" onclick="toggleSection(this)">
+            <span class="chev">&#9662;</span> 录制文件 <span class="count">1</span>
+          </div>
+          <div class="section-body">
+            <div class="tree-node lvl1" onclick="alert('回放: 2026-07-28_22-18-07.sin')">&#127916; 2026-07-28_22-18-07.sin</div>
+          </div>
         </div>
       </div>
-      <div class="sb-body">
-        <div class="btn-row">
-          <span class="btn primary" onclick="alert('新建工程')">+ 新建</span>
-          <span class="btn">&#128190; 保存</span>
-          <span class="btn danger">&#128465; 删除</span>
-        </div>
+
+      <!-- 中部分节：最近工程 -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 最近工程 <span class="count">2</span>
+        <span class="sec-actions" onclick="event.stopPropagation()" title="清空最近列表">&#10005;</span>
+      </div>
+      <div class="section-body">
+        <div class="tree-node" onclick="selectEntry(this);alert('打开工程: BodyControl')">&#128193; BodyControl</div>
+        <div class="tree-node" onclick="selectEntry(this);alert('打开工程: DebugSession')">&#128193; DebugSession</div>
+      </div>
+
+      <div class="flex-spacer"></div>
+
+      <!-- 底部操作栏 -->
+      <div class="panel-footer">
+        <span class="btn" onclick="alert('新建工程')">+ 新建</span>
+        <span class="btn" onclick="alert('打开工程文件')">打开…</span>
+        <span class="btn" onclick="alert('保存当前工程')">保存</span>
+        <span class="hint">右键条目更多操作</span>
       </div>
     </div>
 
-    <!-- Trace 配置面板 -->
-    <div class="sb-panel active" id="panel-trace">
-      <div class="sb-header">Trace</div>
-      <div class="entry-list">
+    <!-- Flow 面板（VS Code 风格：已打开在上 / 新建模板在下） -->
+    <div class="sb-panel vs-panel" id="panel-flow">
+      <div class="sb-header">
+        <span class="hdr-title">Flow</span>
+        <span class="hdr-actions">
+          <span class="h-act" title="新建流会话" onclick="alert('新建流会话')">+</span>
+          <span class="h-act" title="刷新" onclick="alert('刷新流会话状态')">&#8635;</span>
+          <span class="h-act" title="折叠全部" onclick="collapseAllSections(this)">&#8863;</span>
+        </span>
+      </div>
+
+      <!-- 顶部分节：已打开的流会话 -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 已打开 <span class="count">1</span>
+        <span class="sec-actions" onclick="event.stopPropagation()" title="流会话设置">&#9881;</span>
+      </div>
+      <div class="section-body">
+        <div class="entry-item active" onclick="alert('打开/聚焦 CAN Flow 画布')">
+          &#128279; CAN Flow <span class="badge">画布</span>
+          <span class="close-x" onclick="event.stopPropagation()" title="关闭此流会话">&#10005;</span>
+        </div>
+      </div>
+
+      <div class="flex-spacer"></div>
+
+      <!-- 底部分节：新建协议流（模板入口） -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 新建协议流
+      </div>
+      <div class="section-body">
+        <div class="tpl-item" onclick="alert('打开/新建 CAN Flow 画布')">&#65291; CAN Flow</div>
+        <div class="tpl-item disabled" title="F3 落地后启用">&#65291; EtherCAT Flow</div>
+        <div class="tpl-item disabled" title="规划中">&#65291; CANopen Flow</div>
+        <div class="tpl-item disabled" title="F2 落地后启用">&#65291; 通用 Flow</div>
+      </div>
+
+      <!-- 底部操作栏 -->
+      <div class="panel-footer">
+        <span class="btn" style="opacity:.5;cursor:default">&#127978; 从市场添加协议流</span>
+        <span class="hint">F4 生态入口</span>
+      </div>
+    </div>
+
+    <!-- Trace 面板（VS Code 风格：已打开在上 / 新建模板在下） -->
+    <div class="sb-panel vs-panel active" id="panel-trace">
+      <div class="sb-header">
+        <span class="hdr-title">Trace</span>
+        <span class="hdr-actions">
+          <span class="h-act" title="新建 Trace" onclick="alert('新建帧列表 Trace')">&#65291;</span>
+          <span class="h-act" title="刷新" onclick="alert('刷新实例状态')">&#8635;</span>
+          <span class="h-act" title="折叠全部" onclick="collapseAllSections(this)">&#8863;</span>
+        </span>
+      </div>
+
+      <!-- 顶部分节：已打开的 Trace 实例 -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 已打开 <span class="count">2</span>
+        <span class="sec-actions" onclick="event.stopPropagation()" title="关闭全部">&#10005;</span>
+      </div>
+      <div class="section-body">
         <div class="entry-item active" onclick="switchCenterTab('trace')">
-          📋 Trace
+          &#128203; Trace1
+          <span class="close-x" onclick="event.stopPropagation()" title="删除此 Trace">&#10005;</span>
         </div>
+        <div class="entry-item" onclick="switchCenterTab('trace2')">
+          &#128203; Trace2
+          <span class="close-x" onclick="event.stopPropagation()" title="删除此 Trace">&#10005;</span>
+        </div>
+      </div>
+
+      <div class="flex-spacer"></div>
+
+      <!-- 底部分节：新建（模板入口，已实现可点 / 未落地置灰） -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 新建
+      </div>
+      <div class="section-body">
+        <div class="tpl-item" onclick="alert('新建帧列表 Trace')">&#65291; 帧列表</div>
+        <div class="tpl-item disabled" title="TR 系列规划">&#65291; 事务配对</div>
+        <div class="tpl-item disabled" title="TR 系列规划">&#65291; 聚合监视</div>
+        <div class="tpl-item disabled" title="TR 系列规划">&#65291; 文本日志流</div>
+        <div class="tpl-item disabled" title="TR 系列规划">&#65291; 字节流</div>
+        <div class="tpl-item disabled" title="TR 系列规划">&#65291; 时序段</div>
+      </div>
+
+      <!-- 底部操作栏 -->
+      <div class="panel-footer">
+        <span class="btn danger" onclick="alert('删除选中的 Trace')">&#128465; 删除选中</span>
+        <span class="hint">悬停条目可单独删除</span>
       </div>
     </div>
 
-    <!-- DBC 面板 -->
-    <div class="sb-panel" id="panel-dbc">
-      <div class="sb-header">DBC 文件列表</div>
-      <div class="entry-list">
-        <div class="entry-item" onclick="switchCenterTab('dbc')">
-          <span class="arrow">&#9660;</span> 📄 engine.dbc
-        </div>
-        <div class="entry-sub" onclick="switchCenterTab('dbc')">▼ Msg_0x123 (EngineStatus)</div>
-        <div class="entry-sub" style="padding-left:40px" onclick="switchCenterTab('dbc')">EngineRPM</div>
-        <div class="entry-sub" style="padding-left:40px" onclick="switchCenterTab('dbc')">ThrottlePos</div>
-        <div class="entry-sub" style="padding-left:40px" onclick="switchCenterTab('dbc')">CoolantTemp</div>
-        <div class="entry-sub" onclick="switchCenterTab('dbc')">▶ Msg_0x456 (BrakeCtrl)</div>
-        <div class="entry-item" onclick="alert('加载 body.dbc')">
-          <span class="arrow">&#9654;</span> 📄 body.dbc
-        </div>
+    <!-- Graphic 面板（VS Code 风格：已打开在上 / 新建模板在下） -->
+    <div class="sb-panel vs-panel" id="panel-graphic">
+      <div class="sb-header">
+        <span class="hdr-title">Graphic</span>
+        <span class="hdr-actions">
+          <span class="h-act" title="新建 Graphic" onclick="alert('新建时序波形 Graphic')">&#65291;</span>
+          <span class="h-act" title="刷新" onclick="alert('刷新页面状态')">&#8635;</span>
+          <span class="h-act" title="折叠全部" onclick="collapseAllSections(this)">&#8863;</span>
+        </span>
       </div>
-      <div class="sb-body">
-        <div class="btn-row">
-          <span class="btn primary" onclick="alert('加载 DBC 文件')">+ 加载 DBC</span>
-        </div>
-      </div>
-    </div>
 
-    <!-- 信号发送面板 -->
-    <div class="sb-panel" id="panel-send">
-      <div class="sb-header">信号发送</div>
-      <div class="entry-list">
-        <div class="entry-item" onclick="switchCenterTab('send')">
-          &#128225; 信号发送
-        </div>
+      <!-- 顶部分节：已打开的 Graphic 页面 -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 已打开 <span class="count">3</span>
+        <span class="sec-actions" onclick="event.stopPropagation()" title="关闭全部">&#10005;</span>
       </div>
-    </div>
-
-    <!-- 录制面板 -->
-    <div class="sb-panel" id="panel-record">
-      <div class="sb-header">录制</div>
-      <div class="entry-list">
-        <div class="entry-item" onclick="switchCenterTab('record')">
-          ● 录制控制
-        </div>
-      </div>
-    </div>
-
-    <!-- Graphic 配置面板 -->
-    <div class="sb-panel" id="panel-graphic">
-      <div class="sb-header">Graphic 页面</div>
-      <div class="entry-list">
-        <div class="entry-item" onclick="switchCenterTab('graphic1')">
-          📈 Graphic1 <span class="badge">3 信号</span>
+      <div class="section-body">
+        <div class="entry-item active" onclick="switchCenterTab('graphic1')">
+          &#128200; Graphic1 <span class="badge">3 信号</span>
+          <span class="close-x" onclick="event.stopPropagation()" title="删除此 Graphic">&#10005;</span>
         </div>
         <div class="entry-item" onclick="switchCenterTab('graphic2')">
-          📈 Graphic2 <span class="badge">2 信号</span>
+          &#128200; Graphic2 <span class="badge">2 信号</span>
+          <span class="close-x" onclick="event.stopPropagation()" title="删除此 Graphic">&#10005;</span>
         </div>
         <div class="entry-item" onclick="switchCenterTab('graphic3')">
-          📈 Graphic3 <span class="badge">空</span>
+          &#128200; Graphic3 <span class="badge">空</span>
+          <span class="close-x" onclick="event.stopPropagation()" title="删除此 Graphic">&#10005;</span>
         </div>
       </div>
-      <div class="sb-body">
-        <div class="btn-row">
-          <span class="btn primary" onclick="alert('新建 Graphic 页面')">+ 新建 Graphic</span>
-        </div>
-        <div style="font-size:10px;color:#aaa;margin-top:6px">坐标缩放/移动/自适应在 Graphic 标签页内部</div>
+
+      <div class="flex-spacer"></div>
+
+      <!-- 底部分节：新建（形态模板入口，已实现可点 / 未落地置灰） -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 新建
+      </div>
+      <div class="section-body">
+        <div class="tpl-item" onclick="alert('新建时序波形 Graphic')">&#65291; 时序波形</div>
+        <div class="tpl-item disabled" title="GV 系列规划">&#65291; XY 关联</div>
+        <div class="tpl-item disabled" title="GV 系列规划">&#65291; 数字总线</div>
+        <div class="tpl-item disabled" title="GV 系列规划">&#65291; 状态时间线</div>
+        <div class="tpl-item disabled" title="GV 系列规划">&#65291; 仪表盘</div>
+        <div class="tpl-item disabled" title="GV 系列规划">&#65291; 柱状统计</div>
+      </div>
+
+      <!-- 底部操作栏 -->
+      <div class="panel-footer">
+        <span class="btn danger" onclick="alert('删除选中的 Graphic')">&#128465; 删除选中</span>
+        <span class="hint">坐标缩放/移动在 Graphic 标签页内</span>
       </div>
     </div>
 
-    <!-- 设备面板 -->
-    <div class="sb-panel" id="panel-device">
-      <div class="sb-header">设备连接</div>
-      <div class="sb-body">
-        <div class="sb-label">通道:</div>
-        <select class="combo" style="width:100%;margin-bottom:6px"><option>通道 1</option><option>通道 2</option></select>
-        <div class="sb-label">波特率:</div>
-        <select class="combo" style="width:100%;margin-bottom:6px"><option>500000</option><option>250000</option><option>1000000</option></select>
-        <div class="sb-label">FD 配置:</div>
-        <select class="combo" style="width:100%;margin-bottom:8px"><option>CAN 2.0</option><option>CAN FD</option></select>
-        <div class="btn-row">
-          <span class="btn primary">&#128279; 连接</span>
-          <span class="btn">断开</span>
+    <!-- DBC 面板（VS Code 风格：已加载置顶、文件→报文→信号三级可折叠、操作在底部） -->
+    <div class="sb-panel vs-panel" id="panel-dbc">
+      <div class="sb-header">
+        <span class="hdr-title">DBC 数据库</span>
+        <span class="hdr-actions">
+          <span class="h-act" title="加载 DBC 文件" onclick="alert('加载 DBC 文件')">+</span>
+          <span class="h-act" title="重新解析" onclick="alert('重新解析全部 DBC')">&#8635;</span>
+          <span class="h-act" title="折叠全部" onclick="collapseAllSections(this)">&#8863;</span>
+        </span>
+      </div>
+
+      <!-- 顶部分节：已加载的 DBC（激活文件高亮置顶） -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 已加载 <span class="count">2</span>
+        <span class="sec-actions" onclick="event.stopPropagation()" title="卸载全部">&#10005;</span>
+      </div>
+      <div class="section-body">
+        <div class="tree-node active" onclick="toggleSection(this);selectEntry(this)"
+             ondblclick="switchCenterTab('dbc')" title="单击收拢/展开，双击打开详情页">
+          <span class="chev">&#9662;</span> &#128196; engine.dbc <span class="t-badge">12 报文</span>
         </div>
-        <div style="margin-top:8px;font-size:11px;color:#888">状态: <span style="color:#c00">未连接</span></div>
+        <div class="tree-children">
+          <div class="tree-node lvl1" onclick="toggleSection(this)">
+            <span class="chev">&#9662;</span> Msg_0x123 EngineStatus <span class="t-badge">3 信号</span>
+          </div>
+          <div class="tree-children">
+            <div class="tree-node lvl2" onclick="switchCenterTab('dbc')">EngineRPM <span class="t-badge">&#215;0.125</span></div>
+            <div class="tree-node lvl2" onclick="switchCenterTab('dbc')">ThrottlePos <span class="t-badge">&#215;0.4</span></div>
+            <div class="tree-node lvl2" onclick="switchCenterTab('dbc')">CoolantTemp <span class="t-badge">&#8722;40</span></div>
+          </div>
+          <div class="tree-node lvl1 collapsed" onclick="toggleSection(this)">
+            <span class="chev">&#9662;</span> Msg_0x456 BrakeCtrl <span class="t-badge">2 信号</span>
+          </div>
+          <div class="tree-children">
+            <div class="tree-node lvl2" onclick="switchCenterTab('dbc')">BrakePressure</div>
+            <div class="tree-node lvl2" onclick="switchCenterTab('dbc')">ABSActive</div>
+          </div>
+        </div>
+        <div class="tree-node collapsed" onclick="toggleSection(this);selectEntry(this)"
+             ondblclick="switchCenterTab('dbc2')">
+          <span class="chev">&#9662;</span> &#128196; body.dbc <span class="t-badge">8 报文</span>
+        </div>
+        <div class="tree-children">
+          <div class="tree-node lvl1" onclick="switchCenterTab('dbc2')">Msg_0x100 DoorStatus</div>
+          <div class="tree-node lvl1" onclick="switchCenterTab('dbc2')">Msg_0x210 LightCtrl</div>
+        </div>
+        <div class="status-note">&#9432; 共 2 个文件 &#183; 20 报文 &#183; 156 信号</div>
+      </div>
+
+      <!-- 中部分节：按协议分类（解析器面板前瞻，多协议就绪前置灰） -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 按协议分类
+      </div>
+      <div class="section-body">
+        <div class="tpl-item disabled" title="F1 落地后并入解析器面板">CAN / CAN FD</div>
+        <div class="tpl-item disabled" title="F3">CANopen (EDS/DCF)</div>
+        <div class="tpl-item disabled" title="F3">EtherCAT (ENI/ESI)</div>
+        <div class="tpl-item disabled" title="F2">LIN (LDF)</div>
+        <div class="tpl-item disabled" title="F2">J1939 (DBC)</div>
+        <div class="tpl-item disabled" title="F1">AUTOSAR (ARXML)</div>
+      </div>
+
+      <div class="flex-spacer"></div>
+
+      <!-- 底部操作栏 -->
+      <div class="panel-footer">
+        <span class="btn primary" onclick="alert('加载 DBC 文件')">+ 加载</span>
+        <span class="btn" onclick="alert('卸载选中的 DBC')">卸载选中</span>
+        <span class="hint">文件行双击打开详情</span>
       </div>
     </div>
 
-    <!-- 配置面板 -->
-    <div class="sb-panel" id="panel-settings">
-      <div class="sb-header">设置</div>
-      <div class="entry-list">
-        <div class="entry-item" onclick="alert('打开通用设置标签页')">
-          ⚙ 通用设置
+    <!-- 信号发送面板（VS Code 风格：已打开在上 / 命令在下） -->
+    <div class="sb-panel vs-panel" id="panel-send">
+      <div class="sb-header">
+        <span class="hdr-title">信号发送</span>
+        <span class="hdr-actions">
+          <span class="h-act" title="新建发送组" onclick="alert('新建发送组')">+</span>
+          <span class="h-act" title="折叠全部" onclick="collapseAllSections(this)">&#8863;</span>
+        </span>
+      </div>
+
+      <!-- 顶部分节：已打开 -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 已打开 <span class="count">1</span>
+      </div>
+      <div class="section-body">
+        <div class="entry-item active" onclick="switchCenterTab('send')">
+          &#128225; 信号发送 <span class="badge">4 组</span>
         </div>
-        <div class="entry-item" onclick="alert('打开界面设置标签页')">
-          🖥 界面设置
+      </div>
+
+      <div class="flex-spacer"></div>
+
+      <!-- 底部分节：发送组管理 -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 发送组
+      </div>
+      <div class="section-body">
+        <div class="tpl-item" onclick="alert('新建发送组')">&#65291; 新建发送组</div>
+        <div class="tpl-item" onclick="alert('从 DBC 导入报文组')">&#8681; 从 DBC 导入</div>
+        <div class="tpl-item disabled" title="规划中">&#8679; 导出发送组</div>
+      </div>
+
+      <!-- 底部操作栏 -->
+      <div class="panel-footer">
+        <span class="btn success" onclick="alert('全部发送')">&#9654; 全部发送</span>
+        <span class="btn danger" onclick="alert('全部停止')">&#9209; 全部停止</span>
+      </div>
+    </div>
+
+    <!-- 录制面板（VS Code 风格：已打开在上 / 配置与命令在下） -->
+    <div class="sb-panel vs-panel" id="panel-record">
+      <div class="sb-header">
+        <span class="hdr-title">录制</span>
+        <span class="hdr-actions">
+          <span class="h-act" title="新建录制会话" onclick="alert('新建录制会话')">+</span>
+          <span class="h-act" title="折叠全部" onclick="collapseAllSections(this)">&#8863;</span>
+        </span>
+      </div>
+
+      <!-- 顶部分节：已打开 -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 已打开 <span class="count">1</span>
+      </div>
+      <div class="section-body">
+        <div class="entry-item active" onclick="switchCenterTab('record')">
+          &#9679; 录制控制 <span class="badge">未录制</span>
         </div>
-        <div class="entry-item" onclick="alert('打开快捷键设置标签页')">
-          ⌨ 快捷键
+      </div>
+
+      <div class="flex-spacer"></div>
+
+      <!-- 底部分节：录制配置 -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 录制配置
+      </div>
+      <div class="section-body">
+        <div class="tpl-item" onclick="alert('选择录制文件')">&#128193; 输出: auto_$(date).sin</div>
+        <div class="tpl-item" onclick="alert('选择录制格式')">&#128230; 格式: .sin v2 容器</div>
+        <div class="tpl-item" onclick="alert('选择录制通道')">&#128279; 通道: 全部通道</div>
+      </div>
+
+      <!-- 底部操作栏 -->
+      <div class="panel-footer">
+        <span class="btn danger" onclick="alert('开始录制')">&#9679; 开始</span>
+        <span class="btn" onclick="alert('停止录制')">&#9209; 停止</span>
+        <span class="hint">状态栏查看帧计数</span>
+      </div>
+    </div>
+
+    <!-- 设备面板（VS Code 风格：设备列表在上 / 通道配置与连接命令在下） -->
+    <div class="sb-panel vs-panel" id="panel-device">
+      <div class="sb-header">
+        <span class="hdr-title">设备连接</span>
+        <span class="hdr-actions">
+          <span class="h-act" title="刷新设备列表" onclick="alert('重新扫描 CAN 设备')">&#8635;</span>
+          <span class="h-act" title="折叠全部" onclick="collapseAllSections(this)">&#8863;</span>
+        </span>
+      </div>
+
+      <!-- 顶部分节：设备列表（当前选中设备高亮置顶） -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 设备列表 <span class="count">2</span>
+      </div>
+      <div class="section-body">
+        <div class="entry-item active" onclick="selectEntry(this)">
+          &#128295; USB-CAN 通道 1 <span class="badge">未连接</span>
         </div>
+        <div class="entry-item" onclick="selectEntry(this)">
+          &#128295; USB-CAN 通道 2 <span class="badge">未连接</span>
+        </div>
+        <div class="status-note">&#9432; ZLG USBCAN-II &#183; 固件 v2.31</div>
+      </div>
+
+      <div class="flex-spacer"></div>
+
+      <!-- 底部分节：通道配置（可收拢表单） -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 通道配置
+      </div>
+      <div class="section-body">
+        <div class="sb-body">
+          <div class="sb-label">通道:</div>
+          <select class="combo" style="width:100%;margin-bottom:6px"><option>通道 1</option><option>通道 2</option></select>
+          <div class="sb-label">波特率:</div>
+          <select class="combo" style="width:100%;margin-bottom:6px"><option>500000</option><option>250000</option><option>1000000</option></select>
+          <div class="sb-label">FD 配置:</div>
+          <select class="combo" style="width:100%;margin-bottom:4px"><option>CAN 2.0</option><option>CAN FD</option></select>
+        </div>
+      </div>
+
+      <!-- 状态行 + 底部操作栏 -->
+      <div class="status-note">&#9432; 状态: <span style="color:#c00">未连接</span> &#8212; 点击「连接」启动采集</div>
+      <div class="panel-footer">
+        <span class="btn primary" onclick="alert('连接设备')">&#128279; 连接</span>
+        <span class="btn" onclick="alert('断开设备')">断开</span>
+      </div>
+    </div>
+
+    <!-- 设置面板（VS Code 风格：设置项在上 / 恢复命令在下） -->
+    <div class="sb-panel vs-panel" id="panel-settings">
+      <div class="sb-header">
+        <span class="hdr-title">设置</span>
+        <span class="hdr-actions">
+          <span class="h-act" title="折叠全部" onclick="collapseAllSections(this)">&#8863;</span>
+        </span>
+      </div>
+
+      <!-- 顶部分节：设置项 -->
+      <div class="sb-section" onclick="toggleSection(this)">
+        <span class="chev">&#9662;</span> 设置项
+      </div>
+      <div class="section-body">
+        <div class="entry-item" onclick="alert('打开通用设置')">&#9881; 通用</div>
+        <div class="entry-item" onclick="alert('打开界面设置')">&#128421; 界面</div>
+        <div class="entry-item" onclick="alert('打开快捷键设置')">&#9000; 快捷键</div>
+        <div class="entry-item disabled" title="规划中">&#128274; 数据与隐私</div>
+      </div>
+
+      <div class="flex-spacer"></div>
+
+      <!-- 底部操作栏 -->
+      <div class="panel-footer">
+        <span class="btn" onclick="alert('恢复默认设置')">恢复默认</span>
+        <span class="hint">设置即改即生效</span>
       </div>
     </div>
 

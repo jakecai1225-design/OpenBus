@@ -34,6 +34,7 @@
 // ui/colorruleeditor.h 已移除 — Trace/Graphic/DataWindow/着色规则经
 // ModuleRegistry "trace"/"graphic" 模块创建与操控（拆分方案 B5）
 #include "ui/tools/iographview.h"
+#include "ui/watcherview.h"    // Watcher 观测页（doc/Watcher方案.md 方案 A：壳侧页面）
 #include "core/busstatistics.h"
 // core/filterpresetmanager.h 已移除 — 过滤预设随 Trace 页迁入 TraceModule（B5）
 #include "core/bookmarkmanager.h"
@@ -332,6 +333,20 @@ void MainWindow::onOpenIOGraph()
         m_ioGraph = new IOGraphView(this);
     }
     openTab(m_ioGraph, QStringLiteral("I/O Graph"));
+}
+
+void MainWindow::onOpenWatcher()
+{
+    // Watcher 观测页壳侧自持（doc/Watcher方案.md 方案 A：BusStatistics/
+    // DbcManager 与壳同侧直连，不经模块编排；标签页关闭即销毁 →
+    // destroyed 置空单例指针，同 m_shortcutsPage 先例）
+    if (!m_watcherView) {
+        m_watcherView = new WatcherView(m_dbcManager, m_busStats, this);
+        connect(m_watcherView, &QObject::destroyed, this, [this]() {
+            m_watcherView = nullptr;
+        });
+    }
+    openTab(m_watcherView, QStringLiteral("Watcher 观测"));
 }
 
 void MainWindow::onOpenColorRuleEditor()

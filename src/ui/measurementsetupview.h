@@ -25,7 +25,7 @@ class QLabel;
  *   - 工具栏：数据源切换(硬件/文件) | 开始/停止测量 | 文件选择
  *   - 大画布：QGraphicsScene 绘制流程拓扑
  *     数据源 → Filter 过滤（多 CAN 通道块收编为单块）→ DBC数据库
- *     → [Trace, Graphic, Data, 录制]
+ *     → [Trace, Graphic, Watcher 观测, 录制]
  *   - 块交互：未启用块单击 = 启用；已启用块单击/双击 = 进入配置；
  *     右键菜单 = 配置 / 启停 / 增删（数据流过滤统一在 Filter 块配置）
  *   - 模块块内展示已打开的实例列表，单击实例跳转对应标签页
@@ -170,7 +170,7 @@ private:
 
     // ---- 动态增删 ----
     void removeModuleBlock(const QString &blockId);
-    /// 重新排列所有模块块（Trace / Graphic / Data+Record 分行水平排列）
+    /// 重新排列所有模块块（Trace / Graphic / Watcher+Record 分行水平排列）
     void relayoutModuleBlocks();
 
     // 工具栏

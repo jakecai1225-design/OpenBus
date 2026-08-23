@@ -297,6 +297,9 @@ void MainWindow::connectSidePanels()
             this, &MainWindow::onOpenRecordTab);
     connect(m_sideBar->graphicConfigPanel(), &GraphicConfigPanel::newGraphicRequested,
             this, &MainWindow::onNewGraphicRequested);
+    // 「添加信号」→ DBC 信号选择弹窗（搜索 / 树形 / Ctrl+Shift 多选 → addSignals）
+    connect(m_sideBar->graphicConfigPanel(), &GraphicConfigPanel::addSignalRequested,
+            this, &MainWindow::onGraphicAddSignalRequested);
     connect(m_sideBar->graphicConfigPanel(), &GraphicConfigPanel::graphicPageSelected,
             this, &MainWindow::onGraphicPageSelected);
     connect(m_sideBar->graphicConfigPanel(), &GraphicConfigPanel::graphicDeleteRequested,

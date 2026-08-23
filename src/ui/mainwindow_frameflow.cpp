@@ -13,6 +13,8 @@
 #include "models/cantraceproxymodel.h"
 #include "ui/activitybar.h"
 #include "ui/panels/sidebarpanels.h"
+#include "ui/dbcsignalpickerdialog.h"  // Graphic 侧栏「添加信号」弹窗（DBC 信号搜索/多选）
+#include "ui/watcherview.h"            // Watcher 观测页（喂帧/复位直调，doc/Watcher方案.md）
 #include "ui/thememanager.h"
 #include "ui/bottompanel.h"
 #include "ui/rightpanel.h"
@@ -116,6 +118,9 @@ void MainWindow::onFrameReceived(const CanFrame &frame)
     // 发送到 I/O Graph
     if (m_ioGraph)
         m_ioGraph->onFrame(frame);
+    // 发送到 Watcher 观测页（doc/Watcher方案.md：最新帧缓存 + 懒解码，500ms 刷新）
+    if (m_watcherView)
+        m_watcherView->onFrame(frame);
     // 更新状态栏帧数（使用独立计数器，不依赖当前标签页类型）
     m_receivedFrameCount++;
     if (m_player->isLoaded()) {
@@ -210,6 +215,53 @@ void MainWindow::onFrameAddToGraphic(const CanFrame &frame)
     m_bottomPanel->appendOutput(
         QStringLiteral("已添加 %1 个信号到 Graphic (ID=0x%2)")
             .arg(msg->signalList.size()).arg(frame.id, 0, 16).toUpper());
+}
+
+void MainWindow::onGraphicAddSignalRequested()
+{
+    // Graphic 侧栏「添加信号」：DBC 信号选择弹窗（搜索 / 树形浏览 / Ctrl+Shift
+    // 多选）→ resolveGraphicTarget（无则新建）→ graphic 模块 addSignals 批量添加
+    if (m_dbcManager->files().isEmpty()) {
+        m_bottomPanel->appendOutput(
+            QStringLiteral("尚未加载 DBC 数据库 — 请先在数据库面板加载文件"));
+        return;
+    }
+
+    DbcSignalPickerDialog dlg(m_dbcManager, QString(), this);  // 缺省标题「添加信号到 Graphic」
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    const auto picked = dlg.pickedSignals();
+    if (picked.isEmpty())
+        return;
+
+    QWidget *targetGv = resolveGraphicTarget();
+    if (!targetGv)
+        return;
+
+    QVariantList sigMaps;
+    QSet<QString> msgSources;   // 来源报文统计（输出提示用）
+    for (const auto &p : picked) {
+        sigMaps.append(buildSignalMap(p.canId, p.extended, p.signal.name, p.signal));
+        msgSources.insert(QStringLiteral("%1::%2").arg(p.fileName, p.messageName));
+    }
+    graphicInvoke(QStringLiteral("addSignals"),
+                  QVariantList{ QVariant::fromValue(targetGv), sigMaps });
+
+    // 切换到目标 Graphic 标签页（与 onFrameDoubleClicked 行为对齐）
+    if (auto *tabs = m_editorArea->activeTabWidget()) {
+        for (int i = 0; i < tabs->count(); ++i) {
+            if (tabs->widget(i) == targetGv) {
+                tabs->setCurrentIndex(i);
+                m_tabLabel->setText(tabs->tabText(i));
+                break;
+            }
+        }
+    }
+
+    m_bottomPanel->appendOutput(
+        QStringLiteral("已添加 %1 个信号到 Graphic（来自 %2 个报文）")
+            .arg(picked.size()).arg(msgSources.size()));
 }
 
 // ============================================================
@@ -352,6 +404,12 @@ void MainWindow::onMeasurementToggled(bool running)
     m_measurementRunning = running;
     if (running) {
         m_receivedFrameCount = 0;  // 重置帧计数器
+        // 新测量会话：总线统计引擎与 Watcher 观测数据全部归零重新累计
+        // （修复统计跨会话累计的缺陷，doc/Watcher方案.md §4.6）
+        if (m_busStats)
+            m_busStats->clear();
+        if (m_watcherView)
+            m_watcherView->clearData();
         m_bottomPanel->appendOutput(" 测量开始");
         const bool hardware = flowQuery(QStringLiteral("currentSource"))
                                   .toString() == QStringLiteral("hardware");
@@ -502,8 +560,9 @@ void MainWindow::onModuleOpened(const QString &moduleId, const QString &instance
         }
     } else if (moduleId == "record") {
         onOpenRecordTab();
-    } else if (moduleId == "data") {
-        m_bottomPanel->appendOutput("Data 统计模块（待实现）");
+    } else if (moduleId == "watcher") {
+        // Watcher 观测页（doc/Watcher方案.md 方案 A：壳侧自持，直接开页）
+        onOpenWatcher();
     }
 }
 

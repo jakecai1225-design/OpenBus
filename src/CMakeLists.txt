@@ -173,6 +173,12 @@ set(SRC_UI
     ui/rightpanel.cpp
     ui/panels/sidebarpanels.h
     ui/panels/sidebarpanels.cpp
+    # Graphic 侧栏「添加信号」弹窗（壳编排：DbcManager 数据源 → graphic 模块 addSignals）
+    ui/dbcsignalpickerdialog.h
+    ui/dbcsignalpickerdialog.cpp
+    # Watcher 观测页（doc/Watcher方案.md 方案 A：壳侧自持，直连 BusStatistics/DbcManager）
+    ui/watcherview.h
+    ui/watcherview.cpp
     ui/spliteditorarea.h
     ui/spliteditorarea.cpp
     # signalsendtab/playbacktab/offlineanalysistab/recordtab 迁入

@@ -914,14 +914,22 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(8, 6, 8, 6);
     btnBar->setSpacing(4);
+    // 「添加信号」：弹 DBC 信号选择器（搜索 / 树形浏览 / Ctrl+Shift 多选），
+    // 壳侧编排后批量加到当前 Graphic（无则新建）——面板只发出请求
+    m_addSigBtn = new QPushButton(
+        svgIcon(":/icons/plus.svg", ThemeManager::instance()->currentTheme().text, 14),
+        QStringLiteral("添加信号"), this);
+    m_addSigBtn->setToolTip(
+        QStringLiteral("从已加载的 DBC 数据库中搜索/多选信号，添加到当前 Graphic"));
     m_delBtn = new QPushButton(
         svgIcon(":/icons/dash.svg", ThemeManager::instance()->currentTheme().text, 14),
         "删除", this);
-    // 主题切换 → 重刷模板行与删除按钮图标颜色
+    // 主题切换 → 重刷模板行与按钮图标颜色
     auto *graphBtnRelay = new SignalRelay(this);
     graphBtnRelay->fire0 = [this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
         m_delBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
+        m_addSigBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
         for (int i = 0; i < m_templateList->count(); ++i) {
             auto *row = m_templateList->item(i);
             if (row->flags().testFlag(Qt::ItemIsEnabled))
@@ -930,10 +938,13 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
     };
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             graphBtnRelay, SLOT(fire()));
+    btnBar->addWidget(m_addSigBtn);
     btnBar->addWidget(m_delBtn);
     btnBar->addStretch();
     cl->addLayout(btnBar);
 
+    connect(m_addSigBtn, &QPushButton::clicked, this,
+            [this]() { emit addSignalRequested(); });
     connect(m_delBtn, &QPushButton::clicked, this, &GraphicConfigPanel::onDeleteGraphic);
     connect(m_pageList, &QListWidget::currentRowChanged,
             this, &GraphicConfigPanel::onPageSelected);

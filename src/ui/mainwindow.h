@@ -26,6 +26,7 @@ class RightPanel;
 class BusStatistics;
 class BookmarkManager;
 class IOGraphView;
+class WatcherView;   // Watcher 观测页（壳侧单实例标签页，doc/Watcher方案.md 方案 A）
 class PluginManager;
 class SettingsPage;    // 设置页（标签页形态，原 SettingsDialog 弹窗改造）
 class ShortcutsPage;   // 快捷键参考页（标签页形态）
@@ -90,6 +91,9 @@ private slots:
     // Trace/Graphic 联动（B5：模块经 shellInvoke 回调壳编排）
     void onFrameDoubleClicked(const CanFrame &frame);
     void onFrameAddToGraphic(const CanFrame &frame);
+    // Graphic 侧栏「添加信号」：DBC 信号选择弹窗（搜索/树形/Ctrl+Shift 多选）
+    // → 批量加到当前或最后的 Graphic（无则新建；经 graphic 模块 addSignals）
+    void onGraphicAddSignalRequested();
 
     // 回放
     void onPlayerProgress(int cur, int total, double curTime, double totalTime);
@@ -119,6 +123,7 @@ private slots:
 
     // P0/P1 新增
     void onOpenDataWindow();
+    void onOpenWatcher();      // Watcher 观测页（doc/Watcher方案.md 方案 A）
     void onOpenIOGraph();
     void onOpenColorRuleEditor();
     void onBookmarkJumped(int frameIndex);
@@ -239,6 +244,7 @@ private:
     BookmarkManager *m_bookmarkMgr = nullptr;
     // m_dataWindow 已随 Graphic 页迁入 GraphicModule（拆分方案 B5：单实例缓存在模块内）
     IOGraphView *m_ioGraph = nullptr;
+    WatcherView *m_watcherView = nullptr;  // Watcher 观测页（壳侧单实例，关闭销毁置空）
 
     // ---- 插件系统 ----
     PluginManager *m_pluginManager = nullptr;

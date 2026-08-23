@@ -447,12 +447,12 @@ void MeasurementSetupView::buildTopology()
 
     x += bw + gapX;
 
-    // ---- 第 4 列: 分析模块 (垂直堆叠: Trace / Graphic / Data / Record) ----
+    // ---- 第 4 列: 分析模块 (垂直堆叠: Trace / Graphic / Watcher / Record) ----
     struct ModDef { QString id; QString icon; QString title; QColor color; QString moduleName; };
     ModDef mods[] = {
         {"trace1",   "", "Trace1",          QColor(0x21, 0x96, 0xF3), "trace"},
         {"graphic1", "", "Graphic1",        QColor(0xF4, 0x43, 0x36), "graphic"},
-        {"data",     "", "Data 统计",        QColor(0x4C, 0xAF, 0x50), ""},
+        {"watcher",  "", "Watcher 观测",     QColor(0x4C, 0xAF, 0x50), ""},
         {"record",   "", "录制 Record",      QColor(0xFF, 0x98, 0x00), ""},
     };
     int modW = 140;
@@ -487,7 +487,7 @@ void MeasurementSetupView::buildTopology()
     // DBC → 各模块
     addConn("database", "trace1");
     addConn("database", "graphic1");
-    addConn("database", "data");
+    addConn("database", "watcher");
     addConn("database", "record");
 
     // 模块块垂直堆叠
@@ -1209,11 +1209,11 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
             connect(actAdd, &QAction::triggered, this, [this]() {
                 emit moduleOpened("graphic", "");
             });
-        } else if (blockId == "data") {
-            auto *actCfg = m_rightMenu->addAction("配置统计参数...");
-            actCfg->setStatusTip("配置总线负载率、报文频率等统计项");
-            connect(actCfg, &QAction::triggered, this, []() {
-                // 占位：实际实现需要 Data 模块视图
+        } else if (blockId == "watcher") {
+            auto *actCfg = m_rightMenu->addAction("观测变量与统计设置...");
+            actCfg->setStatusTip("打开 Watcher 观测页（变量 Watch 列表 + 总线统计）");
+            connect(actCfg, &QAction::triggered, this, [this]() {
+                emit moduleOpened("watcher", "");
             });
         } else if (blockId == "record") {
             auto *actCfg = m_rightMenu->addAction(" 配置录制参数...");
@@ -1287,7 +1287,7 @@ void MeasurementSetupView::buildEmptyAreaMenu(const QPointF &)
     // 仅在画布上不存在该类型模块时显示添加选项
     struct ModDef { QString id; QString icon; QString title; QColor color; };
     ModDef stdMods[] = {
-        {"data",     "", "Data 统计",        QColor(0x4C, 0xAF, 0x50)},
+        {"watcher",  "", "Watcher 观测",     QColor(0x4C, 0xAF, 0x50)},
         {"record",   "", "录制 Record",      QColor(0xFF, 0x98, 0x00)},
     };
 
