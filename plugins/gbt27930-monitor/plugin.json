@@ -1,0 +1,19 @@
+{
+    "name": "gbt27930-monitor",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "GB/T 27930 国标充电监视：BMS/充电机报文全解码（CHM→CST）、充电阶段状态机与异常告警",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:gbt27930Monitor.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "gbt27930Monitor.open",
+                "title": "协议: 国标充电监视"
+            }
+        ]
+    }
+}

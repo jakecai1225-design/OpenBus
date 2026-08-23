@@ -1,0 +1,19 @@
+{
+    "name": "xcp-monitor",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "XCP (CAN) 监视器：CONNECT/GET_STATUS/DIAG 等 CTO 命令解码、DAQ/STIM 识别、会话视图",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:xcpMonitor.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "xcpMonitor.open",
+                "title": "标定: XCP 监视"
+            }
+        ]
+    }
+}

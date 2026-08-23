@@ -1,0 +1,19 @@
+{
+    "name": "canopen-scanner",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "CANopen 节点扫描器：1-127 节点 Identity 探测（SDO 0x1018）、心跳发现、节点清单导出",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:canopenScanner.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "canopenScanner.open",
+                "title": "协议: CANopen 扫描"
+            }
+        ]
+    }
+}

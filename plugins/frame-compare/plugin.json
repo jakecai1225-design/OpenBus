@@ -1,0 +1,19 @@
+{
+    "name": "frame-compare",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "CAN 双源报文比对：实时/缓冲/CSV 三种来源两两比对，缺帧/多帧/载荷差/周期差统计与导出",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:frameCompare.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "frameCompare.open",
+                "title": "工具: 报文比对"
+            }
+        ]
+    }
+}

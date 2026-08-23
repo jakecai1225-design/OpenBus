@@ -10,10 +10,13 @@
 //           A1 回归）、100ms 批量 flush、frames.getRecent 往返（B2）
 //  控制链路：signals.decode/encode（B1）、workspace.getProjectDir/
 //           getDbcFiles/getSetting（B1）、frames.getSelected、
-//           output.clear（B3）、sendFrame、未知方法 -32601 错误响应（B5）
+//           output.clear（B3）、sendFrame、未知方法 -32601 错误响应（B5）、
+//           dbc.* 会话 API（dbc-tool 同链路）、files.* 异步转换
+//           （blf-converter 同链路，progress/finished 通知回报）
 //  生命周期：宿主被杀 → 1s 重启 → onHostStarted 重激活（C1）→ 数据链路
 //           自动恢复；shutdown 后无僵尸重启（C1）
 #include <QCoreApplication>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QJsonObject>
@@ -21,6 +24,7 @@
 #include <QProcess>
 #include <QStringList>
 #include <cstdio>
+#include <functional>
 
 #include "core/appconfig.h"
 #include "core/canframe.h"
@@ -107,6 +111,11 @@ int main(int argc, char *argv[])
         ? QString::fromUtf8(argv[1])
         : QDir(QCoreApplication::applicationDirPath())
               .filePath(QStringLiteral("../../test/resources/V5.4.0_20260605_INFO_CAN.dbc"));
+    // dbc.*/files.* 深度验证素材：探针经环境变量读取（宿主进程继承）
+    const QString ascPath = QDir(QCoreApplication::applicationDirPath())
+              .filePath(QStringLiteral("../../test/resources/info.asc"));
+    qputenv("SIN_E2E_DBC", dbcPath.toUtf8());
+    qputenv("SIN_E2E_ASC", ascPath.toUtf8());
     int failures = 0;
     auto check = [&failures](bool ok, const char *what) {
         std::printf("%-28s %s\n", what, ok ? "PASS" : "FAIL");
@@ -157,6 +166,8 @@ int main(int argc, char *argv[])
     check(sink.contains(QStringLiteral("CTL setting=ok42")), "ctl_workspace_get_setting");
     check(sink.contains(QStringLiteral("CTL selected=2")), "ctl_frames_get_selected");
     check(sink.contains(QStringLiteral("CTL unknown=-32601")), "ctl_unknown_method_error");
+    check(sink.contains(QStringLiteral("CTL dbc msgs="))
+          && !sink.contains(QStringLiteral("CTL dbc FAIL")), "ctl_dbc_session");
     check(sink.lastSentFrameId == 0x1AB, "send_frame_requested");
     check(sink.clearCount >= 1, "output_clear_requested");
 
@@ -174,6 +185,11 @@ int main(int argc, char *argv[])
                   15000), "frames_delivered_batch");
     check(sink.contains(QStringLiteral("CTL recent="))
           && sink.contains(QStringLiteral("last=0x50")), "ctl_frames_get_recent");
+
+    // files.* 异步转换完成回调（convertFinished 通知 → 插件回调 → output）
+    check(pollFor([&sink] {
+              return sink.contains(QStringLiteral("CTL files ok=True"));
+          }, 90000), "ctl_files_convert");
 
     // ④ 崩溃自愈：taskkill 宿主 → 1s 重启 → 重激活 → 数据链路恢复
     const qint64 pidBefore = pm->hostProcessId();

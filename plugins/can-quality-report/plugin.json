@@ -1,0 +1,19 @@
+{
+    "name": "can-quality-report",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "CAN 总线体检报告：负载曲线、Top Talker、周期稳定性、DBC 覆盖率、空闲率，一键 HTML/CSV 报告",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:canQualityReport.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "canQualityReport.open",
+                "title": "分析: 总线体检"
+            }
+        ]
+    }
+}

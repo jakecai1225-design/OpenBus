@@ -1,0 +1,19 @@
+{
+    "name": "uds-batch",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "UDS 批量测试工具：CSV 请求表导入、顺序执行、结果统计（ISO 14229）",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:udsBatch.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "udsBatch.open",
+                "title": "诊断：UDS 批量测试"
+            }
+        ]
+    }
+}

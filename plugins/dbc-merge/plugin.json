@@ -1,0 +1,19 @@
+{
+    "name": "dbc-merge",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "DBC 合并工具：多库合并（ID 冲突策略可配）、节点/报文/信号合并、冲突报告、另存新库",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:dbcMerge.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "dbcMerge.open",
+                "title": "数据库: DBC 合并"
+            }
+        ]
+    }
+}

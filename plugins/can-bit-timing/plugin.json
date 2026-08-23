@@ -1,0 +1,19 @@
+{
+    "name": "can-bit-timing",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "CAN 位时序计算器：经典 CAN/CAN FD 波特率与分段建议、采样点、TDc 计算（离线工具）",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:canBitTiming.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "canBitTiming.open",
+                "title": "工具: 位时序计算"
+            }
+        ]
+    }
+}

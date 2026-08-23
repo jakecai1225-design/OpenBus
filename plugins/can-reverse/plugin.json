@@ -1,0 +1,19 @@
+{
+    "name": "can-reverse",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "CAN 逆向位分析：逐 ID 位活动矩阵与热力图、变化位统计、信号边界推荐、A/B 快照差异对比",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:canReverse.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "canReverse.open",
+                "title": "工具: 逆向位分析"
+            }
+        ]
+    }
+}

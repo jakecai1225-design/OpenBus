@@ -1,0 +1,19 @@
+{
+    "name": "iso-tp-monitor",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "ISO-TP 会话监视：被动解码 ISO 15765-2 多帧会话（FF/CF/FC 全状态机、重组、超时检测）",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:isoTpMonitor.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "isoTpMonitor.open",
+                "title": "协议: ISO-TP 监视"
+            }
+        ]
+    }
+}

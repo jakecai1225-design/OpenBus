@@ -1,0 +1,19 @@
+{
+    "name": "autosar-nm-monitor",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "AUTOSAR CAN 网络管理监视：0x400-0x4FF NM 报文解析、节点状态机推断与时间线",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:autosarNmMonitor.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "autosarNmMonitor.open",
+                "title": "协议: AUTOSAR NM"
+            }
+        ]
+    }
+}

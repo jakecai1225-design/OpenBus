@@ -1,0 +1,19 @@
+{
+    "name": "e2e-checksum",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "CAN E2E 校验工具：CRC8/8H2F/16/32/XOR/J1850 实时校验、alive counter 检查、错误清单",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:e2eChecksum.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "e2eChecksum.open",
+                "title": "安全: E2E 校验"
+            }
+        ]
+    }
+}

@@ -1,0 +1,19 @@
+{
+    "name": "uds-security-audit",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "UDS 安全审计：SecurityAccess 种子采集与弱随机检测、会话时序审计、负响应统计与安全报告",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:udsSecurityAudit.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "udsSecurityAudit.open",
+                "title": "诊断: UDS 安全审计"
+            }
+        ]
+    }
+}

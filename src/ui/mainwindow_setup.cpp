@@ -77,8 +77,8 @@ void MainWindow::setupCoreServices()
             this, SLOT(onPluginRequestSelectedFrames(QJsonValue)));
     connect(m_pluginManager, SIGNAL(requestRecentFrames(QJsonValue,int)),
             this, SLOT(onPluginRequestRecentFrames(QJsonValue,int)));
-    connect(m_pluginManager, SIGNAL(outputClearRequested()),
-            m_bottomPanel, SLOT(clearPluginOutput()));
+    // 注：outputClearRequested → BottomPanel::clearPluginOutput 在阶段 4
+    // connectUiSignals() 中连接（此处 m_bottomPanel 尚未创建）
     m_pluginManager->initialize();
 
     // ---- 驱动系统 ----
@@ -405,6 +405,10 @@ void MainWindow::connectSidePanels()
     // BottomPanel 命令
     connect(m_bottomPanel, &BottomPanel::commandEntered,
             this, &MainWindow::onCommandEntered);
+
+    // 插件 output.clear（DEF-08 字符串信号，宿主跨 DLL）
+    connect(m_pluginManager, SIGNAL(outputClearRequested()),
+            m_bottomPanel, SLOT(clearPluginOutput()));
 
     // DBC 加载通知（DEF-08 字符串信号）
     auto *dbcLoadedRelay = new SignalRelay(this);

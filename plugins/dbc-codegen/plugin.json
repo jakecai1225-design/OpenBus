@@ -1,0 +1,19 @@
+{
+    "name": "dbc-codegen",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "DBC C 代码生成：pack/unpack 函数生成（Intel/Motorola、有符号、factor/offset、值表宏）",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:dbcCodegen.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "dbcCodegen.open",
+                "title": "数据库: C 代码生成"
+            }
+        ]
+    }
+}

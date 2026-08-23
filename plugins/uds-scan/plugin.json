@@ -1,0 +1,19 @@
+{
+    "name": "uds-scan",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "UDS ECU 扫描器：诊断 ID 段扫描与服务探测，生成 ECU 清单与支持服务地图（ISO 14229）",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:udsScan.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "udsScan.open",
+                "title": "诊断: UDS 扫描"
+            }
+        ]
+    }
+}

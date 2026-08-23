@@ -1,0 +1,19 @@
+{
+    "name": "dbc-lint",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "DBC 静态检查：命名规范、信号重叠/越界、min-max 一致性、缺失属性检查，问题分级报告",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:dbcLint.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "dbcLint.open",
+                "title": "数据库: DBC 检查"
+            }
+        ]
+    }
+}

@@ -1,0 +1,19 @@
+{
+    "name": "dbc-exporter",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "DBC 导出工具：信号矩阵导出 CSV/JSON/HTML（含单位、值表、收发节点、注释）",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:dbcExporter.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "dbcExporter.open",
+                "title": "数据库: DBC 导出"
+            }
+        ]
+    }
+}

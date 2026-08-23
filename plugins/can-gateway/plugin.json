@@ -1,0 +1,19 @@
+{
+    "name": "can-gateway",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "CAN 报文网关：规则化转发（ID 精确/掩码匹配、ID 重映射、载荷补丁、限频），转发计数统计",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:canGateway.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "canGateway.open",
+                "title": "工具: 报文网关"
+            }
+        ]
+    }
+}
