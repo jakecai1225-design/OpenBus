@@ -468,6 +468,27 @@ QGroupBox::title {
     font-size: 12px;
 }
 
+/* 侧栏底部动作按钮（VS Code 风格：扁平无框，悬停高亮；如设备面板「扫描设备」） */
+#SidePanelFooterButton {
+    background-color: transparent;
+    color: #3b3b3b;
+    border: none;
+    border-radius: 3px;
+    padding: 6px 12px;
+    font-size: 12px;
+    text-align: left;
+}
+#SidePanelFooterButton:hover {
+    background-color: #dcdcdc;
+}
+#SidePanelFooterButton:pressed {
+    background-color: #cccccc;
+}
+#SidePanelFooterButton:disabled {
+    color: #b0b0b0;
+    background-color: transparent;
+}
+
 #SidePanelHint {
     padding: 8px;
     color: #6c6c6c;

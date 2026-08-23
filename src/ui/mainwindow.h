@@ -194,6 +194,20 @@ private:
     // setupDeviceTab/setupMeasurementTab 已迁入 FlowModule（拆分方案 B4）
     void processCommand(const QString &cmd);
     void openTab(QWidget *widget, const QString &label);
+
+    // 实例标签页识别：实例标题本地化为 帧列表/时序波形（2026-08-23 截图反馈：
+    // 与侧栏模板名保持一致），旧工程保存的 Trace%1/Graphic%1 标题仍需兼容
+    static bool isTraceTabText(const QString &text)
+    {
+        return text.contains(QStringLiteral("Trace")) ||
+               text.contains(QStringLiteral("帧列表"));
+    }
+    static bool isGraphicTabText(const QString &text)
+    {
+        return text.contains(QStringLiteral("Graphic")) ||
+               text.contains(QStringLiteral("时序波形"));
+    }
+
     void refreshPanelLists();
     void setupMarketTab();  // 创建/重建插件市场页（经 ModuleRegistry "market" 模块，方案 §13 / 拆分方案 B0）
     void marketInvoke(const QString &action, const QVariant &arg = {});  // 市场模块动作转发（invoke 字符串约定见 imodule.h）

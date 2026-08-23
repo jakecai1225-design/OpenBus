@@ -278,7 +278,7 @@ void MainWindow::captureProjectState()
         for (const auto &id : ids) {
             ProjectTraceInstance ti;
             ti.id = id;
-            ti.title = QString("Trace%1").arg(id.mid(5).toInt());
+            ti.title = QString("帧列表%1").arg(id.mid(5).toInt());
             ti.filterExpression = traceQuery(QStringLiteral("filterExpression"),
                                              id).toString();
             st.traces.append(ti);
@@ -299,7 +299,7 @@ void MainWindow::captureProjectState()
                 continue;
             ProjectGraphicInstance gi;
             gi.id = id;
-            gi.title = QString("Graphic%1").arg(id.mid(7).toInt());
+            gi.title = QString("时序波形%1").arg(id.mid(7).toInt());
             const auto sigList = graphicQuery(QStringLiteral("signalConfigs"),
                                               QVariant::fromValue(gv)).toList();
             for (const auto &sigVar : sigList) {
@@ -352,7 +352,7 @@ void MainWindow::applyProjectState()
         for (auto *tw : allTabs) {
             for (int i = tw->count() - 1; i >= 0; --i) {
                 QString text = tw->tabText(i);
-                if (text.contains("Trace") || text.contains("Graphic") ||
+                if (isTraceTabText(text) || isGraphicTabText(text) ||
                     text.contains(QStringLiteral("回放")) ||
                     text.contains(QStringLiteral("离线分析")) ||
                     text.contains(QStringLiteral("录制")) ||
@@ -402,16 +402,19 @@ void MainWindow::applyProjectState()
     // 6. 按保存顺序重建标签页（Trace/Graphic 先仅创建，配置在步骤 7/8
     //    回填；DBC 详情/预览等复杂页面暂不重建，后续版本支持）
     for (const QString &tabName : st.openTabs) {
-        if (tabName.compare(QStringLiteral("Flow"), Qt::CaseInsensitive) == 0) {
-            // 创建 Flow 页 + 默认 trace1/graphic1（已存在则复用）
+        if (tabName.contains(QStringLiteral("Flow"), Qt::CaseInsensitive)) {
+            // 创建 Flow 页 + 默认 trace1/graphic1（已存在则复用；
+            // 兼容旧工程保存的 "Flow" 标题）
             onOpenMeasurementSetup();
-        } else if (tabName.contains(QStringLiteral("Trace"))) {
+        } else if (isTraceTabText(tabName)) {
             QString numPart = tabName;
-            numPart.remove(QStringLiteral("Trace"), Qt::CaseInsensitive);
+            numPart.remove(QStringLiteral("帧列表"))
+                   .remove(QStringLiteral("Trace"), Qt::CaseInsensitive);
             createTraceInstance(QString("trace%1").arg(numPart.toInt()));
-        } else if (tabName.contains(QStringLiteral("Graphic"))) {
+        } else if (isGraphicTabText(tabName)) {
             QString numPart = tabName;
-            numPart.remove(QStringLiteral("Graphic"), Qt::CaseInsensitive);
+            numPart.remove(QStringLiteral("时序波形"))
+                   .remove(QStringLiteral("Graphic"), Qt::CaseInsensitive);
             createGraphicInstance(QString("graphic%1").arg(numPart.toInt()));
         } else if (tabName.contains(QStringLiteral("发送"))) {
             onOpenSendTab();

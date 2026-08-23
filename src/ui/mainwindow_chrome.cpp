@@ -434,7 +434,7 @@ void MainWindow::onActivityChanged(int activity)
         bool found = false;
         for (auto *tw : allTabs) {
             for (int i = tw->count() - 1; i >= 0; --i) {
-                if (tw->tabText(i).contains("Trace")) {
+                if (isTraceTabText(tw->tabText(i))) {
                     tw->setCurrentIndex(i);
                     m_tabLabel->setText(tw->tabText(i));
                     found = true;
@@ -451,7 +451,7 @@ void MainWindow::onActivityChanged(int activity)
         bool found = false;
         for (auto *tw : allTabs) {
             for (int i = tw->count() - 1; i >= 0; --i) {
-                if (tw->tabText(i).contains("Graphic")) {
+                if (isGraphicTabText(tw->tabText(i))) {
                     tw->setCurrentIndex(i);
                     m_tabLabel->setText(tw->tabText(i));
                     found = true;

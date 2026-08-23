@@ -381,7 +381,8 @@ QWidget *MainWindow::createTraceInstance(const QString &id)
     }
     QString numPart = id;
     numPart.remove("trace", Qt::CaseInsensitive);
-    const QString title = QString("Trace%1").arg(numPart.toInt());
+    // 标题与侧栏模板「帧列表」一致（截图反馈 2026-08-23）
+    const QString title = QString("帧列表%1").arg(numPart.toInt());
 
     openTab(w, title);
     m_traceInstances[id] = w;
@@ -419,7 +420,8 @@ QWidget *MainWindow::createGraphicInstance(const QString &id)
     }
     QString numPart = id;
     numPart.remove("graphic", Qt::CaseInsensitive);
-    const QString title = QString("Graphic%1").arg(numPart.toInt());
+    // 标题与侧栏模板「时序波形」一致（截图反馈 2026-08-23）
+    const QString title = QString("时序波形%1").arg(numPart.toInt());
 
     openTab(w, title);
     m_graphicInstances[id] = w;

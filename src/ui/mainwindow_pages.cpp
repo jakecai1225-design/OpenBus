@@ -118,7 +118,7 @@ void MainWindow::onTracePageSelected(int row)
     int traceIdx = 0;
     for (auto *tw : allTabs) {
         for (int i = 0; i < tw->count(); ++i) {
-            if (tw->tabText(i).contains("Trace")) {
+            if (isTraceTabText(tw->tabText(i))) {
                 if (traceIdx == row) {
                     tw->setCurrentIndex(i);
                     m_tabLabel->setText(tw->tabText(i));
@@ -302,8 +302,9 @@ void MainWindow::onOpenMeasurementSetup()
     // moduleInstanceClosed/dbcSelectRequested/dbcRemoveRequested/filterRulesChanged
     // 连接已迁入 FlowModule（拆分方案 B4：前者经 shellInvoke 回调壳，后三者模块侧完成）
 
-    // 先打开 Flow 标签页，确保标签页顺序为 Flow → Trace1 → Graphic1
-    openTab(view, "Flow");
+    // 先打开 Flow 标签页，确保标签页顺序为 CAN Flow → 帧列表1 → 时序波形1
+    // （标签名与「新建协议流」模板 CAN Flow 一致，截图反馈 2026-08-23）
+    openTab(view, QStringLiteral("CAN Flow"));
 
     // 注册默认 Trace1/Graphic1 实例到 flow 画布（经模块创建或复用现有实例，
     // 拆分方案 B5；createXxxInstance 内部完成 openTab + flow 注册 + destroyed 清理）
@@ -375,7 +376,7 @@ void MainWindow::onGraphicPageSelected(int row)
     int graphicIdx = 0;
     for (auto *tw : allTabs) {
         for (int i = 0; i < tw->count(); ++i) {
-            if (tw->tabText(i).contains("Graphic")) {
+            if (isGraphicTabText(tw->tabText(i))) {
                 if (graphicIdx == row) {
                     tw->setCurrentIndex(i);
                     m_tabLabel->setText(tw->tabText(i));
@@ -429,11 +430,11 @@ void MainWindow::refreshPanelLists()
     for (auto *tw : allTabs) {
         for (int i = 0; i < tw->count(); ++i) {
             QString name = tw->tabText(i);
-            if (name.contains("Trace"))
+            if (isTraceTabText(name))
                 traceNames << name;
-            if (name.contains("Graphic"))
+            if (isGraphicTabText(name))
                 graphicNames << name;
-            if (name == QStringLiteral("Flow"))
+            if (name.contains(QStringLiteral("Flow"), Qt::CaseInsensitive))
                 flowNames << name;
         }
     }

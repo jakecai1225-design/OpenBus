@@ -92,15 +92,15 @@ ProjectPanel::ProjectPanel(QWidget *parent)
     m_projectTree->setColumnCount(1);
     m_projectTree->setRootIsDecorated(true);
     m_projectTree->setExpandsOnDoubleClick(false);  // 双击不折叠，用于切换工程
-    cl->addWidget(m_projectTree, 1);
+    cl->addWidget(m_projectTree, 3);
 
-    // 最近工程列表
+    // 最近工程列表（与工程树按 2:3 共享面板高度：去掉 100px 封顶后
+    // 条目多时内部滚动，底部按钮与列表不再被挤压裁切，截图反馈 2026-08-23）
     auto *recentLabel = new QLabel("最近打开", this);
     recentLabel->setObjectName("SidePanelSubTitle");
     cl->addWidget(recentLabel);
     m_recentList = new QListWidget(this);
-    m_recentList->setMaximumHeight(100);
-    cl->addWidget(m_recentList);
+    cl->addWidget(m_recentList, 2);
 
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(8, 6, 8, 6);
@@ -1029,18 +1029,31 @@ DevicePanel::DevicePanel(QWidget *parent)
     m_deviceTree->setHeaderHidden(true);
     m_deviceTree->setIndentation(12);
     m_deviceTree->setExpandsOnDoubleClick(false);
-    cl->addWidget(m_deviceTree);
+    cl->addWidget(m_deviceTree, 1);
 
-    // 扫描设备按钮
+    // 扫描设备按钮 — 沉到面板最底部（VS Code 侧栏底部动作区风格：
+    // 扁平无框 + 图标 + 悬停高亮；截图反馈 2026-08-23 由列表中部下移）
     auto *scanBar = new QHBoxLayout;
-    scanBar->setContentsMargins(8, 6, 8, 6);
+    scanBar->setContentsMargins(4, 4, 4, 6);
     scanBar->setSpacing(4);
-    m_scanBtn = new QPushButton(QStringLiteral("扫描设备"), this);
+    m_scanBtn = new QPushButton(this);
+    m_scanBtn->setObjectName("SidePanelFooterButton");
+    m_scanBtn->setIcon(svgIcon(":/icons/refresh.svg",
+                               ThemeManager::instance()->currentTheme().text, 14));
+    m_scanBtn->setText(QStringLiteral("扫描设备"));
+    m_scanBtn->setToolTip(QStringLiteral("重新枚举本机 CAN 设备"));
     scanBar->addWidget(m_scanBtn);
     scanBar->addStretch();
     cl->addLayout(scanBar);
 
-    cl->addStretch();
+    // 主题切换 → 重刷扫描按钮图标颜色
+    auto *scanBtnRelay = new SignalRelay(this);
+    scanBtnRelay->fire0 = [this]() {
+        m_scanBtn->setIcon(svgIcon(":/icons/refresh.svg",
+                                   ThemeManager::instance()->currentTheme().text, 14));
+    };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            scanBtnRelay, SLOT(fire()));
 
     connect(m_deviceTree, &QTreeWidget::itemClicked,
             this, &DevicePanel::onItemClicked);

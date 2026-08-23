@@ -435,10 +435,11 @@ void MeasurementSetupView::buildTopology()
 
     x += filterW + gapX;
 
-    // ---- 第 3 列: DBC 数据库（与 Filter 块同一水平线） ----
+    // ---- 第 3 列: CAN parser（与 Filter 块同一水平线；原「DBC 数据库」，
+    //      截图反馈 2026-08-23 改名，与 CAN Flow 语境一致） ----
     BlockItem dbc;
     dbc.id = "database";
-    dbc.title = "DBC 数据库";
+    dbc.title = QStringLiteral("CAN parser");
     dbc.icon = "";
     dbc.category = "database";
     dbc.rect = QRectF(x, centerY - bh / 2, bw, bh);
@@ -450,8 +451,8 @@ void MeasurementSetupView::buildTopology()
     // ---- 第 4 列: 分析模块 (垂直堆叠: Trace / Graphic / Watcher / Record) ----
     struct ModDef { QString id; QString icon; QString title; QColor color; QString moduleName; };
     ModDef mods[] = {
-        {"trace1",   "", "Trace1",          QColor(0x21, 0x96, 0xF3), "trace"},
-        {"graphic1", "", "Graphic1",        QColor(0xF4, 0x43, 0x36), "graphic"},
+        {"trace1",   "", "帧列表1",           QColor(0x21, 0x96, 0xF3), "trace"},
+        {"graphic1", "", "时序波形1",         QColor(0xF4, 0x43, 0x36), "graphic"},
         {"watcher",  "", "Watcher 观测",     QColor(0x4C, 0xAF, 0x50), ""},
         {"record",   "", "录制 Record",      QColor(0xFF, 0x98, 0x00), ""},
     };

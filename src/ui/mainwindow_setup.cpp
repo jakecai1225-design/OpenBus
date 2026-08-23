@@ -277,7 +277,7 @@ void MainWindow::connectSidePanels()
         int traceIdx = 0;
         for (auto *tw : allTabs) {
             for (int i = 0; i < tw->count(); ++i) {
-                if (tw->tabText(i).contains("Trace")) {
+                if (isTraceTabText(tw->tabText(i))) {
                     if (traceIdx == row) {
                         m_editorArea->closeTab(tw, i);
                         return;
@@ -309,7 +309,7 @@ void MainWindow::connectSidePanels()
         int graphicIdx = 0;
         for (auto *tw : allTabs) {
             for (int i = 0; i < tw->count(); ++i) {
-                if (tw->tabText(i).contains("Graphic")) {
+                if (isGraphicTabText(tw->tabText(i))) {
                     if (graphicIdx == row) {
                         m_editorArea->closeTab(tw, i);
                         return;
@@ -376,9 +376,9 @@ void MainWindow::connectSidePanels()
                 act = ActivityBar::Device;
             else if (text.contains("Flow", Qt::CaseInsensitive))
                 act = ActivityBar::Analysis;
-            else if (text.contains("Trace"))
+            else if (isTraceTabText(text))
                 act = ActivityBar::Trace;
-            else if (text.contains("Graphic"))
+            else if (isGraphicTabText(text))
                 act = ActivityBar::Graphic;
             else if (text.contains("DBC"))
                 act = ActivityBar::Dbc;
