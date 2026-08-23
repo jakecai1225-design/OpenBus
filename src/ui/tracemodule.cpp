@@ -346,6 +346,20 @@ QVariant TraceModule::query(const QString &what, const QVariant &arg)
             }
             return out;
         }
+    } else if (what == QStringLiteral("recentFrames")) {
+        // 插件系统请求（frames.getRecent）：arg = [TraceTab*, count]，
+        // 返回最近 N 帧（时间正序，最新在后；不足 N 帧时返回现有全部）
+        const QVariantList args = arg.toList();
+        auto *tab = qobject_cast<TraceTab*>(args.value(0).value<QWidget*>());
+        const int count = args.value(1).toInt(100);
+        if (tab && tab->traceModel()) {
+            QVariantList out;
+            const int total = tab->traceModel()->frameCount();
+            const int first = qMax(0, total - count);
+            for (int row = first; row < total; ++row)
+                out.append(QVariant::fromValue(tab->traceModel()->frameAt(row)));
+            return out;
+        }
     } else if (what == QStringLiteral("colorRules")) {
         // Return current color rules from any instance (or all?) as QVariantList of maps
         auto tab = qobject_cast<TraceTab*>(arg.value<QWidget*>());

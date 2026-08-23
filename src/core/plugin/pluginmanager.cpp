@@ -4,6 +4,9 @@
 #include "core/canframe.h"
 #include "core/logging.h"
 #include "core/dbcdata.h"
+#include "core/dbcmanager.h"
+#include "core/projectmanager.h"
+#include "core/appconfig.h"
 #include "core/dbc/dbc_adapter.h"
 #include "core/dbc/dbc_writer.h"
 
@@ -19,6 +22,12 @@
 #include <QProcessEnvironment>
 
 // ---- CanFrame ↔ JSON 转换 ----
+
+// 数据链路批处理参数（方案 §二：每 100ms 批量，每批 ≤100 帧；
+// 缓冲上限防慢消费者（宿主单线程，插件回调阻塞时）无界增长）
+static constexpr int kFramesPerBatch = 100;
+static constexpr int kMaxBufferedFrames = 50000;
+
 
 static QJsonObject frameToJson(const CanFrame &f)
 {
@@ -156,6 +165,13 @@ void PluginManager::discoverPlugins()
     }
 
     spdlog::info("PluginManager: 发现 {} 个插件", m_plugins.size());
+
+    // 重算懒激活候选集，并清理订阅表中已卸载的插件
+    m_onFramePlugins.clear();
+    for (const auto &info : m_plugins)
+        if (info.activatesOnFrame())
+            m_onFramePlugins.insert(info.name);
+    m_frameSubscribers.intersect(QSet<QString>(m_plugins.keyBegin(), m_plugins.keyEnd()));
 }
 
 void PluginManager::initialize()
@@ -199,6 +215,8 @@ void PluginManager::startHostIfNeeded()
 
     connect(m_host, &PluginHost::messageReceived,
             this, &PluginManager::handleHostMessage);
+    connect(m_host, &PluginHost::hostStarted,
+            this, &PluginManager::onHostStarted);
     connect(m_host, &PluginHost::hostCrashed, []() {
         spdlog::warn("PluginManager: 插件宿主崩溃");
     });
@@ -213,6 +231,35 @@ void PluginManager::startHostIfNeeded()
         m_frameBatchTimerId = startTimer(100);
 }
 
+void PluginManager::onHostStarted()
+{
+    // 崩溃自愈（方案 §一 2）：宿主重启后是空壳进程，订阅表失效、
+    // 已激活插件需重新发送 activate 通知（activate() 内重新注册 on_frame
+    // 回调 → 重新 subscribeFrames，数据链路自动恢复）。
+    // 首次启动时 m_activatedPlugins 为空 → 无操作。
+    if (!m_frameSubscribers.isEmpty())
+        spdlog::info("PluginManager: 宿主重启，重建数据链路订阅");
+    m_frameSubscribers.clear();
+
+    if (m_activatedPlugins.isEmpty())
+        return;
+
+    spdlog::info("PluginManager: 宿主重启，重新激活 {} 个插件",
+                 m_activatedPlugins.size());
+    const QStringList names = m_activatedPlugins.values();
+    for (const auto &name : names) {
+        if (!m_plugins.contains(name))
+            continue;
+        const PluginInfo &info = m_plugins[name];
+        QJsonObject params;
+        params["plugin"] = name;
+        params["directory"] = info.directory;
+        params["main"] = info.mainScript;
+        m_host->sendNotification("activate", params);
+        spdlog::info("PluginManager: 重新激活插件 '{}'", name.toStdString());
+    }
+}
+
 void PluginManager::shutdown()
 {
     if (m_frameBatchTimerId) {
@@ -225,6 +272,7 @@ void PluginManager::shutdown()
         for (const auto &name : m_activatedPlugins)
             m_host->sendNotification("deactivate", {{"plugin", name}});
         m_activatedPlugins.clear();
+        m_frameSubscribers.clear();
 
         m_host->stop();
         m_host->deleteLater();
@@ -339,24 +387,34 @@ void PluginManager::deactivatePlugin(const QString &name)
 
     m_host->sendNotification("deactivate", {{"plugin", name}});
     m_activatedPlugins.remove(name);
+    m_frameSubscribers.remove(name);
 
     spdlog::info("PluginManager: 停用插件 '{}'", name.toStdString());
 }
 
 void PluginManager::onFrameReceived(const CanFrame &frame)
 {
-    // 只在有 onFrame 插件时缓冲
-    bool hasFramePlugin = false;
-    for (const auto &name : m_activatedPlugins) {
-        if (m_plugins[name].activatesOnFrame()) {
-            hasFramePlugin = true;
-            break;
-        }
+    // 懒激活（方案 §二 activationEvents）：声明 onFrame 的未激活插件
+    // 在首帧到达时激活（集合通常为空 → 零开销）
+    for (const auto &name : m_onFramePlugins) {
+        if (!m_activatedPlugins.contains(name) && !m_disabledPlugins.contains(name))
+            activatePlugin(name);
     }
-    if (!hasFramePlugin)
+
+    // 订阅制门控（方案 §一 5.1「无订阅 = 零开销」）：仅当存在
+    // 已通过 context.on_frame() 注册回调（subscribeFrames 登记）的
+    // 已激活插件时才缓冲。插件清单是否声明 onFrame 激活事件不作为
+    // 数据推送依据（那是懒激活触发器，不是数据订阅）。
+    if (m_frameSubscribers.isEmpty())
         return;
 
     m_frameBuffer.append(frame);
+
+    // 慢消费者保护：宿主单线程，插件回调阻塞时丢最旧帧保内存有界
+    if (m_frameBuffer.size() > kMaxBufferedFrames) {
+        m_frameBuffer.remove(0, m_frameBuffer.size() - kMaxBufferedFrames);
+        ++m_droppedFrames;
+    }
 }
 
 void PluginManager::onCommandExecuted(const QString &commandId)
@@ -407,13 +465,22 @@ void PluginManager::onFileOpened(const QString &path, const QString &extension)
 void PluginManager::timerEvent(QTimerEvent *event)
 {
     if (event->timerId() == m_frameBatchTimerId && m_host && m_host->isRunning()) {
+        if (m_droppedFrames > 0) {
+            spdlog::warn("PluginManager: 帧缓冲达到上限，丢弃最旧 {} 帧",
+                         m_droppedFrames);
+            m_droppedFrames = 0;
+        }
         if (!m_frameBuffer.isEmpty()) {
-            QJsonArray framesArray;
-            for (const auto &f : m_frameBuffer)
-                framesArray.append(frameToJson(f));
+            // 分块发送（每批 ≤100 帧，方案 §二），避免单行 JSON 过大
+            const int total = m_frameBuffer.size();
+            for (int off = 0; off < total; off += kFramesPerBatch) {
+                const int end = qMin(total, off + kFramesPerBatch);
+                QJsonArray framesArray;
+                for (int i = off; i < end; ++i)
+                    framesArray.append(frameToJson(m_frameBuffer.at(i)));
+                m_host->sendNotification("frameReceived", {{"frames", framesArray}});
+            }
             m_frameBuffer.clear();
-
-            m_host->sendNotification("frameReceived", {{"frames", framesArray}});
         }
     }
 }
@@ -490,8 +557,42 @@ void PluginManager::handleHostMessage(const QString &method,
     else if (method == "dbc.close") {
         handleDbcClose(params, id);
     }
+    // ---- 数据链路订阅（方案 §一 5.1 订阅制的 v1 落地）----
+    else if (method == "subscribeFrames") {
+        // 插件 context.on_frame() 注册首个回调时上报；仅接受已激活插件
+        const QString name = params.value("plugin").toString();
+        if (m_activatedPlugins.contains(name)) {
+            m_frameSubscribers.insert(name);
+            spdlog::info("PluginManager: 插件 '{}' 订阅帧数据", name.toStdString());
+        }
+    }
+    // ---- signals.* / workspace.*（方案 §4.4 控制链路方法补齐）----
+    else if (method == "signals.decode") {
+        handleSignalsDecode(params, id);
+    }
+    else if (method == "signals.encode") {
+        handleSignalsEncode(params, id);
+    }
+    else if (method == "workspace.getProjectDir") {
+        handleWorkspaceProjectDir(params, id);
+    }
+    else if (method == "workspace.getDbcFiles") {
+        handleWorkspaceDbcFiles(params, id);
+    }
+    else if (method == "workspace.getSetting") {
+        handleWorkspaceGetSetting(params, id);
+    }
+    else if (method == "executeCommand") {
+        // SDK sin.commands.execute()：转发到命令分发（激活监听插件 + 执行）
+        onCommandExecuted(params.value("id").toString());
+    }
     else {
         spdlog::warn("PluginManager: 未知方法 '{}'", method.toStdString());
+        // 请求式未知方法回 JSON-RPC error（方案 §4.5：methodNotFound），
+        // 避免 SDK send_request 阻塞到 5s 超时
+        if (!id.isUndefined() && m_host)
+            m_host->sendErrorResponse(id, -32601,
+                                      QStringLiteral("method not found: %1").arg(method));
     }
 }
 
@@ -783,6 +884,115 @@ void PluginManager::handleDbcClose(const QJsonObject &params, const QJsonValue &
     } else {
         result["error"] = QStringLiteral("会话不存在");
     }
+    if (!id.isUndefined() && m_host)
+        m_host->sendResponse(id, result);
+}
+
+// ============================================================
+//  signals.* / workspace.* 处理（方案 §4.4 控制链路方法补齐）
+//  — signals.* 基于工程内已加载 DBC（DbcManager），与插件独立的
+//    dbc.* 会话（G9）互补：前者解码当前工程总线数据，后者编辑文件
+// ============================================================
+
+void PluginManager::handleSignalsDecode(const QJsonObject &params, const QJsonValue &id)
+{
+    QJsonObject result;
+    const quint32 canId = static_cast<quint32>(params.value("id").toVariant().toUInt());
+    const QByteArray data = QByteArray::fromHex(
+        params.value("data").toString().toUtf8());
+
+    if (!m_dbcManager) {
+        result["error"] = QStringLiteral("DBC 管理器未注入");
+    } else if (!m_dbcManager->findMessage(canId)) {
+        result["error"] = QStringLiteral("无匹配 DBC 报文定义");
+    } else {
+        QJsonObject sigValues;
+        const auto decoded = m_dbcManager->decodeFrame(canId, data);
+        for (const auto &ds : decoded)
+            sigValues[ds.name] = ds.physValue;
+        result["signals"] = sigValues;
+    }
+    if (!id.isUndefined() && m_host)
+        m_host->sendResponse(id, result);
+}
+
+void PluginManager::handleSignalsEncode(const QJsonObject &params, const QJsonValue &id)
+{
+    QJsonObject result;
+    const quint32 canId = static_cast<quint32>(params.value("id").toVariant().toUInt());
+    const QJsonObject values = params.value("signals").toObject();
+
+    if (!m_dbcManager) {
+        result["error"] = QStringLiteral("DBC 管理器未注入");
+    } else if (const DbcMessage *msg = m_dbcManager->findMessage(canId); msg) {
+        int len = msg->dlc;
+        if (len <= 0)
+            len = 8;
+        QByteArray data(len, 0x00);
+        int encoded = 0;
+        for (auto it = values.begin(); it != values.end(); ++it) {
+            const DbcSignal *sig = m_dbcManager->findSignal(canId, it.key());
+            if (!sig)
+                continue;
+            sig->encode(data, it.value().toDouble());
+            ++encoded;
+        }
+        if (encoded == 0) {
+            result["error"] = QStringLiteral("未找到匹配信号");
+        } else {
+            result["data"] = QString::fromUtf8(data.toHex());
+        }
+    } else {
+        result["error"] = QStringLiteral("无匹配 DBC 报文定义");
+    }
+    if (!id.isUndefined() && m_host)
+        m_host->sendResponse(id, result);
+}
+
+void PluginManager::handleWorkspaceProjectDir(const QJsonObject &params, const QJsonValue &id)
+{
+    Q_UNUSED(params);
+    QJsonObject result;
+    const QString filePath = ProjectManager::instance()->currentFilePath();
+    // 工程目录 = 工程文件所在目录；未打开工程时为空
+    result["path"] = filePath.isEmpty() ? QString()
+                                        : QFileInfo(filePath).absolutePath();
+    if (!id.isUndefined() && m_host)
+        m_host->sendResponse(id, result);
+}
+
+void PluginManager::handleWorkspaceDbcFiles(const QJsonObject &params, const QJsonValue &id)
+{
+    Q_UNUSED(params);
+    QJsonObject result;
+    QJsonArray files;
+    if (m_dbcManager) {
+        for (const auto &f : m_dbcManager->files()) {
+            if (!f.filePath.isEmpty())
+                files.append(f.filePath);
+        }
+    }
+    result["files"] = files;
+    if (!id.isUndefined() && m_host)
+        m_host->sendResponse(id, result);
+}
+
+void PluginManager::handleWorkspaceGetSetting(const QJsonObject &params, const QJsonValue &id)
+{
+    QJsonObject result;
+    const QString key = params.value("key").toString();
+    const QJsonValue def = params.value("default");
+
+    // 按默认值类型分派 typed getter（AppConfig 无原始 QVariant 读取）
+    if (def.isBool())
+        result["value"] = AppConfig::instance()->getBool(key, def.toBool());
+    else if (def.isDouble())
+        result["value"] = AppConfig::instance()->getDouble(key, def.toDouble());
+    else if (def.isString())
+        result["value"] = AppConfig::instance()->getString(key, def.toString());
+    else
+        result["value"] = AppConfig::instance()->getString(key);
+
     if (!id.isUndefined() && m_host)
         m_host->sendResponse(id, result);
 }

@@ -59,6 +59,9 @@ public:
     /// 发送响应（回复 Python 宿主的请求）
     void sendResponse(const QJsonValue &id, const QJsonValue &result);
 
+    /// 发送错误响应（未知方法等，避免 SDK 侧阻塞到超时）
+    void sendErrorResponse(const QJsonValue &id, int code, const QString &message);
+
 signals:
     /// 收到来自 Python 宿主的通知/请求
     void messageReceived(const QString &method, const QJsonObject &params, const QJsonValue &id);
@@ -95,6 +98,9 @@ private:
     void sendMessage(const QJsonObject &msg);
     void handleLine(const QByteArray &line);
     void scheduleRestart();
+
+    /// 停机标志：stop() 主动终止时置 -1，抑制 kill 触发的自动重启
+    static constexpr int kStopped = -1;
 };
 
 #endif // PLUGINHOST_H

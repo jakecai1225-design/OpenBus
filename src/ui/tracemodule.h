@@ -52,6 +52,7 @@ public:
      * @param what: "isTrace"(QWidget*→bool), "instance"(id→QWidget*),
      *              "filterExpression"(id→QString), "frameCount"(QWidget*→int),
      *              "selectedFrames"(QWidget*→QVariantList<CanFrame>),
+     *              "recentFrames"([QWidget*,count]→QVariantList<CanFrame>),
      *              "colorRules"(QVariantList of maps)
      */
     QVariant query(const QString &what, const QVariant &arg) override;

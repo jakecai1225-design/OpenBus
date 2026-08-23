@@ -32,6 +32,7 @@ public slots:
     void appendOutput(const QString &text);
     void appendTerminal(const QString &text);
     void appendPluginOutput(const QString &text);
+    void clearPluginOutput();
     void clearProblems();
 
 signals:

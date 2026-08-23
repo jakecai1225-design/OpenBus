@@ -11,6 +11,7 @@
 class PluginHost;
 class PluginConvertJob;
 struct DbcFile;
+class DbcManager;
 class CanFrame;
 class QJsonObject;
 class QJsonValue;
@@ -56,6 +57,10 @@ public:
 
     /// Python 解释器路径
     QString pythonExecutable() const { return m_pythonExe; }
+
+    /// 注入工程 DBC 管理器（signals.* 解码/编码用；纯消费者，不持有）
+    /// MainWindow 创建 DbcManager 后注入；未注入时 signals.* 返回错误
+    void setDbcManager(DbcManager *mgr) { m_dbcManager = mgr; }
 
     // ---- 激活事件（由 MainWindow 调用）----
 
@@ -140,14 +145,29 @@ private:
     QHash<int, DbcFile *> m_dbcSessions;
     int m_nextDbId = 1;
 
-    // 帧批量缓冲
+    // 工程内 DBC 管理器（signals.* 用，MainWindow 注入，不持有）
+    DbcManager *m_dbcManager = nullptr;
+
+    // 帧批量缓冲（订阅制：仅当存在已注册帧回调的已激活插件时才缓冲）
     QList<CanFrame> m_frameBuffer;
     int m_frameBatchTimerId = 0;
+
+    // 数据链路订阅表（方案 §一 5.1 订阅制的 v1 落地）：
+    // 插件 activate() 中 context.on_frame() 注册首个回调时，宿主发送
+    // subscribeFrames 通知登记于此；无订阅 = 零开销（不缓冲、不序列化）
+    QSet<QString> m_frameSubscribers;
+
+    // 声明 onFrame 激活事件的插件（懒激活候选，discoverPlugins 重算）
+    QSet<QString> m_onFramePlugins;
+
+    // 慢消费者保护：缓冲上限丢弃计数（flush 时告警并清零）
+    int m_droppedFrames = 0;
 
     void discoverPlugins();
     QString findPythonExecutable() const;
     QString findAppBaseDir() const;
     void startHostIfNeeded();   ///< 无插件时跳过；安装首个插件后可补启
+    void onHostStarted();       ///< 崩溃自愈：重启后重激活已激活插件（首启无操作）
 
     // 处理来自 Python 宿主的消息
     void handleHostMessage(const QString &method, const QJsonObject &params, const QJsonValue &id);
@@ -162,6 +182,13 @@ private:
     void handleDbcUpdateMessage(const QJsonObject &params, const QJsonValue &id);
     void handleDbcSave(const QJsonObject &params, const QJsonValue &id);
     void handleDbcClose(const QJsonObject &params, const QJsonValue &id);
+
+    // signals.* / workspace.* 请求处理（方案 §4.4 控制链路方法补齐）
+    void handleSignalsDecode(const QJsonObject &params, const QJsonValue &id);
+    void handleSignalsEncode(const QJsonObject &params, const QJsonValue &id);
+    void handleWorkspaceProjectDir(const QJsonObject &params, const QJsonValue &id);
+    void handleWorkspaceDbcFiles(const QJsonObject &params, const QJsonValue &id);
+    void handleWorkspaceGetSetting(const QJsonObject &params, const QJsonValue &id);
 
 protected:
     void timerEvent(QTimerEvent *event) override;

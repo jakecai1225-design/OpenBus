@@ -65,6 +65,8 @@ void MainWindow::setupCoreServices()
     // 统一改用 SIGNAL() 字符串形式（运行期字符串匹配不走 PMF 解析），
     // 槽端保留新式写法。全库同类调用点均已同步改造。
     m_pluginManager = PluginManager::instance();
+    // 注入工程 DBC 管理器（插件 signals.* 解码/编码用，纯消费者）
+    m_pluginManager->setDbcManager(m_dbcManager);
     connect(m_pluginManager, SIGNAL(outputMessage(QString)),
             this, SLOT(onPluginOutput(QString)));
     connect(m_pluginManager, SIGNAL(commandRegistered(QString,QString)),
@@ -73,6 +75,10 @@ void MainWindow::setupCoreServices()
             this, SLOT(onPluginSendFrame(CanFrame)));
     connect(m_pluginManager, SIGNAL(requestSelectedFrames(QJsonValue)),
             this, SLOT(onPluginRequestSelectedFrames(QJsonValue)));
+    connect(m_pluginManager, SIGNAL(requestRecentFrames(QJsonValue,int)),
+            this, SLOT(onPluginRequestRecentFrames(QJsonValue,int)));
+    connect(m_pluginManager, SIGNAL(outputClearRequested()),
+            m_bottomPanel, SLOT(clearPluginOutput()));
     m_pluginManager->initialize();
 
     // ---- 驱动系统 ----

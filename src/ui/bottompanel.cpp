@@ -128,6 +128,11 @@ void BottomPanel::appendPluginOutput(const QString &text)
     m_pluginOutput->appendPlainText(text);
 }
 
+void BottomPanel::clearPluginOutput()
+{
+    m_pluginOutput->clear();
+}
+
 void BottomPanel::clearProblems()
 {
     m_problemsTable->setRowCount(0);

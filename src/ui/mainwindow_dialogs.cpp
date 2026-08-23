@@ -295,3 +295,23 @@ void MainWindow::onPluginRequestSelectedFrames(const QJsonValue &requestId)
         m_pluginManager->provideSelectedFrames(requestId, frames);
 }
 
+void MainWindow::onPluginRequestRecentFrames(const QJsonValue &requestId, int count)
+{
+    QList<CanFrame> frames;
+
+    // 当前活跃 Trace 页最近 N 帧（时间正序，最新在后）。
+    // arg 为 [TraceTab*, count]，见 TraceModule::query("recentFrames")
+    QWidget *active = m_editorArea->currentWidget();
+    if (traceQuery(QStringLiteral("isTrace"), QVariant::fromValue(active)).toBool()) {
+        QVariantList args;
+        args << QVariant::fromValue(active) << count;
+        const QVariantList vars = traceQuery(QStringLiteral("recentFrames"),
+                                             QVariant(args)).toList();
+        for (const QVariant &v : vars)
+            frames.append(v.value<CanFrame>());
+    }
+
+    if (m_pluginManager)
+        m_pluginManager->provideRecentFrames(requestId, frames);
+}
+

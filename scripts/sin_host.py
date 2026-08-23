@@ -99,7 +99,14 @@ class PluginContext:
         self._commands = {}
 
     def on_frame(self, handler):
-        """注册帧处理回调"""
+        """注册帧处理回调
+
+        注册首个回调时向主程序发送 subscribeFrames 通知（订阅制数据
+        链路，方案 §一 5.1）：主程序仅向已订阅的插件推送帧，无订阅
+        = 零开销。停用插件时主程序自动清理订阅，无需显式退订。
+        """
+        if not self._frame_handlers:
+            send_notification("subscribeFrames", {"plugin": self.plugin_name})
         self._frame_handlers.append(handler)
 
     def register_command(self, command_id, handler, title=None):

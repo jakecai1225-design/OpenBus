@@ -80,6 +80,9 @@ bool PluginHost::start(const QString &pythonExe, const QString &hostScript,
 
 void PluginHost::stop()
 {
+    // 停机标志优先：后续 kill 触发的 onProcessFinished/onProcessError
+    // 据此跳过自动重启（否则应用退出后 1s 会拉起僵尸宿主进程）
+    m_restartAttempts = kStopped;
     m_restartTimer->stop();
 
     if (!m_process)
@@ -145,6 +148,22 @@ void PluginHost::sendResponse(const QJsonValue &id, const QJsonValue &result)
     QJsonObject msg;
     msg["jsonrpc"] = "2.0";
     msg["result"] = result;
+    msg["id"] = id;
+    sendMessage(msg);
+}
+
+void PluginHost::sendErrorResponse(const QJsonValue &id, int code, const QString &message)
+{
+    if (!isRunning() || id.isNull() || id.isUndefined())
+        return;
+
+    QJsonObject err;
+    err["code"] = code;
+    err["message"] = message;
+
+    QJsonObject msg;
+    msg["jsonrpc"] = "2.0";
+    msg["error"] = err;
     msg["id"] = id;
     sendMessage(msg);
 }
@@ -247,6 +266,9 @@ void PluginHost::onProcessError(int error)
 
 void PluginHost::onRestartTimer()
 {
+    if (m_restartAttempts == kStopped)
+        return;   // stop() 竞态保护
+
     spdlog::info("PluginHost: 尝试重启 (第 {} 次)", m_restartAttempts + 1);
     start(m_pythonExe, m_hostScript, m_sdkDir, m_pluginsDir);
 }
