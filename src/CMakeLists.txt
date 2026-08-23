@@ -300,6 +300,9 @@ target_precompile_headers(openbus_data PRIVATE
 add_library(openbus_market SHARED
     ui/markettab.h
     ui/markettab.cpp
+    # 流式布局 — 市场首页卡片网格换行（VS Code marketplace 网页版版式）
+    ui/flowlayout.h
+    ui/flowlayout.cpp
     ui/marketmodule.h
     ui/marketmodule.cpp
 )

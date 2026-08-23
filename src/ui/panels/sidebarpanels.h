@@ -302,16 +302,23 @@ class MeasurementSetupPanel : public SidePanel
 public:
     explicit MeasurementSetupPanel(QWidget *parent = nullptr);
 
+    /// 刷新「已打开」列表（壳 refreshPanelLists 收集 Flow 标签页喂入；
+    /// VS Code 版式：已打开在上、新建模板与操作按钮在下）
+    void refreshOpenList(const QStringList &names);
+
 signals:
     /// 请求打开 flow 标签页
     void openMeasurementSetupRequested();
 
 private slots:
     void onTemplateClicked(QListWidgetItem *item);
+    /// 「已打开」行点击 → 打开/聚焦对应画布页（F1 多实例前 = 单画布）
+    void onOpenedClicked(QListWidgetItem *item);
     /// 重灌模板行：注册表适配器变化 / 主题切换（DEF-08 字符串槽经 SignalRelay 桥接）
     void rebuildTemplates();
 
 private:
+    QListWidget *m_openedList = nullptr;    ///< 已打开流页列表（VS Code OPEN EDITORS 位）
     QListWidget *m_templateList = nullptr;  ///< 协议流模板平铺行
 };
 

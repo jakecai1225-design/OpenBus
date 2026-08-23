@@ -1,13 +1,16 @@
 #include "markettab.h"
 #include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
+#include "flowlayout.h"         // 首页卡片网格流式换行（marketplace 网页版版式）
 
 #include "core/driver/driverregistry.h"
+#include "core/appconfig.h"
 #include "core/plugin/plugininfo.h"
 #include "core/plugin/pluginmanager.h"
 #include "ui/thememanager.h"
 #include "utils/svg_icon.h"
 
 #include <QButtonGroup>
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
@@ -17,6 +20,7 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonParseError>
@@ -34,7 +38,8 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QScrollArea>
-#include <QSplitter>
+#include <QScrollBar>
+#include <QStackedWidget>
 #include <QStandardPaths>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -152,6 +157,184 @@ QTextBrowser *makeMarkdownBrowser()
 } // namespace
 
 // ============================================================
+//  市场卡片（VS Code marketplace 网页版卡片：图标 + 名称/厂商 +
+//  摘要 + 免费 徽标 + 安装/更新按钮；整卡点击进详情）
+// ============================================================
+
+/// 卡片聚合数据（rebuildList 从 MarketIndex 直取，含安装动作所需字段）
+struct CardData {
+    MarketItem item;
+    QString title;        ///< 名称
+    QString vendor;       ///< 厂商 / 发布者
+    QString version;
+    QString updatedAt;    ///< ISO 日期（可空）
+    QString summary;      ///< 一句话摘要（可空）
+    QString icon;         ///< 市场图标相对路径（可空）
+    qint64 size = 0;      ///< 包大小（字节）
+    bool isDriver = true;
+    QString package;      ///< .odp / .opk 相对路径
+    QString sha256;
+    QStringList searchFields;
+};
+
+/// 市场卡片 — 无 Q_OBJECT（点击回调模式，同 FrameRow；按钮子控件自带点击语义）
+class MarketCard : public QFrame {
+public:
+    explicit MarketCard(QWidget *parent = nullptr) : QFrame(parent)
+    {
+        setObjectName(QStringLiteral("marketCard"));
+        setFixedSize(400, 116);
+        setCursor(Qt::PointingHandCursor);
+        // 主题中性配色：半透明描边/悬停，深浅主题均可用（视觉规范：无黑白块）
+        setStyleSheet(QStringLiteral(
+            "QFrame#marketCard { background: transparent;"
+            " border: 1px solid rgba(128,128,128,0.35); border-radius: 6px; }"
+            "QFrame#marketCard:hover { background: rgba(86,156,214,0.10);"
+            " border: 1px solid rgba(86,156,214,0.75); }"));
+    }
+    using ClickCb = std::function<void()>;
+    void setOnClick(ClickCb cb) { m_cb = std::move(cb); }
+
+    QLabel *iconLabel = nullptr;
+    QLabel *nameLabel = nullptr;
+    QLabel *vendorLabel = nullptr;
+    QLabel *descLabel = nullptr;
+    QLabel *metaLabel = nullptr;
+    QPushButton *actionBtn = nullptr;
+
+protected:
+    void mousePressEvent(QMouseEvent *) override { if (m_cb) m_cb(); }
+
+private:
+    ClickCb m_cb;
+};
+
+namespace {
+
+/// 分区标题（marketplace 网页版 Featured/Most Popular 量级：加粗放大）
+QLabel *makeMarketSectionLabel(const QString &text)
+{
+    auto *label = new QLabel(text);
+    QFont big = label->font();
+    big.setBold(true);
+    big.setPointSize(big.pointSize() + 1);
+    label->setFont(big);
+    label->setStyleSheet(
+        QStringLiteral("padding: 14px 2px 6px 2px;"));
+    return label;
+}
+
+/// 单行截断标签（卡片固定宽 → 按可用像素 elide，避免中英文混排溢出）
+QLabel *makeElidedLabel(const QString &text, int widthPx, bool bold = false,
+                        const QString &color = QString())
+{
+    auto *label = new QLabel;
+    if (bold) {
+        QFont f = label->font();
+        f.setBold(true);
+        label->setFont(f);
+    }
+    if (!color.isEmpty())
+        label->setStyleSheet(QStringLiteral("color: %1;").arg(color));
+    const QFontMetrics fm(label->font());
+    label->setText(fm.elidedText(text, Qt::ElideRight, widthPx));
+    return label;
+}
+
+/// 市场卡片工厂：onOpen = 整卡点击（进详情）；onInstall = 安装/更新按钮
+MarketCard *makeMarketCard(const CardData &d, const std::function<void()> &onOpen,
+                           const std::function<void()> &onInstall)
+{
+    auto *card = new MarketCard;
+    card->actionBtn = nullptr;
+
+    auto *lay = new QHBoxLayout(card);
+    lay->setContentsMargins(12, 10, 12, 10);
+    lay->setSpacing(10);
+
+    // 左：图标（加载前彩色首字母头像兜底，同列表行/迷你市场）
+    card->iconLabel = makeIconPlaceholder(d.title.left(1).toUpper(), 48);
+    lay->addWidget(card->iconLabel);
+
+    // 中：名称 / 厂商·版本 / 摘要 / 更新·大小·类别
+    const int textWidth = 400 - 24 /*margins*/ - 48 /*icon*/ - 10 - 74 /*右侧*/ - 10;
+    auto *vbox = new QVBoxLayout;
+    vbox->setSpacing(1);
+    card->nameLabel = makeElidedLabel(d.title, textWidth, true);
+    vbox->addWidget(card->nameLabel);
+    card->vendorLabel = makeElidedLabel(
+        QStringLiteral("%1 · v%2").arg(d.vendor, d.version), textWidth,
+        false, QStringLiteral("#9d9d9d"));
+    vbox->addWidget(card->vendorLabel);
+    if (!d.summary.isEmpty()) {
+        card->descLabel = makeElidedLabel(d.summary, textWidth,
+                                          false, QStringLiteral("#9d9d9d"));
+        vbox->addWidget(card->descLabel);
+    }
+    QStringList meta;
+    if (!d.updatedAt.isEmpty())
+        meta << QStringLiteral("更新 %1").arg(d.updatedAt);
+    if (d.size > 0)
+        meta << formatBytes(d.size);
+    meta << (d.isDriver ? QStringLiteral("驱动") : QStringLiteral("插件"));
+    card->metaLabel = makeElidedLabel(meta.join(QStringLiteral(" · ")),
+                                      textWidth, false,
+                                      QStringLiteral("#9d9d9d"));
+    vbox->addWidget(card->metaLabel);
+    vbox->addStretch(1);
+    lay->addLayout(vbox, 1);
+
+    // 右：「免费」徽标 + 安装/更新/已安装（marketplace 卡片免费徽标 + 一键安装）
+    auto *right = new QVBoxLayout;
+    right->setSpacing(6);
+    auto *badge = new QLabel(QStringLiteral("免费"));
+    badge->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+    badge->setStyleSheet(QStringLiteral(
+        "color: #9d9d9d; border: 1px solid rgba(128,128,128,0.45);"
+        " border-radius: 3px; padding: 1px 8px;"));
+    right->addWidget(badge, 0, Qt::AlignRight | Qt::AlignTop);
+    right->addStretch(1);
+    // 安装态三形态文字由调用方决定（安装 vN / 更新 / 已安装），onInstall 空则不建按钮
+    card->actionBtn = new QPushButton;
+    card->actionBtn->setFixedHeight(26);
+    card->actionBtn->setMinimumWidth(64);
+    if (onInstall) {
+        card->actionBtn->setText(QStringLiteral("安装"));
+        QObject::connect(card->actionBtn, &QPushButton::clicked,
+                         card, onInstall);
+    } else {
+        card->actionBtn->setText(QStringLiteral("已安装"));
+        card->actionBtn->setEnabled(false);
+    }
+    right->addWidget(card->actionBtn, 0, Qt::AlignRight | Qt::AlignBottom);
+    lay->addLayout(right);
+
+    // 非按钮子控件鼠标事件穿透 → 整卡点击
+    card->iconLabel->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    for (QLabel *l : card->findChildren<QLabel *>())
+        l->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+
+    card->setOnClick(onOpen);
+    return card;
+}
+
+/// 卡片图标异步加载（48px；磁盘缓存 + 网络取数在 MarketModel 共享层）
+void loadCardIcon(QLabel *iconLabel, const QString &relPath)
+{
+    if (relPath.isEmpty() || !iconLabel)
+        return;
+    MarketModel::fetchMarketPixmap(MarketIndex::instance()->resolveUrl(relPath),
+                [iconLabel](const QPixmap &pm) {
+                    QPointer<QLabel> g(iconLabel);
+                    if (g)
+                        g->setPixmap(pm.scaled(48, 48, Qt::KeepAspectRatio,
+                                               Qt::SmoothTransformation));
+                });
+}
+
+} // namespace
+
+// ============================================================
 //  构造 / UI 构建
 // ============================================================
 
@@ -160,7 +343,6 @@ MarketTab::MarketTab(QWidget *parent)
 {
     buildUi();
     rebuildList();
-    showPlaceholder(QStringLiteral("在左侧选择驱动或插件查看详情"));
     MarketIndex::instance()->refresh();   // 异步加载市场索引
 }
 
@@ -172,19 +354,9 @@ void MarketTab::buildUi()
     root->setContentsMargins(8, 8, 8, 8);
     root->setSpacing(6);
 
-    // ---- 工具栏：搜索 + 筛选 + 刷新 + 安装菜单 ----
+    // ---- 工具栏：筛选 + 排序 + 刷新 + 安装菜单（大搜索框移首页 hero，marketplace 版式） ----
     auto *bar = new QHBoxLayout;
     bar->setSpacing(6);
-
-    m_searchEdit = new QLineEdit;
-    m_searchEdit->setPlaceholderText(
-        QStringLiteral("搜索驱动与插件（型号 / 厂商 / 关键词）"));
-    m_searchEdit->setClearButtonEnabled(true);
-    // 原生清除按钮 × 不随主题（深色下不可见）→ 换主题色 SVG 图标
-    applyClearButtonIcon(m_searchEdit, ThemeManager::instance()->currentTheme().text);
-    connect(m_searchEdit, &QLineEdit::textChanged,
-            this, &MarketTab::onSearchChanged);
-    bar->addWidget(m_searchEdit, 1);
 
     m_filterAll = new QToolButton;
     m_filterAll->setText(QStringLiteral("全部"));
@@ -206,6 +378,92 @@ void MarketTab::buildUi()
     bar->addWidget(m_filterAll);
     bar->addWidget(m_filterDrivers);
     bar->addWidget(m_filterPlugins);
+
+    // 排序（marketplace 网页版筛选/排序控件对齐）
+    m_sortCombo = new QComboBox;
+    m_sortCombo->addItems({ QStringLiteral("默认排序"),
+                            QStringLiteral("最近更新"),
+                            QStringLiteral("名称") });
+    m_sortCombo->setToolTip(QStringLiteral("首页卡片排列顺序"));
+    connect(m_sortCombo, &QComboBox::currentIndexChanged,
+            this, &MarketTab::onSearchChanged);
+    bar->addWidget(m_sortCombo);
+
+    bar->addStretch(1);
+
+    // ---- 市场源（插件系统方案 §六：切换 market.json 来源，持久化 settings.json） ----
+    auto *sourceBtn = new QToolButton;
+    sourceBtn->setIcon(svgIcon(":/icons/database.svg",
+                               ThemeManager::instance()->currentTheme().text, 14));
+    sourceBtn->setText(QStringLiteral("市场源"));
+    sourceBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    sourceBtn->setPopupMode(QToolButton::InstantPopup);
+    sourceBtn->setToolTip(QStringLiteral(
+        "market.json 索引来源（openbus_appstore 开发源 / 自定义 URL / 本地文件）"));
+    auto *sourceMenu = new QMenu(sourceBtn);
+    // 每次展开重建：显示当前源 + 可选项（避免陈旧状态）
+    connect(sourceMenu, &QMenu::aboutToShow, this, [this, sourceMenu]() {
+        sourceMenu->clear();
+        const QString cur = AppConfig::instance()->getString(
+            QStringLiteral("market.url"));
+        auto *head = sourceMenu->addAction(
+            cur.isEmpty()
+                ? QStringLiteral("当前源：默认（自动定位）")
+                : QStringLiteral("当前源：%1").arg(cur));
+        head->setEnabled(false);
+        sourceMenu->addSeparator();
+
+        // 应用新源：持久化 + 刷新索引（旧详情失效，回到首页）
+        const auto applySource = [this](const QString &url) {
+            AppConfig::instance()->set(QStringLiteral("market.url"), url);
+            AppConfig::instance()->save();
+            MarketIndex::instance()->setMarketUrl(
+                url.isEmpty() ? MarketIndex::defaultMarketUrl() : QUrl(url));
+            m_current = MarketItem();
+            m_marketStatus->setText(QStringLiteral("市场加载中…"));
+            MarketIndex::instance()->refresh();
+        };
+
+        auto *defAct = sourceMenu->addAction(
+            QStringLiteral("默认（自动定位本地 market/ 或官方源）"));
+        connect(defAct, &QAction::triggered, this,
+                [applySource]() { applySource(QString()); });
+        auto *devAct = sourceMenu->addAction(QStringLiteral(
+            "openbus 应用市场 · 开发 (127.0.0.1:5173)"));
+        connect(devAct, &QAction::triggered, this, [applySource]() {
+            applySource(QStringLiteral("http://127.0.0.1:5173/market/market.json"));
+        });
+        auto *customAct = sourceMenu->addAction(QStringLiteral("自定义 URL…"));
+        connect(customAct, &QAction::triggered, this, [this, applySource]() {
+            const QString curUrl = MarketIndex::instance()->marketUrl().toString();
+            bool ok = false;
+            const QString url = QInputDialog::getText(
+                this, QStringLiteral("市场源"),
+                QStringLiteral("market.json 地址（http(s):// 或 file:///）:"),
+                QLineEdit::Normal, curUrl, &ok);
+            if (ok && !url.trimmed().isEmpty())
+                applySource(url.trimmed());
+        });
+        auto *localAct = sourceMenu->addAction(
+            QStringLiteral("选择本地 market.json…"));
+        connect(localAct, &QAction::triggered, this, [this, applySource]() {
+            const QString file = QFileDialog::getOpenFileName(
+                this, QStringLiteral("选择 market.json"), QString(),
+                QStringLiteral("市场索引 (market.json);;所有文件 (*)"));
+            if (!file.isEmpty())
+                applySource(QUrl::fromLocalFile(file).toString());
+        });
+    });
+    sourceBtn->setMenu(sourceMenu);
+    // 主题切换 → 重刷按钮图标颜色（DEF-08 字符串信号）
+    auto *sourceBtnRelay = new SignalRelay(this);
+    sourceBtnRelay->fire0 = [sourceBtn]() {
+        sourceBtn->setIcon(svgIcon(":/icons/database.svg",
+                                  ThemeManager::instance()->currentTheme().text, 14));
+    };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            sourceBtnRelay, SLOT(fire()));
+    bar->addWidget(sourceBtn);
 
     auto *refreshBtn = new QToolButton;
     refreshBtn->setIcon(svgIcon(":/icons/refresh.svg",
@@ -243,7 +501,7 @@ void MarketTab::buildUi()
 
     root->addLayout(bar);
 
-    // ---- 状态行 + 下载进度条 ----
+    // ---- 下载进度条（状态行移首页 hero 下方） ----
     m_progress = new QProgressBar;
     m_progress->setTextVisible(false);
     m_progress->setMaximumHeight(3);
@@ -251,38 +509,123 @@ void MarketTab::buildUi()
     m_progress->setVisible(false);
     root->addWidget(m_progress);
 
-    m_marketStatus = new QLabel(QStringLiteral("市场加载中…"));
-    m_marketStatus->setStyleSheet(QStringLiteral("color: #9d9d9d;"));
-    root->addWidget(m_marketStatus);
-
-    // ---- 主体：左列表 / 右详情 ----
+    // ---- 首页：hero（居中大标题 + 大搜索框，marketplace 网页版）+ 卡片网格 ----
     auto *listHost = new QWidget;
     m_listLay = new QVBoxLayout(listHost);
-    m_listLay->setContentsMargins(0, 0, 4, 0);
-    m_listLay->setSpacing(2);
+    m_listLay->setContentsMargins(12, 4, 12, 12);
+    m_listLay->setSpacing(0);
     m_listLay->addStretch(1);
     m_listArea = new QScrollArea;
     m_listArea->setWidgetResizable(true);
     m_listArea->setWidget(listHost);
     m_listArea->setFrameShape(QFrame::NoFrame);
-    m_listArea->setMinimumWidth(300);
+
+    auto *hero = new QWidget;
+    auto *heroLay = new QVBoxLayout(hero);
+    heroLay->setContentsMargins(24, 28, 24, 8);
+    heroLay->setSpacing(10);
+
+    auto *heroTitle = new QLabel(QStringLiteral("openbus 扩展市场"));
+    QFont heroFont = heroTitle->font();
+    heroFont.setBold(true);
+    heroFont.setPointSize(heroFont.pointSize() + 6);
+    heroTitle->setFont(heroFont);
+    heroLay->addWidget(heroTitle, 0, Qt::AlignHCenter);
+
+    // 居中大搜索框 + 强调色搜索按钮（marketplace 首页 hero 搜索行）
+    auto *searchWrap = new QWidget;
+    auto *searchRow = new QHBoxLayout(searchWrap);
+    searchRow->setContentsMargins(0, 0, 0, 0);
+    searchRow->setSpacing(6);
+    m_searchEdit = new QLineEdit;
+    m_searchEdit->setPlaceholderText(
+        QStringLiteral("搜索驱动与插件（型号 / 厂商 / 关键词）"));
+    m_searchEdit->setClearButtonEnabled(true);
+    // 原生清除按钮 × 不随主题（深色下不可见）→ 换主题色 SVG 图标
+    applyClearButtonIcon(m_searchEdit, ThemeManager::instance()->currentTheme().text);
+    connect(m_searchEdit, &QLineEdit::textChanged,
+            this, &MarketTab::onSearchChanged);
+    QFont searchFont = m_searchEdit->font();
+    searchFont.setPointSize(searchFont.pointSize() + 1);
+    m_searchEdit->setFont(searchFont);
+    m_searchEdit->setFixedHeight(32);
+    m_searchEdit->setMinimumWidth(460);
+    searchRow->addWidget(m_searchEdit);
+
+    m_searchBtn = new QPushButton;
+    m_searchBtn->setText(QStringLiteral("搜索"));
+    m_searchBtn->setFixedHeight(32);
+    const auto applySearchBtnStyle = [this]() {
+        const Theme &t = ThemeManager::instance()->currentTheme();
+        m_searchBtn->setStyleSheet(QStringLiteral(
+            "QPushButton { background: %1; color: #ffffff; border: none;"
+            " border-radius: 3px; padding: 0 18px; font-weight: bold; }"
+            "QPushButton:hover { background: %2; }"
+            "QPushButton:pressed { background: %2; }")
+            .arg(t.accent, t.accentHover));
+        m_searchBtn->setIcon(svgIcon(":/icons/search.svg",
+                                     QStringLiteral("#ffffff"), 14));
+    };
+    applySearchBtnStyle();
+    const auto submitSearch = [this]() {
+        onSearchChanged();
+        m_searchEdit->clearFocus();   // 收起输入焦点，视线回到结果区
+        m_listArea->verticalScrollBar()->setValue(0);
+    };
+    connect(m_searchBtn, &QPushButton::clicked, this, submitSearch);
+    connect(m_searchEdit, &QLineEdit::returnPressed, this, submitSearch);
+    // 主题切换 → 重刷搜索按钮配色/图标（DEF-08 字符串信号）
+    auto *searchBtnRelay = new SignalRelay(this);
+    searchBtnRelay->fire0 = applySearchBtnStyle;
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            searchBtnRelay, SLOT(fire()));
+    searchRow->addWidget(m_searchBtn);
+    heroLay->addWidget(searchWrap, 0, Qt::AlignHCenter);
+
+    m_marketStatus = new QLabel(QStringLiteral("市场加载中…"));
+    m_marketStatus->setStyleSheet(QStringLiteral("color: #9d9d9d;"));
+    heroLay->addWidget(m_marketStatus, 0, Qt::AlignHCenter);
+
+    auto *homePage = new QWidget;
+    auto *homeLay = new QVBoxLayout(homePage);
+    homeLay->setContentsMargins(0, 0, 0, 0);
+    homeLay->setSpacing(0);
+    homeLay->addWidget(hero);
+    homeLay->addWidget(m_listArea, 1);
+
+    // ---- 详情页：「← 返回市场」+ 详情滚动区 ----
+    auto *detailPage = new QWidget;
+    auto *detailLay = new QVBoxLayout(detailPage);
+    detailLay->setContentsMargins(0, 4, 0, 0);
+    detailLay->setSpacing(6);
+    auto *backBtn = new QToolButton;
+    backBtn->setText(QStringLiteral("← 返回市场"));
+    backBtn->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    backBtn->setToolTip(QStringLiteral("回到市场首页（搜索 / 浏览卡片）"));
+    connect(backBtn, &QToolButton::clicked, this, [this]() {
+        m_stack->setCurrentIndex(0);
+    });
+    auto *backRow = new QHBoxLayout;
+    backRow->setContentsMargins(4, 0, 0, 0);
+    backRow->addWidget(backBtn);
+    backRow->addStretch(1);
+    detailLay->addLayout(backRow);
 
     auto *detailHost = new QWidget;
     m_detailLay = new QVBoxLayout(detailHost);
-    m_detailLay->setContentsMargins(8, 0, 4, 0);
+    m_detailLay->setContentsMargins(8, 0, 8, 0);
     m_detailLay->setSpacing(8);
     m_detailArea = new QScrollArea;
     m_detailArea->setWidgetResizable(true);
     m_detailArea->setWidget(detailHost);
     m_detailArea->setFrameShape(QFrame::NoFrame);
+    detailLay->addWidget(m_detailArea, 1);
 
-    auto *splitter = new QSplitter(Qt::Horizontal);
-    splitter->addWidget(m_listArea);
-    splitter->addWidget(m_detailArea);
-    splitter->setStretchFactor(0, 0);
-    splitter->setStretchFactor(1, 1);
-    splitter->setSizes({ 360, 900 });
-    root->addWidget(splitter, 1);
+    // ---- 双页堆叠：0 = 市场首页 / 1 = 详情页 ----
+    m_stack = new QStackedWidget;
+    m_stack->addWidget(homePage);
+    m_stack->addWidget(detailPage);
+    root->addWidget(m_stack, 1);
 
     // ---- 数据源信号（DEF-08 字符串信号：data.dll 类跨 DLL connect）----
     connect(MarketIndex::instance(), SIGNAL(loaded(bool,QString)),
@@ -298,6 +641,7 @@ void MarketTab::buildUi()
 
 void MarketTab::focusSearch()
 {
+    m_stack->setCurrentIndex(0);   // 搜索框在首页 hero（marketplace 版式）
     m_searchEdit->setFocus(Qt::ShortcutFocusReason);
     m_searchEdit->selectAll();
 }
@@ -380,157 +724,169 @@ void MarketTab::onMarketLoaded(bool ok, const QString &error)
 }
 
 // ============================================================
-//  左栏列表（三分组聚合）
+//  首页卡片网格（分区：精选推荐 / 最近更新 / 搜索结果单区）
 // ============================================================
-
-void MarketTab::addSectionLabel(const QString &title)
-{
-    // 插入到尾部 stretch 之前
-    m_listLay->insertWidget(m_listLay->count() - 1, makeSectionLabel(title));
-}
-
-FrameRow *MarketTab::makeRow(const MarketItem &item, const QString &title,
-                             const QString &meta, const QString &status)
-{
-    auto *row = new FrameRow;
-    row->item = item;
-
-    auto *lay = new QHBoxLayout(row);
-    lay->setContentsMargins(8, 6, 8, 6);
-    lay->setSpacing(8);
-
-    row->iconLabel = makeIconPlaceholder(title.left(1).toUpper(), 24);
-    lay->addWidget(row->iconLabel);
-
-    auto *tbox = new QVBoxLayout;
-    tbox->setSpacing(0);
-    auto *titleLabel = new QLabel(title);
-    titleLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    QFont bold = titleLabel->font();
-    bold.setBold(true);
-    titleLabel->setFont(bold);
-    auto *metaLabel = new QLabel(meta);
-    QFont small = metaLabel->font();
-    small.setPointSize(qMax(small.pointSize() - 1, 1));
-    metaLabel->setFont(small);
-    metaLabel->setStyleSheet(QStringLiteral("color: #9d9d9d;"));
-    metaLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    // 单行截断（VS Code 条目风格；Ignored 允许压缩避免挤占右侧状态/按钮）
-    const QFontMetrics fm(metaLabel->font());
-    metaLabel->setText(fm.elidedText(meta, Qt::ElideRight, 200));
-    tbox->addWidget(titleLabel);
-    tbox->addWidget(metaLabel);
-    lay->addLayout(tbox, 1);
-
-    if (!status.isEmpty()) {
-        auto *statusLabel = new QLabel(status);
-        statusLabel->setStyleSheet(QStringLiteral("color: #9d9d9d;"));
-        statusLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        lay->addWidget(statusLabel);
-    }
-
-    // 已装插件：行内启停小按钮（方案 §13.9 决策保留）
-    if (item.kind == MarketItem::InstalledPlugin) {
-        auto *pm = PluginManager::instance();
-        const bool enabled = pm->isPluginEnabled(item.id);
-        const bool activated = pm->isPluginActivated(item.id);
-        auto *btn = new QToolButton;
-        btn->setFixedSize(52, 24);
-        btn->setText(!enabled ? QStringLiteral("启用")
-                     : activated ? QStringLiteral("停止")
-                                 : QStringLiteral("启动"));
-        const QString name = item.id;
-        connect(btn, &QToolButton::clicked, this, [this, name, enabled, activated]() {
-            if (!enabled)
-                emit pluginToggleRequested(name, true);
-            else if (activated)
-                emit pluginDeactivateRequested(name);
-            else
-                emit pluginActivateRequested(name);
-        });
-        lay->addWidget(btn);
-    }
-
-    // 非按钮子控件鼠标事件穿透 → 行点击
-    row->iconLabel->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-    for (QLabel *l : row->findChildren<QLabel *>())
-        l->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-
-    row->setOnClick([this, item]() { selectItem(item); });
-    return row;
-}
 
 void MarketTab::rebuildList()
 {
-    // 清空旧行（保留重新追加的 stretch 语义：先全清，尾部再补 stretch）
+    // 清空旧分区（尾部再补 stretch 保持分区顶对齐）
     clearLayout(m_listLay);
     m_listLay->addStretch(1);
-    const auto insertBeforeStretch = [this](QWidget *w) {
+    const auto addWidget = [this](QWidget *w) {
         m_listLay->insertWidget(m_listLay->count() - 1, w);
+    };
+    // 分区 = 标题 + FlowLayout 卡片流（等宽卡片随视口自动换行，marketplace 网格）
+    const auto addSection = [this, &addWidget](const QString &title,
+                                              const QVector<CardData> &entries) {
+        if (entries.isEmpty())
+            return;
+        addWidget(makeMarketSectionLabel(title));
+        auto *flowHost = new QWidget;
+        auto *flow = new FlowLayout(flowHost, 0, 12, 12);
+        for (const auto &d : entries) {
+            // 安装态三形态（与详情页按钮组一致：安装 / 更新 / 已安装）
+            const QString local = d.isDriver
+                                      ? installedDriverVersion(d.item.id)
+                                      : installedPluginVersion(d.item.id);
+            const bool canUpdate =
+                !local.isEmpty() && versionLessThan(local, d.version);
+            std::function<void()> onInstall;
+            if (local.isEmpty() || canUpdate) {
+                const QUrl url = MarketIndex::instance()->resolveUrl(d.package);
+                const QString sha = d.sha256;
+                const QString id = d.item.id;
+                const bool isPlugin = !d.isDriver;
+                onInstall = [this, url, sha, id, isPlugin]() {
+                    downloadAndInstall(url, sha, id, isPlugin);
+                };
+            }
+            const MarketItem item = d.item;
+            auto *card = makeMarketCard(
+                d, [this, item]() { selectItem(item); }, onInstall);
+            if (onInstall)
+                card->actionBtn->setText(
+                    local.isEmpty() ? QStringLiteral("安装")
+                                    : QStringLiteral("更新"));
+            loadCardIcon(card->iconLabel, d.icon);
+            flow->addWidget(card);
+        }
+        addWidget(flowHost);
     };
 
     const QString text = m_searchEdit->text();
     const bool wantDrivers = m_filterAll->isChecked() || m_filterDrivers->isChecked();
     const bool wantPlugins = m_filterAll->isChecked() || m_filterPlugins->isChecked();
-    int shown = 0;
 
-    // 「已安装」分组已移除（v2.2 市场入口分工调整）：已装驱动/插件由
-    // collectMarketDrivers/collectMarketPlugins 在对应市场分组内以
-    // 「已安装 vX」状态呈现；已装启停管理归侧边栏迷你市场，避免与标签页重复。
-
-    // ---- 分组：驱动市场（drivers[]，按驱动聚合） ----
-    int driverMarket = 0;
+    // ---- 聚合市场条目（MarketIndex 直取：卡片需 vendor/version/updatedAt/package，
+    //      MarketEntryData 不携带；搜索字段组成与 MarketModel::collect* 一致） ----
+    auto *idx = MarketIndex::instance();
+    QVector<CardData> drivers, plugins;
     if (wantDrivers) {
-        for (const auto &e : MarketModel::collectMarketDrivers()) {
-            if (!MarketIndex::matchWords(text, e.searchFields))
-                continue;
-            if (driverMarket == 0)
-                addSectionLabel(QStringLiteral("驱动市场"));
-            auto *row = makeRow(e.item, e.title, e.meta, e.status);
-            loadRowIcon(row, e.marketIcon);
-            insertBeforeStretch(row);
-            ++driverMarket;
-            ++shown;
+        for (const auto &drv : idx->drivers()) {
+            CardData d;
+            d.item = { MarketItem::MarketDriver, drv.id };
+            d.title = drv.name;
+            d.vendor = drv.vendor;
+            d.version = drv.version;
+            d.updatedAt = drv.updatedAt;
+            d.summary = drv.summary;
+            d.icon = drv.icon;
+            d.size = drv.size;
+            d.isDriver = true;
+            d.package = drv.package;
+            d.sha256 = drv.sha256;
+            d.searchFields = { drv.name, drv.vendor, drv.summary,
+                               drv.keywords, drv.id };
+            for (const auto &v : drv.devices)
+                d.searchFields << v.toObject()
+                                  .value(QStringLiteral("model")).toString();
+            if (MarketIndex::matchWords(text, d.searchFields))
+                drivers.append(d);
         }
     }
-
-    // ---- 分组：插件市场（plugins[]） ----
-    int pluginMarket = 0;
     if (wantPlugins) {
-        for (const auto &e : MarketModel::collectMarketPlugins()) {
-            if (!MarketIndex::matchWords(text, e.searchFields))
-                continue;
-            if (pluginMarket == 0)
-                addSectionLabel(QStringLiteral("插件市场"));
-            auto *row = makeRow(e.item, e.title, e.meta, e.status);
-            loadRowIcon(row, e.marketIcon);
-            insertBeforeStretch(row);
-            ++pluginMarket;
-            ++shown;
+        for (const auto &p : idx->plugins()) {
+            CardData d;
+            d.item = { MarketItem::MarketPlugin, p.id };
+            d.title = p.name;
+            d.vendor = p.publisher;
+            d.version = p.version;
+            d.updatedAt = p.updatedAt;
+            d.summary = p.description;
+            d.icon = p.icon;
+            d.size = p.size;
+            d.isDriver = false;
+            d.package = p.package;
+            d.sha256 = p.sha256;
+            d.searchFields = { p.name, p.id, p.publisher, p.description,
+                               p.keywords, p.tags.join(QLatin1Char(' ')) };
+            if (MarketIndex::matchWords(text, d.searchFields))
+                plugins.append(d);
         }
     }
 
-    updateRowStyles();
-    if (shown == 0)
-        showPlaceholder(QStringLiteral("没有匹配的条目"));
+    // 排序（ISO 日期字符串字典序即时间序，空值沉底；名称本地化感知）
+    const auto byUpdated = [](const CardData &a, const CardData &b) {
+        if (a.updatedAt.isEmpty())
+            return false;
+        if (b.updatedAt.isEmpty())
+            return true;
+        return a.updatedAt > b.updatedAt;
+    };
+    const auto byName = [](const CardData &a, const CardData &b) {
+        return a.title.localeAwareCompare(b.title) < 0;
+    };
+
+    QVector<CardData> all = drivers + plugins;
+    const int sortIdx = m_sortCombo->currentIndex();
+
+    // ---- 搜索结果单区（marketplace 搜索结果页式样） ----
+    if (!text.isEmpty()) {
+        if (sortIdx == 1)
+            std::stable_sort(all.begin(), all.end(), byUpdated);
+        else if (sortIdx == 2)
+            std::stable_sort(all.begin(), all.end(), byName);
+        if (all.isEmpty()) {
+            auto *empty = new QLabel(QStringLiteral("没有匹配的条目"));
+            empty->setAlignment(Qt::AlignCenter);
+            empty->setStyleSheet(
+                QStringLiteral("color: #777777; padding: 24px;"));
+            addWidget(empty);
+            return;
+        }
+        addSection(QStringLiteral("与 “%1” 匹配的 %2 个结果")
+                       .arg(text).arg(all.size()), all);
+        return;
+    }
+
+    // ---- 浏览态分区（默认 = 精选推荐 + 最近更新；排序切换 = 全部条目单区） ----
+    if (sortIdx == 1) {
+        std::stable_sort(all.begin(), all.end(), byUpdated);
+        addSection(QStringLiteral("全部条目 · 最近更新"), all);
+    } else if (sortIdx == 2) {
+        std::stable_sort(all.begin(), all.end(), byName);
+        addSection(QStringLiteral("全部条目 · 按名称"), all);
+    } else {
+        // 精选推荐：驱动/插件交错取前 6（无运营位数据前的确定性策展）
+        QVector<CardData> featured;
+        int i = 0, j = 0;
+        while (featured.size() < 6 && (i < drivers.size() || j < plugins.size())) {
+            if (i < drivers.size())
+                featured.append(drivers.at(i++));
+            if (j < plugins.size())
+                featured.append(plugins.at(j++));
+        }
+        addSection(QStringLiteral("精选推荐"), featured);
+
+        std::stable_sort(all.begin(), all.end(), byUpdated);
+        addSection(QStringLiteral("最近更新"), all);
+    }
 }
 
 void MarketTab::selectItem(const MarketItem &item)
 {
     m_current = item;
-    updateRowStyles();
     showDetail(item);
-}
-
-void MarketTab::updateRowStyles()
-{
-    for (int i = 0; i < m_listLay->count(); ++i) {
-        auto *w = m_listLay->itemAt(i)->widget();
-        if (w && w->property("marketRow").toBool()) {
-            auto *row = static_cast<FrameRow *>(w);
-            row->setSelected(row->item == m_current);
-        }
-    }
 }
 
 // ============================================================
@@ -551,6 +907,7 @@ void MarketTab::clearDetail()
 
 void MarketTab::showPlaceholder(const QString &text)
 {
+    m_stack->setCurrentIndex(1);   // 占位也属详情页（如「该驱动已卸载」）
     clearDetail();
     auto *label = new QLabel(text);
     label->setAlignment(Qt::AlignCenter);
@@ -560,6 +917,7 @@ void MarketTab::showPlaceholder(const QString &text)
 
 void MarketTab::showDetail(const MarketItem &item)
 {
+    m_stack->setCurrentIndex(1);   // 首页卡片点击 / 联动定位 → 进详情页
     switch (item.kind) {
     case MarketItem::MarketDriver: {
         const auto d = MarketIndex::instance()->driverById(item.id);
@@ -981,22 +1339,9 @@ void MarketTab::showInstalledPlugin(const QString &name)
 }
 
 // ============================================================
-//  图标 / 图片（磁盘缓存 + 网络异步在 MarketModel 共享层，方案 §13.10）
+//  图标 / 图片（磁盘缓存 + 网络异步在 MarketModel 共享层，方案 §13.10；
+//  首页卡片图标 48px 经 loadCardIcon，详情大图经 fetchMarketPixmap）
 // ============================================================
-
-void MarketTab::loadRowIcon(FrameRow *row, const QString &relPath)
-{
-    if (relPath.isEmpty())
-        return;
-    MarketModel::fetchMarketPixmap(MarketIndex::instance()->resolveUrl(relPath),
-                [row](const QPixmap &pm) {
-                    QPointer<FrameRow> g(row);
-                    if (g && g->iconLabel)
-                        g->iconLabel->setPixmap(
-                            pm.scaled(24, 24, Qt::KeepAspectRatio,
-                                     Qt::SmoothTransformation));
-                });
-}
 
 // ============================================================
 //  安装 / 卸载

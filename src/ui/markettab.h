@@ -17,17 +17,22 @@ class QScrollArea;
 class QVBoxLayout;
 class QTableWidget;
 class QTextBrowser;
+class QComboBox;
+class QStackedWidget;
 class QNetworkAccessManager;
 class QNetworkReply;
 
 /**
- * @brief 插件市场标签页 — 统一市场（VS Code 扩展市场风格，doc/驱动系统方案.md §13.5）
+ * @brief 插件市场标签页 — 统一市场（VS Code marketplace 网页版版式，doc/驱动系统方案.md §13.5）
  *
- * 左栏三分组条目列表（已安装 = 驱动 + 插件混合，含行内启停小按钮；
- * 驱动市场 = drivers[] 按驱动聚合；插件市场 = plugins[]），支持多词 AND
- * 搜索与全部/驱动/插件筛选；右栏详情页四形态（图文/设备简表/Markdown 说明
- * + 操作按钮组：安装/更新/启停/禁用/卸载）。
+ * 首页/详情双页堆叠（QStackedWidget）：
+ *  - 首页 = 居中大标题 + 大搜索框（市场网页 hero 版式）+ 分区卡片网格
+ *    （FlowLayout 自适应换行；「精选推荐 / 最近更新」或搜索结果单区）；
+ *    卡片 = 图标 + 名称/厂商 + 摘要 + 免费 徽标 + 安装/更新按钮（整卡点击进详情）。
+ *  - 详情页 = 「← 返回市场」+ 四形态详情（图文/设备简表/Markdown 说明
+ *    + 操作按钮组：安装/更新/启停/禁用/卸载）。
  *
+ * 工具栏（常驻）：全部/驱动/插件筛选 + 排序（默认/最近更新/名称）+ 刷新 + ⋯安装。
  * 数据源聚合：DriverRegistry（已装驱动）/ PluginManager（已装插件）/
  * MarketIndex（市场驱动 + 插件，schema 2）。
  * 安装链：下载 → sha256 → 驱动 driver_tool install 热加载 / 插件
@@ -74,16 +79,12 @@ private:
     static QString findPythonExecutable();
     QString runDriverTool(const QStringList &args, QJsonObject *result);
 
-    // ---- 列表 ----
+    // ---- 首页卡片网格 / 详情页 ----
     void buildUi();
-    void rebuildList();            // 依据搜索词 + 筛选 + 四数据源重建左栏
-    FrameRow *makeRow(const MarketItem &item, const QString &title,
-                      const QString &meta, const QString &status);
-    void addSectionLabel(const QString &title);
+    void rebuildList();            // 依据搜索词 + 筛选 + 排序重建首页分区卡片
     void selectItem(const MarketItem &item);
-    void updateRowStyles();        // 依据 m_current 刷新行选中样式
 
-    // ---- 详情（右栏动态重建） ----
+    // ---- 详情（详情页动态重建） ----
     void clearDetail();
     void showPlaceholder(const QString &text);
     void showDetail(const MarketItem &item);       // 分发四形态
@@ -91,9 +92,6 @@ private:
     void showInstalledDriver(const QString &driverId);
     void showMarketPlugin(const MarketIndex::PluginInfo &plug);
     void showInstalledPlugin(const QString &name);
-
-    // ---- 图标/图片 ----
-    void loadRowIcon(FrameRow *row, const QString &relPath);   // 市场 icon（32）
 
     // ---- 安装/卸载 ----
     /// 市场下载安装（进度条 → sha256 → 驱动 installOdpFile / 插件 installPackage）
@@ -110,14 +108,17 @@ private:
     QString installedPluginVersion(const QString &id) const;
 
     // ---- UI ----
-    QLineEdit *m_searchEdit = nullptr;
+    QStackedWidget *m_stack = nullptr;  // 0 = 市场首页（hero + 卡片网格）/ 1 = 详情页
+    QLineEdit *m_searchEdit = nullptr;  // hero 大搜索框（首页居中）
+    QPushButton *m_searchBtn = nullptr; // hero 搜索按钮（主题强调色）
     QToolButton *m_filterAll = nullptr;
     QToolButton *m_filterDrivers = nullptr;
     QToolButton *m_filterPlugins = nullptr;
-    QLabel *m_marketStatus = nullptr;   // 市场源状态（更新日期 / 错误）
+    QComboBox *m_sortCombo = nullptr;   // 排序：默认 / 最近更新 / 名称
+    QLabel *m_marketStatus = nullptr;   // 市场源状态（更新日期 / 错误；hero 下方居中）
     QProgressBar *m_progress = nullptr; // 下载进度（顶部细条，默认隐藏）
     QScrollArea *m_listArea = nullptr;
-    QVBoxLayout *m_listLay = nullptr;   // 三分组条目（尾 stretch）
+    QVBoxLayout *m_listLay = nullptr;   // 首页分区（标题 + FlowLayout 卡片，尾 stretch）
     QScrollArea *m_detailArea = nullptr;
     QVBoxLayout *m_detailLay = nullptr; // 详情动态内容
 

@@ -1,5 +1,6 @@
 #include "marketindex.h"
 
+#include "core/appconfig.h"
 #include "core/logging.h"
 
 #include <QCoreApplication>
@@ -26,7 +27,11 @@ MarketIndex::MarketIndex(QObject *parent)
     : QObject(parent)
 {
     m_nam = new QNetworkAccessManager(this);
-    m_marketUrl = defaultMarketUrl();
+    // 市场源优先级：设置项 market.url（插件系统方案 §六，可为
+    // openbus_appstore 开发源）→ defaultMarketUrl()（本地/官方自动定位）
+    const QString configured = AppConfig::instance()->getString(
+        QStringLiteral("market.url"));
+    m_marketUrl = !configured.isEmpty() ? QUrl(configured) : defaultMarketUrl();
 }
 
 QUrl MarketIndex::defaultMarketUrl()

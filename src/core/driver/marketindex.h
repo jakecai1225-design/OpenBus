@@ -84,6 +84,12 @@ public:
     DriverInfo driverById(const QString &id) const;
     PluginInfo pluginById(const QString &id) const;
 
+    /// 当前市场索引地址（market.json）
+    QUrl marketUrl() const { return m_marketUrl; }
+    /// 切换市场源（设置项 market.url；空串 → 恢复自动定位）
+    /// 注：不持久化，由调用方（MarketTab）写 AppConfig 并 save()
+    void setMarketUrl(const QUrl &url) { m_marketUrl = url; }
+
     /// 相对路径（package/icon/image）→ 绝对 URL（基于 market base）
     QUrl resolveUrl(const QString &relative) const;
 
@@ -98,7 +104,6 @@ signals:
 
 private:
     explicit MarketIndex(QObject *parent = nullptr);
-    void setMarketUrl(const QUrl &url) { m_marketUrl = url; }
     void onReplyFinished(QNetworkReply *reply);
 
     QNetworkAccessManager *m_nam = nullptr;

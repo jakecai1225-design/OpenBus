@@ -424,7 +424,7 @@ void MainWindow::onSettingsRequested(const QString &section)
 
 void MainWindow::refreshPanelLists()
 {
-    QStringList traceNames, graphicNames;
+    QStringList traceNames, graphicNames, flowNames;
     const auto allTabs = m_editorArea->allTabWidgets();
     for (auto *tw : allTabs) {
         for (int i = 0; i < tw->count(); ++i) {
@@ -433,9 +433,13 @@ void MainWindow::refreshPanelLists()
                 traceNames << name;
             if (name.contains("Graphic"))
                 graphicNames << name;
+            if (name == QStringLiteral("Flow"))
+                flowNames << name;
         }
     }
     m_sideBar->tracePanel()->refreshList(traceNames);
     m_sideBar->graphicConfigPanel()->refreshList(graphicNames);
+    // Flow 面板「已打开」区（VS Code 版式：已打开在上，F1 多实例前 = 单画布行）
+    m_sideBar->analysisPanel()->refreshOpenList(flowNames);
 }
 

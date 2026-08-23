@@ -733,8 +733,22 @@ TracePanel::TracePanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
+    // 已打开实例列表（VS Code 版式：已打开在上；切换 / 右键 / 删除交互不变）
+    auto *openedLabel = new QLabel(QStringLiteral("已打开"), this);
+    openedLabel->setObjectName("SidePanelSubTitle");
+    cl->addWidget(openedLabel);
+
+    m_traceList = new QListWidget(this);
+    m_traceList->setContextMenuPolicy(Qt::CustomContextMenu);
+    cl->addWidget(m_traceList, 1);
+
     // 模板平铺（doc/flow.md §7.2 平铺修订）：一形态一行，已实现可点击新建，
-    // 未实现置灰占位（TR 系列落地后启用）——不再分节嵌套
+    // 未实现置灰占位（TR 系列落地后启用）——不再分节嵌套；
+    // VS Code 版式：新建入口收拢到面板下方（对标 Explorer OPEN EDITORS 在上）
+    auto *newLabel = new QLabel(QStringLiteral("新建 Trace"), this);
+    newLabel->setObjectName("SidePanelSubTitle");
+    cl->addWidget(newLabel);
+
     m_templateList = new QListWidget(this);
     const QString tmplIconCol = ThemeManager::instance()->currentTheme().text;
     auto addTemplate = [this, tmplIconCol](const QString &name,
@@ -767,15 +781,6 @@ TracePanel::TracePanel(QWidget *parent)
 
     connect(m_templateList, &QListWidget::itemClicked,
             this, &TracePanel::onTemplateClicked);
-
-    // 已打开实例列表（原交互保留：切换 / 右键 / 删除）
-    auto *openedLabel = new QLabel(QStringLiteral("已打开"), this);
-    openedLabel->setObjectName("SidePanelSubTitle");
-    cl->addWidget(openedLabel);
-
-    m_traceList = new QListWidget(this);
-    m_traceList->setContextMenuPolicy(Qt::CustomContextMenu);
-    cl->addWidget(m_traceList, 1);
 
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(8, 6, 8, 6);
@@ -867,8 +872,22 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
+    // 已打开页面列表（VS Code 版式：已打开在上；切换 / 右键 / 删除交互不变）
+    auto *openedLabel = new QLabel(QStringLiteral("已打开"), this);
+    openedLabel->setObjectName("SidePanelSubTitle");
+    cl->addWidget(openedLabel);
+
+    m_pageList = new QListWidget(this);
+    m_pageList->setContextMenuPolicy(Qt::CustomContextMenu);
+    cl->addWidget(m_pageList, 1);
+
     // 模板平铺（doc/flow.md §7.2 平铺修订）：一形态一行，已实现可点击新建，
-    // 未实现置灰占位（GV 系列落地后启用）——不再分节嵌套
+    // 未实现置灰占位（GV 系列落地后启用）——不再分节嵌套；
+    // VS Code 版式：新建入口收拢到面板下方（对标 Explorer OPEN EDITORS 在上）
+    auto *newLabel = new QLabel(QStringLiteral("新建 Graphic"), this);
+    newLabel->setObjectName("SidePanelSubTitle");
+    cl->addWidget(newLabel);
+
     m_templateList = new QListWidget(this);
     const QString tmplIconCol = ThemeManager::instance()->currentTheme().text;
     auto addTemplate = [this, tmplIconCol](const QString &name,
@@ -901,15 +920,6 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
 
     connect(m_templateList, &QListWidget::itemClicked,
             this, &GraphicConfigPanel::onTemplateClicked);
-
-    // 已打开页面列表（原交互保留：切换 / 右键 / 删除）
-    auto *openedLabel = new QLabel(QStringLiteral("已打开"), this);
-    openedLabel->setObjectName("SidePanelSubTitle");
-    cl->addWidget(openedLabel);
-
-    m_pageList = new QListWidget(this);
-    m_pageList->setContextMenuPolicy(Qt::CustomContextMenu);
-    cl->addWidget(m_pageList, 1);
 
     auto *btnBar = new QHBoxLayout;
     btnBar->setContentsMargins(8, 6, 8, 6);
@@ -1264,10 +1274,26 @@ MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
+    // 已打开流页列表（VS Code 版式：已打开在上，对标 Explorer OPEN EDITORS；
+    // 数据由壳 refreshPanelLists 收集 Flow 标签页喂入，行点击打开/聚焦画布）
+    auto *openedLabel = new QLabel(QStringLiteral("已打开"), this);
+    openedLabel->setObjectName("SidePanelSubTitle");
+    cl->addWidget(openedLabel);
+
+    m_openedList = new QListWidget(this);
+    connect(m_openedList, &QListWidget::itemClicked,
+            this, &MeasurementSetupPanel::onOpenedClicked);
+    cl->addWidget(m_openedList);
+
     // 协议流模板平铺（doc/flow.md §7.2 平铺修订）：注册表适配器 → 可点击行；
-    // 未落地协议 → 置灰占位行（同 protocolId 适配器注册后由 rebuildTemplates 接管）
+    // 未落地协议 → 置灰占位行（同 protocolId 适配器注册后由 rebuildTemplates 接管）；
+    // VS Code 版式：新建入口收拢到面板下方
+    auto *newLabel = new QLabel(QStringLiteral("新建协议流"), this);
+    newLabel->setObjectName("SidePanelSubTitle");
+    cl->addWidget(newLabel);
+
     m_templateList = new QListWidget(this);
-    cl->addWidget(m_templateList);
+    cl->addWidget(m_templateList, 1);
     rebuildTemplates();
 
     connect(m_templateList, &QListWidget::itemClicked,
@@ -1281,8 +1307,6 @@ MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
     hint->setWordWrap(true);
     hint->setObjectName("SidePanelHint");
     cl->addWidget(hint);
-
-    cl->addStretch();
 
     // M1 预埋：新增协议流占位入口（协议市场 F1 剩余就绪前禁用）
     auto *addFlowBtn = new QPushButton(QStringLiteral("从市场添加协议流"), this);
@@ -1300,6 +1324,14 @@ MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
             registryRelay, SLOT(fire()));
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             registryRelay, SLOT(fire()));
+}
+
+void MeasurementSetupPanel::refreshOpenList(const QStringList &names)
+{
+    // 壳侧喂入已打开流页名单（itemClicked 为用户交互信号，程序化增删行不触发）
+    m_openedList->clear();
+    for (const auto &n : names)
+        m_openedList->addItem(n);
 }
 
 void MeasurementSetupPanel::rebuildTemplates()
@@ -1341,6 +1373,13 @@ void MeasurementSetupPanel::onTemplateClicked(QListWidgetItem *item)
     if (!item || !item->flags().testFlag(Qt::ItemIsEnabled))
         return;
     emit openMeasurementSetupRequested();
+}
+
+void MeasurementSetupPanel::onOpenedClicked(QListWidgetItem *item)
+{
+    // 已打开行点击：打开/聚焦对应流画布（F1 多实例前 = 单画布，与模板行同归宿）
+    if (item)
+        emit openMeasurementSetupRequested();
 }
 
 // ============================================================
