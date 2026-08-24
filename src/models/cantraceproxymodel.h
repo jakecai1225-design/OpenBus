@@ -152,10 +152,8 @@ private:
     int m_sortColumn = -1;
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
 
-    /// SinceDisplay 模式排序键缓存（仅排序用；data() 走映射 O(1) 推导）
-    QHash<int, double> m_displayDeltas;
+    /// SinceDisplay 模式显示增量：由映射 O(1) 实时推导（data() 路径）
     quint64 m_lastSeq = 0;             ///< 上次同步时源模型的 seqCounter（检测环形覆盖）
-    int m_lastAcceptedSourceRow = -1;  ///< 源序最后一个通过过滤的行（增量排序键链起点）
 
     CanTraceModel *traceModel() const;
 
@@ -183,8 +181,6 @@ private:
     void buildMapping();
     /// 按当前排序列/方向重排 m_proxyRows（含持久索引重映射）
     void resortCurrent();
-    /// 重建 SinceDisplay 排序键缓存（按源序显示链）
-    void refreshDisplayDeltas();
     /// 转发源数据变化（源行区间 → 代理行区间，中间被过滤行会导致多刷，无碍）
     void forwardDataChanged(int srcTop, int srcBottom, const QVector<int> &roles);
 

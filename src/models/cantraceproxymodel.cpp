@@ -375,20 +375,12 @@ void CanTraceProxyModel::setTimestampMode(TimestampMode mode)
         return;
     m_timestampMode = mode;
 
-    // 刷新 Time 列所有可见行
+    // 刷新 Time 列所有可见行（显示模式仅影响显示文本，不影响排序链）
     int rows = m_proxyRows.size();
     if (rows > 0) {
         emit dataChanged(index(0, CanTraceModel::ColTime),
                          index(rows - 1, CanTraceModel::ColTime),
                          {Qt::DisplayRole});
-    }
-
-    // 切换显示模式后排序键可能变化（SinceCapture/SinceDisplay 显示的是增量），
-    // 若当前按 Time 列排序则需重新排序
-    if (m_sortColumn == CanTraceModel::ColTime) {
-        if (mode == SinceDisplay)
-            refreshDisplayDeltas();
-        resortCurrent();
     }
 }
 
@@ -442,8 +434,6 @@ void CanTraceProxyModel::sort(int column, Qt::SortOrder order)
         return;
     }
 
-    if (column == CanTraceModel::ColTime && m_timestampMode == SinceDisplay)
-        refreshDisplayDeltas();
     resortCurrent();
 }
 
@@ -474,24 +464,11 @@ bool CanTraceProxyModel::lessThan(int sourceLeft, int sourceRight) const
         // 源行号序 == No. 序（环形覆盖下仍单调）
         return sourceLeft < sourceRight;
     case CanTraceModel::ColTime:
-        // 排序键须与 data() 显示值一致
-        switch (m_timestampMode) {
-        case SinceCapture: {
-            double prevL = (sourceLeft > 0) ? model->frameAt(sourceLeft - 1).timestamp : 0.0;
-            double prevR = (sourceRight > 0) ? model->frameAt(sourceRight - 1).timestamp : 0.0;
-            return (fl.timestamp - prevL) < (fr.timestamp - prevR);
-        }
-        case SinceDisplay: {
-            auto itL = m_displayDeltas.constFind(sourceLeft);
-            auto itR = m_displayDeltas.constFind(sourceRight);
-            double dl = (itL != m_displayDeltas.constEnd()) ? itL.value() : fl.timestamp;
-            double dr = (itR != m_displayDeltas.constEnd()) ? itR.value() : fr.timestamp;
-            return dl < dr;
-        }
-        default:
-            // Absolute / DateTimeOfDay / SecondsSinceEpoch: 仅显示格式不同，值仍为绝对时间戳
-            return fl.timestamp < fr.timestamp;
-        }
+        // 对齐 Wireshark：Time 列排序键恒为帧的绝对捕获时间戳，
+        // 显示模式（绝对/增量/日期/Unix）仅改变显示文本，不改变排序语义。
+        // （若按显示增量排序，则增量依赖显示顺序、显示顺序又依赖排序，循环依赖；
+        // 且 SinceDisplay 增量随排序/过滤动态重算，作为排序键结果无意义）
+        return fl.timestamp < fr.timestamp;
     case CanTraceModel::ColDelta: {
         double dl = (sourceLeft > 0) ? fl.timestamp - model->frameAt(sourceLeft - 1).timestamp : 0.0;
         double dr = (sourceRight > 0) ? fr.timestamp - model->frameAt(sourceRight - 1).timestamp : 0.0;
@@ -550,8 +527,6 @@ void CanTraceProxyModel::buildMapping()
     // 无信号重建：接受过滤（源序）→ 排序 → 反向映射
     auto *model = traceModel();
     m_proxyRows.clear();
-    m_displayDeltas.clear();
-    m_lastAcceptedSourceRow = -1;
     if (!model) {
         m_sourceToProxy.clear();
         return;
@@ -562,21 +537,12 @@ void CanTraceProxyModel::buildMapping()
     m_sourceToProxy.resize(total);
     std::fill(m_sourceToProxy.begin(), m_sourceToProxy.end(), -1);
 
-    // 1) 接受过滤 — 同步生成 SinceDisplay 排序键链（源序）
-    double prevTs = 0.0;
-    bool havePrev = false;
+    // 1) 接受过滤（源序）
     for (int i = 0; i < total; ++i) {
         if (!filterAcceptsRow(i))
             continue;
         m_sourceToProxy[i] = m_proxyRows.size();
         m_proxyRows.append(i);
-        m_lastAcceptedSourceRow = i;
-        if (m_timestampMode == SinceDisplay) {
-            double ts = model->frameAt(i).timestamp;
-            m_displayDeltas[i] = havePrev ? ts - prevTs : ts;
-            prevTs = ts;
-            havePrev = true;
-        }
     }
 
     // 2) 排序
@@ -632,26 +598,6 @@ void CanTraceProxyModel::withLayoutChange(const std::function<void()> &mutate)
     if (!from.isEmpty())
         changePersistentIndexList(from, to);
     emit layoutChanged();
-}
-
-void CanTraceProxyModel::refreshDisplayDeltas()
-{
-    // 重建 SinceDisplay 排序键缓存：按源序遍历“显示”行链
-    m_displayDeltas.clear();
-    auto *model = traceModel();
-    if (!model)
-        return;
-    int total = model->rowCount();
-    double prevTs = 0.0;
-    bool havePrev = false;
-    for (int i = 0; i < total; ++i) {
-        if (m_sourceToProxy.value(i, -1) < 0)
-            continue;
-        double ts = model->frameAt(i).timestamp;
-        m_displayDeltas[i] = havePrev ? ts - prevTs : ts;
-        prevTs = ts;
-        havePrev = true;
-    }
 }
 
 void CanTraceProxyModel::forwardDataChanged(int srcTop, int srcBottom, const QVector<int> &roles)
@@ -719,26 +665,11 @@ void CanTraceProxyModel::onSourceRowsInserted(const QModelIndex &parent, int fir
                 m_sourceToProxy[r] = m_proxyRows.size();
                 m_proxyRows.append(r);
             }
-            m_lastAcceptedSourceRow = accepted.last();
             endInsertRows();
         }
     } else {
         // 排序模式：本批按排序键归并进 m_proxyRows（O(n+k) 单次，layoutChanged 通知）
         if (!accepted.isEmpty()) {
-            if (m_sortColumn == CanTraceModel::ColTime && m_timestampMode == SinceDisplay) {
-                // 新行排序键：相对批前最后一个显示行
-                refreshDisplayDeltas();
-                double prevTs = 0.0;
-                bool havePrev = (m_lastAcceptedSourceRow >= 0);
-                if (havePrev)
-                    prevTs = model->frameAt(m_lastAcceptedSourceRow).timestamp;
-                for (int r : accepted) {
-                    double ts = model->frameAt(r).timestamp;
-                    m_displayDeltas[r] = havePrev ? ts - prevTs : ts;
-                    prevTs = ts;
-                    havePrev = true;
-                }
-            }
             std::stable_sort(accepted.begin(), accepted.end(),
                              [this](int a, int b) {
                                  return m_sortOrder == Qt::AscendingOrder
@@ -757,7 +688,6 @@ void CanTraceProxyModel::onSourceRowsInserted(const QModelIndex &parent, int fir
                 m_proxyRows = std::move(merged);
                 rebuildSourceToProxy();
             });
-            m_lastAcceptedSourceRow = accepted.last();
         }
     }
     emitPacketCount();
@@ -871,10 +801,6 @@ void CanTraceProxyModel::handleFullShift(int shift, const QVector<int> &roles)
         }
         if (changed) {
             rebuildMapping();
-        } else {
-            m_displayDeltas.clear();
-            if (m_lastAcceptedSourceRow >= n)
-                m_lastAcceptedSourceRow = n - 1;
         }
         forwardDataChanged(0, n - 1, roles);
         emitPacketCount();
@@ -911,8 +837,6 @@ void CanTraceProxyModel::handleFullShift(int shift, const QVector<int> &roles)
     }
 
     rebuildSourceToProxy();
-    m_displayDeltas.clear();
-    m_lastAcceptedSourceRow = m_proxyRows.isEmpty() ? -1 : m_proxyRows.last();
 
     if (newCount > 0)
         emit dataChanged(index(0, 0), index(newCount - 1, columnCount() - 1), roles);

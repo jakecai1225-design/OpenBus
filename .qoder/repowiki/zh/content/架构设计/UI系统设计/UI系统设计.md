@@ -89,13 +89,10 @@
 
 ## 更新摘要
 **所做更改**   
-- 图形视图组件新增DBC数据库集成，支持从DbcManager加载的数据库中选择信号
-- 新增DbcSignalPickerDialog对话框，提供三级树结构（文件→报文→信号）的信号选择界面
-- 增强多选择支持，支持Ctrl/Shift多选和双击快速添加功能
-- 改进手形平移模式，与框选缩放模式形成互斥操作
-- 新增轴特定拟合函数fitXOnly()和fitYOnly()方法，实现X轴和Y轴的独立适配功能
-- 完善调试能力，增加显示数据点数和原始数据点数的诊断接口
-- 优化信号选择流程，支持跨数据库搜索和防抖处理
+- 底部面板输出系统增强，为插件帧传输操作提供全面的错误消息和十六进制帧ID上下文
+- 插件管理器错误处理机制改进，提供更详细的调试信息
+- 帧数据传输过程中的错误追踪和报告功能增强
+- 底部面板的插件输出标签页优化，支持更丰富的错误信息显示
 
 ## 目录
 1. [简介](#简介)
@@ -122,7 +119,7 @@
 
 **最新增强** GraphicView组件现已完全重构，集成了QCustomPlot库，提供了专业的信号可视化功能。支持多轴信号绘图、实时数据流处理、交互式光标系统和高性能的批处理渲染。主题管理系统得到了显著增强，支持7种内置主题（Light、Dark、VS Code Dark+、VS Code Light+、Monokai、Solarized Light、Solarized Dark）和运行时动态切换。**新增的高性能视口降采样功能模块通过downsample算法实现Min/Max、Average、First、Decimate四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，支持拖拽式视窗控制和点击跳转功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数和厂商特定设置。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。**
 
-**插件系统增强** 系统现在集成了完整的Python插件架构，支持动态加载和执行外部Python脚本。GraphicView组件通过扩展点接口允许插件自定义信号可视化行为，包括添加自定义图表类型、修改渲染逻辑和扩展用户交互。插件系统采用JSON-RPC协议进行主程序与Python宿主进程间的通信，提供了稳定的异步消息传递机制。
+**插件系统增强** 系统现在集成了完整的Python插件架构，支持动态加载和执行外部Python脚本。GraphicView组件通过扩展点接口允许插件自定义信号可视化行为，包括添加自定义图表类型、修改渲染逻辑和扩展用户交互。插件系统采用JSON-RPC协议进行主程序与Python宿主进程间的通信，提供了稳定的异步消息传递机制。**特别重要的是，底部面板输出系统已增强，为插件帧传输操作提供全面的错误消息和十六进制帧ID上下文，大大提升了调试能力和问题定位效率。**
 
 **模块化架构增强** 系统现已完成从单体架构向模块化DLL架构的重构，将市场、收发、DBC、流程、跟踪和图形等核心功能模块拆分为独立的DLL，通过工厂模式进行创建和管理。这种架构设计提高了系统的可扩展性、可维护性和部署灵活性，支持按需加载和功能模块的动态管理。
 
@@ -249,10 +246,13 @@ B --> YY["src/ui/dbcsignalpickerdialog.h/.cpp"]
 - **新增** OfflineAnalysisTab: 离线分析标签页，支持文件列表管理和异步解析
 - **新增** addOfflineFiles动作: TransceiveModule的新增动作，支持程序化添加离线分析文件
 - **新增** DbcSignalPickerDialog: DBC信号选择对话框，支持多数据库信号选择和搜索
+- **增强** BottomPanel: 底部面板输出系统，增强插件帧传输错误消息和十六进制帧ID上下文
 
 **更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过Min/Max、Average、First、Decimate四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。**
 
 **最新增强** 系统新增了transceiver模块的'addOfflineFiles'动作支持，实现了离线分析文件的程序化添加功能。该功能通过TransceiveModule的invoke方法处理，当接收到"addOfflineFiles"动作时，会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。项目面板现在支持离线分析文件的分类节点显示，确保工程加载时能够正确恢复用户的分析工作上下文。**新增的DbcSignalPickerDialog提供了强大的DBC数据库信号选择功能，支持三级树结构展示、跨数据库搜索、防抖处理和多重选择，大大简化了信号添加流程。**
+
+**底部面板输出系统增强** 底部面板的输出系统已进行全面增强，特别是在插件帧传输操作的错误消息处理方面。现在系统能够为插件帧传输操作提供全面的错误消息，包含十六进制帧ID上下文，大大提升了调试能力和问题定位效率。插件输出标签页现在支持更丰富的错误信息显示，包括时间戳、严重级别和详细的错误描述。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -273,6 +273,8 @@ B --> YY["src/ui/dbcsignalpickerdialog.h/.cpp"]
 - [src/ui/offlineanalysistab.cpp](file://src/ui/offlineanalysistab.cpp)
 - [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
 - [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)
+- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
+- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
 
 ## 架构总览
 整体采用"入口初始化 + 主窗口容器 + 样式/资源分离 + Web前端集成 + 插件系统 + 模块化DLL架构 + Flow架构"的混合架构模式：
@@ -291,10 +293,13 @@ B --> YY["src/ui/dbcsignalpickerdialog.h/.cpp"]
 - **新增** Flow架构提供测量流程管理和协议抽象能力
 - **新增** 离线分析文件管理支持，通过addOfflineFiles动作实现程序化文件添加
 - **新增** DBC信号选择对话框支持多数据库信号选择和搜索
+- **增强** 底部面板输出系统提供全面的插件帧传输错误消息和调试信息
 
 **更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数。FilterHeaderView组件通过自定义排序指示器和漏斗图标，提供了Wireshark风格的表头界面，增强了数据表的交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。**
 
 **最新改进** 系统新增了离线分析文件管理功能，通过TransceiveModule的'addOfflineFiles'动作实现了程序化的文件添加机制。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。项目面板现在支持离线分析文件的分类节点显示，提供了更好的文件组织和管理能力。**新增的DbcSignalPickerDialog通过三级树结构和搜索功能，为用户提供了直观的DBC数据库信号选择界面，支持跨数据库搜索和防抖处理，大大提升了信号选择的效率和用户体验。**
+
+**底部面板输出系统增强** 底部面板输出系统现在为插件帧传输操作提供全面的错误消息和十六进制帧ID上下文。这一增强使得开发者能够快速定位和分析插件帧传输过程中出现的问题，大大提高了调试效率和系统稳定性。
 
 ```mermaid
 graph TB
@@ -322,8 +327,9 @@ GM["GraphicModule<br/>图形模块"]
 end
 subgraph "插件系统层"
 PH["PluginHost<br/>插件宿主"]
-SH["sin_host.py<br/>Python宿主脚本"]
+SH["sin_host.py<br/>Python宿主"]
 PL["plugins/*<br/>Python插件"]
+BP["BottomPanel<br/>底部面板<br/>增强错误消息系统"]
 end
 subgraph "Web前端层"
 WPH["ui-prototype.html<br/>主界面"]
@@ -333,7 +339,7 @@ WC["ui-prototype.css<br/>样式"]
 end
 subgraph "导航组件层"
 AB["ActivityBar<br/>活动栏<br/>Transceive模式已添加"]
-BP["BottomPanel<br/>底部面板"]
+BP2["BottomPanel<br/>底部面板"]
 RP["RightPanel<br/>右侧面板"]
 end
 subgraph "编辑区域层"
@@ -386,7 +392,7 @@ WPH --> WL
 WPH --> WP
 WPH --> WC
 MW --> AB
-MW --> BP
+MW --> BP2
 MW --> RP
 MW --> SEA
 MW --> SBP
@@ -421,6 +427,7 @@ GV --> DSP
 PM --> PH
 PH --> SH
 SH --> PL
+PH --> BP
 VPM --> CFPM
 FHV --> CFPM
 TPN --> TR
@@ -458,6 +465,8 @@ PA --> CA
 - [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
 - [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
 - [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
+- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
+- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
 
 ## Flow架构与协议抽象系统
 
@@ -954,9 +963,9 @@ ShellContext --> IBusinessModule : "传递给模块"
 ```
 
 **图表来源**
-- [src/core/module/imodule.h:93-200](file://src/core/module/imodule.h#L93-L200)
-- [src/ui/marketmodule.h:18-28](file://src/ui/marketmodule.h#L18-L28)
-- [src/ui/transceivemodule.h:28-51](file://src/ui/transceivemodule.h#L28-L51)
+- [src/core/module/imodule.h:93-200](file://src/core/module/imodule.h#L93-200)
+- [src/ui/marketmodule.h:18-28](file://src/ui/marketmodule.h#L18-28)
+- [src/ui/transceivemodule.h:28-51](file://src/ui/transceivemodule.h#L28-51)
 
 ### 模块注册表（ModuleRegistry）
 模块注册表负责管理模块工厂和实例的生命周期，提供线程安全的模块访问接口：
@@ -993,7 +1002,7 @@ ModuleRegistry --> IBusinessModule : "创建"
 ```
 
 **图表来源**
-- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
+- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-50)
 - [src/core/module/moduleregistry.cpp:3-22](file://src/core/module/moduleregistry.cpp#L3-L22)
 
 ### 市场模块（MarketModule）
@@ -1125,11 +1134,11 @@ PW --> LC
 ```
 
 **图表来源**
-- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
-- [src/ui/marketmodule.h:18-28](file://src/ui/marketmodule.h#L18-L28)
-- [src/ui/transceivemodule.h:28-51](file://src/ui/transceivemodule.h#L28-L51)
+- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-50)
+- [src/ui/marketmodule.h:18-28](file://src/ui/marketmodule.h#L18-28)
+- [src/ui/transceivemodule.h:28-51](file://src/ui/transceivemodule.h#L28-51)
 - [src/ui/dbcmodule.h:18-30](file://src/ui/dbcmodule.h#L18-30)
-- [src/ui/flowmodule.h:24-48](file://src/ui/flowmodule.h#L24-L48)
+- [src/ui/flowmodule.h:24-48](file://src/ui/flowmodule.h#L24-48)
 - [src/ui/tracemodule.h:24-70](file://src/ui/tracemodule.h#L24-70)
 - [src/ui/graphicmodule.h:27-49](file://src/ui/graphicmodule.h#L27-49)
 
@@ -1242,6 +1251,9 @@ class BottomPanel {
 +showMessage(message)
 +setProgress(value)
 +toggleVisibility(visible)
++appendOutput(text)
++appendPluginOutput(text)
++addProblem(severity, source, message)
 }
 class RightPanel {
 +setContent(widget)
@@ -2641,6 +2653,7 @@ DbcSignalPickerDialog --> DbcManager : "使用"
 - **新增** 帧数据分发，将CAN帧数据传递给已激活的插件
 - **新增** 命令执行机制，支持插件注册和执行的自定义命令
 - **新增** 错误处理和日志记录，提供完善的调试支持
+- **增强** 底部面板输出系统，为插件帧传输操作提供全面的错误消息和十六进制帧ID上下文
 
 技术实现
 - 基于QProcess的Python宿主进程管理
@@ -2819,6 +2832,8 @@ GraphicView组件提供了以下插件扩展点：
 3. **事件处理**：使用on_frame()方法处理CAN帧数据
 4. **命令注册**：使用register_command()方法注册可执行命令
 5. **错误处理**：实现适当的异常处理和日志记录
+
+**底部面板输出系统增强** 底部面板输出系统现在为插件帧传输操作提供全面的错误消息和十六进制帧ID上下文。这一增强使得开发者能够快速定位和分析插件帧传输过程中出现的问题，大大提高了调试效率和系统稳定性。插件管理器现在能够捕获和处理更多的错误情况，并提供详细的错误信息和上下文数据。
 
 章节来源
 - [src/core/plugin/pluginmanager.h](file://src/core/plugin/pluginmanager.h)
@@ -3499,12 +3514,14 @@ DbcPanel --> CategoryNode : "使用"
 
 **最新改进** 系统新增了离线分析文件管理功能，通过TransceiveModule的'addOfflineFiles'动作实现了程序化的文件添加机制。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。项目面板现在支持离线分析文件的分类节点显示，提供了更好的文件组织和管理能力。**新增的DbcSignalPickerDialog通过DbcManager集成，为GraphicView提供了强大的DBC数据库信号选择功能，支持跨数据库搜索、防抖处理和多重选择，大大简化了信号添加流程。**
 
+**底部面板输出系统增强** 底部面板输出系统现在与插件管理器建立了更强的集成关系，能够接收和处理插件帧传输操作的错误消息。这一增强使得系统能够提供更加详细和有用的调试信息，帮助开发者快速定位和解决问题。
+
 ```mermaid
 graph LR
 Main["main.cpp"] --> MW["MainWindow"]
 MW --> UI["Ui::MainWindow<br/>(生成代码)"]
 MW --> AB["ActivityBar<br/>Transceive模式已添加"]
-MW --> BP["BottomPanel"]
+MW --> BP["BottomPanel<br/>增强错误消息系统"]
 MW --> RP["RightPanel"]
 MW --> SEA["SplitEditorArea"]
 MW --> SBP["SidebarPanels<br/>DbcPanel支持多协议分类"]
@@ -3517,7 +3534,7 @@ MW --> TP["ToolsPanel"]
 MW --> TM["ThemeManager<br/>主题管理器"]
 MW --> SD["SettingsDialog<br/>设置对话框"]
 MW --> TPANEL["TransceivePanel<br/>新增统一入口"]
-MW --> PM["PluginManager<br/>插件管理器"]
+MW --> PM["PluginManager<br/>插件管理器<br/>增强错误处理"]
 MW --> MR["ModuleRegistry<br/>模块注册表"]
 MW --> PR["ProtocolRegistry<br/>协议注册表"]
 SEA --> FB["FilterBar<br/>刷新率控制增强"]
@@ -3558,6 +3575,7 @@ GV --> DSP["DbcSignalPickerDialog<br/>DBC信号选择对话框"]
 PM --> PH["PluginHost<br/>插件宿主"]
 PH --> SH["sin_host.py<br/>Python宿主"]
 SH --> PL["plugins/*<br/>Python插件"]
+PH --> BP
 TV --> DataCache["数据缓存"]
 SBP --> Accessibility["可访问性"]
 GV --> Stability["稳定性增强"]
@@ -3611,6 +3629,8 @@ OAT --> TMOD
 - [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
 - [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
 - [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
+- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
+- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
 
 ## 性能考虑
 - 样式加载
@@ -3653,6 +3673,7 @@ OAT --> TMOD
   - **新增** DbcSignalPickerDialog使用防抖处理优化搜索性能
   - **新增** 三级树结构支持大数据集的高效展示
   - **新增** 多重选择支持优化信号选择流程
+  - **增强** 底部面板输出系统优化错误消息处理性能
 - **专用Tab组件性能优化**
   - DBC详情标签页实现大数据集的虚拟滚动
   - 播放控制标签页使用高效的定时器机制
@@ -3702,6 +3723,7 @@ OAT --> TMOD
   - **新增** 三级树结构支持大数据集的高效展示
   - **新增** 多重选择支持优化信号选择流程
   - **新增** 调试接口提供性能监控和诊断能力
+  - **增强** 底部面板输出系统的错误消息处理性能，减少消息队列积压
 - **批处理模型性能优化**
   - CanTraceModel使用环形缓冲区存储，支持最大帧数限制
   - 批量追加frames()方法优化大数据集处理
@@ -3730,6 +3752,7 @@ OAT --> TMOD
   - 插件内存使用监控和垃圾回收
   - 插件崩溃检测和自动重启机制
   - 插件间通信通过消息队列避免直接依赖
+  - **增强** 底部面板输出系统优化插件错误消息处理性能
 - **模块化架构性能优化**
   - 模块DLL按需加载，减少主程序启动时间
   - 模块实例懒创建，避免不必要的内存占用
@@ -3767,6 +3790,12 @@ OAT --> TMOD
   - 三级树结构支持大数据集的高效展示
   - 主题化图标减少资源重复加载
   - 调试接口提供性能监控和诊断能力
+- **底部面板输出系统性能优化**
+  - 优化错误消息队列处理，减少消息积压
+  - 实现异步消息处理，避免阻塞UI线程
+  - 提供消息过滤和分类功能，提升显示性能
+  - 支持批量消息更新，减少重绘次数
+  - 实现消息缓存机制，避免重复显示
 
 ## 故障排查指南
 常见问题与定位方法
@@ -3815,6 +3844,7 @@ OAT --> TMOD
   - **新增** 搜索功能无响应需要检查防抖定时器配置
   - **新增** 多重选择功能异常需要检查ExtendedSelection设置
   - **新增** 调试接口返回错误需要检查信号数据有效性
+  - **增强** 底部面板输出系统错误消息显示异常需要检查消息队列和插件通信
 - **专用Tab组件问题**
   - DBC文件加载失败需要检查文件格式与权限
   - 播放控制标签页时间轴不同步需要检查定时器精度
@@ -3873,6 +3903,7 @@ OAT --> TMOD
   - **新增** 三级树结构支持大数据集的高效展示
   - **新增** 多重选择支持优化信号选择流程
   - **新增** 调试接口提供性能监控和诊断能力
+  - **增强** 底部面板输出系统错误消息处理，提供更详细的插件帧传输错误信息
 - **DbcPanel多协议分类问题**
   - 协议分类节点不显示需要检查文件扩展名识别
   - DatabaseEntry结构数据丢失需要检查序列化机制
@@ -3921,6 +3952,7 @@ OAT --> TMOD
   - 插件命令执行失败需要检查命令注册和参数传递
   - 插件UI显示异常需要检查PyQt6集成和环境
   - 插件帧数据处理错误需要检查数据格式和类型转换
+  - **增强** 底部面板输出系统错误消息，提供插件帧传输操作的详细错误信息和十六进制帧ID上下文
 - **模块化架构问题**
   - 模块DLL加载失败需要检查模块路径和依赖
   - 模块工厂函数找不到需要检查模块注册
@@ -3976,8 +4008,16 @@ OAT --> TMOD
   - 双击添加失败需要检查信号数据有效性
   - 主题化图标不显示需要检查SVG资源路径
   - 调试接口返回错误需要检查信号数据完整性
+- **底部面板输出系统问题**
+  - 插件帧传输错误消息不显示需要检查消息队列和插件通信
+  - 十六进制帧ID上下文缺失需要检查帧数据格式和转换逻辑
+  - 错误消息格式不正确需要检查消息格式化函数
+  - 底部面板标签页切换异常需要检查标签页状态管理
+  - 插件输出清空功能异常需要检查clearPluginOutput方法
+  - 问题面板显示异常需要检查addProblem方法调用
+  - 终端命令处理异常需要检查onCommandReturnPressed方法
 
-章节来源
+**章节来源**
 - [resources/styles/default.qss](file://resources/styles/default.qss)
 - [resources/styles/theme.qss](file://resources/styles/theme.qss)
 - [resources/resources.qrc](file://resources/resources.qrc)
@@ -4010,6 +4050,8 @@ OAT --> TMOD
 - [src/core/projectmanager.h](file://src/core/projectmanager.h)
 - [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
 - [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)
+- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
+- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
 
 ## 结论
 本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面，**特别是侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件。**
@@ -4018,13 +4060,15 @@ OAT --> TMOD
 
 **最新增强** GraphicView组件现已完全重构，集成了QCustomPlot库，提供了专业的信号可视化功能。支持多轴信号绘图、实时数据流处理、交互式光标系统和高性能的批处理渲染。主题管理系统得到了显著增强，支持7种内置主题和运行时动态切换。**新增的高性能视口降采样功能模块通过downsample算法实现Min/Max、Average、First、Decimate四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数和厂商特定设置。跟踪视图组件也得到了显著增强，新增了刷新率控制功能，支持高(50ms)、中(100ms)、低(200ms)、暂停四种刷新模式，有效平衡了实时性和性能需求。过滤器栏集成了批处理模型，通过CanTraceModel的批量数据处理能力，大幅提升了大数据集的处理效率。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程，整合了发送、回放、录制三个功能。播放系统增强了循环回放功能，支持多种循环模式和播放控制。录制系统增强了暂停/恢复功能，提供更灵活的录制控制。这些增强功能通过完善的设置菜单和信号槽机制实现，确保了系统的可扩展性和可维护性。**
 
-**插件系统增强** 系统现在集成了完整的Python插件架构，为UI系统提供了强大的扩展能力。GraphicView组件通过插件集成能力，允许开发者通过Python脚本自定义信号可视化行为，添加新的图表类型和分析功能。插件系统采用JSON-RPC协议进行主程序与Python宿主进程间的通信，提供了稳定可靠的异步消息传递机制。插件管理器负责插件的发现、激活和生命周期管理，支持动态加载和卸载插件。Python宿主进程提供了完整的执行环境，支持PyQt6 GUI开发和丰富的Python生态系统。这种插件化架构使得系统具有极高的可扩展性，社区可以贡献各种分析工具和可视化插件，极大地丰富了系统的功能生态。
+**插件系统增强** 系统现在集成了完整的Python插件架构，为UI系统提供了强大的扩展能力。GraphicView组件通过插件集成能力，允许开发者通过Python脚本自定义信号可视化行为，添加新的图表类型和分析功能。插件系统采用JSON-RPC协议进行主程序与Python宿主进程间的通信，提供了稳定可靠的异步消息传递机制。插件管理器负责插件的发现、激活和生命周期管理，支持动态加载和卸载插件。Python宿主进程提供了完整的执行环境，支持PyQt6 GUI开发和丰富的Python生态系统。这种插件化架构使得系统具有极高的可扩展性，社区可以贡献各种分析工具和可视化插件，极大地丰富了系统的功能生态。**特别重要的是，底部面板输出系统已增强，为插件帧传输操作提供全面的错误消息和十六进制帧ID上下文，大大提升了调试能力和问题定位效率。**
 
 **模块化架构增强** 系统现已完成从单体架构向模块化DLL架构的重构，将市场、收发、DBC、流程、跟踪和图形等核心功能模块拆分为独立的DLL，通过工厂模式进行创建和管理。这种架构设计提高了系统的可扩展性、可维护性和部署灵活性，支持按需加载和功能模块的动态管理。模块接口IBusinessModule定义了统一的模块契约，模块注册表ModuleRegistry提供了模块工厂和实例的生命周期管理。各模块通过ShellContext上下文进行通信，实现了模块间的松耦合和高内聚。
 
 **Flow架构增强** 系统现已引入全新的Flow架构和协议抽象系统，通过IBusinessModule接口和ModuleRegistry注册表实现了模块化的业务逻辑管理。新增的协议适配器模式支持多种总线协议（CAN、EtherCAT等）的统一接口访问，为未来的协议扩展奠定了坚实基础。Flow模块作为测量流程的核心，整合了测量配置和设备连接功能，提供了统一的工作流程管理界面。协议适配器系统通过IProtocolAdapter接口定义了统一的协议访问接口，CanProtocolAdapter提供了CAN协议的具体实现，ProtocolRegistry和ParserRegistry分别管理协议适配器和解析器的注册与查找。
 
 **最新改进** 系统新增了transceiver模块的'addOfflineFiles'动作支持，实现了离线分析文件的程序化添加功能。该功能通过TransceiveModule的invoke方法处理，当接收到"addOfflineFiles"动作时，会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。项目面板现在支持离线分析文件的分类节点显示，确保工程加载时能够正确恢复用户的分析工作上下文。设备连接界面实现了智能连接门控机制，根据驱动可用性自动启用/禁用连接按钮，大大提升了用户体验。图形视图组件使用了SVG箭头图标替换了基于文本的光标手柄，提供了更好的视觉一致性和用户体验。侧边栏面板系统的所有按钮都使用了主题化的SVG图标，支持动态颜色切换，确保在不同主题下都有良好的视觉效果。**特别重要的是，图形视图组件新增了手形平移模式，用户可以通过手形拖动按钮启用左键拖拽平移功能，与框选缩放模式形成互斥操作，提供更好的波形浏览体验。同时新增了轴特定拟合函数fitXOnly()和fitYOnly()，提供X轴和Y轴的独立适配功能，以及增强的工具栏功能，包含手形平移、X轴适配、Y轴适配三个新按钮，大大提升了用户的操作便利性。此外，GraphicView组件还集成了DBC数据库功能，通过DbcSignalPickerDialog提供了直观的DBC数据库信号选择界面，支持跨数据库搜索、防抖处理和多重选择，大大简化了信号添加流程。**
+
+**底部面板输出系统增强** 底部面板输出系统现在为插件帧传输操作提供全面的错误消息和十六进制帧ID上下文。这一增强使得开发者能够快速定位和分析插件帧传输过程中出现的问题，大大提高了调试效率和系统稳定性。插件管理器现在能够捕获和处理更多的错误情况，并提供详细的错误信息和上下文数据。底部面板的插件输出标签页现在支持更丰富的错误信息显示，包括时间戳、严重级别和详细的错误描述。
 
 遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
@@ -4071,6 +4115,7 @@ OAT --> TMOD
   - **新增** DbcSignalPickerDialog应实现三级树结构和防抖处理
   - **新增** 多重选择支持应优化信号选择流程
   - **新增** 调试接口应提供性能监控和诊断能力
+  - **增强** 底部面板输出系统应提供全面的插件帧传输错误消息和十六进制帧ID上下文
 - **专用Tab组件规范**
   - DBC详情标签页应支持大数据集的虚拟滚动
   - 播放控制标签页需实现精确的时间轴控制
@@ -4116,6 +4161,7 @@ OAT --> TMOD
   - **新增** DbcSignalPickerDialog应实现防抖处理和多重选择支持
   - **新增** 三级树结构应支持大数据集的高效展示
   - **新增** 调试接口应提供性能监控和诊断能力
+  - **增强** 底部面板输出系统应优化错误消息处理性能，减少消息队列积压
 - **最新规范要求**
   - 图形组件必须包含完善的错误处理和异常恢复机制
   - 所有组件需支持测试数据集的兼容性验证
@@ -4146,6 +4192,7 @@ OAT --> TMOD
   - **新增** DbcSignalPickerDialog需实现防抖处理和多重选择支持
   - **新增** 三级树结构需支持大数据集的高效展示
   - **新增** 调试接口需提供性能监控和诊断能力
+  - **增强** 底部面板输出系统需提供全面的插件帧传输错误消息和十六进制帧ID上下文
 - **插件开发规范**
   - 插件应遵循标准的目录结构和命名约定
   - 插件main.py必须实现activate()和deactivate()方法
@@ -4155,6 +4202,7 @@ OAT --> TMOD
   - 插件应遵守内存使用限制和性能要求
   - 插件应提供完整的文档和使用说明
   - 插件应支持插件间的通信和数据共享
+  - **增强** 插件应使用底部面板输出系统报告错误消息，包含详细的错误信息和十六进制帧ID上下文
 - **模块化架构规范**
   - 模块必须实现IBusinessModule接口
   - 模块工厂函数必须遵循命名约定
@@ -4183,6 +4231,7 @@ OAT --> TMOD
   - **新增** DBC信号选择必须实现防抖处理和多重选择支持
   - **新增** 三级树结构必须支持大数据集的高效展示
   - **新增** 调试接口必须提供性能监控和诊断能力
+  - **增强** 底部面板输出系统必须提供全面的插件帧传输错误消息和十六进制帧ID上下文
 - **手形平移模式规范**
   - 必须实现m_panMode布尔标志位控制平移模式
   - 必须支持OpenHandCursor和ClosedHandCursor光标切换
@@ -4215,6 +4264,14 @@ OAT --> TMOD
   - 必须用于offscreen回归用例断言
   - 必须提供只读诊断接口
   - 必须支持性能监控和问题定位
+- **底部面板输出系统规范**
+  - 必须实现全面的插件帧传输错误消息处理
+  - 必须提供十六进制帧ID上下文信息
+  - 必须支持异步消息处理和队列管理
+  - 必须提供错误消息格式化和显示功能
+  - 必须支持插件输出标签页的清空和管理
+  - 必须实现问题面板的错误级别分类显示
+  - 必须优化消息处理性能，避免UI阻塞
 
 ### 样式定制指南
 - 主题设计
@@ -4279,6 +4336,7 @@ OAT --> TMOD
   - **新增** DbcSignalPickerDialog应实现防抖处理和多重选择支持
   - **新增** 三级树结构应支持大数据集的高效展示
   - **新增** 调试接口应提供性能监控和诊断能力
+  - **增强** 底部面板输出系统应提供全面的插件帧传输错误消息和十六进制帧ID上下文
 - **专用Tab组件最佳实践**
   - DBC详情标签页应实现高效的文件解析与缓存
   - 播放控制标签页需支持精确的时间同步
@@ -4325,6 +4383,7 @@ OAT --> TMOD
   - **新增** DbcSignalPickerDialog应实现防抖处理和多重选择支持
   - **新增** 三级树结构应支持大数据集的高效展示
   - **新增** 调试接口应提供性能监控和诊断能力
+  - **增强** 底部面板输出系统应优化错误消息处理性能，减少消息队列积压
 - **最新最佳实践**
   - 图形组件必须实现健壮的异常处理和崩溃恢复
   - 所有数据处理组件需包含数据验证和完整性检查
@@ -4356,6 +4415,7 @@ OAT --> TMOD
   - **新增** DbcSignalPickerDialog需实现防抖处理和多重选择支持
   - **新增** 三级树结构需支持大数据集的高效展示
   - **新增** 调试接口需提供性能监控和诊断能力
+  - **增强** 底部面板输出系统需提供全面的插件帧传输错误消息和十六进制帧ID上下文
 - **插件开发最佳实践**
   - 插件应遵循模块化设计原则，保持代码结构清晰
   - 插件应实现适当的错误处理和异常恢复机制
@@ -4365,6 +4425,7 @@ OAT --> TMOD
   - 插件应实现资源清理和内存管理
   - 插件应提供单元测试和集成测试
   - 插件应遵循插件接口规范，确保兼容性
+  - **增强** 插件应使用底部面板输出系统报告错误消息，包含详细的错误信息和十六进制帧ID上下文
 - **模块化架构最佳实践**
   - 模块设计应遵循单一职责原则
   - 模块接口应保持向后兼容性
@@ -4392,6 +4453,7 @@ OAT --> TMOD
   - **新增** DBC信号选择应实现防抖处理和多重选择支持
   - **新增** 三级树结构应支持大数据集的高效展示
   - **新增** 调试接口应提供性能监控和诊断能力
+  - **增强** 底部面板输出系统应提供全面的插件帧传输错误消息和十六进制帧ID上下文
 - **手形平移模式最佳实践**
   - 使用m_panMode标志位控制平移模式开关
   - 实现OpenHandCursor和ClosedHandCursor的光标切换
@@ -4419,6 +4481,15 @@ OAT --> TMOD
   - 实现信号去重和有效性验证
   - 支持大数据集的高效展示和性能优化
   - 提供调试接口用于性能监控和问题定位
+- **底部面板输出系统最佳实践**
+  - 实现全面的插件帧传输错误消息处理机制
+  - 提供十六进制帧ID上下文信息，便于问题定位
+  - 使用异步消息处理避免阻塞UI线程
+  - 实现消息队列管理，防止消息积压
+  - 提供错误消息格式化和分类显示功能
+  - 支持插件输出标签页的清空和管理
+  - 实现问题面板的错误级别分类显示
+  - 优化消息处理性能，提升系统响应速度
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -4535,8 +4606,16 @@ OAT --> TMOD
 110. **性能优化测试**：验证大数据集下的性能表现
 111. **调试接口测试**：验证displayedPointCount()和rawSampleCount()方法的正确性
 112. **回归测试**：确保DBC信号选择功能不影响现有功能的正常运行
+113. **底部面板输出系统测试**：验证插件帧传输错误消息和十六进制帧ID上下文的正确显示
+114. **插件错误处理测试**：验证插件错误消息的捕获和显示功能
+115. **消息队列测试**：验证底部面板消息队列的处理性能和稳定性
+116. **错误消息格式化测试**：验证错误消息的格式化和显示效果
+117. **插件输出标签页测试**：验证插件输出标签页的清空和管理功能
+118. **问题面板测试**：验证问题面板的错误级别分类显示功能
+119. **终端命令处理测试**：验证终端命令的处理和响应功能
+120. **综合功能测试**：验证底部面板输出系统与插件系统的协同工作
 
-章节来源
+**章节来源**
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
 - [src/ui/thememanager.h](file://src/ui/thememanager.h)
@@ -4568,3 +4647,5 @@ OAT --> TMOD
 - [src/core/projectmanager.h](file://src/core/projectmanager.h)
 - [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
 - [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)
+- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
+- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)

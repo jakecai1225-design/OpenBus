@@ -123,6 +123,9 @@ public:
     void setColorRules(const QVector<ColorRule> &rules);
     const QVector<ColorRule> &colorRules() const { return m_colorRules; }
     void clearColorRules();
+    /// 首个命中帧的着色规则下标（-1 = 无命中）；
+    /// m_colorFilters 与 m_colorRules 下标一一对应（禁用/编译失败位为 nullptr）
+    int matchingColorRule(const CanFrame &frame) const;
 
     // ---- 覆盖模式 ----
 
@@ -201,8 +204,7 @@ private:
 
     // ---- 着色规则 ----
     QVector<ColorRule> m_colorRules;
-    QVector<FilterEngine *> m_colorFilters;
-    QColor evaluateColorRules(const CanFrame &frame) const;
+    QVector<FilterEngine *> m_colorFilters;  ///< 与 m_colorRules 下标对齐（nullptr = 不参与求值）
 
     // ---- Phase 1: 行缓存 ----
     struct RowCache {

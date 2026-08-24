@@ -69,6 +69,10 @@ QVariant CanTraceModel::data(const QModelIndex &index, int role) const
     }
 
     if (role == Qt::ForegroundRole) {
+        // 着色规则前景色优先（此前完全未生效）
+        int ruleIdx = matchingColorRule(f);
+        if (ruleIdx >= 0 && m_colorRules[ruleIdx].foreground.isValid())
+            return m_colorRules[ruleIdx].foreground;
         if (f.isErrorFrame())
             return QColor(0xD0, 0x20, 0x20);
         if (f.direction == CanFrame::Tx)
@@ -89,9 +93,9 @@ QVariant CanTraceModel::data(const QModelIndex &index, int role) const
                 return it->bgColor;
         }
         // 未命中缓存，实时求值
-        QColor ruleColor = evaluateColorRules(f);
-        if (ruleColor.isValid())
-            return ruleColor;
+        int ruleIdx = matchingColorRule(f);
+        if (ruleIdx >= 0)
+            return m_colorRules[ruleIdx].background;
         if (m_markedRows.contains(seq))
             return QColor(0xFF, 0xF3, 0xB0);
         // 时间参考点行高亮
@@ -710,14 +714,21 @@ void CanTraceModel::setColorRules(const QVector<ColorRule> &rules)
     m_colorFilters.clear();
     m_colorRules = rules;
 
+    // 与规则下标一一对应：禁用/编译失败的槽位置 nullptr，
+    // 避免“过滤器列表与规则列表下标错位”导致颜色张冠李戴
+    // （编辑器保存时应已校验表达式；此处对编译失败规则静默降级为不生效）
     for (const auto &r : rules) {
-        if (!r.enabled)
+        if (!r.enabled) {
+            m_colorFilters.append(nullptr);
             continue;
+        }
         auto *fe = new FilterEngine();
         if (fe->compile(r.expr))
             m_colorFilters.append(fe);
-        else
+        else {
             delete fe;
+            m_colorFilters.append(nullptr);
+        }
     }
 
     invalidateRowCache();
@@ -739,13 +750,13 @@ void CanTraceModel::clearColorRules()
                          {Qt::BackgroundRole, Qt::ForegroundRole});
 }
 
-QColor CanTraceModel::evaluateColorRules(const CanFrame &frame) const
+int CanTraceModel::matchingColorRule(const CanFrame &frame) const
 {
     for (int i = 0; i < m_colorFilters.size(); ++i) {
-        if (m_colorFilters[i]->evaluate(frame))
-            return m_colorRules[i].background;
+        if (m_colorFilters[i] && m_colorFilters[i]->evaluate(frame))
+            return i;
     }
-    return {};
+    return -1;
 }
 
 // ============================================================

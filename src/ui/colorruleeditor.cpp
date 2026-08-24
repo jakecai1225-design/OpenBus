@@ -1,5 +1,6 @@
 #include "colorruleeditor.h"
 
+#include "core/filter_engine.h"
 #include "ui/thememanager.h"
 #include "utils/svg_icon.h"
 
@@ -15,6 +16,7 @@
 #include <QColorDialog>
 #include <QDialogButtonBox>
 #include <QGroupBox>
+#include <QMessageBox>
 
 ColorRuleEditor::ColorRuleEditor(QWidget *parent)
     : QDialog(parent)
@@ -59,8 +61,16 @@ ColorRuleEditor::ColorRuleEditor(QWidget *parent)
 
     editLayout->addWidget(new QLabel("条件表达式:", editGroup), 0, 0);
     m_exprEdit = new QLineEdit(editGroup);
-    m_exprEdit->setPlaceholderText("例: id == 0x123");
+    m_exprEdit->setPlaceholderText("例: id == 0x123（变量: id/dlc/ch/time/fd/ext/rx/tx/error）");
     editLayout->addWidget(m_exprEdit, 0, 1, 1, 3);
+
+    // 实时校验当前表达式（编译失败的规则保存后不会生效——避免静默失效）
+    m_exprStatus = new QLabel(editGroup);
+    m_exprStatus->setStyleSheet(QStringLiteral("color: %1;").arg(QColor(0xC0, 0x39, 0x2B).name()));
+    editLayout->addWidget(m_exprStatus, 3, 0, 1, 4);
+    connect(m_exprEdit, &QLineEdit::textChanged, this, [this](const QString &text) {
+        validateExpr(text);
+    });
 
     editLayout->addWidget(new QLabel("背景色:", editGroup), 1, 0);
     m_bgColorBtn = new QPushButton("选择...", editGroup);
@@ -106,6 +116,26 @@ ColorRuleEditor::ColorRuleEditor(QWidget *parent)
     });
     connect(buttonBox, &QDialogButtonBox::accepted, this, [this]() {
         applyCurrentEdit();
+        // 保存前校验所有规则：编译失败的规则不会生效，直接拦截避免“标记了颜色却无颜色”
+        const auto rs = rules();
+        QStringList errors;
+        for (int i = 0; i < rs.size(); ++i) {
+            const QString &expr = rs[i].expr.trimmed();
+            if (expr.isEmpty()) {
+                errors << QStringLiteral("规则 %1: 条件表达式为空").arg(i + 1);
+                continue;
+            }
+            FilterEngine fe;
+            if (!fe.compile(expr))
+                errors << QStringLiteral("规则 %1「%2」: %3")
+                              .arg(i + 1).arg(expr, fe.errorString());
+        }
+        if (!errors.isEmpty()) {
+            QMessageBox::warning(this, QStringLiteral("着色规则表达式错误"),
+                QStringLiteral("以下规则表达式无法编译，保存后将不会生效：\n\n%1\n\n请修正后再保存。")
+                    .arg(errors.join(QLatin1Char('\n'))));
+            return;  // 不关闭对话框，留在编辑状态
+        }
         accept();
     });
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
@@ -143,6 +173,21 @@ QVector<ColorRuleEditor::ColorRule> ColorRuleEditor::rules() const
             result.append(v.value<ColorRule>());
     }
     return result;
+}
+
+void ColorRuleEditor::validateExpr(const QString &expr)
+{
+    if (!m_exprStatus)
+        return;
+    const QString trimmed = expr.trimmed();
+    if (trimmed.isEmpty()) {
+        m_exprStatus->clear();
+        return;
+    }
+    FilterEngine fe;
+    m_exprStatus->setText(fe.compile(trimmed)
+                              ? QString()
+                              : QStringLiteral("✗ 表达式错误: %1").arg(fe.errorString()));
 }
 
 void ColorRuleEditor::onAddRule()

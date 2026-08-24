@@ -116,7 +116,7 @@ void TraceView::setupAppearance()
     verticalHeader()->setDefaultSectionSize(qMax(22, font().pointSize() + 12));
     verticalHeader()->setVisible(false);
 
-    // 列宽 — 参照 CANoe 风格，Data 列拉伸填充剩余空间
+    // 列宽 — 参照 CANoe 风格；全部列 Interactive 模式（含 Data 列，可拖拽调整）
     setColumnWidth(CanTraceModel::ColNo, 70);
     setColumnWidth(CanTraceModel::ColTime, 110);
     setColumnWidth(CanTraceModel::ColDelta, 100);
@@ -128,6 +128,13 @@ void TraceView::setupAppearance()
     setColumnWidth(CanTraceModel::ColData, 400);
     setColumnWidth(CanTraceModel::ColFlags, 90);
     setColumnWidth(CanTraceModel::ColFrameCount, 80);
+
+    // 默认隐藏低频分析列（对齐 Wireshark 精简首屏；列头右键可重新显示）。
+    // 可见性会随列布局持久化（TraceLayout/layout_version ≥ 3）保存
+    setColumnHidden(CanTraceModel::ColDelta, true);
+    setColumnHidden(CanTraceModel::ColFlags, true);
+    setColumnHidden(CanTraceModel::ColFrameCount, true);
+    setColumnHidden(CanTraceModel::ColSignal, true);
 
     // 默认按帧编号升序排序（实际排序在 setModel 后执行）
     m_sortColumn = CanTraceModel::ColNo;
@@ -150,13 +157,8 @@ void TraceView::setModel(QAbstractItemModel *model)
     QTableView::setModel(model);
     // 自动将过滤代理模型传递给 FilterHeaderView
     auto *fh = qobject_cast<FilterHeaderView *>(horizontalHeader());
-    if (fh) {
-        // 穿越视窗代理层找到 CanTraceProxyModel
-        auto *fp = filterProxy();
-        fh->setProxyModel(fp);
-        // Data 列自动拉伸填满剩余宽度（需在模型设置后调用）
-        fh->setSectionResizeMode(CanTraceModel::ColData, QHeaderView::Stretch);
-    }
+    if (fh)
+        fh->setProxyModel(filterProxy());
     // 应用初始排序（setupAppearance 中设置的状态）
     if (m_sortColumn >= 0) {
         auto *fp = filterProxy();
@@ -177,7 +179,7 @@ void TraceView::saveColumnLayout()
 
     QSettings settings;
     settings.beginGroup(QStringLiteral("TraceLayout"));
-    settings.setValue(QStringLiteral("layout_version"), 2);
+    settings.setValue(QStringLiteral("layout_version"), 3);
     int colCount = model()->columnCount();
     for (int c = 0; c < colCount; ++c) {
         QString prefix = QStringLiteral("col_%1").arg(c);
@@ -197,8 +199,9 @@ void TraceView::restoreColumnLayout()
     QSettings settings;
     settings.beginGroup(QStringLiteral("TraceLayout"));
 
-    // 列布局版本（v2: 新增 Name 列，列索引平移；旧版布局直接丢弃）
-    if (settings.value(QStringLiteral("layout_version"), 1).toInt() < 2) {
+    // 列布局版本（v3: 默认隐藏 Delta/Flags/Count/Signal，Data 列改为可拖拽 Interactive；
+    // 旧版布局直接丢弃，采用新默认列集）
+    if (settings.value(QStringLiteral("layout_version"), 1).toInt() < 3) {
         settings.endGroup();
         return;
     }
@@ -227,10 +230,8 @@ void TraceView::restoreColumnLayout()
         }
     }
 
-    // 恢复列宽（Data 列为 Stretch 模式，跳过宽度设置）
+    // 恢复列宽（全部列均为 Interactive 模式，含 Data 列，宽度均可持久化）
     for (int c = 0; c < colCount; ++c) {
-        if (c == CanTraceModel::ColData)
-            continue;
         QString prefix = QStringLiteral("col_%1").arg(c);
         if (settings.contains(prefix + "_width")) {
             int width = settings.value(prefix + "_width").toInt();
@@ -1907,113 +1908,69 @@ TraceTab::TraceTab(QWidget *parent)
     layout->addWidget(m_filterBar);
 
     // ---- 设置菜单（时间格式等，挂载到 FilterBar 的设置按钮上） ----
+    // 两级级联结构（对齐 Wireshark View 菜单模式）：
+    // 主菜单仅展示入口，子菜单承载互斥选项，避免单级平铺过高遮挡表格
     auto *settingsMenu = new QMenu(m_filterBar->settingsButton());
-    m_timeFormatGroup = new QActionGroup(settingsMenu);
+
+    // ---- 时间格式子菜单 ----
+    auto *timeFormatMenu = settingsMenu->addMenu(QStringLiteral("时间格式"));
+    timeFormatMenu->setToolTip(QStringLiteral(
+        "自捕获开始 — 捕获开始的相对时间\n"
+        "自上一捕获分组 — 与前一帧的时间差\n"
+        "自上一显示分组 — 与前一可见帧的时间差（Wireshark: 自上一显示分组）\n"
+        "日期和时间 — 完整日期+时间\n"
+        "Unix 时间戳 — 自 1970-01-01 的秒数"));
+    m_timeFormatGroup = new QActionGroup(timeFormatMenu);
     m_timeFormatGroup->setExclusive(true);
+    auto addTimeFormat = [this, timeFormatMenu](const QString &text,
+                                                CanTraceProxyModel::TimestampMode mode,
+                                                bool checked = false) {
+        auto *act = timeFormatMenu->addAction(text);
+        act->setCheckable(true);
+        act->setChecked(checked);
+        act->setData(int(mode));
+        m_timeFormatGroup->addAction(act);
+    };
+    addTimeFormat(QStringLiteral("自捕获开始"), CanTraceProxyModel::Absolute, true);
+    addTimeFormat(QStringLiteral("自上一捕获分组"), CanTraceProxyModel::SinceCapture);
+    addTimeFormat(QStringLiteral("自上一显示分组"), CanTraceProxyModel::SinceDisplay);
+    addTimeFormat(QStringLiteral("日期和时间"), CanTraceProxyModel::DateTimeOfDay);
+    addTimeFormat(QStringLiteral("Unix 时间戳"), CanTraceProxyModel::SecondsSinceEpoch);
 
-    auto *tsTitle = settingsMenu->addAction(QStringLiteral("时间格式"));
-    tsTitle->setEnabled(false);
-    settingsMenu->addSeparator();
-
-    auto *actAbs = settingsMenu->addAction(QStringLiteral("自捕获开始"));
-    actAbs->setCheckable(true);
-    actAbs->setChecked(true);
-    actAbs->setData(CanTraceProxyModel::Absolute);
-    m_timeFormatGroup->addAction(actAbs);
-
-    auto *actSinceCap = settingsMenu->addAction(QStringLiteral("自上一捕获分组"));
-    actSinceCap->setCheckable(true);
-    actSinceCap->setData(CanTraceProxyModel::SinceCapture);
-    m_timeFormatGroup->addAction(actSinceCap);
-
-    auto *actSinceDisp = settingsMenu->addAction(QStringLiteral("自上一显示分组"));
-    actSinceDisp->setCheckable(true);
-    actSinceDisp->setData(CanTraceProxyModel::SinceDisplay);
-    m_timeFormatGroup->addAction(actSinceDisp);
-
-    auto *actDate = settingsMenu->addAction(QStringLiteral("日期和时间"));
-    actDate->setCheckable(true);
-    actDate->setData(CanTraceProxyModel::DateTimeOfDay);
-    m_timeFormatGroup->addAction(actDate);
-
-    auto *actEpoch = settingsMenu->addAction(QStringLiteral("Unix 时间戳"));
-    actEpoch->setCheckable(true);
-    actEpoch->setData(CanTraceProxyModel::SecondsSinceEpoch);
-    m_timeFormatGroup->addAction(actEpoch);
-
-    settingsMenu->addSeparator();
-    settingsMenu->addAction(QStringLiteral(
-        "说明:\n"
-        "  自捕获开始 — 自捕获开始的相对时间\n"
-        "  自上一捕获分组 — 与前一帧的时间差\n"
-        "  自上一显示分组 — 与前一可见帧的时间差\n"
-        "  日期和时间 — 完整日期+时间\n"
-        "  Unix 时间戳 — 自 1970-01-01 的秒数"))->setEnabled(false);
-
-    // ---- 时间精度 ----
-    settingsMenu->addSeparator();
-    auto *tpTitle = settingsMenu->addAction(QStringLiteral("时间精度"));
-    tpTitle->setEnabled(false);
-    settingsMenu->addSeparator();
-
-    auto *tpGroup = new QActionGroup(settingsMenu);
+    // ---- 时间精度子菜单 ----
+    auto *precisionMenu = settingsMenu->addMenu(QStringLiteral("时间精度"));
+    auto *tpGroup = new QActionGroup(precisionMenu);
     tpGroup->setExclusive(true);
+    auto addPrecision = [precisionMenu, tpGroup](const QString &text, int prec,
+                                                 bool checked = false) {
+        auto *act = precisionMenu->addAction(text);
+        act->setCheckable(true);
+        act->setChecked(checked);
+        act->setData(prec);
+        tpGroup->addAction(act);
+    };
+    addPrecision(QStringLiteral("自动"), -1);
+    addPrecision(QStringLiteral("秒 (0)"), 0);
+    addPrecision(QStringLiteral("毫秒 (3)"), 3);
+    addPrecision(QStringLiteral("微秒 (6)"), 6, true);
+    addPrecision(QStringLiteral("纳秒 (9)"), 9);
 
-    auto *tpAuto = settingsMenu->addAction(QStringLiteral("自动"));
-    tpAuto->setCheckable(true);
-    tpAuto->setData(-1);
-    tpGroup->addAction(tpAuto);
-
-    auto *tpSec = settingsMenu->addAction(QStringLiteral("秒 (0)"));
-    tpSec->setCheckable(true);
-    tpSec->setData(0);
-    tpGroup->addAction(tpSec);
-
-    auto *tpMs = settingsMenu->addAction(QStringLiteral("毫秒 (3)"));
-    tpMs->setCheckable(true);
-    tpMs->setData(3);
-    tpGroup->addAction(tpMs);
-
-    auto *tpUs = settingsMenu->addAction(QStringLiteral("微秒 (6)"));
-    tpUs->setCheckable(true);
-    tpUs->setChecked(true);
-    tpUs->setData(6);
-    tpGroup->addAction(tpUs);
-
-    auto *tpNs = settingsMenu->addAction(QStringLiteral("纳秒 (9)"));
-    tpNs->setCheckable(true);
-    tpNs->setData(9);
-    tpGroup->addAction(tpNs);
-
-    // ---- Phase 2: 刷新率设置 ----
-    settingsMenu->addSeparator();
-    auto *rrTitle = settingsMenu->addAction(QStringLiteral("刷新率"));
-    rrTitle->setEnabled(false);
-    settingsMenu->addSeparator();
-
-    auto *rrGroup = new QActionGroup(settingsMenu);
+    // ---- 刷新率子菜单 ----
+    auto *refreshMenu = settingsMenu->addMenu(QStringLiteral("刷新率"));
+    auto *rrGroup = new QActionGroup(refreshMenu);
     rrGroup->setExclusive(true);
-
-    auto *rrHigh = settingsMenu->addAction(QStringLiteral("高 (50ms)"));
-    rrHigh->setCheckable(true);
-    rrHigh->setChecked(true);
-    rrHigh->setData(50);
-    rrGroup->addAction(rrHigh);
-
-    auto *rrMed = settingsMenu->addAction(QStringLiteral("中 (100ms)"));
-    rrMed->setCheckable(true);
-    rrMed->setData(100);
-    rrGroup->addAction(rrMed);
-
-    auto *rrLow = settingsMenu->addAction(QStringLiteral("低 (200ms)"));
-    rrLow->setCheckable(true);
-    rrLow->setData(200);
-    rrGroup->addAction(rrLow);
-
-    auto *rrPause = settingsMenu->addAction(QStringLiteral("暂停刷新"));
-    rrPause->setCheckable(true);
-    rrPause->setData(0);
-    rrGroup->addAction(rrPause);
+    auto addRefresh = [refreshMenu, rrGroup](const QString &text, int ms,
+                                             bool checked = false) {
+        auto *act = refreshMenu->addAction(text);
+        act->setCheckable(true);
+        act->setChecked(checked);
+        act->setData(ms);
+        rrGroup->addAction(act);
+    };
+    addRefresh(QStringLiteral("高 (50ms)"), 50, true);
+    addRefresh(QStringLiteral("中 (100ms)"), 100);
+    addRefresh(QStringLiteral("低 (200ms)"), 200);
+    addRefresh(QStringLiteral("暂停刷新"), 0);
 
     // ---- 覆盖模式 ----
     settingsMenu->addSeparator();

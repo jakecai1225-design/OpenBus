@@ -9,6 +9,7 @@ class QListWidget;
 class QLineEdit;
 class QPushButton;
 class QCheckBox;
+class QLabel;
 
 /**
  * @brief 着色规则编辑器（对标 CANoe Trace 着色规则）
@@ -44,6 +45,7 @@ private slots:
 private:
     QListWidget *m_listWidget;
     QLineEdit *m_exprEdit;
+    QLabel *m_exprStatus = nullptr;  ///< 当前表达式实时校验结果
     QPushButton *m_bgColorBtn;
     QPushButton *m_fgColorBtn;
     QCheckBox *m_enabledChk;
@@ -53,6 +55,8 @@ private:
 
     void updateListWidget();
     void applyCurrentEdit();
+    /// 实时校验表达式并显示错误提示（空表达式不提示）
+    void validateExpr(const QString &expr);
 };
 
 #endif // COLORRULEEDITOR_H
