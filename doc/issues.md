@@ -15,15 +15,21 @@
 - **修复方案**：改为两级级联菜单（对齐 Wireshark View 菜单模式）——主菜单仅保留入口（时间格式 ▶ / 时间精度 ▶ / 刷新率 ▶ / 覆盖模式 / 错误帧高亮 / 着色规则 / 书签 / 清空列表），互斥选项移入子菜单；删除"说明"长文本项（改为子菜单 tooltip）。
 - **涉及文件**：`src/ui/traceview.cpp`
 
-### T-02 🔴 时间格式为"自上一显示分组"时按 Time 列排序结果错乱（Trace）
+### T-02 🟢 时间格式为"自上一显示分组"时按 Time 列排序结果错乱（Trace，两轮迭代已修复）
 
 - **现象**：筛选某个 ID（如 0x399）后，时间格式切到"自上一显示分组"（微秒），再按 Time 列排序，排序结果与上下两行显示的间隔时间不符。
 - **根因**（`cantraceproxymodel.cpp`）：
   1. 排序键与显示值**不一致**：`lessThan()` 的 SinceDisplay 分支用 `m_displayDeltas` 缓存（按**源序**"显示链"推导），而 `data()` 显示用 `displayDelta()`（按**当前代理序/排序后**实时推导），两者在排序后必然分叉；
   2. **循环依赖**：SinceDisplay 增量依赖显示顺序，显示顺序又依赖排序结果，以增量作排序键在数学上无稳定解；
   3. 新增帧路径下 `m_displayDeltas` 不更新（仅按 Time 列排序时更新），缓存 miss 时 fallback 到绝对时间戳，排序键随机混杂。
-- **修复方案（对齐 Wireshark）**：Time 列排序键恒为帧的**绝对捕获时间戳**——显示格式（绝对/增量/日期/Unix）只改变显示文本，不改变排序语义（Wireshark Time 列即此行为）。删除 `m_displayDeltas`/`m_lastAcceptedSourceRow` 整套排序键缓存机制，`displayDelta()` 保留用于显示（O(1) 映射实时推导，排序/过滤后自动正确）。
-- **涉及文件**：`src/models/cantraceproxymodel.cpp`、`src/models/cantraceproxymodel.h`
+- **修复方案（第一轮，对齐 Wireshark）**：Time 列排序键恒为帧的**绝对捕获时间戳**——显示格式（绝对/增量/日期/Unix）只改变显示文本，不改变排序语义。删除旧排序键缓存机制，`displayDelta()` 保留用于显示（O(1) 映射实时推导）。
+- **二次迭代（用户反馈 2026-08-24：要求 SinceDisplay 模式下按显示分组排序）**：
+  - **快照冻结方案**：进入 Time+SinceDisplay 排序时按当时显示序拍增量快照（`m_displayDeltaKeys`，源行号→增量）作排序键；排序后显示值**沿用快照**不重算——列表顺序与显示值严格对应，效果等同把"间隔"当普通列值排序（与 ID 列排序体验一致）；
+  - **冻结中切升降序沿用旧快照**（防值随排序重排漂移），仅从非冻结态进入冻结态时刷新；
+  - 生命周期：过滤变化按新显示集合重拍、新帧追加链尾推导（`m_lastAcceptedSourceRow`）、环形覆盖平移（`handleFullShift`）；取消排序/排其他列/切走模式时解除冻结回到实时推导；
+  - 非 SinceDisplay 模式下 Time 排序仍按绝对时间戳（Wireshark 语义不变）；
+  - 测试：`test_tracecore.cpp` 新增 `timeSortSinceDisplay` / `timeSortSinceDisplayFiltered` / `timeSortAbsolute` 三用例。
+- **涉及文件**：`src/models/cantraceproxymodel.cpp`、`src/models/cantraceproxymodel.h`、`tests/test_tracecore.cpp`
 
 ### T-03 🔴 Data 列宽无法拖拽调整（Trace）
 
@@ -41,7 +47,7 @@
 ### T-05 🟡 排序 / 筛选 / 分组全面对标 Wireshark & CANoe（Trace，持续项）
 
 - **本轮已落实**：
-  - Time 列排序键统一为绝对捕获时间戳（T-02，Wireshark 语义）；
+  - Time 列排序键统一为绝对捕获时间戳（T-02，Wireshark 语义）；**例外**：SinceDisplay 模式下按显示分组增量排序（快照冻结方案，T-02 二次迭代，2026-08-24）；
   - "自上一显示分组"显示值随排序/过滤动态重算（`displayDelta()` 按当前显示序推导，Wireshark 语义）；
   - 稳定排序（`std::stable_sort`，等值保持捕获序）、3-state 排序（升/降/取消）、覆盖模式分组、Excel 风格值集过滤、列头漏斗过滤均已具备。
 - **后续跟进候选**（按需排期）：
@@ -148,3 +154,4 @@
 |---|---|
 | 2026-08-24 | 建账；录入 Trace 页面 6 项（T-01~T-06）并完成代码修复（T-05 部分落实）；归档 G14 系列（A-01）、构建产物两项（A-02/A-03）、插件 Tx 回环（A-04）；遗留 L-01~L-03 |
 | 2026-08-24 | 录入并修复 T-07（模拟器隐式启动两处移除）、T-08（Flow 功能块状态灯状态机：待命常亮绿/数据流绿闪/异常红闪/未使能不亮） |
+| 2026-08-24 | T-02 二次迭代：SinceDisplay 模式下 Time 排序改为按显示分组增量（快照冻结方案 + 三测试用例）；RecordTab 新增"打开目录"按钮（浏览后） |

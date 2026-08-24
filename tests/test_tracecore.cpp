@@ -10,11 +10,13 @@
 //  - 帧序列号永不回退（seqCounter）
 //  - frameCountForId 按 ID 统计
 //  - FrameRole 数据访问
+//  - T-02（二次迭代）Time+SinceDisplay 按显示分组增量排序（快照冻结）
 // ============================================================
 #include <QtTest>
 
 #include "core/canframe.h"
 #include "models/cantracemodel.h"
+#include "models/cantraceproxymodel.h"
 
 static CanFrame mkFrame(double ts, quint32 id, int len = 8)
 {
@@ -200,6 +202,93 @@ private slots:
 
         m.clearTimeReference();
         QVERIFY(!m.hasTimeReference());
+    }
+
+    // ---- T-02（二次迭代）：Time 列 SinceDisplay（显示分组增量）排序 ----
+    void timeSortSinceDisplay()
+    {
+        CanTraceModel m;
+        QVector<CanFrame> frames;
+        frames << mkFrame(0.010, 0x101) << mkFrame(0.011, 0x102) << mkFrame(0.016, 0x103);
+        m.appendFrames(frames);
+
+        CanTraceProxyModel p;
+        p.setSourceModel(&m);
+        p.setTimestampMode(CanTraceProxyModel::SinceDisplay);
+        const int timeCol = CanTraceModel::ColTime;
+
+        // 未排序：SinceDisplay 增量实时推导（首行 = 自身时间戳）
+        QCOMPARE(p.index(0, timeCol).data().toString(), QStringLiteral("0.010000"));
+        QCOMPARE(p.index(1, timeCol).data().toString(), QStringLiteral("0.001000"));
+        QCOMPARE(p.index(2, timeCol).data().toString(), QStringLiteral("0.005000"));
+
+        auto idAt = [&p, &m](int proxyRow) {
+            return m.frameAt(p.mapToSource(p.index(proxyRow, 0)).row()).id;
+        };
+
+        // 升序 = 按显示增量：B(1ms) C(5ms) A(10ms)
+        p.sort(timeCol, Qt::AscendingOrder);
+        QCOMPARE(idAt(0), quint32(0x102));
+        QCOMPARE(idAt(1), quint32(0x103));
+        QCOMPARE(idAt(2), quint32(0x101));
+        // 显示值沿用排序时刻的快照（不随排序后相邻关系漂移）
+        QCOMPARE(p.index(0, timeCol).data().toString(), QStringLiteral("0.001000"));
+        QCOMPARE(p.index(1, timeCol).data().toString(), QStringLiteral("0.005000"));
+        QCOMPARE(p.index(2, timeCol).data().toString(), QStringLiteral("0.010000"));
+
+        // 冻结中切降序：顺序反转，快照沿用旧值（值不漂移）
+        p.sort(timeCol, Qt::DescendingOrder);
+        QCOMPARE(idAt(0), quint32(0x101));
+        QCOMPARE(idAt(1), quint32(0x103));
+        QCOMPARE(idAt(2), quint32(0x102));
+        QCOMPARE(p.index(0, timeCol).data().toString(), QStringLiteral("0.010000"));
+        QCOMPARE(p.index(2, timeCol).data().toString(), QStringLiteral("0.001000"));
+
+        // 取消排序：恢复捕获序，显示回到实时推导
+        p.sort(-1, Qt::AscendingOrder);
+        QCOMPARE(idAt(0), quint32(0x101));
+        QCOMPARE(idAt(1), quint32(0x102));
+        QCOMPARE(idAt(2), quint32(0x103));
+        QCOMPARE(p.index(1, timeCol).data().toString(), QStringLiteral("0.001000"));
+    }
+
+    // ---- Time 排序 + 过滤：按显示集合（过滤后）的增量排序 ----
+    void timeSortSinceDisplayFiltered()
+    {
+        CanTraceModel m;
+        QVector<CanFrame> frames;
+        frames << mkFrame(0.010, 0x101) << mkFrame(0.011, 0x102)
+               << mkFrame(0.016, 0x101) << mkFrame(0.020, 0x102);
+        m.appendFrames(frames);
+
+        CanTraceProxyModel p;
+        p.setSourceModel(&m);
+        p.setTimestampMode(CanTraceProxyModel::SinceDisplay);
+        QVERIFY(p.setFilterExpression(QStringLiteral("id == 0x101")));
+
+        // 过滤后显示集合 = 源行 0(0.010) / 2(0.016)：增量 0.010 / 0.006
+        p.sort(CanTraceModel::ColTime, Qt::AscendingOrder);
+        QCOMPARE(p.rowCount(), 2);
+        QCOMPARE(m.frameAt(p.mapToSource(p.index(0, 0)).row()).timestamp, 0.016);
+        QCOMPARE(m.frameAt(p.mapToSource(p.index(1, 0)).row()).timestamp, 0.010);
+        QCOMPARE(p.index(0, CanTraceModel::ColTime).data().toString(), QStringLiteral("0.006000"));
+        QCOMPARE(p.index(1, CanTraceModel::ColTime).data().toString(), QStringLiteral("0.010000"));
+    }
+
+    // ---- 非 SinceDisplay 模式：Time 排序仍按绝对时间戳（回归）----
+    void timeSortAbsolute()
+    {
+        CanTraceModel m;
+        QVector<CanFrame> frames;
+        frames << mkFrame(0.050, 0x101) << mkFrame(0.010, 0x102) << mkFrame(0.030, 0x103);
+        m.appendFrames(frames);
+
+        CanTraceProxyModel p;
+        p.setSourceModel(&m);  // 默认 Absolute：排序键 = 绝对时间戳
+        p.sort(CanTraceModel::ColTime, Qt::AscendingOrder);
+        QCOMPARE(m.frameAt(p.mapToSource(p.index(0, 0)).row()).timestamp, 0.010);
+        QCOMPARE(m.frameAt(p.mapToSource(p.index(1, 0)).row()).timestamp, 0.030);
+        QCOMPARE(m.frameAt(p.mapToSource(p.index(2, 0)).row()).timestamp, 0.050);
     }
 };
 

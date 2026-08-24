@@ -130,7 +130,10 @@ QVariant CanTraceProxyModel::data(const QModelIndex &proxyIndex, int role) const
             return CanUtils::formatTime(f.timestamp - prev, prec);
         }
         case SinceDisplay:
-            return CanUtils::formatTime(displayDelta(sourceIdx.row()), prec);
+            // 冻结模式：显示值 = 排序键快照（顺序与显示值严格对应）；
+            // 否则按当前代理序实时推导
+            return CanUtils::formatTime(deltaSortFrozen() ? deltaKey(sourceIdx.row())
+                                                          : displayDelta(sourceIdx.row()), prec);
         case DateTimeOfDay:
             return CanUtils::formatDateTime(model->captureStartTime(), f.timestamp, prec);
         case SecondsSinceEpoch: {
@@ -375,7 +378,20 @@ void CanTraceProxyModel::setTimestampMode(TimestampMode mode)
         return;
     m_timestampMode = mode;
 
-    // 刷新 Time 列所有可见行（显示模式仅影响显示文本，不影响排序链）
+    // Time 列排序激活时排序键语义随模式切换：
+    // 切到 SinceDisplay → 按当前显示序拍增量快照（进入冻结态）后按快照重排；
+    // 切走 → 快照作废，回到绝对时间戳键重排
+    if (m_sortColumn == CanTraceModel::ColTime) {
+        if (mode == SinceDisplay) {
+            refreshDeltaKeys();
+            m_deltaSortFrozen = true;
+        } else {
+            m_deltaSortFrozen = false;
+        }
+        resortCurrent();
+    }
+
+    // 刷新 Time 列所有可见行（显示模式影响显示文本；排序链变化见上）
     int rows = m_proxyRows.size();
     if (rows > 0) {
         emit dataChanged(index(0, CanTraceModel::ColTime),
@@ -426,12 +442,26 @@ void CanTraceProxyModel::sort(int column, Qt::SortOrder order)
     m_sortOrder = order;
 
     if (column < 0) {
-        // 取消排序 — 恢复捕获顺序（源行号升序）
+        // 取消排序 — 恢复捕获顺序（源行号升序）；快照冻结同步解除
+        // （显示回到实时推导）
+        m_deltaSortFrozen = false;
         withLayoutChange([this]() {
             std::sort(m_proxyRows.begin(), m_proxyRows.end());
             rebuildSourceToProxy();
         });
         return;
+    }
+
+    // 进入 Time+SinceDisplay 排序：以点击时刻显示序拍增量快照（排序键
+    // =用户此刻看到的显示值；冻结中切换升降序沿用旧快照，值不漂移）；
+    // 离开（排到其他列）则解除冻结
+    if (column == CanTraceModel::ColTime && m_timestampMode == SinceDisplay) {
+        if (!m_deltaSortFrozen) {
+            refreshDeltaKeys();
+            m_deltaSortFrozen = true;
+        }
+    } else {
+        m_deltaSortFrozen = false;
     }
 
     resortCurrent();
@@ -466,8 +496,10 @@ bool CanTraceProxyModel::lessThan(int sourceLeft, int sourceRight) const
     case CanTraceModel::ColTime:
         // 对齐 Wireshark：Time 列排序键恒为帧的绝对捕获时间戳，
         // 显示模式（绝对/增量/日期/Unix）仅改变显示文本，不改变排序语义。
-        // （若按显示增量排序，则增量依赖显示顺序、显示顺序又依赖排序，循环依赖；
-        // 且 SinceDisplay 增量随排序/过滤动态重算，作为排序键结果无意义）
+        // 例外（用户需求 2026-08-24）：SinceDisplay 模式下按显示分组增量
+        // 排序——快照键（进入该排序时冻结的显示值，见 refreshDeltaKeys）
+        if (m_deltaSortFrozen)
+            return deltaKey(sourceLeft) < deltaKey(sourceRight);
         return fl.timestamp < fr.timestamp;
     case CanTraceModel::ColDelta: {
         double dl = (sourceLeft > 0) ? fl.timestamp - model->frameAt(sourceLeft - 1).timestamp : 0.0;
@@ -522,6 +554,35 @@ double CanTraceProxyModel::displayDelta(int sourceRow) const
     return ts - model->frameAt(m_proxyRows.at(p - 1)).timestamp;
 }
 
+void CanTraceProxyModel::refreshDeltaKeys()
+{
+    // 按当前代理序（=此刻显示序）逐行推导增量快照：在排序发生前调用，
+    // 快照与用户此刻看到的显示值一致（首行 = 自身时间戳，与 displayDelta
+    // 首行语义一致）
+    auto *model = traceModel();
+    int n = model ? model->rowCount() : 0;
+    m_displayDeltaKeys.resize(n);
+    m_displayDeltaKeys.fill(0.0);
+    if (!model || m_proxyRows.isEmpty()) {
+        m_lastAcceptedSourceRow = -1;
+        return;
+    }
+    double prevTs = 0.0;
+    for (int p = 0; p < m_proxyRows.size(); ++p) {
+        const double ts = model->frameAt(m_proxyRows.at(p)).timestamp;
+        m_displayDeltaKeys[m_proxyRows.at(p)] = (p == 0) ? ts : ts - prevTs;
+        prevTs = ts;
+    }
+    // 源序最后一个显示行（新帧增量推导链尾；排序后代理序乱序，取最大源行）
+    m_lastAcceptedSourceRow = *std::max_element(m_proxyRows.cbegin(), m_proxyRows.cend());
+}
+
+double CanTraceProxyModel::deltaKey(int sourceRow) const
+{
+    return (sourceRow >= 0 && sourceRow < m_displayDeltaKeys.size())
+               ? m_displayDeltaKeys.at(sourceRow) : 0.0;
+}
+
 void CanTraceProxyModel::buildMapping()
 {
     // 无信号重建：接受过滤（源序）→ 排序 → 反向映射
@@ -544,6 +605,11 @@ void CanTraceProxyModel::buildMapping()
         m_sourceToProxy[i] = m_proxyRows.size();
         m_proxyRows.append(i);
     }
+
+    // 1.5) 冻结中的过滤重建：显示集合已变，按新集合源序重拍增量快照
+    //     （排序键与显示值同步刷新）
+    if (m_deltaSortFrozen)
+        refreshDeltaKeys();
 
     // 2) 排序
     if (m_sortColumn >= 0) {
@@ -651,9 +717,21 @@ void CanTraceProxyModel::onSourceRowsInserted(const QModelIndex &parent, int fir
     // 先评估新行，再通知视图（begin 前 rowCount 须保持旧值）
     QVector<int> accepted;
     accepted.reserve(newCount);
+    const bool deltaFrozen = m_deltaSortFrozen;  // 新行增量快照 + 链尾维护
+    if (deltaFrozen)
+        m_displayDeltaKeys.resize(m_sourceToProxy.size());
     for (int r = first; r <= last; ++r) {
-        if (filterAcceptsRow(r))
-            accepted.append(r);
+        if (!filterAcceptsRow(r))
+            continue;
+        accepted.append(r);
+        if (deltaFrozen) {
+            // 新行增量：与源序上一显示行的差（未排序显示序下与实时显示值
+            // 一致；冻结模式下作为该行的显示/排序键）
+            const double prevTs = (m_lastAcceptedSourceRow >= 0)
+                ? model->frameAt(m_lastAcceptedSourceRow).timestamp : 0.0;
+            m_displayDeltaKeys[r] = model->frameAt(r).timestamp - prevTs;
+            m_lastAcceptedSourceRow = r;
+        }
     }
 
     if (m_sortColumn < 0) {
@@ -800,7 +878,23 @@ void CanTraceProxyModel::handleFullShift(int shift, const QVector<int> &roles)
             }
         }
         if (changed) {
-            rebuildMapping();
+            rebuildMapping();  // buildMapping 内含冻结快照重拍
+        } else if (m_deltaSortFrozen) {
+            // 冻结中的行号平移：旧行 s+shift 的键 → 新行 s；尾部新帧逐行
+            // 补键（与源序上一显示行的差，链尾随平移更新）
+            m_displayDeltaKeys.resize(n);
+            for (int s = 0; s + shift < n; ++s)
+                m_displayDeltaKeys[s] = m_displayDeltaKeys[s + shift];
+            m_lastAcceptedSourceRow = (m_lastAcceptedSourceRow >= shift)
+                                          ? m_lastAcceptedSourceRow - shift : -1;
+            for (int r = n - shift; r < n; ++r) {
+                if (m_sourceToProxy.value(r, -1) < 0)
+                    continue;  // 被过滤行无需键
+                const double prevTs = (m_lastAcceptedSourceRow >= 0)
+                    ? model->frameAt(m_lastAcceptedSourceRow).timestamp : 0.0;
+                m_displayDeltaKeys[r] = model->frameAt(r).timestamp - prevTs;
+                m_lastAcceptedSourceRow = r;
+            }
         }
         forwardDataChanged(0, n - 1, roles);
         emitPacketCount();

@@ -13,6 +13,10 @@
 #include <QDoubleSpinBox>
 #include <QFileDialog>
 #include <QDateTime>
+#include <QDesktopServices>
+#include <QDir>
+#include <QMessageBox>
+#include <QUrl>
 
 RecordTab::RecordTab(QWidget *parent)
     : QWidget(parent)
@@ -49,6 +53,9 @@ RecordTab::RecordTab(QWidget *parent)
     fileLayout->addWidget(m_dirEdit, 0, 1);
     auto *browseBtn = new QPushButton("浏览...", fileGroup);
     fileLayout->addWidget(browseBtn, 0, 2);
+    auto *openDirBtn = new QPushButton("打开目录", fileGroup);
+    openDirBtn->setToolTip(QStringLiteral("在系统资源管理器中打开录制文件目录"));
+    fileLayout->addWidget(openDirBtn, 0, 3);
 
     fileLayout->addWidget(new QLabel("文件名称前缀:", fileGroup), 1, 0);
     m_prefixEdit = new QLineEdit("rec_", fileGroup);
@@ -181,6 +188,7 @@ RecordTab::RecordTab(QWidget *parent)
 
     // ---- 信号连接 ----
     connect(browseBtn, &QPushButton::clicked, this, &RecordTab::onBrowse);
+    connect(openDirBtn, &QPushButton::clicked, this, &RecordTab::onOpenDir);
     connect(m_recordBtn, &QPushButton::toggled, this, &RecordTab::onRecord);
     connect(m_triggerRecordBtn, &QPushButton::toggled, this, &RecordTab::onTriggerRecord);
     connect(m_pauseBtn, &QPushButton::clicked, this, &RecordTab::onPauseClicked);
@@ -192,6 +200,22 @@ void RecordTab::onBrowse()
     QString dir = QFileDialog::getExistingDirectory(this, "选择录制目录", m_dirEdit->text());
     if (!dir.isEmpty())
         m_dirEdit->setText(dir);
+}
+
+void RecordTab::onOpenDir()
+{
+    const QString dir = m_dirEdit->text().trimmed();
+    if (dir.isEmpty()) {
+        QMessageBox::information(this, QStringLiteral("打开目录"),
+                                 QStringLiteral("请先设置录制文件目录"));
+        return;
+    }
+    if (!QDir(dir).exists()) {
+        QMessageBox::information(this, QStringLiteral("打开目录"),
+            QStringLiteral("目录不存在：\n%1\n\n（录制启动时会自动创建该目录）").arg(dir));
+        return;
+    }
+    QDesktopServices::openUrl(QUrl::fromLocalFile(QDir(dir).absolutePath()));
 }
 
 void RecordTab::onRecord()

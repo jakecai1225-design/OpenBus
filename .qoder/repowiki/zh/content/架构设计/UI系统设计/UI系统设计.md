@@ -85,14 +85,16 @@
 - [src/core/projectmanager.h](file://src/core/projectmanager.h)
 - [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
 - [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)
+- [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
+- [src/ui/measurementsetupview.cpp](file://src/ui/measurementsetupview.cpp)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- 底部面板输出系统增强，为插件帧传输操作提供全面的错误消息和十六进制帧ID上下文
-- 插件管理器错误处理机制改进，提供更详细的调试信息
-- 帧数据传输过程中的错误追踪和报告功能增强
-- 底部面板的插件输出标签页优化，支持更丰富的错误信息显示
+- 增强了测量设置视图的可视化反馈能力，新增了流指示器系统和状态灯机制
+- 改进了设备连接处理逻辑，实现了智能连接门控机制和V2接口支持
+- 更新了底部面板输出系统，为插件帧传输操作提供全面的错误消息和十六进制帧ID上下文
+- 优化了模块块的视觉状态显示，包括数据流活跃检测和异常状态指示
 
 ## 目录
 1. [简介](#简介)
@@ -191,6 +193,7 @@ RR --> VV["parserregistry.h"]
 B --> WW["src/ui/offlineanalysistab.h/.cpp"]
 B --> XX["src/ui/transceivemodule.h/.cpp"]
 B --> YY["src/ui/dbcsignalpickerdialog.h/.cpp"]
+B --> ZZ["src/ui/measurementsetupview.h/.cpp"]
 ```
 
 **图表来源**
@@ -214,6 +217,7 @@ B --> YY["src/ui/dbcsignalpickerdialog.h/.cpp"]
 - [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
 - [src/ui/transceivemodule.h](file://src/ui/transceivemodule.h)
 - [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
+- [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
 
 章节来源
 - [CMakeLists.txt](file://CMakeLists.txt)
@@ -245,14 +249,17 @@ B --> YY["src/ui/dbcsignalpickerdialog.h/.cpp"]
 - **新增** ParserRegistry: 解析器注册表，管理协议描述文件的解析器
 - **新增** OfflineAnalysisTab: 离线分析标签页，支持文件列表管理和异步解析
 - **新增** addOfflineFiles动作: TransceiveModule的新增动作，支持程序化添加离线分析文件
-- **新增** DbcSignalPickerDialog: DBC信号选择对话框，支持多数据库信号选择和搜索
+- **新增** MeasurementSetupView: 测量设置视图，提供可视化流程图和流指示器系统
 - **增强** BottomPanel: 底部面板输出系统，增强插件帧传输错误消息和十六进制帧ID上下文
+- **增强** DeviceConnectionTab: 设备连接界面，实现智能连接门控和V2接口支持
 
 **更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过Min/Max、Average、First、Decimate四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。**
 
 **最新增强** 系统新增了transceiver模块的'addOfflineFiles'动作支持，实现了离线分析文件的程序化添加功能。该功能通过TransceiveModule的invoke方法处理，当接收到"addOfflineFiles"动作时，会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。项目面板现在支持离线分析文件的分类节点显示，确保工程加载时能够正确恢复用户的分析工作上下文。**新增的DbcSignalPickerDialog提供了强大的DBC数据库信号选择功能，支持三级树结构展示、跨数据库搜索、防抖处理和多重选择，大大简化了信号添加流程。**
 
 **底部面板输出系统增强** 底部面板的输出系统已进行全面增强，特别是在插件帧传输操作的错误消息处理方面。现在系统能够为插件帧传输操作提供全面的错误消息，包含十六进制帧ID上下文，大大提升了调试能力和问题定位效率。插件输出标签页现在支持更丰富的错误信息显示，包括时间戳、严重级别和详细的错误描述。
+
+**测量设置视图增强** 测量设置视图MeasurementSetupView新增了流指示器系统，提供了可视化的测量配置画布。该系统包含状态灯机制，可以实时显示数据流活跃状态和异常状态。支持四种状态：未使能不亮灯、待命常亮绿、数据流活跃绿闪、运行异常红闪。通过QTimer驱动的闪烁机制，实现了流畅的视觉效果。
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -275,6 +282,8 @@ B --> YY["src/ui/dbcsignalpickerdialog.h/.cpp"]
 - [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)
 - [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
 - [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
+- [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
+- [src/ui/measurementsetupview.cpp](file://src/ui/measurementsetupview.cpp)
 
 ## 架构总览
 整体采用"入口初始化 + 主窗口容器 + 样式/资源分离 + Web前端集成 + 插件系统 + 模块化DLL架构 + Flow架构"的混合架构模式：
@@ -293,13 +302,17 @@ B --> YY["src/ui/dbcsignalpickerdialog.h/.cpp"]
 - **新增** Flow架构提供测量流程管理和协议抽象能力
 - **新增** 离线分析文件管理支持，通过addOfflineFiles动作实现程序化文件添加
 - **新增** DBC信号选择对话框支持多数据库信号选择和搜索
+- **新增** MeasurementSetupView提供可视化测量配置界面和流指示器系统
 - **增强** 底部面板输出系统提供全面的插件帧传输错误消息和调试信息
+- **增强** 设备连接界面实现智能连接门控和V2接口支持
 
 **更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数。FilterHeaderView组件通过自定义排序指示器和漏斗图标，提供了Wireshark风格的表头界面，增强了数据表的交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。**
 
 **最新改进** 系统新增了离线分析文件管理功能，通过TransceiveModule的'addOfflineFiles'动作实现了程序化的文件添加机制。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。项目面板现在支持离线分析文件的分类节点显示，提供了更好的文件组织和管理能力。**新增的DbcSignalPickerDialog通过三级树结构和搜索功能，为用户提供了直观的DBC数据库信号选择界面，支持跨数据库搜索和防抖处理，大大提升了信号选择的效率和用户体验。**
 
 **底部面板输出系统增强** 底部面板输出系统现在为插件帧传输操作提供全面的错误消息和十六进制帧ID上下文。这一增强使得开发者能够快速定位和分析插件帧传输过程中出现的问题，大大提高了调试效率和系统稳定性。
+
+**测量设置视图增强** 测量设置视图MeasurementSetupView现在提供了完整的可视化测量配置界面，包含数据源切换、过滤配置、数据库解析和分析模块的流程图示。通过状态灯系统实时显示各模块的运行状态，包括数据流活跃检测和异常状态指示。
 
 ```mermaid
 graph TB
@@ -317,6 +330,7 @@ IM["IBusinessModule<br/>模块接口"]
 FM["FlowModule<br/>流程模块"]
 PA["IProtocolAdapter<br/>协议适配器"]
 CA["CanProtocolAdapter<br/>CAN适配器"]
+MSV["MeasurementSetupView<br/>测量设置视图<br/>新增流指示器系统"]
 end
 subgraph "模块系统层"
 MM["MarketModule<br/>市场模块"]
@@ -345,7 +359,7 @@ end
 subgraph "编辑区域层"
 SEA["SplitEditorArea<br/>分割编辑器区域"]
 SBP["SidebarPanels<br/>侧边栏面板<br/>DbcPanel支持多协议分类"]
-DCT["DeviceConnectionTab<br/>设备连接界面<br/>V2接口升级"]
+DCT["DeviceConnectionTab<br/>设备连接界面<br/>V2接口升级<br/>智能连接门控"]
 TP["TransceivePanel<br/>收发面板<br/>新增统一入口"]
 end
 subgraph "专用Tab组件层"
@@ -403,6 +417,7 @@ MW --> RT
 MW --> TT
 MW --> TP
 MW --> OAT
+MW --> MSV
 SEA --> FB
 SEA --> GV
 SEA --> TV
@@ -440,6 +455,7 @@ IM --> TRM
 IM --> GM
 PR --> PA
 PA --> CA
+MSV --> FM
 ```
 
 **图表来源**
@@ -467,6 +483,7 @@ PA --> CA
 - [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
 - [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
 - [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
+- [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
 
 ## Flow架构与协议抽象系统
 
@@ -578,7 +595,7 @@ class ModuleRegistry {
 }
 class ModuleFactory {
 <<function>>
-IBusinessModule* operator()()
+IBBusinessModule* operator()()
 }
 ModuleRegistry --> ModuleFactory : "存储"
 ModuleRegistry --> IBusinessModule : "创建"
@@ -824,6 +841,8 @@ class MeasurementSetupView {
 +void removeModuleInstance(QString moduleId, QString instanceId)
 +void clearTraceGraphicInstances()
 +void rebuildScene()
++setBlockError(QString blockId, bool on)
++onFrame(CanFrame frame)
 }
 class DeviceConnectionTab {
 +void setDevice(int kind, int index, QString name, int type)
@@ -1138,7 +1157,7 @@ PW --> LC
 - [src/ui/marketmodule.h:18-28](file://src/ui/marketmodule.h#L18-28)
 - [src/ui/transceivemodule.h:28-51](file://src/ui/transceivemodule.h#L28-51)
 - [src/ui/dbcmodule.h:18-30](file://src/ui/dbcmodule.h#L18-30)
-- [src/ui/flowmodule.h:24-48](file://src/ui/flowmodule.h#L24-48)
+- [src/ui/flowmodule.h:24-48](file://src/ui/flowmodule.h#L24-L48)
 - [src/ui/tracemodule.h:24-70](file://src/ui/tracemodule.h#L24-70)
 - [src/ui/graphicmodule.h:27-49](file://src/ui/graphicmodule.h#L27-49)
 
@@ -1349,6 +1368,75 @@ MainWindow --> TransceivePanel : "管理"
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+
+### 测量设置视图（MeasurementSetupView）- 新增
+功能特性
+- **新增** 可视化测量配置画布，采用CANoe Measurement Setup风格
+- **新增** 流指示器系统，提供实时状态反馈
+- **新增** 状态灯机制，支持四种状态显示
+- **新增** 数据流活跃检测，基于最近帧到达时间判断
+- **新增** 异常状态指示，红色闪烁表示运行异常
+- **新增** 模块块可视化，支持拖拽和交互操作
+
+技术实现
+- 基于QGraphicsScene和QGraphicsView的图形场景
+- 自定义SetupBlockGfx图元实现模块块绘制
+- QTimer驱动的闪烁机制，500ms间隔更新状态
+- 数据流活跃判定：测量运行中且1.5秒内有帧到达
+- 支持数据源切换开关，Real和File模式切换
+
+**流指示器系统**
+流指示器系统通过状态灯机制提供直观的视觉反馈：
+- 未使能：不亮灯（块体灰化）
+- 待命：常亮绿色
+- 数据流活跃：绿色闪烁
+- 运行异常：红色闪烁
+
+```mermaid
+classDiagram
+class MeasurementSetupView {
++MeasurementSetupView(parent)
++currentSource() Source
++filePath() QString
++activeSourceId() QString
++isBlockEnabled(blockId) bool
++setBlockError(blockId, on)
++onFrame(frame)
++rebuildScene()
++updateBlockLamps()
++updateConnections()
+private :
++QTimer *m_blinkTimer
++bool m_blinkOn
++qint64 m_lastFrameMs
++QSet<QString> m_blockErrors
++QMap<QString, BlockItem> m_blocks
++QList<Connection> m_connections
+}
+class SetupBlockGfx {
++paint(painter, option, widget)
++setLamp(BlockLamp lamp, bool blinkPhase)
++setActive(bool active)
++setTitle(QString title)
++setInstances(QStringList instances)
+}
+class BlockLamp {
++None
++Idle
++Flow
++Error
+}
+MeasurementSetupView --> SetupBlockGfx : "管理"
+MeasurementSetupView --> BlockLamp : "使用"
+```
+
+**图表来源**
+- [src/ui/measurementsetupview.h:35-217](file://src/ui/measurementsetupview.h#L35-L217)
+- [src/ui/measurementsetupview.cpp:52-252](file://src/ui/measurementsetupview.cpp#L52-L252)
+
+章节来源
+- [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
+- [src/ui/measurementsetupview.cpp](file://src/ui/measurementsetupview.cpp)
 
 ### 活动栏（ActivityBar）增强
 功能特性
@@ -3516,6 +3604,8 @@ DbcPanel --> CategoryNode : "使用"
 
 **底部面板输出系统增强** 底部面板输出系统现在与插件管理器建立了更强的集成关系，能够接收和处理插件帧传输操作的错误消息。这一增强使得系统能够提供更加详细和有用的调试信息，帮助开发者快速定位和解决问题。
 
+**测量设置视图增强** 测量设置视图MeasurementSetupView现在与Flow模块建立了紧密的集成关系，通过信号槽机制实现测量流程的控制和状态同步。流指示器系统提供了实时的可视化反馈，帮助用户了解测量配置的状态。
+
 ```mermaid
 graph LR
 Main["main.cpp"] --> MW["MainWindow"]
@@ -3537,6 +3627,7 @@ MW --> TPANEL["TransceivePanel<br/>新增统一入口"]
 MW --> PM["PluginManager<br/>插件管理器<br/>增强错误处理"]
 MW --> MR["ModuleRegistry<br/>模块注册表"]
 MW --> PR["ProtocolRegistry<br/>协议注册表"]
+MW --> MSV["MeasurementSetupView<br/>新增流指示器系统"]
 SEA --> FB["FilterBar<br/>刷新率控制增强"]
 SEA --> GV["GraphicView<br/>QCustomPlot集成<br/>Downsample模块集成<br/>插件集成增强<br/>手形平移模式<br/>DBC集成"]
 SEA --> TV["TraceView"]
@@ -3603,6 +3694,7 @@ PR --> PA["IProtocolAdapter<br/>协议适配器"]
 PA --> CA["CanProtocolAdapter<br/>CAN适配器"]
 MW --> OAT["OfflineAnalysisTab<br/>离线分析标签页"]
 OAT --> TMOD
+MSV --> FM
 ```
 
 **图表来源**
@@ -3631,6 +3723,7 @@ OAT --> TMOD
 - [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
 - [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
 - [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
+- [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
 
 ## 性能考虑
 - 样式加载
@@ -3674,6 +3767,8 @@ OAT --> TMOD
   - **新增** 三级树结构支持大数据集的高效展示
   - **新增** 多重选择支持优化信号选择流程
   - **增强** 底部面板输出系统优化错误消息处理性能
+  - **新增** MeasurementSetupView使用QTimer驱动状态灯闪烁，避免不必要的重绘
+  - **新增** 流指示器系统通过智能计时器优化性能，仅在数据流活跃或异常时运转
 - **专用Tab组件性能优化**
   - DBC详情标签页实现大数据集的虚拟滚动
   - 播放控制标签页使用高效的定时器机制
@@ -3724,6 +3819,7 @@ OAT --> TMOD
   - **新增** 多重选择支持优化信号选择流程
   - **新增** 调试接口提供性能监控和诊断能力
   - **增强** 底部面板输出系统的错误消息处理性能，减少消息队列积压
+  - **新增** MeasurementSetupView的流指示器系统通过智能计时器优化性能，仅在需要时更新状态灯
 - **批处理模型性能优化**
   - CanTraceModel使用环形缓冲区存储，支持最大帧数限制
   - 批量追加frames()方法优化大数据集处理
@@ -3796,6 +3892,12 @@ OAT --> TMOD
   - 提供消息过滤和分类功能，提升显示性能
   - 支持批量消息更新，减少重绘次数
   - 实现消息缓存机制，避免重复显示
+- **测量设置视图性能优化**
+  - 流指示器系统使用智能计时器，仅在数据流活跃或异常时运转
+  - 状态灯闪烁通过QTimer驱动，500ms间隔避免过度刷新
+  - 图形场景优化，仅在拓扑变化时重建
+  - 模块块绘制使用自定义图元，减少重绘开销
+  - 数据流活跃检测基于时间戳比较，避免频繁计算
 
 ## 故障排查指南
 常见问题与定位方法
@@ -3845,6 +3947,9 @@ OAT --> TMOD
   - **新增** 多重选择功能异常需要检查ExtendedSelection设置
   - **新增** 调试接口返回错误需要检查信号数据有效性
   - **增强** 底部面板输出系统错误消息显示异常需要检查消息队列和插件通信
+  - **新增** MeasurementSetupView流指示器不显示需要检查QTimer连接和状态灯设置
+  - **新增** 测量设置视图状态灯异常需要检查数据流活跃检测和异常状态判断
+  - **新增** 模块块绘制异常需要检查SetupBlockGfx图元和QGraphicsScene配置
 - **专用Tab组件问题**
   - DBC文件加载失败需要检查文件格式与权限
   - 播放控制标签页时间轴不同步需要检查定时器精度
@@ -3904,6 +4009,7 @@ OAT --> TMOD
   - **新增** 多重选择支持优化信号选择流程
   - **新增** 调试接口提供性能监控和诊断能力
   - **增强** 底部面板输出系统错误消息处理，提供更详细的插件帧传输错误信息
+  - **新增** MeasurementSetupView流指示器系统通过智能计时器优化性能，避免不必要的状态灯更新
 - **DbcPanel多协议分类问题**
   - 协议分类节点不显示需要检查文件扩展名识别
   - DatabaseEntry结构数据丢失需要检查序列化机制
@@ -4016,6 +4122,15 @@ OAT --> TMOD
   - 插件输出清空功能异常需要检查clearPluginOutput方法
   - 问题面板显示异常需要检查addProblem方法调用
   - 终端命令处理异常需要检查onCommandReturnPressed方法
+- **测量设置视图问题**
+  - 流指示器不显示需要检查QTimer连接和状态灯设置
+  - 状态灯闪烁异常需要检查数据流活跃检测和异常状态判断
+  - 模块块绘制失败需要检查SetupBlockGfx图元和QGraphicsScene配置
+  - 数据源切换开关无响应需要检查SourceSwitchGfx图元事件处理
+  - 连线绘制异常需要检查updateConnections方法和连接定义
+  - 模块块交互失败需要检查blockAt和instanceAt方法实现
+  - 右键菜单不显示需要检查buildContextMenu方法实现
+  - 工具栏按钮无响应需要检查onStartClicked和onStopClicked方法连接
 
 **章节来源**
 - [resources/styles/default.qss](file://resources/styles/default.qss)
@@ -4052,6 +4167,8 @@ OAT --> TMOD
 - [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)
 - [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
 - [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
+- [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
+- [src/ui/measurementsetupview.cpp](file://src/ui/measurementsetupview.cpp)
 
 ## 结论
 本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面，**特别是侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件。**
@@ -4069,6 +4186,8 @@ OAT --> TMOD
 **最新改进** 系统新增了transceiver模块的'addOfflineFiles'动作支持，实现了离线分析文件的程序化添加功能。该功能通过TransceiveModule的invoke方法处理，当接收到"addOfflineFiles"动作时，会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。项目面板现在支持离线分析文件的分类节点显示，确保工程加载时能够正确恢复用户的分析工作上下文。设备连接界面实现了智能连接门控机制，根据驱动可用性自动启用/禁用连接按钮，大大提升了用户体验。图形视图组件使用了SVG箭头图标替换了基于文本的光标手柄，提供了更好的视觉一致性和用户体验。侧边栏面板系统的所有按钮都使用了主题化的SVG图标，支持动态颜色切换，确保在不同主题下都有良好的视觉效果。**特别重要的是，图形视图组件新增了手形平移模式，用户可以通过手形拖动按钮启用左键拖拽平移功能，与框选缩放模式形成互斥操作，提供更好的波形浏览体验。同时新增了轴特定拟合函数fitXOnly()和fitYOnly()，提供X轴和Y轴的独立适配功能，以及增强的工具栏功能，包含手形平移、X轴适配、Y轴适配三个新按钮，大大提升了用户的操作便利性。此外，GraphicView组件还集成了DBC数据库功能，通过DbcSignalPickerDialog提供了直观的DBC数据库信号选择界面，支持跨数据库搜索、防抖处理和多重选择，大大简化了信号添加流程。**
 
 **底部面板输出系统增强** 底部面板输出系统现在为插件帧传输操作提供全面的错误消息和十六进制帧ID上下文。这一增强使得开发者能够快速定位和分析插件帧传输过程中出现的问题，大大提高了调试效率和系统稳定性。插件管理器现在能够捕获和处理更多的错误情况，并提供详细的错误信息和上下文数据。底部面板的插件输出标签页现在支持更丰富的错误信息显示，包括时间戳、严重级别和详细的错误描述。
+
+**测量设置视图增强** 测量设置视图MeasurementSetupView现在提供了完整的可视化测量配置界面，包含流指示器系统和状态灯机制。通过QTimer驱动的闪烁机制，实现了流畅的视觉效果，为用户提供直观的测量状态反馈。数据流活跃检测和异常状态指示功能，帮助用户及时了解测量配置的运行状态。
 
 遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
@@ -4116,6 +4235,8 @@ OAT --> TMOD
   - **新增** 多重选择支持应优化信号选择流程
   - **新增** 调试接口应提供性能监控和诊断能力
   - **增强** 底部面板输出系统应提供全面的插件帧传输错误消息和十六进制帧ID上下文
+  - **新增** MeasurementSetupView应实现流指示器系统和状态灯机制
+  - **新增** 测量设置视图应提供可视化测量配置界面和实时状态反馈
 - **专用Tab组件规范**
   - DBC详情标签页应支持大数据集的虚拟滚动
   - 播放控制标签页需实现精确的时间轴控制
@@ -4162,6 +4283,7 @@ OAT --> TMOD
   - **新增** 三级树结构应支持大数据集的高效展示
   - **新增** 调试接口应提供性能监控和诊断能力
   - **增强** 底部面板输出系统应优化错误消息处理性能，减少消息队列积压
+  - **新增** MeasurementSetupView应使用智能计时器优化流指示器性能
 - **最新规范要求**
   - 图形组件必须包含完善的错误处理和异常恢复机制
   - 所有组件需支持测试数据集的兼容性验证
@@ -4193,6 +4315,7 @@ OAT --> TMOD
   - **新增** 三级树结构需支持大数据集的高效展示
   - **新增** 调试接口需提供性能监控和诊断能力
   - **增强** 底部面板输出系统需提供全面的插件帧传输错误消息和十六进制帧ID上下文
+  - **新增** MeasurementSetupView需实现流指示器系统和智能计时器优化
 - **插件开发规范**
   - 插件应遵循标准的目录结构和命名约定
   - 插件main.py必须实现activate()和deactivate()方法
@@ -4232,6 +4355,7 @@ OAT --> TMOD
   - **新增** 三级树结构必须支持大数据集的高效展示
   - **新增** 调试接口必须提供性能监控和诊断能力
   - **增强** 底部面板输出系统必须提供全面的插件帧传输错误消息和十六进制帧ID上下文
+  - **新增** MeasurementSetupView必须实现流指示器系统和状态灯机制
 - **手形平移模式规范**
   - 必须实现m_panMode布尔标志位控制平移模式
   - 必须支持OpenHandCursor和ClosedHandCursor光标切换
@@ -4272,6 +4396,16 @@ OAT --> TMOD
   - 必须支持插件输出标签页的清空和管理
   - 必须实现问题面板的错误级别分类显示
   - 必须优化消息处理性能，避免UI阻塞
+- **测量设置视图规范**
+  - 必须实现流指示器系统和状态灯机制
+  - 必须使用QTimer驱动闪烁机制，500ms间隔更新状态
+  - 必须实现数据流活跃检测，基于最近帧到达时间判断
+  - 必须支持异常状态指示，红色闪烁表示运行异常
+  - 必须提供可视化测量配置界面，包含数据源、过滤、数据库和分析模块
+  - 必须实现模块块绘制，支持拖拽和交互操作
+  - 必须实现连线绘制，显示数据流向和连接关系
+  - 必须提供右键菜单，支持模块配置和操作
+  - 必须实现智能计时器优化，仅在需要时更新状态灯
 
 ### 样式定制指南
 - 主题设计
@@ -4337,6 +4471,7 @@ OAT --> TMOD
   - **新增** 三级树结构应支持大数据集的高效展示
   - **新增** 调试接口应提供性能监控和诊断能力
   - **增强** 底部面板输出系统应提供全面的插件帧传输错误消息和十六进制帧ID上下文
+  - **新增** MeasurementSetupView应实现流指示器系统和智能计时器优化
 - **专用Tab组件最佳实践**
   - DBC详情标签页应实现高效的文件解析与缓存
   - 播放控制标签页需支持精确的时间同步
@@ -4384,6 +4519,7 @@ OAT --> TMOD
   - **新增** 三级树结构应支持大数据集的高效展示
   - **新增** 调试接口应提供性能监控和诊断能力
   - **增强** 底部面板输出系统应优化错误消息处理性能，减少消息队列积压
+  - **新增** MeasurementSetupView应使用智能计时器优化流指示器性能
 - **最新最佳实践**
   - 图形组件必须实现健壮的异常处理和崩溃恢复
   - 所有数据处理组件需包含数据验证和完整性检查
@@ -4416,6 +4552,7 @@ OAT --> TMOD
   - **新增** 三级树结构需支持大数据集的高效展示
   - **新增** 调试接口需提供性能监控和诊断能力
   - **增强** 底部面板输出系统需提供全面的插件帧传输错误消息和十六进制帧ID上下文
+  - **新增** MeasurementSetupView需实现流指示器系统和智能计时器优化
 - **插件开发最佳实践**
   - 插件应遵循模块化设计原则，保持代码结构清晰
   - 插件应实现适当的错误处理和异常恢复机制
@@ -4454,6 +4591,7 @@ OAT --> TMOD
   - **新增** 三级树结构应支持大数据集的高效展示
   - **新增** 调试接口应提供性能监控和诊断能力
   - **增强** 底部面板输出系统应提供全面的插件帧传输错误消息和十六进制帧ID上下文
+  - **新增** MeasurementSetupView应实现流指示器系统和状态灯机制
 - **手形平移模式最佳实践**
   - 使用m_panMode标志位控制平移模式开关
   - 实现OpenHandCursor和ClosedHandCursor的光标切换
@@ -4490,6 +4628,17 @@ OAT --> TMOD
   - 支持插件输出标签页的清空和管理
   - 实现问题面板的错误级别分类显示
   - 优化消息处理性能，提升系统响应速度
+- **测量设置视图最佳实践**
+  - 实现流指示器系统和状态灯机制，提供直观的视觉反馈
+  - 使用智能计时器优化性能，仅在数据流活跃或异常时运转
+  - 实现数据流活跃检测，基于最近帧到达时间判断
+  - 支持异常状态指示，红色闪烁表示运行异常
+  - 提供可视化测量配置界面，包含数据源、过滤、数据库和分析模块
+  - 实现模块块绘制，支持拖拽和交互操作
+  - 实现连线绘制，显示数据流向和连接关系
+  - 提供右键菜单，支持模块配置和操作
+  - 实现QTimer驱动的闪烁机制，500ms间隔更新状态
+  - 优化图形场景性能，仅在拓扑变化时重建
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -4614,6 +4763,29 @@ OAT --> TMOD
 118. **问题面板测试**：验证问题面板的错误级别分类显示功能
 119. **终端命令处理测试**：验证终端命令的处理和响应功能
 120. **综合功能测试**：验证底部面板输出系统与插件系统的协同工作
+121. **测量设置视图测试**：验证流指示器系统和状态灯机制的正常工作
+122. **QTimer连接测试**：验证流指示器闪烁机制的定时器连接
+123. **数据流活跃检测测试**：验证基于最近帧到达时间的活跃检测逻辑
+124. **异常状态指示测试**：验证红色闪烁异常状态的正确显示
+125. **模块块绘制测试**：验证SetupBlockGfx图元的绘制功能
+126. **连线绘制测试**：验证数据流向连线的正确显示
+127. **右键菜单测试**：验证模块配置菜单的显示和交互功能
+128. **工具栏按钮测试**：验证开始/停止按钮的功能和状态管理
+129. **数据源切换测试**：验证Real/File切换开关的交互功能
+130. **模块实例管理测试**：验证模块块的实例添加和移除功能
+131. **流指示器性能测试**：验证智能计时器优化效果
+132. **图形场景性能测试**：验证仅在拓扑变化时重建的场景优化
+133. **状态灯闪烁测试**：验证500ms间隔的闪烁频率和视觉效果
+134. **数据流检测精度测试**：验证1.5秒超时检测的准确性
+135. **异常状态恢复测试**：验证异常状态清除后的状态灯恢复
+136. **模块块交互测试**：验证模块块的点击、双击和右键操作
+137. **连线动态更新测试**：验证模块块移动时连线的自动更新
+138. **主题适配测试**：验证流指示器在不同主题下的显示效果
+139. **高DPI适配测试**：验证流指示器在高DPI下的显示质量
+140. **内存使用测试**：验证流指示器系统的内存占用情况
+141. **CPU使用测试**：验证流指示器闪烁对CPU性能的影响
+142. **用户体验测试**：验证流指示器系统的直观性和易用性
+143. **回归测试**：确保流指示器功能不影响现有功能的正常运行
 
 **章节来源**
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
@@ -4649,3 +4821,5 @@ OAT --> TMOD
 - [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)
 - [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
 - [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
+- [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
+- [src/ui/measurementsetupview.cpp](file://src/ui/measurementsetupview.cpp)

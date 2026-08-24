@@ -155,6 +155,15 @@ private:
     /// SinceDisplay 模式显示增量：由映射 O(1) 实时推导（data() 路径）
     quint64 m_lastSeq = 0;             ///< 上次同步时源模型的 seqCounter（检测环形覆盖）
 
+    /// Time+SinceDisplay 排序的增量快照（用户需求 2026-08-24：支持按显示
+    /// 分组排序）。增量依赖显示顺序、显示顺序又依赖排序 → 循环依赖；
+    /// 解法：进入该排序时按当时显示序拍快照作排序键，此后显示值沿用
+    /// 快照（列表顺序与显示值严格对应，值不随排序重排漂移；效果等同
+    /// 把"间隔"当普通列值排序）。取消排序/切换模式/改过滤时快照重建或作废。
+    bool m_deltaSortFrozen = false;    ///< 增量快照冻结模式激活中
+    QVector<double> m_displayDeltaKeys; ///< 源行号 → 增量快照（排序键 = 冻结显示值）
+    int m_lastAcceptedSourceRow = -1;  ///< 源序上一显示行（新帧增量推导）
+
     CanTraceModel *traceModel() const;
 
     /// 主表达式 + 列过滤 + 值集过滤 的综合判定
@@ -167,6 +176,12 @@ private:
     bool lessThan(int sourceLeft, int sourceRight) const;
     /// SinceDisplay 模式下源行的时间增量（由映射 O(1) 推导）
     double displayDelta(int sourceRow) const;
+    /// 增量快照冻结激活（Time+SinceDisplay 排序中：显示值=排序键快照）
+    bool deltaSortFrozen() const { return m_deltaSortFrozen; }
+    /// 按当前代理序刷新增量快照（进入冻结态前调用；快照=此刻显示值）
+    void refreshDeltaKeys();
+    /// 源行的增量快照键（无快照时退化为 0）
+    double deltaKey(int sourceRow) const;
     /// DBC 报文名（Name 列排序/过滤用）
     QString messageName(int sourceRow) const;
 

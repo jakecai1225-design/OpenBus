@@ -47,6 +47,8 @@ signals:
 
 private slots:
     void onBrowse();
+    /// 在系统资源管理器中打开录制文件目录
+    void onOpenDir();
     void onRecord();
     void onTriggerRecord();
     void onPauseClicked();
