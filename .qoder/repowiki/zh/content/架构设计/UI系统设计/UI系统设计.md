@@ -87,11 +87,12 @@
 
 ## 更新摘要
 **所做更改**   
-- 新增transceiver模块的'addOfflineFiles'动作支持，实现离线分析文件的程序化添加功能
-- 增强项目面板中离线分析文件的分类节点显示功能，支持工程状态恢复时的文件列表重建
-- 更新TransceiveModule的动作处理机制，增加对离线分析页面的动态访问和文件管理
-- 完善OfflineAnalysisTab组件的公共接口，提供addFiles方法用于批量文件添加
-- 改进项目状态管理机制，确保离线分析文件在工程加载时正确恢复
+- 图形视图组件新增手形平移模式，支持按住左键拖拽平移波形
+- 新增轴特定拟合函数fitXOnly()和fitYOnly()方法，实现X轴和Y轴的独立适配功能
+- 增强工具栏功能，添加手形平移、X轴适配、Y轴适配三个新按钮
+- 集成SVG图标资源，包括hand.svg、axis-fit-x.svg、axis-fit-y.svg等图标
+- 完善鼠标事件处理逻辑，实现手形模式与框选缩放的互斥操作
+- 优化交互体验，提供直观的手形光标反馈和平移操作
 
 ## 目录
 1. [简介](#简介)
@@ -345,7 +346,7 @@ TR["ToolRouter<br/>工具路由器"]
 end
 subgraph "专业组件层"
 FB["FilterBar<br/>过滤器栏<br/>刷新率控制增强"]
-GV["GraphicView<br/>图形视图<br/>QCustomPlot集成<br/>插件集成增强"]
+GV["GraphicView<br/>图形视图<br/>QCustomPlot集成<br/>插件集成增强<br/>手形平移模式"]
 TV["TraceView<br/>跟踪视图"]
 SCD["SignalConfigDialog<br/>信号配置对话框"]
 VO["ViewportOverview<br/>视窗缩略图<br/>新增组件"]
@@ -2061,8 +2062,11 @@ TraceTab --> ViewportProxyModel : "管理"
 - **最新改进** 优化了对新测试数据集的支持能力
 - **新增** 高性能视口降采样集成，支持四种抽稀策略
 - **新增** 插件集成能力，支持动态扩展可视化功能
+- **新增** 手形平移模式，支持按住左键拖拽平移波形
+- **新增** 轴特定拟合函数，提供fitXOnly()和fitYOnly()方法
+- **新增** 增强的工具栏功能，包含手形平移、X轴适配、Y轴适配按钮
 
-**更新** 图形视图组件得到了显著增强，使用了SVG箭头图标替换了基于文本的光标手柄，提供了更好的视觉一致性和用户体验。新增了chevron-left、chevron-right、chevron-up、chevron-down等SVG图标，用于时间窗口导航和Y轴调整功能。这些图标支持主题切换时的动态颜色变化，确保在不同主题下都能保持良好的视觉效果。
+**更新** 图形视图组件得到了显著增强，使用了SVG箭头图标替换了基于文本的光标手柄，提供了更好的视觉一致性和用户体验。新增了chevron-left、chevron-right、chevron-up、chevron-down等SVG图标，用于时间窗口导航和Y轴调整功能。这些图标支持主题切换时的动态颜色变化，确保在不同主题下都能保持良好的视觉效果。**特别重要的是，新增了手形平移模式，用户可以通过手形拖动按钮启用左键拖拽平移功能，与框选缩放模式形成互斥操作，提供更好的波形浏览体验。**
 
 技术实现
 - 基于QCustomPlot框架的专业图表引擎
@@ -2076,6 +2080,9 @@ TraceTab --> ViewportProxyModel : "管理"
 - **新增** downsample模块集成，实现O(视口宽)恒定渲染成本
 - **新增** 插件系统集成，支持动态加载和执行Python插件
 - **新增** 扩展点接口，允许插件自定义渲染逻辑
+- **新增** 手形平移模式，通过m_panMode标志位控制平移行为
+- **新增** 轴特定拟合函数，实现fitXOnly()和fitYOnly()方法
+- **新增** 增强的工具栏，包含手形平移、X轴适配、Y轴适配按钮
 - **最新改进** 增强的错误处理和异常恢复机制
 - **最新改进** 优化的内存管理和资源清理
 - **最新改进** 使用SVG箭头图标替代文本光标手柄，提升视觉一致性
@@ -2095,6 +2102,8 @@ class GraphicView {
 +handleCrashRecovery()
 +validateTestDataDataset(dataset)
 +enhanceStability()
++fitXOnly()
++fitYOnly()
 +onFrame(frame)
 +clearData()
 +loadFile(path)
@@ -2170,6 +2179,16 @@ class PluginIntegration {
 +handlePluginResponse(response)
 +cleanupPluginResources()
 }
+class PanMode {
++panMode bool
++panStartPos QPoint
++panStartX1 double
++panStartX2 double
++enablePanMode()
++disablePanMode()
++handlePanDrag(event)
++handlePanRelease()
+}
 GraphicView --> CursorPlot : "使用"
 GraphicView --> SignalChannel : "管理"
 GraphicView --> RenderEngine : "使用"
@@ -2177,6 +2196,7 @@ GraphicView --> TestDataSupport : "支持"
 GraphicView --> CursorSystem : "集成"
 GraphicView --> DownsampleIntegration : "集成"
 GraphicView --> PluginIntegration : "集成"
+GraphicView --> PanMode : "集成"
 ```
 
 **图表来源**
@@ -3400,7 +3420,7 @@ MW --> PM["PluginManager<br/>插件管理器"]
 MW --> MR["ModuleRegistry<br/>模块注册表"]
 MW --> PR["ProtocolRegistry<br/>协议注册表"]
 SEA --> FB["FilterBar<br/>刷新率控制增强"]
-SEA --> GV["GraphicView<br/>QCustomPlot集成<br/>Downsample模块集成<br/>插件集成增强"]
+SEA --> GV["GraphicView<br/>QCustomPlot集成<br/>Downsample模块集成<br/>插件集成增强<br/>手形平移模式"]
 SEA --> TV["TraceView"]
 SEA --> VO["ViewportOverview<br/>视窗缩略图"]
 MW --> SCD["SignalConfigDialog"]
@@ -3525,6 +3545,8 @@ OAT --> TMOD
   - **新增** Downsample模块实现O(视口宽)恒定渲染成本，将百万级原始数据点转换为视口像素级别的显示数据
   - **新增** OfflineAnalysisTab使用异步解析避免阻塞UI线程
   - **新增** addOfflineFiles动作支持批量文件处理，提升性能
+  - **新增** 手形平移模式通过m_panMode标志位优化鼠标事件处理性能
+  - **新增** 轴特定拟合函数fitXOnly()和fitYOnly()提供高效的轴范围适配
 - **专用Tab组件性能优化**
   - DBC详情标签页实现大数据集的虚拟滚动
   - 播放控制标签页使用高效的定时器机制
@@ -3568,6 +3590,8 @@ OAT --> TMOD
   - **新增** Downsample模块的智能数据裁剪和四种抽稀策略，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能
   - **新增** OfflineAnalysisTab的异步解析机制避免阻塞UI线程
   - **新增** addOfflineFiles动作支持批量文件处理，提升性能
+  - **新增** 手形平移模式通过互斥操作优化鼠标事件处理性能
+  - **新增** 轴特定拟合函数提供高效的轴范围适配算法
 - **批处理模型性能优化**
   - CanTraceModel使用环形缓冲区存储，支持最大帧数限制
   - 批量追加frames()方法优化大数据集处理
@@ -3616,6 +3640,16 @@ OAT --> TMOD
   - 支持批量文件添加，提升处理效率
   - 状态显示实时更新，提供用户反馈
   - 主题化图标支持，减少资源重复加载
+- **手形平移模式性能优化**
+  - 通过m_panMode标志位避免不必要的鼠标事件处理
+  - 与框选缩放模式互斥，减少冲突处理开销
+  - 使用OpenHandCursor和ClosedHandCursor提供即时视觉反馈
+  - 优化平移计算的数学运算，提升响应速度
+- **轴特定拟合函数性能优化**
+  - fitXOnly()方法通过收集全部信号时间范围实现高效适配
+  - fitYOnly()方法复用fitAll的Y轴逻辑，避免重复计算
+  - 使用pushZoomState()保存缩放历史，支持撤销操作
+  - 优化数据遍历算法，提升大数据集处理性能
 
 ## 故障排查指南
 常见问题与定位方法
@@ -3657,6 +3691,8 @@ OAT --> TMOD
   - **新增** Downsample模块数据降采样异常需要检查策略选择和参数配置
   - **新增** OfflineAnalysisTab文件解析失败需要检查文件路径和权限
   - **新增** addOfflineFiles动作无响应需要检查页面是否存在
+  - **新增** 手形平移模式无响应需要检查m_panMode标志位设置
+  - **新增** 轴特定拟合函数无效需要检查fitXOnly()和fitYOnly()调用
 - **专用Tab组件问题**
   - DBC文件加载失败需要检查文件格式与权限
   - 播放控制标签页时间轴不同步需要检查定时器精度
@@ -3709,6 +3745,8 @@ OAT --> TMOD
   - **新增** Downsample模块的智能数据裁剪和四种抽稀策略，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能
   - **新增** OfflineAnalysisTab的异步解析机制避免阻塞UI线程
   - **新增** addOfflineFiles动作支持批量文件处理，提升性能
+  - **新增** 手形平移模式通过互斥操作避免与框选缩放冲突
+  - **新增** 轴特定拟合函数提供高效的轴范围适配算法
 - **DbcPanel多协议分类问题**
   - 协议分类节点不显示需要检查文件扩展名识别
   - DatabaseEntry结构数据丢失需要检查序列化机制
@@ -3792,6 +3830,18 @@ OAT --> TMOD
   - 主题化图标颜色不正确需要检查ThemeManager集成
   - 批量文件添加失败需要检查文件路径有效性
   - 项目状态恢复失败需要检查offlineFiles字段序列化
+- **手形平移模式问题**
+  - 手形模式无响应需要检查m_panMode标志位设置
+  - 拖拽平移无效需要检查鼠标事件处理逻辑
+  - 光标显示异常需要检查OpenHandCursor和ClosedHandCursor切换
+  - 与框选缩放冲突需要检查互斥操作逻辑
+  - 平移计算错误需要检查坐标变换算法
+- **轴特定拟合函数问题**
+  - fitXOnly()方法无效需要检查时间范围计算逻辑
+  - fitYOnly()方法无效需要检查Y轴范围适配算法
+  - 缩放历史保存失败需要检查pushZoomState()调用
+  - 数据遍历性能问题需要检查信号数据量
+  - 轴范围设置错误需要检查QCPRange参数传递
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
@@ -3838,7 +3888,7 @@ OAT --> TMOD
 
 **Flow架构增强** 系统现已引入全新的Flow架构和协议抽象系统，通过IBusinessModule接口和ModuleRegistry注册表实现了模块化的业务逻辑管理。新增的协议适配器模式支持多种总线协议（CAN、EtherCAT等）的统一接口访问，为未来的协议扩展奠定了坚实基础。Flow模块作为测量流程的核心，整合了测量配置和设备连接功能，提供了统一的工作流程管理界面。协议适配器系统通过IProtocolAdapter接口定义了统一的协议访问接口，CanProtocolAdapter提供了CAN协议的具体实现，ProtocolRegistry和ParserRegistry分别管理协议适配器和解析器的注册与查找。
 
-**最新改进** 系统新增了transceiver模块的'addOfflineFiles'动作支持，实现了离线分析文件的程序化添加功能。该功能通过TransceiveModule的invoke方法处理，当接收到"addOfflineFiles"动作时，会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。项目面板现在支持离线分析文件的分类节点显示，确保工程加载时能够正确恢复用户的分析工作上下文。设备连接界面实现了智能连接门控机制，根据驱动可用性自动启用/禁用连接按钮，大大提升了用户体验。图形视图组件使用了SVG箭头图标替换了基于文本的光标手柄，提供了更好的视觉一致性和用户体验。侧边栏面板系统的所有按钮都使用了主题化的SVG图标，支持动态颜色切换，确保在不同主题下都有良好的视觉效果。
+**最新改进** 系统新增了transceiver模块的'addOfflineFiles'动作支持，实现了离线分析文件的程序化添加功能。该功能通过TransceiveModule的invoke方法处理，当接收到"addOfflineFiles"动作时，会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。项目面板现在支持离线分析文件的分类节点显示，确保工程加载时能够正确恢复用户的分析工作上下文。设备连接界面实现了智能连接门控机制，根据驱动可用性自动启用/禁用连接按钮，大大提升了用户体验。图形视图组件使用了SVG箭头图标替换了基于文本的光标手柄，提供了更好的视觉一致性和用户体验。侧边栏面板系统的所有按钮都使用了主题化的SVG图标，支持动态颜色切换，确保在不同主题下都有良好的视觉效果。**特别重要的是，图形视图组件新增了手形平移模式，用户可以通过手形拖动按钮启用左键拖拽平移功能，与框选缩放模式形成互斥操作，提供更好的波形浏览体验。同时新增了轴特定拟合函数fitXOnly()和fitYOnly()，提供X轴和Y轴的独立适配功能，以及增强的工具栏功能，包含手形平移、X轴适配、Y轴适配三个新按钮，大大提升了用户的操作便利性。**
 
 遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
@@ -3880,6 +3930,8 @@ OAT --> TMOD
   - **新增** Downsample模块应实现O(视口宽)恒定渲染成本和四种抽稀策略
   - **新增** OfflineAnalysisTab应支持异步文件解析和批量文件添加
   - **新增** addOfflineFiles动作应支持程序化文件管理和错误处理
+  - **新增** 手形平移模式应实现m_panMode标志位控制和鼠标事件处理
+  - **新增** 轴特定拟合函数应提供fitXOnly()和fitYOnly()方法实现
 - **专用Tab组件规范**
   - DBC详情标签页应支持大数据集的虚拟滚动
   - 播放控制标签页需实现精确的时间轴控制
@@ -3920,6 +3972,8 @@ OAT --> TMOD
   - **新增** Downsample模块应实现O(视口宽)恒定渲染成本和四种抽稀策略
   - **新增** OfflineAnalysisTab应使用异步解析避免阻塞UI线程
   - **新增** addOfflineFiles动作应支持批量文件处理和错误恢复
+  - **新增** 手形平移模式应实现互斥操作和光标反馈
+  - **新增** 轴特定拟合函数应提供高效的轴范围适配算法
 - **最新规范要求**
   - 图形组件必须包含完善的错误处理和异常恢复机制
   - 所有组件需支持测试数据集的兼容性验证
@@ -3945,6 +3999,8 @@ OAT --> TMOD
   - **新增** 设备连接界面需实现智能连接门控机制
   - **新增** 图形视图需使用SVG箭头图标替代文本光标手柄
   - **新增** 侧边栏面板需使用主题化的SVG图标
+  - **新增** 手形平移模式需实现m_panMode标志位和鼠标事件处理
+  - **新增** 轴特定拟合函数需提供fitXOnly()和fitYOnly()方法
 - **插件开发规范**
   - 插件应遵循标准的目录结构和命名约定
   - 插件main.py必须实现activate()和deactivate()方法
@@ -3977,6 +4033,23 @@ OAT --> TMOD
   - **新增** 离线分析文件管理必须支持程序化文件添加
   - **新增** addOfflineFiles动作必须支持批量文件处理和错误恢复
   - **新增** OfflineAnalysisTab必须实现异步文件解析和状态更新
+  - **新增** 手形平移模式必须实现m_panMode标志位控制
+  - **新增** 轴特定拟合函数必须提供fitXOnly()和fitYOnly()方法
+- **手形平移模式规范**
+  - 必须实现m_panMode布尔标志位控制平移模式
+  - 必须支持OpenHandCursor和ClosedHandCursor光标切换
+  - 必须与框选缩放模式形成互斥操作
+  - 必须正确处理鼠标按下、移动和释放事件
+  - 必须实现X轴全局平移和Y轴局部平移功能
+  - 必须提供手形拖动按钮的开关控制
+  - 必须优化鼠标事件处理性能
+- **轴特定拟合函数规范**
+  - 必须实现fitXOnly()方法用于X轴时间范围适配
+  - 必须实现fitYOnly()方法用于Y轴数据范围适配
+  - 必须使用pushZoomState()保存缩放历史
+  - 必须支持撤销操作和状态恢复
+  - 必须优化数据遍历算法提升性能
+  - 必须提供适当的工具栏按钮和工具提示
 
 ### 样式定制指南
 - 主题设计
@@ -4036,6 +4109,8 @@ OAT --> TMOD
   - **新增** Downsample模块应实现O(视口宽)恒定渲染成本和四种抽稀策略
   - **新增** OfflineAnalysisTab应使用异步解析避免阻塞UI线程
   - **新增** addOfflineFiles动作应支持批量文件处理和错误恢复
+  - **新增** 手形平移模式应实现互斥操作和光标反馈
+  - **新增** 轴特定拟合函数应提供高效的轴范围适配算法
 - **专用Tab组件最佳实践**
   - DBC详情标签页应实现高效的文件解析与缓存
   - 播放控制标签页需支持精确的时间同步
@@ -4077,6 +4152,8 @@ OAT --> TMOD
   - **新增** Downsample模块应实现智能数据裁剪和四种抽稀策略
   - **新增** OfflineAnalysisTab应使用异步解析避免阻塞UI线程
   - **新增** addOfflineFiles动作应支持批量文件处理和错误恢复
+  - **新增** 手形平移模式应实现互斥操作和光标反馈
+  - **新增** 轴特定拟合函数应提供高效的轴范围适配算法
 - **最新最佳实践**
   - 图形组件必须实现健壮的异常处理和崩溃恢复
   - 所有数据处理组件需包含数据验证和完整性检查
@@ -4103,6 +4180,8 @@ OAT --> TMOD
   - **新增** 设备连接界面需实现智能连接门控机制
   - **新增** 图形视图需使用SVG箭头图标替代文本光标手柄
   - **新增** 侧边栏面板需使用主题化的SVG图标
+  - **新增** 手形平移模式需实现m_panMode标志位和鼠标事件处理
+  - **新增** 轴特定拟合函数需提供fitXOnly()和fitYOnly()方法
 - **插件开发最佳实践**
   - 插件应遵循模块化设计原则，保持代码结构清晰
   - 插件应实现适当的错误处理和异常恢复机制
@@ -4134,6 +4213,24 @@ OAT --> TMOD
   - **新增** 离线分析文件管理应支持程序化文件添加
   - **新增** addOfflineFiles动作应支持批量文件处理和错误恢复
   - **新增** OfflineAnalysisTab应使用异步解析避免阻塞UI线程
+  - **新增** 手形平移模式应实现m_panMode标志位控制
+  - **新增** 轴特定拟合函数应提供fitXOnly()和fitYOnly()方法
+- **手形平移模式最佳实践**
+  - 使用m_panMode标志位控制平移模式开关
+  - 实现OpenHandCursor和ClosedHandCursor的光标切换
+  - 与框选缩放模式形成互斥操作避免冲突
+  - 优化鼠标事件处理性能减少响应延迟
+  - 提供直观的手形拖动按钮和工具提示
+  - 支持X轴全局平移和Y轴局部平移功能
+  - 实现平滑的平移动画和边界检测
+- **轴特定拟合函数最佳实践**
+  - fitXOnly()方法通过收集全部信号时间范围实现高效适配
+  - fitYOnly()方法复用fitAll的Y轴逻辑避免重复计算
+  - 使用pushZoomState()保存缩放历史支持撤销操作
+  - 优化数据遍历算法提升大数据集处理性能
+  - 提供适当的工具栏按钮和工具提示
+  - 实现平滑的轴范围过渡动画
+  - 支持边界检查和范围验证
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -4228,6 +4325,16 @@ OAT --> TMOD
 88. **性能测试**：验证离线分析功能对系统性能的影响
 89. **用户体验测试**：验证离线分析功能的易用性和直观性
 90. **回归测试**：确保离线分析功能不影响现有功能的正常运行
+91. **手形平移模式测试**：验证m_panMode标志位和鼠标事件处理的正确性
+92. **轴特定拟合函数测试**：验证fitXOnly()和fitYOnly()方法的功能
+93. **工具栏按钮测试**：验证手形平移、X轴适配、Y轴适配按钮的正常工作
+94. **SVG图标资源测试**：验证hand.svg、axis-fit-x.svg、axis-fit-y.svg等图标的正确显示
+95. **互斥操作测试**：验证手形模式与框选缩放模式的互斥行为
+96. **光标反馈测试**：验证OpenHandCursor和ClosedHandCursor的切换效果
+97. **平移性能测试**：验证手形拖拽平移的响应速度和流畅性
+98. **轴范围适配测试**：验证fitXOnly()和fitYOnly()方法的轴范围适配效果
+99. **缩放历史测试**：验证pushZoomState()的缩放历史保存和恢复功能
+100. **综合功能测试**：验证手形平移和轴特定拟合功能的协同工作
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)

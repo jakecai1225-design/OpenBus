@@ -1,6 +1,11 @@
 #include "graphicview.h"
 #include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
 #include "signalconfigdialog.h"
+#include "dbcsignalpickerdialog.h"
+#include "core/dbcmanager.h"
+#include "utils/svg_icon.h"
+#include <QMessageBox>
+#include <spdlog/spdlog.h>
 
 #include <QSplitter>
 #include <QTreeWidget>
@@ -507,6 +512,7 @@ void GraphicView::setupUi()
     m_signalTree->setRootIsDecorated(false);
     m_signalTree->setAlternatingRowColors(true);
     m_signalTree->setMinimumWidth(320);
+    m_signalTree->setSelectionMode(QAbstractItemView::ExtendedSelection);   // G13：Ctrl/Shift 多选
     m_signalTree->setStyleSheet(treeQss());
     m_signalTree->header()->setSectionResizeMode(0, QHeaderView::Fixed);
     m_signalTree->header()->resizeSection(0, 22);
@@ -584,6 +590,14 @@ void GraphicView::setupUi()
             if (isVisible()) fn();
         });
     };
+    addShortcut(QKeySequence(Qt::CTRL | Qt::Key_A), [this]() {
+        if (m_signalTree->hasFocus())
+            m_signalTree->selectAll();
+    });
+    addShortcut(QKeySequence(Qt::CTRL | Qt::Key_I), [this]() {
+        if (m_signalTree->hasFocus())
+            invertSignalSelection();
+    });
     addShortcut(QKeySequence(Qt::Key_F), [this]() { fitAll(); });
     addShortcut(QKeySequence(Qt::Key_Space), [this]() { m_pauseBtn->click(); });
     addShortcut(QKeySequence(Qt::CTRL | Qt::Key_Z), [this]() { undoZoom(); });
@@ -603,24 +617,46 @@ void GraphicView::setupUi()
 
     // ---- 信号添加/删除 ----
     connect(addBtn, &QPushButton::clicked, this, [this]() {
-        SignalConfigDialog dlg(this);
+        // G14 P1: 从已加载 DBC 数据库选信号
+        if (!m_dbcManager) {
+            QMessageBox::critical(this, tr("警告"),
+                                  tr("尚未加载数据库 — 请先在 DBC 面板加载数据库文件"));
+            return;
+        }
+        DbcSignalPickerDialog dlg(m_dbcManager, tr("添加信号到 Graphic"), this);
         if (dlg.exec() == QDialog::Accepted) {
-            Signal sig;
-            sig.name = dlg.signalName();
-            sig.canId = dlg.canId();
-            sig.extended = dlg.isExtended();
-            sig.dbcSig.name = sig.name;
-            sig.dbcSig.startBit = dlg.byteOffset() * 8;
-            sig.dbcSig.bitLength = dlg.bitLength();
-            sig.dbcSig.littleEndian = !dlg.isBigEndian();
-            addSignal(sig);
+            const auto picked = dlg.pickedSignals();
+            for (const auto &p : picked) {
+                Signal sig;
+                sig.name = p.signal.name;
+                sig.canId = p.canId;
+                sig.extended = p.extended;
+                sig.dbcSig = p.signal;       // startBit/bitLength/factor/offset/signed/unit 等全量
+                // 颜色：按当前已有数量自增索引（与旧逻辑一致）
+                sig.color = autoColor(m_signals.size());
+                addSignal(sig);
+            }
+            updateStatusBar();
         }
     });
 
     connect(removeBtn, &QPushButton::clicked, this, [this]() {
-        int row = m_signalTree->indexOfTopLevelItem(m_signalTree->currentItem());
-        if (row >= 0 && row < m_signals.size())
-            removeSignal(row);
+        // G13 多选删除：按选中行倒序删（大索引先删，小索引不受位移影响）；无选中时兼容单删当前行
+        QList<int> rows;
+        const QList<QTreeWidgetItem*> sel = m_signalTree->selectedItems();
+        for (QTreeWidgetItem *it : sel)
+            rows.append(m_signalTree->indexOfTopLevelItem(it));
+        if (rows.isEmpty()) {
+            int row = m_signalTree->indexOfTopLevelItem(m_signalTree->currentItem());
+            if (row >= 0 && row < m_signals.size())
+                removeSignal(row);
+            return;
+        }
+        std::sort(rows.begin(), rows.end(), [](int a, int b) { return a > b; });
+        for (int row : rows) {
+            if (row >= 0 && row < m_signals.size())
+                removeSignal(row);
+        }
     });
 
     // ---- 缩放（受缩放轴模式约束，改变前记录缩放历史） ----
@@ -762,9 +798,31 @@ void GraphicView::setupUi()
         auto *clrAction = menu.addAction("清空数据");
         menu.addSeparator();
         auto *rmAction = menu.addAction("删除信号");
+        menu.addSeparator();
+        auto *selectAllAction = menu.addAction("全选 (Ctrl+A)");
+        auto *invertAction = menu.addAction("反选 (Ctrl+I)");
+        auto *clearSelAction = menu.addAction("取消选择");
         auto *sel = menu.exec(m_signalTree->mapToGlobal(pos));
         if (sel == rmAction) {
-            removeSignal(row);
+            // G13 多选删除：点击行在选集中且选集非单 → 删整个选集；否则仅删点击行
+            const QList<QTreeWidgetItem*> selItems = m_signalTree->selectedItems();
+            QList<int> rows;
+            if (selItems.size() > 1 && item->isSelected()) {
+                for (QTreeWidgetItem *it : selItems)
+                    rows.append(m_signalTree->indexOfTopLevelItem(it));
+            } else {
+                rows.append(row);
+            }
+            std::sort(rows.begin(), rows.end(), [](int a, int b) { return a > b; });
+            for (int r : rows)
+                if (r >= 0 && r < m_signals.size())
+                    removeSignal(r);
+        } else if (sel == selectAllAction) {
+            m_signalTree->selectAll();
+        } else if (sel == invertAction) {
+            invertSignalSelection();
+        } else if (sel == clearSelAction) {
+            m_signalTree->clearSelection();
         } else if (sel == clrAction) {
             if (row >= 0 && row < m_signals.size() && m_signals[row].graph) {
                 m_signals[row].graph->data()->clear();
@@ -1207,21 +1265,29 @@ void GraphicView::setupUi()
             return;
         }
 
-        // 3) 中键平移（X 全轨道同步 + Y 起始轨道/叠加全部）
+        // 3) 中键/手形左键平移
         if (m_panning) {
+            // G14 P3b: 手形左键仅做 X 平移（全局同步），中键保持 X+Y 分离平移
+            // mouseMove 事件中 button() 返回 NoButton，用 buttons() 检测按住状态
+            const bool panOnlyX = m_panMode && (event->buttons() & Qt::LeftButton);
+            
             if (QCPAxis *x = primaryXAxis()) {
                 const double t0 = x->pixelToCoord(m_panStartPos.x());
                 const double t1 = x->pixelToCoord(pos.x());
                 setXRangeAll(QCPRange(m_panStartX1 - (t1 - t0),
                                       m_panStartX2 - (t1 - t0)), false);
             }
-            for (const auto &py : m_panStartY) {
-                if (py.sig < 0 || py.sig >= m_signals.size())
-                    continue;
-                if (QCPAxis *ya = valueAxisFor(m_signals[py.sig])) {
-                    const double y0 = ya->pixelToCoord(m_panStartPos.y());
-                    const double y1 = ya->pixelToCoord(pos.y());
-                    ya->setRange(py.lo - (y1 - y0), py.hi - (y1 - y0));
+
+            // 仅中键拖拽时才做 Y 轴平移（手形左键跳过 Y）
+            if (!panOnlyX) {
+                for (const auto &py : m_panStartY) {
+                    if (py.sig < 0 || py.sig >= m_signals.size())
+                        continue;
+                    if (QCPAxis *ya = valueAxisFor(m_signals[py.sig])) {
+                        const double y0 = ya->pixelToCoord(m_panStartPos.y());
+                        const double y1 = ya->pixelToCoord(pos.y());
+                        ya->setRange(py.lo - (y1 - y0), py.hi - (y1 - y0));
+                    }
                 }
             }
             refreshDisplayData();
@@ -2482,6 +2548,10 @@ void GraphicView::refreshDisplayData()
 
 void GraphicView::onFrame(const CanFrame &frame)
 {
+    spdlog::debug("{} [{}] Frame arrived: id=0x{:X} ext={} len={} ts={}",
+                  "[Graphic]", frame.timestamp, frame.id, frame.extended,
+                  frame.data.size(), frame.timestamp);
+
     // 暂停时仅更新当前时间，不添加数据
     if (m_paused) {
         m_currentTime = frame.timestamp;
@@ -2491,10 +2561,23 @@ void GraphicView::onFrame(const CanFrame &frame)
     m_currentTime = frame.timestamp;
 
     bool hasData = false;
-    for (auto &sd : m_signals) {
-        if ((frame.id & 0x1FFFFFFF) == sd.config.canId &&
-            frame.extended == sd.config.extended) {
+    int signalMatches = 0;
+    for (int si = 0; si < m_signals.size(); ++si) {
+        auto &sd = m_signals[si];
+        const bool idMatch = (frame.id & 0x1FFFFFFF) == sd.config.canId;
+        const bool extMatch = frame.extended == sd.config.extended;
+
+        if (idMatch && extMatch) {
+            spdlog::debug("{} [{}] Signal MATCH: index={} name='{}' canId=0x{:X} ext={}",
+                          "[Graphic]", frame.timestamp,
+                          si,
+                          sd.config.name.toStdString(),
+                          sd.config.canId, sd.config.extended);
+
             double val = extractValue(frame, sd.config);
+            spdlog::debug("{} [{}] extractValue result: {} (is_nan={})", 
+                          "[Graphic]", frame.timestamp, val, std::isnan(val));
+
             if (!std::isnan(val)) {
                 // 原始数据入环形缓冲（百万点容量，满后覆盖最旧；
                 // 显示数据由 onReplotTimeout → refreshDisplayData 按视口抽稀重建）
@@ -2709,6 +2792,14 @@ void GraphicView::updateSignalList()
     }
     m_signalTree->blockSignals(false);
     updateStatusBar();
+}
+
+void GraphicView::invertSignalSelection()
+{
+    for (int i = 0; i < m_signalTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem *it = m_signalTree->topLevelItem(i);
+        it->setSelected(!it->isSelected());
+    }
 }
 
 void GraphicView::updateSignalValues()
@@ -3125,6 +3216,11 @@ void GraphicView::fitYOnly()
     updateCursorDecorations();
     refreshDisplayData();
     m_plot->replot();
+}
+
+void GraphicView::setDbcManager(DbcManager *mgr)
+{
+    m_dbcManager = mgr;
 }
 
 void GraphicView::exportPlot()

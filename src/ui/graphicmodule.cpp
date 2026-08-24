@@ -38,6 +38,9 @@ QWidget *GraphicModule::createPage(const QString &pageId, const QVariant &param,
     if (pageId == QStringLiteral("graphic")) {
         auto *gv = new GraphicView(ctx.mainWindow);
 
+        // P1 G14: 注入 DBC 管理器引用（用于添加信号对话框）
+        gv->setDbcManager(ctx.dbcManager);
+
         // Store context for later use
         if (!m_ctx.mainWindow) {
             m_ctx.mainWindow = ctx.mainWindow;

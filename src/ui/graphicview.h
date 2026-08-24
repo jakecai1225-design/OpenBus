@@ -9,6 +9,9 @@
 #include "core/dbcdata.h"
 #include "graphic/downsample.h"
 
+class DbcManager;
+class DbcSignalPickerDialog;
+
 class QSplitter;
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -138,6 +141,9 @@ public slots:
     /// 响应其它视图的游标联动同步（带防回环标志）
     void onSyncCursor(int which, double time);
 
+    /// 设置 DBC 管理器引用（P1）
+    void setDbcManager(DbcManager *mgr);
+
 signals:
     /// 文件拖放后加载完成
     void fileLoaded(int frameCount);
@@ -255,6 +261,9 @@ private:
     bool m_rubberZoom = true;          ///< 框选缩放模式开关（默认开，对标 CANoe）
     bool m_panning = false;            ///< 中键平移中
     QPoint m_panStartPos;
+
+    // --- G14 P1: DBC 管理器引用（用于信号选择对话框） ----
+    DbcManager *m_dbcManager = nullptr;
     double m_panStartX1 = 0.0, m_panStartX2 = 0.0;
     struct PanY { int sig; double lo, hi; };
     QVector<PanY> m_panStartY;
@@ -340,6 +349,9 @@ private:
 
     /// 刷新信号列表（结构）
     void updateSignalList();
+
+    /// 反选信号列表（G13 多选操作）
+    void invertSignalSelection();
 
     /// 更新信号列表中的实时值
     void updateSignalValues();

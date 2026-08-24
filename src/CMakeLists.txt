@@ -622,6 +622,8 @@ add_library(openbus_graphic SHARED
     ui/graphic/downsample.cpp
     ui/signalconfigdialog.h
     ui/signalconfigdialog.cpp
+    ui/dbcsignalpickerdialog.h
+    ui/dbcsignalpickerdialog.cpp
     ui/datawindow.h
     ui/datawindow.cpp
     ui/graphicmodule.h
