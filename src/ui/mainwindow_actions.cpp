@@ -290,13 +290,14 @@ void MainWindow::onQuickStopRecord()
 
 void MainWindow::onQuickConnect()
 {
-    // 硬件设备优先连接，模拟器作为备选
+    // 硬件设备优先连接；未配置真实设备时不再隐式启动模拟器（防混淆），
+    // 改为输出引导——模拟器须由用户显式连接（设备连接页 / 模拟器开关）
     if (m_deviceManager->isRealDevice() && !m_deviceManager->isRunning()) {
         m_deviceManager->start();
     } else if (!m_simulator->isRunning() && !m_deviceManager->isRealDevice()) {
-        m_simulator->start();
-        m_connLabel->setText("已连接");
-        m_bottomPanel->appendOutput("设备已连接 (模拟器)");
+        m_bottomPanel->appendOutput(
+            QStringLiteral("未配置真实设备：请在设备面板选择并连接硬件；"
+                           "如需模拟数据，请显式连接 openbus 模拟器"));
     }
 }
 

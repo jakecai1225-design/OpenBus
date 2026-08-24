@@ -414,11 +414,15 @@ void MainWindow::onMeasurementToggled(bool running)
         const bool hardware = flowQuery(QStringLiteral("currentSource"))
                                   .toString() == QStringLiteral("hardware");
         if (hardware) {
-            // 硬件模式：根据 DevicePanel 选中设备决定数据源
+            // 硬件模式：数据源 = 已连接的真实硬件设备
             if (m_deviceManager->isRunning()) {
                 // 真实硬件已连接，无需重复启动
-            } else {
-                m_simulator->start();
+            } else if (!m_simulator->isRunning()) {
+                // 不隐式启动模拟器（防混淆）：数据源就绪前测量空转，
+                // 设备连接后帧自动流入（onFrameReceived 仅门控测量状态）
+                m_bottomPanel->appendOutput(
+                    QStringLiteral("数据源未就绪：未检测到已连接设备。"
+                                   "请到设备连接页连接硬件，或显式连接 openbus 模拟器"));
             }
         } else {
             // 离线分析模式：从离线分析标签页加载所有文件，合并后送入 Player

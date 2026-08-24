@@ -35,6 +35,15 @@
 #include <QHeaderView>
 #include <QGroupBox>
 #include <QRadioButton>
+#include <QTimer>
+#include <QDateTime>
+
+// ============================================================
+//  功能块状态灯语义（仅本翻译单元；用户需求 2026-08-24）：
+//  未使能不亮灯（块灰化）；使能待命=常亮绿；数据流活跃=绿闪；
+//  运行异常=红闪；数据源块仅异常亮红灯
+// ============================================================
+enum class BlockLamp { None, Idle, Flow, Error };
 
 // ============================================================
 //  自定义图元 — 可绘制带圆角渐变和文字的块
@@ -59,6 +68,9 @@ public:
     void setHorizontalLayout(bool h) { m_horizontalLayout = h; update(); }
     /// Filter 块模式：实例行 = 过滤规则行（副标题显示规则数）
     void setRuleMode(bool r) { m_ruleMode = r; update(); }
+    /// 设置状态灯（状态 + 当前闪烁相位；由视图层定时驱动）
+    void setLamp(BlockLamp s, bool blinkPhase)
+    { m_lamp = s; m_blinkPhase = blinkPhase; update(); }
 
 protected:
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *) override
@@ -122,18 +134,51 @@ protected:
                                  headerRect.width() - 50, headerRect.height() / 2 - 4),
                           Qt::AlignVCenter | Qt::AlignLeft, sub);
 
-        // 状态指示灯
-        if (!m_isSource) {
+        // 状态指示灯（灯态由视图层计算：未使能不亮；待命常亮绿；
+        // 数据流绿闪；异常红闪；数据源块仅异常亮灯）
+        {
             qreal cx = headerRect.right() - 12;
             qreal cy = headerRect.center().y();
-            QColor dot = m_active ? QColor(0x00, 0xE6, 0x76) : QColor(0xc0, 0xc0, 0xc0);
-            painter->setBrush(dot);
-            painter->setPen(Qt::NoPen);
-            painter->drawEllipse(QPointF(cx, cy), 4.5, 4.5);
-            // 外圈光晕
-            if (m_active) {
-                painter->setBrush(QColor(0x00, 0xE6, 0x76, 40));
-                painter->drawEllipse(QPointF(cx, cy), 7, 7);
+            QColor lampColor;
+            qreal lampR = 4.5;
+            bool glow = false;
+            bool draw = false;
+            switch (m_lamp) {
+            case BlockLamp::None:
+                break;
+            case BlockLamp::Idle:
+                lampColor = QColor(0x00, 0xE6, 0x76);
+                draw = true;
+                glow = true;
+                break;
+            case BlockLamp::Flow:
+                lampColor = QColor(0x00, 0xE6, 0x76);
+                draw = true;
+                glow = m_blinkPhase;
+                lampR = m_blinkPhase ? 4.5 : 3.0;
+                if (!m_blinkPhase)
+                    lampColor.setAlpha(140);
+                break;
+            case BlockLamp::Error:
+                lampColor = QColor(0xFF, 0x45, 0x3A);
+                draw = true;
+                glow = m_blinkPhase;
+                lampR = m_blinkPhase ? 4.5 : 3.0;
+                if (!m_blinkPhase)
+                    lampColor.setAlpha(140);
+                break;
+            }
+            if (draw) {
+                painter->setBrush(lampColor);
+                painter->setPen(Qt::NoPen);
+                painter->drawEllipse(QPointF(cx, cy), lampR, lampR);
+                if (glow) {
+                    // 外圈光晕
+                    QColor halo = lampColor;
+                    halo.setAlpha(40);
+                    painter->setBrush(halo);
+                    painter->drawEllipse(QPointF(cx, cy), 7, 7);
+                }
             }
         }
 
@@ -202,6 +247,8 @@ private:
     bool m_horizontalLayout = false;
     bool m_ruleMode = false;
     QStringList m_instances;
+    BlockLamp m_lamp = BlockLamp::None;  ///< 状态灯（默认不亮）
+    bool m_blinkPhase = false;          ///< 闪烁相位（true = 亮）
 };
 
 // ============================================================
@@ -315,6 +362,15 @@ protected:
 MeasurementSetupView::MeasurementSetupView(QWidget *parent)
     : QWidget(parent)
 {
+    // 灯闪烁相位驱动（先于建场景：rebuildScene 末尾会投影灯态；
+    // 仅数据流活跃或存在异常时运转，平时停转避免空刷新）
+    m_blinkTimer = new QTimer(this);
+    m_blinkTimer->setInterval(500);
+    connect(m_blinkTimer, &QTimer::timeout, this, [this]() {
+        m_blinkOn = !m_blinkOn;
+        updateBlockLamps();
+    });
+
     setupUi();
     buildTopology();  // buildTopology() 内部已调用 relayoutModuleBlocks() → rebuildScene()
 
@@ -568,6 +624,9 @@ void MeasurementSetupView::rebuildScene()
     sceneRect = sceneRect.united(m_switchRect);
     if (!sceneRect.isNull())
         m_scene->setSceneRect(sceneRect.adjusted(-20, -20, 40, 20));
+
+    // 重建 gfx 后重新投影灯态（块使能/数据流/异常状态存在视图层）
+    updateBlockLamps();
 }
 
 void MeasurementSetupView::updateConnections()
@@ -666,6 +725,53 @@ void MeasurementSetupView::updateBlockVisual(const QString &id)
             gfx->setActive(active);
         }
     }
+    // 使能变化即时刷新灯态（无需等闪烁 tick）
+    updateBlockLamps();
+}
+
+void MeasurementSetupView::updateBlockLamps()
+{
+    // 数据流活跃判定：测量运行中且最近 1.5s 内有帧到达
+    // （无新帧超过 1.5s → 视为流静止，绿闪退回常亮待命）
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    const bool flowActive = m_running && m_lastFrameMs > 0
+                            && (now - m_lastFrameMs) < 1500;
+    // 单块灯态：异常优先（含数据源块）→ 未使能不亮 → 待命/流闪
+    auto lampFor = [this, flowActive](const QString &id, const BlockItem &b) {
+        if (m_blockErrors.contains(id))
+            return BlockLamp::Error;
+        const bool isSource = b.category == QStringLiteral("source");
+        const bool active = isSource ? (b.id == activeSourceId()) : b.enabled;
+        if (!active)
+            return BlockLamp::None;  // 未使能：不亮灯（块体灰化已表达）
+        // 数据源块正常态不亮灯（仅异常红闪）
+        if (isSource)
+            return BlockLamp::None;
+        return flowActive ? BlockLamp::Flow : BlockLamp::Idle;
+    };
+    for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
+        auto *gfx = dynamic_cast<SetupBlockGfx *>(it.value().gfxItem);
+        if (gfx)
+            gfx->setLamp(lampFor(it.key(), it.value()), m_blinkOn);
+    }
+    // 无数据流且无异常：闪烁驱动停转（省电；灯态已静态化）
+    if (!flowActive && m_blockErrors.isEmpty() && m_blinkTimer)
+        m_blinkTimer->stop();
+}
+
+void MeasurementSetupView::setBlockError(const QString &blockId, bool on)
+{
+    if (on && !m_blocks.contains(blockId))
+        return;  // 未知块（拓扑未建/ID 拼写）——静默忽略
+    const bool changed = on ? !m_blockErrors.contains(blockId)
+                            : m_blockErrors.remove(blockId) > 0;
+    if (!changed)
+        return;
+    if (on && m_blinkTimer && !m_blinkTimer->isActive()) {
+        m_blinkOn = true;  // 错误出现立即以亮相位起闪
+        m_blinkTimer->start();
+    }
+    updateBlockLamps();
 }
 
 MeasurementSetupView::BlockItem *MeasurementSetupView::blockAt(const QPointF &scenePos)
@@ -1007,7 +1113,14 @@ void MeasurementSetupView::setFilePath(const QString &path)
 
 void MeasurementSetupView::onFrame(const CanFrame &)
 {
-    // 帧数统计由 MainWindow 状态栏统一显示，此处无需处理
+    // 数据流指示：记录最近帧到达时刻（功能块绿灯闪烁的驱动源；
+    // 帧数统计由 MainWindow 状态栏统一显示）
+    m_lastFrameMs = QDateTime::currentMSecsSinceEpoch();
+    if (!m_blinkTimer->isActive()) {
+        m_blinkOn = true;  // 首帧起闪从亮相位开始
+        m_blinkTimer->start();
+        updateBlockLamps();
+    }
 }
 
 void MeasurementSetupView::setRunning(bool running)
@@ -1017,6 +1130,10 @@ void MeasurementSetupView::setRunning(bool running)
     m_running = running;
     m_startAct->setEnabled(!running);
     m_stopAct->setEnabled(running);
+    // 测量停止：数据流状态复位（灯回待命常亮/熄灭；异常标记保留——
+    // 未消除的红闪持续提示）
+    m_lastFrameMs = 0;
+    updateBlockLamps();
 }
 
 void MeasurementSetupView::onStartClicked()

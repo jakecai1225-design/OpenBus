@@ -5,6 +5,7 @@
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QMap>
+#include <QSet>
 #include <QString>
 #include <QList>
 #include <QMenu>
@@ -13,6 +14,7 @@
 class QGraphicsRectItem;
 class QGraphicsTextItem;
 class QGraphicsPathItem;
+class QTimer;
 class QToolBar;
 class QAction;
 class QToolButton;
@@ -58,6 +60,10 @@ public:
 
     /// 查询模块块的使能状态（默认 true）
     bool isBlockEnabled(const QString &blockId) const;
+
+    /// 标记/清除块运行异常（异常块红灯闪烁；恢复后熄灭。
+    /// 数据源块（source_real）与功能块通用）
+    void setBlockError(const QString &blockId, bool on);
 
 public slots:
     void setSource(Source src);
@@ -106,6 +112,12 @@ private:
     QString m_filePath;
     QRectF m_switchRect;  ///< 数据源切换开关区域
 
+    // ---- 数据流 / 异常指示（功能块状态灯） ----
+    QTimer *m_blinkTimer = nullptr;  ///< 灯闪烁相位驱动（500ms，仅有流/异常时运转）
+    bool m_blinkOn = false;          ///< 当前闪烁相位（true = 亮）
+    qint64 m_lastFrameMs = 0;        ///< 最近一帧到达时刻（数据流活跃判定）
+    QSet<QString> m_blockErrors;    ///< 处于异常态的块 ID 集合
+
     // ---- 记录文件列表 & REAL 设备 ----
     QStringList m_recentFiles;           ///< 最近打开的文件
     QStringList m_dbcFiles;              ///< 已加载的 DBC 文件名列表
@@ -153,6 +165,9 @@ private:
     void setupUi();
     void buildTopology();
     void updateBlockVisual(const QString &id);
+    /// 全量刷新功能块指示灯（未使能=不亮；使能待命=常亮绿；
+    /// 数据流活跃=绿闪；异常=红闪；数据源块仅异常亮灯）
+    void updateBlockLamps();
     void updateConnections();
     BlockItem *blockAt(const QPointF &scenePos);
     void toggleBlock(const QString &id);

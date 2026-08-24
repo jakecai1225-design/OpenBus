@@ -167,6 +167,9 @@ QWidget *FlowModule::createSetupPage(ShellContext &ctx)
     // ——「UI → 注册表 → 适配器/解析器 → 既有管理器」样板代码路径，
     // 后续 EtherCAT / 通用 Flow / 第三方协议接入照抄此模式
     QObject::connect(view, &MeasurementSetupView::dbcSelectRequested, view, [this]() {
+        // database 块异常标记：加载失败红闪、成功后熄灭（加载结果就地可见）
+        auto *setupView = qobject_cast<MeasurementSetupView *>(
+            m_pages.value(QStringLiteral("setup")));
         // 1) 过滤器：CAN 适配器声明的解析器扩展名聚合（当前 *.dbc，行为一致）
         QStringList nameFilters;
         auto *can = ProtocolRegistry::instance()->findAdapter(QStringLiteral("can"));
@@ -194,23 +197,33 @@ QWidget *FlowModule::createSetupPage(ShellContext &ctx)
         if (!parser) {
             m_ctx.addProblem(1, QStringLiteral("DBC"),
                              QStringLiteral("无匹配解析器: ") + path);
+            if (setupView)
+                setupView->setBlockError(QStringLiteral("database"), true);
             return;
         }
         QString parseError;
         const BusDefinitionSet set = parser->parse(path, &parseError);
         if (set.isEmpty()) {
             m_ctx.addProblem(1, QStringLiteral("DBC"), parseError);
+            if (setupView)
+                setupView->setBlockError(QStringLiteral("database"), true);
             return;
         }
         BusDefinitionStore::instance()->addDefinitionSet(set);
 
         // 3) 直通：DbcManager 保持原样加载（外部行为不变，双入口并存，§6.4）
-        if (m_ctx.dbcManager->loadDbc(path))
+        if (m_ctx.dbcManager->loadDbc(path)) {
             m_ctx.appendOutput(QStringLiteral("已加载 DBC: ")
                                + QFileInfo(path).fileName());
-        else
+            // 加载成功：清除 database 块历史错误标记（红闪熄灭）
+            if (setupView)
+                setupView->setBlockError(QStringLiteral("database"), false);
+        } else {
             m_ctx.addProblem(1, QStringLiteral("DBC"),
                              QStringLiteral("加载失败: ") + path);
+            if (setupView)
+                setupView->setBlockError(QStringLiteral("database"), true);
+        }
     });
 
     // Filter 块过滤规则变更提示（v1.6：多 CAN 通道块收编为单 Filter 块）
@@ -337,6 +350,15 @@ void FlowModule::invoke(const QString &action, const QVariant &arg)
         if (auto *msv = qobject_cast<MeasurementSetupView *>(
                 m_pages.value(QStringLiteral("setup"))))
             msv->setRunning(arg.toBool());
+    } else if (action == QStringLiteral("setBlockError")) {
+        // 块运行异常标记（壳侧设备错误/掉线转发：true=红闪，false=恢复熄灭）
+        // Arg: QVariantList{ blockId, on }
+        const QVariantList l = arg.toList();
+        if (l.size() >= 2) {
+            if (auto *msv = qobject_cast<MeasurementSetupView *>(
+                    m_pages.value(QStringLiteral("setup"))))
+                msv->setBlockError(l.at(0).toString(), l.at(1).toBool());
+        }
     } else if (action == QStringLiteral("setDeviceConfig")) {
         // 恢复设备连接页界面配置（不连接设备，仅恢复参数）
         const QVariantMap cfg = arg.toMap();

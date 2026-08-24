@@ -63,6 +63,27 @@
   3. ForegroundRole 优先返回命中规则的前景色。
 - **涉及文件**：`src/models/cantracemodel.cpp`、`src/models/cantracemodel.h`、`src/ui/colorruleeditor.cpp`、`src/ui/colorruleeditor.h`
 
+### T-07 🟢 设备连接默认隐式启动模拟器，造成数据源混淆
+
+- **现象**：用户未主动打开 openbus 模拟器时，两处隐式启动造成混淆：
+  1. 右侧面板快捷连接（onQuickConnect）：未配置真实设备时自动 `m_simulator->start()` 并显示"设备已连接 (模拟器)"；
+  2. Flow 页开始测量（onMeasurementToggled）：硬件模式但设备未连接时自动启动模拟器作兑底——用户以为在采真实总线，实际看的是模拟数据。
+- **修复方案**：移除两处隐式启动，改为输出面板引导提示（"请到设备连接页连接硬件，或显式连接 openbus 模拟器"）；保留三个显式入口：设备连接页点"连接"、工具栏"模拟器开关"、终端 `sim on`。测量可在无数据源时继续运行，设备连接后帧自动流入（onFrameReceived 仅门控测量状态）。
+- **涉及文件**：`src/ui/mainwindow_actions.cpp`、`src/ui/mainwindow_frameflow.cpp`
+
+### T-08 🟢 Flow 页功能块状态灯无数据流/异常表达（绿点仅常亮）
+
+- **现象**：功能块（Filter/CAN parser/模块块）右侧绿点仅随使能常亮，无法表达"有数据流/正在处理"（需求：绿闪）与"运行异常"（需求：红闪）；未使能块还画灰点。
+- **修复方案**（状态机，对齐用户需求 2026-08-24）：
+  - **未使能**：不画灯（块体灰化已表达，灰点移除）；
+  - **使能待命**：绿灯常亮（现状保留）；
+  - **数据流活跃**（测量运行中且最近 1.5s 内有帧到达）：绿灯 500ms 相位闪烁；
+  - **运行异常**：红灯闪烁（数据源块仅异常亮灯，正常不亮）；
+  - 驱动：`MeasurementSetupView::onFrame`（帧到达即记录，接入既有 flowInvoke("onFrame") 分发链）+ 500ms 闪烁定时器（无流且无错时停转）；
+  - 异常源（第一版）：设备错误（errorOccurred）→ source_real 块红闪（重连成功熄灭）；DBC 加载失败 → database 块红闪（重载成功熄灭）；新增 `setBlockError(blockId, on)` 通用接口经 flow 模块 setBlockError action 供壳侧后续扩展。
+- **后续候选**：Trace 过滤表达式编译失败 → 对应 Trace 块红闪（跨模块链路待接）；设备运行中掉线检测（connectionChanged(false) 与主动断开区分）。
+- **涉及文件**：`src/ui/measurementsetupview.h`、`src/ui/measurementsetupview.cpp`、`src/ui/flowmodule.cpp`、`src/ui/mainwindow_setup.cpp`
+
 ---
 
 ## 二、待验证遗留问题
@@ -126,3 +147,4 @@
 | 日期 | 摘要 |
 |---|---|
 | 2026-08-24 | 建账；录入 Trace 页面 6 项（T-01~T-06）并完成代码修复（T-05 部分落实）；归档 G14 系列（A-01）、构建产物两项（A-02/A-03）、插件 Tx 回环（A-04）；遗留 L-01~L-03 |
+| 2026-08-24 | 录入并修复 T-07（模拟器隐式启动两处移除）、T-08（Flow 功能块状态灯状态机：待命常亮绿/数据流绿闪/异常红闪/未使能不亮） |

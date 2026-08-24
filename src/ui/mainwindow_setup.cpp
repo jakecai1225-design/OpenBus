@@ -205,6 +205,9 @@ void MainWindow::connectDataPipeline()
         if (connected) {
             m_connLabel->setText(QStringLiteral("已连接: %1").arg(name));
             m_bottomPanel->appendOutput(QStringLiteral("硬件已连接: %1").arg(name));
+            // 重连成功：清除 Flow 页数据源块错误标记（红闪熄灭）
+            flowInvoke(QStringLiteral("setBlockError"),
+                       QVariantList{ QStringLiteral("source_real"), false });
         } else {
             m_connLabel->setText("未连接");
             m_bottomPanel->appendOutput(QStringLiteral("硬件已断开"));
@@ -215,6 +218,9 @@ void MainWindow::connectDataPipeline()
     auto *errRelay = new SignalRelay(this);
     errRelay->fnString = [this](const QString &msg) {
         m_bottomPanel->appendOutput(QStringLiteral("%1").arg(msg));
+        // 设备错误 → Flow 页数据源块红灯闪烁（运行异常可视化）
+        flowInvoke(QStringLiteral("setBlockError"),
+                   QVariantList{ QStringLiteral("source_real"), true });
     };
     connect(m_deviceManager, SIGNAL(errorOccurred(QString)),
             errRelay, SLOT(fireQString(QString)));
