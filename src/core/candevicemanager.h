@@ -75,7 +75,11 @@ public:
     // ---- 发送 ----
 
     /// 通过当前设备发送一帧（模拟器模式下无效）
-    bool sendFrame(const CanFrame &frame);
+    /// @param frame 待发送帧
+    /// @param echo 可选出参：发送成功时写入带 Tx 标记与时间戳的回环帧
+    ///        （时间基准与接收帧归一化一致：steady_clock - 启动时钟），
+    ///        供调用方推回显示链路（Trace/Graphic 可见 Tx 帧，对齐 CANoe）
+    bool sendFrame(const CanFrame &frame, CanFrame *echo = nullptr);
 
     // ---- 硬件接收滤波器 ----
 

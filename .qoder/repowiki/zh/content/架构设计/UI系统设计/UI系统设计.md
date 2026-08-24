@@ -83,16 +83,19 @@
 - [src/ui/offlineanalysistab.cpp](file://src/ui/offlineanalysistab.cpp)
 - [src/ui/mainwindow_project.cpp](file://src/ui/mainwindow_project.cpp)
 - [src/core/projectmanager.h](file://src/core/projectmanager.h)
+- [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
+- [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- 图形视图组件新增手形平移模式，支持按住左键拖拽平移波形
+- 图形视图组件新增DBC数据库集成，支持从DbcManager加载的数据库中选择信号
+- 新增DbcSignalPickerDialog对话框，提供三级树结构（文件→报文→信号）的信号选择界面
+- 增强多选择支持，支持Ctrl/Shift多选和双击快速添加功能
+- 改进手形平移模式，与框选缩放模式形成互斥操作
 - 新增轴特定拟合函数fitXOnly()和fitYOnly()方法，实现X轴和Y轴的独立适配功能
-- 增强工具栏功能，添加手形平移、X轴适配、Y轴适配三个新按钮
-- 集成SVG图标资源，包括hand.svg、axis-fit-x.svg、axis-fit-y.svg等图标
-- 完善鼠标事件处理逻辑，实现手形模式与框选缩放的互斥操作
-- 优化交互体验，提供直观的手形光标反馈和平移操作
+- 完善调试能力，增加显示数据点数和原始数据点数的诊断接口
+- 优化信号选择流程，支持跨数据库搜索和防抖处理
 
 ## 目录
 1. [简介](#简介)
@@ -190,6 +193,7 @@ RR --> UU["protocolregistry.h"]
 RR --> VV["parserregistry.h"]
 B --> WW["src/ui/offlineanalysistab.h/.cpp"]
 B --> XX["src/ui/transceivemodule.h/.cpp"]
+B --> YY["src/ui/dbcsignalpickerdialog.h/.cpp"]
 ```
 
 **图表来源**
@@ -212,6 +216,7 @@ B --> XX["src/ui/transceivemodule.h/.cpp"]
 - [src/core/protocol/parserregistry.h](file://src/core/protocol/parserregistry.h)
 - [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
 - [src/ui/transceivemodule.h](file://src/ui/transceivemodule.h)
+- [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
 
 章节来源
 - [CMakeLists.txt](file://CMakeLists.txt)
@@ -243,10 +248,11 @@ B --> XX["src/ui/transceivemodule.h/.cpp"]
 - **新增** ParserRegistry: 解析器注册表，管理协议描述文件的解析器
 - **新增** OfflineAnalysisTab: 离线分析标签页，支持文件列表管理和异步解析
 - **新增** addOfflineFiles动作: TransceiveModule的新增动作，支持程序化添加离线分析文件
+- **新增** DbcSignalPickerDialog: DBC信号选择对话框，支持多数据库信号选择和搜索
 
 **更新** 现在明确区分了Qt Designer生成的UI文件与手写C++代码的职责边界，形成了清晰的混合开发模式，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统提供了CANoe风格的视窗缩略图导航，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。FilterHeaderView组件得到了显著增强，新增了自定义排序指示器绘制功能，支持setSortState()和clearSortState()方法，改进了排序三角形与漏斗图标的布局，优化了视觉设计和交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过Min/Max、Average、First、Decimate四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。各组件间通过信号槽机制和JavaScript事件系统实现松耦合通信，支持动态加载和响应式布局。**
 
-**最新增强** 系统新增了transceiver模块的'addOfflineFiles'动作支持，实现了离线分析文件的程序化添加功能。该功能通过TransceiveModule的invoke方法处理，当接收到"addOfflineFiles"动作时，会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。项目面板现在支持离线分析文件的分类节点显示，确保工程加载时能够正确恢复用户的分析工作上下文。
+**最新增强** 系统新增了transceiver模块的'addOfflineFiles'动作支持，实现了离线分析文件的程序化添加功能。该功能通过TransceiveModule的invoke方法处理，当接收到"addOfflineFiles"动作时，会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。项目面板现在支持离线分析文件的分类节点显示，确保工程加载时能够正确恢复用户的分析工作上下文。**新增的DbcSignalPickerDialog提供了强大的DBC数据库信号选择功能，支持三级树结构展示、跨数据库搜索、防抖处理和多重选择，大大简化了信号添加流程。**
 
 章节来源
 - [src/main.cpp](file://src/main.cpp)
@@ -265,6 +271,8 @@ B --> XX["src/ui/transceivemodule.h/.cpp"]
 - [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
 - [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
 - [src/ui/offlineanalysistab.cpp](file://src/ui/offlineanalysistab.cpp)
+- [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
+- [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)
 
 ## 架构总览
 整体采用"入口初始化 + 主窗口容器 + 样式/资源分离 + Web前端集成 + 插件系统 + 模块化DLL架构 + Flow架构"的混合架构模式：
@@ -282,10 +290,11 @@ B --> XX["src/ui/transceivemodule.h/.cpp"]
 - **新增** 模块化DLL架构提供功能模块的独立编译和动态加载
 - **新增** Flow架构提供测量流程管理和协议抽象能力
 - **新增** 离线分析文件管理支持，通过addOfflineFiles动作实现程序化文件添加
+- **新增** DBC信号选择对话框支持多数据库信号选择和搜索
 
 **更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数。FilterHeaderView组件通过自定义排序指示器和漏斗图标，提供了Wireshark风格的表头界面，增强了数据表的交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。**
 
-**最新改进** 系统新增了离线分析文件管理功能，通过TransceiveModule的'addOfflineFiles'动作实现了程序化的文件添加机制。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。项目面板现在支持离线分析文件的分类节点显示，提供了更好的文件组织和管理能力。
+**最新改进** 系统新增了离线分析文件管理功能，通过TransceiveModule的'addOfflineFiles'动作实现了程序化的文件添加机制。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。项目面板现在支持离线分析文件的分类节点显示，提供了更好的文件组织和管理能力。**新增的DbcSignalPickerDialog通过三级树结构和搜索功能，为用户提供了直观的DBC数据库信号选择界面，支持跨数据库搜索和防抖处理，大大提升了信号选择的效率和用户体验。**
 
 ```mermaid
 graph TB
@@ -346,13 +355,14 @@ TR["ToolRouter<br/>工具路由器"]
 end
 subgraph "专业组件层"
 FB["FilterBar<br/>过滤器栏<br/>刷新率控制增强"]
-GV["GraphicView<br/>图形视图<br/>QCustomPlot集成<br/>插件集成增强<br/>手形平移模式"]
+GV["GraphicView<br/>图形视图<br/>QCustomPlot集成<br/>插件集成增强<br/>手形平移模式<br/>DBC集成"]
 TV["TraceView<br/>跟踪视图"]
 SCD["SignalConfigDialog<br/>信号配置对话框"]
 VO["ViewportOverview<br/>视窗缩略图<br/>新增组件"]
 VPM["ViewportProxyModel<br/>视窗代理模型<br/>新增组件"]
 FHV["FilterHeaderView<br/>自定义表头视图<br/>新增组件"]
 DS["Downsample<br/>视口降采样<br/>新增模块"]
+DSP["DbcSignalPickerDialog<br/>DBC信号选择对话框<br/>新增组件"]
 end
 subgraph "数据模型层"
 CTM["CanTraceModel<br/>追踪数据模型<br/>批量处理增强"]
@@ -407,6 +417,7 @@ FB --> CTM
 GV --> QCP
 GV --> DS
 GV --> PM
+GV --> DSP
 PM --> PH
 PH --> SH
 SH --> PL
@@ -446,6 +457,7 @@ PA --> CA
 - [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
 - [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
 - [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
+- [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
 
 ## Flow架构与协议抽象系统
 
@@ -713,7 +725,7 @@ ProtocolRegistry --> IProtocolAdapter : "管理"
 ```
 
 **图表来源**
-- [src/core/protocol/protocolregistry.h:18-45](file://src/core/protocol/protocolregistry.h#L18-L45)
+- [src/core/protocol/protocolregistry.h:18-45](file://src/core/protocol/protocolregistry.h#L18-45)
 
 ### 解析器注册表（ParserRegistry）
 解析器注册表管理协议描述文件的解析器，支持多种文件格式：
@@ -754,8 +766,8 @@ ParserRegistry --> IBusParser : "管理"
 ```
 
 **图表来源**
-- [src/core/protocol/parserregistry.h:17-47](file://src/core/protocol/parserregistry.h#L17-L47)
-- [src/core/protocol/ibusparser.h:17-31](file://src/core/protocol/ibusparser.h#L17-L31)
+- [src/core/protocol/parserregistry.h:17-47](file://src/core/protocol/parserregistry.h#L17-47)
+- [src/core/protocol/ibusparser.h:17-31](file://src/core/protocol/ibusparser.h#L17-31)
 
 ### Flow模块（FlowModule）
 Flow模块是测量流程的核心实现，提供测量配置和设备连接功能：
@@ -859,8 +871,8 @@ Flow-->>MSV : 更新DBC列表
 - [src/core/protocol/iprotocoladapter.h:24-65](file://src/core/protocol/iprotocoladapter.h#L24-65)
 - [src/core/protocol/canprotocoladapter.h:17-44](file://src/core/protocol/canprotocoladapter.h#L17-L44)
 - [src/core/protocol/canprotocoladapter.cpp:10-107](file://src/core/protocol/canprotocoladapter.cpp#L10-L107)
-- [src/core/protocol/protocolregistry.h:18-45](file://src/core/protocol/protocolregistry.h#L18-L45)
-- [src/core/protocol/parserregistry.h:17-47](file://src/core/protocol/parserregistry.h#L17-L47)
+- [src/core/protocol/protocolregistry.h:18-45](file://src/core/protocol/protocolregistry.h#L18-45)
+- [src/core/protocol/parserregistry.h:17-47](file://src/core/protocol/parserregistry.h#L17-47)
 - [src/ui/flowmodule.h:24-48](file://src/ui/flowmodule.h#L24-L48)
 - [src/ui/flowmodule.cpp:27-394](file://src/ui/flowmodule.cpp#L27-L394)
 
@@ -1116,10 +1128,10 @@ PW --> LC
 - [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
 - [src/ui/marketmodule.h:18-28](file://src/ui/marketmodule.h#L18-L28)
 - [src/ui/transceivemodule.h:28-51](file://src/ui/transceivemodule.h#L28-L51)
-- [src/ui/dbcmodule.h:18-30](file://src/ui/dbcmodule.h#L18-L30)
+- [src/ui/dbcmodule.h:18-30](file://src/ui/dbcmodule.h#L18-30)
 - [src/ui/flowmodule.h:24-48](file://src/ui/flowmodule.h#L24-L48)
-- [src/ui/tracemodule.h:24-70](file://src/ui/tracemodule.h#L24-L70)
-- [src/ui/graphicmodule.h:27-49](file://src/ui/graphicmodule.h#L27-L49)
+- [src/ui/tracemodule.h:24-70](file://src/ui/tracemodule.h#L24-70)
+- [src/ui/graphicmodule.h:27-49](file://src/ui/graphicmodule.h#L27-49)
 
 ## 详细组件分析
 
@@ -2065,8 +2077,12 @@ TraceTab --> ViewportProxyModel : "管理"
 - **新增** 手形平移模式，支持按住左键拖拽平移波形
 - **新增** 轴特定拟合函数，提供fitXOnly()和fitYOnly()方法
 - **新增** 增强的工具栏功能，包含手形平移、X轴适配、Y轴适配按钮
+- **新增** DBC数据库集成，支持从DbcManager加载的数据库中选择信号
+- **新增** DbcSignalPickerDialog对话框，提供三级树结构的信号选择界面
+- **新增** 多选择支持，支持Ctrl/Shift多选和双击快速添加
+- **新增** 调试能力，增加显示数据点数和原始数据点数的诊断接口
 
-**更新** 图形视图组件得到了显著增强，使用了SVG箭头图标替换了基于文本的光标手柄，提供了更好的视觉一致性和用户体验。新增了chevron-left、chevron-right、chevron-up、chevron-down等SVG图标，用于时间窗口导航和Y轴调整功能。这些图标支持主题切换时的动态颜色变化，确保在不同主题下都能保持良好的视觉效果。**特别重要的是，新增了手形平移模式，用户可以通过手形拖动按钮启用左键拖拽平移功能，与框选缩放模式形成互斥操作，提供更好的波形浏览体验。**
+**更新** 图形视图组件得到了显著增强，使用了SVG箭头图标替换了基于文本的光标手柄，提供了更好的视觉一致性和用户体验。新增了chevron-left、chevron-right、chevron-up、chevron-down等SVG图标，用于时间窗口导航和Y轴调整功能。这些图标支持主题切换时的动态颜色变化，确保在不同主题下都能保持良好的视觉效果。**特别重要的是，新增了手形平移模式，用户可以通过手形拖动按钮启用左键拖拽平移功能，与框选缩放模式形成互斥操作，提供更好的波形浏览体验。同时新增了DBC数据库集成功能，通过DbcSignalPickerDialog提供了直观的DBC数据库信号选择界面，支持跨数据库搜索、防抖处理和多重选择，大大简化了信号添加流程。**
 
 技术实现
 - 基于QCustomPlot框架的专业图表引擎
@@ -2083,6 +2099,9 @@ TraceTab --> ViewportProxyModel : "管理"
 - **新增** 手形平移模式，通过m_panMode标志位控制平移行为
 - **新增** 轴特定拟合函数，实现fitXOnly()和fitYOnly()方法
 - **新增** 增强的工具栏，包含手形平移、X轴适配、Y轴适配按钮
+- **新增** DBC数据库集成，通过setDbcManager方法设置DbcManager引用
+- **新增** DbcSignalPickerDialog集成，提供信号选择对话框
+- **新增** 调试接口，通过displayedPointCount()和rawSampleCount()方法提供诊断信息
 - **最新改进** 增强的错误处理和异常恢复机制
 - **最新改进** 优化的内存管理和资源清理
 - **最新改进** 使用SVG箭头图标替代文本光标手柄，提升视觉一致性
@@ -2109,11 +2128,21 @@ class GraphicView {
 +loadFile(path)
 +fitAll()
 +exportPlot()
-+m_dsStrategy graphic : : Strategy
++setDbcManager(DbcManager* mgr)
++displayedPointCount(int index) int
++rawSampleCount(int index) int
 +refreshDisplayData()
 +registerPluginExtension(extension)
 +executePluginCommand(command)
 +handlePluginEvent(event)
++showDbcSignalPicker()
+private :
++m_dsStrategy graphic : : Strategy
++m_panMode bool
++m_dbcManager DbcManager*
++m_replotTimer QTimer
++m_valueTimer QTimer
++MAX_DISPLAY_POINTS int
 }
 class CursorPlot {
 +CursorPlot(parent)
@@ -2144,9 +2173,6 @@ class RenderEngine {
 +clearCache()
 +handleExceptions()
 +manageMemory()
-+replotTimer QTimer
-+valueTimer QTimer
-+MAX_DISPLAY_POINTS int
 }
 class TestDataSupport {
 +datasetType string
@@ -2189,6 +2215,13 @@ class PanMode {
 +handlePanDrag(event)
 +handlePanRelease()
 }
+class DbcIntegration {
++dbcManager DbcManager*
++signalPicker DbcSignalPickerDialog*
++showDbcSignalPicker()
++addSignalsFromPicker()
++handleDbcSelection()
+}
 GraphicView --> CursorPlot : "使用"
 GraphicView --> SignalChannel : "管理"
 GraphicView --> RenderEngine : "使用"
@@ -2197,12 +2230,14 @@ GraphicView --> CursorSystem : "集成"
 GraphicView --> DownsampleIntegration : "集成"
 GraphicView --> PluginIntegration : "集成"
 GraphicView --> PanMode : "集成"
+GraphicView --> DbcIntegration : "集成"
 ```
 
 **图表来源**
 - [src/ui/graphicview.h](file://src/ui/graphicview.h)
 - [src/ui/graphicview.cpp](file://src/ui/graphicview.cpp)
 - [third_party/qcustomplot/qcustomplot.h](file://third_party/qcustomplot/qcustomplot.h)
+- [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
 
 章节来源
 - [src/ui/graphicview.h](file://src/ui/graphicview.h)
@@ -2529,6 +2564,72 @@ SignalConfigDialog --> SignalDefinition : "管理"
 章节来源
 - [src/ui/signalconfigdialog.h](file://src/ui/signalconfigdialog.h)
 - [src/ui/signalconfigdialog.cpp](file://src/ui/signalconfigdialog.cpp)
+
+### DBC信号选择对话框（DbcSignalPickerDialog）- 新增
+功能特性
+- **新增** 三级树结构展示：数据库文件 → 报文 → 信号
+- **新增** 跨数据库搜索功能，支持信号名和报文名搜索
+- **新增** 防抖处理，250ms延迟避免频繁重建
+- **新增** 多重选择支持，支持Ctrl/Shift多选
+- **新增** 双击快速添加，双击报文或信号行直接确认
+- **新增** 实时计数显示，显示已选信号数量和按钮状态
+- **新增** 空态提示，无数据库或无匹配结果时显示友好提示
+- **新增** 主题化图标，使用SVG图标支持主题切换
+
+技术实现
+- 基于QTreeWidget的三级树结构
+- 使用QTimer实现防抖处理
+- 通过DbcManager获取已加载的数据库文件
+- 支持ExtendedSelection模式进行多重选择
+- 实现collectSelection()方法收集选中信号并去重
+- 集成ThemeManager实现主题化图标显示
+
+```mermaid
+classDiagram
+class DbcSignalPickerDialog {
++DbcSignalPickerDialog(DbcManager* mgr, QString title, QWidget* parent)
++pickedSignals() QList<PickedSignal>
++accept()
++scheduleRebuild()
++rebuildTree()
++updateCountLabel()
++onItemDoubleClicked(QTreeWidgetItem* item, int column)
++effectiveSignalCount() int
++collectSelection()
++pickSignalItem(QTreeWidgetItem* item, QSet<QString>& seen)
+private :
++DbcManager* m_mgr
++QTreeWidget* m_tree
++QLineEdit* m_searchEdit
++QLabel* m_countLabel
++QLabel* m_emptyLabel
++QPushButton* m_addBtn
++QTimer* m_debounce
++QList<PickedSignal> m_picked
+}
+class PickedSignal {
++QString fileName
++QString messageName
++quint32 canId
++bool extended
++DbcSignal signal
+}
+class DbcManager {
++files() QList<DbcFile>
++findFile(QString fileName) DbcFile*
++dbcLoaded() signal
++dbcUnloaded() signal
+}
+DbcSignalPickerDialog --> DbcManager : "使用"
+```
+
+**图表来源**
+- [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
+- [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)
+
+章节来源
+- [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
+- [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)
 
 ## 插件系统集成
 
@@ -3396,7 +3497,7 @@ DbcPanel --> CategoryNode : "使用"
 
 **更新** 现在明确包含了Qt Designer生成的UI类与手写C++代码之间的依赖关系，以及新增专业组件之间的依赖关系，包括活动栏、底部面板、右侧面板、分割编辑器区域、侧边栏面板系统、设备连接界面和三个专用Tab组件（DBC详情标签页、播放控制标签页、录制标签页）。各组件通过信号槽机制实现松耦合通信，提高了系统的可维护性和可扩展性。**特别重要的是，活动栏已重新组织以提高工作流程效率，'Flow'按钮被移动到更显眼的位置，工具提示已增强。新增了ThemeManager主题管理器和SVG图标系统，增强了样式管理和图标渲染能力。设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，包括活动栏工具集按钮、工具集面板、工具路由机制和主窗口的onToolOpened处理函数。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能。FilterHeaderView组件通过自定义排序指示器和漏斗图标，提供了Wireshark风格的表头界面，增强了数据表的交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**
 
-**最新改进** 系统新增了离线分析文件管理功能，通过TransceiveModule的'addOfflineFiles'动作实现了程序化的文件添加机制。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。项目面板现在支持离线分析文件的分类节点显示，提供了更好的文件组织和管理能力。
+**最新改进** 系统新增了离线分析文件管理功能，通过TransceiveModule的'addOfflineFiles'动作实现了程序化的文件添加机制。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。项目面板现在支持离线分析文件的分类节点显示，提供了更好的文件组织和管理能力。**新增的DbcSignalPickerDialog通过DbcManager集成，为GraphicView提供了强大的DBC数据库信号选择功能，支持跨数据库搜索、防抖处理和多重选择，大大简化了信号添加流程。**
 
 ```mermaid
 graph LR
@@ -3420,7 +3521,7 @@ MW --> PM["PluginManager<br/>插件管理器"]
 MW --> MR["ModuleRegistry<br/>模块注册表"]
 MW --> PR["ProtocolRegistry<br/>协议注册表"]
 SEA --> FB["FilterBar<br/>刷新率控制增强"]
-SEA --> GV["GraphicView<br/>QCustomPlot集成<br/>Downsample模块集成<br/>插件集成增强<br/>手形平移模式"]
+SEA --> GV["GraphicView<br/>QCustomPlot集成<br/>Downsample模块集成<br/>插件集成增强<br/>手形平移模式<br/>DBC集成"]
 SEA --> TV["TraceView"]
 SEA --> VO["ViewportOverview<br/>视窗缩略图"]
 MW --> SCD["SignalConfigDialog"]
@@ -3453,6 +3554,7 @@ GV --> TestData["测试数据集支持"]
 GV --> QCP["QCustomPlot<br/>图表引擎"]
 GV --> DS["Downsample<br/>视口降采样模块"]
 GV --> PM
+GV --> DSP["DbcSignalPickerDialog<br/>DBC信号选择对话框"]
 PM --> PH["PluginHost<br/>插件宿主"]
 PH --> SH["sin_host.py<br/>Python宿主"]
 SH --> PL["plugins/*<br/>Python插件"]
@@ -3508,6 +3610,7 @@ OAT --> TMOD
 - [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
 - [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
 - [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
+- [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
 
 ## 性能考虑
 - 样式加载
@@ -3547,6 +3650,9 @@ OAT --> TMOD
   - **新增** addOfflineFiles动作支持批量文件处理，提升性能
   - **新增** 手形平移模式通过m_panMode标志位优化鼠标事件处理性能
   - **新增** 轴特定拟合函数fitXOnly()和fitYOnly()提供高效的轴范围适配
+  - **新增** DbcSignalPickerDialog使用防抖处理优化搜索性能
+  - **新增** 三级树结构支持大数据集的高效展示
+  - **新增** 多重选择支持优化信号选择流程
 - **专用Tab组件性能优化**
   - DBC详情标签页实现大数据集的虚拟滚动
   - 播放控制标签页使用高效的定时器机制
@@ -3592,6 +3698,10 @@ OAT --> TMOD
   - **新增** addOfflineFiles动作支持批量文件处理，提升性能
   - **新增** 手形平移模式通过互斥操作优化鼠标事件处理性能
   - **新增** 轴特定拟合函数提供高效的轴范围适配算法
+  - **新增** DbcSignalPickerDialog的防抖处理优化搜索性能
+  - **新增** 三级树结构支持大数据集的高效展示
+  - **新增** 多重选择支持优化信号选择流程
+  - **新增** 调试接口提供性能监控和诊断能力
 - **批处理模型性能优化**
   - CanTraceModel使用环形缓冲区存储，支持最大帧数限制
   - 批量追加frames()方法优化大数据集处理
@@ -3650,6 +3760,13 @@ OAT --> TMOD
   - fitYOnly()方法复用fitAll的Y轴逻辑，避免重复计算
   - 使用pushZoomState()保存缩放历史，支持撤销操作
   - 优化数据遍历算法，提升大数据集处理性能
+- **DBC信号选择性能优化**
+  - 防抖处理避免频繁重建树结构
+  - 跨数据库搜索使用高效字符串匹配算法
+  - 多重选择支持优化信号收集过程
+  - 三级树结构支持大数据集的高效展示
+  - 主题化图标减少资源重复加载
+  - 调试接口提供性能监控和诊断能力
 
 ## 故障排查指南
 常见问题与定位方法
@@ -3693,6 +3810,11 @@ OAT --> TMOD
   - **新增** addOfflineFiles动作无响应需要检查页面是否存在
   - **新增** 手形平移模式无响应需要检查m_panMode标志位设置
   - **新增** 轴特定拟合函数无效需要检查fitXOnly()和fitYOnly()调用
+  - **新增** DbcSignalPickerDialog信号选择失败需要检查DbcManager连接
+  - **新增** 三级树结构不显示需要检查数据库文件加载状态
+  - **新增** 搜索功能无响应需要检查防抖定时器配置
+  - **新增** 多重选择功能异常需要检查ExtendedSelection设置
+  - **新增** 调试接口返回错误需要检查信号数据有效性
 - **专用Tab组件问题**
   - DBC文件加载失败需要检查文件格式与权限
   - 播放控制标签页时间轴不同步需要检查定时器精度
@@ -3747,6 +3869,10 @@ OAT --> TMOD
   - **新增** addOfflineFiles动作支持批量文件处理，提升性能
   - **新增** 手形平移模式通过互斥操作避免与框选缩放冲突
   - **新增** 轴特定拟合函数提供高效的轴范围适配算法
+  - **新增** DbcSignalPickerDialog的防抖处理优化搜索性能
+  - **新增** 三级树结构支持大数据集的高效展示
+  - **新增** 多重选择支持优化信号选择流程
+  - **新增** 调试接口提供性能监控和诊断能力
 - **DbcPanel多协议分类问题**
   - 协议分类节点不显示需要检查文件扩展名识别
   - DatabaseEntry结构数据丢失需要检查序列化机制
@@ -3842,6 +3968,14 @@ OAT --> TMOD
   - 缩放历史保存失败需要检查pushZoomState()调用
   - 数据遍历性能问题需要检查信号数据量
   - 轴范围设置错误需要检查QCPRange参数传递
+- **DBC信号选择问题**
+  - DbcSignalPickerDialog不显示需要检查DbcManager连接
+  - 三级树结构为空需要检查数据库文件加载状态
+  - 搜索功能无响应需要检查防抖定时器配置
+  - 多重选择功能异常需要检查ExtendedSelection设置
+  - 双击添加失败需要检查信号数据有效性
+  - 主题化图标不显示需要检查SVG资源路径
+  - 调试接口返回错误需要检查信号数据完整性
 
 章节来源
 - [resources/styles/default.qss](file://resources/styles/default.qss)
@@ -3874,6 +4008,8 @@ OAT --> TMOD
 - [src/ui/offlineanalysistab.cpp](file://src/ui/offlineanalysistab.cpp)
 - [src/ui/mainwindow_project.cpp](file://src/ui/mainwindow_project.cpp)
 - [src/core/projectmanager.h](file://src/core/projectmanager.h)
+- [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
+- [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)
 
 ## 结论
 本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面，**特别是侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件。**
@@ -3888,7 +4024,7 @@ OAT --> TMOD
 
 **Flow架构增强** 系统现已引入全新的Flow架构和协议抽象系统，通过IBusinessModule接口和ModuleRegistry注册表实现了模块化的业务逻辑管理。新增的协议适配器模式支持多种总线协议（CAN、EtherCAT等）的统一接口访问，为未来的协议扩展奠定了坚实基础。Flow模块作为测量流程的核心，整合了测量配置和设备连接功能，提供了统一的工作流程管理界面。协议适配器系统通过IProtocolAdapter接口定义了统一的协议访问接口，CanProtocolAdapter提供了CAN协议的具体实现，ProtocolRegistry和ParserRegistry分别管理协议适配器和解析器的注册与查找。
 
-**最新改进** 系统新增了transceiver模块的'addOfflineFiles'动作支持，实现了离线分析文件的程序化添加功能。该功能通过TransceiveModule的invoke方法处理，当接收到"addOfflineFiles"动作时，会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。项目面板现在支持离线分析文件的分类节点显示，确保工程加载时能够正确恢复用户的分析工作上下文。设备连接界面实现了智能连接门控机制，根据驱动可用性自动启用/禁用连接按钮，大大提升了用户体验。图形视图组件使用了SVG箭头图标替换了基于文本的光标手柄，提供了更好的视觉一致性和用户体验。侧边栏面板系统的所有按钮都使用了主题化的SVG图标，支持动态颜色切换，确保在不同主题下都有良好的视觉效果。**特别重要的是，图形视图组件新增了手形平移模式，用户可以通过手形拖动按钮启用左键拖拽平移功能，与框选缩放模式形成互斥操作，提供更好的波形浏览体验。同时新增了轴特定拟合函数fitXOnly()和fitYOnly()，提供X轴和Y轴的独立适配功能，以及增强的工具栏功能，包含手形平移、X轴适配、Y轴适配三个新按钮，大大提升了用户的操作便利性。**
+**最新改进** 系统新增了transceiver模块的'addOfflineFiles'动作支持，实现了离线分析文件的程序化添加功能。该功能通过TransceiveModule的invoke方法处理，当接收到"addOfflineFiles"动作时，会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。项目面板现在支持离线分析文件的分类节点显示，确保工程加载时能够正确恢复用户的分析工作上下文。设备连接界面实现了智能连接门控机制，根据驱动可用性自动启用/禁用连接按钮，大大提升了用户体验。图形视图组件使用了SVG箭头图标替换了基于文本的光标手柄，提供了更好的视觉一致性和用户体验。侧边栏面板系统的所有按钮都使用了主题化的SVG图标，支持动态颜色切换，确保在不同主题下都有良好的视觉效果。**特别重要的是，图形视图组件新增了手形平移模式，用户可以通过手形拖动按钮启用左键拖拽平移功能，与框选缩放模式形成互斥操作，提供更好的波形浏览体验。同时新增了轴特定拟合函数fitXOnly()和fitYOnly()，提供X轴和Y轴的独立适配功能，以及增强的工具栏功能，包含手形平移、X轴适配、Y轴适配三个新按钮，大大提升了用户的操作便利性。此外，GraphicView组件还集成了DBC数据库功能，通过DbcSignalPickerDialog提供了直观的DBC数据库信号选择界面，支持跨数据库搜索、防抖处理和多重选择，大大简化了信号添加流程。**
 
 遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
@@ -3932,6 +4068,9 @@ OAT --> TMOD
   - **新增** addOfflineFiles动作应支持程序化文件管理和错误处理
   - **新增** 手形平移模式应实现m_panMode标志位控制和鼠标事件处理
   - **新增** 轴特定拟合函数应提供fitXOnly()和fitYOnly()方法实现
+  - **新增** DbcSignalPickerDialog应实现三级树结构和防抖处理
+  - **新增** 多重选择支持应优化信号选择流程
+  - **新增** 调试接口应提供性能监控和诊断能力
 - **专用Tab组件规范**
   - DBC详情标签页应支持大数据集的虚拟滚动
   - 播放控制标签页需实现精确的时间轴控制
@@ -3974,6 +4113,9 @@ OAT --> TMOD
   - **新增** addOfflineFiles动作应支持批量文件处理和错误恢复
   - **新增** 手形平移模式应实现互斥操作和光标反馈
   - **新增** 轴特定拟合函数应提供高效的轴范围适配算法
+  - **新增** DbcSignalPickerDialog应实现防抖处理和多重选择支持
+  - **新增** 三级树结构应支持大数据集的高效展示
+  - **新增** 调试接口应提供性能监控和诊断能力
 - **最新规范要求**
   - 图形组件必须包含完善的错误处理和异常恢复机制
   - 所有组件需支持测试数据集的兼容性验证
@@ -4001,6 +4143,9 @@ OAT --> TMOD
   - **新增** 侧边栏面板需使用主题化的SVG图标
   - **新增** 手形平移模式需实现m_panMode标志位和鼠标事件处理
   - **新增** 轴特定拟合函数需提供fitXOnly()和fitYOnly()方法
+  - **新增** DbcSignalPickerDialog需实现防抖处理和多重选择支持
+  - **新增** 三级树结构需支持大数据集的高效展示
+  - **新增** 调试接口需提供性能监控和诊断能力
 - **插件开发规范**
   - 插件应遵循标准的目录结构和命名约定
   - 插件main.py必须实现activate()和deactivate()方法
@@ -4035,6 +4180,9 @@ OAT --> TMOD
   - **新增** OfflineAnalysisTab必须实现异步文件解析和状态更新
   - **新增** 手形平移模式必须实现m_panMode标志位控制
   - **新增** 轴特定拟合函数必须提供fitXOnly()和fitYOnly()方法
+  - **新增** DBC信号选择必须实现防抖处理和多重选择支持
+  - **新增** 三级树结构必须支持大数据集的高效展示
+  - **新增** 调试接口必须提供性能监控和诊断能力
 - **手形平移模式规范**
   - 必须实现m_panMode布尔标志位控制平移模式
   - 必须支持OpenHandCursor和ClosedHandCursor光标切换
@@ -4050,6 +4198,23 @@ OAT --> TMOD
   - 必须支持撤销操作和状态恢复
   - 必须优化数据遍历算法提升性能
   - 必须提供适当的工具栏按钮和工具提示
+- **DBC信号选择对话框规范**
+  - 必须实现三级树结构展示数据库文件、报文和信号
+  - 必须实现防抖处理避免频繁重建树结构
+  - 必须支持多重选择模式（Ctrl/Shift多选）
+  - 必须实现双击快速添加功能
+  - 必须提供实时计数显示和按钮状态管理
+  - 必须支持跨数据库搜索和过滤
+  - 必须集成ThemeManager实现主题化图标显示
+  - 必须提供空态提示和错误处理
+  - 必须实现信号去重和有效性验证
+- **调试接口规范**
+  - 必须提供displayedPointCount()方法获取显示数据点数
+  - 必须提供rawSampleCount()方法获取原始数据点数
+  - 必须支持越界检查和错误返回
+  - 必须用于offscreen回归用例断言
+  - 必须提供只读诊断接口
+  - 必须支持性能监控和问题定位
 
 ### 样式定制指南
 - 主题设计
@@ -4111,6 +4276,9 @@ OAT --> TMOD
   - **新增** addOfflineFiles动作应支持批量文件处理和错误恢复
   - **新增** 手形平移模式应实现互斥操作和光标反馈
   - **新增** 轴特定拟合函数应提供高效的轴范围适配算法
+  - **新增** DbcSignalPickerDialog应实现防抖处理和多重选择支持
+  - **新增** 三级树结构应支持大数据集的高效展示
+  - **新增** 调试接口应提供性能监控和诊断能力
 - **专用Tab组件最佳实践**
   - DBC详情标签页应实现高效的文件解析与缓存
   - 播放控制标签页需支持精确的时间同步
@@ -4154,6 +4322,9 @@ OAT --> TMOD
   - **新增** addOfflineFiles动作应支持批量文件处理和错误恢复
   - **新增** 手形平移模式应实现互斥操作和光标反馈
   - **新增** 轴特定拟合函数应提供高效的轴范围适配算法
+  - **新增** DbcSignalPickerDialog应实现防抖处理和多重选择支持
+  - **新增** 三级树结构应支持大数据集的高效展示
+  - **新增** 调试接口应提供性能监控和诊断能力
 - **最新最佳实践**
   - 图形组件必须实现健壮的异常处理和崩溃恢复
   - 所有数据处理组件需包含数据验证和完整性检查
@@ -4182,6 +4353,9 @@ OAT --> TMOD
   - **新增** 侧边栏面板需使用主题化的SVG图标
   - **新增** 手形平移模式需实现m_panMode标志位和鼠标事件处理
   - **新增** 轴特定拟合函数需提供fitXOnly()和fitYOnly()方法
+  - **新增** DbcSignalPickerDialog需实现防抖处理和多重选择支持
+  - **新增** 三级树结构需支持大数据集的高效展示
+  - **新增** 调试接口需提供性能监控和诊断能力
 - **插件开发最佳实践**
   - 插件应遵循模块化设计原则，保持代码结构清晰
   - 插件应实现适当的错误处理和异常恢复机制
@@ -4215,6 +4389,9 @@ OAT --> TMOD
   - **新增** OfflineAnalysisTab应使用异步解析避免阻塞UI线程
   - **新增** 手形平移模式应实现m_panMode标志位控制
   - **新增** 轴特定拟合函数应提供fitXOnly()和fitYOnly()方法
+  - **新增** DBC信号选择应实现防抖处理和多重选择支持
+  - **新增** 三级树结构应支持大数据集的高效展示
+  - **新增** 调试接口应提供性能监控和诊断能力
 - **手形平移模式最佳实践**
   - 使用m_panMode标志位控制平移模式开关
   - 实现OpenHandCursor和ClosedHandCursor的光标切换
@@ -4231,6 +4408,17 @@ OAT --> TMOD
   - 提供适当的工具栏按钮和工具提示
   - 实现平滑的轴范围过渡动画
   - 支持边界检查和范围验证
+- **DBC信号选择对话框最佳实践**
+  - 使用防抖处理避免频繁重建树结构
+  - 实现跨数据库搜索和过滤功能
+  - 支持多重选择模式优化信号选择流程
+  - 提供双击快速添加提升用户体验
+  - 实现实时计数显示和按钮状态管理
+  - 集成ThemeManager实现主题化图标显示
+  - 提供空态提示和错误处理机制
+  - 实现信号去重和有效性验证
+  - 支持大数据集的高效展示和性能优化
+  - 提供调试接口用于性能监控和问题定位
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -4335,6 +4523,18 @@ OAT --> TMOD
 98. **轴范围适配测试**：验证fitXOnly()和fitYOnly()方法的轴范围适配效果
 99. **缩放历史测试**：验证pushZoomState()的缩放历史保存和恢复功能
 100. **综合功能测试**：验证手形平移和轴特定拟合功能的协同工作
+101. **DBC信号选择测试**：验证DbcSignalPickerDialog的三级树结构和搜索功能
+102. **防抖处理测试**：验证250ms防抖定时器的正确工作
+103. **多重选择测试**：验证Ctrl/Shift多选功能的正确性
+104. **双击添加测试**：验证双击报文和信号行的快速添加功能
+105. **实时计数测试**：验证已选信号数量和按钮状态的实时更新
+106. **跨数据库搜索测试**：验证跨数据库搜索功能的正确性
+107. **主题化图标测试**：验证DBC信号选择对话框中主题化图标的颜色切换
+108. **空态提示测试**：验证无数据库和无匹配结果时的空态提示显示
+109. **信号去重测试**：验证信号去重机制的正确性
+110. **性能优化测试**：验证大数据集下的性能表现
+111. **调试接口测试**：验证displayedPointCount()和rawSampleCount()方法的正确性
+112. **回归测试**：确保DBC信号选择功能不影响现有功能的正常运行
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
@@ -4366,3 +4566,5 @@ OAT --> TMOD
 - [src/ui/offlineanalysistab.cpp](file://src/ui/offlineanalysistab.cpp)
 - [src/ui/mainwindow_project.cpp](file://src/ui/mainwindow_project.cpp)
 - [src/core/projectmanager.h](file://src/core/projectmanager.h)
+- [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
+- [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)

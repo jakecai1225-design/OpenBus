@@ -498,6 +498,9 @@ void PluginManager::handleHostMessage(const QString &method,
     else if (method == "sendFrame") {
         CanFrame frame = jsonToFrame(params);
         frame.direction = CanFrame::Tx;
+        // dlc 补齐：SDK frames.send 不传 dlc（jsonToFrame 默认 0），
+        // 按数据长度推导（PEAK FD 等驱动按 dlc 计算发送长度，缺失会发空帧）
+        frame.dlc = CanFrame::lengthToDlc(frame.data.size());
         emit sendFrameRequested(frame);
     }
     else if (method == "registerCommand") {

@@ -164,7 +164,7 @@ QString CanDeviceManager::currentDeviceName() const
 
 // ---- 发送 ----
 
-bool CanDeviceManager::sendFrame(const CanFrame &frame)
+bool CanDeviceManager::sendFrame(const CanFrame &frame, CanFrame *echo)
 {
     if (m_kind == DeviceKind::Simulator)
         return false;  // 模拟器不支持发送
@@ -172,7 +172,21 @@ bool CanDeviceManager::sendFrame(const CanFrame &frame)
     if (!m_running || !m_device)
         return false;
 
-    return m_device->send(frame) > 0;
+    if (m_device->send(frame) <= 0)
+        return false;
+
+    // 发送成功 — 构造 Tx 回环帧（时间基准与 recvLoop 的接收帧归一化一致）
+    if (echo) {
+        *echo = frame;
+        echo->direction = CanFrame::Tx;
+        if (echo->timestampNs == 0) {
+            const auto nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - m_startClock).count();
+            echo->timestampNs = static_cast<quint64>(nowNs);
+        }
+        echo->timestamp = static_cast<double>(echo->timestampNs) / 1e9;
+    }
+    return true;
 }
 
 // ---- 硬件接收滤波器 ----
