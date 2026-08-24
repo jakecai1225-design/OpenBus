@@ -1,9 +1,0 @@
-schema_version: 1
-module_path: core_application/tests
-title: L1/L2 核心与 UI 集成测试套件
-scope:
-    - tests/
-source_files: []
-depends_on: []
-related_to:
-    - path: documentation

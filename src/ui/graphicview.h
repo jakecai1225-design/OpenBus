@@ -197,12 +197,15 @@ private:
     QToolButton *m_fitBtn = nullptr;
     QToolButton *m_undoZoomBtn = nullptr;    ///< 撤销缩放 (Ctrl+Z)
     QToolButton *m_rubberZoomBtn = nullptr;  ///< 框选缩放模式开关
+    QToolButton *m_panBtn = nullptr;         ///< 手形拖动 (Pan mode)
 
     // --- 工具栏下拉 ---
     QComboBox *m_displayModeCombo = nullptr; ///< 线型：折线/阶梯/仅点
     QComboBox *m_focusCombo = nullptr;       ///< 聚焦：全部彩色/选中彩色/仅显示选中
     QComboBox *m_yAxisModeCombo = nullptr;   ///< Y 轴：分栏/叠加·选中轴/叠加·全部轴
     QComboBox *m_zoomAxisCombo = nullptr;    ///< 缩放轴：X/Y/XY
+
+    bool m_panMode = false;                 ///< 手形拖动模式（左键平移，与框选互斥）
 
     // --- 信号数据 ---
     QVector<SignalData> m_signals;
@@ -431,6 +434,12 @@ private:
 
     /// 适应窗口：重缩放所有轴
     void fitAll();
+
+    /// X 轴自适应：时间范围适配全部数据（G13）
+    void fitXOnly();
+
+    /// Y 轴自适应：全部信号 Y 轴适配数据范围（G13）
+    void fitYOnly();
 
     /// 导出图表为图片
     void exportPlot();

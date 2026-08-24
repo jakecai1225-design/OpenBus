@@ -426,10 +426,26 @@ void GraphicView::setupUi()
     m_cursorLinkToggle->setChecked(m_cursorLink);
 
     // 分组排列（§10.5：所有下拉带前缀标签 + tooltip，分隔符分组，全部图标钮）：
-    // [暂停] | [适应 缩放± 撤销 ◀▶▲▼] | [框选] | [缩放:] | [窗口:] [模式:] [显示:] [采样点] | [Y轴:] | [卡尺 联动] | [清空 导图]
+    // [暂停] | [适应 X/Y 自适应 缩放± 撤销 ◀▶▲▼] | [框选] | [缩放:] | [窗口:] [模式:] [显示:] [采样点] | [Y 轴:] | [卡尺 联动] | [清空 导图]
     m_toolbar->addWidget(m_pauseBtn);
     m_toolbar->addSeparator();
     m_toolbar->addWidget(m_fitBtn);
+    // G13：手形拖动（左键平移，与框选缩放互斥）+ X/Y 轴自适应
+    m_panBtn = makeBtn("hand", "手形拖动：按住左键平移波形（再次点击关闭）");
+    m_panBtn->setCheckable(true);
+    connect(m_panBtn, &QToolButton::toggled, this, [this](bool checked) {
+        m_panMode = checked;
+        if (checked && m_rubberZoomBtn->isChecked())
+            m_rubberZoomBtn->setChecked(false);   // 互斥：手形开 → 框选关
+        m_plot->setCursor(checked ? Qt::OpenHandCursor : Qt::ArrowCursor);
+    });
+    auto *fitXBtn = makeBtn("axis-fit-x", "X 轴自适应：时间范围适配全部数据");
+    connect(fitXBtn, &QToolButton::clicked, this, [this]() { fitXOnly(); });
+    auto *fitYBtn = makeBtn("axis-fit-y", "Y 轴自适应：全部信号 Y 轴适配数据范围");
+    connect(fitYBtn, &QToolButton::clicked, this, [this]() { fitYOnly(); });
+    m_toolbar->addWidget(m_panBtn);
+    m_toolbar->addWidget(fitXBtn);
+    m_toolbar->addWidget(fitYBtn);
     m_toolbar->addWidget(m_zoomInBtn);
     m_toolbar->addWidget(m_zoomOutBtn);
     m_toolbar->addWidget(m_undoZoomBtn);
@@ -624,6 +640,8 @@ void GraphicView::setupUi()
     connect(m_yDownBtn, &QToolButton::clicked, this, [this]() { shiftYAxis(-0.1); });
     connect(m_rubberZoomBtn, &QToolButton::toggled, this, [this](bool on) {
         m_rubberZoom = on;
+        if (on && m_panBtn->isChecked())
+            m_panBtn->setChecked(false);   // 互斥：框选开 → 手形关
         // 框选开时左键不再交给 QCP 拖拽（由自绘橡皮筋接管）；关时恢复左键平移
         m_plot->setInteractions(on ? (QCP::iRangeZoom)
                                    : (QCP::iRangeDrag | QCP::iRangeZoom));
@@ -1050,9 +1068,13 @@ void GraphicView::setupUi()
     cursorPlot->onMousePress = [this](QMouseEvent *event) {
         const QPoint pos = event->pos();
 
-        // 中键：平移启动（X 全局 + Y 按下时所在轨道）
-        if (event->button() == Qt::MiddleButton) {
+        // 中键 / 手形模式左键：平移启动（X 全局 + Y 按下时所在轨道；G13 手形优先级最高）
+        const bool panButton = event->button() == Qt::MiddleButton ||
+                               (m_panMode && event->button() == Qt::LeftButton);
+        if (panButton) {
             m_panning = true;
+            if (m_panMode && event->button() == Qt::LeftButton)
+                m_plot->setCursor(Qt::ClosedHandCursor);
             m_panStartPos = pos;
             pushZoomState();
             if (QCPAxis *x = primaryXAxis()) {
@@ -1239,8 +1261,11 @@ void GraphicView::setupUi()
     };
 
     cursorPlot->onMouseRelease = [this](QMouseEvent *event) {
-        if (m_panning && event->button() == Qt::MiddleButton) {
+        if (m_panning && (event->button() == Qt::MiddleButton ||
+                          (m_panMode && event->button() == Qt::LeftButton))) {
             m_panning = false;
+            if (m_panMode)
+                m_plot->setCursor(Qt::OpenHandCursor);   // 释放回到手形
             event->accept();
             return;
         }
@@ -3044,6 +3069,56 @@ void GraphicView::fitAll()
         if (QCPAxis *ya = valueAxisFor(sd); ya && sd.hasMinMax) {
             double margin = (sd.dataMax - sd.dataMin) * 0.05;
             if (margin <= 0) margin = 1.0;
+            ya->setRange(sd.dataMin - margin, sd.dataMax + margin);
+        }
+    }
+    updateCursorDecorations();
+    refreshDisplayData();
+    m_plot->replot();
+}
+
+void GraphicView::fitXOnly()
+{
+    // 收集全部信号时间范围（rawData 按时序追加，首尾即 min/max）
+    bool hasData = false;
+    double tMin = 0.0, tMax = 0.0;
+    for (const auto &sd : m_signals) {
+        const int n = sd.rawData.size();
+        if (n == 0)
+            continue;
+        const double t0 = sd.rawData.at(0).t;
+        const double t1 = sd.rawData.at(n - 1).t;
+        if (!hasData) {
+            tMin = t0;
+            tMax = t1;
+            hasData = true;
+        } else {
+            tMin = std::min(tMin, t0);
+            tMax = std::max(tMax, t1);
+        }
+    }
+    if (!hasData)
+        return;
+    double margin = (tMax - tMin) * 0.02;
+    if (margin <= 0)
+        margin = 0.5;
+    pushZoomState();
+    setXRangeAll(QCPRange(tMin - margin, tMax + margin), false);
+    updateCursorDecorations();
+    refreshDisplayData();
+    m_plot->replot();
+}
+
+void GraphicView::fitYOnly()
+{
+    pushZoomState();
+    // 与 fitAll 的 Y 逻辑一致：基于原始数据 min/max + 5% 边距
+    for (auto &sd : m_signals) {
+        ensureMinMax(sd);
+        if (QCPAxis *ya = valueAxisFor(sd); ya && sd.hasMinMax) {
+            double margin = (sd.dataMax - sd.dataMin) * 0.05;
+            if (margin <= 0)
+                margin = 1.0;
             ya->setRange(sd.dataMin - margin, sd.dataMax + margin);
         }
     }

@@ -25,6 +25,9 @@
         <file>icons/fit.svg</file>
         <file>icons/undo.svg</file>
         <file>icons/rubber-zoom.svg</file>
+        <file>icons/hand.svg</file>
+        <file>icons/axis-fit-x.svg</file>
+        <file>icons/axis-fit-y.svg</file>
         <file>icons/clear-all.svg</file>
         <file>icons/save-image.svg</file>
         <file>icons/cursor-single.svg</file>
