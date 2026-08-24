@@ -179,13 +179,20 @@ void TraceView::saveColumnLayout()
 
     QSettings settings;
     settings.beginGroup(QStringLiteral("TraceLayout"));
-    settings.setValue(QStringLiteral("layout_version"), 3);
+    // G17: 版本升级到 4（支持列对齐配置）
+    settings.setValue(QStringLiteral("layout_version"), 4);
     int colCount = model()->columnCount();
     for (int c = 0; c < colCount; ++c) {
         QString prefix = QStringLiteral("col_%1").arg(c);
         settings.setValue(prefix + "_width", hdr->sectionSize(c));
         settings.setValue(prefix + "_hidden", hdr->isSectionHidden(c));
         settings.setValue(prefix + "_visualIndex", hdr->visualIndex(c));
+        // G17: 保存列对齐配置
+        auto *srcModel = qobject_cast<CanTraceModel *>(model());
+        if (srcModel) {
+            Qt::Alignment align = srcModel->columnAlignment(c);
+            settings.setValue(prefix + "_alignment", static_cast<int>(align));
+        }
     }
     settings.endGroup();
 }
@@ -199,13 +206,24 @@ void TraceView::restoreColumnLayout()
     QSettings settings;
     settings.beginGroup(QStringLiteral("TraceLayout"));
 
-    // 列布局版本（v3: 默认隐藏 Delta/Flags/Count/Signal，Data 列改为可拖拽 Interactive；
-    // 旧版布局直接丢弃，采用新默认列集）
+    // 列布局版本（v4: 新增列对齐配置；旧版 < 3 丢弃）
     if (settings.value(QStringLiteral("layout_version"), 1).toInt() < 3) {
         settings.endGroup();
         return;
     }
     int colCount = model()->columnCount();
+
+    // G17: 先恢复对齐配置（在可见性/顺序之前，因为需要模型有效）
+    for (int c = 0; c < colCount; ++c) {
+        QString prefix = QStringLiteral("col_%1").arg(c);
+        if (settings.contains(prefix + "_alignment")) {
+            int alignInt = settings.value(prefix + "_alignment").toInt();
+            Qt::Alignment align = static_cast<Qt::Alignment>(alignInt);
+            auto *srcModel = qobject_cast<CanTraceModel *>(model());
+            if (srcModel)
+                srcModel->setColumnAlignment(c, align);
+        }
+    }
 
     // 先恢复可见性（隐藏的列跳过宽度和位置设置）
     for (int c = 0; c < colCount; ++c) {
@@ -931,6 +949,58 @@ void TraceView::showHeaderMenu(int column, const QPoint &pos)
     QAction clearAllAct("清除所有筛选", this);
     menu.addAction(&clearAllAct);
     connect(&clearAllAct, &QAction::triggered, this, &TraceView::onClearAllFilters);
+
+    // ---- 列对齐方式 ----
+    menu.addSeparator();
+    auto *alignMenu = menu.addMenu(QStringLiteral("对齐方式"));
+    QAction alignLeft("左对齐 ←", this);
+    QAction alignCenter("居中对齐 ↔", this);
+    QAction alignRight("右对齐 →", this);
+    alignMenu->addAction(&alignLeft);
+    alignMenu->addAction(&alignCenter);
+    alignMenu->addAction(&alignRight);
+    
+    // 获取当前对齐
+    auto *sourceModel = qobject_cast<CanTraceModel *>(model());
+    if (sourceModel) {
+        Qt::Alignment currentAlign = sourceModel->columnAlignment(column) & (Qt::AlignHorizontal_Mask | Qt::AlignVCenter);
+        bool isDefault = currentAlign == sourceModel->effectiveAlignment(column);
+        
+        // 根据当前值标记选中
+        if (currentAlign & Qt::AlignLeft)
+            alignLeft.setChecked(true);
+        else if (currentAlign & Qt::AlignHCenter)
+            alignCenter.setChecked(true);
+        else if (currentAlign & Qt::AlignRight)
+            alignRight.setChecked(true);
+    }
+    
+    alignLeft.setCheckable(true);
+    alignCenter.setCheckable(true);
+    alignRight.setCheckable(true);
+    
+    // 连接对齐 Action
+    connect(&alignLeft, &QAction::triggered, this, [this, column]() {
+        auto *src = qobject_cast<CanTraceModel *>(model());
+        if (src) {
+            src->setColumnAlignment(column, Qt::AlignLeft | Qt::AlignVCenter);
+            saveColumnLayout();
+        }
+    });
+    connect(&alignCenter, &QAction::triggered, this, [this, column]() {
+        auto *src = qobject_cast<CanTraceModel *>(model());
+        if (src) {
+            src->setColumnAlignment(column, Qt::AlignHCenter | Qt::AlignVCenter);
+            saveColumnLayout();
+        }
+    });
+    connect(&alignRight, &QAction::triggered, this, [this, column]() {
+        auto *src = qobject_cast<CanTraceModel *>(model());
+        if (src) {
+            src->setColumnAlignment(column, Qt::AlignRight | Qt::AlignVCenter);
+            saveColumnLayout();
+        }
+    });
 
     // ---- 列显示/隐藏 ----
     menu.addSeparator();

@@ -516,9 +516,14 @@ void GraphicView::setupUi()
     m_signalTree->setStyleSheet(treeQss());
     m_signalTree->header()->setSectionResizeMode(0, QHeaderView::Fixed);
     m_signalTree->header()->resizeSection(0, 22);
-    m_signalTree->header()->setSectionResizeMode(1, QHeaderView::Stretch);
-    for (int c = 2; c < 9; ++c)
-        m_signalTree->header()->setSectionResizeMode(c, QHeaderView::ResizeToContents);
+    m_signalTree->header()->setSectionResizeMode(1, QHeaderView::Interactive);
+    m_signalTree->header()->resizeSection(1, 120);
+    // 其余列（2-8）：Interactive，支持拖动，合理初始宽度
+    for (int c = 2; c < 9; ++c) {
+        m_signalTree->header()->setSectionResizeMode(c, QHeaderView::Interactive);
+        static const int defaultWidth[] = {0, 0, 80, 60, 50, 60, 60, 60, 50};
+        m_signalTree->header()->resizeSection(c, defaultWidth[c]);
+    }
     leftLayout->addWidget(m_signalTree, 1);
 
     auto *btnBar = new QHBoxLayout;
@@ -582,6 +587,13 @@ void GraphicView::setupUi()
     mainLayout->addWidget(m_splitter, 1);
     mainLayout->addWidget(m_cursorInfoLabel);
     mainLayout->addWidget(m_statusLabel);
+
+    // ---- G15 P3/P4: 信号列表列配置（右键菜单）----
+    connect(m_signalTree->header(), &QHeaderView::customContextMenuRequested,
+            this, [this](const QPoint &pos) { showColumnVisibilityMenu(pos); });
+
+    // G15 P4: 恢复上次保存的列配置
+    restoreColumnConfig();
 
     // ---- 快捷键（对标 CANoe 常用操作，当前视图不可见时忽略） ----
     auto addShortcut = [this](const QKeySequence &key, auto &&fn) {
@@ -1512,7 +1524,9 @@ void GraphicView::styleAxisRect(QCPAxisRect *ar)
     top->setTickPen(axisPen);
     top->setSubTickPen(axisPen);
 
-    // 轨道 0 间隔紧密堆叠（CANoe 分栏），轴刻度空间由布局自动预留
+    // 轨道紧密堆叠：禁用自动边距 + 最小边距为 0（CANoe 分栏）
+    ar->setAutoMargins(QCP::msNone);  // msNone = NoMargin
+    ar->setMinimumMargins(QMargins(0, 0, 0, 0));
     ar->setMargins(QMargins(0, 0, 0, 0));
 }
 
@@ -1631,6 +1645,8 @@ void GraphicView::applyPalette()
 void GraphicView::layoutAxisRects()
 {
     auto *layout = m_plot->plotLayout();
+    // G15-P1: 减少轨道间间隙（默认 rowSpacing=5px → 改为 2px）
+    layout->setRowSpacing(2);
 
     QList<QCPLayoutElement*> taken;
     for (int i = layout->elementCount() - 1; i >= 0; --i) {
@@ -1810,10 +1826,11 @@ void GraphicView::addSignal(const Signal &sig,
     if (sd.config.displayMode < 0 || sd.config.displayMode > 2)
         sd.config.displayMode = static_cast<int>(m_displayMode);
 
-    // 创建独立分栏轨道
+    // G15-P1: 轨道紧凑布局 + 边距控制
     sd.axisRect = new QCPAxisRect(m_plot);
     styleAxisRect(sd.axisRect);
     sd.yAxis = sd.axisRect->axis(QCPAxis::atLeft);
+    styleYAxis(sd.yAxis);
 
     // X 轴对齐当前主视口（首信号用默认时间窗）
     QCPAxis *xAxis = sd.axisRect->axis(QCPAxis::atBottom);
@@ -3265,4 +3282,98 @@ void GraphicView::updateStatusBar()
         parts << "[已暂停]";
 
     m_statusLabel->setText(parts.join("  |  "));
+}
+
+// ============================================================
+// G15-P4: 信号列表列标题常量（索引与 updateSignalList()一致）
+// ============================================================
+static const QVector<QString> &getColumnHeaders()
+{
+    static const QVector<QString> headers = {
+        QString(),                 // 0: 色块
+        QStringLiteral("信号"),     // 1: 信号名（核心列）
+        QStringLiteral("物理值"),   // 2
+        QStringLiteral("原始值"),   // 3
+        QStringLiteral("单位"),     // 4
+        QStringLiteral("Min"),      // 5
+        QStringLiteral("Max"),      // 6
+        QStringLiteral("ID"),       // 7
+        QStringLiteral("点数")        // 8
+    };
+    return headers;
+}
+
+// ============================================================
+// G15 P3/P4: 信号列表列配置管理
+// ============================================================
+
+void GraphicView::showColumnVisibilityMenu(const QPoint &pos)
+{
+    QMenu menu(m_signalTree);
+    menu.setWindowTitle("列显示设置");
+
+    // 列 0：色块（固定，不可隐藏）
+    auto *colorColAction = new QAction("\u25a1 色块", &menu);
+    colorColAction->setCheckable(true);
+    colorColAction->setChecked(true);
+    colorColAction->setEnabled(false);
+    menu.addAction(colorColAction);
+
+    // 列 1：信号名（核心列，建议保留）
+    for (int c = 1; c < 9; ++c) {
+        QString name = getColumnHeaders()[c];
+        if (name.isEmpty()) continue;
+
+        auto *action = menu.addAction(name);
+        action->setCheckable(true);
+
+        // 检查当前可见性
+        bool visible = !m_signalTree->isColumnHidden(c);
+        action->setChecked(visible);
+
+        connect(action, &QAction::toggled, this, [this, c, visible](bool on) {
+            m_signalTree->setColumnHidden(c, !on);
+            if (!on) {
+                // 隐藏时保存宽度
+                m_columnWidths[c] = m_signalTree->header()->sectionSize(c);
+            } else {
+                // 恢复时应用保存的宽度或默认值
+                int width = m_columnWidths.value(c, 80 - c); // 简单降级逻辑
+                if (width == 0) width = 60;
+                m_signalTree->header()->resizeSection(c, width);
+            }
+            saveColumnConfig();
+        });
+    }
+
+    menu.addSeparator();
+
+    // “复位列宽”按钮
+    auto *resetWidthAction = menu.addAction("\u21bb 复位列宽");
+    connect(resetWidthAction, &QAction::triggered, this, [this]() {
+        for (int c = 1; c < 9; ++c) {
+            m_columnWidths.remove(c);
+            if (c == 1) m_signalTree->header()->resizeSection(c, 120);
+            else if (c == 2) m_signalTree->header()->resizeSection(c, 80);
+            else if (c == 3) m_signalTree->header()->resizeSection(c, 60);
+            else if (c <= 7) m_signalTree->header()->resizeSection(c, 60);
+            else m_signalTree->header()->resizeSection(c, 50);
+        }
+        saveColumnConfig();
+    });
+
+    menu.exec(m_signalTree->mapToGlobal(pos));
+}
+
+void GraphicView::restoreColumnConfig()
+{
+    // TODO: 从 settings.json 加载（预留扩展接口）
+    // 当前仅恢复默认的 Interactive 模式 + 初始宽度
+    // 已在 setupUi() 中完成
+}
+
+void GraphicView::saveColumnConfig()
+{
+    // TODO: 保存到 settings.json（预留扩展接口）
+    // 示例：QSettings().setValue("graphic.signalList.columns", m_columnVisibility);
 }

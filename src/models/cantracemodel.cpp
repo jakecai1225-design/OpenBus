@@ -57,15 +57,8 @@ QVariant CanTraceModel::data(const QModelIndex &index, int role) const
     }
 
     if (role == Qt::TextAlignmentRole) {
-        switch (index.column()) {
-        case ColNo: case ColTime: case ColDelta:
-        case ColId: case ColDlc: case ColFrameCount:
-            return int(Qt::AlignRight | Qt::AlignVCenter);
-        case ColName: case ColData: case ColSignal:
-            return int(Qt::AlignLeft | Qt::AlignVCenter);
-        default:
-            return int(Qt::AlignCenter);
-        }
+        // G17: 支持用户自定义对齐
+        return int(effectiveAlignment(index.column()));
     }
 
     if (role == Qt::ForegroundRole) {
@@ -804,4 +797,61 @@ void CanTraceModel::setErrorFrameHighlight(bool enabled)
     if (m_ringBuffer.size() > 0)
         emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
                          {Qt::BackgroundRole});
+}
+
+// ============================================================
+//  列对齐配置
+// ============================================================
+
+static const QHash<int, Qt::Alignment> &getDefaultAlignments()
+{
+    static QHash<int, Qt::Alignment> defaultMap = []() {
+        QHash<int, Qt::Alignment> h;
+        // 数字列：右对齐 + 垂直居中
+        h[CanTraceModel::ColNo]     = Qt::AlignRight | Qt::AlignVCenter;
+        h[CanTraceModel::ColTime]   = Qt::AlignRight | Qt::AlignVCenter;
+        h[CanTraceModel::ColDelta]  = Qt::AlignRight | Qt::AlignVCenter;
+        h[CanTraceModel::ColChannel]      = Qt::AlignRight | Qt::AlignVCenter;
+        h[CanTraceModel::ColId]       = Qt::AlignRight | Qt::AlignVCenter;
+        h[CanTraceModel::ColDlc]    = Qt::AlignRight | Qt::AlignVCenter;
+        h[CanTraceModel::ColFrameCount] = Qt::AlignRight | Qt::AlignVCenter;
+        // 文本列：左对齐 + 垂直居中
+        h[CanTraceModel::ColName]   = Qt::AlignLeft | Qt::AlignVCenter;
+        h[CanTraceModel::ColData]   = Qt::AlignLeft | Qt::AlignVCenter;
+        h[CanTraceModel::ColSignal] = Qt::AlignLeft | Qt::AlignVCenter;
+        // 标签列：居中对齐 + 垂直居中
+        h[CanTraceModel::ColDirection] = Qt::AlignHCenter | Qt::AlignVCenter;
+        h[CanTraceModel::ColFlags]     = Qt::AlignHCenter | Qt::AlignVCenter;
+        return h;
+    }();
+    return defaultMap;
+}
+
+Qt::Alignment CanTraceModel::effectiveAlignment(int column) const
+{
+    if (m_columnAlignments.contains(column))
+        return m_columnAlignments.value(column);
+    return getDefaultAlignments().value(column);
+}
+
+void CanTraceModel::setColumnAlignment(int col, Qt::Alignment align)
+{
+    if (col < 0 || col >= ColCount)
+        return;
+    m_columnAlignments[col] = align;
+    emit layoutChanged();
+}
+
+Qt::Alignment CanTraceModel::columnAlignment(int col) const
+{
+    if (m_columnAlignments.contains(col))
+        return m_columnAlignments.value(col);
+    return getDefaultAlignments().value(col);
+}
+
+void CanTraceModel::resetToDefault(int col)
+{
+    if (col >= 0 && col < ColCount)
+        m_columnAlignments.remove(col);
+    emit layoutChanged();
 }

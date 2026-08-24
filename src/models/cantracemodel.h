@@ -111,6 +111,12 @@ public:
     QList<QPair<int, QString>> labeledMarks() const;
     void clearLabels();
 
+    // ---- 列对齐配置 ----
+
+    void setColumnAlignment(int col, Qt::Alignment align);
+    Qt::Alignment columnAlignment(int col) const;
+    void resetToDefault(int col);
+
     // ---- 着色规则 ----
 
     struct ColorRule {
@@ -218,12 +224,18 @@ private:
     int m_cacheLast = -1;   ///< 当前缓存的可见行结束
     void formatCell(int row, int col, const CanFrame &f, QString &out) const;
 
+    /// 获取有效对齐（用户定义 > 默认）
+    Qt::Alignment effectiveAlignment(int column) const;
+
     // ---- Phase 2: 批量更新 ----
     QVector<CanFrame> m_pendingFrames;
     QTimer m_flushTimer;
     RefreshRate m_refreshRate = High;
 
     DbcManager *m_dbcManager = nullptr;  ///< DBC 管理器（用于内联信号值列）
+
+    // ---- 列对齐配置 ----
+    QHash<int, Qt::Alignment> m_columnAlignments;  ///< 用户自定义对齐（列号 → 对齐）
 
     /// 实际将帧写入环形缓冲区（flush 时调用）
     void commitFrame(const CanFrame &frame);

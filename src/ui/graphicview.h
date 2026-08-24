@@ -268,6 +268,10 @@ private:
     struct PanY { int sig; double lo, hi; };
     QVector<PanY> m_panStartY;
 
+    // ---- G15 P3/P4: 信号列表列配置 ----
+    QHash<int, bool> m_columnVisibility;     ///< 列号 → 可见性
+    QHash<int, int> m_columnWidths;          ///< 列号 → 用户自定义宽度
+
     // --- G8 轴区交互（§十：轴区独立缩放/平移 + 时间窗箭头） ---
     enum class AxisDragMode { None, X, Y };
     AxisDragMode m_axisDrag = AxisDragMode::None;   ///< 轴区拖动中（X 轴区=平移时间，Y 轴区=平移该轴）
@@ -419,6 +423,11 @@ private:
 
     /// 创建/获取鼠标跟踪线
     void ensureTrackLine();
+
+    // ---- G15 P3/P4: 信号列表列配置管理 ----
+    void showColumnVisibilityMenu(const QPoint &pos);
+    void restoreColumnConfig();
+    void saveColumnConfig();
 
     /// 卡尺手柄/标签随光标位置与视口更新
     void updateCursorDecorations();
