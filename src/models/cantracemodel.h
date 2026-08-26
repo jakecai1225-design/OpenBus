@@ -115,6 +115,8 @@ public:
 
     void setColumnAlignment(int col, Qt::Alignment align);
     Qt::Alignment columnAlignment(int col) const;
+    void clearColumnAlignment(int col);
+    Qt::Alignment effectiveAlignment(int column) const;
     void resetToDefault(int col);
 
     // ---- 着色规则 ----
@@ -223,9 +225,6 @@ private:
     int m_cacheFirst = -1;  ///< 当前缓存的可见行起始
     int m_cacheLast = -1;   ///< 当前缓存的可见行结束
     void formatCell(int row, int col, const CanFrame &f, QString &out) const;
-
-    /// 获取有效对齐（用户定义 > 默认）
-    Qt::Alignment effectiveAlignment(int column) const;
 
     // ---- Phase 2: 批量更新 ----
     QVector<CanFrame> m_pendingFrames;

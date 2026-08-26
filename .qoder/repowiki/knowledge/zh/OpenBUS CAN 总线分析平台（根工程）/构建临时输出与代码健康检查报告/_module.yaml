@@ -1,0 +1,8 @@
+schema_version: 1
+module_path: tmp
+title: 构建临时输出与代码健康检查报告
+scope:
+    - .tmp/
+source_files: []
+depends_on: []
+related_to: []

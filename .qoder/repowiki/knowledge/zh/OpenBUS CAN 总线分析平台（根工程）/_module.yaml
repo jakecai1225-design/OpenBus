@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: ""
-title: openbus CAN/CAN FD 报文分析工具（主工程）
+title: OpenBUS CAN 总线分析平台（根工程）
 scope: []
 source_files: []
 depends_on: []

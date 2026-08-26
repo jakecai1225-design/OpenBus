@@ -8,6 +8,8 @@
 - [src/core/canframe.h](file://src/core/canframe.h)
 - [src/core/candevice.h](file://src/core/candevice.h)
 - [src/core/candevicemanager.h](file://src/core/candevicemanager.h)
+- [src/core/candevicemanager_new.h](file://src/core/candevicemanager_new.h)
+- [src/core/candevicemanager.cpp](file://src/core/candevicemanager.cpp)
 - [src/core/cansimulator.h](file://src/core/cansimulator.h)
 - [src/models/cantracemodel.h](file://src/models/cantracemodel.h)
 - [src/ui/traceview.h](file://src/ui/traceview.h)
@@ -51,10 +53,10 @@
 
 ## 更新摘要
 **已进行的更改**
-- **CanDeviceManager::sendFrame方法增强**：新增可选echo参数支持，实现发送帧的回环显示功能
-- **Tx回环机制实现**：通过时间戳归一化和方向标记，确保发送帧在Trace和Graphic视图中可见
-- **插件发送链路优化**：MainWindow中插件发送帧时自动处理回环，提升调试体验
-- **时间戳同步改进**：使用steady_clock与启动时钟差值计算纳秒级时间戳，确保多设备时间一致性
+- **CAN设备管理器架构重构**：从Qt信号槽模式迁移到纯C++回调订阅模式，移除QObject依赖
+- **新增订阅方法**：引入subscribe_frame()、subscribe_connection()、subscribe_error()等现代C++回调接口
+- **事件处理现代化**：使用std::function替代Qt信号，提升跨平台兼容性和性能
+- **保持向后兼容**：保留原有Qt信号接口以确保现有代码正常工作
 
 ## 目录
 1. [简介](#简介)
@@ -71,7 +73,7 @@
 ## 简介
 本系统是一款面向汽车电子与总线调试的CAN/CAN FD报文分析工具，提供实时录制、文件回放、DBC信号解析、Trace列表展示、Graphic波形视图等能力。整体采用Qt6 + C++17构建，UI风格参考VS Code，支持无边框窗口、可停靠面板与多标签编辑区。系统通过统一的设备抽象层隔离硬件差异，结合无锁消息队列与发布订阅机制，实现高吞吐、低延迟的数据流处理。
 
-**最新更新**：系统现已完全重构驱动管理系统，引入DriverRegistry统一管理平台，支持内置驱动（ZLG、Kvaser、Peak Systems）和外置驱动的混合管理。**重大增强**：新增SLCAN和GS_USB/Candle两大开源设备驱动，大幅扩展硬件兼容性。SLCAN驱动支持Lawicel CANUSB协议家族，覆盖50+种USB转CAN适配器；Candle驱动支持candleLight固件家族，提供完整的GS_USB协议支持和硬件时间戳功能。**稳定性改进**：ZLG设备枚举系统经过重大优化，实现了两阶段枚举方法分离设备信息收集和堆分配，显著降低了内存损坏风险，提升了设备检测的可靠性。**特别增强**：CanDeviceManager::sendFrame方法现在支持可选的echo参数，实现发送帧的回环显示功能，使Tx帧能够在Trace和Graphic视图中可见，与CANoe行为对齐。**新特性**：通过时间戳归一化机制，确保发送帧与接收帧的时间基准一致，提供更好的调试体验。
+**最新更新**：系统现已完全重构驱动管理系统，引入DriverRegistry统一管理平台，支持内置驱动（ZLG、Kvaser、Peak Systems）和外置驱动的混合管理。**重大增强**：新增SLCAN和GS_USB/Candle两大开源设备驱动，大幅扩展硬件兼容性。SLCAN驱动支持Lawicel CANUSB协议家族，覆盖50+种USB转CAN适配器；Candle驱动支持candleLight固件家族，提供完整的GS_USB协议支持和硬件时间戳功能。**稳定性改进**：ZLG设备枚举系统经过重大优化，实现了两阶段枚举方法分离设备信息收集和堆分配，显著降低了内存损坏风险，提升了设备检测的可靠性。**特别增强**：CanDeviceManager::sendFrame方法现在支持可选的echo参数，实现发送帧的回环显示功能，使Tx帧能够在Trace和Graphic视图中可见，与CANoe行为对齐。**新特性**：通过时间戳归一化机制，确保发送帧与接收帧的时间基准一致，提供更好的调试体验。**架构升级**：CAN设备管理器已重构为使用订阅模式的纯C++回调架构，移除了Qt信号依赖，新增subscribe_frame()、subscribe_connection()、subscribe_error()等方法替代传统Qt信号连接。
 
 ## 项目结构
 - 顶层CMake工程负责Qt6查找、子模块集成与安装规则
@@ -168,7 +170,7 @@ F --> AA["src/utils/message_queue.h"]
 ## 架构总览
 系统采用"中心化发布订阅"思想：设备抽象层（HAL）将在线采集、离线回放、仿真源统一为标准帧流；核心内核层进行时间对齐与分发；业务服务层订阅数据并执行日志、统计、解析等任务；UI交互层仅消费数据，不直接访问底层。
 
-**重大更新**：系统现在通过DriverRegistry统一管理所有驱动，支持内置驱动（ZLG、Kvaser、Peak Systems）和外置驱动的混合管理模式。**特别增强**：新增SLCAN和GS_USB/Candle两大开源设备驱动，大幅扩展硬件兼容性。SLCAN驱动支持Lawicel CANUSB协议家族，覆盖50+种USB转CAN适配器；Candle驱动支持candleLight固件家族，提供完整的GS_USB协议支持和硬件时间戳功能。**稳定性改进**：ZLG设备枚举系统经过重大优化，实现了两阶段枚举方法分离设备信息收集和堆分配，显著降低了内存损坏风险。**特别增强**：CanDeviceManager::sendFrame方法现在支持可选的echo参数，实现发送帧的回环显示功能，使Tx帧能够在Trace和Graphic视图中可见。**特别增强**：系统支持驱动的热重载和动态加载，无需重启应用程序即可更新驱动配置。
+**重大更新**：系统现在通过DriverRegistry统一管理所有驱动，支持内置驱动（ZLG、Kvaser、Peak Systems）和外置驱动的混合管理模式。**特别增强**：新增SLCAN和GS_USB/Candle两大开源设备驱动，大幅扩展硬件兼容性。SLCAN驱动支持Lawicel CANUSB协议家族，覆盖50+种USB转CAN适配器；Candle驱动支持candleLight固件家族，提供完整的GS_USB协议支持和硬件时间戳功能。**稳定性改进**：ZLG设备枚举系统经过重大优化，实现了两阶段枚举方法分离设备信息收集和堆分配，显著降低了内存损坏风险。**特别增强**：CanDeviceManager::sendFrame方法现在支持可选的echo参数，实现发送帧的回环显示功能，使Tx帧能够在Trace和Graphic视图中可见。**特别增强**：系统支持驱动的热重载和动态加载，无需重启应用程序即可更新驱动配置。**架构升级**：CAN设备管理器已重构为纯C++回调架构，使用std::function替代Qt信号，提升跨平台兼容性和性能。
 
 ```mermaid
 graph TB
@@ -202,6 +204,7 @@ Core["帧分发中心<br/>时间对齐/缓存"]
 MQ["FrameQueue(无锁队列)"]
 Factory["设备工厂"]
 FilterMgr["硬件滤波器管理器"]
+CBM["回调管理器<br/>std::function"]
 end
 subgraph "业务服务层"
 S1["Recorder(录制)"]
@@ -237,6 +240,7 @@ HAL6 --> MQ
 HAL7 --> MQ
 MQ --> Core
 Core --> FilterMgr
+Core --> CBM
 Core --> S1
 Core --> S2
 Core --> S3
@@ -256,6 +260,7 @@ UI4 --> MI
 - [src/core/driver/marketindex.h:1-96](file://src/core/driver/marketindex.h#L1-L96)
 - [src/core/driver/candriverplugin.h:1-49](file://src/core/driver/candriverplugin.h#L1-L49)
 - [src/core/candevicemanager.h:1-142](file://src/core/candevicemanager.h#L1-L142)
+- [src/core/candevicemanager_new.h:1-255](file://src/core/candevicemanager_new.h#L1-255)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
 - [src/core/player.h:1-74](file://src/core/player.h#L1-L74)
 - [src/core/candevice_zlg.h:1-129](file://src/core/candevice_zlg.h#L1-L129)
@@ -406,7 +411,7 @@ A --> H["USBCAN-E-U (1通道)"]
 - [src/core/candevice_zlg.cpp:741-749](file://src/core/candevice_zlg.cpp#L741-L749)
 
 **章节来源**
-- [src/core/candevice_zlg.cpp:736-785](file://src/core/candevice_zlg.cpp#L736-L785)
+- [src/core/candevice_zlg.cpp:736-785](file://src/core/candevice_zlg.cpp#L736-785)
 - [src/core/candevice_zlg.h:33-43](file://src/core/candevice_zlg.h#L33-L43)
 
 ### SLCAN设备驱动
@@ -487,10 +492,10 @@ Registry-->>UI : ICanDevice指针
 ```
 
 **图表来源**
-- [src/core/driver/driverregistry.cpp:382-450](file://src/core/driver/driverregistry.cpp#L382-L450)
+- [src/core/driver/driverregistry.cpp:382-450](file://src/core/driver/driverregistry.cpp#L382-450)
 
 **章节来源**
-- [src/core/driver/driverregistry.cpp:382-450](file://src/core/driver/driverregistry.cpp#L382-L450)
+- [src/core/driver/driverregistry.cpp:382-450](file://src/core/driver/driverregistry.cpp#L382-450)
 - [src/core/candevice.cpp:1-43](file://src/core/candevice.cpp#L1-L43)
 
 ### 设备市场界面
@@ -515,12 +520,13 @@ Registry-->>UI : ICanDevice指针
 - CanDeviceManager作为QObject桥接层，持有ICanDevice或CanSimulator实例，对外发射frameGenerated信号，屏蔽后端差异，提供统一的硬件滤波控制接口
 - 接收线程通过FrameQueue批量入队，主线程定时drainQueue消费，避免阻塞UI
 
-**重大更新**：CanDeviceManager现在通过DriverRegistry统一管理多种设备类型（模拟器、ZLG、Kvaser、Peak、SLCAN、Candle等），并通过统一的接口管理不同的硬件后端，支持设备工厂模式和动态设备创建。**特别增强**：CanDeviceManager::sendFrame方法现在支持可选的echo参数，当发送成功时自动生成带Tx标记和时间戳的回环帧，供调用方推回显示链路（Trace/Graphic可见Tx帧，对齐CANoe）。**特别增强**：新增了硬件接收滤波器的统一管理，支持ZLG设备的动态配置API。**稳定性改进**：ZLG设备枚举系统的稳定性改进确保了更可靠的设备检测过程。
+**重大更新**：CanDeviceManager现在通过DriverRegistry统一管理多种设备类型（模拟器、ZLG、Kvaser、Peak、SLCAN、Candle等），并通过统一的接口管理不同的硬件后端，支持设备工厂模式和动态设备创建。**特别增强**：CanDeviceManager::sendFrame方法现在支持可选的echo参数，当发送成功时自动生成带Tx标记和时间戳的回环帧，供调用方推回显示链路（Trace/Graphic可见Tx帧，对齐CANoe）。**特别增强**：新增了硬件接收滤波器的统一管理，支持ZLG设备的动态配置API。**稳定性改进**：ZLG设备枚举系统的稳定性改进确保了更可靠的设备检测过程。**架构升级**：CAN设备管理器已重构为纯C++回调架构，使用std::function替代Qt信号，提供subscribe_frame()、subscribe_connection()、subscribe_error()等现代C++接口。
 
 **章节来源**
 - [src/core/candevice.h:1-127](file://src/core/candevice.h#L1-L127)
 - [src/core/candevicemanager.h:1-142](file://src/core/candevicemanager.h#L1-L142)
-- [src/core/candevicemanager.cpp:1-200](file://src/core/candevicemanager.cpp#L1-L200)
+- [src/core/candevicemanager_new.h:1-255](file://src/core/candevicemanager_new.h#L1-255)
+- [src/core/candevicemanager.cpp:1-282](file://src/core/candevicemanager.cpp#L1-L282)
 - [src/core/cansimulator.h:1-69](file://src/core/cansimulator.h#L1-L69)
 - [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 
@@ -604,6 +610,50 @@ end
 - [src/ui/mainwindow_dialogs.cpp:274-302](file://src/ui/mainwindow_dialogs.cpp#L274-L302)
 - [src/core/canframe.h:14-52](file://src/core/canframe.h#L14-L52)
 
+### 订阅模式回调架构
+**新增功能**：CAN设备管理器已重构为使用订阅模式的纯C++回调架构，移除了Qt信号依赖。
+
+#### 核心特性
+- **纯C++实现**：移除QObject继承，使用std::function实现回调机制
+- **现代C++接口**：提供subscribe_frame()、subscribe_connection()、subscribe_error()等现代C++方法
+- **RAII语义**：支持自动资源管理和生命周期控制
+- **跨平台兼容**：不依赖Qt元对象系统，提升跨平台兼容性
+- **性能优化**：减少Qt信号槽的开销，提升事件处理性能
+
+#### 回调类型定义
+```mermaid
+classDiagram
+class CanDeviceManager {
++FrameCallback m_frame_callback_
++ConnectionCallback m_conn_callback_
++ErrorCallback m_error_callback_
++subscribe_frame(FrameCallback) auto
++subscribe_connection(ConnectionCallback) auto
++subscribe_error(ErrorCallback) auto
++unsubscribe_all() void
+}
+class CallbackTypes {
+<<enumeration>>
+FrameCallback : std : : function<void(const CanFrame&)>
+ConnectionCallback : std : : function<void(bool, const std : : string&)>
+ErrorCallback : std : : function<void(const std : : string&)>
+}
+CanDeviceManager --> CallbackTypes : "使用"
+```
+
+**图表来源**
+- [src/core/candevicemanager_new.h:55-76](file://src/core/candevicemanager_new.h#L55-L76)
+- [src/core/candevicemanager_new.h:217-220](file://src/core/candevicemanager_new.h#L217-L220)
+
+#### 订阅使用方法
+- **帧订阅**：`auto handle = manager.subscribe_frame([](const CanFrame& frame) { /* 处理帧 */ });`
+- **连接状态订阅**：`auto handle = manager.subscribe_connection([](bool connected, const std::string& name) { /* 处理连接变化 */ });`
+- **错误订阅**：`auto handle = manager.subscribe_error([](const std::string& msg) { /* 处理错误 */ });`
+- **取消订阅**：`manager.unsubscribe_all();`
+
+**章节来源**
+- [src/core/candevicemanager_new.h:1-255](file://src/core/candevicemanager_new.h#L1-255)
+
 ### Trace追踪与过滤
 - CanTraceModel维护帧序列，支持appendFrame/appendFrames、覆盖模式、行标记与自定义颜色
 - TraceView/TraceTab提供列排序、漏斗筛选、表达式过滤、右键快速筛选、书签等功能
@@ -650,7 +700,7 @@ end
 - **libusb-1.0.dll**用于Candle设备驱动（运行时动态加载）
 - **QPluginLoader**用于外部驱动插件的动态加载
 
-**重大更新**：新增了DriverRegistry和MarketIndex等核心组件，支持驱动的热重载和设备市场的功能。**特别增强**：引入了CanDriverPlugin插件接口，实现了标准化的外部驱动接入机制。新增SLCAN和Candle驱动，大幅扩展了硬件兼容性。**稳定性改进**：ZLG设备枚举系统的稳定性改进减少了SDK调用，降低了堆损坏风险。**新特性**：CanDeviceManager::sendFrame方法的echo参数支持增强了发送帧的可视化能力，提升了调试体验。
+**重大更新**：新增了DriverRegistry和MarketIndex等核心组件，支持驱动的热重载和设备市场的功能。**特别增强**：引入了CanDriverPlugin插件接口，实现了标准化的外部驱动接入机制。新增SLCAN和Candle驱动，大幅扩展了硬件兼容性。**稳定性改进**：ZLG设备枚举系统的稳定性改进减少了SDK调用，降低了堆损坏风险。**新特性**：CanDeviceManager::sendFrame方法的echo参数支持增强了发送帧的可视化能力，提升了调试体验。**架构升级**：CAN设备管理器已重构为纯C++回调架构，使用std::function替代Qt信号，提升跨平台兼容性和性能。
 
 ```mermaid
 graph LR
@@ -671,6 +721,7 @@ CFD --> PEAKDRV
 CFD --> CANDLEDRV
 ZCFG["ZLG动态配置API"] --> ZLGDRV
 TXLOOP["Tx回环机制"] --> DM
+CB["std::function回调"] --> CBM["回调管理器"]
 ```
 
 **图表来源**
@@ -682,6 +733,7 @@ TXLOOP["Tx回环机制"] --> DM
 - [src/core/driver/driverregistry.h:1-110](file://src/core/driver/driverregistry.h#L1-L110)
 - [src/core/driver/marketindex.h:1-96](file://src/core/driver/marketindex.h#L1-L96)
 - [src/core/candevicemanager.h:77-82](file://src/core/candevicemanager.h#L77-L82)
+- [src/core/candevicemanager_new.h:55-76](file://src/core/candevicemanager_new.h#L55-L76)
 
 **章节来源**
 - [CMakeLists.txt:1-63](file://CMakeLists.txt#L1-L63)
@@ -703,6 +755,7 @@ TXLOOP["Tx回环机制"] --> DM
 - **新特性**：SLCAN软件时间戳补偿确保时间轴一致性
 - **新特性**：Tx回环机制通过时间戳归一化确保发送帧与接收帧的时间一致性
 - **稳定性改进**：ZLG设备枚举系统优化减少了SDK调用，降低了堆损坏风险，提升了设备检测的可靠性
+- **性能优化**：纯C++回调架构减少Qt信号槽开销，提升事件处理性能
 
 ## 故障排查指南
 - 设备连接失败：检查ICanDevice::open参数与设备序号；确认驱动与权限
@@ -719,6 +772,8 @@ TXLOOP["Tx回环机制"] --> DM
 - **新增**：设备枚举内存损坏：确认使用的是稳定性改进后的枚举方法，避免在SDK竞态窗口中进行堆分配
 - **新增**：发送帧回环失败：检查CanDeviceManager::sendFrame的echo参数是否正确传递；确认设备处于运行状态
 - **新增**：Tx帧未显示：确认MainWindow::onFrameReceived正确处理回环帧；检查Trace/Graphic视图是否正确接收帧
+- **新增**：回调订阅失败：检查subscribe_*方法是否正确调用；确认回调函数签名匹配；验证回调对象生命周期
+- **新增**：纯C++架构兼容性问题：确认目标平台支持C++11及以上标准；检查std::function兼容性
 - 帧丢失：监控FrameQueue.approxSize与pendingFrames，确保主线程及时drain
 - 过滤表达式错误：查看FilterEngine.errorString，修正语法
 - 录制失败：确认文件路径与写入器初始化；检查磁盘空间与权限
@@ -726,18 +781,19 @@ TXLOOP["Tx回环机制"] --> DM
 
 **章节来源**
 - [src/core/candevicemanager.h:1-142](file://src/core/candevicemanager.h#L1-L142)
+- [src/core/candevicemanager_new.h:1-255](file://src/core/candevicemanager_new.h#L1-255)
 - [src/utils/message_queue.h:1-87](file://src/utils/message_queue.h#L1-87)
 - [src/core/filter_engine.h:1-59](file://src/core/filter_engine.h#L1-L59)
 - [src/core/recorder.h:1-48](file://src/core/recorder.h#L1-L48)
 - [src/core/player.h:1-74](file://src/core/player.h#L1-L74)
 - [src/core/driver/driverregistry.cpp:186-272](file://src/core/driver/driverregistry.cpp#L186-L272)
 - [src/core/driver/marketindex.cpp:71-148](file://src/core/driver/marketindex.cpp#L71-L148)
-- [src/core/candevice_zlg.cpp:736-785](file://src/core/candevice_zlg.cpp#L736-L785)
+- [src/core/candevice_zlg.cpp:736-785](file://src/core/candevice_zlg.cpp#L736-785)
 - [src/core/candevicemanager.cpp:167-190](file://src/core/candevicemanager.cpp#L167-L190)
 - [src/ui/mainwindow_dialogs.cpp:274-302](file://src/ui/mainwindow_dialogs.cpp#L274-L302)
 
 ## 结论
-本系统以清晰的层次化架构与松耦合设计，实现了CAN/CAN FD报文的采集、录制、回放与可视化分析。通过设备抽象、无锁队列与表达式过滤，兼顾了易用性与高性能。**重大更新**：系统现已完全重构驱动管理系统，通过DriverRegistry统一管理所有内置和外置驱动，支持热重载和动态加载。**特别增强**：新增设备市场功能，用户可以直接搜索、下载和安装新的设备驱动，大大简化了设备管理的复杂度。系统现已完全支持ZLG致远电子、Kvaser、Peak Systems、SLCAN和Candle五大主流CAN设备厂商，通过统一的ICanDevice接口和工厂模式实现了多品牌设备的无缝集成。**稳定性改进**：ZLG设备枚举系统经过重大优化，实现了两阶段枚举方法分离设备信息收集和堆分配，移除了不稳定的USBCAN-1和USBCAN-2设备类型支持，显著降低了内存损坏风险，提升了设备检测的可靠性。**特别增强**：ZLG设备现在支持硬件级别的动态接受过滤功能，通过ZLG的动态配置API实现高效的帧过滤，可显著降低CPU负载并提高数据处理效率。**新特性**：CanDeviceManager::sendFrame方法现在支持可选的echo参数，实现了发送帧的回环显示功能，使Tx帧能够在Trace和Graphic视图中可见，与CANoe行为对齐，提供了更好的调试体验。**特别增强**：新增的SLCAN和Candle驱动大幅扩展了硬件兼容性，支持USB-CAN接口、PCIe卡、网络设备等85+种设备类型，以及完整的CAN FD协议增强功能，为汽车电子开发和总线调试提供了强大的工具支持。后续可扩展更多硬件后端、高级统计与脚本能力，满足复杂工程需求。
+本系统以清晰的层次化架构与松耦合设计，实现了CAN/CAN FD报文的采集、录制、回放与可视化分析。通过设备抽象、无锁队列与表达式过滤，兼顾了易用性与高性能。**重大更新**：系统现已完全重构驱动管理系统，通过DriverRegistry统一管理所有内置和外置驱动，支持热重载和动态加载。**特别增强**：新增设备市场功能，用户可以直接搜索、下载和安装新的设备驱动，大大简化了设备管理的复杂度。系统现已完全支持ZLG致远电子、Kvaser、Peak Systems、SLCAN和Candle五大主流CAN设备厂商，通过统一的ICanDevice接口和工厂模式实现了多品牌设备的无缝集成。**稳定性改进**：ZLG设备枚举系统经过重大优化，实现了两阶段枚举方法分离设备信息收集和堆分配，移除了不稳定的USBCAN-1和USBCAN-2设备类型支持，显著降低了内存损坏风险，提升了设备检测的可靠性。**特别增强**：ZLG设备现在支持硬件级别的动态接受过滤功能，通过ZLG的动态配置API实现高效的帧过滤，可显著降低CPU负载并提高数据处理效率。**新特性**：CanDeviceManager::sendFrame方法现在支持可选的echo参数，实现了发送帧的回环显示功能，使Tx帧能够在Trace和Graphic视图中可见，与CANoe行为对齐，提供了更好的调试体验。**特别增强**：新增的SLCAN和Candle驱动大幅扩展了硬件兼容性，支持USB-CAN接口、PCIe卡、网络设备等85+种设备类型，以及完整的CAN FD协议增强功能，为汽车电子开发和总线调试提供了强大的工具支持。**架构升级**：CAN设备管理器已重构为纯C++回调架构，使用std::function替代Qt信号，提升跨平台兼容性和性能，为未来的架构演进奠定了坚实基础。后续可扩展更多硬件后端、高级统计与脚本能力，满足复杂工程需求。
 
 ## 附录
 - 构建与运行：参考README中的安装教程与CMake配置
@@ -760,4 +816,5 @@ TXLOOP["Tx回环机制"] --> DM
 - **新增**：Candle GS_USB协议：完整的GS_USB协议握手序列，支持VID/PID白名单和硬件时间戳
 - **新增**：发送帧回环机制：CanDeviceManager::sendFrame方法支持可选echo参数，实现Tx帧回环显示
 - **新增**：时间戳归一化：使用steady_clock与启动时钟差值计算纳秒级时间戳，确保多设备时间一致性
+- **新增**：纯C++回调架构：使用std::function替代Qt信号，提供subscribe_frame()、subscribe_connection()、subscribe_error()等现代C++接口
 - **稳定性改进**：ZLG设备枚举系统优化，实现了两阶段枚举方法分离设备信息收集和堆分配，移除了不稳定的设备类型，减少了SDK调用，降低了内存损坏风险

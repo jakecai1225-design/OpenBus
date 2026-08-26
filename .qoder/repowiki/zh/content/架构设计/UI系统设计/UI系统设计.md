@@ -87,14 +87,15 @@
 - [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)
 - [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
 - [src/ui/measurementsetupview.cpp](file://src/ui/measurementsetupview.cpp)
+- [src/ui/mainwindow_chrome.cpp](file://src/ui/mainwindow_chrome.cpp)
 </cite>
 
 ## 更新摘要
 **所做更改**   
-- 增强了测量设置视图的可视化反馈能力，新增了流指示器系统和状态灯机制
-- 改进了设备连接处理逻辑，实现了智能连接门控机制和V2接口支持
-- 更新了底部面板输出系统，为插件帧传输操作提供全面的错误消息和十六进制帧ID上下文
-- 优化了模块块的视觉状态显示，包括数据流活跃检测和异常状态指示
+- 新增VSCode风格面板切换按钮系统，集成到主窗口架构中
+- 实现了面板管理功能，支持左侧栏、右侧栏和底部信息栏的可视化状态同步
+- 添加了面板切换按钮与停靠窗口可见性状态的实时同步机制
+- 增强了用户界面交互体验，提供直观的窗口布局控制
 
 ## 目录
 1. [简介](#简介)
@@ -233,6 +234,7 @@ B --> ZZ["src/ui/measurementsetupview.h/.cpp"]
 - Web前端原型 ui-prototype.html: 基于HTML的现代化界面原型，支持动态内容加载
 - JavaScript模块系统: 包含ui-loader.js和ui-prototype.js，实现模块化功能组织
 - CSS样式系统: 提供统一的样式规范和响应式设计支持
+- **新增** VSCode风格面板切换按钮系统: 提供直观的面板可见性控制
 - **新增** QCustomPlot集成: 专业级的信号可视化和图表绘制引擎
 - **新增** ViewportProxyModel: CANoe风格的视窗代理模型，提供固定行数视窗限制
 - **新增** ViewportOverview: 视窗缩略图组件，支持拖拽式视窗导航
@@ -261,6 +263,8 @@ B --> ZZ["src/ui/measurementsetupview.h/.cpp"]
 
 **测量设置视图增强** 测量设置视图MeasurementSetupView新增了流指示器系统，提供了可视化的测量配置画布。该系统包含状态灯机制，可以实时显示数据流活跃状态和异常状态。支持四种状态：未使能不亮灯、待命常亮绿、数据流活跃绿闪、运行异常红闪。通过QTimer驱动的闪烁机制，实现了流畅的视觉效果。
 
+**新增VSCode风格面板切换按钮系统** 主窗口新增了VSCode风格的面板切换按钮系统，位于菜单栏右上角。该系统包含四个主要按钮：左侧栏切换、右侧栏切换、底部信息栏切换和重置布局按钮。每个按钮都支持选中状态显示，与对应停靠窗口的可见性状态保持同步。用户可以通过这些按钮快速控制各个面板的显示和隐藏，提供更好的用户体验。
+
 章节来源
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
@@ -284,6 +288,7 @@ B --> ZZ["src/ui/measurementsetupview.h/.cpp"]
 - [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
 - [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
 - [src/ui/measurementsetupview.cpp](file://src/ui/measurementsetupview.cpp)
+- [src/ui/mainwindow_chrome.cpp](file://src/ui/mainwindow_chrome.cpp)
 
 ## 架构总览
 整体采用"入口初始化 + 主窗口容器 + 样式/资源分离 + Web前端集成 + 插件系统 + 模块化DLL架构 + Flow架构"的混合架构模式：
@@ -292,6 +297,7 @@ B --> ZZ["src/ui/measurementsetupview.h/.cpp"]
 - 样式通过ThemeManager集中管理，支持运行时切换
 - 资源通过qrc统一打包，避免路径问题
 - Web前端提供现代化界面原型和动态内容加载能力
+- **新增** VSCode风格面板切换按钮系统，提供直观的面板控制
 - **新增** QCustomPlot集成提供专业的信号可视化能力
 - **新增** 视口代理模型提供固定行数视窗限制，优化大数据集处理性能
 - **新增** FilterHeaderView提供Wireshark风格的自定义表头界面
@@ -313,6 +319,8 @@ B --> ZZ["src/ui/measurementsetupview.h/.cpp"]
 **底部面板输出系统增强** 底部面板输出系统现在为插件帧传输操作提供全面的错误消息和十六进制帧ID上下文。这一增强使得开发者能够快速定位和分析插件帧传输过程中出现的问题，大大提高了调试效率和系统稳定性。
 
 **测量设置视图增强** 测量设置视图MeasurementSetupView现在提供了完整的可视化测量配置界面，包含数据源切换、过滤配置、数据库解析和分析模块的流程图示。通过状态灯系统实时显示各模块的运行状态，包括数据流活跃检测和异常状态指示。
+
+**新增VSCode风格面板切换按钮系统** 主窗口新增了VSCode风格的面板切换按钮系统，位于菜单栏右上角。该系统包含四个主要按钮：左侧栏切换、右侧栏切换、底部信息栏切换和重置布局按钮。每个按钮都支持选中状态显示，与对应停靠窗口的可见性状态保持同步。用户可以通过这些按钮快速控制各个面板的显示和隐藏，提供更好的用户体验。
 
 ```mermaid
 graph TB
@@ -355,6 +363,7 @@ subgraph "导航组件层"
 AB["ActivityBar<br/>活动栏<br/>Transceive模式已添加"]
 BP2["BottomPanel<br/>底部面板"]
 RP["RightPanel<br/>右侧面板"]
+PTB["PanelToggleButtons<br/>面板切换按钮<br/>新增VSCode风格"]
 end
 subgraph "编辑区域层"
 SEA["SplitEditorArea<br/>分割编辑器区域"]
@@ -418,6 +427,7 @@ MW --> TT
 MW --> TP
 MW --> OAT
 MW --> MSV
+MW --> PTB
 SEA --> FB
 SEA --> GV
 SEA --> TV
@@ -484,6 +494,7 @@ MSV --> FM
 - [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
 - [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
 - [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
+- [src/ui/mainwindow_chrome.cpp](file://src/ui/mainwindow_chrome.cpp)
 
 ## Flow架构与协议抽象系统
 
@@ -1014,14 +1025,14 @@ class ModuleRegistry {
 }
 class ModuleFactory {
 <<function>>
-IBusinessModule* operator()()
+IBBusinessModule* operator()()
 }
 ModuleRegistry --> ModuleFactory : "存储"
 ModuleRegistry --> IBusinessModule : "创建"
 ```
 
 **图表来源**
-- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-50)
+- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
 - [src/core/module/moduleregistry.cpp:3-22](file://src/core/module/moduleregistry.cpp#L3-L22)
 
 ### 市场模块（MarketModule）
@@ -1153,7 +1164,7 @@ PW --> LC
 ```
 
 **图表来源**
-- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-50)
+- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
 - [src/ui/marketmodule.h:18-28](file://src/ui/marketmodule.h#L18-28)
 - [src/ui/transceivemodule.h:28-51](file://src/ui/transceivemodule.h#L28-51)
 - [src/ui/dbcmodule.h:18-30](file://src/ui/dbcmodule.h#L18-30)
@@ -1222,6 +1233,7 @@ App->>App : 进入事件循环
 - 集成Web前端原型和JavaScript通信
 - **新增** 插件系统协调，管理插件生命周期
 - **新增** 模块系统协调，管理业务模块实例
+- **新增** VSCode风格面板切换按钮系统
 
 类关系与数据流
 - 继承自 QWidget/QMainWindow（由 .ui 生成基类）
@@ -1230,10 +1242,11 @@ App->>App : 进入事件循环
 - 支持Web前端的原型验证和交互测试
 - **新增** 与插件管理器的集成，处理插件相关事件
 - **新增** 与模块注册表的集成，管理业务模块生命周期
+- **新增** 面板切换按钮与停靠窗口可见性状态的同步
 
 **更新** MainWindow现在通过混合架构模式工作：Qt Designer生成的UI类负责界面结构，而手写的C++代码负责业务逻辑和交互处理，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，新增了ThemeManager主题管理器的集成，支持运行时主题切换；设备连接界面DeviceConnectionTab提供了完整的CAN/CAN FD配置选项；侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理。活动栏导航系统已重新组织，'Flow'按钮被移动到更显眼的位置，与CANoe Measurement Setup行业标准保持一致。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。设备连接行为已升级为V2接口，支持更完整的设备配置参数。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。**主窗口作为协调者，统一管理各组件的生命周期和数据流，并支持与Web前端原型的无缝集成。
 
-**最新改进** 主窗口现在支持离线分析文件的程序化添加功能，通过transceiveInvoke方法调用TransceiveModule的'addOfflineFiles'动作，确保项目状态恢复时能够正确重建离线分析文件列表。
+**最新改进** 主窗口现在支持离线分析文件的程序化添加功能，通过transceiveInvoke方法调用TransceiveModule的'addOfflineFiles'动作，确保项目状态恢复时能够正确重建离线分析文件列表。**新增了VSCode风格的面板切换按钮系统，位于菜单栏右上角，提供左侧栏、右侧栏、底部信息栏的快速切换控制，以及与停靠窗口可见性状态的实时同步。**
 
 ```mermaid
 classDiagram
@@ -1258,6 +1271,15 @@ class MainWindow {
 +getModuleInstance(moduleId)
 +handleModuleAction(action, arg)
 +transceiveInvoke(action, arg)
++createPanelToggleButtons()
++toggleLeftDock()
++toggleRightDock()
++toggleBottomDock()
++resetLayout()
++onLeftDockToggled()
++onRightDockToggled()
++onBottomDockToggled()
++onLayoutReset()
 }
 class ActivityBar {
 +addActivityItem(item)
@@ -1339,6 +1361,15 @@ class TransceivePanel {
 +onPlaybackClicked()
 +onRecordClicked()
 }
+class PanelToggleButtons {
++leftDockBtn QToolButton
++rightDockBtn QToolButton
++bottomDockBtn QToolButton
++layoutResetBtn QToolButton
++setChecked(bool)
++toggleDock()
++resetLayout()
+}
 MainWindow --> ActivityBar : "包含"
 MainWindow --> BottomPanel : "包含"
 MainWindow --> RightPanel : "包含"
@@ -1350,6 +1381,7 @@ MainWindow --> DBCDetailTab : "管理"
 MainWindow --> PlaybackTab : "管理"
 MainWindow --> RecordTab : "管理"
 MainWindow --> TransceivePanel : "管理"
+MainWindow --> PanelToggleButtons : "管理"
 ```
 
 **图表来源**
@@ -1364,10 +1396,72 @@ MainWindow --> TransceivePanel : "管理"
 - [src/ui/dbcdetailtab.h](file://src/ui/dbcdetailtab.h)
 - [src/ui/playbacktab.h](file://src/ui/playbacktab.h)
 - [src/ui/recordtab.h](file://src/ui/recordtab.h)
+- [src/ui/mainwindow_chrome.cpp](file://src/ui/mainwindow_chrome.cpp)
 
 章节来源
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
+- [src/ui/mainwindow_chrome.cpp](file://src/ui/mainwindow_chrome.cpp)
+
+### VSCode风格面板切换按钮系统 - 新增
+功能特性
+- **新增** VSCode风格的面板切换按钮，位于菜单栏右上角
+- **新增** 左侧栏切换按钮，控制左侧停靠窗口的显示和隐藏
+- **新增** 右侧栏切换按钮，控制右侧停靠窗口的显示和隐藏
+- **新增** 底部信息栏切换按钮，控制底部停靠窗口的显示和隐藏
+- **新增** 重置布局按钮，恢复默认布局和面板状态
+- **新增** 按钮选中状态与停靠窗口可见性状态的实时同步
+- **新增** 支持主题切换时的图标颜色自适应
+
+技术实现
+- 使用QToolButton创建可切换的按钮控件
+- 通过setChecked()方法实现按钮的选中状态
+- 连接到相应的槽函数处理面板切换逻辑
+- 与停靠窗口的setVisible()方法双向同步状态
+- 支持初始状态的应用和主题变化时的刷新
+
+```mermaid
+classDiagram
+class PanelToggleButtons {
++PanelToggleButtons(parent)
++leftDockBtn QToolButton
++rightDockBtn QToolButton
++bottomDockBtn QToolButton
++layoutResetBtn QToolButton
++windowControlPanel QWidget
++createPanelToggleButtons()
++toggleLeftDock()
++toggleRightDock()
++toggleBottomDock()
++resetLayout()
++onLeftDockToggled()
++onRightDockToggled()
++onBottomDockToggled()
++onLayoutReset()
++refreshWindowButtonIcons()
+}
+class MainWindow {
++m_leftDock QDockWidget
++m_rightDock QDockWidget
++m_bottomDock QDockWidget
++toggleLeftDock()
++toggleRightDock()
++toggleBottomDock()
++resetLayout()
++onLeftDockToggled()
++onRightDockToggled()
++onBottomDockToggled()
++onLayoutReset()
+}
+PanelToggleButtons --> MainWindow : "控制"
+```
+
+**图表来源**
+- [src/ui/mainwindow_chrome.cpp:294-349](file://src/ui/mainwindow_chrome.cpp#L294-L349)
+- [src/ui/mainwindow_chrome.cpp:597-654](file://src/ui/mainwindow_chrome.cpp#L597-L654)
+
+章节来源
+- [src/ui/mainwindow_chrome.cpp](file://src/ui/mainwindow_chrome.cpp)
 
 ### 测量设置视图（MeasurementSetupView）- 新增
 功能特性
@@ -3606,6 +3700,8 @@ DbcPanel --> CategoryNode : "使用"
 
 **测量设置视图增强** 测量设置视图MeasurementSetupView现在与Flow模块建立了紧密的集成关系，通过信号槽机制实现测量流程的控制和状态同步。流指示器系统提供了实时的可视化反馈，帮助用户了解测量配置的状态。
 
+**新增VSCode风格面板切换按钮系统** 主窗口新增了VSCode风格的面板切换按钮系统，位于菜单栏右上角。该系统包含四个主要按钮：左侧栏切换、右侧栏切换、底部信息栏切换和重置布局按钮。每个按钮都支持选中状态显示，与对应停靠窗口的可见性状态保持同步。
+
 ```mermaid
 graph LR
 Main["main.cpp"] --> MW["MainWindow"]
@@ -3628,6 +3724,7 @@ MW --> PM["PluginManager<br/>插件管理器<br/>增强错误处理"]
 MW --> MR["ModuleRegistry<br/>模块注册表"]
 MW --> PR["ProtocolRegistry<br/>协议注册表"]
 MW --> MSV["MeasurementSetupView<br/>新增流指示器系统"]
+MW --> PTB["PanelToggleButtons<br/>VSCode风格面板切换按钮<br/>新增"]
 SEA --> FB["FilterBar<br/>刷新率控制增强"]
 SEA --> GV["GraphicView<br/>QCustomPlot集成<br/>Downsample模块集成<br/>插件集成增强<br/>手形平移模式<br/>DBC集成"]
 SEA --> TV["TraceView"]
@@ -3695,6 +3792,9 @@ PA --> CA["CanProtocolAdapter<br/>CAN适配器"]
 MW --> OAT["OfflineAnalysisTab<br/>离线分析标签页"]
 OAT --> TMOD
 MSV --> FM
+PTB --> LeftDock["左侧停靠窗口"]
+PTB --> RightDock["右侧停靠窗口"]
+PTB --> BottomDock["底部停靠窗口"]
 ```
 
 **图表来源**
@@ -3724,6 +3824,7 @@ MSV --> FM
 - [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
 - [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
 - [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
+- [src/ui/mainwindow_chrome.cpp](file://src/ui/mainwindow_chrome.cpp)
 
 ## 性能考虑
 - 样式加载
@@ -3769,6 +3870,8 @@ MSV --> FM
   - **增强** 底部面板输出系统优化错误消息处理性能
   - **新增** MeasurementSetupView使用QTimer驱动状态灯闪烁，避免不必要的重绘
   - **新增** 流指示器系统通过智能计时器优化性能，仅在数据流活跃或异常时运转
+  - **新增** VSCode风格面板切换按钮系统使用轻量级QToolButton，避免性能开销
+  - **新增** 面板切换按钮与停靠窗口状态同步采用直接方法调用，减少信号槽开销
 - **专用Tab组件性能优化**
   - DBC详情标签页实现大数据集的虚拟滚动
   - 播放控制标签页使用高效的定时器机制
@@ -3820,6 +3923,7 @@ MSV --> FM
   - **新增** 调试接口提供性能监控和诊断能力
   - **增强** 底部面板输出系统的错误消息处理性能，减少消息队列积压
   - **新增** MeasurementSetupView的流指示器系统通过智能计时器优化性能，仅在需要时更新状态灯
+  - **新增** VSCode风格面板切换按钮系统使用直接状态同步，避免不必要的重绘
 - **批处理模型性能优化**
   - CanTraceModel使用环形缓冲区存储，支持最大帧数限制
   - 批量追加frames()方法优化大数据集处理
@@ -3898,6 +4002,12 @@ MSV --> FM
   - 图形场景优化，仅在拓扑变化时重建
   - 模块块绘制使用自定义图元，减少重绘开销
   - 数据流活跃检测基于时间戳比较，避免频繁计算
+- **VSCode风格面板切换按钮性能优化**
+  - 使用轻量级QToolButton控件，避免性能开销
+  - 直接调用setVisible()方法同步停靠窗口状态
+  - 避免不必要的信号槽连接，减少事件处理开销
+  - 支持主题切换时的图标颜色自适应，避免重绘
+  - 初始状态应用时避免重复计算
 
 ## 故障排查指南
 常见问题与定位方法
@@ -3950,6 +4060,9 @@ MSV --> FM
   - **新增** MeasurementSetupView流指示器不显示需要检查QTimer连接和状态灯设置
   - **新增** 测量设置视图状态灯异常需要检查数据流活跃检测和异常状态判断
   - **新增** 模块块绘制异常需要检查SetupBlockGfx图元和QGraphicsScene配置
+  - **新增** VSCode风格面板切换按钮无响应需要检查按钮连接和停靠窗口状态
+  - **新增** 面板切换按钮状态不同步需要检查setChecked()调用和停靠窗口visible属性
+  - **新增** 重置布局功能异常需要检查resizeDocks()调用和按钮状态更新
 - **专用Tab组件问题**
   - DBC文件加载失败需要检查文件格式与权限
   - 播放控制标签页时间轴不同步需要检查定时器精度
@@ -4010,6 +4123,7 @@ MSV --> FM
   - **新增** 调试接口提供性能监控和诊断能力
   - **增强** 底部面板输出系统错误消息处理，提供更详细的插件帧传输错误信息
   - **新增** MeasurementSetupView流指示器系统通过智能计时器优化性能，避免不必要的状态灯更新
+  - **新增** VSCode风格面板切换按钮系统通过直接状态同步避免性能开销
 - **DbcPanel多协议分类问题**
   - 协议分类节点不显示需要检查文件扩展名识别
   - DatabaseEntry结构数据丢失需要检查序列化机制
@@ -4131,6 +4245,13 @@ MSV --> FM
   - 模块块交互失败需要检查blockAt和instanceAt方法实现
   - 右键菜单不显示需要检查buildContextMenu方法实现
   - 工具栏按钮无响应需要检查onStartClicked和onStopClicked方法连接
+- **VSCode风格面板切换按钮问题**
+  - 面板切换按钮无响应需要检查clicked信号连接
+  - 按钮状态与停靠窗口不同步需要检查setChecked()和setVisible()调用
+  - 重置布局功能异常需要检查resizeDocks()和按钮状态更新
+  - 初始状态应用失败需要检查停靠窗口可见性检查
+  - 主题切换后按钮样式异常需要检查图标颜色更新
+  - 面板切换性能问题需要检查不必要的重绘和事件处理
 
 **章节来源**
 - [resources/styles/default.qss](file://resources/styles/default.qss)
@@ -4169,6 +4290,7 @@ MSV --> FM
 - [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
 - [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
 - [src/ui/measurementsetupview.cpp](file://src/ui/measurementsetupview.cpp)
+- [src/ui/mainwindow_chrome.cpp](file://src/ui/mainwindow_chrome.cpp)
 
 ## 结论
 本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面，**特别是侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件。**
@@ -4188,6 +4310,8 @@ MSV --> FM
 **底部面板输出系统增强** 底部面板输出系统现在为插件帧传输操作提供全面的错误消息和十六进制帧ID上下文。这一增强使得开发者能够快速定位和分析插件帧传输过程中出现的问题，大大提高了调试效率和系统稳定性。插件管理器现在能够捕获和处理更多的错误情况，并提供详细的错误信息和上下文数据。底部面板的插件输出标签页现在支持更丰富的错误信息显示，包括时间戳、严重级别和详细的错误描述。
 
 **测量设置视图增强** 测量设置视图MeasurementSetupView现在提供了完整的可视化测量配置界面，包含流指示器系统和状态灯机制。通过QTimer驱动的闪烁机制，实现了流畅的视觉效果，为用户提供直观的测量状态反馈。数据流活跃检测和异常状态指示功能，帮助用户及时了解测量配置的运行状态。
+
+**新增VSCode风格面板切换按钮系统** 主窗口新增了VSCode风格的面板切换按钮系统，位于菜单栏右上角。该系统包含四个主要按钮：左侧栏切换、右侧栏切换、底部信息栏切换和重置布局按钮。每个按钮都支持选中状态显示，与对应停靠窗口的可见性状态保持同步。用户可以通过这些按钮快速控制各个面板的显示和隐藏，提供更好的用户体验。该系统采用轻量级实现，避免性能开销，并通过直接状态同步确保按钮状态与停靠窗口的一致性。
 
 遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
@@ -4237,6 +4361,9 @@ MSV --> FM
   - **增强** 底部面板输出系统应提供全面的插件帧传输错误消息和十六进制帧ID上下文
   - **新增** MeasurementSetupView应实现流指示器系统和状态灯机制
   - **新增** 测量设置视图应提供可视化测量配置界面和实时状态反馈
+  - **新增** VSCode风格面板切换按钮应实现轻量级实现和直接状态同步
+  - **新增** 面板切换按钮应与停靠窗口可见性状态保持同步
+  - **新增** 重置布局功能应恢复默认布局和按钮状态
 - **专用Tab组件规范**
   - DBC详情标签页应支持大数据集的虚拟滚动
   - 播放控制标签页需实现精确的时间轴控制
@@ -4284,6 +4411,8 @@ MSV --> FM
   - **新增** 调试接口应提供性能监控和诊断能力
   - **增强** 底部面板输出系统应优化错误消息处理性能，减少消息队列积压
   - **新增** MeasurementSetupView应使用智能计时器优化流指示器性能
+  - **新增** VSCode风格面板切换按钮应使用轻量级QToolButton实现
+  - **新增** 面板切换按钮应避免不必要的重绘和事件处理
 - **最新规范要求**
   - 图形组件必须包含完善的错误处理和异常恢复机制
   - 所有组件需支持测试数据集的兼容性验证
@@ -4316,6 +4445,8 @@ MSV --> FM
   - **新增** 调试接口需提供性能监控和诊断能力
   - **增强** 底部面板输出系统需提供全面的插件帧传输错误消息和十六进制帧ID上下文
   - **新增** MeasurementSetupView需实现流指示器系统和智能计时器优化
+  - **新增** VSCode风格面板切换按钮需实现轻量级实现和直接状态同步
+  - **新增** 面板切换按钮需与停靠窗口可见性状态保持同步
 - **插件开发规范**
   - 插件应遵循标准的目录结构和命名约定
   - 插件main.py必须实现activate()和deactivate()方法
@@ -4356,6 +4487,7 @@ MSV --> FM
   - **新增** 调试接口必须提供性能监控和诊断能力
   - **增强** 底部面板输出系统必须提供全面的插件帧传输错误消息和十六进制帧ID上下文
   - **新增** MeasurementSetupView必须实现流指示器系统和状态灯机制
+  - **新增** VSCode风格面板切换按钮必须实现轻量级实现和直接状态同步
 - **手形平移模式规范**
   - 必须实现m_panMode布尔标志位控制平移模式
   - 必须支持OpenHandCursor和ClosedHandCursor光标切换
@@ -4406,6 +4538,14 @@ MSV --> FM
   - 必须实现连线绘制，显示数据流向和连接关系
   - 必须提供右键菜单，支持模块配置和操作
   - 必须实现智能计时器优化，仅在需要时更新状态灯
+- **VSCode风格面板切换按钮规范**
+  - 必须实现轻量级QToolButton控件创建
+  - 必须支持选中状态显示和主题适配
+  - 必须与停靠窗口可见性状态保持同步
+  - 必须提供左侧栏、右侧栏、底部信息栏切换功能
+  - 必须实现重置布局功能，恢复默认布局和按钮状态
+  - 必须优化性能，避免不必要的重绘和事件处理
+  - 必须支持初始状态应用和主题切换时的图标颜色更新
 
 ### 样式定制指南
 - 主题设计
@@ -4472,6 +4612,8 @@ MSV --> FM
   - **新增** 调试接口应提供性能监控和诊断能力
   - **增强** 底部面板输出系统应提供全面的插件帧传输错误消息和十六进制帧ID上下文
   - **新增** MeasurementSetupView应实现流指示器系统和智能计时器优化
+  - **新增** VSCode风格面板切换按钮应实现轻量级实现和直接状态同步
+  - **新增** 面板切换按钮应避免不必要的重绘和事件处理
 - **专用Tab组件最佳实践**
   - DBC详情标签页应实现高效的文件解析与缓存
   - 播放控制标签页需支持精确的时间同步
@@ -4520,6 +4662,8 @@ MSV --> FM
   - **新增** 调试接口应提供性能监控和诊断能力
   - **增强** 底部面板输出系统应优化错误消息处理性能，减少消息队列积压
   - **新增** MeasurementSetupView应使用智能计时器优化流指示器性能
+  - **新增** VSCode风格面板切换按钮应使用轻量级QToolButton实现
+  - **新增** 面板切换按钮应避免不必要的重绘和事件处理
 - **最新最佳实践**
   - 图形组件必须实现健壮的异常处理和崩溃恢复
   - 所有数据处理组件需包含数据验证和完整性检查
@@ -4553,6 +4697,8 @@ MSV --> FM
   - **新增** 调试接口需提供性能监控和诊断能力
   - **增强** 底部面板输出系统需提供全面的插件帧传输错误消息和十六进制帧ID上下文
   - **新增** MeasurementSetupView需实现流指示器系统和智能计时器优化
+  - **新增** VSCode风格面板切换按钮需实现轻量级实现和直接状态同步
+  - **新增** 面板切换按钮需与停靠窗口可见性状态保持同步
 - **插件开发最佳实践**
   - 插件应遵循模块化设计原则，保持代码结构清晰
   - 插件应实现适当的错误处理和异常恢复机制
@@ -4592,6 +4738,7 @@ MSV --> FM
   - **新增** 调试接口应提供性能监控和诊断能力
   - **增强** 底部面板输出系统应提供全面的插件帧传输错误消息和十六进制帧ID上下文
   - **新增** MeasurementSetupView应实现流指示器系统和状态灯机制
+  - **新增** VSCode风格面板切换按钮应实现轻量级实现和直接状态同步
 - **手形平移模式最佳实践**
   - 使用m_panMode标志位控制平移模式开关
   - 实现OpenHandCursor和ClosedHandCursor的光标切换
@@ -4639,6 +4786,14 @@ MSV --> FM
   - 提供右键菜单，支持模块配置和操作
   - 实现QTimer驱动的闪烁机制，500ms间隔更新状态
   - 优化图形场景性能，仅在拓扑变化时重建
+- **VSCode风格面板切换按钮最佳实践**
+  - 使用轻量级QToolButton控件避免性能开销
+  - 直接调用setVisible()方法同步停靠窗口状态
+  - 避免不必要的信号槽连接和事件处理
+  - 支持选中状态显示和主题适配
+  - 提供直观的按钮图标和工具提示
+  - 实现重置布局功能恢复默认状态
+  - 优化初始状态应用和主题切换性能
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -4786,6 +4941,13 @@ MSV --> FM
 141. **CPU使用测试**：验证流指示器闪烁对CPU性能的影响
 142. **用户体验测试**：验证流指示器系统的直观性和易用性
 143. **回归测试**：确保流指示器功能不影响现有功能的正常运行
+144. **VSCode风格面板切换按钮测试**：验证面板切换按钮的正常工作
+145. **按钮状态同步测试**：验证按钮选中状态与停靠窗口可见性状态的同步
+146. **重置布局功能测试**：验证重置布局按钮的功能和状态恢复
+147. **主题切换测试**：验证面板切换按钮在主题切换时的图标颜色更新
+148. **性能测试**：验证面板切换按钮系统的性能表现
+149. **用户体验测试**：验证面板切换按钮的易用性和直观性
+150. **回归测试**：确保面板切换按钮功能不影响现有功能的正常运行
 
 **章节来源**
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
@@ -4823,3 +4985,4 @@ MSV --> FM
 - [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
 - [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
 - [src/ui/measurementsetupview.cpp](file://src/ui/measurementsetupview.cpp)
+- [src/ui/mainwindow_chrome.cpp](file://src/ui/mainwindow_chrome.cpp)

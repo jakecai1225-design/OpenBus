@@ -7,19 +7,16 @@
 - [tests/CMakeLists.txt](file://tests/CMakeLists.txt)
 - [third_party/Dependencies.cmake](file://third_party/Dependencies.cmake)
 - [scripts/build.py](file://scripts/build.py)
-- [scripts/package.py](file://scripts/package.py)
-- [doc/打包安装方案.md](file://doc/打包安装方案.md)
-- [installer/openbus.iss](file://installer/openbus.iss)
-- [scripts/package_assets/README-PORTABLE.txt](file://scripts/package_assets/README-PORTABLE.txt)
+- [doc/构建基线.md](file://doc/构建基线.md)
 </cite>
 
 ## 更新摘要
 **所做更改**
-- **新增完整的自动化打包流水线**：集成了package.py与CMake构建系统，实现一键构建、部署、验证和分发
-- **增强构建脚本功能**：build.py支持Dev构建档、并行构建和多目标构建
-- **完善测试框架集成**：扩展了测试执行器，支持L1核心逻辑测试和L2 UI驱动测试
-- **优化第三方库管理**：改进了spdlog、nlohmann_json、qcustomplot等库的条件编译支持
-- **新增双格式输出**：同时生成便携版zip和Inno Setup安装器
+- **完整中文注释添加**：根目录CMakeLists.txt中添加了详细的中文注释说明构建配置、编译器设置和链接器选择
+- **链接器优化配置**：推荐使用ld.bfd链接器，避免LLD和gold链接器的兼容性问题
+- **薄归档性能优化**：实现了thin archive技术，将静态库重打包时间从分钟级降至毫秒级
+- **开发vs发布配置**：完整的Dev构建档支持（-O1 -g1），与全量Debug并存
+- **平台特定配置增强**：Windows平台的详细配置说明和驱动DLL自动复制机制
 
 ## 目录
 1. [项目概述](#项目概述)
@@ -43,7 +40,7 @@
 
 **章节来源**
 - [CMakeLists.txt:3-7](file://CMakeLists.txt#L3-L7)
-- [src/CMakeLists.txt:175-188](file://src/CMakeLists.txt#L175-L188)
+- [src/CMakeLists.txt:198-210](file://src/CMakeLists.txt#L198-L210)
 
 ## 根目录CMakeLists.txt配置
 
@@ -70,6 +67,14 @@ project(openbus
 - `CMAKE_AUTOUIC`: 自动生成UI类
 - `CMAKE_AUTORCC`: 自动处理资源文件
 
+### 构建系统说明
+**已更新** 增强的构建配置说明和优化选项：
+- PCH（预编译头）在 src/CMakeLists.txt 中配置
+- **推荐使用默认 ld.bfd 链接器**以获得最佳兼容性，避免LLD和gold链接器的问题
+- 不使用 ccache（与 MinGW g++ 13 的 PCH 不兼容，会静默崩溃）
+- 不使用 LLD 链接器（在 Windows 上会导致文件锁问题）
+- Dev 构建档（日常开发）：-O1 -g1，独立 build-dev/ 目录，与全信息 Debug（build/）并存
+
 ### Qt6组件查找配置
 **已更新** 新增Qt6 Network组件支持，用于市场索引和网络功能：
 ```cmake
@@ -88,18 +93,31 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport Svg Network)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 ```
 
-### 构建系统改进
-**已更新** 增强的构建配置说明和优化选项：
-- PCH（预编译头）在 src/CMakeLists.txt 中配置
-- 使用默认 ld.bfd 链接器以获得最佳兼容性
-- Dev 构建档（日常开发）：-O1 -g1，独立 build-dev/ 目录
-- **thin archive：只记录对象路径不复制内容，静态库重打包降为毫秒级**
+### Windows平台链接器配置
+**已更新** 详细的Windows平台链接器配置，推荐使用ld.bfd：
+```cmake
+if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    message(STATUS "使用默认 ld.bfd 链接器")
+    
+    # Dev 档 — 日常开发：O1 + 行号级调试信息，链接体积/耗时数量级下降
+    set(CMAKE_CXX_FLAGS_DEV "-O1 -g1")
+    
+    # thin archive：只记录对象路径不复制内容，静态库重打包降为毫秒级。
+    # 静态库仅供本构建树内部链接使用，不出库/不安装，thin 引用始终有效。
+    # 回退方式：删除下面两行即恢复 ar qc 实档案。
+    set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> qcT <TARGET> <LINK_FLAGS> <OBJECTS>")
+    set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> qT <TARGET> <OBJECTS>")
+    
+    # 链接器结论（实测，勿再尝试其他链接器）：
+    #  - ld.bfd（默认）：唯一可靠选择
+    #  - ld.gold：MinGW 发行版内为 ELF-only 构建，链接 PE 时报错误
+    #  - LLD：曾产出损坏的可执行文件
+endif()
+```
 
 **章节来源**
-- [CMakeLists.txt:9-14](file://CMakeLists.txt#L9-L14)
-- [CMakeLists.txt:16-21](file://CMakeLists.txt#L16-L21)
-- [CMakeLists.txt:58-61](file://CMakeLists.txt#L58-L61)
-- [CMakeLists.txt:23-31](file://CMakeLists.txt#L23-L31)
+- [CMakeLists.txt:9-55](file://CMakeLists.txt#L9-L55)
+- [CMakeLists.txt:62-68](file://CMakeLists.txt#L62-L68)
 
 ## 分层共享库架构
 
@@ -152,8 +170,8 @@ target_link_libraries(openbus_data PRIVATE z)
 ```
 
 **章节来源**
-- [src/CMakeLists.txt:175-188](file://src/CMakeLists.txt#L175-L188)
-- [src/CMakeLists.txt:190-235](file://src/CMakeLists.txt#L190-L235)
+- [src/CMakeLists.txt:204-210](file://src/CMakeLists.txt#L204-L210)
+- [src/CMakeLists.txt:216-257](file://src/CMakeLists.txt#L216-L257)
 
 ## 业务模块DLL配置
 
@@ -165,8 +183,8 @@ target_link_libraries(openbus_data PRIVATE z)
 add_library(openbus_market SHARED
     ui/markettab.h
     ui/markettab.cpp
-    ui/marketmodel.h
-    ui/marketmodel.cpp
+    ui/flowlayout.h
+    ui/flowlayout.cpp
     ui/marketmodule.h
     ui/marketmodule.cpp
 )
@@ -227,10 +245,10 @@ target_link_libraries(openbus_market PUBLIC
 ```
 
 **章节来源**
-- [src/CMakeLists.txt:271-334](file://src/CMakeLists.txt#L271-L334)
-- [src/CMakeLists.txt:336-400](file://src/CMakeLists.txt#L336-L400)
-- [src/CMakeLists.txt:402-456](file://src/CMakeLists.txt#L402-L456)
-- [src/CMakeLists.txt:458-523](file://src/CMakeLists.txt#L458-L523)
+- [src/CMakeLists.txt:300-316](file://src/CMakeLists.txt#L300-L316)
+- [src/CMakeLists.txt:367-386](file://src/CMakeLists.txt#L367-L386)
+- [src/CMakeLists.txt:433-446](file://src/CMakeLists.txt#L433-L446)
+- [src/CMakeLists.txt:489-502](file://src/CMakeLists.txt#L489-L502)
 
 ## 模块接口与注册机制
 
@@ -299,56 +317,15 @@ public:
 };
 ```
 
-### 模块实现示例
-每个业务模块都实现IBusinessModule接口：
-
-#### MarketModule实现
-```cpp
-class MarketModule : public IBusinessModule {
-public:
-    QString id() const override;
-    QString title() const override;
-    QIcon icon() const override;
-    QWidget *createWidget(ShellContext &ctx) override;
-    void invoke(const QString &action, const QVariant &arg) override;
-private:
-    MarketTab *m_tab = nullptr;
-};
-```
-
-#### TransceiveModule多页面实现
-```cpp
-class TransceiveModule : public IBusinessModule {
-public:
-    QString id() const override;
-    QString title() const override;
-    QIcon icon() const override;
-    QWidget *createWidget(ShellContext &ctx) override;
-    QStringList pages() const override;
-    QWidget *createPage(const QString &pageId, ShellContext &ctx) override;
-    void invoke(const QString &action, const QVariant &arg) override;
-    QVariant query(const QString &what, const QVariant &arg = {}) override;
-private:
-    QWidget *createSendPage(ShellContext &ctx);
-    QWidget *createPlaybackPage(ShellContext &ctx);
-    QWidget *createOfflinePage(ShellContext &ctx);
-    QWidget *createRecordPage(ShellContext &ctx);
-    ShellContext m_ctx;
-    QHash<QString, QWidget *> m_pages;
-};
-```
-
 **章节来源**
 - [src/core/module/imodule.h:31-80](file://src/core/module/imodule.h#L31-L80)
 - [src/core/module/imodule.h:82-171](file://src/core/module/imodule.h#L82-L171)
 - [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
-- [src/ui/marketmodule.h:18-28](file://src/ui/marketmodule.h#L18-L28)
-- [src/ui/transceivemodule.h:28-51](file://src/ui/transceivemodule.h#L28-L51)
 
 ## 预编译头优化配置
 
-### 分层PCH策略
-**新增** 为每个库配置专门的预编译头以优化编译时间：
+### PCH配置策略
+**已更新** 为每个库配置专门的预编译头以优化编译时间：
 
 #### openbus_data PCH配置
 针对核心层使用精简的Qt头文件列表：
@@ -385,100 +362,24 @@ target_precompile_headers(openbus_data PRIVATE
 )
 ```
 
-#### 业务模块PCH配置
-每个业务DLL都有针对性的PCH配置：
-
-**openbus_market** - 市场模块PCH：
-```cmake
-target_precompile_headers(openbus_market PRIVATE
-    <QObject>
-    <QWidget>
-    <QFrame>
-    <QVBoxLayout>
-    <QHBoxLayout>
-    <QLabel>
-    <QPushButton>
-    <QToolButton>
-    <QTableWidget>
-    <QHeaderView>
-    <QLineEdit>
-    <QMenu>
-    <QMessageBox>
-    <QFileDialog>
-    <QProgressBar>
-    <QScrollArea>
-    <QSplitter>
-    <QJsonDocument>
-    <QJsonArray>
-    <QJsonObject>
-    <QDir>
-    <QFile>
-    <QFileInfo>
-    <QStandardPaths>
-    <QTemporaryFile>
-    <QProcess>
-    <QPointer>
-    <QNetworkAccessManager>
-    <QNetworkReply>
-    <QNetworkRequest>
-    <QSvgRenderer>
-    <QCryptographicHash>
-    <QTimer>
-    <vector>
-    <string>
-    <memory>
-    <functional>
-    <algorithm>
-)
-```
-
-**openbus_transceive** - 收发模块PCH：
-```cmake
-target_precompile_headers(openbus_transceive PRIVATE
-    <QObject>
-    <QWidget>
-    <QFrame>
-    <QVBoxLayout>
-    <QHBoxLayout>
-    <QGridLayout>
-    <QGroupBox>
-    <QLabel>
-    <QPushButton>
-    <QToolButton>
-    <QTableWidget>
-    <QTableWidgetItem>
-    <QHeaderView>
-    <QLineEdit>
-    <QComboBox>
-    <QCheckBox>
-    <QSpinBox>
-    <QDoubleSpinBox>
-    <QSlider>
-    <QSplitter>
-    <QMenu>
-    <QMessageBox>
-    <QFileDialog>
-    <QDateTime>
-    <QTimer>
-    <QDir>
-    <QFile>
-    <QFileInfo>
-    <QSvgRenderer>
-    <vector>
-    <string>
-    <memory>
-    <functional>
-    <algorithm>
-)
-```
+#### 各业务模块PCH配置
+每个业务模块都有针对性的PCH配置，包含其特有的Qt组件：
+- **openbus_market**: 包含网络、JSON、SVG相关头文件
+- **openbus_transceive**: 包含表格、表单、日期时间相关头文件
+- **openbus_dbc**: 包含树形控件、表格视图相关头文件
+- **openbus_flow**: 包含图形场景、绘图相关头文件
+- **openbus_trace**: 包含表格视图、过滤器相关头文件
+- **openbus_graphic**: 包含qcustomplot、绘图相关头文件
 
 **章节来源**
-- [src/CMakeLists.txt:237-269](file://src/CMakeLists.txt#L237-L269)
-- [src/CMakeLists.txt:294-334](file://src/CMakeLists.txt#L294-L334)
-- [src/CMakeLists.txt:364-400](file://src/CMakeLists.txt#L364-400)
-- [src/CMakeLists.txt:424-456](file://src/CMakeLists.txt#L424-L456)
-- [src/CMakeLists.txt:480-523](file://src/CMakeLists.txt#L480-L523)
-- [src/CMakeLists.txt:553-596](file://src/CMakeLists.txt#L553-L596)
+- [src/CMakeLists.txt:262-291](file://src/CMakeLists.txt#L262-L291)
+- [src/CMakeLists.txt:319-358](file://src/CMakeLists.txt#L319-L358)
+- [src/CMakeLists.txt:389-424](file://src/CMakeLists.txt#L389-L424)
+- [src/CMakeLists.txt:449-480](file://src/CMakeLists.txt#L449-L480)
+- [src/CMakeLists.txt:505-547](file://src/CMakeLists.txt#L505-L547)
+- [src/CMakeLists.txt:582-609](file://src/CMakeLists.txt#L582-L609)
+- [src/CMakeLists.txt:646-677](file://src/CMakeLists.txt#L646-L677)
+- [src/CMakeLists.txt:709-751](file://src/CMakeLists.txt#L709-L751)
 
 ## 第三方库依赖管理
 
@@ -510,6 +411,9 @@ target_precompile_headers(openbus_transceive PRIVATE
 ```cmake
 if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/vector_blf/CMakeLists.txt")
     add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/vector_blf ${CMAKE_BINARY_DIR}/vector_blf)
+    message(STATUS "vector_blf integrated successfully, BLF support enabled")
+else()
+    message(WARNING "vector_blf not found in third_party/, BLF file support will be disabled.")
 endif()
 ```
 
@@ -525,8 +429,8 @@ endif()
 当启用vector_blf库时，会定义`HAS_VECTOR_BLF`宏，允许代码中使用高级BLF功能。
 
 **章节来源**
-- [third_party/Dependencies.cmake:5-31](file://third_party/Dependencies.cmake#L5-L31)
-- [src/CMakeLists.txt:198-235](file://src/CMakeLists.txt#L198-L235)
+- [third_party/Dependencies.cmake:5-35](file://third_party/Dependencies.cmake#L5-L35)
+- [src/CMakeLists.txt:220-257](file://src/CMakeLists.txt#L220-L257)
 
 ## 平台特定配置
 
@@ -543,7 +447,7 @@ endif()
 ```
 
 #### 链接器配置
-**已更新** 移除了LLD链接器的使用，改用默认的ld.bfd链接器以获得更好的兼容性：
+**已更新** 详细的链接器配置，推荐使用ld.bfd：
 ```cmake
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     message(STATUS "使用默认 ld.bfd 链接器")
@@ -551,9 +455,14 @@ if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # Dev 档 — 日常开发：O1 + 行号级调试信息，链接体积/耗时数量级下降
     set(CMAKE_CXX_FLAGS_DEV "-O1 -g1")
     
-    # thin archive：只记录对象路径不复制内容，静态库重打包降为毫秒级
+    # thin archive：只记录对象路径不复制内容，静态库重打包降为毫秒级。
     set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> qcT <TARGET> <LINK_FLAGS> <OBJECTS>")
     set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> qT <TARGET> <OBJECTS>")
+    
+    # 链接器结论（实测，勿再尝试其他链接器）：
+    #  - ld.bfd（默认）：唯一可靠选择
+    #  - ld.gold：MinGW 发行版内为 ELF-only 构建，链接 PE 时报错误
+    #  - LLD：曾产出损坏的可执行文件
 endif()
 ```
 
@@ -574,15 +483,35 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/driver")
 endif()
 ```
 
+#### 插件宿主物料部署
+**新增** 插件宿主脚本和SDK的自动部署：
+```cmake
+if(EXISTS "${CMAKE_SOURCE_DIR}/sdk")
+    add_custom_command(TARGET openbus POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/sdk"
+                "$<TARGET_FILE_DIR:openbus>/sdk"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:openbus>/scripts"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/scripts/sin_host.py"
+                "${CMAKE_SOURCE_DIR}/scripts/plugin_tool.py"
+                "${CMAKE_SOURCE_DIR}/scripts/driver_tool.py"
+                "$<TARGET_FILE_DIR:openbus>/scripts/"
+        COMMENT "Copying plugin host materials (sdk + scripts) to output directory"
+    )
+endif()
+```
+
 ### macOS和Linux平台
 - 默认使用系统提供的编译器
 - 依赖库通过包管理器或源码编译获取
 - 无需特殊的GUI程序设置
 
 **章节来源**
-- [CMakeLists.txt:32-48](file://CMakeLists.txt#L32-L48)
-- [src/CMakeLists.txt:627-634](file://src/CMakeLists.txt#L627-L634)
-- [src/CMakeLists.txt:636-653](file://src/CMakeLists.txt#L636-L653)
+- [CMakeLists.txt:32-55](file://CMakeLists.txt#L32-L55)
+- [src/CMakeLists.txt:787-810](file://src/CMakeLists.txt#L787-L810)
+- [src/CMakeLists.txt:819-833](file://src/CMakeLists.txt#L819-L833)
 
 ## 测试框架集成
 
@@ -644,7 +573,7 @@ endfunction()
 
 **章节来源**
 - [CMakeLists.txt:83-86](file://CMakeLists.txt#L83-L86)
-- [tests/CMakeLists.txt:1-108](file://tests/CMakeLists.txt#L1-108)
+- [tests/CMakeLists.txt:1-114](file://tests/CMakeLists.txt#L1-L114)
 
 ## 安装目标配置
 
@@ -672,8 +601,8 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/driver/"
 ```
 
 **章节来源**
-- [CMakeLists.txt:81-86](file://CMakeLists.txt#L81-L86)
-- [src/CMakeLists.txt:655-660](file://src/CMakeLists.txt#L655-L660)
+- [CMakeLists.txt:89-93](file://CMakeLists.txt#L89-L93)
+- [src/CMakeLists.txt:838-840](file://src/CMakeLists.txt#L838-L840)
 
 ## 自动化打包流水线
 
@@ -687,68 +616,6 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/driver/"
 - **debug**: GDB调试支持
 - **deploy**: Qt运行时依赖部署
 - **test**: 测试套件执行
-
-#### package.py 打包流水线
-**新增** 完整的自动化打包流程：
-
-```mermaid
-graph TD
-A[开始] --> B[步骤1: Release构建]
-B --> C[步骤2: windeployqt部署]
-C --> D[步骤3: 组装staging]
-D --> E[步骤4: Python运行时捆绑]
-E --> F[步骤5: 附加文件]
-F --> G[步骤6: 依赖完整性校验]
-G --> H[步骤7: 体积与内容报告]
-H --> I[步骤8a: 便携版zip]
-H --> J[步骤8b: Inno Setup安装器]
-I --> K[完成]
-J --> K
-```
-
-### 打包流程详解
-
-#### 步骤1: Release构建
-- 复用build.py子命令进行构建
-- 支持跳过构建（--skip-build）
-- 验证驱动布局完整性
-
-#### 步骤2: windeployqt部署
-- 部署Qt运行时依赖
-- 手动补充Qt6PrintSupport.dll
-- 回拷中文翻译文件
-- 创建lib/fonts目录
-
-#### 步骤3: 组装staging
-- 白名单文件拷贝机制
-- 源码树物料整理
-- 本地市场索引准备
-
-#### 步骤4: Python运行时捆绑
-- 本机安装版Python精简拷贝
-- PyQt6裁剪子集集成
-- ._pth隔离环境配置
-- 运行时自验证
-
-#### 步骤5: 附加文件
-- THIRD_PARTY_NOTICES.md
-- README-PORTABLE.txt
-- LICENSE.txt
-
-#### 步骤6: 依赖完整性校验
-- objdump导入表分析
-- 系统DLL白名单验证
-- 缺失依赖检测
-
-#### 步骤7: 体积与内容报告
-- 目录大小统计
-- 完整目录树报告
-- 体积优化建议
-
-#### 步骤8: 产物输出
-- 便携版zip压缩
-- Inno Setup安装器编译
-- 版本信息自动提取
 
 ### 构建类型支持
 **新增** 多种构建类型支持：
@@ -769,8 +636,7 @@ J --> K
 - 增量reconfigure优化
 
 **章节来源**
-- [scripts/build.py:1-662](file://scripts/build.py#L1-L662)
-- [scripts/package.py:1-710](file://scripts/package.py#L1-L710)
+- [scripts/build.py:1-200](file://scripts/build.py#L1-L200)
 
 ## 构建流程总结
 
@@ -808,11 +674,21 @@ G --> R[Qt6::Svg]
 6. **打包阶段**: 自动化打包和分发
 
 ### 性能优化效果
-- **编译时间**: 通过分层PCH和优化选项显著减少编译时间
-- **链接时间**: 使用thin archive和默认链接器确保稳定性
-- **内存占用**: 精简调试信息减少内存占用
-- **启动时间**: 优化的二进制文件提升应用程序启动速度
-- **模块化**: 业务DLL支持独立开发和测试，提高开发效率
+基于实际构建测试数据的性能基准：
+
+#### Phase A优化成果
+- **Dev构建档**：使用-O1 -g1优化级别，平衡性能和调试需求
+- **Thin Archive**：静态库重打包时间从分钟级降至毫秒级
+- **链接器优化**：使用ld.bfd替代LLD，解决文件锁定问题
+
+#### 构建性能指标
+| 场景 | 优化前 | 优化后 | 提升倍数 |
+|------|--------|--------|----------|
+| 修改UI文件→可运行 | ≈14分钟 | 24.3秒 | 35× |
+| 修改Core文件→可运行 | ≈23分钟 | 28.7秒 | 48× |
+| 全量构建 | ≈15.6分钟 | 5.5分钟 | 2.8× |
+| openbus.exe链接 | 778秒 | 9.6秒 | 81× |
+| libopenbus_core.a打包 | 513秒 | 3.3秒 | 155× |
 
 ### Thin Archive性能提升
 **新增** 通过thin archive技术实现的构建性能优化：
@@ -820,18 +696,23 @@ G --> R[Qt6::Svg]
 - **增量构建**：修改单个文件后的重新构建时间大幅减少
 - **存储优化**：只记录对象路径，不复制实际内容
 
-### 自动化优势
-**新增** 自动化打包流水线带来的优势：
-- **一键构建**：简化复杂的多步骤构建流程
-- **质量保证**：内置依赖检查和完整性验证
-- **版本管理**：自动版本信息提取和文件命名
-- **多格式输出**：同时生成便携版和安装器
-- **可重复性**：幂等构建，支持CI/CD集成
+### 链接器选择优势
+**新增** 使用ld.bfd链接器带来的稳定性提升：
+- **兼容性最佳**：唯一可靠的MinGW链接器选择
+- **避免文件锁问题**：相比LLD不会出现文件锁定问题
+- **PE格式支持**：相比gold链接器完全支持Windows PE格式
+- **稳定性保证**：不会产生损坏的可执行文件
+
+### 开发效率提升
+**新增** 开发vs发布配置的完整支持：
+- **Dev构建档**：-O1 -g1优化级别，适合日常开发
+- **独立构建目录**：build-dev/与build/并存，避免切换成本
+- **快速迭代**：修改单个文件后可在30秒内完成重新构建
+- **调试友好**：保留行号级调试信息，便于问题定位
 
 **章节来源**
-- [src/CMakeLists.txt:598-625](file://src/CMakeLists.txt#L598-L625)
-- [src/CMakeLists.txt:175-188](file://src/CMakeLists.txt#L175-L188)
-- [src/core/module/moduleregistry.h:27-50](file://src/core/module/moduleregistry.h#L27-L50)
+- [src/CMakeLists.txt:756-782](file://src/CMakeLists.txt#L756-L782)
+- [src/CMakeLists.txt:198-210](file://src/CMakeLists.txt#L198-L210)
 - [doc/构建基线.md:22-39](file://doc/构建基线.md#L22-L39)
-- [scripts/build.py:225-267](file://scripts/build.py#L225-L267)
-- [scripts/package.py:227-264](file://scripts/package.py#L227-L264)
+- [doc/构建基线.md:137-208](file://doc/构建基线.md#L137-L208)
+- [scripts/build.py:26-30](file://scripts/build.py#L26-L30)
