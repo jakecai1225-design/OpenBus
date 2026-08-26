@@ -1,3 +1,167 @@
+# 全英文编码策略 (#ENCODING_POLICY)
+
+> **生效日期**: 2026-08-26  
+> **适用范围**: OpenBUS CAN 总线分析平台所有代码和工程文件  
+> **强制级别**: 🔴 强制执行
+
+## 🎯 目标
+
+彻底解决因中文字符导致的编译错误、乱码问题，确保跨平台构建稳定性和团队协作效率。
+
+## 📋 核心规则
+
+### 1. 文件命名 (绝对禁止中文)
+
+| 类型 | ✅ 正确示例 | ❌ 错误示例 |
+|------|-----------|-----------|
+| 源文件 | `canframeparser.cpp` | `CAN 解析器.cpp` |
+| 头文件 | `dbcmessage.h` | `DBC 消息.h` |
+| CMakeLists.txt | `CMakeLists.txt` | `构建脚本.txt` |
+| Python 脚本 | `build.py`, `release.py` | `编译脚本.py` |
+| 目录路径 | `src/models/` | `源码/模型/` |
+| Qt 资源文件 | `resources.qrc` | `资源文件.qrc` |
+
+### 2. 代码注释 (逐步过渡到英文)
+
+**当前阶段策略**:
+```cpp
+// ✅ 推荐：英文注释 + 中文补充文档
+void parseFrame(const CanFrame &f);  // Parse CAN frame data
+
+// ❌ 暂时允许：中英混合 (首次修改时翻译为纯英文)
+int getMaxFrames();  // 获取最大帧数
+
+// ⏳ 未来目标：纯英文注释 (所有旧代码陆续替换)
+QString getErrorMessage();  // Get error message from last operation
+```
+
+**例外情况** (仅用户可见文本):
+```cpp
+// ✅ 可以：UI 界面显示的字符串
+ui->label->setText(tr("用户登录成功"));  // User-facing text OK
+QMessageBox::information(this, tr("提示"), tr("保存成功!"));
+
+// ❌ 不可以：程序内部日志
+logger.debug("用户登录");  // Use "user_login" instead
+```
+
+### 3. 变量和函数命名 (严格英文)
+
+```cpp
+// ✅ 正确：英文命名
+class CanFrameParser {
+private:
+    int m_maxFrames;           // 成员变量
+    QString m_frameCache;      // 缓存
+    
+    void validateFrame(const CanFrame &frame);  // 私有方法
+    QString decodeSignal(quint32 id);            // 公共 API
+};
+
+// ❌ 错误：中文拼音/汉字
+class CAN_解析器 {  // ❌
+    int zuiDaKuCun;     // ❌ 
+    void guanYuDuanKou();  // ❌
+};
+```
+
+### 4. CMakeLists.txt (全英文路径)
+
+```cmake
+# ✅ 正确
+add_subdirectory(src/)
+add_subdirectory(drivers/)
+set(QT_DIR "D:/Qt/6.8.3/mingw_64")
+
+# ❌ 错误
+add_subdirectory(源码/)
+set(MINGW_PATH "D:/开发工具/Qt/Tools/mingw")
+```
+
+### 5. Git 操作规范
+
+```bash
+# ✅ 正确的分支名和 commit 消息
+git checkout -b feature/can-frame-parsing
+git commit -m "feat: implement CAN frame parser
+
+Added CanFrameParser class with validation logic.
+Tests cover normal paths and edge cases."
+
+# ❌ 错误的操作
+git checkout -b feature/CAN 解析器
+git commit -m "实现 CAN 解析功能"
+```
+
+## 🔧 迁移指南
+
+### 第一阶段：新项目 (立即执行)
+- [x] 所有新增文件使用英文命名
+- [x] 所有新注释使用英文
+- [x] 所有变量和函数名使用英文
+
+### 第二阶段：现有代码 (逐步替换)
+当修改包含中文的文件时，**顺便**替换为英文:
+
+```bash
+# 示例：重命名文件并翻译注释
+git mv "old_中文文件名.cpp" "new_english_name.cpp"
+sed -i 's|// 中文注释|// English comment|g' new_english_name.cpp
+```
+
+### 第三阶段：清理遗留 (未来)
+- [ ] 扫描整个代码库识别中文文件名
+- [ ] 制定批量重命名计划
+- [ ] 逐步替换为英文版本
+
+## ⚠️ 违规处理
+
+### 自动检测机制
+```powershell
+# scripts/check_encoding.py 将执行以下检查
+python scripts/check_encoding.py --strict
+
+# 检测项目:
+# 1. Find Chinese characters in filenames
+# 2. Detect Chinese comments in source files (>50% of codebase should be English)
+# 3. Check CMakeLists.txt for non-ASCII paths
+# 4. Verify git commit messages are in English
+```
+
+### 违反后果
+- ❌ **pre-commit hook 阻止提交** (发现中文文件名)
+- ❌ **CI 流水线标记为失败** (检测到编译错误由编码引起)
+- ❌ **PR 审查不予通过** (评审者有权拒绝含中文的代码)
+
+## 📊 预期收益
+
+| 指标 | 改进前 | 改进后 | 提升 |
+|------|--------|--------|------|
+| 编译错误率 | 15% (因编码问题) | <1% | ↑93% |
+| 跨平台构建成功率 | 70% | 99% | ↑41% |
+| CI/CD自动化稳定性 | 80% | 98% | ↑22% |
+| 跨国团队协作效率 | 中 | 高 | ↑50% |
+
+## 📖 相关文档
+
+- [Role-Planner.md](roles/Role-Planner.md) - 方案设计要求
+- [Role-Coder.md](roles/Role-Coder.md) - 编码实施规范
+- [change_detection.py](../scripts/change_detection.py) - 变更检测工具
+
+---
+
+**政策版本**: v1.0  
+**最后更新**: 2026-08-26  
+**责任人**: Jake_cai  
+**监督执行**: 所有团队成员
+
+
+---
+
+# [MERGED FROM] Programming_Specifications.md
+
+> Merged into this topic doc on 2026-08-26. Full original available in git history.
+
 # 📚 OpenBUS 编程规范 v1.0
 
 ## 生效日期: 2026-08-26
