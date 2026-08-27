@@ -10,6 +10,7 @@
 #include <QQmlContext>
 #include <QQmlEngine>                // ✅ Added: Required for engine->rootContext()
 #include <QVBoxLayout>
+#include <QTimer>                    // ✅ Added: For delayed menuController setup
 #include "core/qmlmenulibrary.h"
 
 /**
@@ -64,12 +65,9 @@ void MainWindow::createQmlMenuBar()
     
     // ✅ 创建 QQuickWidget 容器
     m_qmlMenuBar = new QQuickWidget(this);
-    m_qmlMenuBar->resize(100, 30);  // 初始大小，由 menuBar() 自动调整宽度
+    m_qmlMenuBar->resize(1024, 30);  // 固定尺寸，由 layout 自动调整宽度
     m_qmlMenuBar->setResizeMode(QQuickWidget::SizeRootObjectToView);  // ✅ 正确枚举值
     m_qmlMenuBar->setSource(QUrl("qrc:/qml/menubar/Main.qml"));
-    
-    // ✅ 注册 QML 类型并设置 contextProperty
-    registerQmlTypes();
     
     // ⚠️ NOTE: QML 文件路径需要在 resources.qrc 中声明
     if (!m_qmlMenuBar->rootObject()) {
@@ -79,15 +77,27 @@ void MainWindow::createQmlMenuBar()
     }
     
     // ✅ 将 QML MenuBar 集成到 QMainWindow
-    // ❗关键：不能用 setMenuWidget(),因为 QQuickWidget 不是 QWidget!
-    // ✅ 正确做法：创建一个 wrapper QWidget,包含 QVBoxLayout + QQuickWidget
     auto *menuWrapper = new QWidget(this);
     auto *menuLayout = new QVBoxLayout(menuWrapper);
     menuLayout->setContentsMargins(0, 0, 0, 0);
     menuLayout->addWidget(m_qmlMenuBar);
-    
-    // ✅ 将这个 wrapper 设置为 menuBar (它是 QWidget)
     setMenuWidget(menuWrapper);
+    
+    // ✅ 关键修复：使用 QMetaObject::invokeMethod + Qt::AutoConnection
+    // 确保在事件循环运行时才设置 contextProperty!
+    QTimer::singleShot(0, this, [this]() {
+        if (m_qmlMenuBar && m_qmlMenuBar->rootObject()) {
+            auto engine = m_qmlMenuBar->engine();
+            if (engine) {
+                qInfo() << "Setting menuController context property to QML";
+                engine->rootContext()->setContextProperty("menuController", m_menuController);
+            } else {
+                qCritical() << "QML Engine is null after event loop!";
+            }
+        } else {
+            qCritical() << "QML root object is null after event loop!";
+        }
+    });
 }
 
 /**
@@ -98,10 +108,6 @@ void MainWindow::createQmlMenuBar()
  */
 void MainWindow::registerQmlTypes()
 {
-    // ✅ 注册 C++ 类为 QML 类型 (通过 URI + contextProperty)
+    // ✅ 注册 C++ 类为 QML 类型 (通过 URI)
     qmlRegisterType<MenuController>("OpenBUS.Menu", 1, 0, "MenuController");
-    
-    // ✅ 将实例设为单例，供 QML 直接访问
-    auto engine = m_qmlMenuBar->engine();
-    engine->rootContext()->setContextProperty("menuController", m_menuController);
 }

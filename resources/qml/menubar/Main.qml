@@ -1,19 +1,18 @@
 // =============================================================================
 //  Main.qml - QML MenuBar 界面
 // =============================================================================
-//  VS Code 风格菜单栏界面
-//  基于 menuController contextProperty 访问 C++ 后端
-//  注意：这是作为 QMainWindow 的 menuWidget 显示的，不能有顶层窗口组件!
-// =============================================================================
-
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 2.15
 
+// ✅ 关键修复：使用 ApplicationWindow 内联模式!
 Item {
     id: root
     
-    // ✅ 必须使用 ColumnLayout 包裹多个 Menu
+    // ✅ 不依赖 parent.width，直接指定默认宽度
+    width: 1024
+    height: 30
+    
     ColumnLayout {
         anchors.fill: parent
         spacing: 0

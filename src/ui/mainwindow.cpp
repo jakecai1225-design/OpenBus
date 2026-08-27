@@ -101,20 +101,21 @@ MainWindow::MainWindow(QWidget *parent)
 {
     setWindowTitle("openbus - CAN/CAN FD 报文分析工具");
     resize(1400, 900);
-    setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
 
     // ---- 数据层 / 核心服务 / 插件 / 驱动（mainwindow_setup.cpp 阶段 1）----
     setupCoreServices();
 
     // ---- UI 构建 ----
-    createQmlMenuBar();                   // ✅ QML 菜单条（新方案）
-    // createMenuBar();                     // ❌ 旧方案已废弃
+    createMenuBar();                  // ✅ 使用原生 QMenuBar (最稳定)
     createWindowButtons();
     createStatusBar();  // 先创建状态栏（openTab 需要 m_tabLabel）
     createLayout();
 
     // ⚠️ NOTE: 不再调用 menuBar()->installEventFilter()
     // 因为菜单区域已由 QQuickWidget 接管，原生 menuBar() 已被删除
+
+    // ✅ 关键：在最后设置 windowFlags，避免影响 QML 渲染
+    setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
 
     // ---- 信号连接（mainwindow_setup.cpp 阶段 2~5；原构造函数直排代码
     //      按阶段拆出，调用顺序即原执行顺序）----
