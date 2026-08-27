@@ -69,6 +69,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 #  查找 Qt6
 # ============================================================
 find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport Svg Network Qml Quick)
+# ⚠️ Note: QuickWidgets not in find_package due to MinGW Qt missing cmake config
 
 # 启用 Qt 标准项目设置
 qt_standard_project_setup()

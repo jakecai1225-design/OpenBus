@@ -4,7 +4,7 @@
 
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include "menucontroller.h"
+#include "qmlmenulibrary.h"
 #include <QQuickWidget>
 #include <QApplication>
 #include <QDebug>

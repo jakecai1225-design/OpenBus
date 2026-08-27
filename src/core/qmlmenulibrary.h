@@ -62,8 +62,8 @@ signals:
     void shortcutsRequested();
     void licenseRequested();
 
-private slots:
-    void quitApplication();
+public slots:
+    void quitApplication();  // ✅ Moved from private to public - needs to be callable from MainWindow::connect()
     
 private:
     struct MenuItemData {

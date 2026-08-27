@@ -1,0 +1,217 @@
+[New Thread 24192.0x4c24]
+[New Thread 24192.0xc74]
+[New Thread 24192.0x51cc]
+[New Thread 24192.0x58a8]
+[New Thread 24192.0x5808]
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+warning: qt.core.qobject.connect: QObject::connect: signal not found in MenuController
+[New Thread 24192.0x5ab0]
+warning: qrc:/qml/menubar/Main.qml:10:1: module "QtQuick.Controls.Material" is not installed 
+     import QtQuick.Controls.Material 2.15 
+     ^
+warning: qrc:/qml/menubar/Main.qml:9:1: module "QtQuick.Controls" is not installed 
+     import QtQuick.Controls 2.15 
+     ^
+warning: qrc:/qml/menubar/Main.qml:10:1: module "QtQuick.Controls.Material" is not installed 
+     import QtQuick.Controls.Material 2.15 
+     ^
+warning: qrc:/qml/menubar/Main.qml:9:1: module "QtQuick.Controls" is not installed 
+     import QtQuick.Controls 2.15 
+     ^
+warning: QML MenuBar file not found: qrc:/qml/menubar/Main.qml
+warning: Please ensure this file is included in resources.qrc
+[New Thread 24192.0x53d0]
+warning: QCPAxisRect* QCustomPlot::axisRect(int) const invalid axis rect index 0
+warning: QCPAxisRect* QCustomPlot::axisRect(int) const invalid axis rect index 0
+warning: QCPAxisRect* QCustomPlot::axisRect(int) const invalid axis rect index 0
+warning: QCPAxisRect* QCustomPlot::axisRect(int) const invalid axis rect index 0
+warning: QCPAxisRect* QCustomPlot::axisRect(int) const invalid axis rect index 0
+[New Thread 24192.0x32d4]
+
+Thread 1 received signal SIGSEGV, Segmentation fault.
+0x00007ffa572dc9e4 in QAction::setEnabled(bool) () from D:\sin\sin_20260727\sin\build\bin\Qt6Gui.dll
+#0  0x00007ffa572dc9e4 in QAction::setEnabled(bool) () from D:\sin\sin_20260727\sin\build\bin\Qt6Gui.dll
+No symbol table info available.
+#1  0x00007ff6d6ab6d14 in MainWindow::updateActions () at D:/sin/sin_20260727/sin/src/ui/mainwindow_actions.cpp:444
+No locals.
+#2  0x00007ff6d6aa5372 in MainWindow::MainWindow () at D:/sin/sin_20260727/sin/src/ui/mainwindow.cpp:125
+No locals.
+#3  0x00007ff6d6aa1db0 in qMain () at D:/sin/sin_20260727/sin/src/main.cpp:59
+No locals.
+#4  0x00007ff6d6b0baa6 in qtEntryPoint () at C:/Users/qt/work/qt/qtbase/src/entrypoint/qtentrypoint_win.cpp:45
+        argc = 1
+        argv = <optimized out>
+        argvW = <optimized out>
+        exitCode = <optimized out>
+#5  0x00007ff6d6aa12ef in __tmainCRTStartup ()
+No symbol table info available.
+#6  0x00007ff6d6aa13e6 in WinMainCRTStartup ()
+No symbol table info available.
+No symbol table info available.
+
+Thread 9 (Thread 24192.0x32d4):
+#0  0x00007ffb21089cf6 in ntdll!RtlpNtSetValueKey () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#1  0x00007ffb20f7569b in ntdll!RtlImageDirectoryEntryToData () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#2  0x00007ffb20fd019d in ntdll!RtlDeleteElementGenericTableAvlEx () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#3  0x00007ffb20fcf6bc in ntdll!RtlDeleteElementGenericTableAvlEx () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#4  0x00007ffb20fce1ac in ntdll!RtlInsertElementGenericTableFullAvl () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#5  0x00007ffb20fd1d5d in ntdll!RtlDeleteElementGenericTableAvlEx () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#6  0x00007ffb20f8e9a4 in ntdll!TpSetWaitEx () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#7  0x00007ffb20f78070 in ntdll!LdrGetDllHandleEx () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#8  0x00007ffb20f77cf0 in ntdll!LdrGetDllHandleEx () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#9  0x00007ffb20faef50 in ntdll!LdrLoadDll () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#10 0x00007ffb1e5c14cf in LoadLibraryExW () from C:\WINDOWS\System32\KernelBase.dll
+#11 0x00007ffb1fa231b9 in combase!CoReleaseServerProcess () from C:\WINDOWS\System32\combase.dll
+#12 0x00007ffb1fa22ceb in combase!CoReleaseServerProcess () from C:\WINDOWS\System32\combase.dll
+#13 0x00007ffb1fba680f in combase!CoGetInstanceFromIStorage () from C:\WINDOWS\System32\combase.dll
+#14 0x00007ffb1fba781a in combase!CoGetInstanceFromIStorage () from C:\WINDOWS\System32\combase.dll
+#15 0x00007ffb1fba7369 in combase!CoGetInstanceFromIStorage () from C:\WINDOWS\System32\combase.dll
+#16 0x00007ffb1fba6161 in combase!CoGetInstanceFromIStorage () from C:\WINDOWS\System32\combase.dll
+#17 0x00007ffb1fb3cf0a in combase!CoRegisterClassObject () from C:\WINDOWS\System32\combase.dll
+#18 0x00007ffb1fae6e8d in combase!HSTRING_UserSize64 () from C:\WINDOWS\System32\combase.dll
+#19 0x00007ffb1fb3cb9c in combase!CoRegisterClassObject () from C:\WINDOWS\System32\combase.dll
+#20 0x00007ffb1fafa737 in combase!InternalCAggIdRelease () from C:\WINDOWS\System32\combase.dll
+#21 0x00007ffb1faf9f9d in combase!InternalCAggIdRelease () from C:\WINDOWS\System32\combase.dll
+#22 0x00007ffb1fb3c321 in combase!CoRegisterClassObject () from C:\WINDOWS\System32\combase.dll
+#23 0x00007ffb1fa62efe in combase!CoGetObjectContext () from C:\WINDOWS\System32\combase.dll
+#24 0x00007ffb1fae6e8d in combase!HSTRING_UserSize64 () from C:\WINDOWS\System32\combase.dll
+#25 0x00007ffb1fa619ae in combase!CoGetObjectContext () from C:\WINDOWS\System32\combase.dll
+#26 0x00007ffb1fae6e8d in combase!HSTRING_UserSize64 () from C:\WINDOWS\System32\combase.dll
+#27 0x00007ffb1fba336f in combase!CoGetInstanceFromIStorage () from C:\WINDOWS\System32\combase.dll
+#28 0x00007ffb1fba276a in combase!CoGetInstanceFromIStorage () from C:\WINDOWS\System32\combase.dll
+#29 0x00007ffb1fb9ddc8 in combase!CoVrfReleaseThreadState () from C:\WINDOWS\System32\combase.dll
+#30 0x00007ffb1fb9da37 in combase!CoVrfReleaseThreadState () from C:\WINDOWS\System32\combase.dll
+#31 0x00007ffb1fa26da7 in combase!CoCreateInstance () from C:\WINDOWS\System32\combase.dll
+#32 0x00007ffa86520e01 in QNetworkProxyFactory::systemProxyForQuery(QNetworkProxyQuery const&) () from D:\sin\sin_20260727\sin\build\bin\Qt6Network.dll
+#33 0x00007ffa865226bb in QNetworkProxyFactory::systemProxyForQuery(QNetworkProxyQuery const&) () from D:\sin\sin_20260727\sin\build\bin\Qt6Network.dll
+#34 0x00007ffa86522832 in QNetworkConnectionMonitor::QNetworkConnectionMonitor() () from D:\sin\sin_20260727\sin\build\bin\Qt6Network.dll
+#35 0x00007ffa864dbdac in QHttpNetworkConnection::metaObject() const () from D:\sin\sin_20260727\sin\build\bin\Qt6Network.dll
+#36 0x00007ffa864dd79a in QHttpNetworkConnection::QHttpNetworkConnection(unsigned short, QString const&, unsigned short, bool, bool, QObject*, QHttpNetworkConnection::ConnectionType) () from D:\sin\sin_20260727\sin\build\bin\Qt6Network.dll
+#37 0x00007ffa864f3a44 in QHttpNetworkReply::qt_metacall(QMetaObject::Call, int, void**) () from D:\sin\sin_20260727\sin\build\bin\Qt6Network.dll
+#38 0x00007ffa8693f84c in QObject::event(QEvent*) () from D:\sin\sin_20260727\sin\build\bin\Qt6Core.dll
+#39 0x00007ffa567b6355 in QApplicationPrivate::notify_helper(QObject*, QEvent*) () from D:\sin\sin_20260727\sin\build\bin\Qt6Widgets.dll
+#40 0x00007ffa869029ea in QCoreApplication::notifyInternal2(QObject*, QEvent*) () from D:\sin\sin_20260727\sin\build\bin\Qt6Core.dll
+#41 0x00007ffa86906c2b in QCoreApplicationPrivate::sendPostedEvents(QObject*, int, QThreadData*) () from D:\sin\sin_20260727\sin\build\bin\Qt6Core.dll
+#42 0x00007ffa86ab570a in QEventDispatcherWin32::processEvents(QFlags<QEventLoop::ProcessEventsFlag>) () from D:\sin\sin_20260727\sin\build\bin\Qt6Core.dll
+#43 0x00007ffa8690d6d2 in QEventLoop::exec(QFlags<QEventLoop::ProcessEventsFlag>) () from D:\sin\sin_20260727\sin\build\bin\Qt6Core.dll
+#44 0x00007ffa86a05f27 in QThread::exec() () from D:\sin\sin_20260727\sin\build\bin\Qt6Core.dll
+#45 0x00007ffa86abf409 in QThread::setTerminationEnabled(bool) () from D:\sin\sin_20260727\sin\build\bin\Qt6Core.dll
+#46 0x00007ffb1fe6ccb7 in KERNEL32!BaseThreadInitThunk () from C:\WINDOWS\System32\kernel32.dll
+#47 0x00007ffb20fead6c in ntdll!RtlUserThreadStart () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#48 0x0000000000000000 in ?? ()
+Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+
+Thread 8 (Thread 24192.0x53d0):
+#0  0x00007ffa8690138f in QCoreApplication::compressEvent(QEvent*, QObject*, QPostEventList*) () from D:\sin\sin_20260727\sin\build\bin\Qt6Core.dll
+#1  0x00007ffa869053a1 in QCoreApplication::postEvent(QObject*, QEvent*, int) () from D:\sin\sin_20260727\sin\build\bin\Qt6Core.dll
+#2  0x00007ffb181c1f04 in ?? () from C:\WINDOWS\SYSTEM32\winmm.dll
+#3  0x00007ffb181cff92 in joySetThreshold () from C:\WINDOWS\SYSTEM32\winmm.dll
+#4  0x00007ffb1fe6ccb7 in KERNEL32!BaseThreadInitThunk () from C:\WINDOWS\System32\kernel32.dll
+#5  0x00007ffb20fead6c in ntdll!RtlUserThreadStart () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#6  0x0000000000000000 in ?? ()
+Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+
+Thread 7 (Thread 24192.0x5ab0):
+#0  0x00007ffb1e9bae84 in win32u!NtUserMsgWaitForMultipleObjectsEx () from C:\WINDOWS\System32\win32u.dll
+#1  0x00007ffa86ab5bf4 in QEventDispatcherWin32::processEvents(QFlags<QEventLoop::ProcessEventsFlag>) () from D:\sin\sin_20260727\sin\build\bin\Qt6Core.dll
+#2  0x00007ffa8690d6d2 in QEventLoop::exec(QFlags<QEventLoop::ProcessEventsFlag>) () from D:\sin\sin_20260727\sin\build\bin\Qt6Core.dll
+#3  0x00007ffa86a05f27 in QThread::exec() () from D:\sin\sin_20260727\sin\build\bin\Qt6Core.dll
+#4  0x00007ffa86abf409 in QThread::setTerminationEnabled(bool) () from D:\sin\sin_20260727\sin\build\bin\Qt6Core.dll
+#5  0x00007ffb1fe6ccb7 in KERNEL32!BaseThreadInitThunk () from C:\WINDOWS\System32\kernel32.dll
+#6  0x00007ffb20fead6c in ntdll!RtlUserThreadStart () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#7  0x0000000000000000 in ?? ()
+Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+
+Thread 6 (Thread 24192.0x5808):
+#0  0x00007ffb210a4034 in ntdll!ZwWaitForWorkViaWorkerFactory () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#1  0x00007ffb20f9064e in ntdll!RtlSetThreadSubProcessTag () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#2  0x00007ffb1fe6ccb7 in KERNEL32!BaseThreadInitThunk () from C:\WINDOWS\System32\kernel32.dll
+#3  0x00007ffb20fead6c in ntdll!RtlUserThreadStart () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#4  0x0000000000000000 in ?? ()
+Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+
+Thread 5 (Thread 24192.0x58a8):
+#0  0x00007ffb210a4034 in ntdll!ZwWaitForWorkViaWorkerFactory () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#1  0x00007ffb20f9064e in ntdll!RtlSetThreadSubProcessTag () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#2  0x00007ffb1fe6ccb7 in KERNEL32!BaseThreadInitThunk () from C:\WINDOWS\System32\kernel32.dll
+#3  0x00007ffb20fead6c in ntdll!RtlUserThreadStart () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#4  0x0000000000000000 in ?? ()
+Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+
+Thread 4 (Thread 24192.0x51cc):
+#0  0x00007ffb210a4034 in ntdll!ZwWaitForWorkViaWorkerFactory () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#1  0x00007ffb20f9064e in ntdll!RtlSetThreadSubProcessTag () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#2  0x00007ffb1fe6ccb7 in KERNEL32!BaseThreadInitThunk () from C:\WINDOWS\System32\kernel32.dll
+#3  0x00007ffb20fead6c in ntdll!RtlUserThreadStart () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#4  0x0000000000000000 in ?? ()
+Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+
+Thread 3 (Thread 24192.0xc74):
+#0  0x00007ffb210a4034 in ntdll!ZwWaitForWorkViaWorkerFactory () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#1  0x00007ffb20f9064e in ntdll!RtlSetThreadSubProcessTag () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#2  0x00007ffb1fe6ccb7 in KERNEL32!BaseThreadInitThunk () from C:\WINDOWS\System32\kernel32.dll
+#3  0x00007ffb20fead6c in ntdll!RtlUserThreadStart () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#4  0x0000000000000000 in ?? ()
+Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+
+Thread 2 (Thread 24192.0x4c24):
+#0  0x00007ffb210a4034 in ntdll!ZwWaitForWorkViaWorkerFactory () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#1  0x00007ffb20f9064e in ntdll!RtlSetThreadSubProcessTag () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#2  0x00007ffb1fe6ccb7 in KERNEL32!BaseThreadInitThunk () from C:\WINDOWS\System32\kernel32.dll
+#3  0x00007ffb20fead6c in ntdll!RtlUserThreadStart () from C:\WINDOWS\SYSTEM32\ntdll.dll
+#4  0x0000000000000000 in ?? ()
+Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+
+Thread 1 (Thread 24192.0xf6c):
+#0  0x00007ffa572dc9e4 in QAction::setEnabled(bool) () from D:\sin\sin_20260727\sin\build\bin\Qt6Gui.dll
+#1  0x00007ff6d6ab6d14 in MainWindow::updateActions () at D:/sin/sin_20260727/sin/src/ui/mainwindow_actions.cpp:444
+#2  0x00007ff6d6aa5372 in MainWindow::MainWindow () at D:/sin/sin_20260727/sin/src/ui/mainwindow.cpp:125
+#3  0x00007ff6d6aa1db0 in qMain () at D:/sin/sin_20260727/sin/src/main.cpp:59
+#4  0x00007ff6d6b0baa6 in qtEntryPoint () at C:/Users/qt/work/qt/qtbase/src/entrypoint/qtentrypoint_win.cpp:45
+#5  0x00007ff6d6aa12ef in __tmainCRTStartup ()
+#6  0x00007ff6d6aa13e6 in WinMainCRTStartup ()
+#0  0x00007ffa572dc9e4 in QAction::setEnabled(bool) () from D:\sin\sin_20260727\sin\build\bin\Qt6Gui.dll
+rax            0x1c407c480f0       1941455536368
+rbx            0x9e1d5ff220        679097659936
+rcx            0x0                 0
+rdx            0x0                 0
+rsi            0x0                 0
+rdi            0x1c4079d6b00       1941452974848
+rbp            0x7ffa572dc9e0      0x7ffa572dc9e0 <QAction::setEnabled(bool)>
+rsp            0x9e1d5fefb8        0x9e1d5fefb8
+r8             0x7ffffffffffffffc  9223372036854775804
+r9             0x1c43b132960       1942316329312
+r10            0x1c4079d0000       1941452947456
+r11            0x9e1d5fef90        679097659280
+r12            0x1c4079d6bc0       1941452975040
+r13            0x0                 0
+r14            0x7ff6d6baf1f0      140698141258224
+r15            0x0                 0
+rip            0x7ffa572dc9e4      0x7ffa572dc9e4 <QAction::setEnabled(bool)+4>
+eflags         0x10246             [ PF ZF IF RF ]
+cs             0x33                51
+ss             0x2b                43
+ds             0x2b                43
+es             0x2b                43
+fs             0x53                83
+gs             0x2b                43
+A debugging session is active.
+
+	Inferior 1 [process 24192] will be killed.
+
+Quit anyway? (y or n) [answered Y; input not from terminal]

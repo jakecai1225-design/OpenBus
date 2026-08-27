@@ -48,6 +48,7 @@
 #include "core/plugin/pluginmanager.h"
 #include "core/plugin/plugininfo.h"
 #include "models/viewportproxy.h"
+#include "core/qmlmenulibrary.h"  // ✅ QML MenuBar: MenuController 后端
 
 #include <QMenuBar>
 #include <QMenu>
@@ -106,12 +107,14 @@ MainWindow::MainWindow(QWidget *parent)
     setupCoreServices();
 
     // ---- UI 构建 ----
-    createMenuBar();
+    createQmlMenuBar();                   // ✅ QML 菜单条（新方案）
+    // createMenuBar();                     // ❌ 旧方案已废弃
     createWindowButtons();
     createStatusBar();  // 先创建状态栏（openTab 需要 m_tabLabel）
     createLayout();
 
-    menuBar()->installEventFilter(this);
+    // ⚠️ NOTE: 不再调用 menuBar()->installEventFilter()
+    // 因为菜单区域已由 QQuickWidget 接管，原生 menuBar() 已被删除
 
     // ---- 信号连接（mainwindow_setup.cpp 阶段 2~5；原构造函数直排代码
     //      按阶段拆出，调用顺序即原执行顺序）----

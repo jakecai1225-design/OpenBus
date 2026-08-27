@@ -1,0 +1,26 @@
+LIBRARY Qt6QuickWidgets.dll
+EXPORTS
+    @1 QQuickWidget::QQuickWidget@8 
+    @2 QQuickWidget::QQuickWidget@12
+    @3 QQuickWidget::~QQuickWidget@4  
+    @4 QQuickWidget::setResizeMode@4
+    @5 QQuickWidget::resizeMode@4
+    @6 QQuickWidget::setSource@4
+    @7 QQuickWidget::source@4
+    @8 QQuickWidget::engine@4
+    @9 QQuickWidget::rootObject@4
+    @10 QQuickWidget::setContextProperty@8
+    @11 QQuickWidget::contextProperty@8
+    @12 QQuickWidget::keyPressEvent@8
+    @13 QQuickWidget::keyReleaseEvent@8
+    @14 QQuickWidget::mousePressEvent@8
+    @15 QQuickWidget::mouseMoveEvent@8
+    @16 QQuickWidget::mouseReleaseEvent@8
+    @17 QQuickWidget::wheelEvent@8
+    @18 QQuickWidget::focusInEvent@4
+    @19 QQuickWidget::focusOutEvent@4
+    @20 QQuickWidget::paintEvent@4
+    @21 QQuickWidget::resizeEvent@4
+    @22 QQuickWidget::hideEvent@4
+    @23 QQuickWidget::showEvent@4
+    @24 QQuickWidget::event@4

@@ -2,6 +2,15 @@
     <qresource prefix="/">
         <file>styles/default.qss</file>
         <file>styles/theme.qss</file>
+        <!-- QML MenuBar - 完整资源 -->
+        <file>qml/menubar/Main.qml</file>
+        <file>qml/menubar/MenuBarMain.qml</file>
+        <file>qml/menubar/menus/FileMenu.qml</file>
+        <file>qml/menubar/menus/ViewMenu.qml</file>
+        <file>qml/menubar/menus/ToolsMenu.qml</file>
+        <file>qml/menubar/menus/HelpMenu.qml</file>
+        <file>qml/menubar/components/MenuItem.qml</file>
+        <!-- Icons -->
         <file>icons/project.svg</file>
         <file>icons/trace.svg</file>
         <file>icons/graphic.svg</file>

@@ -158,8 +158,14 @@ class Environment:
             self.make_program = mingw32_make  # 默认值，verify 时会报错
 
         # ---- Ninja 构建系统 (项目本地 tools/ 目录，自动检测) ----
-        self.ninja = TOOLS_DIR / "ninja" / "ninja.exe"
+        self.ninja = TOOLS_DIR / "ninja.exe"
         self.use_ninja = self.ninja.exists()
+        if not self.use_ninja:
+            # Fallback: check in subdirectory tools/ninja/ninja.exe
+            self.ninja_sub = TOOLS_DIR / "ninja" / "ninja.exe"
+            self.use_ninja = self.ninja_sub.exists()
+            if self.use_ninja:
+                self.ninja = self.ninja_sub
 
         # 注意: 不使用 ccache（与 MinGW g++ 13 的 PCH 不兼容，会静默崩溃）
         # 注意: 不使用 LLD 链接器（在 Windows 上会导致文件锁问题）
@@ -307,14 +313,20 @@ def cmd_build(env, args):
     if not (BUILD_DIR / "CMakeCache.txt").exists():
         info("构建目录未配置，自动执行 configure...")
         cmd_configure(env, args)
+    elif cmake_needs_reconfigure():
+        info("CMakeLists.txt 有更新，执行增量 reconfigure...")
+        run_cmd([
+            str(env.cmake), "-B", str(BUILD_DIR), "-S", str(PROJECT_ROOT)
+        ])
 
     # 编译前自动终止正在运行的程序，避免文件锁
     kill_running_executable()
 
     cmd = [str(env.cmake), "--build", str(BUILD_DIR)]
     
-    # 默认只构建 main target (openbus.exe)，跳过所有测试目标
-    cmd.extend(["--target", "openbus"])
+    # 允许自定义 target，默认构建 openbus.exe
+    target = getattr(args, 'target', None) or 'openbus'
+    cmd.extend(["--target", target])
 
     jobs = args.jobs or os.cpu_count() or 4
     # Ninja 和 MinGW Makefiles 都支持 -j 参数
@@ -423,9 +435,16 @@ def cmd_deploy(env, args):
 
 
 def cmd_all(env, args):
-    """完整流程: 配置 + 编译 + 部署 + 运行"""
+    """完整流程：配置 + 编译 + 部署 + 运行"""
     header("完整构建流程")
     cmd_configure(env, args)
+    
+    # all 子命令没有 --target / --jobs 参数，补齐默认值供 cmd_build 使用
+    if not hasattr(args, "target"):
+        args.target = None
+    if not hasattr(args, "jobs"):
+        args.jobs = None
+    
     cmd_build(env, args)
     cmd_deploy(env, args)
     cmd_run(env, args)
@@ -464,10 +483,10 @@ def cmd_open(env, args):
 
 
 def cmake_needs_reconfigure():
-    """任一 CMakeLists.txt 比构建系统主文件新 → 需要 reconfigure。
+    """检查 CMakeLists.txt 是否比构建系统主文件新 → 需要 reconfigure。
 
-    无条件 reconfigure 会重写全部 flags.make（mtime 更新），Makefile 生成器
-    按时间戳判定 → 触发全量重编。仅在 CMake 变化后首次跑一次。
+    核心：避免无条件 reconfigure 导致 Makefile 生成器触发全量重编。
+    只在必要时首次跑一次，后续纯代码修改不影响 CMakeCache，无需重配。
     """
     masters = [BUILD_DIR / "Makefile", BUILD_DIR / "build.ninja"]
     master = next((m for m in masters if m.exists()), None)
@@ -479,6 +498,7 @@ def cmake_needs_reconfigure():
         if any(p.lower().startswith("build") for p in cm.parts):
             continue
         if cm.stat().st_mtime > master_ts:
+            info(f"检测到 CMakeLists.txt 变更 (最近修改：{cm})")
             return True
     return False
 

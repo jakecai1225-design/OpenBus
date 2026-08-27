@@ -156,6 +156,7 @@ set(SRC_UI
     ui/mainwindow_pages.cpp      # 页面打开槽 + 面板列表刷新
     ui/mainwindow_project.cpp    # 工程与会话生命周期 + closeEvent
     ui/mainwindow_dialogs.cpp    # 帮助对话框 + 插件集成槽
+    ui/mainwindow_qmlmenu.cpp    # ✅ QML MenuBar 集成（新架构）
     # traceview/tracestatisticswidget/tracediffwidget/filterheaderview/
     # columnfilterpopup/filterbar/colorruleeditor 迁入 openbus_trace.dll（B5）
     # graphicview/graphic/downsample/signalconfigdialog/datawindow 迁入
@@ -221,7 +222,7 @@ add_library(openbus_qml_menu SHARED
 )
 
 # PUBLIC: Qt6::Qml 是必需的（QML_ELEMENT macro）
-#        Qt6::Quick 是必需的（QQuickWidget）
+#        Qt6::Quick 是必需的（QQmlEngine）
 target_link_libraries(openbus_qml_menu PUBLIC
     Qt6::Qml
     Qt6::Quick
@@ -263,6 +264,14 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/pugixml/pugixml.hpp")
 endif()
 
 target_link_libraries(openbus_data PUBLIC Qt6::Widgets)
+
+# Linker optimization for MinGW (simplified)
+# Use --gc-sections to remove unused code sections
+if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set_target_properties(openbus_data PROPERTIES
+        LINK_FLAGS "-Wl,--gc-sections"
+    )
+endif()
 
 # Qml: MenuController (QQmlElement macro requires Qt6::Qml)
 target_link_libraries(openbus_data PUBLIC Qt6::Qml)
@@ -715,10 +724,42 @@ add_library(openbus_ui STATIC
     ${SRC_UI}
 )
 
-# PUBLIC: 可执行文件通过链接 openbus_ui 获得 openbus_data 的头文件路径
-target_link_libraries(openbus_ui PUBLIC
-    openbus_data
+# ✅ QML MenuBar 支持（PRIVATE - 仅编译期需要）:
+#   openbus_ui 静态库包含 MainWindow.h 中的 QML 成员变量和函数声明
+#   Qt6::Qml + Qt6::Quick 用于支持 QQmlEngine 类型（头文件解析）
+# ⚠️ NOTE: QQuickWidget header in QtQuickwidgets module is included via manual include path below
+#           (MinGW Qt missing cmake config, so can't use find_package(QuickWidgets))
+# IMPORTANT: Use PRIVATE for link libraries to avoid propagating dependencies to consumers!
+target_link_libraries(openbus_ui PRIVATE
+    openbus_data         # ✅ Needed for core types headers (canframe.h, dbcdata.h, etc.)
     Qt6::Widgets
+    Qt6::Qml          # Required for QML_ELEMENT macro in MenuController
+    Qt6::Quick        # Required for QQmlEngine type resolution
+)
+
+# ⚠️ Manually add QuickWidgets include path (MinGW Qt6.8.3 lacks CMake targets)
+# ✅ Also need to link Qt6QuickWidgets library for runtime
+set(QUICKWIDGETS_INCLUDE_DIR "D:/Qt/6.8.3/mingw_64/include/QtQuickWidgets")
+target_include_directories(openbus_ui PUBLIC ${QUICKWIDGETS_INCLUDE_DIR})
+
+# Link Qt6QuickWidgets DLL explicitly for MinGW toolchain
+# ⚠️ Note: MinGW Qt6.8.3 has no prebuilt qtquickwidgetsTargets.cmake!
+# Use actual import library filename: libQt6QuickWidgets.a or Qt6QuickWidgets.dll.a
+if(WIN32)
+    # Find and use the actual import library file in Qt bin directory
+    find_library(QT_QUICKWIDGETS_IMPORT_LIB NAMES Qt6QuickWidgets Qt6QuickWidgets.lib libQt6QuickWidgets.a 
+        PATHS "D:/Qt/6.8.3/mingw_64/bin" "D:/Qt/6.8.3/mingw_64/lib" NO_DEFAULT_PATH)
+    if(QT_QUICKWIDGETS_IMPORT_LIB)
+        message(STATUS "Found Qt6QuickWidgets import library: ${QT_QUICKWIDGETS_IMPORT_LIB}")
+        target_link_libraries(openbus_ui PRIVATE ${QT_QUICKWIDGETS_IMPORT_LIB})
+    else()
+        message(FATAL_ERROR "CRITICAL: Qt6QuickWidgets import library is missing from D:/Qt/6.8.3/mingw_64/bin/!\n\nYour MinGW Qt6.8.3 installation does NOT include the import library (.a/.dll.a).\nThis means you MUST generate it manually or switch to MSVC Qt.\n\nTo generate (requires windll.exe from MinGW-w64 toolchain):\n  cd D:/Qt/6.8.3/mingw_64/bin\n  dlltool -d qtquickwidgets.def -l libQt6QuickWidgets.a -D Qt6QuickWidgets.dll\n\nOr download/install a complete MinGW Qt build.")
+    endif()
+endif()
+
+target_link_libraries(openbus_qml_menu PRIVATE
+    Qt6::Qml
+    Qt6::Quick
 )
 
 # Qt6::Svg: SVG 线条图标渲染 (activitybar / sidebarpanels)
@@ -736,7 +777,8 @@ if(WIN32)
     target_link_libraries(openbus_ui PRIVATE psapi)
 endif()
 
-# PCH — UI 层使用完整的 Qt Widget 头列表（含 QObject 供模块适配器使用）
+# PCH — UI 层使用完整的 Qt Widget + QML 头列表（含 QObject 供模块适配器使用）
+# ✅ QML MenuBar: MainWindow.h 需要 Qt Quick 支持，必须包含在 PCH 中
 target_precompile_headers(openbus_ui PRIVATE
     <QObject>
     <QWidget>
@@ -766,6 +808,8 @@ target_precompile_headers(openbus_ui PRIVATE
     <QCloseEvent>
     <QMouseEvent>
     <QApplication>
+    # QML/Qt Quick support for QQuickWidget type in MainWindow.h
+    <QQuickWidget>
     <QSettings>
     <QJsonDocument>
     <QJsonObject>
@@ -843,30 +887,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/driver")
 endif()
 
 # ============================================================
-#  插件宿主物料 — sdk/ 与宿主脚本随开发构建进入输出目录
-#  （与 package.py 打包策略一致：plugins/ 不预装，.opk 一律
-#   从市场安装；build/bin 具备 sdk/ 后 PluginManager::
-#   findAppBaseDir 命中 exeDir，插件安装到 build/bin/plugins
-#   而非源码树——本地不再捆绑插件，市场下载安装为准）
-# ============================================================
-if(EXISTS "${CMAKE_SOURCE_DIR}/sdk")
-    add_custom_command(TARGET openbus POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/sdk"
-                "$<TARGET_FILE_DIR:openbus>/sdk"
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-                "$<TARGET_FILE_DIR:openbus>/scripts"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_SOURCE_DIR}/scripts/sin_host.py"
-                "${CMAKE_SOURCE_DIR}/scripts/plugin_tool.py"
-                "${CMAKE_SOURCE_DIR}/scripts/driver_tool.py"
-                "$<TARGET_FILE_DIR:openbus>/scripts/"
-        COMMENT "Copying plugin host materials (sdk + scripts) to output directory"
-    )
-endif()
-
-# ============================================================
-#  安装规则
+# 安装规则
 # ============================================================
 install(TARGETS openbus
     RUNTIME DESTINATION bin

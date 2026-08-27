@@ -1,0 +1,54 @@
+# ============================================================
+#  openbus_core — Pure Data Layer DLL (Split from openbus_data)
+#  Purpose: Core data structures, logging, utilities (NO Qt Widgets!)
+#  Rationale: Reduce coupling and enable independent compilation
+# ============================================================
+
+add_library(openbus_core STATIC
+    core/canframe.h
+    core/logging.h
+    core/logging.cpp
+    core/signalrelay.h
+    core/signalrelay.cpp
+    core/recorder.h
+    core/recorder.cpp
+    core/player.h
+    core/player.cpp
+    core/cansimulator.h
+    core/cansimulator.cpp
+    core/busstatistics.h
+    core/busstatistics.cpp
+    core/logsplitter.h
+    core/logsplitter.cpp
+    core/triggerrecorder.h
+    core/triggerrecorder.cpp
+    core/filterpresetmanager.h
+    core/filterpresetmanager.cpp
+    core/bookmarkmanager.h
+    core/bookmarkmanager.cpp
+    core/filter_engine.h
+    core/filter_engine.cpp
+    core/appconfig.h
+    core/appconfig.cpp
+    utils/ringbuffer.h
+    utils/message_queue.h
+    # Note: candevice* files will move to openbus_devices later
+)
+
+# CORE depends only on Qt::Core (minimal dependency chain!)
+target_link_libraries(openbus_core PUBLIC
+    Qt6::Core
+    spdlog              # Logging library
+    nlohmann_json       # Configuration parsing
+)
+
+# PCH - Minimal headers for fastest compilation
+target_precompile_headers(openbus_core PRIVATE
+    <QObject>
+    <QString>
+    <QByteArray>
+    <QVector>
+    <QMap>
+    <memory>
+    <string>
+)

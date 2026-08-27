@@ -439,6 +439,13 @@ void MainWindow::updateStatistics()
 
 void MainWindow::updateActions()
 {
+    // DEF-01 Fix: Guard against null m_player during early construction
+    if (!m_player || !m_playAction) {
+        qWarning("MainWindow: Skipping action update (m_player=%p, m_playAction=%p)", 
+                 static_cast<void*>(m_player), static_cast<void*>(m_playAction));
+        return;
+    }
+    
     bool hasFile = m_player->isLoaded();
     bool playing = m_player->isPlaying();
     m_playAction->setEnabled(hasFile && !playing);
