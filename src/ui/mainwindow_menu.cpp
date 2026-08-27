@@ -1,0 +1,141 @@
+// ============================================================================
+// mainwindow_menu.cpp - QML MenuBar 集成实现
+// ============================================================================
+
+#include "mainwindow.h"
+#include "ui_mainwindow.h"
+#include "menucontroller.h"
+#include <QQuickWidget>
+#include <QApplication>
+#include <QDebug>
+
+void MainWindow::createQmlMenuBar()
+{
+    // 1. 注册 QML 类型
+    registerQmlTypes();
+    
+    // 2. 创建 MenuController (C++ 后端)
+    m_menuController = new MenuController(this);
+    
+    // 3. 创建 QQuickWidget
+    m_qmlMenuBar = new QQuickWidget(this);
+    m_qmlMenuBar->setSource(QUrl("qrc:/qml/menubar/MenuBarMain.qml"));
+    m_qmlMenuBar->setResizeMode(QQuickWidget::SizeViewToContents);
+    m_qmlMenuBar->setMinimumHeight(30);
+    
+    // 4. 设置属性传递上下文
+    m_qmlMenuBar->rootObject()->setProperty("mainWindow", this);
+    m_qmlMenuBar->rootObject()->setProperty("menuController", m_menuController);
+    
+    // 5. 连接到主窗口布局 (参考现有的 createMenuBar() 位置)
+    auto *topLevelContainer = new QWidget(this);
+    auto *topLevelLayout = new QVBoxLayout(topLevelContainer);
+    
+    topLevelLayout->addWidget(m_qmlMenuBar);
+    
+    // 6. 设置到顶层容器 (替换原有的 menuBar())
+    setCentralWidget(topLevelContainer);
+}
+
+void MainWindow::registerQmlTypes()
+{
+    // 注册 C++ 后端控制器
+    qmlRegisterType<MenuController>("Qt6OpenBUS.Menu", 1, 0, "MenuController");
+    
+    // 可选：注册更多自定义 QML 类型
+    // qmlRegisterType<MyCustomComponent>("Qt6OpenBUS.Menu", 1, 0, "MyCustomComponent");
+}
+
+// ============================================================
+// 事件处理槽实现
+// ============================================================
+
+void MainWindow::handleMenuBarAction(const QString &actionName)
+{
+    qDebug() << "Handling menu action:" << actionName;
+    
+    // 转发到具体的处理方法
+    if (actionName == "openFile") {
+        openFile();
+    } else if (actionName == "openProject") {
+        openProject();
+    }
+    // ... 其他 action
+}
+
+void MainWindow::openFile()
+{
+    // 调用现有的文件打开逻辑
+    // TODO: 实现或重用现有实现
+    qDebug() << "Open file requested from QML menu";
+}
+
+void MainWindow::openProject()
+{
+    qDebug() << "Open project requested from QML menu";
+}
+
+void MainWindow::saveProject()
+{
+    qDebug() << "Save project requested from QML menu";
+}
+
+void MainWindow::importLogFile()
+{
+    qDebug() << "Import log file requested from QML menu";
+}
+
+void MainWindow::toggleLeftDock(bool checked)
+{
+    qDebug() << "Toggle left dock:" << checked;
+}
+
+void MainWindow::toggleBottomDock(bool checked)
+{
+    qDebug() << "Toggle bottom dock:" << checked;
+}
+
+void MainWindow::toggleRightDock(bool checked)
+{
+    qDebug() << "Toggle right dock:" << checked;
+}
+
+void MainWindow::resetLayout()
+{
+    qDebug() << "Reset layout requested from QML menu";
+}
+
+void MainWindow::dataWindow()
+{
+    qDebug() << "Data window requested from QML menu";
+}
+
+void MainWindow::ioGraph()
+{
+    qDebug() << "I/O Graph requested from QML menu";
+}
+
+void MainWindow::watcher()
+{
+    qDebug() << "Watcher requested from QML menu";
+}
+
+void MainWindow::about()
+{
+    qDebug() << "About dialog requested from QML menu";
+}
+
+void MainWindow::docs()
+{
+    qDebug() << "Documentation requested from QML menu";
+}
+
+void MainWindow::shortcuts()
+{
+    qDebug() << "Shortcuts dialog requested from QML menu";
+}
+
+void MainWindow::license()
+{
+    qDebug() << "License dialog requested from QML menu";
+}

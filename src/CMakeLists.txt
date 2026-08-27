@@ -99,6 +99,9 @@ set(SRC_CORE
     core/canfileio/asc.cpp
     core/canfileio/csv.h
     core/canfileio/csv.cpp
+    # QML MenuBar Backend (独立 DLL)
+    core/qmlmenulibrary.h
+    core/qmlmenulibrary.cpp
     core/canfileio/pcap_reader.h
     core/canfileio/pcap_reader.cpp
     core/canfileio/trc_reader.h
@@ -209,6 +212,31 @@ add_library(openbus_data SHARED
     ui/thememanager.cpp
 )
 
+# ============================================================
+#  openbus_qml_menu — QML 菜单栏独立 DLL
+# ===========================================================
+add_library(openbus_qml_menu SHARED
+    core/qmlmenulibrary.h
+    core/qmlmenulibrary.cpp
+)
+
+# PUBLIC: Qt6::Qml 是必需的（QML_ELEMENT macro）
+#        Qt6::Quick 是必需的（QQuickWidget）
+target_link_libraries(openbus_qml_menu PUBLIC
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::Widgets
+)
+
+# PCH - QML 组件需要完整的 Qt 头
+# target_precompile_headers(openbus_qml_menu PRIVATE
+#     <QObject>
+#     <QString>
+#     <QStringList>
+#     <QVariant>
+#     <QVariantList>
+# )
+
 # PUBLIC: 业务 DLL / 壳通过链接 openbus_data 获得这些头文件路径
 #   - spdlog: core/logging.h (公共头) 包含 <spdlog/spdlog.h>
 #   - nlohmann_json: core/appconfig.h (公共头) 包含 <nlohmann/json.hpp>
@@ -235,6 +263,9 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/pugixml/pugixml.hpp")
 endif()
 
 target_link_libraries(openbus_data PUBLIC Qt6::Widgets)
+
+# Qml: MenuController (QQmlElement macro requires Qt6::Qml)
+target_link_libraries(openbus_data PUBLIC Qt6::Qml)
 
 # Svg: utils/svg_icon.h（公共头，thememanager/market/侧栏均用）→ PUBLIC
 target_link_libraries(openbus_data PUBLIC Qt6::Svg)
@@ -768,7 +799,7 @@ target_link_libraries(openbus PRIVATE
     # 壳经 ModuleRegistry::createPage/invoke/query 操控四页面
     openbus_transceive
     # DBC 模块（B3）：main() 经 C 工厂 openbus_createDbcModule 注册，
-    # 壳经 createPage("detail", 文件名, ctx) 打开 DBC 详情页
+    # 壳经 createPage("detail", 文件名，ctx) 打开 DBC 详情页
     openbus_dbc
     # flow 模块（B4）：main() 经 C 工厂 openbus_createFlowModule 注册，
     # shell 经 createPage/invoke/query 操控 Flow/设备连接页与测量编排
@@ -779,6 +810,8 @@ target_link_libraries(openbus PRIVATE
     # graphic 模块（B5）：main() 经 C 工厂 openbus_createGraphicModule 注册，
     # 壳经 createPage/invoke/query 操控 Graphic 页/DataWindow 与信号添加
     openbus_graphic
+    # QML 菜单栏独立 DLL
+    openbus_qml_menu
 )
 
 # ============================================================

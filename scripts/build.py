@@ -78,9 +78,9 @@ def set_build_dir(name):
     EXECUTABLE = BUILD_DIR / "bin" / "openbus.exe"
 
 # 默认工具路径 (可通过环境变量或 --qt-dir / --mingw-dir / --cmake-dir 覆盖)
-DEFAULT_QT_DIR = Path(os.environ.get("SIN_QT_DIR", "C:/Qt/6.8.3/mingw_64"))
-DEFAULT_MINGW_DIR = Path(os.environ.get("SIN_MINGW_DIR", "C:/Qt/Tools/mingw1310_64"))
-DEFAULT_CMAKE_DIR = Path(os.environ.get("SIN_CMAKE_DIR", "C:/tools/cmake-3.30.3-windows-x86_64"))
+DEFAULT_QT_DIR = Path(os.environ.get("SIN_QT_DIR", "D:/Qt/6.8.3/mingw_64"))
+DEFAULT_MINGW_DIR = Path(os.environ.get("SIN_MINGW_DIR", "D:/Qt/Tools/mingw1310_64"))
+DEFAULT_CMAKE_DIR = Path(os.environ.get("SIN_CMAKE_DIR", "C:/Program Files/CMake"))
 
 # Dev: 日常开发档 (-O1 -g1，见根 CMakeLists.txt)，建议配合 --build-dir build-dev
 BUILD_TYPES = ["Dev", "Debug", "Release", "RelWithDebInfo", "MinSizeRel"]

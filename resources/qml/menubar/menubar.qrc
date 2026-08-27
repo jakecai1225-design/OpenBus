@@ -1,0 +1,18 @@
+<RCC>
+    <qresource prefix="/qml/menubar">
+        <file>MenuBarMain.qml</file>
+        
+        <!-- Sub-menus -->
+        <file>menus/FileMenu.qml</file>
+        <file>menus/ViewMenu.qml</file>
+        <file>menus/ToolsMenu.qml</file>
+        <file>menus/HelpMenu.qml</file>
+        
+        <!-- Components -->
+        <file>components/MenuItem.qml</file>
+    </qresource>
+    
+    <qresource prefix="/styles">
+        <file>../styles/menubar.qss</file>
+    </qresource>
+</RCC>

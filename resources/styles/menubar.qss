@@ -1,0 +1,99 @@
+/*
+ * \file menubar.qss
+ * \brief QML MenuBar 专用样式表
+ * 
+ * 与 VS Code 风格保持一致，支持深色/浅色主题
+ */
+
+/* ========== 主菜单栏 ========== */
+
+Menu {
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+    border: none;
+    padding: 1px;
+    min-height: 30px;
+    font-size: 12px;
+}
+
+Menu::item {
+    background: transparent;
+    padding: 6px 20px 6px 12px;
+    margin: 2px 5px;
+    border-radius: 4px;
+}
+
+Menu::item:hover {
+    background-color: #3d3d3d;
+    color: #ffffff;
+}
+
+Menu::item:selected {
+    background-color: #007acc;
+    color: #ffffff;
+}
+
+Menu::item:pressed {
+    background-color: #005a9e;
+}
+
+/* ========== 检查式菜单项 ========== */
+
+Menu::checkbox {
+    width: 18px;
+}
+
+Menu::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid #555555;
+    background-color: #2d2d2d;
+}
+
+Menu::indicator:checked {
+    background-color: #007acc;
+    border-color: #007acc;
+    image: url(:/icons/check.svg);
+}
+
+/* ========== 子菜单 ========== */
+
+Menu {
+    background-color: #252526;
+    border: 1px solid #3c3c3c;
+    border-radius: 5px;
+    padding: 8px 0;
+}
+
+/* ========== 分隔线 ========== */
+
+MenuSeparator {
+    background: #3c3c3c;
+    height: 1px;
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
+/* ========== 快捷键显示 ========== */
+
+Text [class="shortcut"] {
+    color: #888888;
+    font-size: 11px;
+}
+
+/* ========== 主题变量 ========== */
+
+:root {
+    --menu-bg: #2d2d2d;
+    --menu-fg: #e0e0e0;
+    --menu-hover: #3d3d3d;
+    --menu-selected: #007acc;
+    --menu-separator: #3c3c3c;
+    
+    /* 浅色主题 */
+    --light-menu-bg: #f3f3f3;
+    --light-menu-fg: #333333;
+    --light-menu-hover: #dadada;
+    --light-menu-selected: #0066b8;
+}

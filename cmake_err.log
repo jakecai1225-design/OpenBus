@@ -1,0 +1,20 @@
+﻿-- The CXX compiler identification is GNU 13.1.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: D:/Qt/Tools/mingw1310_64/bin/c++.exe - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- 浣跨敤榛樿 ld.bfd 閾炬帴鍣?-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Performing Test HAVE_STDATOMIC
+-- Performing Test HAVE_STDATOMIC - Success
+-- Found WrapAtomic: TRUE
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- zlib not found via find_package, using MinGW bundled zlib
+-- Using zlib: D:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/lib/libz.a
+-- vector_blf integrated successfully, BLF support enabled
+-- Configuring done (2.3s)
+-- Generating done (0.3s)
+-- Build files have been written to: D:/sin/sin_20260727/sin/build
