@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: build_scripts
+title: OpenBUS 构建、测试与第三方依赖管理脚本
+scope:
+    - scripts/
+    - third_party/
+source_files: []
+depends_on: []
+related_to:
+    - path: hardware_drivers

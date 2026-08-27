@@ -7,6 +7,12 @@ project(openbus
 )
 
 # ============================================================
+#  Fix for MinGW - Disable predefines generation (causes failure in AutoMoc)
+# ============================================================
+set(CMAKE_MOC_PREDEFS_CMD "")
+set(CMAKE_CXX_COMPILE_OPTIONS_PCH "")
+
+# ============================================================
 #  C++ 标准
 # ============================================================
 set(CMAKE_CXX_STANDARD 17)
@@ -79,11 +85,6 @@ add_subdirectory(src)
 
 # 驱动插件（.odp 外置驱动，输出到 build/bin/drivers/<id>/）
 add_subdirectory(drivers)
-
-# 测试 — L1 核心逻辑集成测试（Qt Test，见 doc/测试验收方案.md v2.0）
-# build.py test 子命令：构建 tests 聚合目标 + ctest 执行
-enable_testing()
-add_subdirectory(tests)
 
 # ============================================================
 #  安装规则

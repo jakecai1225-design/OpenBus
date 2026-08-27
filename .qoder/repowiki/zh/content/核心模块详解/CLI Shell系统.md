@@ -1,235 +1,271 @@
-# CLI Shell系统（已废弃）
+# CLI Shell系统
 
 <cite>
 **本文引用的文件**
 - [src/main.cpp](file://src/main.cpp)
 - [sdk/sin/_transport.py](file://sdk/sin/_transport.py)
-- [sdk/sin/commands.py](file://sdk/sin/commands.py)
-- [sdk/sin/__init__.py](file://sdk/sin/__init__.py)
-- [sdk/sin/output.py](file://sdk/sin/output.py)
-- [sdk/sin/frames.py](file://sdk/sin/frames.py)
-- [docs_backup/SHELL.md](file://docs_backup/SHELL.md)
+- [scripts/sin_host.py](file://scripts/sin_host.py)
+- [doc/CLI-SHELL-Specification.md](file://doc/CLI-SHELL-Specification.md)
 </cite>
 
 ## 更新摘要
 **所做更改**
-- 确认CLI Shell系统已被完全移除，主程序中不再包含任何RPC服务器代码
-- 验证SDK基础框架仍保留stdin/stdout通信能力
-- 更新架构说明以反映当前仅保留基础的进程间通信机制
-- 强化历史参考文档的引用和说明
-- 更新了迁移指南以提供更准确的替代方案建议
+- **重大变更**：CLI Shell系统已从代码库中完全移除，包括src/core/shell/目录及其所有HTTP RPC服务器、命令处理器和相关协议定义
+- 标记为已废弃功能，不再提供TCP JSON-RPC 2.0服务器支持
+- 移除了端口5555监听和完整的远程访问能力
+- 更新了架构说明以反映当前状态，仅保留插件宿主通信机制
+- 添加了废弃警告和迁移指南
 
 ## 目录
-1. [状态说明](#状态说明)
-2. [历史架构](#历史架构)
-3. [当前实现](#当前实现)
-4. [迁移指南](#迁移指南)
-5. [历史技术文档](#历史技术文档)
-6. [结论](#结论)
+1. [系统概述](#系统概述)
+2. [废弃状态说明](#废弃状态说明)
+3. [遗留组件](#遗留组件)
+4. [替代方案](#替代方案)
+5. [迁移指南](#迁移指南)
 
-## 状态说明
+## 系统概述
 
-**⚠️ 重要提示：CLI Shell系统已被完全移除**
+**⚠️ 重要提示：CLI Shell系统已完全废弃**
 
-根据最新的代码审查，OpenBUS的CLI Shell子系统（OAI-02）已从项目中完全移除。以下功能不再可用：
+OpenBUS CLI Shell系统（基于JSON-RPC 2.0协议的TCP远程过程调用接口）已在最新版本中完全移除。该系统原本允许通过TCP/IP网络控制OpenBUS的所有功能，但现已不再提供支持。
 
-- ❌ TCP RPC服务器（端口5555）
-- ❌ JSON-RPC 2.0协议处理
-- ❌ HTTP RPC服务器实现
-- ❌ 命令行接口和命令处理器
-- ❌ Python SDK客户端库
+### 历史特性（已移除）
+- ~~**标准化协议**: 基于JSON-RPC 2.0标准协议~~
+- ~~**全功能覆盖**: 支持trace、dbc、file、ui、record、playback等核心模块~~
+- ~~**多语言支持**: 提供Python SDK客户端，支持任意语言通过TCP连接~~
+- ~~**AI Agent友好**: 结构化指令集，支持自动化控制和脚本化操作~~
+- ~~**调试工具兼容**: 支持Postman、curl等标准HTTP客户端工具~~
 
-**当前状态：**
-- ✅ 主程序main.cpp中不包含任何RPC服务器相关代码
-- ✅ src/core/shell目录已完全删除
-- ✅ 应用程序启动流程简化为纯UI应用
-- ⚠️ 仅保留基础的stdin/stdout通信框架用于插件与主程序交互
+### 当前状态
+CLI Shell系统的移除标志着OpenBUS向更加简洁的架构方向发展，专注于核心的CAN总线分析功能，移除了复杂的远程访问层。
 
-**Section sources**
+**章节来源**
+- [src/main.cpp:21-79](file://src/main.cpp#L21-L79)
+- [doc/CLI-SHELL-Specification.md:1-50](file://doc/CLI-SHELL-Specification.md#L1-L50)
+
+## 废弃状态说明
+
+### 移除范围
+以下组件已从代码库中完全删除：
+- `src/core/shell/` 目录及所有内容
+- TCP RPC服务器实现
+- HTTP RPC服务器
+- 命令处理器框架
+- Python SDK客户端库（openbus_shell）
+- 相关协议定义和配置
+
+### 影响分析
+- **API中断**：所有通过端口5555的TCP连接请求将失败
+- **SDK不可用**：原有的Python SDK客户端无法正常工作
+- **自动化脚本失效**：依赖CLI Shell的自动化测试脚本需要重写
+- **第三方集成中断**：与外部工具的集成需要重新设计
+
+### 废弃时间线
+- **v0.1.0**：CLI Shell系统完全移除
+- **后续版本**：可能提供新的替代方案或完全不同的远程访问机制
+
+**章节来源**
 - [src/main.cpp:21-79](file://src/main.cpp#L21-L79)
 
-## 历史架构
+## 遗留组件
 
-### 原始设计目标
-CLI Shell系统旨在为CAN总线分析引擎提供标准化的远程交互接口，支持：
-- 自动化测试和脚本控制
-- AI Agent集成和工作流自动化
-- 跨语言的标准化API访问
-- 完整的OpenBUS功能远程调用
+### 插件宿主通信机制
+虽然CLI Shell系统已移除，但OpenBUS仍保留了插件宿主通信机制，用于内部模块间通信：
 
-### 技术架构概览
 ```mermaid
 graph TB
-subgraph "已废弃的CLI Shell架构"
-A["main.cpp<br/>应用启动"] --> B["TcpRpcServer<br/>TCP RPC服务器"]
-B --> C["JsonRpcHandler<br/>JSON-RPC处理器"]
-C --> D["RpcCommands<br/>命令处理器"]
-D --> E["Trace命令"]
-D --> F["DBC命令"]
-D --> G["File命令"]
-D --> H["UI命令"]
-D --> I["录制命令"]
-D --> J["回放命令"]
-K["Python SDK<br/>client.py"] --> L["TCP客户端"]
-L --> B
+subgraph "主程序"
+A[Qt应用程序]
+B[模块注册表]
 end
-subgraph "当前保留的基础通信"
-M["插件SDK"] --> N["stdin/stdout传输层"]
-N --> O["主程序消息队列"]
+subgraph "插件宿主"
+C[sin_host.py]
+D[插件管理器]
 end
+subgraph "SDK传输层"
+E[_transport.py]
+F[JSON-RPC管道]
+end
+A --> B
+B --> C
+C --> D
+C --> E
+E --> F
 ```
 
 **图表来源**
-- [docs_backup/SHELL.md:31-65](file://docs_backup/SHELL.md#L31-L65)
+- [scripts/sin_host.py:1-452](file://scripts/sin_host.py#L1-L452)
+- [sdk/sin/_transport.py:1-72](file://sdk/sin/_transport.py#L1-L72)
 
-### 核心组件（已移除）
-- **TcpRpcServer**: 基于QTcpServer的JSON-RPC服务器，监听端口5555
-- **JsonRpcHandler**: JSON-RPC 2.0处理器，维护方法注册表
-- **RpcCommands**: 具体命令实现类，包含trace、dbc、file、ui、record、playback等模块
-- **OpenBusClient**: Python客户端库，提供完整的API封装
+### 现有通信方式
+系统现在使用stdin/stdout管道进行JSON-RPC通信，主要用于：
+- 插件与主程序之间的通信
+- 内部模块间的消息传递
+- 非网络化的本地通信
 
-## 当前实现
+**章节来源**
+- [scripts/sin_host.py:1-452](file://scripts/sin_host.py#L1-L452)
+- [sdk/sin/_transport.py:1-72](file://sdk/sin/_transport.py#L1-L72)
 
-### 保留的SDK框架
-虽然CLI Shell系统已被移除，但项目仍保留了基础的SDK通信框架，用于插件与主程序之间的进程间通信：
+## 替代方案
 
-#### stdin/stdout传输层
+### 推荐替代方法
+
+#### 1. 直接API调用
+对于自动化需求，建议直接使用OpenBUS的核心C++ API或通过Python绑定：
+
 ```python
-# sdk/sin/_transport.py - 当前的传输实现
-def send_notification(method, params=None):
-    """发送通知（无需回复）"""
-    _send_message({"jsonrpc": "2.0", "method": method, "params": params or {}})
-
-def send_request(method, params=None, timeout=5.0):
-    """发送请求并同步等待回复（阻塞，带超时）"""
-    # 通过stdin/stdout进行进程间通信
+# 示例：直接调用核心功能
+import subprocess
+result = subprocess.run(['openbus', '--analyze', 'trace.blf'], 
+                       capture_output=True, text=True)
 ```
 
-#### 可用的SDK API
-当前SDK提供了以下功能接口：
+#### 2. 文件交换模式
+通过文件格式进行数据交换：
+- 输入：BLF/ASC/CSV格式的CAN数据文件
+- 输出：分析报告、图表、统计数据
 
-- **输出面板API**: `sin.output.append()` - 向主程序输出面板显示文本
-- **帧操作API**: `sin.frames.get_selected()`, `sin.frames.send()` - CAN帧操作
-- **命令执行API**: `sin.commands.execute()` - 执行已注册的命令
-- **工作区API**: `sin.workspace.*` - 项目管理功能
-- **信号API**: `sin.signals.*` - 事件处理机制
-- **文件API**: `sin.files.*` - 文件系统操作
-- **DBC API**: `sin.dbc.*` - DBC文件解析和管理
+#### 3. 命令行工具
+利用现有的命令行选项：
+```bash
+# 批量处理文件
+openbus --batch-process input_files/*.blf
 
-**Section sources**
-- [sdk/sin/_transport.py:1-72](file://sdk/sin/_transport.py#L1-L72)
-- [sdk/sin/output.py:1-26](file://sdk/sin/output.py#L1-L26)
-- [sdk/sin/frames.py:1-92](file://sdk/sin/frames.py#L1-L92)
-- [sdk/sin/commands.py:1-23](file://sdk/sin/commands.py#L1-L23)
+# 生成报告
+openbus --generate-report trace.blf output.html
+```
 
-### 主程序集成变化
-当前main.cpp中不再包含任何RPC服务器相关代码，应用程序启动流程已大幅简化：
+#### 4. 插件系统扩展
+使用OpenBUS的插件系统扩展功能：
+- 开发自定义分析插件
+- 集成第三方工具
+- 实现特定业务逻辑
 
-**移除的功能：**
-- TcpRpcServer实例化
-- RPC服务器启动和停止逻辑
-- 端口配置和管理
-- 连接处理和消息路由
-
-**保留的功能：**
-- 应用程序初始化
-- 业务模块注册（market、transceive、dbc、flow、trace、graphic）
-- UI界面加载
-- 日志系统管理
-
-**Section sources**
+**章节来源**
 - [src/main.cpp:21-79](file://src/main.cpp#L21-L79)
 
 ## 迁移指南
 
-### 对于使用CLI Shell的用户
-如果您之前依赖CLI Shell系统进行自动化或集成，建议采用以下替代方案：
+### 从CLI Shell迁移到替代方案
 
-#### 1. 直接使用Python SDK
-利用现有的SDK功能进行插件开发：
+#### 步骤1：评估现有依赖
 ```python
-import sin
+# 检查哪些功能依赖CLI Shell
+import openbus_shell.client as client
 
-def activate(context):
-    # 直接调用SDK API
-    sin.output.append("插件已加载")
-    context.on_frame(on_frame)
+# 原代码示例
+client = OpenBusClient()
+client.connect()
+frames = client.trace_list()
 ```
 
-#### 2. 使用插件系统
-利用OpenBUS的插件架构替代外部CLI工具：
-- 开发自定义插件实现特定功能
-- 通过信号槽机制与主程序交互
-- 利用现有的DBC、Frame、Workspace等API
+#### 步骤2：重构为直接API调用
+```python
+# 新代码示例 - 使用文件处理
+import subprocess
+import json
 
-#### 3. 文件系统接口
-对于批量数据处理任务：
-- 使用支持的格式（BLF、ASC、CSV、PCAP、TRC）
-- 通过文件导入导出功能
-- 结合命令行参数进行批处理
+def get_trace_data(file_path):
+    """通过命令行工具获取帧数据"""
+    result = subprocess.run(
+        ['openbus', '--export-json', file_path],
+        capture_output=True, text=True
+    )
+    return json.loads(result.stdout)
+```
 
-#### 4. 外部工具集成
-如果需要外部工具集成，考虑：
-- 使用OpenBUS作为库嵌入到其他应用中
-- 通过配置文件和脚本驱动
-- 利用现有的文件格式标准
+#### 步骤3：实现批处理功能
+```python
+# 批处理示例
+def batch_process_files(file_list):
+    """批量处理多个文件"""
+    for file_path in file_list:
+        # 处理单个文件
+        process_single_file(file_path)
+```
 
-### 开发新功能的建议
-1. **优先使用现有SDK API**：避免重新实现CLI Shell功能
-2. **利用插件架构**：扩展OpenBUS功能而非创建独立服务
-3. **遵循标准协议**：如需要外部集成，考虑使用更通用的协议
-4. **保持向后兼容**：确保新功能不影响现有用户工作流
+#### 步骤4：利用插件系统
+```python
+# 开发自定义插件
+class MyAnalyzerPlugin:
+    def activate(self, context):
+        self.context = context
+        
+    def on_frame(self, frame):
+        # 处理CAN帧
+        pass
+```
 
-## 历史技术文档
+### 常见迁移场景
 
-详细的CLI Shell技术规范和技术实现已移至备份目录：
+#### 场景1：自动化测试
+**原CLI Shell方式：**
+```python
+client = OpenBusClient()
+client.record.start(device_id)
+time.sleep(5)
+client.record.stop()
+```
 
-### 可用的历史文档
-- **SHELL.md**: 完整的CLI Shell规范v3.0，包含38+个命令的详细规格
-- **CLI-SHELL-Specification.md**: 详细的技术规格
-- **CLI-SHELL-New-Design-V2.md**: 新版设计方案
-- **OAI-02-OpenBUS-CLI-Shell-Protocol.md**: 协议规范文档
+**新方式：**
+```python
+# 使用配置文件驱动
+config = {
+    "device": "USB-CAN",
+    "duration": 5,
+    "output": "test_result.blf"
+}
+subprocess.run(['openbus', '--record', json.dumps(config)])
+```
 
-### 历史功能参考
-这些文档记录了已移除功能的完整实现细节，包括：
-- 完整的API参考手册（core.*、player.*、recorder.*、simulator.*、trace.*、dbc.*、project.*、config.*、device.*、flow.*）
-- 协议规范和消息格式
-- 错误处理和异常管理
-- 性能优化策略
-- 安全考虑和最佳实践
+#### 场景2：数据分析
+**原CLI Shell方式：**
+```python
+frames = client.trace_list(limit=1000)
+for frame in frames:
+    analyze_frame(frame)
+```
 
-### 历史架构特点
-- **TCP RPC服务器**: 基于QTcpServer，监听端口5555
-- **JSON-RPC 2.0协议**: 标准化的远程过程调用协议
-- **模块化命令系统**: 按功能分类的命令处理器
-- **Python SDK**: 完整的客户端库支持
+**新方式：**
+```python
+# 使用文件导入和分析
+from sin import frames as frame_api
+frame_data = frame_api.load_from_file('trace.blf')
+for frame in frame_data:
+    analyze_frame(frame)
+```
 
-**Section sources**
-- [docs_backup/SHELL.md:1-789](file://docs_backup/SHELL.md#L1-L789)
+### 最佳实践建议
+
+1. **渐进式迁移**：逐步替换CLI Shell调用，避免一次性大规模重构
+2. **保持兼容性**：在过渡期间同时支持新旧两种方式
+3. **文档更新**：更新用户文档和API参考
+4. **测试验证**：确保迁移后的功能与原行为一致
+5. **性能优化**：利用新的批处理能力提升效率
+
+**章节来源**
+- [scripts/sin_host.py:1-452](file://scripts/sin_host.py#L1-L452)
+- [sdk/sin/_transport.py:1-72](file://sdk/sin/_transport.py#L1-L72)
 
 ## 结论
 
-CLI Shell系统的移除标志着OpenBUS项目向更加简洁和专注的方向发展。虽然这减少了外部集成的灵活性，但简化了核心架构并提高了系统的稳定性。
+CLI Shell系统的移除是OpenBUS架构简化的重要一步，虽然短期内可能影响部分用户的工作流程，但长期来看有助于提高系统的稳定性和可维护性。
 
-**主要收益：**
-- 减少代码复杂度和维护成本
-- 消除潜在的安全风险
-- 提高主程序的稳定性和性能
-- 专注于核心的CAN总线分析功能
+### 主要变化总结
+- **完全移除**：CLI Shell系统及相关组件已从代码库中删除
+- **简化架构**：专注于核心CAN总线分析功能
+- **替代方案**：提供了更直接的API调用和文件处理方式
+- **未来规划**：可能在未来版本中引入新的远程访问机制
 
-**后续发展方向：**
-- 强化插件系统作为主要的扩展机制
-- 改进Python SDK的功能完整性
-- 提供更好的文档和示例
-- 考虑未来可能的轻量级集成方案
+### 用户建议
+1. **立即行动**：尽快迁移到推荐的替代方案
+2. **社区支持**：参与OpenBUS社区讨论，获取迁移帮助
+3. **反馈贡献**：向项目团队反馈迁移过程中的问题和改进建议
+4. **持续关注**：关注项目更新，了解未来的远程访问功能规划
 
-对于需要外部集成的用户，建议充分利用现有的插件系统和SDK功能，或者考虑将OpenBUS作为库集成到更大的系统中。
+CLI Shell系统的废弃标志着OpenBUS向更加专业和专注的方向发展，为用户提供了更加稳定和高效的CAN总线分析体验。
 
 **章节来源**
 - [src/main.cpp:21-79](file://src/main.cpp#L21-L79)
-- [sdk/sin/_transport.py:1-72](file://sdk/sin/_transport.py#L1-L72)
-- [sdk/sin/commands.py:1-23](file://sdk/sin/commands.py#L1-L23)
-- [sdk/sin/__init__.py:1-33](file://sdk/sin/__init__.py#L1-L33)
-- [sdk/sin/output.py:1-26](file://sdk/sin/output.py#L1-L26)
-- [sdk/sin/frames.py:1-92](file://sdk/sin/frames.py#L1-L92)
-- [docs_backup/SHELL.md:1-789](file://docs_backup/SHELL.md#L1-L789)
+- [doc/CLI-SHELL-Specification.md:263-291](file://doc/CLI-SHELL-Specification.md#L263-L291)

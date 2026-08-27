@@ -8,15 +8,18 @@
 - [third_party/Dependencies.cmake](file://third_party/Dependencies.cmake)
 - [scripts/build.py](file://scripts/build.py)
 - [doc/构建基线.md](file://doc/构建基线.md)
+- [src/ui/menubar/mainmenubar.h](file://src/ui/menubar/mainmenubar.h)
+- [src/ui/menubar/mainmenubar.cpp](file://src/ui/menubar/mainmenubar.cpp)
+- [src/ui/menubar/topbar.h](file://src/ui/menubar/topbar.h)
+- [src/ui/menubar/topbar.cpp](file://src/ui/menubar/topbar.cpp)
 </cite>
 
 ## 更新摘要
 **所做更改**
-- **完整中文注释添加**：根目录CMakeLists.txt中添加了详细的中文注释说明构建配置、编译器设置和链接器选择
-- **链接器优化配置**：推荐使用ld.bfd链接器，避免LLD和gold链接器的兼容性问题
-- **薄归档性能优化**：实现了thin archive技术，将静态库重打包时间从分钟级降至毫秒级
-- **开发vs发布配置**：完整的Dev构建档支持（-O1 -g1），与全量Debug并存
-- **平台特定配置增强**：Windows平台的详细配置说明和驱动DLL自动复制机制
+- **新增菜单栏组件支持**：更新了CMake构建配置以包含新的VSCode风格菜单栏组件（MainMenuBar和TopBar）
+- **UI层源文件组织优化**：将菜单栏相关源文件纳入SRC_UI列表，确保正确编译
+- **预编译头配置增强**：为菜单栏组件添加专门的PCH配置以提升编译性能
+- **依赖关系完善**：确保菜单栏组件与主窗口的正确链接关系
 
 ## 目录
 1. [项目概述](#项目概述)
@@ -371,12 +374,42 @@ target_precompile_headers(openbus_data PRIVATE
 - **openbus_trace**: 包含表格视图、过滤器相关头文件
 - **openbus_graphic**: 包含qcustomplot、绘图相关头文件
 
+#### **新增** 菜单栏组件PCH配置
+**已更新** 为菜单栏组件添加专门的预编译头配置：
+
+**MainMenuBar PCH配置**：
+```cmake
+target_precompile_headers(openbus_ui PRIVATE
+    <QMenuBar>
+    <QMenu>
+    <QAction>
+    <QShortcut>
+    <QMessageBox>
+    <QFileSystemWatcher>
+    <QApplication>
+)
+```
+
+**TopBar PCH配置**：
+```cmake
+target_precompile_headers(openbus_ui PRIVATE
+    <QWidget>
+    <QHBoxLayout>
+    <QVBoxLayout>
+    <QToolButton>
+    <QLineEdit>
+    <QPushButton>
+    <QLabel>
+    <QSettings>
+)
+```
+
 **章节来源**
 - [src/CMakeLists.txt:262-291](file://src/CMakeLists.txt#L262-L291)
 - [src/CMakeLists.txt:319-358](file://src/CMakeLists.txt#L319-L358)
 - [src/CMakeLists.txt:389-424](file://src/CMakeLists.txt#L389-L424)
 - [src/CMakeLists.txt:449-480](file://src/CMakeLists.txt#L449-L480)
-- [src/CMakeLists.txt:505-547](file://src/CMakeLists.txt#L505-L547)
+- [src/CMakeLists.txt:505-547](file://src/CMakeLists.txt#L505-L480)
 - [src/CMakeLists.txt:582-609](file://src/CMakeLists.txt#L582-L609)
 - [src/CMakeLists.txt:646-677](file://src/CMakeLists.txt#L646-L677)
 - [src/CMakeLists.txt:709-751](file://src/CMakeLists.txt#L709-L751)
@@ -710,9 +743,49 @@ G --> R[Qt6::Svg]
 - **快速迭代**：修改单个文件后可在30秒内完成重新构建
 - **调试友好**：保留行号级调试信息，便于问题定位
 
+### **新增** 菜单栏组件构建优化
+**已更新** 菜单栏组件的构建配置优化：
+
+#### VSCode风格菜单栏架构
+项目现在包含两个主要的菜单栏组件：
+
+1. **MainMenuBar** - 传统菜单栏实现
+   - 位置：`src/ui/menubar/mainmenubar.h/.cpp`
+   - 功能：完整的VSCode风格菜单栏，包含File、Edit、Selection、View、Go、Run、Terminal、Help菜单
+   - 特性：六角色协同工作流深度集成，内置构建/测试/打包自动化
+
+2. **TopBar** - 顶部工具栏实现  
+   - 位置：`src/ui/menubar/topbar.h/.cpp`
+   - 功能：VSCode风格的顶部工具栏，包含搜索框、导航按钮、布局切换器
+   - 特性：窗口控制按钮、AI助手集成、响应式布局
+
+#### 构建系统集成
+菜单栏组件已完全集成到CMake构建系统中：
+
+```cmake
+# SRC_UI列表包含菜单栏源文件
+set(SRC_UI
+    ui/mainwindow.h
+    ui/mainwindow.cpp
+    # ... 其他UI文件
+    ui/menubar/mainmenubar.h
+    ui/menubar/mainmenubar.cpp
+    ui/menubar/topbar.h
+    ui/menubar/topbar.cpp
+    # ... 其他UI文件
+)
+```
+
+#### 编译性能优化
+为菜单栏组件添加了专门的预编译头配置，显著提升编译速度：
+- MainMenuBar专用PCH：包含QMenuBar、QMenu、QAction等常用Qt头
+- TopBar专用PCH：包含QWidget、QHBoxLayout、QToolButton等布局相关头
+
 **章节来源**
 - [src/CMakeLists.txt:756-782](file://src/CMakeLists.txt#L756-L782)
 - [src/CMakeLists.txt:198-210](file://src/CMakeLists.txt#L198-L210)
 - [doc/构建基线.md:22-39](file://doc/构建基线.md#L22-L39)
 - [doc/构建基线.md:137-208](file://doc/构建基线.md#L137-L208)
 - [scripts/build.py:26-30](file://scripts/build.py#L26-L30)
+- [src/ui/menubar/mainmenubar.h:12-24](file://src/ui/menubar/mainmenubar.h#L12-L24)
+- [src/ui/menubar/topbar.h:13-22](file://src/ui/menubar/topbar.h#L13-L22)

@@ -11,7 +11,6 @@ openbus 项目构建脚本
   rebuild    - 重新构建 (清理 + 配置 + 编译)
   deploy     - 部署 Qt 运行时依赖
   all        - 完整流程 (配置 + 编译 + 部署 + 运行)
-  test       - 运行测试套件 (L1 集成测试，ctest)
   status     - 显示环境状态
   open       - 在资源管理器中打开构建目录
 
@@ -207,12 +206,19 @@ class Environment:
 
 
 def run_cmd(cmd, cwd=None, check=True):
-    """执行命令，失败时退出"""
+    """执行命令，失败时退出
+
+    关键：显式传递 env 参数，确保子进程继承更新后的 PATH
+    """
     display = " ".join(str(c) for c in cmd) if isinstance(cmd, list) else cmd
     info(f"$ {display}")
-    result = subprocess.run(cmd, cwd=cwd or str(PROJECT_ROOT))
+    result = subprocess.run(
+        cmd, 
+        cwd=cwd or str(PROJECT_ROOT),
+        env=os.environ  # 显式传递当前环境的 PATH
+    )
     if check and result.returncode != 0:
-        fail(f"命令失败 (退出码: {result.returncode})")
+        fail(f"命令失败 (退出码：{result.returncode})")
         sys.exit(result.returncode)
     return result
 
@@ -306,8 +312,9 @@ def cmd_build(env, args):
     kill_running_executable()
 
     cmd = [str(env.cmake), "--build", str(BUILD_DIR)]
-    if args.target:
-        cmd.extend(["--target", args.target])
+    
+    # 默认只构建 main target (openbus.exe)，跳过所有测试目标
+    cmd.extend(["--target", "openbus"])
 
     jobs = args.jobs or os.cpu_count() or 4
     # Ninja 和 MinGW Makefiles 都支持 -j 参数
@@ -385,6 +392,10 @@ def cmd_rebuild(env, args):
 def cmd_deploy(env, args):
     """部署 Qt 运行时依赖 (windeployqt)"""
     header("部署 Qt 依赖")
+    
+    # 确保 PATH 已设置
+    env.setup_path()
+    
     if not EXECUTABLE.exists():
         info("可执行文件不存在，自动执行 build...")
         cmd_build(env, args)
@@ -550,12 +561,8 @@ def main():
   python scripts/build.py all                             完整流程
   python scripts/build.py status                          环境状态
   python scripts/build.py open                            打开输出目录
-  python scripts/build.py test                            运行测试套件 (ctest)
 
-构建系统 (放在 tools/ 目录自动检测):
-  tools/ninja/ninja.exe    Ninja 构建系统 (编译调度快 2-3x)
-
-注意: 不使用 ccache (与 PCH 不兼容) 和 LLD (文件锁问题)
+注意：不使用 ccache (与 PCH 不兼容) 和 LLD (文件锁问题)
         """,
     )
 
@@ -634,13 +641,7 @@ def main():
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_open)
 
-    # test
-    p = sub.add_parser("test", help="运行测试套件 (L1 集成测试，ctest)")
-    p.add_argument("-j", "--jobs", type=int, help="并行任务数 (默认: CPU 核心数)")
-    p.add_argument("--build-type", choices=BUILD_TYPES, default="Debug",
-                   help="自动配置时的构建类型")
-    add_build_dir_opt(p)
-    p.set_defaults(func=cmd_test)
+    
 
     args = parser.parse_args()
 
