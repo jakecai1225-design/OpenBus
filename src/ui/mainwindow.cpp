@@ -48,7 +48,7 @@
 #include "core/plugin/pluginmanager.h"
 #include "core/plugin/plugininfo.h"
 #include "models/viewportproxy.h"
-#include "core/qmlmenulibrary.h"  // ✅ QML MenuBar: MenuController 后端
+// #include "core/qmlmenulibrary.h"  // QML MenuBar 后端 (已移除)
 
 #include <QMenuBar>
 #include <QMenu>
@@ -111,10 +111,7 @@ MainWindow::MainWindow(QWidget *parent)
     createStatusBar();  // 先创建状态栏（openTab 需要 m_tabLabel）
     createLayout();
 
-    // ⚠️ NOTE: 不再调用 menuBar()->installEventFilter()
-    // 因为菜单区域已由 QQuickWidget 接管，原生 menuBar() 已被删除
-
-    // ✅ 关键：在最后设置 windowFlags，避免影响 QML 渲染
+    // ✅ 关键：在最后设置 windowFlags
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
 
     // ---- 信号连接（mainwindow_setup.cpp 阶段 2~5；原构造函数直排代码

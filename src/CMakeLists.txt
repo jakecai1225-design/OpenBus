@@ -99,9 +99,6 @@ set(SRC_CORE
     core/canfileio/asc.cpp
     core/canfileio/csv.h
     core/canfileio/csv.cpp
-    # QML MenuBar Backend (独立 DLL)
-    core/qmlmenulibrary.h
-    core/qmlmenulibrary.cpp
     core/canfileio/pcap_reader.h
     core/canfileio/pcap_reader.cpp
     core/canfileio/trc_reader.h
@@ -156,7 +153,6 @@ set(SRC_UI
     ui/mainwindow_pages.cpp      # 页面打开槽 + 面板列表刷新
     ui/mainwindow_project.cpp    # 工程与会话生命周期 + closeEvent
     ui/mainwindow_dialogs.cpp    # 帮助对话框 + 插件集成槽
-    ui/mainwindow_qmlmenu.cpp    # ✅ QML MenuBar 集成（新架构）
     # traceview/tracestatisticswidget/tracediffwidget/filterheaderview/
     # columnfilterpopup/filterbar/colorruleeditor 迁入 openbus_trace.dll（B5）
     # graphicview/graphic/downsample/signalconfigdialog/datawindow 迁入
@@ -213,32 +209,8 @@ add_library(openbus_data SHARED
     ui/thememanager.cpp
 )
 
-# ============================================================
-#  openbus_qml_menu — QML 菜单栏独立 DLL
-# ===========================================================
-add_library(openbus_qml_menu SHARED
-    core/qmlmenulibrary.h
-    core/qmlmenulibrary.cpp
-)
-
-# PUBLIC: Qt6::Qml 是必需的（QML_ELEMENT macro）
-#        Qt6::Quick 是必需的（QQmlEngine）
-target_link_libraries(openbus_qml_menu PUBLIC
-    Qt6::Qml
-    Qt6::Quick
-    Qt6::Widgets
-)
-
-# PCH - QML 组件需要完整的 Qt 头
-# target_precompile_headers(openbus_qml_menu PRIVATE
-#     <QObject>
-#     <QString>
-#     <QStringList>
-#     <QVariant>
-#     <QVariantList>
-# )
-
-# PUBLIC: 业务 DLL / 壳通过链接 openbus_data 获得这些头文件路径
+# PUBLIC: spdlog、nlohmann_json、concurrentqueue, pugixml
+#         这些头文件路径在 openbus_data::openbus_data 中添加
 #   - spdlog: core/logging.h (公共头) 包含 <spdlog/spdlog.h>
 #   - nlohmann_json: core/appconfig.h (公共头) 包含 <nlohmann/json.hpp>
 #   - concurrentqueue: core/cansimulator.h (公共头) → utils/message_queue.h → <concurrentqueue.h>
@@ -757,11 +729,6 @@ if(WIN32)
     endif()
 endif()
 
-target_link_libraries(openbus_qml_menu PRIVATE
-    Qt6::Qml
-    Qt6::Quick
-)
-
 # Qt6::Svg: SVG 线条图标渲染 (activitybar / sidebarpanels)
 # Qt6::Network: 侧栏 ExtensionsPanel 图标异步加载（marketmodel B5-5 已迁 data）
 # qcustomplot: I/O Graph 工具页 (ui/tools/iographview)——主窗口工具页而非
@@ -854,8 +821,6 @@ target_link_libraries(openbus PRIVATE
     # graphic 模块（B5）：main() 经 C 工厂 openbus_createGraphicModule 注册，
     # 壳经 createPage/invoke/query 操控 Graphic 页/DataWindow 与信号添加
     openbus_graphic
-    # QML 菜单栏独立 DLL
-    openbus_qml_menu
 )
 
 # ============================================================

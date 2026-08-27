@@ -38,7 +38,7 @@ SidePanel { background-color: @sidebarBg; }
 
 /* ---- 侧边栏通用控件 ---- */
 #SidePanelSubTitle { font-weight: 600; padding: 6px 12px; color: @textDim; font-size: 12px; }
-#SidePanelButton { text-align: left; padding: 8px 12px; font-size: 13px; }
+#SidePanelButton { text-align: center; padding: 12px; font-size: 13px; }
 
 /* 侧栏底部动作按钮（VS Code 风格：扁平无框，悬停高亮；如设备面板「扫描设备」） */
 #SidePanelFooterButton {

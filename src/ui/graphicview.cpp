@@ -372,7 +372,6 @@ void GraphicView::setupUi()
     m_rubberZoomBtn = makeBtn("rubber-zoom", "框选缩放（左键拖框放大，扁平框仅 X）");
     m_rubberZoomBtn->setCheckable(true);
     m_rubberZoomBtn->setChecked(m_rubberZoom);
-    auto *clearDataBtn = makeBtn("clear-all", "清空全部信号数据");
     auto *exportBtn = makeBtn("save-image", "导出为图片 (PNG)");
 
     // 缩放轴模式（对标 CANoe X/Y/XY 独立缩放）
@@ -489,8 +488,7 @@ void GraphicView::setupUi()
     m_toolbar->addWidget(m_cursorDoubleBtn);
     m_toolbar->addWidget(m_cursorClearBtn);
     m_toolbar->addWidget(m_cursorLinkToggle);
-    m_toolbar->addSeparator();
-    m_toolbar->addWidget(clearDataBtn);
+    // 清空数据功能已移至右键菜单（避免误操作）
     m_toolbar->addWidget(exportBtn);
     auto *spacer = new QWidget(m_toolbar);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -576,17 +574,11 @@ void GraphicView::setupUi()
     m_cursorInfoLabel->setStyleSheet(infoLabelQss());
     m_cursorInfoLabel->setVisible(false);
 
-    // ---- 底部状态栏 ----
-    m_statusLabel = new QLabel(this);
-    m_statusLabel->setStyleSheet(
-        QString("QLabel { padding: 3px 8px; background: %1; color: %2; "
-                "border-top: 1px solid %3; font-family: Consolas, monospace; font-size: 11px; }")
-            .arg(th.statusBg, th.statusFg, th.border));
-    m_statusLabel->setText("就绪 — 请添加信号或拖入文件");
+    // 底部状态栏已移除（与软件主窗口状态栏重复）
 
     mainLayout->addWidget(m_splitter, 1);
     mainLayout->addWidget(m_cursorInfoLabel);
-    mainLayout->addWidget(m_statusLabel);
+    // mainLayout->addWidget(m_statusLabel);  // 底部状态栏已移除
 
     // ---- G15 P3/P4: 信号列表列配置（右键菜单）----
     connect(m_signalTree->header(), &QHeaderView::customContextMenuRequested,
@@ -701,7 +693,7 @@ void GraphicView::setupUi()
                       : idx == 1 ? ZoomAxisMode::XOnly
                                  : ZoomAxisMode::YOnly);
     });
-    connect(clearDataBtn, &QToolButton::clicked, this, [this]() { clearData(); });
+    // connect(clearDataBtn, &QToolButton::clicked, this, [this]() { clearData(); });  // 已移除（移至右键菜单）
     connect(exportBtn, &QToolButton::clicked, this, [this]() { exportPlot(); });
 
     // ---- 曲线显示模式 ----
@@ -1597,10 +1589,7 @@ void GraphicView::applyPalette()
     updateToolbarIcons();
     m_signalTree->setStyleSheet(treeQss());
     m_cursorInfoLabel->setStyleSheet(infoLabelQss());
-    m_statusLabel->setStyleSheet(QString(
-        "QLabel { padding: 3px 8px; background: %1; color: %2; "
-        "border-top: 1px solid %3; font-family: Consolas, monospace; font-size: 11px; }")
-        .arg(th.statusBg, th.statusFg, th.border));
+    // status bar removed (duplicate with main window status bar)
 
     // 全部轨道 + 叠加轨道重新着色（重置 X 刻度开关后由 layoutAxisRects 恢复）
     for (auto &sd : m_signals) {
@@ -3281,7 +3270,7 @@ void GraphicView::updateStatusBar()
     if (m_paused)
         parts << "[已暂停]";
 
-    m_statusLabel->setText(parts.join("  |  "));
+    // status bar removed - update not needed
 }
 
 // ============================================================

@@ -184,8 +184,6 @@ private:
     void connectProjectPanel();      // 工程面板接线 + 上次工程加载 + 默认实例兜底
 
     void createMenuBar();                // ✅ Qt Widgets 菜单（当前使用）
-    void createQmlMenuBar();             // ⏳ QML 菜单条（待集成）
-    void registerQmlTypes();             // ⏳ 注册 QML 类型
     void createLayout();
     void createStatusBar();
     void createWindowButtons();
@@ -252,10 +250,6 @@ private:
     QDockWidget *m_leftDock = nullptr;
     QDockWidget *m_rightDock = nullptr;
     QDockWidget *m_bottomDock = nullptr;
-
-    // ---- QML MenuBar (新架构) ----
-    QQuickWidget *m_qmlMenuBar = nullptr;      // QML 菜单条容器
-    class MenuController *m_menuController = nullptr;  // C++ 控制器后端
 
     // ---- 数据 ----
     DbcManager *m_dbcManager = nullptr;

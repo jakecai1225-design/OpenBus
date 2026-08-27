@@ -123,9 +123,9 @@ signals:
     void dbcRemoveRequested(const QString &filePath);
 
 private slots:
+    void onItemClicked(QTreeWidgetItem *item, int column);
     void onImportDatabase();
     void onRemoveDatabase();
-    void onItemClicked(QTreeWidgetItem *item, int column);
 
 private:
     QTreeWidget *m_tree;
@@ -169,9 +169,12 @@ private slots:
     void onContextMenu(const QPoint &pos);
 
 private:
-    QListWidget *m_templateList = nullptr;  ///< 形态模板平铺行（doc/flow.md §7.2 平铺修订）
+    QListWidget *m_templateList = nullptr;  ///< 形态模板平铺行 (doc/flow.md §7.2 平铺修订)
     QListWidget *m_traceList;
-    QPushButton *m_delBtn = nullptr;
+    QPushButton *m_delBtn = nullptr;        ///< 删除按钮
+    
+    /// 为模板列表的每一行创建带 3 点菜单的容器
+    void createTemplateRowWithMenu(int index);
 };
 
 // ============================================================

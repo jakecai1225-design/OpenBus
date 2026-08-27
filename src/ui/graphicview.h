@@ -191,7 +191,7 @@ private:
     QCheckBox *m_pointsToggle = nullptr;   ///< 采样点显示开关
     QComboBox *m_timeWindowCombo = nullptr; ///< 时间窗口选择
     QToolButton *m_pauseBtn = nullptr;     ///< 暂停/继续
-    QLabel *m_statusLabel = nullptr;       ///< 底部状态栏
+//    QLabel *m_statusLabel = nullptr;       ///< 底部状态栏（已移除）
     QCheckBox *m_cursorLinkToggle = nullptr; ///< 多视图游标联动开关
 
     // --- 工具栏按钮 ---
