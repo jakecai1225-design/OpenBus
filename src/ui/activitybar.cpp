@@ -57,10 +57,13 @@ ActivityBar::ActivityBar(QWidget *parent)
 
     layout->addStretch();
 
-    // 底部按钮
+    // 4. 底部按钮
     auto *settingsBtn = createButton(":/icons/settings.svg", "配置", Settings, true);
     layout->addWidget(settingsBtn);
     m_buttons.append({settingsBtn, Settings, "配置", "配置", ":/icons/settings.svg"});
+
+    // 5. 应用主题样式
+    applyTheme();
 
     // 默认选中工程
     m_buttons[0].btn->setChecked(true);
@@ -83,6 +86,18 @@ QToolButton *ActivityBar::createButton(const QString &iconPath, const QString &t
     connect(btn, &QToolButton::clicked, this, &ActivityBar::onButtonClicked);
 
     return btn;
+}
+
+void ActivityBar::applyTheme()
+{
+    const Theme &t = ThemeManager::instance()->currentTheme();
+    setStyleSheet(
+        "#ActivityBar { background-color: " + t.activityBarBg + "; }"
+        "QToolButton#ActivityBtn { border: none; margin: 4px 0; padding: 6px 0; background-color: transparent; color: " + t.textDim + "; }"
+        "QToolButton#ActivityBtn:hover { background-color: " + t.activityBarHover + "; }"
+        "QToolButton#ActivityBtn:checked { background-color: rgba(255, 255, 255, 0.1); border-right: 3px solid " + t.accent + "; }"
+        "QToolButton#ActivityBtn:disabled { color: " + t.textDim + "; }"
+    );
 }
 
 void ActivityBar::setCurrentActivity(Activity act)

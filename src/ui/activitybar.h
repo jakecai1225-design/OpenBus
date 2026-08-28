@@ -46,6 +46,8 @@ private slots:
     void onButtonClicked();
 
 private:
+    void applyTheme();
+
     struct BtnInfo {
         QToolButton *btn;
         Activity activity;

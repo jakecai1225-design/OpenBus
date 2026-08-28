@@ -23,32 +23,265 @@ ThemeManager::ThemeManager(QObject *parent)
 
 void ThemeManager::initThemes()
 {
-    // ===== Light =====
+    // ===== Dark+ (VSCode Default Dark) =====
+    Theme dark;
+    dark.name = "Dark+";
+    
+    // Core backgrounds
+    dark.windowBg = "#1e1e1e";      dark.contentBg = "#1e1e1e";     dark.sidebarBg = "#252526";   dark.panelBg = "#1e1e1e";
+    
+    // Title bar (integrated)
+    dark.titleBarActiveBg = "#007acc"; dark.titleBarInactiveBg = "#454545";
+    dark.titleBarActiveFg = "#ffffff"; dark.titleBarInactiveFg = "#bbbbbb";
+    dark.titleBarFocusBorder = "#007acc";
+    dark.barBg = "#007acc";         dark.barFg = "#ffffff";          dark.barHover = "#005fa3";   dark.barBorder = "#007acc";
+    
+    // Activity bar (48px left dock)
+    dark.activityBarBg = "#333333";  dark.activityBarFg = "#ffffff";  dark.activityBarBorder = "#333333";
+    dark.activityBarHover = "#ffffff";
+    dark.activityBarBadgeBg = "#007acc"; dark.activityBarBadgeFg = "#ffffff";
+    dark.activityBarDropBorder = "#d7ba7d";
+    
+    // SideBar
+    dark.sideBarForeground = "#cccccc"; dark.sideBarTitleFg = "#bbbbbb";
+    dark.sideBarBorder = "#2b2b2b";    dark.sideBarDropBorder = "#d7ba7d";
+    
+    // Text
+    dark.text = "#cccccc";            dark.textDim = "#858585";        dark.errorFg = "#f48771";
+    dark.linkFg = "#3794ff";          dark.iconFg = "#cccccc";
+    
+    // Accent
+    dark.accent = "#007acc";          dark.accentHover = "#005fa3";    dark.accentBorder = "#007acc";
+    
+    // Borders
+    dark.border = "#2b2b2b";          dark.borderDim = "#424242";
+    
+    // Selection & hover
+    dark.selectionBg = "#264f78";     dark.hoverBg = "#2a2d2d";        dark.altRowBg = "#1a1a1a";
+    
+    // Buttons
+    dark.buttonBg = "#0e63bb";        dark.buttonHover = "#0d5fae";    dark.buttonPress = "#0b5a8f";
+    dark.buttonSecondaryBg = "#333333"; dark.buttonSecondaryFg = "#cccccc";
+    dark.buttonDisabledBg = "#3c3c3c"; dark.buttonDisabledText = "#858585";
+    
+    // Checkbox & Dropdown
+    dark.checkboxBg = "#2b2b2b";      dark.checkboxFg = "#cccccc";     dark.checkboxBorder = "#1b1b1b";
+    dark.dropdownBg = "#2b2b2b";      dark.dropdownFg = "#cccccc";     dark.dropdownBorder = "#1b1b1b";
+    
+    // Input
+    dark.inputBg = "#3c3c3c";         dark.inputFg = "#cccccc";        dark.inputPlaceholderFg = "#aaaaaa";
+    dark.inputBorder = "#3c3c3c";
+    
+    // Status bar
+    dark.statusBg = "#007acc";        dark.statusFg = "#ffffff";       dark.statusBarBorder = "#007acc";
+    dark.statusBarItemHoverBg = "#005a9e80"; dark.statusBarItemRemoteBg = "#ce9178";
+    
+    // Terminal
+    dark.terminalBg = "#1e1e1e";      dark.terminalFg = "#cccccc";
+    dark.terminalCursorFg = "#ffffff"; dark.terminalCursorBg = "#aca1ee";
+    
+    // Tabs
+    dark.tabBg = "#1e1e1e";           dark.tabActiveBg = "#1e1e1e";    dark.tabInactiveBg = "#2d2d2d";
+    dark.tabActiveFg = "#ffffff";     dark.tabInactiveFg = "#9c9c9c";  dark.tabHoverBg = "#2d2d2d";
+    dark.tabBorder = "#1e1e1e";       dark.tabActiveBorderTop = "#007acc";
+    dark.editorGroupHeaderBg = "#1e1e1e"; dark.editorGroupBorder = "#444444";
+    dark.editorGroupDropBg = "#515d8a80";
+    
+    // Scrollbar
+    dark.scrollBg = "#80808033";      dark.scrollHandle = "#80808055"; dark.scrollHandleHover = "#808080aa";
+    dark.scrollHandleActive = "#808080dd";
+    
+    // List & Tree
+    dark.listActiveSelectionBg = "#094771"; dark.listActiveSelectionFg = "#ffffff";
+    dark.listHoverBackground = "#2a2d2e";  dark.listDropBackground = "#37373d";
+    dark.listFocusOutline = "#094771";     dark.listFocusBackground = "#062f4a";
+    dark.listInactiveSelectionBg = "#37373d";
+    
+    // Widget shadow
+    dark.widgetShadow = "#00000050";
+    
+    // Quick Open & Picker
+    dark.quickInputBg = "#252526";    dark.quickInputListFocusBg = "#094771";
+    dark.quickInputListFocusFg = "#ffffff";
+    dark.pickerGroupFg = "#3794ff";   dark.pickerGroupBorder = "#3794ff";
+    
+    // Breadcrumb
+    dark.breadcrumbBg = "#252526";    dark.breadcrumbFg = "#cccccc";
+    
+    // Badge
+    dark.badgeBg = "#007acc";         dark.badgeFg = "#ffffff";
+    
+    // Close button
+    dark.closeBtnHover = "#4a4a4a";   dark.closeBtnPress = "#5a5a5a";
+    
+    // Table header
+    dark.headerBg = "#252526";        dark.headerHover = "#2a2a2a";
+    
+    // Git decoration colors
+    dark.gitDecorationAddedResourceFg = "#4ecf50";
+    dark.gitDecorationModifiedResourceFg = "#cca700";
+    dark.gitDecorationDeletedResourceFg = "#f14c4c";
+    dark.gitDecorationUntrackedResourceFg = "#4ecf50";
+    dark.gitDecorationIgnoredResourceFg = "#848484";
+    dark.gitDecorationSubmoduleResourceFg = "#8be1fd";
+    
+    // Extension buttons
+    dark.extensionButtonProminentBg = "#0e63bb";
+    dark.extensionButtonProminentHoverBg = "#0d5fae";
+    
+    // Diff editor
+    dark.diffEditorInsertedTextBg = "#00ff0033";
+    dark.diffEditorRemovedTextBg = "#ff000033";
+    
+    // Terminal ANSI colors (Dark+)
+    dark.terminalAnsiBlack = "#323232";
+    dark.terminalAnsiRed = "#f44e48";
+    dark.terminalAnsiGreen = "#4caf74";
+    dark.terminalAnsiYellow = "#bbca36";
+    dark.terminalAnsiBlue = "#2e88d6";
+    dark.terminalAnsiMagenta = "#b557ba";
+    dark.terminalAnsiCyan = "#3fb4e2";
+    dark.terminalAnsiWhite = "#dfdfdf";
+    dark.terminalAnsiBrightBlack = "#545454";
+    dark.terminalAnsiBrightRed = "#f44e48";
+    dark.terminalAnsiBrightGreen = "#4caf74";
+    dark.terminalAnsiBrightYellow = "#bbca36";
+    dark.terminalAnsiBrightBlue = "#2e88d6";
+    dark.terminalAnsiBrightMagenta = "#b557ba";
+    dark.terminalAnsiBrightCyan = "#3fb4e2";
+    dark.terminalAnsiBrightWhite = "#ffffff";
+    
+    m_themes.append({dark.name, dark});
+    
+    // ===== Light (VSCode Default Light) =====
     Theme light;
     light.name = "Light";
-    light.windowBg = "#f8f8f8";  light.contentBg = "#ffffff";  light.sidebarBg = "#f3f3f3";
-    light.panelBg = "#ececec";
-    light.barBg = "#dddddd";      light.barFg = "#333333";      light.barHover = "#d0d0d0";
-    light.barBorder = "#c4c4c4";
-    light.activityBarBg = "#dcdcdc";  light.activityBarFg = "#5c5c5c";  light.activityBarHover = "#cfcfcf";
-    light.text = "#3b3b3b";      light.textDim = "#6c6c6c";
-    light.accent = "#0066b8";     light.accentHover = "#1f7ad3"; light.accentBorder = "#005a9e";
-    light.border = "#d0d0d0";    light.borderDim = "#e4e4e4";
-    light.selectionBg = "#d6ebff"; light.hoverBg = "#eaeaea";
-    light.buttonBg = "#ececec";  light.buttonHover = "#dcdcdc"; light.buttonPress = "#cccccc";
-    light.buttonDisabledBg = "#f0f0f0"; light.buttonDisabledText = "#b0b0b0";
-    light.statusBg = "#0066b8";  light.statusFg = "#ffffff";
-    light.terminalBg = "#1e1e1e"; light.terminalFg = "#d4d4d4";
-    light.tabBg = "#ececec";     light.tabActiveBg = "#ffffff"; light.tabHoverBg = "#dcdcdc";
-    light.scrollBg = "#f8f8f8";  light.scrollHandle = "#c8c8c8"; light.scrollHandleHover = "#a0a0a0";
-    light.closeBtnHover = "#e81123"; light.closeBtnPress = "#f1707a";
-    light.headerBg = "#f0f0f0";  light.headerHover = "#e8e8e8";
-    light.altRowBg = "#fafafa";
+    
+    // Core backgrounds
+    light.windowBg = "#ffffff";       light.contentBg = "#ffffff";      light.sidebarBg = "#f3f3f3";   light.panelBg = "#ffffff";
+    
+    // Title bar (integrated)
+    light.titleBarActiveBg = "#007acc"; light.titleBarInactiveBg = "#dddddd";
+    light.titleBarActiveFg = "#ffffff"; light.titleBarInactiveFg = "#666666";
+    light.titleBarFocusBorder = "#007acc";
+    light.barBg = "#007acc";          light.barFg = "#ffffff";           light.barHover = "#005fa3";  light.barBorder = "#007acc";
+    
+    // Activity bar (48px left dock - still dark in Light theme)
+    light.activityBarBg = "#272727";  light.activityBarFg = "#ffffff";   light.activityBarBorder = "#272727";
+    light.activityBarHover = "#ffffff";
+    light.activityBarBadgeBg = "#007acc"; light.activityBarBadgeFg = "#ffffff";
+    light.activityBarDropBorder = "#d7ba7d";
+    
+    // SideBar
+    light.sideBarForeground = "#5f6368"; light.sideBarTitleFg = "#5f6368";
+    light.sideBarBorder = "#e7e7e7";    light.sideBarDropBorder = "#d7ba7d";
+    
+    // Text
+    light.text = "#333333";            light.textDim = "#6c6c6c";         light.errorFg = "#e81721";
+    light.linkFg = "#0066b8";          light.iconFg = "#333333";
+    
+    // Accent
+    light.accent = "#007acc";          light.accentHover = "#005fa3";     light.accentBorder = "#0066b8";
+    
+    // Borders
+    light.border = "#e4e4e4";          light.borderDim = "#e7e7e7";
+    
+    // Selection & hover
+    light.selectionBg = "#add6ff80";   light.hoverBg = "#f0f0f0";         light.altRowBg = "#fafafa";
+    
+    // Buttons
+    light.buttonBg = "#0e63bb";        light.buttonHover = "#0b5a8f";     light.buttonPress = "#094d7b";
+    light.buttonSecondaryBg = "#f0f0f0"; light.buttonSecondaryFg = "#333333";
+    light.buttonDisabledBg = "#dadada"; light.buttonDisabledText = "#858585";
+    
+    // Checkbox & Dropdown
+    light.checkboxBg = "#fafafa";      light.checkboxFg = "#333333";      light.checkboxBorder = "#c8c8c8";
+    light.dropdownBg = "#fafafa";      light.dropdownFg = "#333333";      light.dropdownBorder = "#c8c8c8";
+    
+    // Input
+    light.inputBg = "#fcfcfc";         light.inputFg = "#333333";         light.inputPlaceholderFg = "#999999";
+    light.inputBorder = "#c8c8c8";
+    
+    // Status bar
+    light.statusBg = "#007acc";        light.statusFg = "#ffffff";        light.statusBarBorder = "#007acc";
+    light.statusBarItemHoverBg = "#005fa380"; light.statusBarItemRemoteBg = "#ce9178";
+    
+    // Terminal
+    light.terminalBg = "#ffffff";      light.terminalFg = "#333333";
+    light.terminalCursorFg = "#000000"; light.terminalCursorBg = "#aca1ee";
+    
+    // Tabs
+    light.tabBg = "#ffffff";           light.tabActiveBg = "#ffffff";     light.tabInactiveBg = "#ececec";
+    light.tabActiveFg = "#333333";     light.tabInactiveFg = "#666666";   light.tabHoverBg = "#ececec";
+    light.tabBorder = "#e7e7e7";       light.tabActiveBorderTop = "#007acc";
+    light.editorGroupHeaderBg = "#f3f3f3"; light.editorGroupBorder = "#e7e7e7";
+    light.editorGroupDropBg = "#007acc33";
+    
+    // Scrollbar
+    light.scrollBg = "#adadad66";      light.scrollHandle = "#adadad66";  light.scrollHandleHover = "#adadad99";
+    light.scrollHandleActive = "#adadadcc";
+    
+    // List & Tree
+    light.listActiveSelectionBg = "#eff4fb"; light.listActiveSelectionFg = "#333333";
+    light.listHoverBackground = "#f0f0f0";   light.listDropBackground = "#e8e8e8";
+    light.listFocusOutline = "#007acc";        light.listFocusBackground = "#e8ebf1";
+    light.listInactiveSelectionBg = "#f0f0f0";
+    
+    // Widget shadow
+    light.widgetShadow = "#00000020";
+    
+    // Quick Open & Picker
+    light.quickInputBg = "#ffffff";    light.quickInputListFocusBg = "#eff4fb";
+    light.quickInputListFocusFg = "#333333";
+    light.pickerGroupFg = "#007acc";   light.pickerGroupBorder = "#007acc";
+    
+    // Breadcrumb
+    light.breadcrumbBg = "#f3f3f3";    light.breadcrumbFg = "#5f6368";
+    
+    // Badge
+    light.badgeBg = "#007acc";         light.badgeFg = "#ffffff";
+    
+    // Close button
+    light.closeBtnHover = "#d4d4d4";   light.closeBtnPress = "#c8c8c8";
+    
+    // Table header
+    light.headerBg = "#f3f3f3";        light.headerHover = "#ececec";
+    
+    // Git decoration colors
+    light.gitDecorationAddedResourceFg = "#4ecf50";
+    light.gitDecorationModifiedResourceFg = "#895503";
+    light.gitDecorationDeletedResourceFg = "#cf2b2b";
+    light.gitDecorationUntrackedResourceFg = "#4ecf50";
+    light.gitDecorationIgnoredResourceFg = "#b0b0b0";
+    light.gitDecorationSubmoduleResourceFg = "#8be1fd";
+    
+    // Extension buttons
+    light.extensionButtonProminentBg = "#0e63bb";
+    light.extensionButtonProminentHoverBg = "#0b5a8f";
+    
+    // Diff editor
+    light.diffEditorInsertedTextBg = "#00ff0033";
+    light.diffEditorRemovedTextBg = "#ff000033";
+    
+    // Terminal ANSI colors (Light)
+    light.terminalAnsiBlack = "#323232";
+    light.terminalAnsiRed = "#cd3131";
+    light.terminalAnsiGreen = "#0dbc79";
+    light.terminalAnsiYellow = "#e5c07b";
+    light.terminalAnsiBlue = "#5bc0de";
+    light.terminalAnsiMagenta = "#8f55a6";
+    light.terminalAnsiCyan = "#1f719d";
+    light.terminalAnsiWhite = "#5a646c";
+    light.terminalAnsiBrightBlack = "#686868";
+    light.terminalAnsiBrightRed = "#a00000";
+    light.terminalAnsiBrightGreen = "#009f13";
+    light.terminalAnsiBrightYellow = "#b89618";
+    light.terminalAnsiBrightBlue = "#4088b8";
+    light.terminalAnsiBrightMagenta = "#8f55a6";
+    light.terminalAnsiBrightCyan = "#1f719d";
+    light.terminalAnsiBrightWhite = "#9ea6a8";
+    
     m_themes.append({light.name, light});
-
-    // 仅保留 Light 一套配色 — 其余主题存在大量未覆盖的硬编码浅色区域
-    // （黑一块白一块），在全面适配前不再提供
-    m_currentName = "Light";
 }
 
 QStringList ThemeManager::themeNames() const
@@ -223,48 +456,166 @@ QString ThemeManager::generateQss(const Theme &t) const
     if (rawQss.isEmpty())
         return {};
 
-    // 2. 构建 @变量 → 颜色值 映射
+    // 2. 构建 @变量 → 颜色值 映射（覆盖完整的 VSCode UX 配色）
     static const QHash<QString, QString Theme::*> varMap = {
+        // Core backgrounds
         {"@windowBg",          &Theme::windowBg},
         {"@contentBg",         &Theme::contentBg},
         {"@sidebarBg",         &Theme::sidebarBg},
         {"@panelBg",           &Theme::panelBg},
+        
+        // Title bar
+        {"@titleBarActiveBg",  &Theme::titleBarActiveBg},
+        {"@titleBarInactiveBg",&Theme::titleBarInactiveBg},
+        {"@titleBarActiveFg",  &Theme::titleBarActiveFg},
+        {"@titleBarInactiveFg",&Theme::titleBarInactiveFg},
+        {"@titleBarFocusBorder",&Theme::titleBarFocusBorder},
+        
+        // Menu & Activity bar
         {"@barBg",             &Theme::barBg},
         {"@barFg",             &Theme::barFg},
         {"@barHover",          &Theme::barHover},
         {"@barBorder",         &Theme::barBorder},
         {"@activityBarBg",     &Theme::activityBarBg},
         {"@activityBarFg",     &Theme::activityBarFg},
+        {"@activityBarBorder", &Theme::activityBarBorder},
         {"@activityBarHover",  &Theme::activityBarHover},
+        {"@activityBarBadgeBg",&Theme::activityBarBadgeBg},
+        {"@activityBarBadgeFg",&Theme::activityBarBadgeFg},
+        {"@activityBarDropBorder",&Theme::activityBarDropBorder},
+        
+        // SideBar
+        {"@sideBarForeground", &Theme::sideBarForeground},
+        {"@sideBarTitleFg",    &Theme::sideBarTitleFg},
+        {"@sideBarBorder",     &Theme::sideBarBorder},
+        {"@sideBarDropBorder", &Theme::sideBarDropBorder},
+        
+        // Text
         {"@text",              &Theme::text},
         {"@textDim",           &Theme::textDim},
+        {"@errorFg",           &Theme::errorFg},
+        {"@linkFg",            &Theme::linkFg},
+        {"@iconFg",            &Theme::iconFg},
+        
+        // Accent
         {"@accent",            &Theme::accent},
         {"@accentHover",       &Theme::accentHover},
         {"@accentBorder",      &Theme::accentBorder},
+        
+        // Borders
         {"@border",            &Theme::border},
         {"@borderDim",         &Theme::borderDim},
+        
+        // Selection & hover
         {"@selectionBg",       &Theme::selectionBg},
         {"@hoverBg",           &Theme::hoverBg},
+        {"@altRowBg",          &Theme::altRowBg},
+        
+        // Buttons
         {"@buttonBg",          &Theme::buttonBg},
         {"@buttonHover",       &Theme::buttonHover},
         {"@buttonPress",       &Theme::buttonPress},
+        {"@buttonSecondaryBg", &Theme::buttonSecondaryBg},
+        {"@buttonSecondaryFg", &Theme::buttonSecondaryFg},
         {"@buttonDisabledBg",  &Theme::buttonDisabledBg},
         {"@buttonDisabledText",&Theme::buttonDisabledText},
+        
+        // Checkbox & Dropdown
+        {"@checkboxBg",        &Theme::checkboxBg},
+        {"@checkboxFg",        &Theme::checkboxFg},
+        {"@checkboxBorder",    &Theme::checkboxBorder},
+        {"@dropdownBg",        &Theme::dropdownBg},
+        {"@dropdownFg",        &Theme::dropdownFg},
+        {"@dropdownBorder",    &Theme::dropdownBorder},
+        
+        // Input
+        {"@inputBg",           &Theme::inputBg},
+        {"@inputFg",           &Theme::inputFg},
+        {"@inputPlaceholderFg",&Theme::inputPlaceholderFg},
+        {"@inputBorder",       &Theme::inputBorder},
+        
+        // Status bar
         {"@statusBg",          &Theme::statusBg},
         {"@statusFg",          &Theme::statusFg},
+        {"@statusBarBorder",   &Theme::statusBarBorder},
+        {"@statusBarItemHoverBg",&Theme::statusBarItemHoverBg},
+        {"@statusBarItemRemoteBg",&Theme::statusBarItemRemoteBg},
+        
+        // Terminal
         {"@terminalBg",        &Theme::terminalBg},
         {"@terminalFg",        &Theme::terminalFg},
+        {"@terminalCursorFg",  &Theme::terminalCursorFg},
+        {"@terminalCursorBg",  &Theme::terminalCursorBg},
+        
+        // Tabs
         {"@tabBg",             &Theme::tabBg},
         {"@tabActiveBg",       &Theme::tabActiveBg},
+        {"@tabInactiveBg",     &Theme::tabInactiveBg},
+        {"@tabActiveFg",       &Theme::tabActiveFg},
+        {"@tabInactiveFg",     &Theme::tabInactiveFg},
         {"@tabHoverBg",        &Theme::tabHoverBg},
+        {"@tabBorder",         &Theme::tabBorder},
+        {"@tabActiveBorderTop",&Theme::tabActiveBorderTop},
+        {"@editorGroupHeaderBg",&Theme::editorGroupHeaderBg},
+        {"@editorGroupBorder", &Theme::editorGroupBorder},
+        {"@editorGroupDropBg", &Theme::editorGroupDropBg},
+        
+        // Scrollbar
         {"@scrollBg",          &Theme::scrollBg},
         {"@scrollHandle",      &Theme::scrollHandle},
         {"@scrollHandleHover", &Theme::scrollHandleHover},
+        {"@scrollHandleActive",&Theme::scrollHandleActive},
+        
+        // List & Tree
+        {"@listActiveSelectionBg",&Theme::listActiveSelectionBg},
+        {"@listActiveSelectionFg",&Theme::listActiveSelectionFg},
+        {"@listHoverBackground", &Theme::listHoverBackground},
+        {"@listDropBackground",  &Theme::listDropBackground},
+        {"@listFocusOutline",    &Theme::listFocusOutline},
+        {"@listFocusBackground", &Theme::listFocusBackground},
+        {"@listInactiveSelectionBg",&Theme::listInactiveSelectionBg},
+        
+        // Widget shadow
+        {"@widgetShadow",      &Theme::widgetShadow},
+        
+        // Quick Open & Picker
+        {"@quickInputBg",      &Theme::quickInputBg},
+        {"@quickInputListFocusBg",&Theme::quickInputListFocusBg},
+        {"@quickInputListFocusFg",&Theme::quickInputListFocusFg},
+        {"@pickerGroupFg",     &Theme::pickerGroupFg},
+        {"@pickerGroupBorder", &Theme::pickerGroupBorder},
+        
+        // Breadcrumb
+        {"@breadcrumbBg",      &Theme::breadcrumbBg},
+        {"@breadcrumbFg",      &Theme::breadcrumbFg},
+        
+        // Badge
+        {"@badgeBg",           &Theme::badgeBg},
+        {"@badgeFg",           &Theme::badgeFg},
+        
+        // Close button
         {"@closeBtnHover",     &Theme::closeBtnHover},
         {"@closeBtnPress",     &Theme::closeBtnPress},
+        
+        // Table header
         {"@headerBg",          &Theme::headerBg},
         {"@headerHover",       &Theme::headerHover},
-        {"@altRowBg",          &Theme::altRowBg},
+        
+        // Git decoration colors
+        {"@gitDecorationAddedResourceFg", &Theme::gitDecorationAddedResourceFg},
+        {"@gitDecorationModifiedResourceFg", &Theme::gitDecorationModifiedResourceFg},
+        {"@gitDecorationDeletedResourceFg", &Theme::gitDecorationDeletedResourceFg},
+        {"@gitDecorationUntrackedResourceFg", &Theme::gitDecorationUntrackedResourceFg},
+        {"@gitDecorationIgnoredResourceFg", &Theme::gitDecorationIgnoredResourceFg},
+        {"@gitDecorationSubmoduleResourceFg", &Theme::gitDecorationSubmoduleResourceFg},
+        
+        // Extension buttons
+        {"@extensionButtonProminentBg", &Theme::extensionButtonProminentBg},
+        {"@extensionButtonProminentHoverBg", &Theme::extensionButtonProminentHoverBg},
+        
+        // Diff editor
+        {"@diffEditorInsertedTextBg", &Theme::diffEditorInsertedTextBg},
+        {"@diffEditorRemovedTextBg", &Theme::diffEditorRemovedTextBg},
     };
 
     // 3. 替换所有 @变量 — 按键长降序，避免前缀键破坏长键
