@@ -525,6 +525,11 @@ void MeasurementSetupView::buildTopology()
         b.moduleName = mods[i].moduleName;
         b.rect = QRectF(x, modY + i * (bh + modGap), modW, bh);
         b.color = mods[i].color;
+        // 默认不启用：除 Trace/Graphic 外的观测类模块 (Watcher/Record) 默认禁用
+        if (mods[i].id == QLatin1String("trace1") || mods[i].id == QLatin1String("graphic1"))
+            b.enabled = true;
+        else
+            b.enabled = false;
         m_blocks[mods[i].id] = b;
     }
 
@@ -1027,7 +1032,13 @@ void MeasurementSetupView::onSceneClicked(const QPointF &scenePos)
     auto *b = blockAt(scenePos);
     if (!b) return;
 
-    // 统一块交互规则：未启用块单击 = 启用；已启用块单击 = 进入配置
+    // 统一块交互规则 (v2.1): 
+    //   • 数据源块 (source_real/source_file)
+    //     - 单击：切换到对应数据源并激活 (切换 Real/File)
+    //     - 双击：激活 + 打开对应配置页
+    //   • 功能块 / 模块块
+    //     - 单击：切换使能状态 (ON/OFF)，不跳转
+    //     - 双击：若未启用则启用 + 打开配置；若已启用则打开配置
     if (b->category == "source") {
         if (b->id != activeSourceId()) {
             // 未激活数据源：单击 = 激活（切换数据源）
@@ -1041,10 +1052,9 @@ void MeasurementSetupView::onSceneClicked(const QPointF &scenePos)
             else
                 emit fileBlockClicked();
         }
-    } else if (!b->enabled) {
-        setBlockEnabled(b->id, true);
     } else {
-        openBlockConfig(b->id);
+        // 功能块/模块块：单击仅切换使能状态，不跳转
+        setBlockEnabled(b->id, !b->enabled);
     }
 }
 

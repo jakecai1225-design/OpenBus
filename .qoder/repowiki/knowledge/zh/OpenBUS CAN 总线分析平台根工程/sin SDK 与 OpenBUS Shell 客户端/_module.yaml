@@ -1,9 +1,0 @@
-schema_version: 1
-module_path: sdk
-title: sin SDK 与 OpenBUS Shell 客户端
-scope:
-    - sdk/
-source_files: []
-depends_on: []
-related_to:
-    - path: core_application

@@ -503,13 +503,26 @@ DbcPanel::DbcPanel(QWidget *parent)
 
 void DbcPanel::initCategoryNodes()
 {
+    const QString iconColor = ThemeManager::instance()->currentTheme().text;
+    
     // 创建协议分类根节点
-    m_catCanFd    = new QTreeWidgetItem(m_tree, {"CAN / CANFD"});
-    m_catCanopen  = new QTreeWidgetItem(m_tree, {"CANopen"});
-    m_catEthercat = new QTreeWidgetItem(m_tree, {"EtherCAT"});
-    m_catLin      = new QTreeWidgetItem(m_tree, {"LIN"});
-    m_catJ1939    = new QTreeWidgetItem(m_tree, {"J1939"});
-    m_catAutosar  = new QTreeWidgetItem(m_tree, {"AUTOSAR"});
+    m_catCanFd    = new QTreeWidgetItem(m_tree, {QStringLiteral("CAN / CANFD")});
+    m_catCanFd->setIcon(0, svgIcon(":/icons/database.svg", iconColor, 16));
+    
+    m_catCanopen  = new QTreeWidgetItem(m_tree, {QStringLiteral("CANopen")});
+    m_catCanopen->setIcon(0, svgIcon(":/icons/gear.svg", iconColor, 16));
+    
+    m_catEthercat = new QTreeWidgetItem(m_tree, {QStringLiteral("EtherCAT")});
+    m_catEthercat->setIcon(0, svgIcon(":/icons/extensions.svg", iconColor, 16));
+    
+    m_catLin      = new QTreeWidgetItem(m_tree, {QStringLiteral("LIN")});
+    m_catLin->setIcon(0, svgIcon(":/icons/list.svg", iconColor, 16));
+    
+    m_catJ1939    = new QTreeWidgetItem(m_tree, {QStringLiteral("J1939")});
+    m_catJ1939->setIcon(0, svgIcon(":/icons/file.svg", iconColor, 16));
+    
+    m_catAutosar  = new QTreeWidgetItem(m_tree, {QStringLiteral("AUTOSAR")});
+    m_catAutosar->setIcon(0, svgIcon(":/icons/gear.svg", iconColor, 16));
 
     for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
         auto *cat = m_tree->topLevelItem(i);
@@ -648,11 +661,13 @@ void DbcPanel::refreshTree()
     clearChildren(m_catJ1939);
     clearChildren(m_catAutosar);
 
+    const QString iconCol = ThemeManager::instance()->currentTheme().text;
+
     // DBC 文件 → CAN/CANFD 分类
     if (m_dbcMgr) {
         for (const auto &file : m_dbcMgr->files()) {
             auto *item = new QTreeWidgetItem(m_catCanFd, {file.fileName});
-            item->setIcon(0, svgIcon(":/icons/file.svg", "#6c6c6c"));
+            item->setIcon(0, svgIcon(":/icons/file.svg", iconCol));
             item->setData(0, Qt::UserRole, "CAN/CANFD");
             item->setData(0, Qt::UserRole + 1, file.filePath);  // 存储完整路径用于删除
         }
@@ -670,7 +685,7 @@ void DbcPanel::refreshTree()
         if (!parent) continue;
 
         auto *item = new QTreeWidgetItem(parent, {entry.fileName});
-        item->setIcon(0, svgIcon(":/icons/file.svg", "#6c6c6c"));
+        item->setIcon(0, svgIcon(":/icons/file.svg", iconCol));
         item->setData(0, Qt::UserRole, entry.category);
         item->setData(0, Qt::UserRole + 1, entry.filePath);
     }
@@ -1111,10 +1126,11 @@ void DevicePanel::populateTree()
     // 统一枚举（DriverRegistry 聚合内置 + 外置，DeviceInfo.driverId 分组）
     const auto allDevices = ICanDevice::enumerateAll();
 
-    // ---- 驱动分区（Registry 动态生成，不再硬编码品牌；禁用的隐藏 §7.4） ----
+    // ---- 驱动分区（Registry 动态生成；仅显示已安装且启用的驱动） ----
     const auto drivers = DriverRegistry::instance()->drivers();
     for (const auto &drv : drivers) {
-        if (!drv.enabled)
+        // 仅显示：已启用 AND 已安装可用
+        if (!drv.enabled || !drv.available)
             continue;
         auto *parent = new QTreeWidgetItem(m_deviceTree);
         parent->setText(0, drv.displayName);
@@ -1134,20 +1150,12 @@ void DevicePanel::populateTree()
                 dev->setData(0, Qt::UserRole + 1, d.deviceIndex);
                 dev->setData(0, Qt::UserRole + 2, d.deviceType);
             }
-        } else if (drv.available) {
-            // 驱动可用但无在线设备：提示叶子（点击打开连接页手动配置）
+        } else {
+            // 驱动可用但无在线设备：提示叶子 (点击打开连接页手动配置)
             auto *empty = new QTreeWidgetItem(parent);
-            empty->setText(0, QStringLiteral("  %1 (未检测到硬件)")
-                                   .arg(drv.displayName));
+            empty->setText(0, QStringLiteral("  %1 (未检测到硬件)").arg(drv.displayName));
             empty->setData(0, Qt::UserRole, drv.deviceKind);
             empty->setData(0, Qt::UserRole + 1, 0);
-        } else {
-            // 驱动不可用（厂商 DLL 缺失/预检失败）：展示原因，禁用点击
-            auto *empty = new QTreeWidgetItem(parent);
-            empty->setText(0, QStringLiteral("  (%1)").arg(
-                drv.disabledReason.isEmpty() ? QStringLiteral("不可用")
-                                             : drv.disabledReason));
-            empty->setFlags(empty->flags() & ~Qt::ItemIsEnabled);
         }
         parent->setExpanded(true);
     }
@@ -1206,24 +1214,30 @@ TransceivePanel::TransceivePanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
+    const QString iconColor = ThemeManager::instance()->currentTheme().text;
+
     auto *sendBtn = new QPushButton(QStringLiteral("发送"), this);
     sendBtn->setObjectName("SidePanelButton");
     sendBtn->setToolTip(QStringLiteral("点击打开发送标签页"));
+    sendBtn->setIcon(svgIcon(":/icons/list.svg", iconColor, 16));
     cl->addWidget(sendBtn);
 
     auto *playbackBtn = new QPushButton(QStringLiteral("回放"), this);
     playbackBtn->setObjectName("SidePanelButton");
     playbackBtn->setToolTip(QStringLiteral("点击打开回放标签页"));
+    playbackBtn->setIcon(svgIcon(":/icons/play.svg", iconColor, 16));
     cl->addWidget(playbackBtn);
 
     auto *offlineBtn = new QPushButton(QStringLiteral("离线分析"), this);
     offlineBtn->setObjectName("SidePanelButton");
     offlineBtn->setToolTip(QStringLiteral("点击打开离线分析标签页"));
+    offlineBtn->setIcon(svgIcon(":/icons/file.svg", iconColor, 16));
     cl->addWidget(offlineBtn);
 
     auto *recordBtn = new QPushButton(QStringLiteral("录制"), this);
     recordBtn->setObjectName("SidePanelButton");
     recordBtn->setToolTip(QStringLiteral("点击打开录制标签页"));
+    recordBtn->setIcon(svgIcon(":/icons/record.svg", iconColor, 16));
     cl->addWidget(recordBtn);
 
     cl->addStretch();

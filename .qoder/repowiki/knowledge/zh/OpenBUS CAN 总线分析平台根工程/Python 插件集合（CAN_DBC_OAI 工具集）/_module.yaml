@@ -1,9 +1,0 @@
-schema_version: 1
-module_path: python_plugins
-title: Python 插件集合（CAN/DBC/OAI 工具集）
-scope:
-    - plugins/
-source_files: []
-depends_on: []
-related_to:
-    - path: core_application

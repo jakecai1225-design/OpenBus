@@ -137,13 +137,33 @@ QWidget *TransceiveModule::createSendPage(ShellContext &ctx)
     auto *tab = new SignalSendTab(ctx.mainWindow);
     tab->setDbcManager(ctx.dbcManager);
 
-    auto sendFrame = [this](quint32 id, const QByteArray &data) {
+    // Tx 回环注入器 — 统一处理所有发送场景的回环帧注入
+    auto injectTxLoopback = [this, tab](const CanFrame &frame) {
+        if (m_ctx.shellInvoke) {
+            QVariantList frameList;
+            frameList.append(QVariant::fromValue(frame));
+            QVariantList argList;
+            argList.append(QVariant::fromValue(tab));
+            argList.append(frameList);
+            m_ctx.shellInvoke(QStringLiteral("appendFrames"), argList);
+        }
+    };
+
+    auto sendFrame = [this, &injectTxLoopback](quint32 id, const QByteArray &data) {
         CanFrame frame;
         frame.id = id;
         frame.dlc = CanFrame::lengthToDlc(data.size());
         frame.data = data;
         frame.direction = CanFrame::Tx;
-        return m_ctx.deviceManager ? m_ctx.deviceManager->sendFrame(frame) : false;
+        
+        bool success = false;
+        if (m_ctx.deviceManager) {
+            CanFrame echo;
+            success = m_ctx.deviceManager->sendFrame(frame, &echo);
+            if (success)
+                injectTxLoopback(echo);
+        }
+        return success;
     };
 
     // 发送单帧
@@ -151,7 +171,7 @@ QWidget *TransceiveModule::createSendPage(ShellContext &ctx)
                      tab, [this, sendFrame](quint32 id, const QByteArray &data) {
         if (sendFrame(id, data)) {
             if (m_ctx.appendOutput)
-                m_ctx.appendOutput(QString("发送: ID=0x%1, DLC=%2")
+                m_ctx.appendOutput(QString("发送：ID=0x%1, DLC=%2")
                                        .arg(id, 0, 16).toUpper().arg(data.size()));
         } else {
             if (m_ctx.appendOutput)
@@ -160,9 +180,9 @@ QWidget *TransceiveModule::createSendPage(ShellContext &ctx)
         }
     });
 
-    // 发送行（单次或周期）— 周期发送定时器归模块所有（原 m_periodicSenders）
+    // 发送行（单次或周期）— 周期发送定时器归模块所有
     QObject::connect(tab, &SignalSendTab::sendRowRequested,
-                     tab, [this, sendFrame, tab](int row, quint32 id, const QByteArray &data,
+                     tab, [this, sendFrame, tab, &injectTxLoopback](int row, quint32 id, const QByteArray &data,
                                             int period, int count) {
         if (sendFrame(id, data)) {
             if (m_ctx.appendOutput)
@@ -187,14 +207,17 @@ QWidget *TransceiveModule::createSendPage(ShellContext &ctx)
             timer->setInterval(period);
             int remaining = count;  // 0 = 无限
             QObject::connect(timer, &QTimer::timeout, tab,
-                    [this, id, data, row, count, timer, remaining]() mutable {
+                    [this, id, data, row, count, timer, remaining, &injectTxLoopback]() mutable {
                 CanFrame f;
                 f.id = id;
                 f.dlc = CanFrame::lengthToDlc(data.size());
                 f.data = data;
                 f.direction = CanFrame::Tx;
-                if (m_ctx.deviceManager)
-                    m_ctx.deviceManager->sendFrame(f);
+                if (m_ctx.deviceManager) {
+                    CanFrame echo;
+                    if (m_ctx.deviceManager->sendFrame(f, &echo))
+                        injectTxLoopback(echo);
+                }
 
                 if (count > 0) {
                     --remaining;

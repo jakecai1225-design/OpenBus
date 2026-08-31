@@ -1,9 +1,0 @@
-schema_version: 1
-module_path: data_samples
-title: 测试数据与资源样本
-scope:
-    - data/
-source_files: []
-depends_on: []
-related_to:
-    - path: core_application
