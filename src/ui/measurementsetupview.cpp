@@ -82,35 +82,35 @@ protected:
         QPainterPath path;
         path.addRoundedRect(r, 8, 8);
 
-        // 背景渐变
+        // ✅ 背景填充（激活用蓝色渐变，非激活用白色）
         QLinearGradient grad(r.topLeft(), r.bottomLeft());
         if (m_active) {
-            grad.setColorAt(0, m_color.lighter(115));
-            grad.setColorAt(1, m_color);
+            grad.setColorAt(0, QColor(0x42, 0xA5, 0xF5));  // 亮蓝
+            grad.setColorAt(1, QColor(0x19, 0x76, 0xD2));  // 深蓝
         } else {
-            grad.setColorAt(0, QColor(0xee, 0xee, 0xee));
-            grad.setColorAt(1, QColor(0xd4, 0xd4, 0xd4));
+            grad.setColorAt(0, Qt::white);                  // 白色
+            grad.setColorAt(1, Qt::white);                  // 白色
         }
         painter->fillPath(path, QBrush(grad));
 
-        // 边框
-        painter->setPen(QPen(m_active ? m_color.darker(140) : QColor(0xb8, 0xb8, 0xb8), 1.2));
+        // ✅ 边框色（激活用深蓝，非激活用灰色）
+        painter->setPen(QPen(m_active ? QColor(0x0D, 0x47, 0xA6) : QColor(0xC0, 0xC0, 0xC0), 1.2));
         painter->drawPath(path);
 
         // ---- 头部区域 (固定高度 60) ----
         QRectF headerRect(r.left(), r.top(), r.width(), 60);
 
-        // 图标
+        // 图标（根据激活状态选择白色/深灰）
         QFont iconFont("Segoe UI Emoji", m_isSource ? 18 : 15);
         painter->setFont(iconFont);
-        painter->setPen(m_active ? Qt::white : QColor(0x88, 0x88, 0x88));
+        painter->setPen(m_active ? Qt::white : QColor(0x45, 0x5A, 0x6B));
         painter->drawText(QRectF(headerRect.left() + 8, headerRect.top(), 34, headerRect.height()),
                           Qt::AlignVCenter | Qt::AlignLeft, m_icon);
 
-        // 标题
+        // 标题（根据激活状态选择白色/深蓝灰）
         QFont titleFont("Microsoft YaHei UI", m_isSource ? 10 : 9, QFont::Bold);
         painter->setFont(titleFont);
-        painter->setPen(m_active ? Qt::white : QColor(0x55, 0x55, 0x55));
+        painter->setPen(m_active ? Qt::white : QColor(0x26, 0x32, 0x38));
         painter->drawText(QRectF(headerRect.left() + 42, headerRect.top() + 4,
                                  headerRect.width() - 50, headerRect.height() / 2),
                           Qt::AlignVCenter | Qt::AlignLeft, m_title);
@@ -118,7 +118,7 @@ protected:
         // 副标题 / 状态
         QFont subFont("Microsoft YaHei UI", 8);
         painter->setFont(subFont);
-        painter->setPen(m_active ? QColor(255, 255, 255, 200) : QColor(0x99, 0x99, 0x99));
+        painter->setPen(m_active ? QColor(255, 255, 255, 200) : QColor(0x54, 0x6E, 0x7A));
         QString sub;
         if (m_isSource)
             sub = m_active ? "已激活" : "未激活";
@@ -199,10 +199,10 @@ protected:
                     QColor bg = m_active ? QColor(255, 255, 255, 50) : QColor(0, 0, 0, 15);
                     painter->fillRect(tabRect, bg);
                     // 标签边框
-                    painter->setPen(QPen(m_active ? QColor(255, 255, 255, 80) : QColor(0xb0, 0xb0, 0xb0), 0.8));
+                    painter->setPen(QPen(m_active ? QColor(255, 255, 255, 80) : QColor(0x90, 0xA5, 0xB8), 0.8));
                     painter->drawRoundedRect(tabRect, 3, 3);
                     // 标签文字
-                    painter->setPen(m_active ? QColor(255, 255, 255, 230) : QColor(0x66, 0x66, 0x66));
+                    painter->setPen(m_active ? QColor(255, 255, 255, 230) : QColor(0x54, 0x6E, 0x7A));
                     painter->drawText(tabRect, Qt::AlignVCenter | Qt::AlignCenter, m_instances[i]);
                 }
             } else {
@@ -219,7 +219,7 @@ protected:
 
                     // 实例标题
                     painter->setFont(instFont);
-                    painter->setPen(m_active ? QColor(255, 255, 255, 220) : QColor(0x66, 0x66, 0x66));
+                    painter->setPen(m_active ? QColor(255, 255, 255, 220) : QColor(0x54, 0x6E, 0x7A));
                     painter->drawText(QRectF(rowRect.left() + 8, rowRect.top(),
                                              rowRect.width() - 16, rowRect.height()),
                                       Qt::AlignVCenter | Qt::AlignLeft,
@@ -230,7 +230,7 @@ protected:
             // 无实例提示（Filter 块提示过滤配置入口）
             QFont hintFont("Microsoft YaHei UI", 8);
             painter->setFont(hintFont);
-            painter->setPen(QColor(255, 255, 255, 150));
+            painter->setPen(m_active ? QColor(255, 255, 255, 150) : QColor(0x78, 0x90, 0xA9));
             painter->drawText(QRectF(r.left() + 42, headerRect.bottom(),
                                      r.width() - 50, 20),
                               Qt::AlignVCenter | Qt::AlignLeft,
@@ -436,13 +436,13 @@ void MeasurementSetupView::buildTopology()
 
     // ---- 布局参数 (从左向右排列) ----
     const qreal bw = 220;   // 块宽
-    const qreal bh = 60;    // 块高
+    const qreal bh = 60;    // 块高（统一高度）
     const qreal gapX = 60;  // 水平间距（列间距）
     const qreal startX = 40;
     
-    // ---- 数据源块相关参数 ----
+    // ---- 数据源块相关参数（统一高度 bh，不使用额外高度） ----
     const qreal srcW = 160;
-    const qreal srcH = bh + 10;
+    const qreal srcH = bh;  // ✅ 与主流程块等高
     const qreal switchW = 70;
     const qreal switchH = 32;
     
@@ -453,7 +453,7 @@ void MeasurementSetupView::buildTopology()
     signalGen.icon = "";
     signalGen.category = "source";
     signalGen.moduleName = "signal_generator";
-    signalGen.rect = QRectF(startX, 50, srcW, srcH);  // 最左侧第一列
+    signalGen.rect = QRectF(startX, 50, srcW, srcH);  // ✅ 使用统一高度 srcH=bh
     signalGen.color = QColor(0xD3, 0x2F, 0x2F);  // 红色，突出为数据源头
     signalGen.enabled = false;  // 默认不启用，需用户手动激活
     m_blocks["signal_generator"] = signalGen;
@@ -1066,53 +1066,46 @@ void MeasurementSetupView::relayoutModuleBlocks()
 
 void MeasurementSetupView::onSceneClicked(const QPointF &scenePos)
 {
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    
     // 检查是否点击了切换开关
     if (m_switchRect.contains(scenePos)) {
         Source newSrc = (m_source == Source::Hardware) ? Source::File : Source::Hardware;
         setSource(newSrc);
         emit sourceChanged(static_cast<int>(newSrc));
+        m_lastClickTime = now;  // 记录点击时间
         return;
     }
 
     QString moduleId, instanceId;
     if (instanceAt(scenePos, moduleId, instanceId)) {
         emit moduleOpened(moduleId, instanceId);
+        m_lastClickTime = now;  // 记录点击时间
         return;
     }
 
     auto *b = blockAt(scenePos);
     if (!b) return;
 
-    // 数据源块和模块块的交互规则分开处理
+    // ✅ 统一交互规则：
+    // - data source: Real、File 互斥，单击自动切换；signal_generator 独立开关
+    // - 功能块/模块块：单击仅切换使能状态
     if (b->category == "source") {
-        if (b->id == "source_real") {
-            // Real 实时：单击切换硬件模式
-            if (b->id != activeSourceId()) {
-                Source newSrc = Source::Hardware;
-                setSource(newSrc);
-                emit sourceChanged(static_cast<int>(newSrc));
-            } else {
-                // 已激活：打开连接配置
-                emit realBlockClicked();
-            }
-        } else if (b->id == "source_file") {
-            // 离线分析：单击切换文件模式
-            if (b->id != activeSourceId()) {
-                Source newSrc = Source::File;
-                setSource(newSrc);
-                emit sourceChanged(static_cast<int>(newSrc));
-            } else {
-                // 已激活：打开文件选择
-                emit fileBlockClicked();
-            }
-        } else if (b->id == "signal_generator") {
-            // 信号发生器：单击只切换使能状态，不打开 Tab
+        if (b->id == "signal_generator") {
+            // 信号发生器：独立的开关，可以手动启用/禁用
             setBlockEnabled(b->id, !b->enabled);
-            // ❌ 不调用 emit sendPageOpened()
+            m_lastClickTime = now;  // 记录点击时间
+        } else {
+            // Real / File 互斥切换：单击自动激活当前块，停用另一个
+            Source newSrc = (b->id == "source_real") ? Source::Hardware : Source::File;
+            setSource(newSrc);
+            emit sourceChanged(static_cast<int>(newSrc));
+            m_lastClickTime = now;  // 记录点击时间
         }
     } else {
         // 功能块/模块块：单击仅切换使能状态，不跳转
         setBlockEnabled(b->id, !b->enabled);
+        m_lastClickTime = now;  // 记录点击时间
     }
 }
 
@@ -1121,32 +1114,42 @@ void MeasurementSetupView::onSceneDoubleClicked(const QPointF &scenePos)
     auto *b = blockAt(scenePos);
     if (!b) return;
 
+    // ✅ 双击判断：在短时间内连续两次点击 → 打开配置页/Tab
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    bool isFastDoubleClick = (now - m_lastClickTime < DOUBLE_CLICK_INTERVAL);
+    
     // 数据源块和模块块的交互规则分开处理
     if (b->category == "source") {
         if (b->id == "source_real") {
-            // Real 实时：切换硬件模式，打开连接配置
-            if (m_source != Source::Hardware) {
-                setSource(Source::Hardware);
-                emit sourceChanged(static_cast<int>(Source::Hardware));
+            // Real 实时：双击打开连接配置（仅当已启用时）
+            if (isFastDoubleClick && b->enabled) {
+                emit realBlockClicked();
             }
-            emit realBlockClicked();
         } else if (b->id == "source_file") {
-            // 离线分析：切换文件模式，打开文件选择
-            if (m_source != Source::File) {
-                setSource(Source::File);
-                emit sourceChanged(static_cast<int>(Source::File));
+            // 离线分析：双击打开文件选择（仅当已启用时）
+            if (isFastDoubleClick && b->enabled) {
+                emit fileBlockClicked();
             }
-            emit fileBlockClicked();
         } else if (b->id == "signal_generator") {
-            // 信号发生器：独立开关，不切换 source，打开发送配置
-            bool willEnable = !b->enabled;  // 预测下一个状态
-            setBlockEnabled(b->id, willEnable);
-            if (willEnable)
-                emit sendPageOpened();  // 启用时才触发信号发送 Tab
+            // 信号发生器：双击打开发送配置
+            // ✅ 无论使能状态都允许打开配置
+            if (isFastDoubleClick) {
+                emit sendPageOpened();
+            }
         }
     } else {
-        // 功能块/模块块：单击仅切换使能状态，不跳转
-        setBlockEnabled(b->id, !b->enabled);
+        // 功能块/模块块：双击打开配置页
+        // ✅ 所有模块块双击都打开配置/Tab
+        if (isFastDoubleClick) {
+            // 检查是否是模块实例
+            QString moduleId, instanceId;
+            if (instanceAt(scenePos, moduleId, instanceId)) {
+                emit moduleOpened(moduleId, instanceId);
+            } else {
+                // 否则触发通用模块打开信号
+                emit moduleOpened(b->moduleName, QString());
+            }
+        }
     }
 }
 

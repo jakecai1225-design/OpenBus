@@ -16,10 +16,10 @@
 
 ## 更新摘要
 **所做更改**
-- 新增了addFiles()公共方法的详细说明，用于程序化添加离线分析文件
-- 增强了与项目恢复系统的集成能力描述
-- 更新了工程状态恢复流程中离线文件的处理机制
-- 完善了TransceiveModule中的addOfflineFiles动作处理逻辑
+- 新增了拖拽文件支持功能的详细说明，包括BLF和ASC文件的拖拽操作
+- 增强了用户交互体验，支持直接从文件系统拖拽文件到离线分析标签页
+- 更新了UI组件结构，新增了拖放提示标签和事件处理机制
+- 完善了文件过滤逻辑，确保只接受支持的格式文件
 
 ## 目录
 1. [简介](#简介)
@@ -38,14 +38,16 @@
 
 **主要特性**：
 - ✅ 支持同时选择和处理多个CAN总线日志文件
+- ✅ **新增拖拽文件支持**：可直接从文件系统拖拽BLF和ASC文件到标签页
 - ✅ 提供addFiles()公共方法用于程序化添加文件
 - ✅ 异步解析队列避免UI阻塞，提供实时进度反馈
 - ✅ 与Flow测量界面深度集成，支持多文件合并播放
 - ✅ **项目恢复系统集成**：通过TransceiveModule自动恢复离线分析文件列表
 - ✅ 实时统计显示：帧数、时长、文件大小等关键指标
+- ✅ **智能文件过滤**：仅接受BLF和ASC格式的文件拖拽
 
 ## 项目结构
-离线分析功能位于UI层，通过主窗口注册并打开为独立标签页；解析能力依赖核心层的文件格式I/O抽象与工厂。组件现已完全集成到Flow测量工作流中，并支持项目状态的保存与恢复。
+离线分析功能位于UI层，通过主窗口注册并打开为独立标签页；解析能力依赖核心层的文件格式I/O抽象与工厂。组件现已完全集成到Flow测量工作流中，并支持项目状态的保存与恢复。**新增的拖拽功能**提供了更加直观的文件导入方式。
 
 ```mermaid
 graph TB
@@ -63,6 +65,8 @@ G -.->|measurementToggled| A
 A -.->|loadFrames()| H
 J -.->|applyProjectState| I
 I -.->|addOfflineFiles| B
+B -.->|拖拽支持| K["QDragEnterEvent/QDropEvent"]
+K -.->|BLF/ASC文件| B
 ```
 
 **图表来源**
@@ -74,6 +78,7 @@ I -.->|addOfflineFiles| B
 - [mainwindow.cpp:1925-1970](file://src/ui/mainwindow.cpp#L1925-L1970)
 - [transceivemodule.cpp:113-118](file://src/ui/transceivemodule.cpp#L113-L118)
 - [mainwindow_project.cpp:465-467](file://src/ui/mainwindow_project.cpp#L465-L467)
+- [offlineanalysistab.cpp:251-288](file://src/ui/offlineanalysistab.cpp#L251-L288)
 
 **章节来源**
 - [mainwindow.h:110-112](file://src/ui/mainwindow.h#L110-L112)
@@ -82,7 +87,7 @@ I -.->|addOfflineFiles| B
 - [offlineanalysistab.cpp:42-97](file://src/ui/offlineanalysistab.cpp#L42-L97)
 
 ## 核心组件
-- **OfflineAnalysisTab**：增强的UI组件，提供多文件列表管理、工具栏按钮、状态提示与异步解析队列，新增addFiles()公共方法
+- **OfflineAnalysisTab**：增强的UI组件，提供多文件列表管理、工具栏按钮、状态提示与异步解析队列，新增addFiles()公共方法和**拖拽文件支持**
 - **CanFileIOFactory**：根据扩展名创建对应的读取器实例
 - **CanFileReader**：统一的读取器接口，支持 open/readAll/close
 - **CanFrame**：帧数据结构，包含时间戳、ID、DLC、数据等字段，用于计算时长与统计
@@ -96,7 +101,7 @@ I -.->|addOfflineFiles| B
 - [transceivemodule.cpp:113-118](file://src/ui/transceivemodule.cpp#L113-L118)
 
 ## 架构总览
-离线分析标签页通过定时器驱动解析队列，逐行调用工厂创建读取器，读取全部帧后更新表格中的"帧数"和"时长"，同时显示文件大小。**新增的项目恢复集成机制**允许在工程加载时自动恢复之前保存的离线分析文件列表。
+离线分析标签页通过定时器驱动解析队列，逐行调用工厂创建读取器，读取全部帧后更新表格中的"帧数"和"时长"，同时显示文件大小。**新增的拖拽功能**允许用户直接将BLF和ASC文件从文件系统拖拽到标签页，**新增的项目恢复集成机制**允许在工程加载时自动恢复之前保存的离线分析文件列表。
 
 ```mermaid
 sequenceDiagram
@@ -110,8 +115,18 @@ participant R as "CanFileReader"
 participant Q as "QTimer"
 participant S as "MeasurementSetupView"
 participant P as "Player"
+participant D as "Drag System"
 U->>M : 点击菜单/侧边栏打开"离线分析"
 M->>T : 创建或激活标签页
+Note over T,D : 启用拖拽支持
+U->>D : 拖拽BLF/ASC文件
+D->>T : dragEnterEvent()
+T->>T : 检查文件类型(.blf/.asc)
+T->>D : acceptProposedAction()
+U->>D : 释放文件
+D->>T : dropEvent()
+T->>T : 提取文件路径
+T->>T : addFiles(paths)
 U->>T : 点击"添加文件"(支持多选)
 T->>T : 插入多行，入队待解析行号
 T->>Q : 启动定时器(50ms)
@@ -153,19 +168,23 @@ P-->>M : 播放完成
 - [mainwindow.cpp:1925-1970](file://src/ui/mainwindow.cpp#L1925-L1970)
 - [transceivemodule.cpp:113-118](file://src/ui/transceivemodule.cpp#L113-L118)
 - [mainwindow_project.cpp:465-467](file://src/ui/mainwindow_project.cpp#L465-L467)
+- [offlineanalysistab.cpp:251-288](file://src/ui/offlineanalysistab.cpp#L251-L288)
 
 ## 详细组件分析
 
 ### OfflineAnalysisTab 类设计
-- **职责**：多文件列表管理（增删、上移/下移排序）、异步解析（帧数/时长/大小）、状态提示、与Flow界面集成、项目恢复支持
+- **职责**：多文件列表管理（增删、上移/下移排序）、异步解析（帧数/时长/大小）、状态提示、与Flow界面集成、项目恢复支持、**拖拽文件支持**
 - **关键成员**：
   - m_fileList：QTableWidget，列包括序号、文件名、帧数、时长、大小
   - m_parseTimer：50ms 定时器，驱动解析队列
   - m_parseQueue：QQueue<int>，保存待解析的行号
   - m_statusLabel：状态提示，如"共 N 个文件，解析中/完成"
+  - **m_dropHint**：**新增**拖放提示标签，显示"请拖放文件到此"
 - **关键方法**：
   - onAddFile：**支持多选文件**，批量插入行，设置初始状态，入队解析
   - **addFiles(const QStringList &paths)**：**新增公共方法**，用于程序化添加文件，支持项目恢复场景
+  - **dragEnterEvent(QDragEnterEvent *event)**：**新增**拖拽进入事件处理，检查文件类型
+  - **dropEvent(QDropEvent *event)**：**新增**文件释放事件处理，提取BLF/ASC文件路径
   - onRemoveFile/onMoveUp/onMoveDown：维护列表顺序与序号重排
   - parseFileInfo：基于路径创建读取器，读取全部帧，计算时长并更新 UI
   - filePaths：按当前顺序返回所有文件路径（供Flow界面使用）
@@ -182,6 +201,7 @@ class OfflineAnalysisTab {
 -m_moveUpBtn : QPushButton*
 -m_moveDownBtn : QPushButton*
 -m_statusLabel : QLabel*
+-m_dropHint : QLabel*
 -m_parseTimer : QTimer*
 -m_parseQueue : QQueue<int>
 +onAddFile() void
@@ -189,6 +209,8 @@ class OfflineAnalysisTab {
 +onMoveUp() void
 +onMoveDown() void
 +onParseTimer() void
++dragEnterEvent(event : QDragEnterEvent*) void
++dropEvent(event : QDropEvent*) void
 -parseFileInfo(row : int) void
 -renumberRows() void
 }
@@ -202,12 +224,46 @@ class OfflineAnalysisTab {
 - [offlineanalysistab.h:13-51](file://src/ui/offlineanalysistab.h#L13-L51)
 - [offlineanalysistab.cpp:99-187](file://src/ui/offlineanalysistab.cpp#L99-L187)
 
+### 拖拽文件支持流程（算法流程图）
+```mermaid
+flowchart TD
+Start(["拖拽文件进入"]) --> CheckUrls{"是否有URL数据?"}
+CheckUrls --> |否| Ignore["忽略事件"]
+CheckUrls --> |是| LoopFiles{"遍历每个URL"}
+LoopFiles --> LocalFile{"是否为本地文件?"}
+LocalFile --> |否| NextFile["跳过非本地文件"]
+LocalFile --> |是| GetPath["转换为本地文件路径"]
+GetPath --> CheckSuffix{"检查文件后缀"}
+CheckSuffix --> |不是BLF/ASC| NextFile
+CheckSuffix --> |是BLF/ASC| AddToPaths["添加到文件路径列表"]
+AddToPaths --> NextFile{"是否还有文件?"}
+NextFile --> |是| LoopFiles
+NextFile --> |否| HasFiles{"是否有有效文件?"}
+HasFiles --> |否| Accept["接受但不处理"]
+HasFiles --> |是| ProcessFiles["调用addFiles()处理"]
+ProcessFiles --> UpdateUI["隐藏提示标签"]
+UpdateUI --> Enqueue["加入解析队列"]
+Enqueue --> StartTimer["启动解析定时器"]
+StartTimer --> End(["完成"])
+Ignore --> End
+Accept --> End
+```
+
+**图表来源**
+- [offlineanalysistab.cpp:251-288](file://src/ui/offlineanalysistab.cpp#L251-L288)
+- [offlineanalysistab.cpp:141-172](file://src/ui/offlineanalysistab.cpp#L141-L172)
+
+**章节来源**
+- [offlineanalysistab.cpp:251-288](file://src/ui/offlineanalysistab.cpp#L251-L288)
+- [offlineanalysistab.cpp:141-172](file://src/ui/offlineanalysistab.cpp#L141-L172)
+
 ### 程序化文件添加流程（算法流程图）
 ```mermaid
 flowchart TD
 Start(["进入 addFiles"]) --> CheckEmpty{"paths是否为空?"}
 CheckEmpty --> |是| End(["退出"])
-CheckEmpty --> |否| LoopFiles{"遍历每个文件路径"}
+CheckEmpty --> |否| HideHint["隐藏拖放提示标签"]
+HideHint --> LoopFiles{"遍历每个文件路径"}
 LoopFiles --> CreateRow["创建表格行"]
 CreateRow --> SetData["设置文件名、初始状态、文件大小"]
 SetData --> Enqueue["加入解析队列"]
@@ -275,8 +331,10 @@ Flow测量界面现在能够直接从离线分析标签页获取已分析的文�
   - MainWindow 负责标签页的创建与展示，并与Flow界面集成
   - **TransceiveModule 作为项目恢复系统的桥梁**，处理离线文件添加请求
   - Flow界面通过信号槽机制与主窗口通信，触发文件加载流程
+  - **Qt拖拽系统**：通过QDragEnterEvent和QDropEvent处理文件拖拽
 - **外部依赖**：
   - Qt 控件：QTableWidget、QPushButton、QLabel、QTimer、QFileDialog
+  - Qt 拖拽：QDragEnterEvent、QDropEvent、QMimeData
   - 文件格式：BLF/ASC/CSV/PCAP/TRC 由工厂统一创建读取器
 
 ```mermaid
@@ -292,6 +350,9 @@ PM["ProjectManager"] --> TM
 OAT -.->|filePaths()| MSV
 MSV -.->|measurementToggled| MW
 TM -.->|addOfflineFiles| OAT
+OAT -.->|拖拽支持| QT["Qt Drag System"]
+QT -.->|QDragEnterEvent| OAT
+QT -.->|QDropEvent| OAT
 ```
 
 **图表来源**
@@ -303,6 +364,7 @@ TM -.->|addOfflineFiles| OAT
 - [mainwindow.cpp:1925-1970](file://src/ui/mainwindow.cpp#L1925-L1970)
 - [transceivemodule.cpp:113-118](file://src/ui/transceivemodule.cpp#L113-L118)
 - [mainwindow_project.cpp:465-467](file://src/ui/mainwindow_project.cpp#L465-L467)
+- [offlineanalysistab.cpp:251-288](file://src/ui/offlineanalysistab.cpp#L251-L288)
 
 **章节来源**
 - [canfileio_factory.cpp:31-53](file://src/core/canfileio/canfileio_factory.cpp#L31-L53)
@@ -312,6 +374,7 @@ TM -.->|addOfflineFiles| OAT
 - [mainwindow.cpp:1925-1970](file://src/ui/mainwindow.cpp#L1925-L1970)
 - [transceivemodule.cpp:113-118](file://src/ui/transceivemodule.cpp#L113-L118)
 - [mainwindow_project.cpp:465-467](file://src/ui/mainwindow_project.cpp#L465-L467)
+- [offlineanalysistab.cpp:251-288](file://src/ui/offlineanalysistab.cpp#L251-L288)
 
 ## 性能考虑
 - **异步解析**：使用 50ms 定时器分片处理解析任务，避免阻塞 UI 线程
@@ -323,6 +386,10 @@ TM -.->|addOfflineFiles| OAT
   - 建议对超大文件可考虑分段读取或流式统计，降低内存压力
 - **用户体验**：解析过程中提供实时状态反馈，提升交互体验
 - **项目恢复优化**：addFiles()方法支持批量添加，避免多次UI刷新开销
+- **拖拽性能优化**：
+  - 拖拽事件处理轻量级，仅检查文件类型
+  - 文件验证在拖拽进入时进行，避免不必要的处理
+  - 支持批量拖拽多个文件，提高操作效率
 
 ## 故障排查指南
 - **解析失败**：
@@ -345,6 +412,10 @@ TM -.->|addOfflineFiles| OAT
   - 现象：工程恢复后离线分析文件列表为空
   - 原因：TransceiveModule中页面不存在或文件路径无效
   - 处理：检查离线分析页面是否正确创建，验证项目状态中的文件路径
+- **拖拽功能问题**：
+  - 现象：拖拽文件无响应或被拒绝
+  - 原因：文件类型不被支持或拖拽事件未正确处理
+  - 处理：确认文件后缀为.blf或.asc，检查setAcceptDrops()调用和事件处理器
 
 **章节来源**
 - [offlineanalysistab.cpp:132-187](file://src/ui/offlineanalysistab.cpp#L132-L187)
@@ -352,9 +423,10 @@ TM -.->|addOfflineFiles| OAT
 - [mainwindow.cpp:1925-1970](file://src/ui/mainwindow.cpp#L1925-L1970)
 - [transceivemodule.cpp:113-118](file://src/ui/transceivemodule.cpp#L113-L118)
 - [mainwindow_project.cpp:465-467](file://src/ui/mainwindow_project.cpp#L465-L467)
+- [offlineanalysistab.cpp:251-288](file://src/ui/offlineanalysistab.cpp#L251-L288)
 
 ## 结论
-离线分析 Tab 现已升级为功能完整的**多文件批量处理工具**，以简洁的职责边界实现了离线报文文件的列表管理与异步信息解析。通过工厂模式解耦具体文件格式，借助定时器保证 UI 响应性，并**深度集成到Flow测量工作流**中，支持多文件合并播放与统一分析。**新增的addFiles()公共方法和项目恢复系统集成**进一步增强了组件的灵活性和实用性，使得离线分析文件能够在工程间保持一致性，显著提升了CAN总线数据分析的工作效率，为用户提供了更加强大和便捷的离线分析能力。
+离线分析 Tab 现已升级为功能完整的**多文件批量处理工具**，以简洁的职责边界实现了离线报文文件的列表管理与异步信息解析。通过工厂模式解耦具体文件格式，借助定时器保证 UI 响应性，并**深度集成到Flow测量工作流**中，支持多文件合并播放与统一分析。**新增的拖拽文件支持功能**显著提升了用户交互体验，用户可以直接从文件系统拖拽BLF和ASC文件到标签页，无需通过文件对话框。**新增的addFiles()公共方法和项目恢复系统集成**进一步增强了组件的灵活性和实用性，使得离线分析文件能够在工程间保持一致性，显著提升了CAN总线数据分析的工作效率，为用户提供了更加强大和便捷的离线分析能力。
 
 ## 附录
 - **相关术语**
@@ -365,3 +437,5 @@ TM -.->|addOfflineFiles| OAT
   - 多文件合并：将多个日志文件的帧数据按时间戳排序后统一播放
   - **项目恢复**：工程状态保存与恢复机制，支持离线分析文件列表的持久化
   - **TransceiveModule**：收发模块，负责处理离线文件的添加和查询操作
+  - **拖拽支持**：Qt框架提供的文件拖拽功能，通过QDragEnterEvent和QDropEvent处理
+  - **文件过滤**：在拖拽过程中验证文件类型，仅接受BLF和ASC格式

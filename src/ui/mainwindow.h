@@ -149,6 +149,10 @@ private slots:
     void onQuickDisconnect();
     void onAiMessageSent(const QString &text);
 
+    // Flow 页面回调：Filter/DBC（双击块时由 Shell 触发）
+    void onMeasurementViewFilterRequested();
+    void onMeasurementViewDbcSelectRequested();
+
     // 命令行
     void onCommandEntered(const QString &cmd);
 

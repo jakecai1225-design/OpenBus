@@ -95,6 +95,14 @@ signals:
     /// 请求打开发送配置页面（双击信号发生器块时触发）
     void sendPageOpened();
 
+public slots:
+    // ---- 右键弹窗对话框（需要外部调用） ----
+    void showFileConfigDialog();
+    void showFilterConfigDialog();
+    void showDbcSelectDialog();
+    /// Filter 块当前规则摘要列表（块内实例行标题）
+    QStringList filterRules() const;
+
 private:
     // ---- UI ----
     QToolBar *m_toolbar = nullptr;
@@ -113,6 +121,10 @@ private:
     bool m_running = false;
     QString m_filePath;
     QRectF m_switchRect;  ///< 数据源切换开关区域
+    
+    // ---- 双击判断 ----
+    qint64 m_lastClickTime = 0;          ///< 上次点击时刻（毫秒）
+    static constexpr qint64 DOUBLE_CLICK_INTERVAL = 300;  ///< 双击时间窗口 (ms)
 
     // ---- 数据流 / 异常指示（功能块状态灯） ----
     QTimer *m_blinkTimer = nullptr;  ///< 灯闪烁相位驱动（500ms，仅有流/异常时运转）
@@ -190,7 +202,7 @@ private:
     /// 重新排列所有模块块（Trace / Graphic / Watcher+Record 分行水平排列）
     void relayoutModuleBlocks();
 
-    // 工具栏
+    // ---- 工具栏按钮槽 ----
     void onStartClicked();
     void onStopClicked();
     void onBrowseClicked();
@@ -204,13 +216,6 @@ private:
     QMenu *m_rightMenu = nullptr;
     void buildContextMenu(BlockItem *block, const QPointF &scenePos);
     void buildEmptyAreaMenu(const QPointF &scenePos);
-
-    // ---- 右键弹窗对话框 ----
-    void showFileConfigDialog();
-    void showFilterConfigDialog();
-    void showDbcSelectDialog();
-    /// Filter 块当前规则摘要列表（块内实例行标题）
-    QStringList filterRules() const;
     /// 清空 Filter 块全部过滤规则
     void clearFilterRules();
 };

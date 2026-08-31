@@ -13,6 +13,7 @@
 #include "models/cantraceproxymodel.h"
 #include "ui/activitybar.h"
 #include "ui/panels/sidebarpanels.h"
+#include "ui/measurementsetupview.h"  // Flow 画布视图（双击 Filter/CAN parser 块时调用）
 #include "ui/dbcsignalpickerdialog.h"  // Graphic 侧栏「添加信号」弹窗（DBC 信号搜索/多选）
 #include "ui/watcherview.h"            // Watcher 观测页（喂帧/复位直调，doc/Watcher方案.md）
 #include "ui/thememanager.h"
@@ -565,8 +566,14 @@ void MainWindow::onModuleOpened(const QString &moduleId, const QString &instance
     } else if (moduleId == "record") {
         onOpenRecordTab();
     } else if (moduleId == "watcher") {
-        // Watcher 观测页（doc/Watcher方案.md 方案 A：壳侧自持，直接开页）
+        // Watcher 观测页（doc/Watcher 方案.md 方案 A：壳侧自持，直接开页）
         onOpenWatcher();
+    } else if (moduleId == "filter") {
+        // Filter 过滤块：双击打开过滤配置对话框（由 Flow 视图触发）
+        onMeasurementViewFilterRequested();
+    } else if (moduleId == "database" || moduleId == "can_parser") {
+        // CAN parser 块：双击打开 DBC 选择对话框（由 Flow 视图触发）
+        onMeasurementViewDbcSelectRequested();
     }
 }
 
@@ -592,6 +599,28 @@ void MainWindow::onModuleInstanceClosed(const QString &moduleId, const QString &
             }
         }
     });
+}
+
+void MainWindow::onMeasurementViewFilterRequested()
+{
+    // Flow 页面 Filter 块双击 → 打开过滤配置对话框
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("flow"))) {
+        QObject *obj = mod->query("getActiveView").value<QObject *>();
+        if (auto *view = qobject_cast<MeasurementSetupView *>(obj)) {
+            view->showFilterConfigDialog();
+        }
+    }
+}
+
+void MainWindow::onMeasurementViewDbcSelectRequested()
+{
+    // Flow 页面 CAN parser 块双击 → 打开 DBC 选择对话框
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("flow"))) {
+        QObject *obj = mod->query("getActiveView").value<QObject *>();
+        if (auto *view = qobject_cast<MeasurementSetupView *>(obj)) {
+            view->showDbcSelectDialog();
+        }
+    }
 }
 
 void MainWindow::unloadDbcFile(const QString &fileName)
