@@ -78,9 +78,9 @@ def set_build_dir(name):
     EXECUTABLE = BUILD_DIR / "bin" / "openbus.exe"
 
 # 默认工具路径 (可通过环境变量或 --qt-dir / --mingw-dir / --cmake-dir 覆盖)
-DEFAULT_QT_DIR = Path(os.environ.get("SIN_QT_DIR", "C:/Qt/6.8.3/mingw_64"))
+DEFAULT_QT_DIR = Path(os.environ.get("SIN_QT_DIR", "C:/Qt/6.11.2/mingw_64"))
 DEFAULT_MINGW_DIR = Path(os.environ.get("SIN_MINGW_DIR", "C:/Qt/Tools/mingw1310_64"))
-DEFAULT_CMAKE_DIR = Path(os.environ.get("SIN_CMAKE_DIR", "C:/tools/cmake-3.30.3-windows-x86_64"))
+DEFAULT_CMAKE_DIR = Path(os.environ.get("SIN_CMAKE_DIR", "C:/Program Files/CMake"))
 
 # Dev: 日常开发档 (-O1 -g1，见根 CMakeLists.txt)，建议配合 --build-dir build-dev
 BUILD_TYPES = ["Dev", "Debug", "Release", "RelWithDebInfo", "MinSizeRel"]
@@ -157,9 +157,18 @@ class Environment:
         else:
             self.make_program = mingw32_make  # 默认值，verify 时会报错
 
-        # ---- Ninja 构建系统 (项目本地 tools/ 目录，自动检测) ----
-        self.ninja = TOOLS_DIR / "ninja" / "ninja.exe"
-        self.use_ninja = self.ninja.exists()
+        # ---- Ninja 构建系统 (优先 Qt Tools/ninja，回退项目本地 tools/)
+        ninja_qt = self.mingw_dir.parent / "ninja/ninja.exe"
+        ninja_local = TOOLS_DIR / "ninja/ninja.exe"
+        if ninja_qt.exists():
+            self.ninja = ninja_qt
+            self.use_ninja = True
+        elif ninja_local.exists():
+            self.ninja = ninja_local
+            self.use_ninja = True
+        else:
+            self.ninja = None
+            self.use_ninja = False
 
         # 注意: 不使用 ccache（与 MinGW g++ 13 的 PCH 不兼容，会静默崩溃）
         # 注意: 不使用 LLD 链接器（在 Windows 上会导致文件锁问题）
