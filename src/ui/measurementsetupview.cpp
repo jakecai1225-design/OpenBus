@@ -422,7 +422,12 @@ void MeasurementSetupView::setupUi()
 
 QString MeasurementSetupView::activeSourceId() const
 {
-    return (m_source == Source::Hardware) ? "source_real" : "source_file";
+    // 考虑信号发生器作为可选数据源
+    if (m_source == Source::Hardware) 
+        return "source_real";
+    else if (m_source == Source::File)
+        return "source_file";
+    return QString();  // 没有活跃数据源时返回空字符串
 }
 
 void MeasurementSetupView::buildTopology()
@@ -433,17 +438,31 @@ void MeasurementSetupView::buildTopology()
     const qreal bw = 220;   // 块宽
     const qreal bh = 60;    // 块高
     const qreal gapX = 60;  // 水平间距（列间距）
-    const qreal gapY = 30;  // 垂直间距（同列块间距）
     const qreal startX = 40;
-    qreal x = startX;
+    
+    // ---- 数据源块相关参数 ----
+    const qreal srcW = 160;
+    const qreal srcH = bh + 10;
+    const qreal switchW = 70;
+    const qreal switchH = 32;
+    
+    // ---- 第 1 列：CAN 信号发生器 (唯一数据源头)
+    BlockItem signalGen;
+    signalGen.id = "signal_generator";
+    signalGen.title = "信号发生器";  // 移除"CAN"前缀
+    signalGen.icon = "";
+    signalGen.category = "source";
+    signalGen.moduleName = "signal_generator";
+    signalGen.rect = QRectF(startX, 50, srcW, srcH);  // 最左侧第一列
+    signalGen.color = QColor(0xD3, 0x2F, 0x2F);  // 红色，突出为数据源头
+    signalGen.enabled = false;  // 默认不启用，需用户手动激活
+    m_blocks["signal_generator"] = signalGen;
 
-    // ---- 第 1 列: 数据源 (Real / File 两个块 + 切换开关) ----
-    qreal srcW = 160;
-    qreal srcH = bh + 10;
-    qreal switchW = 70;
-    qreal switchH = 32;
-    qreal srcY1 = 50;
-    qreal srcY2 = srcY1 + srcH + switchH + 10;
+    qreal x = startX + srcW + gapX;  // 移动到第 2 列
+
+    // ---- 第 2 列：数据源切换开关 + Real/离线分析 ----
+    qreal srcY1 = 50;  // Real 的 y 坐标
+    qreal srcY2 = srcY1 + srcH + switchH + 10;  // 离线分析的 y 坐标
 
     // Real (硬件实时)
     BlockItem srcReal;
@@ -472,12 +491,12 @@ void MeasurementSetupView::buildTopology()
     // 切换开关位置 (在两个数据源块之间)
     m_switchRect = QRectF(x + (srcW - switchW) / 2, srcY1 + srcH + 5, switchW, switchH);
 
+
     x += srcW + gapX;
 
-    // ---- 第 2 列: Filter 过滤块（flow.md §8.1 Filter 角色 UI 前置；
+    // ---- 第 3 列：Filter 过滤块（flow.md §8.1 Filter 角色 UI 前置；
     //      多个 CAN 通道块收编为单块，数据流过滤统一在此配置） ----
     const qreal filterW = bw - 30;
-    const qreal centerY = (srcY1 + srcY2 + srcH) / 2;  // 两数据源块的垂直中心
 
     BlockItem filt;
     filt.id = "filter";
@@ -485,38 +504,44 @@ void MeasurementSetupView::buildTopology()
     filt.icon = "";
     filt.category = "filter";
     filt.moduleName = "filter";
-    filt.rect = QRectF(x, centerY - bh / 2, filterW, bh);
+    filt.rect = QRectF(x, 50, filterW, bh);  // 与 Real 同一水平线
     filt.color = QColor(0x00, 0x79, 0x8C);
     m_blocks["filter"] = filt;
 
-    x += filterW + gapX;
 
-    // ---- 第 3 列: CAN parser（与 Filter 块同一水平线；原「DBC 数据库」，
-    //      截图反馈 2026-08-23 改名，与 CAN Flow 语境一致） ----
+        x += filterW + gapX;
+        
+        // ---- 第 4 列：CAN parser（与 Filter 块同一水平线；原「DBC 数据库」，
+        //      截图反馈 2026-08-23 改名，与 CAN Flow 语境一致） ----
     BlockItem dbc;
     dbc.id = "database";
     dbc.title = QStringLiteral("CAN parser");
     dbc.icon = "";
     dbc.category = "database";
-    dbc.rect = QRectF(x, centerY - bh / 2, bw, bh);
+    dbc.rect = QRectF(x, 50, bw, bh);  // 与 Filter 同一水平线
     dbc.color = QColor(0x7B, 0x1F, 0xA2);
     m_blocks["database"] = dbc;
 
+    x += filterW + gapX;
+    
+    // ---- 第 4 列：CAN parser（与 Filter 块同一水平线；原「DBC 数据库」，
+
     x += bw + gapX;
 
-    // ---- 第 4 列: 分析模块 (垂直堆叠: Trace / Graphic / Watcher / Record) ----
+    // ---- 第 5 列：分析模块 (垂直堆叠：Trace / Graphic / Record / Watcher)
     struct ModDef { QString id; QString icon; QString title; QColor color; QString moduleName; };
     ModDef mods[] = {
-        {"trace1",   "", "帧列表1",           QColor(0x21, 0x96, 0xF3), "trace"},
-        {"graphic1", "", "时序波形1",         QColor(0xF4, 0x43, 0x36), "graphic"},
-        {"watcher",  "", "Watcher 观测",     QColor(0x4C, 0xAF, 0x50), ""},
+        {"trace1",   "", "帧列表 1",           QColor(0x21, 0x96, 0xF3), "trace"},
+        {"graphic1", "", "时序波形 1",         QColor(0xF4, 0x43, 0x36), "graphic"},
         {"record",   "", "录制 Record",      QColor(0xFF, 0x98, 0x00), ""},
+        {"watcher",  "", "Watcher 观测",     QColor(0x4C, 0xAF, 0x50), ""},
     };
+    int modCount = 4;
     int modW = 140;
     int modGap = 16;
     qreal modY = 30;
 
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < modCount; ++i) {
         BlockItem b;
         b.id = mods[i].id;
         b.title = mods[i].title;
@@ -542,9 +567,10 @@ void MeasurementSetupView::buildTopology()
         c.pathItem = nullptr;
         m_connections.append(c);
     };
-    // 数据源 → Filter → DBC
-    addConn("source_real", "filter");
-    addConn("source_file", "filter");
+    // 数据流架构：信号发生器 → Real → Filter → CAN parser；文件回放可切换注入 Real
+    addConn("signal_generator", "source_real");  // 信号发生器数据注入到 Real
+    addConn("source_real", "filter");            // Real → Filter（主路径）
+    addConn("source_file", "filter");            // 文件回放直接连 Filter
     addConn("filter", "database");
     // DBC → 各模块
     addConn("database", "trace1");
@@ -590,14 +616,25 @@ void MeasurementSetupView::rebuildScene()
     for (auto it = m_blocks.begin(); it != m_blocks.end(); ++it) {
         auto &b = it.value();
         bool active = b.enabled;
-        // 数据源块：活跃数据源高亮，非活跃灰显
+        
+        // 数据源块：统一使用绿色激活、灰色非激活；信号发生器独立控制
         if (b.category == "source") {
-            bool isReal = (b.id == "source_real");
-            b.color = isReal ? QColor(0x4a, 0x90, 0xd9) : QColor(0x4C, 0xAF, 0x50);
-            if (!isReal)
+            // 统一激活颜色（绿色）、非激活颜色（灰色）
+            b.color = active ? QColor(0x4C, 0xAF, 0x50) : QColor(0x80, 0x80, 0x80);
+            
+            if (b.id == "source_real") {
+                b.title = QStringLiteral("Real 实时");
+                // Real 的状态由 activeSourceId 控制
+                active = (b.id == activeSourceId());
+            } else if (b.id == "source_file") {
                 b.title = QStringLiteral("离线分析");
-            // 活跃数据源高亮，非活跃灰显
-            active = (b.id == activeSourceId());
+                // 离线分析的状态由 activeSourceId 控制
+                active = (b.id == activeSourceId());
+            } else if (b.id == "signal_generator") {
+                b.title = QStringLiteral("信号发生器");
+                // signal_generator 直接显示 enabled 状态
+                active = b.enabled;
+            }
         }
 
         auto *item = new SetupBlockGfx(b.rect, b.icon, b.title, b.color, active,
@@ -658,12 +695,22 @@ void MeasurementSetupView::updateConnections()
         // 检查两端块是否启用
         bool fromActive = fromIt->enabled;
         bool toActive = toIt->enabled;
-        if (fromIt->category == "source")
-            fromActive = (fromIt->id == activeSourceId());
+        
+        // source 类型块的激活状态计算规则：
+        // - signal_generator: 直接使用 enabled 状态
+        // - source_real/source_file: 由 activeSourceId 控制
+        if (fromIt->category == "source") {
+            if (fromIt->id == "signal_generator") {
+                fromActive = fromIt->enabled;  // ✅ 信号发生器独立控制
+            } else {
+                fromActive = (fromIt->id == activeSourceId());  // Real/File 受控于 m_source
+            }
+        }
 
         // 非 active 数据源的连线不绘制（避免 4 条线交叉）
-        if (fromIt->category == "source" && !fromActive)
-            continue;
+        // ❌ 移除这个限制，因为 signal_generator 是独立的
+        // if (fromIt->category == "source" && !fromActive)
+        //     continue;
 
         // 绘制路径
         QPainterPath path;
@@ -816,7 +863,11 @@ void MeasurementSetupView::setBlockEnabled(const QString &id, bool enabled)
     auto it = m_blocks.find(id);
     if (it == m_blocks.end()) return;
     auto &b = it.value();
-    if (b.category == "source") return; // 数据源经开关/块点击切换，不可禁用
+    if (b.category == "source") {
+        // signal_generator 允许通过双击启用/禁用；real/file 不可直接更改
+        if (b.id != "signal_generator")
+            return;
+    }
     if (b.enabled == enabled) return;
 
     b.enabled = enabled;
@@ -1032,25 +1083,32 @@ void MeasurementSetupView::onSceneClicked(const QPointF &scenePos)
     auto *b = blockAt(scenePos);
     if (!b) return;
 
-    // 统一块交互规则 (v2.1): 
-    //   • 数据源块 (source_real/source_file)
-    //     - 单击：切换到对应数据源并激活 (切换 Real/File)
-    //     - 双击：激活 + 打开对应配置页
-    //   • 功能块 / 模块块
-    //     - 单击：切换使能状态 (ON/OFF)，不跳转
-    //     - 双击：若未启用则启用 + 打开配置；若已启用则打开配置
+    // 数据源块和模块块的交互规则分开处理
     if (b->category == "source") {
-        if (b->id != activeSourceId()) {
-            // 未激活数据源：单击 = 激活（切换数据源）
-            Source newSrc = (b->id == "source_real") ? Source::Hardware : Source::File;
-            setSource(newSrc);
-            emit sourceChanged(static_cast<int>(newSrc));
-        } else {
-            // 已激活数据源：单击 = 打开对应配置页
-            if (b->id == "source_real")
+        if (b->id == "source_real") {
+            // Real 实时：单击切换硬件模式
+            if (b->id != activeSourceId()) {
+                Source newSrc = Source::Hardware;
+                setSource(newSrc);
+                emit sourceChanged(static_cast<int>(newSrc));
+            } else {
+                // 已激活：打开连接配置
                 emit realBlockClicked();
-            else
+            }
+        } else if (b->id == "source_file") {
+            // 离线分析：单击切换文件模式
+            if (b->id != activeSourceId()) {
+                Source newSrc = Source::File;
+                setSource(newSrc);
+                emit sourceChanged(static_cast<int>(newSrc));
+            } else {
+                // 已激活：打开文件选择
                 emit fileBlockClicked();
+            }
+        } else if (b->id == "signal_generator") {
+            // 信号发生器：单击只切换使能状态，不打开 Tab
+            setBlockEnabled(b->id, !b->enabled);
+            // ❌ 不调用 emit sendPageOpened()
         }
     } else {
         // 功能块/模块块：单击仅切换使能状态，不跳转
@@ -1063,39 +1121,48 @@ void MeasurementSetupView::onSceneDoubleClicked(const QPointF &scenePos)
     auto *b = blockAt(scenePos);
     if (!b) return;
 
-    // 统一块交互规则：已启用块双击 = 进入配置；未启用块双击 = 启用 + 进入配置
-    // （双击的第一击已先行触发单击分支：未启用块此时已启用，此处幂等）
+    // 数据源块和模块块的交互规则分开处理
     if (b->category == "source") {
-        // 数据源块：双击 = 激活（若未激活）并打开对应配置页
         if (b->id == "source_real") {
+            // Real 实时：切换硬件模式，打开连接配置
             if (m_source != Source::Hardware) {
                 setSource(Source::Hardware);
                 emit sourceChanged(static_cast<int>(Source::Hardware));
             }
             emit realBlockClicked();
-        } else {
+        } else if (b->id == "source_file") {
+            // 离线分析：切换文件模式，打开文件选择
             if (m_source != Source::File) {
                 setSource(Source::File);
                 emit sourceChanged(static_cast<int>(Source::File));
             }
             emit fileBlockClicked();
+        } else if (b->id == "signal_generator") {
+            // 信号发生器：独立开关，不切换 source，打开发送配置
+            bool willEnable = !b->enabled;  // 预测下一个状态
+            setBlockEnabled(b->id, willEnable);
+            if (willEnable)
+                emit sendPageOpened();  // 启用时才触发信号发送 Tab
         }
     } else {
-        if (!b->enabled)
-            setBlockEnabled(b->id, true);
-        openBlockConfig(b->id);
+        // 功能块/模块块：单击仅切换使能状态，不跳转
+        setBlockEnabled(b->id, !b->enabled);
     }
 }
 
 void MeasurementSetupView::setSource(Source src)
 {
     m_source = src;
-    // 更新数据源块的 enabled 状态
-    if (m_blocks.contains("source_real"))
-        m_blocks["source_real"].enabled = (src == Source::Hardware);
+    // 更新数据源块的 enabled 状态（只控制 file 块，不干扰 signal_generator 和 source_real）
     if (m_blocks.contains("source_file"))
         m_blocks["source_file"].enabled = (src == Source::File);
-    // 更新连线: 将旧数据源的连线替换为新数据源
+    
+    // 当切换到 Hardware 模式时，确保 source_real 处于 enabled 状态
+    if (src == Source::Hardware && m_blocks.contains("source_real")) {
+        m_blocks["source_real"].enabled = true;  // 硬件模式自动启用 Real
+    }
+    
+    // 更新连线：将旧数据源的连线替换为新数据源
     // （去重——同一数据源来回切换不再累积重叠连线）
     QString oldId = (src == Source::Hardware) ? "source_file" : "source_real";
     QString newId = (src == Source::Hardware) ? "source_real" : "source_file";

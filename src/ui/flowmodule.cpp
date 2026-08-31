@@ -125,11 +125,15 @@ QWidget *FlowModule::createSetupPage(ShellContext &ctx)
     QObject::connect(view, &MeasurementSetupView::fileBrowseRequested, view, [this]() {
         if (m_ctx.shellInvoke) m_ctx.shellInvoke(QStringLiteral("openOfflineAnalysis"), {});
     });
+    QObject::connect(view, &MeasurementSetupView::realBlockClicked, view, [this]() {
+        if (m_ctx.shellInvoke) m_ctx.shellInvoke(QStringLiteral("openDevicePage"), {});
+    });
     QObject::connect(view, &MeasurementSetupView::fileBlockClicked, view, [this]() {
         if (m_ctx.shellInvoke) m_ctx.shellInvoke(QStringLiteral("openOfflineAnalysis"), {});
     });
-    QObject::connect(view, &MeasurementSetupView::realBlockClicked, view, [this]() {
-        if (m_ctx.shellInvoke) m_ctx.shellInvoke(QStringLiteral("openDevicePage"), {});
+    QObject::connect(view, &MeasurementSetupView::sendPageOpened, view, [this]() {
+        if (m_ctx.shellInvoke)
+            m_ctx.shellInvoke(QStringLiteral("sendPageOpened"), {});  // ✅ 打开发送配置页面
     });
     QObject::connect(view, &MeasurementSetupView::measurementToggled, view,
                      [this](bool running) {

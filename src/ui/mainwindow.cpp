@@ -251,6 +251,8 @@ ShellContext MainWindow::makeShellContext()
             onOpenOfflineAnalysisTab();
         } else if (action == QStringLiteral("openDevicePage")) {
             openDevicePage();
+        } else if (action == QStringLiteral("sendPageOpened")) {
+            onOpenSendTab();
         } else if (action == QStringLiteral("measurementToggled")) {
             onMeasurementToggled(arg.toBool());
         } else if (action == QStringLiteral("moduleToggled")) {
@@ -297,6 +299,23 @@ ShellContext MainWindow::makeShellContext()
             } else {
                 m_bottomPanel->appendOutput(QString("已加载 %1 帧").arg(count));
                 m_frameCountLabel->setText(QString::number(count) + QStringLiteral(" 帧"));
+            }
+        } else if (action == QStringLiteral("appendFrames")) {
+            // Tx 回环注入（信号发生器/周期发送）→ 转发给 TraceModule
+            // Arg: QVariantList{QWidget* targetTab, QVector<CanFrame> frames}
+            // 注意：不直接引用 TraceTab 类型，直接转发给 traceInvoke 处理
+            if (arg.canConvert(QVariant::List)) {
+                auto l = arg.toList();
+                if (l.size() >= 2) {
+                    // 将完整参数包转发给 TraceModule（由 trace module 内部处理 qobject_cast）
+                    traceInvoke(QStringLiteral("appendFrames"), arg);
+                    // 触发自动滚动：arg 第 2 项是帧列表，第 1 项是 QWidget*
+                    if (m_autoScroll && l.size() > 1) {
+                        auto frameList = l[1].toList();
+                        if (!frameList.isEmpty())
+                            traceInvoke(QStringLiteral("setAutoScroll"), true);
+                    }
+                }
             }
         }
     };
@@ -471,8 +490,14 @@ QVariantMap MainWindow::buildSignalMap(quint32 canId, bool extended, const QStri
 
 void MainWindow::flowInvoke(const QString &action, const QVariant &arg)
 {
-    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("flow")))
+    if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("flow"))) {
+        // signal_generator：打开信号发送 Tab
+        if (action == QStringLiteral("sendPageOpened")) {
+            onOpenSendTab();
+            return;
+        }
         mod->invoke(action, arg);
+    }
 }
 
 QVariant MainWindow::flowQuery(const QString &what, const QVariant &arg)

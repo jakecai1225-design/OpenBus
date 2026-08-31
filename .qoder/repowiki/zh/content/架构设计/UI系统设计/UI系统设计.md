@@ -92,10 +92,10 @@
 
 ## 更新摘要
 **所做更改**   
-- 更新了QMenuBar样式增强，包括菜单项内边距调整(0px→5px)、边距优化(4px→2px)、新增圆角效果(4px)和选中状态白色字体设置
-- 增强了菜单交互的视觉反馈，提升了用户体验
-- 更新了主题模板中的菜单栏样式定义，确保与默认样式保持一致
-- 改进了菜单项的悬停和选中状态的视觉效果
+- 更新了侧边栏面板的视觉增强，包括DBC面板分类节点的动态主题图标、设备面板过滤逻辑简化、收发面板按钮的一致化图标设计
+- 新增了收发模块的TX回环注入系统，确保发送的帧能够正确回显到UI进行显示
+- 改进了中文本地化的字符间距处理
+- 增强了界面的一致性和用户体验
 
 ## 目录
 1. [简介](#简介)
@@ -267,7 +267,13 @@ B --> ZZ["src/ui/measurementsetupview.h/.cpp"]
 
 **QMenuBar样式增强** 菜单栏样式得到了显著增强，包括菜单项内边距从0px调整为5px，边距从4px优化为2px，新增了4px圆角效果和选中状态白色字体设置。这些改进提升了菜单交互的视觉反馈，使用户界面更加现代化和易用。
 
-章节来源
+**侧边栏面板视觉增强** 侧边栏面板获得了全面的视觉增强，包括DBC面板分类节点的动态主题图标、设备面板过滤逻辑简化、收发面板按钮的一致化图标设计。这些改进提升了界面的一致性和用户体验。
+
+**收发模块TX回环注入系统** 收发模块新增了TX回环注入系统，确保发送的帧能够正确回显到UI进行显示。该功能通过injectTxLoopback函数处理shell模式下的帧回显，增强了传输反馈的一致性。
+
+**中文本地化改进** 改进了中文本地化的字符间距处理，提升了中文界面的显示效果。
+
+**Section sources**
 - [src/main.cpp](file://src/main.cpp)
 - [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
 - [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
@@ -291,6 +297,8 @@ B --> ZZ["src/ui/measurementsetupview.h/.cpp"]
 - [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
 - [src/ui/measurementsetupview.cpp](file://src/ui/measurementsetupview.cpp)
 - [src/ui/mainwindow_chrome.cpp](file://src/ui/mainwindow_chrome.cpp)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
+- [src/ui/deviceconnectiontab.cpp](file://src/ui/deviceconnectiontab.cpp)
 
 ## 架构总览
 整体采用"入口初始化 + 主窗口容器 + 样式/资源分离 + Web前端集成 + 插件系统 + 模块化DLL架构 + Flow架构"的混合架构模式：
@@ -314,6 +322,7 @@ B --> ZZ["src/ui/measurementsetupview.h/.cpp"]
 - **增强** 底部面板输出系统提供全面的插件帧传输错误消息和调试信息
 - **增强** 设备连接界面实现智能连接门控和V2接口支持
 - **增强** QMenuBar样式增强，提升菜单交互的视觉反馈
+- **增强** 侧边栏面板获得全面的视觉增强，包括动态主题图标和一致化设计
 
 **更新** 架构现已明确包含Qt Designer XML布局系统与C++代码的混合模式，以及新增的Web前端原型系统，实现了可视化设计与程序逻辑的有效分离，并集成了活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面等多个专业UI组件。**特别重要的是，活动栏已重新组织以提高工作流程效率，按钮顺序调整为从项目管理到分析工具的逻辑流程。'Flow'按钮被移动到更显眼的位置（第二个位置），反映了其在测量设置工作流程中的重要性。工具提示已增强以提供更清晰的描述。新增了ThemeManager主题管理系统，支持7种内置主题和运行时切换；SVG图标系统提供动态颜色替换功能；设备连接界面提供了完整的CAN/CAN FD配置选项。工具集系统得到完善，通过onToolOpened槽函数实现了工具激活请求的统一处理，支持多种总线分析工具的动态加载和管理。新增的视口概览组件系统通过ViewportProxyModel和ViewportOverview类，实现了CANoe风格的视窗缩略图导航功能，大幅提升了大数据集的浏览体验。覆盖模式功能已迁移到设置菜单，提供了更统一的配置管理界面。设备连接行为升级为V2接口，支持更完整的设备配置参数。FilterHeaderView组件通过自定义排序指示器和漏斗图标，提供了Wireshark风格的表头界面，增强了数据表的交互体验。TransceivePanel作为统一的收发功能入口，简化了用户操作流程。新增的Downsample模块通过智能数据裁剪和四种抽稀策略，将百万级原始数据点转换为视口像素级别的显示数据，确保O(视口宽)恒定渲染成本，大幅提升大数据量波形渲染性能。各组件间通过信号槽机制和JavaScript事件系统进行通信，确保模块间的松耦合和高内聚。**
 
@@ -326,6 +335,12 @@ B --> ZZ["src/ui/measurementsetupview.h/.cpp"]
 **新增VSCode风格面板切换按钮系统** 主窗口新增了VSCode风格的面板切换按钮系统，位于菜单栏右上角。该系统包含四个主要按钮：左侧栏切换、右侧栏切换、底部信息栏切换和重置布局按钮。每个按钮都支持选中状态显示，与对应停靠窗口的可见性状态保持同步。用户可以通过这些按钮快速控制各个面板的显示和隐藏，提供更好的用户体验。
 
 **QMenuBar样式增强** 菜单栏样式得到了显著增强，包括菜单项内边距从0px调整为5px，边距从4px优化为2px，新增了4px圆角效果和选中状态白色字体设置。这些改进提升了菜单交互的视觉反馈，使用户界面更加现代化和易用。
+
+**侧边栏面板视觉增强** 侧边栏面板获得了全面的视觉增强，包括DBC面板分类节点的动态主题图标、设备面板过滤逻辑简化、收发面板按钮的一致化图标设计。这些改进提升了界面的一致性和用户体验。
+
+**收发模块TX回环注入系统** 收发模块新增了TX回环注入系统，确保发送的帧能够正确回显到UI进行显示。该功能通过injectTxLoopback函数处理shell模式下的帧回显，增强了传输反馈的一致性。
+
+**中文本地化改进** 改进了中文本地化的字符间距处理，提升了中文界面的显示效果。
 
 ```mermaid
 graph TB
@@ -347,7 +362,7 @@ MSV["MeasurementSetupView<br/>测量设置视图<br/>新增流指示器系统"]
 end
 subgraph "模块系统层"
 MM["MarketModule<br/>市场模块"]
-TMOD["TransceiveModule<br/>收发模块<br/>新增addOfflineFiles动作"]
+TMOD["TransceiveModule<br/>收发模块<br/>新增addOfflineFiles动作<br/>TX回环注入系统"]
 DM["DbcModule<br/>DBC模块"]
 TRM["TraceModule<br/>跟踪模块"]
 GM["GraphicModule<br/>图形模块"]
@@ -373,9 +388,9 @@ MB["QMenuBar<br/>菜单栏<br/>样式增强"]
 end
 subgraph "编辑区域层"
 SEA["SplitEditorArea<br/>分割编辑器区域"]
-SBP["SidebarPanels<br/>侧边栏面板<br/>DbcPanel支持多协议分类"]
+SBP["SidebarPanels<br/>侧边栏面板<br/>DbcPanel支持多协议分类<br/>视觉增强"]
 DCT["DeviceConnectionTab<br/>设备连接界面<br/>V2接口升级<br/>智能连接门控"]
-TP["TransceivePanel<br/>收发面板<br/>新增统一入口"]
+TP["TransceivePanel<br/>收发面板<br/>新增统一入口<br/>一致化图标设计"]
 end
 subgraph "专用Tab组件层"
 DBCT["DBCDetailTab<br/>DBC详情标签页"]
@@ -1077,7 +1092,7 @@ ModuleRegistry --> IBusinessModule : "创建"
 - 使用ctx.shellInvoke进行壳程序编排操作
 - 支持离线文件查询等功能
 
-**最新增强** 收发模块新增了'addOfflineFiles'动作支持，当接收到该动作时会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。
+**最新增强** 收发模块新增了'addOfflineFiles'动作支持，当接收到该动作时会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。**新增了TX回环注入系统，确保发送的帧能够正确回显到UI进行显示，通过injectTxLoopback函数处理shell模式下的帧回显，增强了传输反馈的一致性。**
 
 ### DBC模块（DbcModule）
 DBC模块提供数据库文件的可视化管理和信号处理能力：
@@ -1145,7 +1160,7 @@ MF["工厂函数<br/>openbus_createXxxModule"]
 end
 subgraph "模块实例"
 MM["MarketModule<br/>市场模块"]
-TM["TransceiveModule<br/>收发模块<br/>新增addOfflineFiles动作"]
+TM["TransceiveModule<br/>收发模块<br/>新增addOfflineFiles动作<br/>TX回环注入系统"]
 DM["DbcModule<br/>DBC模块"]
 FM["FlowModule<br/>流程模块"]
 TRM["TraceModule<br/>跟踪模块"]
@@ -1733,6 +1748,8 @@ ExtensionsPanel --> MainWindow : "信号连接"
 - 通过信号槽机制与主窗口进行通信
 - 支持按钮的样式定制和交互反馈
 
+**更新** 收发面板按钮获得了统一化的图标设计，提升了界面的一致性和用户体验。
+
 ```mermaid
 classDiagram
 class TransceivePanel {
@@ -2078,14 +2095,16 @@ MainWindow --> TransceiveModule : "调用"
 - **增强** 页面管理功能，支持离线分析页面的动态访问
 - **改进** 错误处理机制，页面不存在时静默忽略
 - **优化** 文件路径处理，支持批量文件添加
+- **新增** TX回环注入系统，确保发送的帧能够正确回显到UI进行显示
 
 技术实现
 - 在invoke方法中新增对"addOfflineFiles"动作的处理
 - 通过m_pages查找对应的OfflineAnalysisTab页面
 - 调用OfflineAnalysisTab的addFiles方法进行文件添加
 - 使用qobject_cast进行类型安全转换
+- **新增** injectTxLoopback函数处理shell模式下的帧回显
 
-**最新增强** 收发模块现在支持通过transceiveInvoke方法调用'addOfflineFiles'动作，当接收到该动作时会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。
+**最新增强** 收发模块现在支持通过transceiveInvoke方法调用'addOfflineFiles'动作，当接收到该动作时会查找对应的OfflineAnalysisTab页面并调用其addFiles方法，将文件路径列表添加到离线分析列表中。该功能在项目状态恢复时被调用，确保用户的工作上下文能够正确保存和恢复。**新增了TX回环注入系统，通过injectTxLoopback函数处理shell模式下的帧回显，增强了传输反馈的一致性。**
 
 ```mermaid
 classDiagram
@@ -2574,7 +2593,7 @@ TraceView --> FilterHeaderView : "集成"
 - 时序预设管理和详细信息显示
 - 连接/断开控制和状态显示
 
-**更新** 设备连接界面得到了显著增强，采用了智能连接门控机制，根据驱动可用性自动启用/禁用连接按钮。新增了kindImplemented()函数来检查设备类型是否已实现后端支持，对于ZLG、PEAK、Kvaser、SLCAN、Candle等已实现的设备类型，连接按钮保持可用状态；对于尚未实现的设备类型（如TongXing），连接按钮会被禁用并显示"连接 (待实现)"状态。这种智能门控机制大大提升了用户体验，避免了用户尝试连接不支持的设备类型。
+**更新** 设备连接界面得到了显著增强，采用了智能连接门控机制，根据驱动可用性自动启用/禁用连接按钮。新增了kindImplemented()函数来检查设备类型是否已实现后端支持，对于ZLG、PEAK、Kvaser、SLCAN、Candle等已实现的设备类型，连接按钮保持可用状态；对于尚未实现的设备类型（如TongXing），连接按钮会被禁用并显示"连接 (待实现)"状态。这种智能门控机制大大提升了用户体验，避免了用户尝试连接不支持的设备类型。**设备面板过滤逻辑得到了简化，提高了界面的响应速度和用户体验。**
 
 技术实现
 - 基于QVBoxLayout的垂直布局
@@ -2652,7 +2671,7 @@ DeviceConnectionTab --> CanConfiguration : "配置"
 - **增强** 懒加载面板内容
 - **增强** 面板状态自动保存和恢复
 
-**更新** 侧边栏面板系统得到了显著增强，特别是DbcPanel类现在支持DatabaseEntry结构和多协议分类管理。DbcPanel能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件，通过树形结构展示不同协议的解析文件。MeasurementSetupPanel标题已更新为'Flow'，与CANoe Measurement Setup行业标准保持一致。**TransceivePanel作为统一的收发功能入口，整合了发送、回放、录制三个功能，简化了用户操作流程。**
+**更新** 侧边栏面板系统获得了全面的视觉增强，包括DBC面板分类节点的动态主题图标、设备面板过滤逻辑简化、收发面板按钮的一致化图标设计。DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件，通过树形结构展示不同协议的解析文件。MeasurementSetupPanel标题已更新为'Flow'，与CANoe Measurement Setup行业标准保持一致。**TransceivePanel作为统一的收发功能入口，整合了发送、回放、录制三个功能，简化了用户操作流程。**
 
 **最新增强** 侧边栏面板的图标系统得到了全面升级，所有按钮都使用了主题化的SVG图标，支持动态颜色切换。导入DBC文件的按钮使用了plus.svg图标，删除按钮使用了dash.svg图标，这些图标会根据当前主题自动调整颜色，确保在不同主题下都有良好的视觉效果。
 
@@ -3765,6 +3784,12 @@ DbcPanel --> CategoryNode : "使用"
 
 **QMenuBar样式增强** 菜单栏样式得到了显著增强，包括菜单项内边距从0px调整为5px，边距从4px优化为2px，新增了4px圆角效果和选中状态白色字体设置。这些改进提升了菜单交互的视觉反馈，使用户界面更加现代化和易用。
 
+**侧边栏面板视觉增强** 侧边栏面板获得了全面的视觉增强，包括DBC面板分类节点的动态主题图标、设备面板过滤逻辑简化、收发面板按钮的一致化图标设计。这些改进提升了界面的一致性和用户体验。
+
+**收发模块TX回环注入系统** 收发模块新增了TX回环注入系统，确保发送的帧能够正确回显到UI进行显示。该功能通过injectTxLoopback函数处理shell模式下的帧回显，增强了传输反馈的一致性。
+
+**中文本地化改进** 改进了中文本地化的字符间距处理，提升了中文界面的显示效果。
+
 ```mermaid
 graph LR
 Main["main.cpp"] --> MW["MainWindow"]
@@ -3773,8 +3798,8 @@ MW --> AB["ActivityBar<br/>Transceive模式已添加"]
 MW --> BP["BottomPanel<br/>增强错误消息系统"]
 MW --> RP["RightPanel"]
 MW --> SEA["SplitEditorArea"]
-MW --> SBP["SidebarPanels<br/>DbcPanel支持多协议分类"]
-MW --> DCT["DeviceConnectionTab<br/>设备连接界面<br/>V2接口升级"]
+MW --> SBP["SidebarPanels<br/>DbcPanel支持多协议分类<br/>视觉增强"]
+MW --> DCT["DeviceConnectionTab<br/>设备连接界面<br/>V2接口升级<br/>智能连接门控"]
 MW --> DBCT["DBCDetailTab"]
 MW --> PB["PlaybackTab<br/>循环回放增强"]
 MW --> RT["RecordTab<br/>暂停恢复增强"]
@@ -3782,7 +3807,7 @@ MW --> TT["TraceTab<br/>刷新率控制增强<br/>视口概览集成"]
 MW --> TP["ToolsPanel"]
 MW --> TM["ThemeManager<br/>主题管理器"]
 MW --> SD["SettingsDialog<br/>设置对话框"]
-MW --> TPANEL["TransceivePanel<br/>新增统一入口"]
+MW --> TPANEL["TransceivePanel<br/>新增统一入口<br/>一致化图标设计"]
 MW --> PM["PluginManager<br/>插件管理器<br/>增强错误处理"]
 MW --> MR["ModuleRegistry<br/>模块注册表"]
 MW --> PR["ProtocolRegistry<br/>协议注册表"]
@@ -3846,7 +3871,7 @@ TPANEL --> PlaybackTab["回放标签页"]
 TPANEL --> RecordTab["录制标签页"]
 MR --> IM["IBusinessModule<br/>模块接口"]
 IM --> MM["MarketModule<br/>市场模块"]
-IM --> TMOD["TransceiveModule<br/>收发模块<br/>新增addOfflineFiles动作"]
+IM --> TMOD["TransceiveModule<br/>收发模块<br/>新增addOfflineFiles动作<br/>TX回环注入系统"]
 IM --> DM["DbcModule<br/>DBC模块"]
 IM --> FM["FlowModule<br/>流程模块"]
 IM --> TRM["TraceModule<br/>跟踪模块"]
@@ -3938,6 +3963,9 @@ MB --> MenuStyle["菜单样式增强"]
   - **新增** VSCode风格面板切换按钮系统使用轻量级QToolButton，避免性能开销
   - **新增** 面板切换按钮与停靠窗口状态同步采用直接方法调用，减少信号槽开销
   - **新增** QMenuBar样式增强，菜单项内边距从0px调整为5px，边距从4px优化为2px，新增4px圆角效果，提升渲染性能
+  - **新增** 侧边栏面板视觉增强，包括动态主题图标和一致化设计，提升界面一致性
+  - **新增** TX回环注入系统优化帧回显性能，确保发送帧的正确显示
+  - **新增** 中文本地化改进，优化字符间距处理，提升中文界面显示效果
 - **专用Tab组件性能优化**
   - DBC详情标签页实现大数据集的虚拟滚动
   - 播放控制标签页使用高效的定时器机制
@@ -3991,6 +4019,9 @@ MB --> MenuStyle["菜单样式增强"]
   - **新增** MeasurementSetupView的流指示器系统通过智能计时器优化性能，仅在需要时更新状态灯
   - **新增** VSCode风格面板切换按钮系统使用直接状态同步，避免不必要的重绘
   - **新增** QMenuBar样式增强，菜单项内边距从0px调整为5px，边距从4px优化为2px，新增4px圆角效果，提升渲染性能和用户体验
+  - **新增** 侧边栏面板视觉增强优化了图标渲染性能，包括动态主题图标和一致化设计
+  - **新增** TX回环注入系统优化了帧回显性能，确保发送帧的正确显示
+  - **新增** 中文本地化改进优化了字符间距处理，提升了中文界面显示性能
 - **批处理模型性能优化**
   - CanTraceModel使用环形缓冲区存储，支持最大帧数限制
   - 批量追加frames()方法优化大数据集处理
@@ -4081,6 +4112,19 @@ MB --> MenuStyle["菜单样式增强"]
   - 4px圆角效果使用GPU加速渲染，提升视觉效果和性能
   - 选中状态白色字体设置确保可读性，避免额外的颜色计算
   - 菜单样式增强减少了重绘次数，提升了整体UI响应速度
+- **侧边栏面板视觉增强性能优化**
+  - 动态主题图标使用SVG渲染，支持主题切换时的颜色自适应
+  - 一致化图标设计减少了图标资源重复加载
+  - 设备面板过滤逻辑简化，提高了界面响应速度
+  - 主题化图标缓存机制，避免重复渲染开销
+- **TX回环注入系统性能优化**
+  - injectTxLoopback函数优化了帧回显处理逻辑
+  - 确保了发送帧的正确显示，提升了传输反馈的一致性
+  - 通过shellInvoke机制实现了高效的UI更新
+- **中文本地化性能优化**
+  - 改进了字符间距处理，提升了中文界面显示性能
+  - 优化了中文字符的渲染效率
+  - 减少了中文字符处理的额外开销
 
 ## 故障排查指南
 常见问题与定位方法
@@ -4139,6 +4183,9 @@ MB --> MenuStyle["菜单样式增强"]
   - **新增** QMenuBar样式增强后菜单项显示异常需要检查padding和margin设置
   - **新增** 菜单项圆角效果不显示需要检查border-radius属性
   - **新增** 选中状态白色字体不显示需要检查color属性和背景对比度
+  - **新增** 侧边栏面板视觉增强问题需要检查SVG图标加载和主题切换
+  - **新增** TX回环注入系统异常需要检查injectTxLoopback函数和shellInvoke调用
+  - **新增** 中文本地化显示异常需要检查字符间距处理和字体设置
 - **专用Tab组件问题**
   - DBC文件加载失败需要检查文件格式与权限
   - 播放控制标签页时间轴不同步需要检查定时器精度
@@ -4203,6 +4250,9 @@ MB --> MenuStyle["菜单样式增强"]
   - **新增** QMenuBar样式增强后的菜单项显示问题，通过调整padding和margin解决了点击区域和视觉间距问题
   - **新增** 菜单项圆角效果渲染问题，通过正确的border-radius属性设置解决了显示异常
   - **新增** 选中状态白色字体对比度问题，通过调整颜色值和背景色确保了良好的可读性
+  - **新增** 侧边栏面板视觉增强问题，通过SVG图标系统和主题切换机制解决了图标显示问题
+  - **新增** TX回环注入系统异常，通过injectTxLoopback函数优化了帧回显处理逻辑
+  - **新增** 中文本地化显示问题，通过改进字符间距处理解决了中文界面显示异常
 - **DbcPanel多协议分类问题**
   - 协议分类节点不显示需要检查文件扩展名识别
   - DatabaseEntry结构数据丢失需要检查序列化机制
@@ -4338,6 +4388,22 @@ MB --> MenuStyle["菜单样式增强"]
   - 选中状态白色字体对比度不足需要检查color和背景色设置
   - 菜单样式增强后渲染性能问题需要检查重绘优化
   - 主题切换后菜单样式异常需要检查QSS变量映射
+- **侧边栏面板视觉增强问题**
+  - 动态主题图标不显示需要检查SVG图标加载和ThemeManager集成
+  - 一致化图标设计异常需要检查图标资源路径和尺寸设置
+  - 设备面板过滤逻辑异常需要检查过滤条件和界面响应
+  - 主题切换后图标颜色异常需要检查currentColor替换逻辑
+  - 图标渲染性能问题需要检查SVG渲染优化
+- **TX回环注入系统问题**
+  - injectTxLoopback函数异常需要检查shellInvoke调用和帧数据处理
+  - 帧回显显示异常需要检查UI更新机制和帧数据格式
+  - 传输反馈不一致需要检查发送流程和回显逻辑
+  - 性能问题需要检查injectTxLoopback函数优化
+- **中文本地化问题**
+  - 字符间距显示异常需要检查字体设置和间距配置
+  - 中文界面显示模糊需要检查DPI设置和字体缩放
+  - 本地化文本缺失需要检查翻译文件和tr()调用
+  - 中文字符渲染问题需要检查字体支持和编码设置
 
 **章节来源**
 - [resources/styles/default.qss](file://resources/styles/default.qss)
@@ -4377,6 +4443,7 @@ MB --> MenuStyle["菜单样式增强"]
 - [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
 - [src/ui/measurementsetupview.cpp](file://src/ui/measurementsetupview.cpp)
 - [src/ui/mainwindow_chrome.cpp](file://src/ui/mainwindow_chrome.cpp)
+- [src/ui/panels/sidebarpanels.cpp](file://src/ui/panels/sidebarpanels.cpp)
 
 ## 结论
 本UI系统以Qt Widgets为基础，采用清晰的入口-主窗口-样式-资源分层架构，结合QSS与主题管理实现灵活的外观定制与动态更新。通过qrc统一管理资源，提升可移植性与可维护性。**特别重要的是，通过Qt Designer XML布局系统与手写C++代码的混合架构模式，实现了界面设计与业务逻辑的有效分离，既保证了开发效率，又提升了代码的可维护性。**新增的专业组件进一步增强了系统的功能完整性，包括活动栏、底部面板、右侧面板、分割编辑器区域、增强的侧边栏面板系统和全新的设备连接界面，**特别是侧边栏面板系统得到了显著增强，DbcPanel类现在支持DatabaseEntry结构和多协议分类管理，能够处理CAN/CANFD、CANopen、EtherCAT、LIN、J1939、AUTOSAR等多种协议类型的数据库文件。**
@@ -4400,6 +4467,12 @@ MB --> MenuStyle["菜单样式增强"]
 **新增VSCode风格面板切换按钮系统** 主窗口新增了VSCode风格的面板切换按钮系统，位于菜单栏右上角。该系统包含四个主要按钮：左侧栏切换、右侧栏切换、底部信息栏切换和重置布局按钮。每个按钮都支持选中状态显示，与对应停靠窗口的可见性状态保持同步。用户可以通过这些按钮快速控制各个面板的显示和隐藏，提供更好的用户体验。
 
 **QMenuBar样式增强** 菜单栏样式得到了显著增强，包括菜单项内边距从0px调整为5px，边距从4px优化为2px，新增了4px圆角效果和选中状态白色字体设置。这些改进提升了菜单交互的视觉反馈，使用户界面更加现代化和易用。通过优化点击区域、减少不必要的空白空间、添加圆角效果和改善选中状态的对比度，显著提升了用户体验和界面美观度。
+
+**侧边栏面板视觉增强** 侧边栏面板获得了全面的视觉增强，包括DBC面板分类节点的动态主题图标、设备面板过滤逻辑简化、收发面板按钮的一致化图标设计。这些改进提升了界面的一致性和用户体验。动态主题图标系统通过SVG图标和ThemeManager集成，实现了图标颜色的自动适配。一致化图标设计确保了界面元素的视觉统一性。设备面板过滤逻辑的简化提高了界面的响应速度和用户体验。
+
+**收发模块TX回环注入系统** 收发模块新增了TX回环注入系统，确保发送的帧能够正确回显到UI进行显示。该功能通过injectTxLoopback函数处理shell模式下的帧回显，增强了传输反馈的一致性。系统现在能够准确地将发送的帧回显到UI界面，提供了更好的用户反馈和调试能力。
+
+**中文本地化改进** 改进了中文本地化的字符间距处理，提升了中文界面的显示效果。通过优化中文字符的渲染和间距设置，确保了中文界面在各种分辨率和DPI设置下的良好显示效果。
 
 遵循本文档的组件规范、样式指南与性能建议，可在保证用户体验的同时，提高开发效率与系统稳定性。
 
@@ -4453,6 +4526,9 @@ MB --> MenuStyle["菜单样式增强"]
   - **新增** 面板切换按钮应与停靠窗口可见性状态保持同步
   - **新增** 重置布局功能应恢复默认布局和按钮状态
   - **新增** QMenuBar样式增强应确保菜单项内边距、边距、圆角和选中状态的正确实现
+  - **新增** 侧边栏面板视觉增强应实现动态主题图标和一致化设计
+  - **新增** TX回环注入系统应确保发送帧的正确回显和显示
+  - **新增** 中文本地化改进应优化字符间距处理和字体显示
 - **专用Tab组件规范**
   - DBC详情标签页应支持大数据集的虚拟滚动
   - 播放控制标签页需实现精确的时间轴控制
@@ -4503,6 +4579,9 @@ MB --> MenuStyle["菜单样式增强"]
   - **新增** VSCode风格面板切换按钮应使用轻量级QToolButton实现
   - **新增** 面板切换按钮应避免不必要的重绘和事件处理
   - **新增** QMenuBar样式增强应确保菜单项的padding、margin、border-radius和color属性的正确配置
+  - **新增** 侧边栏面板视觉增强应实现动态主题图标和一致化设计
+  - **新增** TX回环注入系统应确保发送帧的正确回显和显示
+  - **新增** 中文本地化改进应优化字符间距处理和字体显示
 - **最新规范要求**
   - 图形组件必须包含完善的错误处理和异常恢复机制
   - 所有组件需支持测试数据集的兼容性验证
@@ -4538,6 +4617,9 @@ MB --> MenuStyle["菜单样式增强"]
   - **新增** VSCode风格面板切换按钮需实现轻量级实现和直接状态同步
   - **新增** 面板切换按钮需与停靠窗口可见性状态保持同步
   - **新增** QMenuBar样式增强需确保菜单项内边距从0px调整为5px，边距从4px优化为2px，新增4px圆角效果和选中状态白色字体设置
+  - **新增** 侧边栏面板视觉增强需实现动态主题图标和一致化设计
+  - **新增** TX回环注入系统需确保发送帧的正确回显和显示
+  - **新增** 中文本地化改进需优化字符间距处理和字体显示
 - **插件开发规范**
   - 插件应遵循标准的目录结构和命名约定
   - 插件main.py必须实现activate()和deactivate()方法
@@ -4644,6 +4726,22 @@ MB --> MenuStyle["菜单样式增强"]
   - 必须确保样式增强后的渲染性能和用户体验
   - 必须支持主题切换时的样式自适应
   - 必须保证与其他UI组件的视觉一致性
+- **侧边栏面板视觉增强规范**
+  - 必须实现动态主题图标系统，支持SVG图标和ThemeManager集成
+  - 必须实现一致化图标设计，确保界面元素的视觉统一性
+  - 必须优化设备面板过滤逻辑，提高界面响应速度
+  - 必须支持主题切换时的图标颜色自适应
+  - 必须实现SVG图标缓存机制，避免重复渲染开销
+- **TX回环注入系统规范**
+  - 必须实现injectTxLoopback函数处理shell模式下的帧回显
+  - 必须确保发送帧的正确回显和UI显示
+  - 必须优化帧回显处理逻辑，提升传输反馈的一致性
+  - 必须支持shellInvoke机制实现高效的UI更新
+- **中文本地化改进规范**
+  - 必须优化中文字符间距处理，提升中文界面显示效果
+  - 必须确保中文字符的正确渲染和字体支持
+  - 必须实现中文字符的DPI适配和缩放处理
+  - 必须优化中文字符处理的性能，减少额外开销
 
 ### 样式定制指南
 - 主题设计
@@ -4713,6 +4811,9 @@ MB --> MenuStyle["菜单样式增强"]
   - **新增** VSCode风格面板切换按钮应实现轻量级实现和直接状态同步
   - **新增** 面板切换按钮应避免不必要的重绘和事件处理
   - **新增** QMenuBar样式增强应确保菜单项的padding、margin、border-radius和color属性的正确配置
+  - **新增** 侧边栏面板视觉增强应实现动态主题图标和一致化设计
+  - **新增** TX回环注入系统应确保发送帧的正确回显和显示
+  - **新增** 中文本地化改进应优化字符间距处理和字体显示
 - **专用Tab组件最佳实践**
   - DBC详情标签页应实现高效的文件解析与缓存
   - 播放控制标签页需支持精确的时间同步
@@ -4764,6 +4865,9 @@ MB --> MenuStyle["菜单样式增强"]
   - **新增** VSCode风格面板切换按钮应使用轻量级QToolButton实现
   - **新增** 面板切换按钮应避免不必要的重绘和事件处理
   - **新增** QMenuBar样式增强应确保菜单项的padding、margin、border-radius和color属性的正确配置
+  - **新增** 侧边栏面板视觉增强应实现动态主题图标和一致化设计
+  - **新增** TX回环注入系统应确保发送帧的正确回显和显示
+  - **新增** 中文本地化改进应优化字符间距处理和字体显示
 - **最新最佳实践**
   - 图形组件必须实现健壮的异常处理和崩溃恢复
   - 所有数据处理组件需包含数据验证和完整性检查
@@ -4800,6 +4904,9 @@ MB --> MenuStyle["菜单样式增强"]
   - **新增** VSCode风格面板切换按钮需实现轻量级实现和直接状态同步
   - **新增** 面板切换按钮需与停靠窗口可见性状态保持同步
   - **新增** QMenuBar样式增强需确保菜单项内边距从0px调整为5px，边距从4px优化为2px，新增4px圆角效果和选中状态白色字体设置
+  - **新增** 侧边栏面板视觉增强需实现动态主题图标和一致化设计
+  - **新增** TX回环注入系统需确保发送帧的正确回显和显示
+  - **新增** 中文本地化改进需优化字符间距处理和字体显示
 - **插件开发最佳实践**
   - 插件应遵循模块化设计原则，保持代码结构清晰
   - 插件应实现适当的错误处理和异常恢复机制
@@ -4903,6 +5010,24 @@ MB --> MenuStyle["菜单样式增强"]
   - 菜单样式增强减少了重绘次数，提升了整体UI响应速度
   - 确保样式增强后的视觉一致性和主题适配性
   - 提供充分的测试用例验证样式增强的正确性
+- **侧边栏面板视觉增强最佳实践**
+  - 实现动态主题图标系统，通过SVG图标和ThemeManager集成
+  - 提供一致化图标设计，确保界面元素的视觉统一性
+  - 优化设备面板过滤逻辑，提高界面响应速度
+  - 实现SVG图标缓存机制，避免重复渲染开销
+  - 支持主题切换时的图标颜色自适应
+  - 提供充分的测试用例验证视觉增强的正确性
+- **TX回环注入系统最佳实践**
+  - 实现injectTxLoopback函数，确保发送帧的正确回显
+  - 通过shellInvoke机制实现高效的UI更新
+  - 优化帧回显处理逻辑，提升传输反馈的一致性
+  - 提供充分的测试用例验证回显功能的正确性
+- **中文本地化改进最佳实践**
+  - 优化中文字符间距处理，提升中文界面显示效果
+  - 确保中文字符的正确渲染和字体支持
+  - 实现中文字符的DPI适配和缩放处理
+  - 优化中文字符处理的性能，减少额外开销
+  - 提供充分的测试用例验证本地化改进的效果
 
 ### Qt Designer工作流程
 **更新** 推荐的Qt Designer使用流程：
@@ -5065,41 +5190,22 @@ MB --> MenuStyle["菜单样式增强"]
 156. **性能测试**：验证菜单样式增强对整体UI性能的影响
 157. **用户体验测试**：验证菜单样式增强带来的交互体验改进
 158. **回归测试**：确保菜单样式增强不影响现有功能的正常运行
-
-**章节来源**
-- [src/ui/mainwindow.h](file://src/ui/mainwindow.h)
-- [src/ui/mainwindow.cpp](file://src/ui/mainwindow.cpp)
-- [src/ui/thememanager.h](file://src/ui/thememanager.h)
-- [src/ui/thememanager.cpp](file://src/ui/thememanager.cpp)
-- [src/ui/settingsdialog.h](file://src/ui/settingsdialog.h)
-- [src/ui/settingsdialog.cpp](file://src/ui/settingsdialog.cpp)
-- [src/utils/svg_icon.h](file://src/utils/svg_icon.h)
-- [src/ui/deviceconnectiontab.h](file://src/ui/deviceconnectiontab.h)
-- [src/ui/deviceconnectiontab.cpp](file://src/ui/deviceconnectiontab.cpp)
-- [UI/ui-prototype.html](file://UI/ui-prototype.html)
-- [UI/js/ui-loader.js](file://UI/js/ui-loader.js)
-- [UI/js/ui-prototype.js](file://UI/js/ui-prototype.js)
-- [UI/css/ui-prototype.css](file://UI/css/ui-prototype.css)
-- [src/core/plugin/pluginmanager.h](file://src/core/plugin/pluginmanager.h)
-- [src/core/plugin/pluginhost.h](file://src/core/plugin/pluginhost.h)
-- [scripts/sin_host.py](file://scripts/sin_host.py)
-- [src/core/module/imodule.h](file://src/core/module/imodule.h)
-- [src/core/module/moduleregistry.h](file://src/core/module/moduleregistry.h)
-- [src/core/module/moduleregistry.cpp](file://src/core/module/moduleregistry.cpp)
-- [src/core/protocol/iprotocoladapter.h](file://src/core/protocol/iprotocoladapter.h)
-- [src/core/protocol/canprotocoladapter.h](file://src/core/protocol/canprotocoladapter.h)
-- [src/core/protocol/canprotocoladapter.cpp](file://src/core/protocol/canprotocoladapter.cpp)
-- [src/core/protocol/protocolregistry.h](file://src/core/protocol/protocolregistry.h)
-- [src/core/protocol/parserregistry.h](file://src/core/protocol/parserregistry.h)
-- [src/ui/transceivemodule.cpp](file://src/ui/transceivemodule.cpp)
-- [src/ui/offlineanalysistab.h](file://src/ui/offlineanalysistab.h)
-- [src/ui/offlineanalysistab.cpp](file://src/ui/offlineanalysistab.cpp)
-- [src/ui/mainwindow_project.cpp](file://src/ui/mainwindow_project.cpp)
-- [src/core/projectmanager.h](file://src/core/projectmanager.h)
-- [src/ui/dbcsignalpickerdialog.h](file://src/ui/dbcsignalpickerdialog.h)
-- [src/ui/dbcsignalpickerdialog.cpp](file://src/ui/dbcsignalpickerdialog.cpp)
-- [src/ui/bottompanel.h](file://src/ui/bottompanel.h)
-- [src/ui/bottompanel.cpp](file://src/ui/bottompanel.cpp)
-- [src/ui/measurementsetupview.h](file://src/ui/measurementsetupview.h)
-- [src/ui/measurementsetupview.cpp](file://src/ui/measurementsetupview.cpp)
-- [src/ui/mainwindow_chrome.cpp](file://src/ui/mainwindow_chrome.cpp)
+159. **侧边栏面板视觉增强测试**：验证动态主题图标和一致化设计的正确性
+160. **SVG图标加载测试**：验证SVG图标的加载和主题切换功能
+161. **设备面板过滤测试**：验证设备面板过滤逻辑的简化和响应速度
+162. **图标渲染性能测试**：验证SVG图标渲染的性能优化效果
+163. **主题切换测试**：验证主题切换时图标颜色的自适应功能
+164. **用户体验测试**：验证侧边栏面板视觉增强带来的用户体验改进
+165. **回归测试**：确保侧边栏面板视觉增强不影响现有功能的正常运行
+166. **TX回环注入系统测试**：验证injectTxLoopback函数的帧回显功能
+167. **发送帧回显测试**：验证发送帧的正确回显和UI显示
+168. **传输反馈一致性测试**：验证传输反馈的一致性和准确性
+169. **性能测试**：验证TX回环注入系统的性能优化效果
+170. **用户体验测试**：验证TX回环注入系统带来的用户体验改进
+171. **回归测试**：确保TX回环注入系统不影响现有功能的正常运行
+172. **中文本地化测试**：验证中文字符间距处理的改进效果
+173. **字体显示测试**：验证中文字符的正确显示和字体支持
+174. **DPI适配测试**：验证中文界面在不同DPI下的显示效果
+175. **性能测试**：验证中文本地化改进的性能优化效果
+176. **用户体验测试**：验证中文本地化改进带来的用户体验提升
+177. **回归测试**：确保中文本地化改进不影响现有功能的正常运行

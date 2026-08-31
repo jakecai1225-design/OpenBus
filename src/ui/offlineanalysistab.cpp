@@ -17,6 +17,9 @@
 #include <QHeaderView>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QMimeData>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 
 // ---- 工具函数 ----
 
@@ -45,6 +48,8 @@ static QString formatDuration(double seconds)
 OfflineAnalysisTab::OfflineAnalysisTab(QWidget *parent)
     : QWidget(parent)
 {
+    setAcceptDrops(true);  // ✅ 启用拖放
+
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(20, 20, 20, 20);
     mainLayout->setSpacing(12);
@@ -84,6 +89,16 @@ OfflineAnalysisTab::OfflineAnalysisTab(QWidget *parent)
     m_fileList->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_fileList->setEditTriggers(QAbstractItemView::NoEditTriggers);
     listLayout->addWidget(m_fileList);
+
+    // ✅ 拖放提示标签
+    m_dropHint = new QLabel("请拖放文件到此", this);
+    m_dropHint->setAlignment(Qt::AlignCenter);
+    m_dropHint->setStyleSheet(QString(
+        "color: %1;"
+        "font-size: 14px;"
+        "padding: 40px;"
+    ).arg(ThemeManager::instance()->currentTheme().textDim));
+    listLayout->addWidget(m_dropHint);
 
     mainLayout->addWidget(listGroup, 1);
 
@@ -127,6 +142,9 @@ void OfflineAnalysisTab::addFiles(const QStringList &paths)
 {
     if (paths.isEmpty()) return;
 
+    // ✅ 有文件时隐藏提示标签
+    m_dropHint->hide();
+
     for (const auto &path : paths) {
         QFileInfo fi(path);
         int row = m_fileList->rowCount();
@@ -166,7 +184,13 @@ void OfflineAnalysisTab::onRemoveFile()
 
     m_fileList->removeRow(row);
     renumberRows();
-    m_statusLabel->setText(QString("剩余 %1 个文件").arg(m_fileList->rowCount()));
+    
+    // ✅ 删除所有文件后显示提示
+    if (m_fileList->rowCount() == 0) {
+        m_dropHint->show();
+    } else {
+        m_statusLabel->setText(QString("剩余 %1 个文件").arg(m_fileList->rowCount()));
+    }
 }
 
 void OfflineAnalysisTab::onMoveUp()
@@ -222,6 +246,45 @@ QStringList OfflineAnalysisTab::filePaths() const
         }
     }
     return paths;
+}
+
+void OfflineAnalysisTab::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls()) {
+        event->acceptProposedAction();
+    } else {
+        event->ignore();
+    }
+}
+
+void OfflineAnalysisTab::dropEvent(QDropEvent *event)
+{
+    const QMimeData *mimeData = event->mimeData();
+    if (!mimeData->hasUrls()) {
+        event->ignore();
+        return;
+    }
+
+    QStringList paths;
+    const QList<QUrl> urls = mimeData->urls();
+    for (const QUrl &url : urls) {
+        if (!url.isLocalFile()) continue;
+        
+        QString filePath = url.toLocalFile();
+        QFileInfo fi(filePath);
+        
+        // ✅ 支持 blf 和 asc 格式
+        QString suffix = fi.suffix().toLower();
+        if (suffix == "blf" || suffix == "asc") {
+            paths << filePath;
+        }
+    }
+
+    if (!paths.isEmpty()) {
+        addFiles(paths);
+    }
+    
+    event->acceptProposedAction();
 }
 
 void OfflineAnalysisTab::onParseTimer()
