@@ -8,18 +8,14 @@
 - [third_party/Dependencies.cmake](file://third_party/Dependencies.cmake)
 - [scripts/build.py](file://scripts/build.py)
 - [doc/构建基线.md](file://doc/构建基线.md)
-- [src/ui/menubar/mainmenubar.h](file://src/ui/menubar/mainmenubar.h)
-- [src/ui/menubar/mainmenubar.cpp](file://src/ui/menubar/mainmenubar.cpp)
-- [src/ui/menubar/topbar.h](file://src/ui/menubar/topbar.h)
-- [src/ui/menubar/topbar.cpp](file://src/ui/menubar/topbar.cpp)
+- [Shell_AutoMoc_Fix_Guide.md](file://Shell_AutoMoc_Fix_Guide.md)
 </cite>
 
 ## 更新摘要
 **所做更改**
-- **新增菜单栏组件支持**：更新了CMake构建配置以包含新的VSCode风格菜单栏组件（MainMenuBar和TopBar）
-- **UI层源文件组织优化**：将菜单栏相关源文件纳入SRC_UI列表，确保正确编译
-- **预编译头配置增强**：为菜单栏组件添加专门的PCH配置以提升编译性能
-- **依赖关系完善**：确保菜单栏组件与主窗口的正确链接关系
+- **MinGW编译修复**：在根目录CMakeLists.txt中添加了MinGW特定的预处理器命令配置，通过设置CMAKE_MOC_PREDEFS_CMD和CMAKE_CXX_COMPILE_OPTIONS_PCH为空值来禁用预定义生成，解决AutoMoc在Qt元对象编译器阶段的失败问题
+- **测试框架移除**：移除了测试相关的CMake配置，包括enable_testing()和add_subdirectory(tests)，简化了构建系统
+- **PCH兼容性处理**：在src/CMakeLists.txt中禁用了所有模块的预编译头功能，确保与MinGW GCC 13.1的兼容性
 
 ## 目录
 1. [项目概述](#项目概述)
@@ -53,7 +49,7 @@ cmake_minimum_required(VERSION 3.21)
 
 project(openbus
     VERSION 0.1.0
-    DESCRIPTION "报文解析、分析、回放、录制、trace、graphic 桌面软件"
+    DESCRIPTION "Message parsing, analysis, playback, recording, trace, graphic desktop software"
     LANGUAGES CXX
 )
 ```
@@ -81,7 +77,7 @@ project(openbus
 ### Qt6组件查找配置
 **已更新** 新增Qt6 Network组件支持，用于市场索引和网络功能：
 ```cmake
-find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport Svg Network)
+find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport Svg Network Quick)
 ```
 
 支持的Qt6组件包括：
@@ -89,6 +85,7 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport Svg Network)
 - **PrintSupport**: 打印支持
 - **Svg**: SVG图标渲染支持
 - **Network**: 网络通信支持
+- **Quick**: QML支持
 
 ### 输出目录配置
 所有可执行文件输出到`bin`目录：
@@ -115,12 +112,33 @@ if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     #  - ld.bfd（默认）：唯一可靠选择
     #  - ld.gold：MinGW 发行版内为 ELF-only 构建，链接 PE 时报错误
     #  - LLD：曾产出损坏的可执行文件
+elseif(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    message(STATUS "Using MSVC compiler /FS flag for parallel builds")
+    add_compile_options(/FS)
 endif()
 ```
 
+### MinGW AutoMoc修复配置
+**新增** 针对MinGW GCC 13.1的AutoMoc问题修复：
+```cmake
+# MinGW AutoMoc 预处理器命令修复
+# 解决GCC 13.1与Qt MOC的兼容性问题
+set(CMAKE_MOC_PREDEFS_CMD "")
+set(CMAKE_CXX_COMPILE_OPTIONS_PCH "")
+```
+
+此配置通过禁用预定义生成来解决AutoMoc在Qt元对象编译器阶段的失败问题，特别适用于MinGW GCC 13.1环境。
+
+### 测试框架配置
+**已更新** 移除了测试相关的CMake配置：
+- 移除了 `enable_testing()` 调用
+- 移除了 `add_subdirectory(tests)` 调用
+- 简化了构建系统，专注于核心应用构建
+
 **章节来源**
-- [CMakeLists.txt:9-55](file://CMakeLists.txt#L9-L55)
+- [CMakeLists.txt:9-58](file://CMakeLists.txt#L9-L58)
 - [CMakeLists.txt:62-68](file://CMakeLists.txt#L62-L68)
+- [CMakeLists.txt:90-93](file://CMakeLists.txt#L90-L93)
 
 ## 分层共享库架构
 
@@ -328,91 +346,50 @@ public:
 ## 预编译头优化配置
 
 ### PCH配置策略
-**已更新** 为每个库配置专门的预编译头以优化编译时间：
+**已更新** 由于MinGW GCC 13.1的PCH兼容性问题，所有模块的预编译头功能已被禁用：
 
-#### openbus_data PCH配置
-针对核心层使用精简的Qt头文件列表：
+#### 全局PCH禁用配置
+在src/CMakeLists.txt中，所有模块的PCH配置都被注释掉：
+
 ```cmake
-target_precompile_headers(openbus_data PRIVATE
-    <QObject>
-    <QString>
-    <QStringList>
-    <QVariant>
-    <QList>
-    <QHash>
-    <QVector>
-    <QPair>
-    <QMetaType>
-    <QByteArray>
-    <QTimer>
-    <QThread>
-    <QFile>
-    <QDataStream>
-    <QDir>
-    <QFileInfo>
-    <QRegularExpression>
-    <QStandardPaths>
-    <QTextStream>
-    <QColor>
-    <QRandomGenerator>
-    <QStringConverter>
-    <QAbstractTableModel>
-    <QSortFilterProxyModel>
-    <vector>
-    <string>
-    <memory>
-    <functional>
-)
+# PCH DISABLED FOR MINGW COMPATIBILITY (2026-08-25)
+# TODO: Re-enable when GCC 13.1 pch.hxx support is verified
+# target_precompile_headers(openbus_data PRIVATE
+#     <QObject>
+#     <QString>
+#     ... 其他Qt头文件
+# )
 ```
 
-#### 各业务模块PCH配置
-每个业务模块都有针对性的PCH配置，包含其特有的Qt组件：
-- **openbus_market**: 包含网络、JSON、SVG相关头文件
-- **openbus_transceive**: 包含表格、表单、日期时间相关头文件
-- **openbus_dbc**: 包含树形控件、表格视图相关头文件
-- **openbus_flow**: 包含图形场景、绘图相关头文件
-- **openbus_trace**: 包含表格视图、过滤器相关头文件
-- **openbus_graphic**: 包含qcustomplot、绘图相关头文件
+#### 各模块PCH禁用状态
+- **openbus_data**: PCH已禁用，等待GCC 13.1 pch.hxx支持验证
+- **openbus_market**: PCH已禁用，避免MinGW兼容性问题
+- **openbus_transceive**: PCH已禁用，确保Widget组件正常编译
+- **openbus_dbc**: PCH已禁用，防止DBC相关组件编译失败
+- **openbus_flow**: PCH已禁用，避免QGraphicsScene相关组件问题
+- **openbus_trace**: PCH已禁用，确保Trace组件稳定编译
+- **openbus_graphic**: PCH已禁用，防止qcustomplot相关组件问题
 
-#### **新增** 菜单栏组件PCH配置
-**已更新** 为菜单栏组件添加专门的预编译头配置：
+### AutoMoc修复配置
+**新增** 针对AutoMoc问题的专门配置：
 
-**MainMenuBar PCH配置**：
 ```cmake
-target_precompile_headers(openbus_ui PRIVATE
-    <QMenuBar>
-    <QMenu>
-    <QAction>
-    <QShortcut>
-    <QMessageBox>
-    <QFileSystemWatcher>
-    <QApplication>
-)
+# MinGW AutoMoc 预处理器命令修复
+# 解决GCC 13.1与Qt MOC的兼容性问题
+set(CMAKE_MOC_PREDEFS_CMD "")
+set(CMAKE_CXX_COMPILE_OPTIONS_PCH "")
 ```
 
-**TopBar PCH配置**：
-```cmake
-target_precompile_headers(openbus_ui PRIVATE
-    <QWidget>
-    <QHBoxLayout>
-    <QVBoxLayout>
-    <QToolButton>
-    <QLineEdit>
-    <QPushButton>
-    <QLabel>
-    <QSettings>
-)
-```
+此配置通过禁用预定义生成来解决AutoMoc在Qt元对象编译器阶段的失败问题。
 
 **章节来源**
-- [src/CMakeLists.txt:262-291](file://src/CMakeLists.txt#L262-L291)
-- [src/CMakeLists.txt:319-358](file://src/CMakeLists.txt#L319-L358)
-- [src/CMakeLists.txt:389-424](file://src/CMakeLists.txt#L389-L424)
-- [src/CMakeLists.txt:449-480](file://src/CMakeLists.txt#L449-L480)
-- [src/CMakeLists.txt:505-547](file://src/CMakeLists.txt#L505-L480)
-- [src/CMakeLists.txt:582-609](file://src/CMakeLists.txt#L582-L609)
-- [src/CMakeLists.txt:646-677](file://src/CMakeLists.txt#L646-L677)
-- [src/CMakeLists.txt:709-751](file://src/CMakeLists.txt#L709-L751)
+- [src/CMakeLists.txt:277-308](file://src/CMakeLists.txt#L277-L308)
+- [src/CMakeLists.txt:335-375](file://src/CMakeLists.txt#L335-L375)
+- [src/CMakeLists.txt:405-441](file://src/CMakeLists.txt#L405-L441)
+- [src/CMakeLists.txt:465-497](file://src/CMakeLists.txt#L465-L497)
+- [src/CMakeLists.txt:521-564](file://src/CMakeLists.txt#L521-L564)
+- [src/CMakeLists.txt:598-627](file://src/CMakeLists.txt#L598-L627)
+- [src/CMakeLists.txt:663-695](file://src/CMakeLists.txt#L663-L695)
 
 ## 第三方库依赖管理
 
@@ -496,7 +473,19 @@ if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     #  - ld.bfd（默认）：唯一可靠选择
     #  - ld.gold：MinGW 发行版内为 ELF-only 构建，链接 PE 时报错误
     #  - LLD：曾产出损坏的可执行文件
+elseif(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    message(STATUS "Using MSVC compiler /FS flag for parallel builds")
+    add_compile_options(/FS)
 endif()
+```
+
+#### MinGW AutoMoc修复
+**新增** 针对MinGW环境的AutoMoc问题修复：
+```cmake
+# MinGW AutoMoc 预处理器命令修复
+# 解决GCC 13.1与Qt MOC的兼容性问题
+set(CMAKE_MOC_PREDEFS_CMD "")
+set(CMAKE_CXX_COMPILE_OPTIONS_PCH "")
 ```
 
 #### 驱动DLL自动复制
@@ -542,71 +531,36 @@ endif()
 - 无需特殊的GUI程序设置
 
 **章节来源**
-- [CMakeLists.txt:32-55](file://CMakeLists.txt#L32-L55)
-- [src/CMakeLists.txt:787-810](file://src/CMakeLists.txt#L787-L810)
-- [src/CMakeLists.txt:819-833](file://src/CMakeLists.txt#L819-L833)
+- [CMakeLists.txt:32-58](file://CMakeLists.txt#L32-L58)
+- [src/CMakeLists.txt:752-756](file://src/CMakeLists.txt#L752-L756)
+- [src/CMakeLists.txt:763-775](file://src/CMakeLists.txt#L763-L775)
+- [src/CMakeLists.txt:784-798](file://src/CMakeLists.txt#L784-L798)
 
 ## 测试框架集成
 
-### 测试架构设计
-**新增** 完整的测试框架集成，支持多层级的自动化测试：
+### 测试框架移除
+**已更新** 移除了测试框架集成以简化构建系统：
 
-#### 测试目录结构
-```
-tests/
-├── CMakeLists.txt          # 测试构建配置
-├── test_canfileio.cpp      # 文件I/O测试
-├── test_filterengine.cpp   # 过滤引擎测试
-├── test_tracecore.cpp      # Trace核心测试
-├── test_dbc.cpp           # DBC解析测试
-├── test_sim_rec_play.cpp  # 采集/录制/回放测试
-├── test_market_driver.cpp # 市场驱动测试
-├── test_project.cpp       # 工程配置测试
-└── test_ui_offscreen.cpp  # UI无头测试
-```
+#### 移除的配置
+- 移除了 `enable_testing()` 调用
+- 移除了 `add_subdirectory(tests)` 调用
+- 简化了构建系统的复杂性
 
-#### 测试执行器配置
-**新增** 通过CTest集成测试执行：
-```cmake
-enable_testing()
-add_subdirectory(tests)
-```
+#### 原因说明
+测试框架的移除主要是为了：
+- 简化构建系统配置
+- 减少构建依赖
+- 专注于核心应用的构建稳定性
+- 避免MinGW环境下的测试框架兼容性问题
 
-#### 测试套件分类
-- **L1 核心逻辑测试**：使用QTEST_GUILESS_MAIN，隔离进程级单例状态
-- **L2 UI驱动测试**：使用offscreen模式驱动真实MainWindow
-
-### 测试目标配置
-**新增** 聚合测试目标和自动化部署：
-```cmake
-function(openbus_add_test name)
-    add_executable(test_${name} test_${name}.cpp)
-    target_compile_definitions(test_${name} PRIVATE
-        SIN_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-    target_link_libraries(test_${name} PRIVATE
-        openbus_data
-        Qt6::Test)
-    add_test(NAME ${name} COMMAND test_${name}
-             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-endfunction()
-```
-
-### 测试执行流程
-**新增** 完整的测试执行链：
-1. **构建阶段**：编译所有测试可执行文件
-2. **部署阶段**：自动复制Qt6Test.dll和平台插件
-3. **执行阶段**：通过ctest运行所有测试套件
-4. **报告阶段**：生成测试结果报告
-
-### 性能优化效果
-**新增** 测试框架带来的构建性能提升：
-- **thin archive支持**：静态库重打包时间从分钟级降至毫秒级
-- **增量构建优化**：修改单个文件后的重新构建时间显著减少
-- **并行测试执行**：支持多线程测试执行
+### 替代测试方案
+虽然CMake测试框架被移除，但项目仍可通过以下方式运行测试：
+- 直接编译测试可执行文件
+- 使用Python脚本进行手动测试
+- 通过CI/CD管道进行自动化测试
 
 **章节来源**
-- [CMakeLists.txt:83-86](file://CMakeLists.txt#L83-L86)
-- [tests/CMakeLists.txt:1-114](file://tests/CMakeLists.txt#L1-L114)
+- [CMakeLists.txt:90-93](file://CMakeLists.txt#L90-L93)
 
 ## 安装目标配置
 
@@ -634,8 +588,8 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/driver/"
 ```
 
 **章节来源**
-- [CMakeLists.txt:89-93](file://CMakeLists.txt#L89-L93)
-- [src/CMakeLists.txt:838-840](file://src/CMakeLists.txt#L838-L840)
+- [CMakeLists.txt:98-100](file://CMakeLists.txt#L98-L100)
+- [src/CMakeLists.txt:803-805](file://src/CMakeLists.txt#L803-L805)
 
 ## 自动化打包流水线
 
@@ -703,8 +657,7 @@ G --> R[Qt6::Svg]
    - 最后编译openbus_ui静态库和openbus可执行文件
 3. **链接阶段**: 链接所有依赖库生成最终可执行文件
 4. **安装阶段**: 将可执行文件、驱动文件和业务模块安装到指定目录
-5. **测试阶段**: 构建并执行所有测试套件
-6. **打包阶段**: 自动化打包和分发
+5. **打包阶段**: 自动化打包和分发
 
 ### 性能优化效果
 基于实际构建测试数据的性能基准：
@@ -736,6 +689,26 @@ G --> R[Qt6::Svg]
 - **PE格式支持**：相比gold链接器完全支持Windows PE格式
 - **稳定性保证**：不会产生损坏的可执行文件
 
+### MinGW AutoMoc修复效果
+**新增** AutoMoc修复带来的构建稳定性提升：
+
+#### 修复前的问题
+- AutoMoc子进程错误
+- GCC 13.1预处理失败（-dM -E）
+- 构建过程中断
+
+#### 修复后的效果
+- AutoMoc成功完成
+- 编译过程稳定
+- 构建时间可控
+
+#### 修复配置
+```cmake
+# MinGW AutoMoc 预处理器命令修复
+set(CMAKE_MOC_PREDEFS_CMD "")
+set(CMAKE_CXX_COMPILE_OPTIONS_PCH "")
+```
+
 ### 开发效率提升
 **新增** 开发vs发布配置的完整支持：
 - **Dev构建档**：-O1 -g1优化级别，适合日常开发
@@ -743,49 +716,16 @@ G --> R[Qt6::Svg]
 - **快速迭代**：修改单个文件后可在30秒内完成重新构建
 - **调试友好**：保留行号级调试信息，便于问题定位
 
-### **新增** 菜单栏组件构建优化
-**已更新** 菜单栏组件的构建配置优化：
-
-#### VSCode风格菜单栏架构
-项目现在包含两个主要的菜单栏组件：
-
-1. **MainMenuBar** - 传统菜单栏实现
-   - 位置：`src/ui/menubar/mainmenubar.h/.cpp`
-   - 功能：完整的VSCode风格菜单栏，包含File、Edit、Selection、View、Go、Run、Terminal、Help菜单
-   - 特性：六角色协同工作流深度集成，内置构建/测试/打包自动化
-
-2. **TopBar** - 顶部工具栏实现  
-   - 位置：`src/ui/menubar/topbar.h/.cpp`
-   - 功能：VSCode风格的顶部工具栏，包含搜索框、导航按钮、布局切换器
-   - 特性：窗口控制按钮、AI助手集成、响应式布局
-
-#### 构建系统集成
-菜单栏组件已完全集成到CMake构建系统中：
-
-```cmake
-# SRC_UI列表包含菜单栏源文件
-set(SRC_UI
-    ui/mainwindow.h
-    ui/mainwindow.cpp
-    # ... 其他UI文件
-    ui/menubar/mainmenubar.h
-    ui/menubar/mainmenubar.cpp
-    ui/menubar/topbar.h
-    ui/menubar/topbar.cpp
-    # ... 其他UI文件
-)
-```
-
-#### 编译性能优化
-为菜单栏组件添加了专门的预编译头配置，显著提升编译速度：
-- MainMenuBar专用PCH：包含QMenuBar、QMenu、QAction等常用Qt头
-- TopBar专用PCH：包含QWidget、QHBoxLayout、QToolButton等布局相关头
+### 构建系统简化
+**新增** 移除测试框架后的构建系统简化：
+- 减少了构建配置的复杂性
+- 提高了构建系统的可维护性
+- 避免了测试框架的兼容性问题
+- 专注于核心应用的构建稳定性
 
 **章节来源**
 - [src/CMakeLists.txt:756-782](file://src/CMakeLists.txt#L756-L782)
 - [src/CMakeLists.txt:198-210](file://src/CMakeLists.txt#L198-L210)
 - [doc/构建基线.md:22-39](file://doc/构建基线.md#L22-L39)
 - [doc/构建基线.md:137-208](file://doc/构建基线.md#L137-L208)
-- [scripts/build.py:26-30](file://scripts/build.py#L26-L30)
-- [src/ui/menubar/mainmenubar.h:12-24](file://src/ui/menubar/mainmenubar.h#L12-L24)
-- [src/ui/menubar/topbar.h:13-22](file://src/ui/menubar/topbar.h#L13-L22)
+- [Shell_AutoMoc_Fix_Guide.md:1-190](file://Shell_AutoMoc_Fix_Guide.md#L1-L190)
