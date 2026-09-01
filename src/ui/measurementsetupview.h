@@ -24,10 +24,10 @@ class QLabel;
  * @brief CANoe Measurement Setup 风格的可视化测量配置画布
  *
  * 以标签页形式展示，包含：
- *   - 工具栏：数据源切换(硬件/文件) | 开始/停止测量 | 文件选择
+ *   - 工具栏：数据源切换 (硬件/文件) | 开始/停止测量 | 文件选择
  *   - 大画布：QGraphicsScene 绘制流程拓扑
- *     数据源 → Filter 过滤（多 CAN 通道块收编为单块）→ DBC数据库
- *     → [Trace, Graphic, Watcher 观测, 录制]
+ *     数据源 → Filter 过滤（多 CAN 通道块收编为单块）→ DBC 数据库
+ *     → [Trace, Graphic, Watcher 观测，录制]
  *   - 块交互：未启用块单击 = 启用；已启用块单击/双击 = 进入配置；
  *     右键菜单 = 配置 / 启停 / 增删（数据流过滤统一在 Filter 块配置）
  *   - 模块块内展示已打开的实例列表，单击实例跳转对应标签页
@@ -126,7 +126,7 @@ private:
     qint64 m_lastClickTime = 0;          ///< 上次点击时刻（毫秒）
     static constexpr qint64 DOUBLE_CLICK_INTERVAL = 300;  ///< 双击时间窗口 (ms)
 
-    // ---- 数据流 / 异常指示（功能块状态灯） ----
+    // ---- 数据流/异常指示（功能块状态灯） ----
     QTimer *m_blinkTimer = nullptr;  ///< 灯闪烁相位驱动（500ms，仅有流/异常时运转）
     bool m_blinkOn = false;          ///< 当前闪烁相位（true = 亮）
     qint64 m_lastFrameMs = 0;        ///< 最近一帧到达时刻（数据流活跃判定）
@@ -187,7 +187,7 @@ private:
     void toggleBlock(const QString &id);
     /// 设置块使能状态（数据源块除外；变化时发 moduleToggled）
     void setBlockEnabled(const QString &id, bool enabled);
-    /// 块配置统一入口（已启用块单击 / 双击 / 右键「配置」共用）
+    /// 块配置统一入口（已启用块单击/双击/右键「配置」共用）
     void openBlockConfig(const QString &blockId);
 
     /// 查找点击位置所在的实例

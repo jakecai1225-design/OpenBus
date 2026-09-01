@@ -488,7 +488,19 @@ target_precompile_headers(openbus_dbc PRIVATE
 # ============================================================
 add_library(openbus_flow SHARED
     ui/measurementsetupview.h
-    ui/measurementsetupview.cpp
+    # Graphics items definition (shared internal header with Q_OBJECT)
+    ui/measurementsetupview.gfx.h
+    # MeasurementSetupView modular split (each file < 500 lines)
+    ui/measurementsetupview.ui.cpp
+    ui/measurementsetupview.render.cpp
+    ui/measurementsetupview.connections.cpp
+    ui/measurementsetupview.events.cpp
+    ui/measurementsetupview.dialogs.cpp
+    ui/measurementsetupview.utils.cpp
+    ui/measurementsetupview.menu.cpp
+    ui/measurementsetupview.toolbar.cpp
+    ui/measurementsetupview.module.cpp
+    
     ui/deviceconnectiontab.h
     ui/deviceconnectiontab.cpp
     ui/flowmodule.h
