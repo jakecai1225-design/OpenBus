@@ -11,6 +11,7 @@
 #include "core/protocol/protocolregistry.h"     // M3：注册表管道（doc/flow.md §13.4）
 #include "core/protocol/parserregistry.h"
 #include "core/protocol/busdefinitionstore.h"
+#include "utils/logging.h"
 
 #include <QPointer>
 #include <QFileDialog>

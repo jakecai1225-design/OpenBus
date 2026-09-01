@@ -1,6 +1,7 @@
 #include "measurementsetupview.h"
 #include "ui/thememanager.h"
 #include "utils/svg_icon.h"
+#include "utils/logging.h"
 #include <QToolBar>
 #include <QAction>
 #include <QToolButton>
@@ -1089,7 +1090,8 @@ void MeasurementSetupView::onSceneClicked(const QPointF &scenePos)
 
     // ✅ 统一交互规则：
     // - data source: Real、File 互斥，单击自动切换；signal_generator 独立开关
-    // - 功能块/模块块：单击仅切换使能状态
+    // - Filter/CAN parser/Watcher/Record：单击不操作，只允许双击打开配置
+    // - Trace/Graphic 独立块：单击切换使能状态
     if (b->category == "source") {
         if (b->id == "signal_generator") {
             // 信号发生器：独立的开关，可以手动启用/禁用
@@ -1102,8 +1104,13 @@ void MeasurementSetupView::onSceneClicked(const QPointF &scenePos)
             emit sourceChanged(static_cast<int>(newSrc));
             m_lastClickTime = now;  // 记录点击时间
         }
-    } else {
-        // 功能块/模块块：单击仅切换使能状态，不跳转
+    } else if (b->category == "filter" || b->category == "database" ||
+               b->id == "watcher" || b->id == "record") {
+        // ✅ Filter/CAN parser/Watcher/Record：单击切换使能状态，同时记录时间供双击判断
+        setBlockEnabled(b->id, !b->enabled);
+        m_lastClickTime = now;  // 记录点击时间
+    } else if (b->category == "module" && (b->moduleName == "trace" || b->moduleName == "graphic")) {
+        // Trace/Graphic 独立块：单击切换使能状态
         setBlockEnabled(b->id, !b->enabled);
         m_lastClickTime = now;  // 记录点击时间
     }
@@ -1137,19 +1144,24 @@ void MeasurementSetupView::onSceneDoubleClicked(const QPointF &scenePos)
                 emit sendPageOpened();
             }
         }
-    } else {
-        // 功能块/模块块：双击打开配置页
-        // ✅ 所有模块块双击都打开配置/Tab
-        if (isFastDoubleClick) {
-            // 检查是否是模块实例
-            QString moduleId, instanceId;
-            if (instanceAt(scenePos, moduleId, instanceId)) {
-                emit moduleOpened(moduleId, instanceId);
-            } else {
-                // 否则触发通用模块打开信号
-                emit moduleOpened(b->moduleName, QString());
-            }
+    } else if (b->category == "filter" || b->category == "database" || 
+               b->id == "watcher" || b->id == "record") {
+        // ✅ 配置类块：双击行为等效于右键菜单→选择配置项
+        //   - Filter 过滤块 (category="filter") → 右键→"配置过滤条件..." → showFilterConfigDialog()
+        //   - CAN parser 块 (category="database") → 右键→"选择 DBC 文件..." → showDbcSelectDialog()
+        //   - Watcher 观测块 (id="watcher") → 右键→"观测变量与统计设置..." → moduleOpened("watcher", "")
+        //   - Record 录制块 (id="record") → 右键→"配置录制参数..." → moduleOpened("record", "")
+        // ✅ 关键修复：Qt 的 sceneDoubleClicked 信号已经保证是双击事件，不需要 isFastDoubleClick 判断
+        {
+            emit moduleOpened(b->id, "");
         }
+    } else if (b->category == "module" && (b->moduleName == "trace" || b->moduleName == "graphic")) {
+        // ✅ Trace / Graphic 独立块 (如 trace1, graphic1)
+        // 双击直接跳转到该块对应的标签页（移除添加同类块的错误关联）
+        if (isFastDoubleClick) {
+            emit moduleOpened(b->moduleName, b->id);
+        }
+        return;
     }
 }
 

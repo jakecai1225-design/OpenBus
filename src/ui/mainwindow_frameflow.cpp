@@ -15,7 +15,7 @@
 #include "ui/panels/sidebarpanels.h"
 #include "ui/measurementsetupview.h"  // Flow 画布视图（双击 Filter/CAN parser 块时调用）
 #include "ui/dbcsignalpickerdialog.h"  // Graphic 侧栏「添加信号」弹窗（DBC 信号搜索/多选）
-#include "ui/watcherview.h"            // Watcher 观测页（喂帧/复位直调，doc/Watcher方案.md）
+#include "ui/watcherview.h"            // Watcher 观测页（喂帧/复位直调，doc/Watcher 方案.md）
 #include "ui/thememanager.h"
 #include "ui/bottompanel.h"
 #include "ui/rightpanel.h"
@@ -48,6 +48,7 @@
 #include "ui/settingspage.h"
 #include "ui/shortcutspage.h"
 #include "core/file_import/file_importer.h"
+#include "utils/logging.h"
 #include "core/plugin/pluginmanager.h"
 #include "core/plugin/plugininfo.h"
 #include "models/viewportproxy.h"
