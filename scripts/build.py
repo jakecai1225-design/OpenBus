@@ -26,7 +26,34 @@ Dev 快速构建档 (日常开发，-O1 -g1，独立目录与全量 Debug 并存
   python scripts/build.py configure --build-type Dev --build-dir build-dev
   python scripts/build.py build --build-dir build-dev -j8
   python scripts/build.py run --build-dir build-dev
-"""
+
+跨电脑/多环境配置:
+  ============================
+  
+  本脚本自动检测并适配不同电脑的 Qt、MinGW、CMake 安装路径。
+  检测到错误时会自动提示可用的工具路径候选。
+  
+  环境变量（优先级最高）:
+    set SIN_QT_DIR=D:/Qt/6.10.1/mingw_64
+    set SIN_MINGW_DIR=D:/Qt/Tools/mingw1107_64
+    set SIN_CMAKE_DIR=C:/Program Files/CMake
+  
+  命令行参数（临时指定）:
+    python scripts/build.py configure --qt-dir D:/Qt/6.10.1/mingw_64 --mingw-dir D:/Qt/Tools/mingw1107_64
+  
+  自动检测逻辑:
+    1. 优先使用环境变量指定路径
+    2. 其次检查之前构建的 CMakeCache.txt 中的路径
+    3. 扫描常见安装位置：C/D/E 盘的多个版本
+    4. 使用内置默认值作为最终回退
+  
+  支持的自动检测位置:
+    Qt6: C:/Qt/6.x.x/mingw_64, D:/Qt/6.x.x/mingw_64, E:/Qt/6.x.x/mingw_64
+    MinGW: C:/Qt/Tools/mingw*, D:/Qt/Tools/mingw*, E:/Qt/Tools/mingw*
+    CMake: C:/Program Files/CMake, D:/Program Files/CMake, Scoop 安装等
+  
+注意：不使用 ccache (与 PCH 不兼容) 和 LLD (文件锁问题)
+        """
 
 import argparse
 import ctypes
@@ -67,8 +94,124 @@ EXECUTABLE = BUILD_DIR / "bin" / "openbus.exe"
 TOOLS_DIR = PROJECT_ROOT / "tools"
 
 
+# ============================================================
+#  自动检测工具路径
+# ============================================================
+
+def _find_qt_dirs():
+    """返回所有可能的 Qt6 安装路径（按优先级排序）"""
+    candidates = []
+    
+    # Qt for Python (PySide) 标准路径
+    qt_for_python_paths = [
+        Path("C:/Qt/6.11.2/mingw_64"),
+        Path("C:/Qt/6.10.1/mingw_64"),
+        Path("C:/Qt/6.9.3/mingw_64"),
+        Path("C:/Qt/6.8.3/mingw_64"),
+        Path("D:/Qt/6.11.2/mingw_64"),
+        Path("D:/Qt/6.10.1/mingw_64"),
+        Path("E:/Qt/6.11.2/mingw_64"),
+    ]
+    
+    # 检查 CMake Cache（如果之前构建过）
+    cache_file = PROJECT_ROOT / "build" / "CMakeCache.txt"
+    if cache_file.exists():
+        try:
+            content = cache_file.read_text(encoding="utf-8")
+            for line in content.splitlines():
+                if line.startswith("CMAKE_PREFIX_PATH:"):  
+                    import re
+                    match = re.search(r'CMAKE_PREFIX_PATH:STRING=(.+)', line)
+                    if match:
+                        path = Path(match.group(1))
+                        if path.exists() and (path / "bin" / "qmake.exe").exists():
+                            if path not in candidates:
+                                candidates.insert(0, path)
+        except Exception:
+            pass
+    
+    # 添加到候选列表
+    for p in qt_for_python_paths:
+        if p.exists() and (p / "bin" / "qmake.exe").exists():
+            if p not in candidates:
+                candidates.append(p)
+    
+    # 如果没有找到，尝试从环境变量读取
+    env_qt = os.environ.get("SIN_QT_DIR")
+    if env_qt:
+        env_path = Path(env_qt)
+        if env_path.exists() and (env_path / "bin" / "qmake.exe").exists():
+            if env_path not in candidates:
+                candidates.insert(0, env_path)
+    
+    return candidates
+
+
+def _find_mingw_dirs():
+    """返回所有可能的 MinGW 路径（按优先级排序）"""
+    candidates = []
+    
+    # MinGW 路径模板
+    mingw_paths = [
+        Path("C:/Qt/Tools/mingw1310_64"),
+        Path("C:/Qt/Tools/gcc_64"),
+        Path("C:/Qt/Tools/mingw1107_64"),
+        Path("C:/Qt/Tools/mingw10_32"),
+        Path("D:/Qt/Tools/mingw1310_64"),
+        Path("D:/Qt/Tools/mingw1107_64"),
+        Path("E:/Qt/Tools/mingw1310_64"),
+    ]
+    
+    # 检查环境变量
+    env_mingw = os.environ.get("SIN_MINGW_DIR")
+    if env_mingw:
+        env_path = Path(env_mingw)
+        if env_path.exists() and (env_path / "bin" / "g++.exe").exists():
+            if env_path not in candidates:
+                candidates.insert(0, env_path)
+    else:
+        # 没有环境变量时，从候选列表中查找
+        for p in mingw_paths:
+            if p.exists() and (p / "bin" / "g++.exe").exists():
+                candidates.append(p)
+    
+    return candidates
+
+
+def _find_cmake_dirs():
+    """返回所有可能的 CMake 路径（按优先级排序）"""
+    candidates = []
+    
+    # CMake 路径模板
+    cmake_paths = [
+        Path("C:/Program Files/CMake"),
+        Path("C:/Program Files (x86)/CMake"),
+        Path("D:/Program Files/CMake"),
+        Path("D:/Program Files (x86)/CMake"),
+        Path(r"C:/Users/Developer/scoop/apps/cmake/current"),
+        Path(r"C:/Users/Developer/scoop/shims"),  # scoop 安装的 cmake
+        Path("C:/tools/cmake-3.30.3-windows-x86_64"),  # portable cmake
+        Path("C:/tools/cmake"),  # generic portable path
+    ]
+    
+    # 检查环境变量
+    env_cmake = os.environ.get("SIN_CMAKE_DIR")
+    if env_cmake:
+        env_path = Path(env_cmake)
+        if env_path.exists() and (env_path / "bin" / "cmake.exe").exists():
+            if env_path not in candidates:
+                candidates.insert(0, env_path)
+    else:
+        # 没有环境变量时，从候选列表中查找
+        for p in cmake_paths:
+            if p.exists() and (p / "bin" / "cmake.exe").exists():
+                candidates.append(p)
+    
+    return candidates
+
+
 def set_build_dir(name):
-    """切换构建目录（--build-dir build-dev 等），同步更新可执行文件路径
+    """切换构建目录 (--build-dir build-dev 等)，同步更新可执行文件路径
 
     允许 Dev 档 (build-dev/) 与全量 Debug (build/) 并存，避免切档全量重编。
     """
@@ -77,10 +220,42 @@ def set_build_dir(name):
     BUILD_DIR = bd if bd.is_absolute() else PROJECT_ROOT / bd
     EXECUTABLE = BUILD_DIR / "bin" / "openbus.exe"
 
-# 默认工具路径 (可通过环境变量或 --qt-dir / --mingw-dir / --cmake-dir 覆盖)
-DEFAULT_QT_DIR = Path(os.environ.get("SIN_QT_DIR", "C:/Qt/6.11.2/mingw_64"))
-DEFAULT_MINGW_DIR = Path(os.environ.get("SIN_MINGW_DIR", "C:/Qt/Tools/mingw1310_64"))
-DEFAULT_CMAKE_DIR = Path(os.environ.get("SIN_CMAKE_DIR", "C:/Program Files/CMake"))
+def get_preferred_tool(finders, name, required=True):
+    """从多个候选位置中选择一个可用的工具路径
+    
+    Args:
+        finders: 函数列表，每个函数返回一个路径列表（按优先级）
+        name: 工具名称（用于错误信息）
+        required: 是否必须找到该工具
+    
+    Returns:
+        最佳匹配的路径
+    """
+    all_candidates = []
+    for finder in finders:
+        try:
+            candidates = finder()
+            if candidates:
+                all_candidates.extend(candidates)
+        except Exception:
+            pass
+    
+    if all_candidates:
+        return all_candidates[0]  # 返回第一个找到的
+    elif required:
+        raise RuntimeError(f"{name} 未找到，请通过环境变量指定")
+    else:
+        return None
+
+
+# 使用自动检测功能设置默认工具路径
+_default_qt_dirs = _find_qt_dirs()
+_default_mingw_dirs = _find_mingw_dirs()
+_default_cmake_dirs = _find_cmake_dirs()
+
+DEFAULT_QT_DIR = get_preferred_tool([lambda: _default_qt_dirs], "Qt6", required=False) or Path("C:/Qt/6.11.2/mingw_64")
+DEFAULT_MINGW_DIR = get_preferred_tool([lambda: _default_mingw_dirs], "MinGW", required=False) or Path("C:/Qt/Tools/mingw1310_64")
+DEFAULT_CMAKE_DIR = get_preferred_tool([lambda: _default_cmake_dirs], "CMake", required=False) or Path("C:/Program Files/CMake")
 
 # Dev: 日常开发档 (-O1 -g1，见根 CMakeLists.txt)，建议配合 --build-dir build-dev
 BUILD_TYPES = ["Dev", "Debug", "Release", "RelWithDebInfo", "MinSizeRel"]
@@ -175,23 +350,27 @@ class Environment:
 
     def setup_path(self):
         """将工具路径加入 PATH
-
-        关键: MinGW bin 必须在 PATH 中，否则 cc1plus.exe 找不到
+    
+        关键：MinGW bin 必须在 PATH 中，否则 cc1plus.exe 找不到
         libgcc_s_seh-1.dll / libstdc++-6.dll / libwinpthread-1.dll 等 DLL
-        会导致编译器静默崩溃（STATUS_DLL_NOT_FOUND, 退出码 -1073741515）
+        会导致编译器静默崩溃（STATUS_DLL_NOT_FOUND，退出码 -1073741515）
         """
         prepend = [str(self.cmake_bin), str(self.mingw_bin), str(self.qt_bin)]
-        if self.use_ninja:
+        if self.use_ninja and self.ninja:
             prepend.insert(0, str(self.ninja.parent))
         os.environ["PATH"] = os.pathsep.join(prepend) + os.pathsep + os.environ.get("PATH", "")
-
+    
     def print_accel_info(self):
         """打印构建工具状态"""
+        info(f"Qt6:           {self.qt_dir}")
+        info(f"MinGW:         {self.mingw_dir}")
+        info(f"CMake:         {self.cmake_dir}")
+            
         if self.use_ninja:
-            ok("构建系统: Ninja")
+            ok(f"构建系统：Ninja ({self.ninja})")
         else:
             warn("未检测到 Ninja，使用 MinGW Makefiles（较慢）")
-
+    
     def _check(self, path, name, required=True):
         exists = path.exists()
         if exists:
@@ -201,17 +380,55 @@ class Environment:
         else:
             warn(f"{name:12s} {path} (未找到，可选)")
         return exists or not required
-
-    def verify(self):
-        """检查必需工具是否存在"""
+    
+    def verify(self, auto_fix=False):
+        """检查必需工具是否存在，并提供修复建议"""
         header("工具检查")
         all_ok = True
-        all_ok &= self._check(self.cmake, "CMake")
-        all_ok &= self._check(self.cxx, "g++")
-        all_ok &= self._check(self.cc, "gcc")
-        all_ok &= self._check(self.windeployqt, "windeployqt")
-        self._check(self.gdb, "gdb", required=False)
-        return all_ok
+            
+        # 基础工具检查
+        cmake_found = self._check(self.cmake, "CMake")
+        gpp_found = self._check(self.cxx, "g++")
+        gcc_found = self._check(self.cc, "gcc")
+        windeployqt_found = self._check(self.windeployqt, "windeployqt")
+        gdb_found = self._check(self.gdb, "gdb", required=False)
+            
+        # 如果发现问题并启用自动修复
+        if auto_fix and not all_ok:
+            self._auto_fix_candidates()
+            
+        return cmake_found and gpp_found and gcc_found and windeployqt_found
+        
+    def _auto_fix_candidates(self):
+        """提供可用的工具路径候选"""
+        print(f"\n{C.YELLOW}检测到以下可用工具路径:{C.RESET}")
+            
+        # Qt 候选
+        if not self.windeployqt.exists():
+            qt_candidates = _find_qt_dirs()
+            if qt_candidates:
+                warn(f"当前 Qt 目录不可用：{self.qt_dir}")
+                for i, qd in enumerate(qt_candidates[:3], 1):
+                    print(f"  {i}. {qd}")
+                print(f"  提示：使用 --qt-dir <路径> 指定正确的 Qt 路径\n")
+            
+        # MinGW 候选
+        if not self.cxx.exists():
+            mingw_candidates = _find_mingw_dirs()
+            if mingw_candidates:
+                warn(f"当前 MinGW 目录不可用：{self.mingw_dir}")
+                for i, md in enumerate(mingw_candidates[:3], 1):
+                    print(f"  {i}. {md}")
+                print(f"  提示：使用 --mingw-dir <路径> 指定正确的 MinGW 路径\n")
+            
+        # CMake 候选
+        if not self.cmake.exists():
+            cmake_candidates = _find_cmake_dirs()
+            if cmake_candidates:
+                warn(f"当前 CMake 目录不可用：{self.cmake_dir}")
+                for i, cd in enumerate(cmake_candidates[:3], 1):
+                    print(f"  {i}. {cd}")
+                print(f"  提示：使用 --cmake-dir <路径> 指定正确的 CMake 路径\n")
 
 
 def run_cmd(cmd, cwd=None, check=True):
@@ -245,12 +462,51 @@ def cmd_configure(env, args):
 
     env.print_accel_info()
 
-    if getattr(args, "clean", False) and BUILD_DIR.exists():
+    # 如果要求 clean，先清理旧缓存
+    if getattr(args, "clean", False):
         info("清理旧构建目录...")
-        shutil.rmtree(BUILD_DIR)
+        if BUILD_DIR.exists():
+            shutil.rmtree(BUILD_DIR)
+            ok(f"已删除：{BUILD_DIR}")
+
+    # 检查缓存文件是否与其他项目冲突（仅在未启用 --clean 时）
+    cache_file = BUILD_DIR / "CMakeCache.txt"
+    if cache_file.exists() and not getattr(args, "clean", False):
+        try:
+            content = cache_file.read_text(encoding="utf-8", errors="ignore")
+            for line in content.splitlines():
+                # 检查是否来自其他源目录的缓存
+                if (line.startswith("# CMake Cache Directory") or 
+                    line.startswith("# CMAKE_SOURCE_DIR:")):
+                    # 查找所有以#开头和源码相关的行
+                    break
+            
+            # 检查是否有 CMAKE_SOURCE_DIR 且与当前项目不匹配
+            current_source = PROJECT_ROOT.as_posix()
+            for line in content.splitlines():
+                if line.startswith("CMAKE_SOURCE_DIR:STATIC="):
+                    old_source = line.split("=", 1)[1].strip().strip('"')
+                    if old_source != current_source:
+                        fail(f"检测到旧的缓存文件：")
+                        fail(f"  之前构建自：{old_source}")
+                        fail(f"  当前项目：  {current_source}")
+                        fail("")
+                        fail("请执行以下操作之一：")
+                        fail("  1. python scripts/build.py configure --clean")
+                        fail("  2. 手动删除 build/ 目录后重新配置")
+                        sys.exit(1)
+        except Exception as e:
+            warn(f"读取缓存文件失败：{e}")
 
     build_type = getattr(args, "build_type", "Debug")
-    info(f"构建类型: {build_type}")
+    info(f"构建类型：{build_type}")
+        
+    # 如果存在冲突的缓存文件且未指定 --clean，提示用户清理
+    if cache_file.exists() and not getattr(args, "clean", False):
+        fail("检测到与之前项目的冲突缓存，请执行以下操作之一：")
+        fail("  1. 使用 --clean 参数重新配置 (推荐)")
+        fail("  2. 手动删除 build/ 目录后重试")
+        sys.exit(1)
 
     cmd = [
         str(env.cmake),
@@ -443,12 +699,13 @@ def cmd_all(env, args):
 def cmd_status(env, args):
     """显示环境与构建状态"""
     header("环境状态")
-    print(f"  项目根目录:  {PROJECT_ROOT}")
-    print(f"  构建目录:    {BUILD_DIR}  {'[已存在]' if BUILD_DIR.exists() else '[未创建]'}")
-    print(f"  可执行文件:  {EXECUTABLE}  {'[已存在]' if EXECUTABLE.exists() else '[未构建]'}")
+    print(f"  项目根目录：{PROJECT_ROOT}")
+    print(f"  构建目录：   {BUILD_DIR}  {'[已存在]' if BUILD_DIR.exists() else '[未创建]'}")
+    print(f"  可执行文件：{EXECUTABLE}  {'[已存在]' if EXECUTABLE.exists() else '[未构建]'}")
     print()
 
-    env.verify()
+    auto_fix = getattr(args, 'auto_fix', False)
+    env.verify(auto_fix=auto_fix)
     env.print_accel_info()
 
     # 读取构建类型
@@ -571,14 +828,27 @@ def main():
   python scripts/build.py status                          环境状态
   python scripts/build.py open                            打开输出目录
 
+多电脑/多环境配置示例:
+  # 使用命令行参数指定不同路径（适用于不同电脑的配置）
+  python scripts/build.py configure --qt-dir D:/Qt/6.10.1/mingw_64 --mingw-dir D:/Qt/Tools/mingw1107_64
+  
+  # 使用环境变量（推荐用于固定环境）
+  set SIN_QT_DIR=D:/Qt/6.10.1/mingw_64
+  set SIN_MINGW_DIR=D:/Qt/Tools/mingw1107_64
+  set SIN_CMAKE_DIR=C:/Program Files/CMake
+  python scripts/build.py configure
+
 注意：不使用 ccache (与 PCH 不兼容) 和 LLD (文件锁问题)
         """,
     )
 
     # 全局选项 (所有子命令可用；--build-dir 也可放在子命令之后)
-    parser.add_argument("--qt-dir", default=None, help=f"Qt6 路径 (默认: {DEFAULT_QT_DIR})")
-    parser.add_argument("--mingw-dir", default=None, help=f"MinGW 路径 (默认: {DEFAULT_MINGW_DIR})")
-    parser.add_argument("--cmake-dir", default=None, help=f"CMake 路径 (默认: {DEFAULT_CMAKE_DIR})")
+    parser.add_argument("--qt-dir", default=None,
+                        help=f"Qt6 路径\n默认：{DEFAULT_QT_DIR}\n自动检测 C/D/E 盘多个版本")
+    parser.add_argument("--mingw-dir", default=None,
+                        help=f"MinGW 路径\n默认：{DEFAULT_MINGW_DIR}\n自动检测多个编译器版本")
+    parser.add_argument("--cmake-dir", default=None,
+                        help=f"CMake 路径\n默认：{DEFAULT_CMAKE_DIR}\n自动检测安装位置")
     parser.add_argument("--build-dir", default="build",
                         help="构建目录 (默认: build；Dev 档建议 build-dev，可与全量 Debug 并存)")
 
@@ -591,7 +861,8 @@ def main():
     # configure
     p = sub.add_parser("configure", help="CMake 配置")
     p.add_argument("--build-type", choices=BUILD_TYPES, default="Debug")
-    p.add_argument("--clean", action="store_true", help="配置前清理构建目录")
+    p.add_argument("--clean", action="store_true",
+                   help="配置前完全清理构建目录（包括 CMakeCache.txt）")
     p.add_argument("-D", "--define", action="append", default=[], metavar="VAR=VALUE",
                    help="额外 CMake 缓存定义 (如 -DTRY_GOLD=ON)，可多次使用")
     add_build_dir_opt(p)
@@ -642,6 +913,8 @@ def main():
 
     # status
     p = sub.add_parser("status", help="显示环境状态")
+    p.add_argument("--auto-fix", action="store_true",
+                   help="当检测到缺失工具时显示可用路径候选")
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_status)
 
