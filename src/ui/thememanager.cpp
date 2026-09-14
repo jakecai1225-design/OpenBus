@@ -23,31 +23,52 @@ ThemeManager::ThemeManager(QObject *parent)
 
 void ThemeManager::initThemes()
 {
-    // ===== Light =====
+    // Light only — unified surfaces so Trace / Graphic / chrome share one palette
     Theme light;
     light.name = "Light";
-    light.windowBg = "#f8f8f8";  light.contentBg = "#ffffff";  light.sidebarBg = "#f3f3f3";
-    light.panelBg = "#ececec";
-    light.barBg = "#dddddd";      light.barFg = "#333333";      light.barHover = "#d0d0d0";
-    light.barBorder = "#c4c4c4";
-    light.activityBarBg = "#dcdcdc";  light.activityBarFg = "#5c5c5c";  light.activityBarHover = "#cfcfcf";
-    light.text = "#3b3b3b";      light.textDim = "#6c6c6c";
-    light.accent = "#0066b8";     light.accentHover = "#1f7ad3"; light.accentBorder = "#005a9e";
-    light.border = "#d0d0d0";    light.borderDim = "#e4e4e4";
-    light.selectionBg = "#d6ebff"; light.hoverBg = "#eaeaea";
-    light.buttonBg = "#ececec";  light.buttonHover = "#dcdcdc"; light.buttonPress = "#cccccc";
-    light.buttonDisabledBg = "#f0f0f0"; light.buttonDisabledText = "#b0b0b0";
-    light.statusBg = "#0066b8";  light.statusFg = "#ffffff";
-    light.terminalBg = "#1e1e1e"; light.terminalFg = "#d4d4d4";
-    light.tabBg = "#ececec";     light.tabActiveBg = "#ffffff"; light.tabHoverBg = "#dcdcdc";
-    light.scrollBg = "#f8f8f8";  light.scrollHandle = "#c8c8c8"; light.scrollHandleHover = "#a0a0a0";
-    light.closeBtnHover = "#e81123"; light.closeBtnPress = "#f1707a";
-    light.headerBg = "#f0f0f0";  light.headerHover = "#e8e8e8";
+    light.windowBg = "#ffffff";
+    light.contentBg = "#ffffff";
+    light.sidebarBg = "#f8f8f8";
+    light.panelBg = "#f3f3f3";
+    light.barBg = "#f3f3f3";
+    light.barFg = "#3b3b3b";
+    light.barHover = "#e8e8e8";
+    light.barBorder = "#e5e5e5";
+    light.activityBarBg = "#f3f3f3";
+    light.activityBarFg = "#616161";
+    light.activityBarHover = "#e8e8e8";
+    light.text = "#3b3b3b";
+    light.textDim = "#6c6c6c";
+    light.accent = "#005fb8";
+    light.accentHover = "#1f7ad3";
+    light.accentBorder = "#005a9e";
+    light.border = "#e5e5e5";
+    light.borderDim = "#ececec";
+    light.selectionBg = "#cce8ff";
+    light.hoverBg = "#f0f0f0";
+    light.buttonBg = "#e8e8e8";
+    light.buttonHover = "#dadada";
+    light.buttonPress = "#cccccc";
+    light.buttonDisabledBg = "#f0f0f0";
+    light.buttonDisabledText = "#b0b0b0";
+    light.statusBg = "#005fb8";
+    light.statusFg = "#ffffff";
+    // Match workbench (no dark terminal island in light UI)
+    light.terminalBg = "#ffffff";
+    light.terminalFg = "#3b3b3b";
+    light.tabBg = "#f3f3f3";
+    light.tabActiveBg = "#ffffff";
+    light.tabHoverBg = "#e8e8e8";
+    light.scrollBg = "#f8f8f8";
+    light.scrollHandle = "#c8c8c8";
+    light.scrollHandleHover = "#a0a0a0";
+    light.closeBtnHover = "#e81123";
+    light.closeBtnPress = "#f1707a";
+    light.headerBg = "#f0f0f0";
+    light.headerHover = "#e8e8e8";
     light.altRowBg = "#fafafa";
     m_themes.append({light.name, light});
 
-    // 仅保留 Light 一套配色 — 其余主题存在大量未覆盖的硬编码浅色区域
-    // （黑一块白一块），在全面适配前不再提供
     m_currentName = "Light";
 }
 
@@ -71,23 +92,12 @@ const Theme &ThemeManager::currentTheme() const
 
 void ThemeManager::applyTheme(const QString &name)
 {
-    // 仅保留 Light 一套配色；name 未命中时回退到首个（唯一）主题，
-    // 避免历史调用传入已删除的主题名导致界面无样式
-    const Theme *sel = nullptr;
-    for (const auto &p : m_themes) {
-        if (p.first == name) {
-            m_currentName = p.first;
-            sel = &p.second;
-            break;
-        }
-    }
-    if (!sel) {
-        if (m_themes.isEmpty())
-            return;
-        m_currentName = m_themes.first().first;
-        sel = &m_themes.first().second;
-    }
-    const Theme &t = *sel;
+    // Light-only: any name (incl. legacy "Dark Modern") maps to Light
+    Q_UNUSED(name);
+    if (m_themes.isEmpty())
+        return;
+    m_currentName = m_themes.first().first;
+    const Theme &t = m_themes.first().second;
 
     qApp->setStyleSheet(generateQss(t));
 

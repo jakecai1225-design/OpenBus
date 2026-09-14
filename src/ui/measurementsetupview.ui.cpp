@@ -149,7 +149,7 @@ void MeasurementSetupView::buildTopology()
     
     BlockItem filt;
     filt.id = "filter";
-    filt.title = QStringLiteral("Filter 过滤");
+    filt.title = QStringLiteral("Filter");
     filt.icon = "";
     filt.category = "filter";
     filt.moduleName = "filter";

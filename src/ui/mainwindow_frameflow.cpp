@@ -13,9 +13,8 @@
 #include "models/cantraceproxymodel.h"
 #include "ui/activitybar.h"
 #include "ui/panels/sidebarpanels.h"
-#include "ui/measurementsetupview.h"  // Flow 画布视图（双击 Filter/CAN parser 块时调用）
-#include "ui/dbcsignalpickerdialog.h"  // Graphic 侧栏「添加信号」弹窗（DBC 信号搜索/多选）
-#include "ui/watcherview.h"            // Watcher 观测页（喂帧/复位直调，doc/Watcher 方案.md）
+#include "ui/measurementsetupview.h"  // Flow canvas (Filter / CAN parser double-click)
+#include "ui/watcherview.h"            // Watcher page (frame feed / reset)
 #include "ui/thememanager.h"
 #include "ui/bottompanel.h"
 #include "ui/rightpanel.h"
@@ -219,55 +218,8 @@ void MainWindow::onFrameAddToGraphic(const CanFrame &frame)
             .arg(msg->signalList.size()).arg(frame.id, 0, 16).toUpper());
 }
 
-void MainWindow::onGraphicAddSignalRequested()
-{
-    // Graphic 侧栏「添加信号」：DBC 信号选择弹窗（搜索 / 树形浏览 / Ctrl+Shift
-    // 多选）→ resolveGraphicTarget（无则新建）→ graphic 模块 addSignals 批量添加
-    if (m_dbcManager->files().isEmpty()) {
-        m_bottomPanel->appendOutput(
-            QStringLiteral("尚未加载 DBC 数据库 — 请先在数据库面板加载文件"));
-        return;
-    }
-
-    DbcSignalPickerDialog dlg(m_dbcManager, QString(), this);  // 缺省标题「添加信号到 Graphic」
-    if (dlg.exec() != QDialog::Accepted)
-        return;
-
-    const auto picked = dlg.pickedSignals();
-    if (picked.isEmpty())
-        return;
-
-    QWidget *targetGv = resolveGraphicTarget();
-    if (!targetGv)
-        return;
-
-    QVariantList sigMaps;
-    QSet<QString> msgSources;   // 来源报文统计（输出提示用）
-    for (const auto &p : picked) {
-        sigMaps.append(buildSignalMap(p.canId, p.extended, p.signal.name, p.signal));
-        msgSources.insert(QStringLiteral("%1::%2").arg(p.fileName, p.messageName));
-    }
-    graphicInvoke(QStringLiteral("addSignals"),
-                  QVariantList{ QVariant::fromValue(targetGv), sigMaps });
-
-    // 切换到目标 Graphic 标签页（与 onFrameDoubleClicked 行为对齐）
-    if (auto *tabs = m_editorArea->activeTabWidget()) {
-        for (int i = 0; i < tabs->count(); ++i) {
-            if (tabs->widget(i) == targetGv) {
-                tabs->setCurrentIndex(i);
-                m_tabLabel->setText(tabs->tabText(i));
-                break;
-            }
-        }
-    }
-
-    m_bottomPanel->appendOutput(
-        QStringLiteral("已添加 %1 个信号到 Graphic（来自 %2 个报文）")
-            .arg(picked.size()).arg(msgSources.size()));
-}
-
 // ============================================================
-//  回放
+//  Playback
 // ============================================================
 
 void MainWindow::onPlayerProgress(int cur, int total, double curTime, double totalTime)

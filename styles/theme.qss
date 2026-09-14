@@ -8,8 +8,11 @@
 QMainWindow { background-color: @windowBg; }
 QWidget { font-size: 13px; color: @text; }
 
-/* ---- 菜单栏 (兼标题栏, 32px) ---- */
-QMenuBar { background-color: @barBg; color: @barFg; border: none; padding: 0; min-height: 32px; }
+/* ---- Menu bar (also title bar, 32px) — bottom divider like VS Code ---- */
+QMenuBar {
+    background-color: @barBg; color: @barFg; border: none;
+    border-bottom: 1px solid @border; padding: 0; min-height: 32px;
+}
 QMenuBar::item { background: transparent; padding: 0 12px; margin: 4px 0; border-radius: 0; }
 QMenuBar::item:selected { background-color: @barHover; }
 QMenuBar::item:pressed { background-color: @accent; }
@@ -21,12 +24,12 @@ QMenu::separator { height: 1px; background-color: @borderDim; margin: 4px 8px; }
 
 /* ---- DockWidget ---- */
 QDockWidget { titlebar-close-icon: none; titlebar-normal-icon: none; background-color: @sidebarBg; }
-QDockWidget::title { background-color: @panelBg; padding: 0; border: none; }
-#LeftContainer { background-color: @sidebarBg; }
+QDockWidget::title { background-color: @panelBg; padding: 0; border: none; border-bottom: 1px solid @border; }
+#LeftContainer { background-color: @sidebarBg; border-right: 1px solid @border; }
 #LeftDock { background-color: @sidebarBg; border: none; }
 #BottomDock { background-color: @sidebarBg; border: none; }
 #RightDock { background-color: @sidebarBg; border: none; }
-#SideBar { background-color: @sidebarBg; }
+#SideBar { background-color: @sidebarBg; border: none; }
 SidePanel { background-color: @sidebarBg; }
 
 /* ---- 面板标题 (统一: 30px 高) ---- */
@@ -39,6 +42,16 @@ SidePanel { background-color: @sidebarBg; }
 /* ---- 侧边栏通用控件 ---- */
 #SidePanelSubTitle { font-weight: 600; padding: 6px 12px; color: @textDim; font-size: 12px; }
 #SidePanelButton { text-align: left; padding: 8px 12px; font-size: 13px; }
+
+/* 侧栏底部动作按钮（VS Code 风格：扁平无框，悬停高亮；如设备面板「扫描设备」） */
+#SidePanelFooterButton {
+    background-color: transparent; color: @text;
+    border: none; border-radius: 3px;
+    padding: 6px 12px; font-size: 13px; text-align: left;
+}
+#SidePanelFooterButton:hover { background-color: @hoverBg; border: none; }
+#SidePanelFooterButton:pressed { background-color: @buttonPress; }
+#SidePanelFooterButton:disabled { color: @buttonDisabledText; background-color: transparent; }
 #SidePanelHint { padding: 8px 12px; color: @textDim; font-size: 12px; }
 #SidePanelInfo { color: @textDim; font-size: 12px; padding: 4px 12px; }
 #DimLabel { color: @textDim; font-size: 12px; }
@@ -57,29 +70,50 @@ SidePanel { background-color: @sidebarBg; }
 #DbcDetailComment { color: @textDim; font-style: italic; padding: 1px 0; }
 #DbcDetailPlaceholder { color: @textDim; font-size: 14px; }
 
-/* ---- 列表 / 树 ---- */
+/* ---- 列表 / 树 (VS Code Explorer 风格: 紧凑行高 + 圆角悬停/选中) ---- */
 #ProjectList { background-color: @sidebarBg; border: none; outline: none; font-size: 13px; }
-#ProjectList::item { padding: 5px 12px; min-height: 24px; border: none; }
+#ProjectList::item { padding: 4px 12px; min-height: 24px; border: none; border-radius: 4px; }
 #ProjectList::item:hover { background-color: @hoverBg; }
 #ProjectList::item:selected { background-color: @selectionBg; color: @text; }
 
-QTreeWidget { background-color: @sidebarBg; border: none; outline: none; font-size: 13px; }
-QTreeWidget::item { padding: 4px 6px; min-height: 24px; border: none; }
-QTreeWidget::item:hover { background-color: @hoverBg; }
-QTreeWidget::item:selected { background-color: @selectionBg; color: @text; }
-QTreeWidget::branch { background: transparent; }
-QTreeWidget::branch:has-siblings:!adjoins-item { background: transparent; }
+QTreeWidget, QTreeView {
+    background-color: @sidebarBg; border: none; outline: none; font-size: 13px;
+}
+QTreeWidget::item, QTreeView::item { padding: 3px 6px; min-height: 24px; border: none; border-radius: 4px; }
+QTreeWidget::item:hover, QTreeView::item:hover { background-color: @hoverBg; }
+QTreeWidget::item:selected, QTreeView::item:selected { background-color: @selectionBg; color: @text; }
+QTreeWidget::item:alternate, QTreeView::item:alternate { background-color: @altRowBg; }
+
+/* 内容区树 (DBC 信号树等): 带淡边框形成边界 */
+#ContentTree {
+    background-color: @contentBg; border: 1px solid @border; border-radius: 4px;
+    outline: none; font-size: 12px;
+}
+
+/* 树形分支: VS Code 风格展开箭头 + 缩进参考线 (主题色图标由 ThemeManager 生成注入)
+   注意顺序: 参考线规则在前，箭头规则在后 (箭头位置优先) */
+QTreeWidget::branch, QTreeView::branch { background: transparent; }
+QTreeWidget::branch:has-siblings, QTreeView::branch:has-siblings { image: url("@treeGuide"); }
+QTreeWidget::branch:has-children:closed, QTreeView::branch:has-children:closed {
+    image: url("@treeChevronRight");
+}
+QTreeWidget::branch:has-children:open, QTreeView::branch:has-children:open {
+    image: url("@treeChevronDown");
+}
 
 QListWidget { background-color: @sidebarBg; border: none; outline: none; font-size: 13px; }
-QListWidget::item { padding: 5px 12px; min-height: 24px; border: none; }
+QListWidget::item { padding: 4px 12px; min-height: 24px; border: none; border-radius: 4px; }
 QListWidget::item:hover { background-color: @hoverBg; }
 QListWidget::item:selected { background-color: @selectionBg; }
 
-/* ---- ActivityBar (50px 宽) ---- */
-#ActivityBar { background-color: @activityBarBg; }
+/* ---- ActivityBar (48px, VS Code: subtle right divider) ---- */
+#ActivityBar {
+    background-color: @activityBarBg;
+    border-right: 1px solid @border;
+}
 #ActivityBar QToolButton { background: transparent; border: none; padding: 0; margin: 0; color: @activityBarFg; }
 #ActivityBar QToolButton:hover { background-color: @activityBarHover; }
-#ActivityBar QToolButton:checked { border-left: 3px solid @accent; }
+#ActivityBar QToolButton:checked { border-left: 2px solid @accent; background-color: transparent; }
 
 /* ---- 工具栏 ---- */
 QToolBar { background-color: @panelBg; border: none; border-bottom: 1px solid @borderDim; padding: 3px 6px; spacing: 3px; }
@@ -88,38 +122,75 @@ QToolBar QToolButton:hover { background-color: @hoverBg; }
 QToolBar QToolButton:checked { background-color: @hoverBg; }
 QToolBar QLabel { color: @textDim; font-size: 12px; padding: 0 6px; }
 
-/* ---- 标签页 — 主区域 (36px 高) ---- */
-QTabWidget::pane { border: none; background-color: @contentBg; }
+/* 带下拉菜单的 QToolButton 右侧小箭头（原生指示器不随主题） */
+QToolButton::menu-indicator {
+    image: url(@spinDown);
+    subcontrol-origin: padding; subcontrol-position: right center;
+    width: 10px; height: 10px;
+}
+
+/* ---- 标签页 — 主区域 (VS Code 风格: 淡边框 + 选中顶部无边界) ---- */
+QTabWidget::pane { border: 1px solid @border; border-top: none; background-color: @contentBg; }
 QTabBar { qproperty-drawBase: 0; }
 QTabBar::tab {
-    background-color: @tabBg; color: @textDim; padding: 7px 14px; min-height: 26px;
-    border: none; border-bottom: 1px solid @borderDim; font-size: 13px; margin: 0;
+    background-color: @tabBg; color: @textDim; padding: 6px 14px; min-height: 26px;
+    border: 1px solid transparent; border-bottom: 1px solid @border;
+    border-top-left-radius: 3px; border-top-right-radius: 3px; font-size: 13px; margin: 0;
 }
-QTabBar::tab:selected { background-color: @tabActiveBg; color: @text; border-bottom: 3px solid @accent; }
 QTabBar::tab:hover:!selected { background-color: @tabHoverBg; color: @text; }
+QTabBar::tab:selected {
+    background-color: @tabActiveBg; color: @text;
+    border: 1px solid @border; border-bottom: 3px solid @accent;
+}
 QTabBar::close-button {
-    image: none; subcontrol-position: right; border: none;
-    padding: 2px; margin: 2px; border-radius: 2px; background: transparent;
+    image: url(@tabClose);
+    subcontrol-position: right;
+    background: transparent; border: none; border-radius: 3px;
+    margin: 2px;
 }
-QTabBar::close-button:hover { background-color: @hoverBg; }
+QTabBar::close-button:hover { image: url(@tabCloseHover); background-color: @hoverBg; }
+QTabBar::close-button:pressed { background-color: @buttonPress; }
 
-/* ---- 底部面板标签 (28px) ---- */
+/* 自定义关闭按钮（SplitEditorArea 换装为 QToolButton）: VS Code 中性悬停 */
+QTabBar QToolButton { background: transparent; border: none; border-radius: 3px; }
+QTabBar QToolButton:hover { background-color: @hoverBg; }
+
+/* ---- Bottom panel tabs (VS Code panel: top divider + underline active tab) ---- */
 #BottomPanel { background-color: @sidebarBg; }
-#BottomPanel::pane { border-top: 1px solid @borderDim; background-color: @sidebarBg; }
-#BottomPanel QTabBar::tab {
-    padding: 5px 14px; min-height: 20px; font-size: 12px;
-    border-bottom: none; border-top: 2px solid transparent; margin: 0;
+#BottomPanel::pane {
+    border: none; border-top: 1px solid @border;
+    background-color: @sidebarBg;
 }
-#BottomPanel QTabBar::tab:selected { border-top: 2px solid @accent; border-bottom: none; color: @text; }
+#BottomPanel QTabBar::tab {
+    padding: 5px 12px; min-height: 22px; font-size: 12px;
+    background: transparent; color: @textDim;
+    border: none; border-bottom: 1px solid transparent; margin: 0 2px;
+}
+#BottomPanel QTabBar::tab:selected {
+    color: @text; border-bottom: 1px solid @accent;
+}
 #BottomPanel QTabBar::tab:hover:!selected { color: @text; }
 
-/* ---- 右侧面板标签 (28px) ---- */
-#RightPanel::pane { border: none; border-left: 1px solid @borderDim; background-color: @sidebarBg; }
-#RightPanel QTabBar::tab {
-    padding: 5px 14px; min-height: 20px; font-size: 12px;
-    border-bottom: none; border-top: 2px solid transparent; margin: 0;
+/* Bottom panel corner toolbar (clear / more / close) — outline icon buttons */
+#PanelCornerBar { background: transparent; }
+#PanelCornerBtn {
+    background: transparent; border: none; border-radius: 3px;
+    padding: 2px; margin: 0 1px; min-width: 22px; max-width: 22px;
+    min-height: 22px; max-height: 22px;
 }
-#RightPanel QTabBar::tab:selected { border-top: 2px solid @accent; border-bottom: none; color: @text; }
+#PanelCornerBtn:hover { background-color: @hoverBg; }
+#PanelCornerBtn:pressed { background-color: @buttonPress; }
+
+/* ---- Right panel tabs ---- */
+#RightPanel::pane {
+    border: none; border-left: 1px solid @border; background-color: @sidebarBg;
+}
+#RightPanel QTabBar::tab {
+    padding: 5px 12px; min-height: 22px; font-size: 12px;
+    background: transparent; color: @textDim;
+    border: none; border-bottom: 1px solid transparent; margin: 0 2px;
+}
+#RightPanel QTabBar::tab:selected { color: @text; border-bottom: 1px solid @accent; }
 #RightPanel QTabBar::tab:hover:!selected { color: @text; }
 
 /* ---- 输入框 ---- */
@@ -141,6 +212,9 @@ QPlainTextEdit {
     background-color: @contentBg; color: @text; border: none;
     font-family: Consolas, "Courier New", monospace; font-size: 13px;
 }
+
+/* ---- 滚动区: 跟随父容器背景 (未设置时视口用系统浅色调色板, 深色主题下会出现浅色底) ---- */
+QScrollArea { border: none; background: transparent; }
 #TerminalOutput { background-color: @terminalBg; color: @terminalFg; }
 #TerminalPrompt { font-family: Consolas, monospace; font-weight: bold; color: @accent; }
 
@@ -170,6 +244,9 @@ QHeaderView::section {
     font-size: 12px;
 }
 QHeaderView::section:hover { background-color: @headerHover; color: @text; }
+/* 排序指示箭头 — 与 SpinBox/ComboBox 同款 chevron（原生三角在深色主题下不清晰） */
+QHeaderView::up-arrow { image: url(@spinUp); width: 10px; height: 10px; }
+QHeaderView::down-arrow { image: url(@spinDown); width: 10px; height: 10px; }
 
 /* ---- 分割器 (1px, 透明→悬停 accent) ---- */
 QSplitter::handle { background-color: transparent; }
@@ -199,11 +276,8 @@ QComboBox:hover { border: 1px solid @border; }
 QComboBox:focus { border: 1px solid @accent; }
 QComboBox:disabled { background-color: @buttonDisabledBg; color: @buttonDisabledText; }
 QComboBox::drop-down { border: none; width: 26px; subcontrol-origin: padding; subcontrol-position: top right; }
-QComboBox::down-arrow {
-    image: none; border-left: 5px solid transparent;
-    border-right: 5px solid transparent; border-top: 6px solid @textDim; width: 0; height: 0;
-}
-QComboBox::down-arrow:hover { border-top: 6px solid @accent; }
+QComboBox::down-arrow { image: url(@spinDown); width: 10px; height: 10px; }
+QComboBox::down-arrow:hover { image: url(@spinDownHover); }
 QComboBox QAbstractItemView {
     border: 1px solid @borderDim; background-color: @contentBg;
     selection-background-color: @selectionBg; selection-color: @text; outline: none; padding: 2px;
@@ -218,13 +292,29 @@ QStatusBar QLabel { color: @statusFg; padding: 0 8px; }
 /* ---- 复选框 ---- */
 QCheckBox { color: @text; font-size: 13px; spacing: 8px; }
 QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid @border; border-radius: 3px; background: @contentBg; }
-QCheckBox::indicator:checked { background: @accent; border: 1px solid @accent; }
+QCheckBox::indicator:checked { background: @accent; border: 1px solid @accent; image: url(:/icons/check.svg); }
+QCheckBox::indicator:indeterminate { background: @accent; border: 1px solid @accent; image: url(@checkIndet); }
 QCheckBox::indicator:hover { border: 1px solid @accent; }
+QCheckBox::indicator:checked:hover { border: 1px solid @accentBorder; }
+
+/* 条目视图勾选框（树/列表/表格的可勾选项）与 QCheckBox 同风格，
+   否则回退到原生浅色方块，深色主题下刺眼 */
+QTreeView::indicator, QListView::indicator, QTableView::indicator {
+    width: 16px; height: 16px; border: 1px solid @border; border-radius: 3px; background: @contentBg;
+}
+QTreeView::indicator:checked, QListView::indicator:checked, QTableView::indicator:checked {
+    background: @accent; border: 1px solid @accent; image: url(:/icons/check.svg);
+}
+QTreeView::indicator:indeterminate, QListView::indicator:indeterminate, QTableView::indicator:indeterminate {
+    background: @accent; border: 1px solid @accent; image: url(@checkIndet);
+}
+QTreeView::indicator:hover, QListView::indicator:hover, QTableView::indicator:hover { border: 1px solid @accent; }
+QTreeView::indicator:checked:hover, QListView::indicator:checked:hover, QTableView::indicator:checked:hover { border: 1px solid @accentBorder; }
 
 /* ---- 单选按钮 ---- */
 QRadioButton { color: @text; font-size: 13px; spacing: 8px; }
 QRadioButton::indicator { width: 14px; height: 14px; border: 2px solid @border; border-radius: 8px; background: @contentBg; }
-QRadioButton::indicator:checked { background: @accent; border: 2px solid @accent; }
+QRadioButton::indicator:checked { background: @contentBg; border: 2px solid @accent; image: url(@radioDot); }
 QRadioButton::indicator:hover { border: 2px solid @accent; }
 
 /* ---- GroupBox (扁平, 无圆角) ---- */
@@ -238,6 +328,11 @@ QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 4px; }
 QDialog { background-color: @windowBg; }
 QTextBrowser { background-color: @contentBg; color: @text; border: 1px solid @borderDim; font-size: 13px; }
 QDialogButtonBox QPushButton { min-width: 80px; }
+
+/* ---- 列筛选弹出面板（Trace 表头漏斗触发的 Excel 风格面板）----
+   原先内联硬编码白色背景，深色主题下刺眼；改由全局 QSS 接管 */
+#ColumnFilterPopup { background-color: @contentBg; border: 1px solid @border; }
+#ColumnFilterPopup QListWidget { background-color: @contentBg; border: none; }
 
 /* ---- SpinBox (加大上下箭头按钮) ---- */
 QSpinBox, QDoubleSpinBox {
@@ -262,18 +357,10 @@ QSpinBox::down-button, QDoubleSpinBox::down-button {
 }
 QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover { background: @hoverBg; }
 QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed { background: @buttonPress; }
-QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
-    image: none; width: 8px; height: 8px;
-    border-left: 4px solid transparent; border-right: 4px solid transparent;
-    border-bottom: 5px solid @textDim;
-}
-QSpinBox::up-arrow:hover, QDoubleSpinBox::up-arrow:hover { border-bottom: 5px solid @accent; }
-QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
-    image: none; width: 8px; height: 8px;
-    border-left: 4px solid transparent; border-right: 4px solid transparent;
-    border-top: 5px solid @textDim;
-}
-QSpinBox::down-arrow:hover, QDoubleSpinBox::down-arrow:hover { border-top: 5px solid @accent; }
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow { image: url(@spinUp); width: 10px; height: 10px; }
+QSpinBox::up-arrow:hover, QDoubleSpinBox::up-arrow:hover { image: url(@spinUpHover); }
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow { image: url(@spinDown); width: 10px; height: 10px; }
+QSpinBox::down-arrow:hover, QDoubleSpinBox::down-arrow:hover { image: url(@spinDownHover); }
 
 /* ---- 进度条 ---- */
 QProgressBar {
@@ -305,11 +392,18 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: t
 /* ---- 工具提示 ---- */
 QToolTip { background-color: @contentBg; color: @text; border: 1px solid @border; border-radius: 2px; padding: 4px 8px; font-size: 12px; }
 
-/* ---- 窗口控制按钮 ---- */
+/* ---- Title-bar corner: layout toggles + window controls (VS Code style) ---- */
 #WindowButtons { background-color: transparent; }
-#WinMinBtn, #WinMaxBtn { background: transparent; color: @barFg; border: none; font-size: 14px; }
+#LayoutToggleBtn {
+    background: transparent; color: @barFg; border: none; border-radius: 0;
+    padding: 0; margin: 0;
+}
+#LayoutToggleBtn:hover { background-color: @barHover; }
+#LayoutToggleBtn:checked { background-color: @barHover; }
+#LayoutToggleBtn:pressed { background-color: @buttonPress; }
+#WinMinBtn, #WinMaxBtn { background: transparent; color: @barFg; border: none; }
 #WinMinBtn:hover, #WinMaxBtn:hover { background-color: @barHover; }
 #WinMinBtn:pressed, #WinMaxBtn:pressed { background-color: @accent; }
-#WinCloseBtn { background: transparent; color: @barFg; border: none; font-size: 14px; }
-#WinCloseBtn:hover { background-color: @closeBtnHover; color: #ffffff; }
-#WinCloseBtn:pressed { background-color: @closeBtnPress; color: #ffffff; }
+#WinCloseBtn { background: transparent; color: @barFg; border: none; }
+#WinCloseBtn:hover { background-color: @closeBtnHover; }
+#WinCloseBtn:pressed { background-color: @closeBtnPress; }

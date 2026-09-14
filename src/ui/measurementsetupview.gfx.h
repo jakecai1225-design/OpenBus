@@ -205,15 +205,15 @@ protected:
                 }
             }
         } else if (!m_isSource && m_instances.isEmpty() && m_active) {
-            // 无实例提示（Filter 块提示过滤配置入口）
+            // Empty-instance hint (Filter: filter rules; others: open config)
             QFont hintFont("Microsoft YaHei UI", 8);
             painter->setFont(hintFont);
             painter->setPen(m_active ? QColor(255, 255, 255, 150) : QColor(0x78, 0x90, 0xA9));
             painter->drawText(QRectF(r.left() + 42, headerRect.bottom(),
                                      r.width() - 50, 20),
                               Qt::AlignVCenter | Qt::AlignLeft,
-                              m_ruleMode ? "单击/双击配置过滤条件"
-                                         : "单击/双击打开对应标签页");
+                              m_ruleMode ? QStringLiteral("Click/double-click to configure filter")
+                                         : QStringLiteral("Click/double-click to open config"));
         }
     }
 

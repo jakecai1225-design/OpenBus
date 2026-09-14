@@ -108,6 +108,8 @@ public:
                    const QVector<CanFrame> *history = nullptr,
                    int historyCount = -1);
     void removeSignal(int index);
+    /// Remove selected signal-list rows; returns how many were removed
+    int removeSelectedSignals();
     void clearSignals();
     QVector<Signal> signalConfigs() const;
     /// 查询第 index 个信号的显示数据点数（视口抽稀后；越界返回 -1）。
@@ -299,6 +301,8 @@ private:
     int m_draggingCursor = 0;   ///< 0=none, 1=cursor1, 2=cursor2
     double m_cursor1Time = 0.0;
     double m_cursor2Time = 0.0;
+    bool m_cursor1Placed = false;  ///< Single/double: C1 visible after plot click
+    bool m_cursor2Placed = false;  ///< Double: C2 visible after second plot click
     bool m_syncingCursor = false;  ///< 正在同步游标（防回环）
     bool m_cursorLink = true;      ///< 多视图游标联动开关
 
@@ -415,8 +419,14 @@ private:
     /// 选中信号 Y 轴平移（frac = 视口高比例；无选中时 no-op）
     void shiftYAxis(double frac);
 
-    /// 创建/获取卡尺线（含手柄与时间标签）
+    /// Create/get cursor lines (handles + time labels)
     void ensureCursors();
+
+    /// Union of all visible track rects (full-height cursor / track line span)
+    QRect cursorSpanRect() const;
+
+    /// CANoe-style click: place unplaced cursor(s), else move nearest / drag hit
+    void placeOrMoveCursorAt(const QPoint &pos);
 
     /// 创建/获取当前时间指示线
     void ensureCurrentTimeLine();

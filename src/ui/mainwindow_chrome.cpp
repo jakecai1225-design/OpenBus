@@ -245,34 +245,60 @@ void MainWindow::createWindowButtons()
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    // VS Code 风格窗口控制按钮：真实 SVG 图标（替代 ─ □ ✕ 文字符号，
-    // 文字符号在部分字体下渲染成方块或粗细不一）
+    // VS Code-style layout toggles (left sidebar / bottom panel / right sidebar)
+    auto makeLayoutBtn = [container](const QString &tip) {
+        auto *b = new QToolButton(container);
+        b->setObjectName("LayoutToggleBtn");
+        b->setIconSize(QSize(16, 16));
+        b->setFixedSize(36, 30);
+        b->setAutoRaise(true);
+        b->setCheckable(true);
+        b->setToolTip(tip);
+        return b;
+    };
+    m_layoutLeftBtn = makeLayoutBtn(QStringLiteral("Toggle Primary Side Bar (Ctrl+B)"));
+    m_layoutBottomBtn = makeLayoutBtn(QStringLiteral("Toggle Panel (Ctrl+J)"));
+    m_layoutRightBtn = makeLayoutBtn(QStringLiteral("Toggle Secondary Side Bar"));
+    layout->addWidget(m_layoutLeftBtn);
+    layout->addWidget(m_layoutBottomBtn);
+    layout->addWidget(m_layoutRightBtn);
+
+    // Spacer strip between layout toggles and window controls
+    auto *sep = new QWidget(container);
+    sep->setFixedWidth(8);
+    layout->addWidget(sep);
+
+    // Window controls: SVG icons (minimize / maximize / close)
     m_minBtn = new QToolButton(container);
     m_minBtn->setObjectName("WinMinBtn");
     m_minBtn->setIconSize(QSize(10, 10));
     m_minBtn->setFixedSize(46, 30);
     m_minBtn->setAutoRaise(true);
-    m_minBtn->setToolTip("最小化");
+    m_minBtn->setToolTip(QStringLiteral("Minimize"));
 
     m_maxBtn = new QToolButton(container);
     m_maxBtn->setObjectName("WinMaxBtn");
     m_maxBtn->setIconSize(QSize(10, 10));
     m_maxBtn->setFixedSize(46, 30);
     m_maxBtn->setAutoRaise(true);
-    m_maxBtn->setToolTip("最大化");
+    m_maxBtn->setToolTip(QStringLiteral("Maximize"));
 
     m_closeBtn = new QToolButton(container);
     m_closeBtn->setObjectName("WinCloseBtn");
     m_closeBtn->setIconSize(QSize(10, 10));
     m_closeBtn->setFixedSize(46, 30);
     m_closeBtn->setAutoRaise(true);
-    m_closeBtn->setToolTip("关闭");
+    m_closeBtn->setToolTip(QStringLiteral("Close"));
 
     layout->addWidget(m_minBtn);
     layout->addWidget(m_maxBtn);
     layout->addWidget(m_closeBtn);
 
     menuBar()->setCornerWidget(container, Qt::TopRightCorner);
+
+    connect(m_layoutLeftBtn, &QToolButton::clicked, this, &MainWindow::toggleLeftDock);
+    connect(m_layoutBottomBtn, &QToolButton::clicked, this, &MainWindow::toggleBottomDock);
+    connect(m_layoutRightBtn, &QToolButton::clicked, this, &MainWindow::toggleRightDock);
 
     connect(m_minBtn, &QToolButton::clicked, this, &QWidget::showMinimized);
     connect(m_maxBtn, &QToolButton::clicked, this, [this]() {
@@ -282,7 +308,6 @@ void MainWindow::createWindowButtons()
     connect(m_closeBtn, &QToolButton::clicked, this, &QWidget::close);
 
     refreshWindowButtonIcons();
-    // 主题切换 → 重刷窗口按钮图标颜色（DEF-08 字符串信号）
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             this, SLOT(refreshWindowButtonIcons()));
 }
@@ -290,10 +315,26 @@ void MainWindow::createWindowButtons()
 void MainWindow::refreshWindowButtonIcons()
 {
     const QString c = ThemeManager::instance()->currentTheme().barFg;
+    if (m_layoutLeftBtn)
+        m_layoutLeftBtn->setIcon(svgIcon(":/icons/layout-sidebar-left.svg", c, 16));
+    if (m_layoutBottomBtn)
+        m_layoutBottomBtn->setIcon(svgIcon(":/icons/layout-panel.svg", c, 16));
+    if (m_layoutRightBtn)
+        m_layoutRightBtn->setIcon(svgIcon(":/icons/layout-sidebar-right.svg", c, 16));
     m_minBtn->setIcon(svgIcon(":/icons/win-minimize.svg", c, 10));
     m_maxBtn->setIcon(svgIcon(isMaximized() ? ":/icons/win-restore.svg"
                                              : ":/icons/win-maximize.svg", c, 10));
     m_closeBtn->setIcon(svgIcon(":/icons/close.svg", c, 10));
+}
+
+void MainWindow::syncLayoutToggleButtons()
+{
+    if (m_layoutLeftBtn && m_leftDock)
+        m_layoutLeftBtn->setChecked(m_leftDock->isVisible());
+    if (m_layoutBottomBtn && m_bottomDock)
+        m_layoutBottomBtn->setChecked(m_bottomDock->isVisible());
+    if (m_layoutRightBtn && m_rightDock)
+        m_layoutRightBtn->setChecked(m_rightDock->isVisible());
 }
 
 void MainWindow::changeEvent(QEvent *event)
@@ -379,9 +420,21 @@ void MainWindow::createLayout()
     resizeDocks({m_rightDock}, {260}, Qt::Horizontal);
     resizeDocks({m_bottomDock}, {200}, Qt::Vertical);
 
-    // 默认隐藏右侧栏和底部栏
+    // Default: hide right and bottom panels (VS Code-like focus on editor)
     m_rightDock->setVisible(false);
     m_bottomDock->setVisible(false);
+
+    connect(m_leftDock, &QDockWidget::visibilityChanged, this,
+            [this](bool) { syncLayoutToggleButtons(); });
+    connect(m_rightDock, &QDockWidget::visibilityChanged, this,
+            [this](bool) { syncLayoutToggleButtons(); });
+    connect(m_bottomDock, &QDockWidget::visibilityChanged, this,
+            [this](bool) { syncLayoutToggleButtons(); });
+    connect(m_bottomPanel, &BottomPanel::closeRequested, this, [this]() {
+        m_bottomDock->setVisible(false);
+        syncLayoutToggleButtons();
+    });
+    syncLayoutToggleButtons();
 }
 
 // ============================================================
@@ -536,16 +589,19 @@ void MainWindow::onActivityToggled(int)
 void MainWindow::toggleLeftDock()
 {
     m_leftDock->setVisible(!m_leftDock->isVisible());
+    syncLayoutToggleButtons();
 }
 
 void MainWindow::toggleRightDock()
 {
     m_rightDock->setVisible(!m_rightDock->isVisible());
+    syncLayoutToggleButtons();
 }
 
 void MainWindow::toggleBottomDock()
 {
     m_bottomDock->setVisible(!m_bottomDock->isVisible());
+    syncLayoutToggleButtons();
 }
 
 void MainWindow::resetLayout()
@@ -556,6 +612,7 @@ void MainWindow::resetLayout()
     resizeDocks({m_leftDock}, {280}, Qt::Horizontal);
     resizeDocks({m_rightDock}, {260}, Qt::Horizontal);
     resizeDocks({m_bottomDock}, {200}, Qt::Vertical);
+    syncLayoutToggleButtons();
 }
 
 

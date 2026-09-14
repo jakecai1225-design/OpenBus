@@ -87,22 +87,24 @@ void MeasurementSetupView::setBlockEnabled(const QString &id, bool enabled)
 
 void MeasurementSetupView::openBlockConfig(const QString &blockId)
 {
-    // Unified entry point for already-enabled block click/double-click/right-click [Configure]
+    // Unified entry: enabled-block click / double-click / right-click Configure
     auto it = m_blocks.find(blockId);
     if (it == m_blocks.end()) return;
     const auto &b = it.value();
-    
+
     if (b.category == "filter") {
         showFilterConfigDialog();
     } else if (b.category == "database") {
         showDbcSelectDialog();
+    } else if (b.id == "watcher" || b.id == "record") {
+        emit moduleOpened(b.id, QString());
     } else if (b.category == "module") {
         if (b.moduleName == "trace") {
             emit moduleOpened("trace", b.id);
         } else if (b.moduleName == "graphic") {
             emit moduleOpened("graphic", b.id);
         } else {
-            emit moduleOpened(b.id, "");
+            emit moduleOpened(b.id, QString());
         }
     }
 }

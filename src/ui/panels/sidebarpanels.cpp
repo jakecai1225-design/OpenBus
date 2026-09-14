@@ -936,25 +936,10 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
     connect(m_templateList, &QListWidget::itemClicked,
             this, &GraphicConfigPanel::onTemplateClicked);
 
-    auto *btnBar = new QHBoxLayout;
-    btnBar->setContentsMargins(8, 6, 8, 6);
-    btnBar->setSpacing(4);
-    // 「添加信号」：弹 DBC 信号选择器（搜索 / 树形浏览 / Ctrl+Shift 多选），
-    // 壳侧编排后批量加到当前 Graphic（无则新建）——面板只发出请求
-    m_addSigBtn = new QPushButton(
-        svgIcon(":/icons/plus.svg", ThemeManager::instance()->currentTheme().text, 14),
-        QStringLiteral("添加信号"), this);
-    m_addSigBtn->setToolTip(
-        QStringLiteral("从已加载的 DBC 数据库中搜索/多选信号，添加到当前 Graphic"));
-    m_delBtn = new QPushButton(
-        svgIcon(":/icons/dash.svg", ThemeManager::instance()->currentTheme().text, 14),
-        "删除", this);
-    // 主题切换 → 重刷模板行与按钮图标颜色
+    // Theme → refresh template row icons (signal add/delete live only inside GraphicView)
     auto *graphBtnRelay = new SignalRelay(this);
     graphBtnRelay->fire0 = [this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
-        m_delBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
-        m_addSigBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
         for (int i = 0; i < m_templateList->count(); ++i) {
             auto *row = m_templateList->item(i);
             if (row->flags().testFlag(Qt::ItemIsEnabled))
@@ -963,14 +948,7 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
     };
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             graphBtnRelay, SLOT(fire()));
-    btnBar->addWidget(m_addSigBtn);
-    btnBar->addWidget(m_delBtn);
-    btnBar->addStretch();
-    cl->addLayout(btnBar);
 
-    connect(m_addSigBtn, &QPushButton::clicked, this,
-            [this]() { emit addSignalRequested(); });
-    connect(m_delBtn, &QPushButton::clicked, this, &GraphicConfigPanel::onDeleteGraphic);
     connect(m_pageList, &QListWidget::currentRowChanged,
             this, &GraphicConfigPanel::onPageSelected);
     connect(m_pageList, &QWidget::customContextMenuRequested,
@@ -995,13 +973,6 @@ void GraphicConfigPanel::onPageSelected(int row)
         emit graphicPageSelected(row);
 }
 
-void GraphicConfigPanel::onDeleteGraphic()
-{
-    int row = m_pageList->currentRow();
-    if (row >= 0)
-        emit graphicDeleteRequested(row);
-}
-
 void GraphicConfigPanel::onContextMenu(const QPoint &pos)
 {
     auto *item = m_pageList->itemAt(pos);
@@ -1009,8 +980,8 @@ void GraphicConfigPanel::onContextMenu(const QPoint &pos)
     int row = m_pageList->row(item);
 
     QMenu menu(this);
-    auto *actJump = menu.addAction(QStringLiteral("跳转到此标签页"));
-    auto *actDel = menu.addAction(QStringLiteral("删除此 Graphic"));
+    auto *actJump = menu.addAction(QStringLiteral("Jump to this tab"));
+    auto *actDel = menu.addAction(QStringLiteral("Delete this Graphic"));
     QAction *chosen = menu.exec(m_pageList->viewport()->mapToGlobal(pos));
     if (chosen == actJump) {
         emit graphicPageSelected(row);
@@ -1464,7 +1435,8 @@ ExtensionsPanel::ExtensionsPanel(QWidget *parent)
     // 命令分组（插件命令入口，无命令时隐藏）
     m_cmdHeader = new QLabel(QString::fromUtf8("命令"), this);
     m_cmdHeader->setStyleSheet(
-        QStringLiteral("color: #888888; font-weight: bold; padding: 6px 4px 2px 4px;"));
+        QStringLiteral("color: %1; font-weight: bold; padding: 6px 4px 2px 4px;")
+            .arg(ThemeManager::instance()->currentTheme().textDim));
     m_cmdHeader->setHidden(true);
     cl->addWidget(m_cmdHeader);
     m_cmdList = new QListWidget(this);
@@ -1543,7 +1515,8 @@ void ExtensionsPanel::rebuild()
 
     if (shown == 0) {
         auto *empty = new QLabel(QStringLiteral("没有匹配的条目"), this);
-        empty->setStyleSheet(QStringLiteral("color: #777777; padding: 8px;"));
+        empty->setStyleSheet(QStringLiteral("color: %1; padding: 8px;")
+            .arg(ThemeManager::instance()->currentTheme().textDim));
         insertBeforeStretch(empty);
     }
 }
@@ -1552,7 +1525,8 @@ void ExtensionsPanel::addSectionLabel(const QString &title)
 {
     auto *label = new QLabel(title, this);
     label->setStyleSheet(
-        QStringLiteral("color: #888888; font-weight: bold; padding: 6px 4px 2px 4px;"));
+        QStringLiteral("color: %1; font-weight: bold; padding: 6px 4px 2px 4px;")
+            .arg(ThemeManager::instance()->currentTheme().textDim));
     m_listLay->insertWidget(m_listLay->count() - 1, label);
 }
 
@@ -1603,7 +1577,8 @@ FrameRow *ExtensionsPanel::makeRow(const MarketEntryData &e)
     QFont small = metaLabel->font();
     small.setPointSize(qMax(small.pointSize() - 1, 1));
     metaLabel->setFont(small);
-    metaLabel->setStyleSheet(QStringLiteral("color: #9d9d9d;"));
+    metaLabel->setStyleSheet(QStringLiteral("color: %1;")
+        .arg(ThemeManager::instance()->currentTheme().textDim));
     metaLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     // 单行截断（窄面板）
     const QFontMetrics fm(metaLabel->font());
@@ -1614,7 +1589,8 @@ FrameRow *ExtensionsPanel::makeRow(const MarketEntryData &e)
 
     if (!e.status.isEmpty()) {
         auto *statusLabel = new QLabel(e.status);
-        statusLabel->setStyleSheet(QStringLiteral("color: #9d9d9d;"));
+        statusLabel->setStyleSheet(QStringLiteral("color: %1;")
+            .arg(ThemeManager::instance()->currentTheme().textDim));
         lay->addWidget(statusLabel, 0, Qt::AlignVCenter);
     }
 

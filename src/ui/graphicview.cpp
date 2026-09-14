@@ -181,21 +181,8 @@ GraphicPalette GraphicPalette::canoeLight()
 
 GraphicPalette GraphicPalette::canoeDark()
 {
-    GraphicPalette p;
-    p.canvas      = QColor(0x1E, 0x1E, 0x1E);
-    p.grid        = QColor(0x33, 0x33, 0x33);
-    p.trackSep    = QColor(0x44, 0x44, 0x44);
-    p.axis        = QColor(0xD4, 0xD4, 0xD4);
-    p.axisText    = QColor(0xD4, 0xD4, 0xD4);
-    p.timeLine    = QColor(0xFF, 0xD4, 0x00);
-    p.cursor1     = QColor(0xFF, 0xFF, 0xFF);
-    p.cursor2     = QColor(0x5A, 0xA9, 0xFF);
-    p.trackCursor = QColor(0x77, 0x77, 0x77);
-    p.nameTagBg     = QColor(0x2A, 0x2A, 0x2A, 235);
-    p.nameTagFg     = QColor(0xDD, 0xDD, 0xDD);
-    p.nameTagBorder = QColor(0x55, 0x55, 0x55);
-    p.dimCurve    = QColor(0x60, 0x60, 0x60);
-    return p;
+    // Dark palette retained for API compatibility; Light-only UI always uses canoeLight()
+    return canoeLight();
 }
 
 // ============================================================
@@ -205,7 +192,7 @@ GraphicPalette GraphicPalette::canoeDark()
 GraphicView::GraphicView(QWidget *parent)
     : QWidget(parent)
 {
-    m_palette = isLightTheme() ? GraphicPalette::canoeLight() : GraphicPalette::canoeDark();
+    m_palette = GraphicPalette::canoeLight();
 
     setupUi();
     setAcceptDrops(true);
@@ -263,8 +250,7 @@ QColor GraphicView::autoColor(int index)
 
 bool GraphicView::isLightTheme()
 {
-    const Theme &t = ThemeManager::instance()->currentTheme();
-    return QColor(t.windowBg).lightness() > 128;
+    return true;  // Light-only workbench
 }
 
 QString GraphicView::toolbarQss() const
@@ -420,11 +406,11 @@ void GraphicView::setupUi()
     m_pointsToggle->setToolTip("显示/隐藏采样点");
     m_pointsToggle->setChecked(m_showPoints);
 
-    m_cursorSingleBtn = makeBtn("cursor-single", "单卡尺 (C)");
+    m_cursorSingleBtn = makeBtn("cursor-single", "Single ruler (C): click plot to place a full-height dashed line");
     m_cursorSingleBtn->setCheckable(true);
-    m_cursorDoubleBtn = makeBtn("cursor-double", "双卡尺 (V)");
+    m_cursorDoubleBtn = makeBtn("cursor-double", "Double ruler (V): click twice to place two full-height dashed lines");
     m_cursorDoubleBtn->setCheckable(true);
-    m_cursorClearBtn = makeBtn("close", "清除卡尺 (Esc)");
+    m_cursorClearBtn = makeBtn("close", "Clear rulers (Esc)");
 
     m_cursorLinkToggle = new QCheckBox("联动", m_toolbar);
     m_cursorLinkToggle->setToolTip("多视图游标联动");
@@ -530,10 +516,10 @@ void GraphicView::setupUi()
     btnBar->setContentsMargins(4, 4, 4, 4);
     btnBar->setSpacing(4);
     auto *addBtn = new QPushButton(
-            svgIcon(":/icons/plus.svg", th.text, 14), QStringLiteral("添加信号"), leftWidget);
+            svgIcon(":/icons/plus.svg", th.text, 14), QStringLiteral("Add Signal"), leftWidget);
     addBtn->setStyleSheet(buttonQss(th.buttonBg, th.accentBorder));
     auto *removeBtn = new QPushButton(
-            svgIcon(":/icons/dash.svg", th.text, 14), QStringLiteral("删除信号"), leftWidget);
+            svgIcon(":/icons/dash.svg", th.text, 14), QStringLiteral("Delete Signal"), leftWidget);
     removeBtn->setStyleSheet(buttonQss(th.buttonBg, th.border));
     // 主题切换 → 重刷按钮图标颜色
     // DEF-08 字符串信号（同上）
@@ -629,13 +615,12 @@ void GraphicView::setupUi()
 
     // ---- 信号添加/删除 ----
     connect(addBtn, &QPushButton::clicked, this, [this]() {
-        // G14 P1: 从已加载 DBC 数据库选信号
-        if (!m_dbcManager) {
-            QMessageBox::critical(this, tr("警告"),
-                                  tr("尚未加载数据库 — 请先在 DBC 面板加载数据库文件"));
+        if (!m_dbcManager || m_dbcManager->files().isEmpty()) {
+            QMessageBox::warning(this, QStringLiteral("Warning"),
+                                 QStringLiteral("No DBC database loaded — load a file in the Database panel first"));
             return;
         }
-        DbcSignalPickerDialog dlg(m_dbcManager, tr("添加信号到 Graphic"), this);
+        DbcSignalPickerDialog dlg(m_dbcManager, QStringLiteral("Add signals to Graphic"), this);
         if (dlg.exec() == QDialog::Accepted) {
             const auto picked = dlg.pickedSignals();
             for (const auto &p : picked) {
@@ -643,8 +628,7 @@ void GraphicView::setupUi()
                 sig.name = p.signal.name;
                 sig.canId = p.canId;
                 sig.extended = p.extended;
-                sig.dbcSig = p.signal;       // startBit/bitLength/factor/offset/signed/unit 等全量
-                // 颜色：按当前已有数量自增索引（与旧逻辑一致）
+                sig.dbcSig = p.signal;
                 sig.color = autoColor(m_signals.size());
                 addSignal(sig);
             }
@@ -653,22 +637,8 @@ void GraphicView::setupUi()
     });
 
     connect(removeBtn, &QPushButton::clicked, this, [this]() {
-        // G13 多选删除：按选中行倒序删（大索引先删，小索引不受位移影响）；无选中时兼容单删当前行
-        QList<int> rows;
-        const QList<QTreeWidgetItem*> sel = m_signalTree->selectedItems();
-        for (QTreeWidgetItem *it : sel)
-            rows.append(m_signalTree->indexOfTopLevelItem(it));
-        if (rows.isEmpty()) {
-            int row = m_signalTree->indexOfTopLevelItem(m_signalTree->currentItem());
-            if (row >= 0 && row < m_signals.size())
-                removeSignal(row);
+        if (removeSelectedSignals() <= 0)
             return;
-        }
-        std::sort(rows.begin(), rows.end(), [](int a, int b) { return a > b; });
-        for (int row : rows) {
-            if (row >= 0 && row < m_signals.size())
-                removeSignal(row);
-        }
     });
 
     // ---- 缩放（受缩放轴模式约束，改变前记录缩放历史） ----
@@ -1196,34 +1166,38 @@ void GraphicView::setupUi()
             return;
         }
 
-        // 卡尺命中（线 ±6px 或顶部手柄区 ±10px，优先于框选）
+        // Cursor hit / place: ruler tool owns left-click on the plot (no rubber-zoom steal)
         if (m_cursorMode != CursorMode::None) {
             QCPAxis *xAxis = primaryXAxis();
-            QCPAxisRect *pr = primaryRect();
+            const QRect span = cursorSpanRect();
             if (xAxis) {
-                const int px1 = static_cast<int>(xAxis->coordToPixel(m_cursor1Time));
-                const int px2 = m_cursor2
+                const int px1 = m_cursor1Placed
+                    ? static_cast<int>(xAxis->coordToPixel(m_cursor1Time)) : -9999;
+                const int px2 = (m_cursorMode == CursorMode::Double && m_cursor2Placed)
                     ? static_cast<int>(xAxis->coordToPixel(m_cursor2Time)) : -9999;
-                const bool handleZone = pr && pr->rect().contains(pos) &&
-                                        pos.y() <= pr->rect().top() + 28;
+                const bool handleZone = !span.isNull() && span.contains(pos)
+                                        && pos.y() <= span.top() + 28;
                 auto hit = [&](int px) {
-                    return std::abs(pos.x() - px) <= 6 ||
-                           (handleZone && std::abs(pos.x() - px) <= 10);
+                    return px > -9000 && (std::abs(pos.x() - px) <= 6 ||
+                           (handleZone && std::abs(pos.x() - px) <= 10));
                 };
-                if (m_cursorMode == CursorMode::Double && m_cursor2 && hit(px2)) {
+                if (m_cursorMode == CursorMode::Double && hit(px2)) {
                     m_draggingCursor = 2;
                     event->accept();
                     return;
                 }
-                if (m_cursor1 && hit(px1)) {
+                if (hit(px1)) {
                     m_draggingCursor = 1;
                     event->accept();
                     return;
                 }
             }
+            placeOrMoveCursorAt(pos);
+            event->accept();
+            return;
         }
 
-        // 框选缩放启动
+        // Rubber-band zoom (disabled while ruler placement mode is active)
         if (m_rubberZoom) {
             m_rubberOrigin = pos;
             m_rubberBand->setGeometry(QRect(pos, QSize()));
@@ -1315,15 +1289,13 @@ void GraphicView::setupUi()
                 if (QCPAxis *xAxis = ar->axis(QCPAxis::atBottom)) {
                     const double t = xAxis->pixelToCoord(pos.x());
                     const double px = xAxis->coordToPixel(t);
-                    // 跟踪线贯穿全部可见轨道（首轨 top → 末轨 bottom，CANoe 行为）
-                    QRect rc = ar->rect();
-                    for (auto &sd : m_signals)
-                        if (sd.axisRect && sd.axisRect->visible())
-                            rc = rc.united(sd.axisRect->rect());
-                    if (m_overlayRect && m_overlayRect->visible())
-                        rc = rc.united(m_overlayRect->rect());
-                    m_trackLine->point1->setCoords(QPointF(px, rc.top()));
-                    m_trackLine->point2->setCoords(QPointF(px, rc.bottom()));
+                    // Track line spans all visible tracks (CANoe)
+                    const QRect rc = cursorSpanRect().isNull() ? ar->rect() : cursorSpanRect();
+                    m_trackLine->point1->setType(QCPItemPosition::ptAbsolute);
+                    m_trackLine->point2->setType(QCPItemPosition::ptAbsolute);
+                    m_trackLine->setClipToAxisRect(false);
+                    m_trackLine->point1->setCoords(px, rc.top());
+                    m_trackLine->point2->setCoords(px, rc.bottom());
                     m_trackLine->setVisible(true);
                     m_trackLabel->position->setCoords(QPointF(px, rc.bottom() - 4));
                     m_trackLabel->setText(formatTime(t));
@@ -1369,18 +1341,8 @@ void GraphicView::setupUi()
         if (m_rubberBand->isVisible()) {
             m_rubberBand->hide();
             const QRect geo = m_rubberBand->geometry();
-            // 单击（未拖框）：卡尺模式下放置卡尺到点击处
+            // Click (no drag): keep as no-op when rulers are off (placement handled on press)
             if (geo.width() < 5 && geo.height() < 5) {
-                if (m_cursorMode != CursorMode::None) {
-                    if (QCPAxis *xAxis = primaryXAxis()) {
-                        const double t = xAxis->pixelToCoord(geo.center().x());
-                        if (m_cursorMode == CursorMode::Double && m_cursor2 &&
-                            std::abs(t - m_cursor2Time) < std::abs(t - m_cursor1Time))
-                            moveCursor(2, t);
-                        else
-                            moveCursor(1, t);
-                    }
-                }
                 event->accept();
                 return;
             }
@@ -1479,7 +1441,10 @@ void GraphicView::styleYAxis(QCPAxis *axis)
     axis->setSubTickPen(axisPen);
     axis->setTickLabelColor(m_palette.axisText);
     axis->setLabelColor(m_palette.axisText);
-    axis->setLabel(QString());   // CANoe：轴无标题（信号名在轨道左上角标签）
+    axis->setLabel(QString());   // CANoe: no axis title (name tag on track)
+    axis->setTickLabels(true);
+    axis->setTicks(true);
+    axis->setTickLabelPadding(2);
     axis->grid()->setVisible(true);
     axis->grid()->setPen(QPen(m_palette.grid, 1, Qt::SolidLine));
     axis->grid()->setSubGridVisible(false);
@@ -1524,10 +1489,11 @@ void GraphicView::styleAxisRect(QCPAxisRect *ar)
     top->setTickPen(axisPen);
     top->setSubTickPen(axisPen);
 
-    // 轨道紧密堆叠：禁用自动边距 + 最小边距为 0（CANoe 分栏）
-    ar->setAutoMargins(QCP::msNone);  // msNone = NoMargin
+    // Track margins: leave room for Y tick labels (left) and X labels (bottom of last track).
+    // Zero margins here would clip tick text — that was why X/Y scales disappeared.
+    ar->setAutoMargins(QCP::msNone);
     ar->setMinimumMargins(QMargins(0, 0, 0, 0));
-    ar->setMargins(QMargins(0, 0, 0, 0));
+    ar->setMargins(QMargins(56, 0, 24, 0));
 }
 
 void GraphicView::updateToolbarIcons()
@@ -1588,8 +1554,7 @@ private:
 
 void GraphicView::applyPalette()
 {
-    m_palette = isLightTheme() ? GraphicPalette::canoeLight()
-                               : GraphicPalette::canoeDark();
+    m_palette = GraphicPalette::canoeLight();
     const Theme &th = ThemeManager::instance()->currentTheme();
 
     m_plot->setBackground(m_palette.canvas);
@@ -1612,13 +1577,13 @@ void GraphicView::applyPalette()
     if (m_overlayRect)
         styleAxisRect(m_overlayRect);
 
-    // 时间线 / 卡尺 / 跟踪线换色（时间线 1.5px 实线、卡尺 1px 实线 — §8.2.2/§8.5）
+    // Time line / cursors / track line (cursors: dashed full-height; time line solid)
     if (m_currentTimeLine)
         m_currentTimeLine->setPen(QPen(m_palette.timeLine, 1.5));
     if (m_cursor1)
-        m_cursor1->setPen(QPen(m_palette.cursor1, 1));
+        m_cursor1->setPen(QPen(m_palette.cursor1, 1.5, Qt::DashLine));
     if (m_cursor2)
-        m_cursor2->setPen(QPen(m_palette.cursor2, 1));
+        m_cursor2->setPen(QPen(m_palette.cursor2, 1.5, Qt::DashLine));
     if (m_cursor1Handle)
         m_cursor1Handle->setHandleColor(m_palette.cursor1);
     if (m_cursor2Handle)
@@ -1645,7 +1610,7 @@ void GraphicView::applyPalette()
 void GraphicView::layoutAxisRects()
 {
     auto *layout = m_plot->plotLayout();
-    // G15-P1: 减少轨道间间隙（默认 rowSpacing=5px → 改为 2px）
+    // G15-P1: tighter row spacing (default 5px → 2px)
     layout->setRowSpacing(2);
 
     QList<QCPLayoutElement*> taken;
@@ -1657,18 +1622,21 @@ void GraphicView::layoutAxisRects()
 
     int visibleCount = 0;
     QCPAxisRect *lastVisible = nullptr;
+    QCPAxisRect *firstVisible = nullptr;
     for (auto &sd : m_signals) {
         if (sd.axisRect && sd.axisRect->visible()) {
             layout->addElement(visibleCount, 0, sd.axisRect);
+            if (!firstVisible)
+                firstVisible = sd.axisRect;
             lastVisible = sd.axisRect;
             visibleCount++;
         }
     }
 
-    // 叠加模式：overlay 轨道独占一行
+    // Overlay mode: single overlay track
     if (m_overlayRect && m_overlayRect->visible() && visibleCount == 0) {
         layout->addElement(0, 0, m_overlayRect);
-        lastVisible = m_overlayRect;
+        firstVisible = lastVisible = m_overlayRect;
         visibleCount = 1;
     }
 
@@ -1686,18 +1654,69 @@ void GraphicView::layoutAxisRects()
 
     if (visibleCount == 0) {
         auto *ar = new QCPAxisRect(m_plot);
+        styleAxisRect(ar);
+        ar->setMargins(QMargins(56, 2, 24, 22));
+        ar->axis(QCPAxis::atBottom)->setTickLabels(true);
+        ar->axis(QCPAxis::atLeft)->setTickLabels(true);
         layout->addElement(0, 0, ar);
+        m_plot->replot();
+        return;
     }
 
-    // X 刻度仅底部轨道显示（CANoe：所有轨道共用唯一时间轴刻度）
+    // CANoe: shared X scale on bottom track only; each track keeps independent Y ticks.
+    // Left/right margins for Y labels; bottom margin only on last track for X labels.
+    const int leftBase = 56;
+    const int rightM = 24;
+    int leftM = leftBase;
+    if (m_yAxisMode == YAxisMode::OverlayAll && m_overlayRect && m_overlayRect->visible()) {
+        int axisCount = 0;
+        for (const auto &sd : m_signals)
+            if (sd.overlayYAxis)
+                ++axisCount;
+        if (axisCount > 1)
+            leftM = leftBase + (axisCount - 1) * 45;
+    }
+
+    auto applyMargins = [&](QCPAxisRect *ar, bool isFirst, bool isLast) {
+        if (!ar)
+            return;
+        const int top = isFirst ? 2 : 0;
+        const int bottom = isLast ? 22 : 0;
+        ar->setMargins(QMargins(leftM, top, rightM, bottom));
+        if (QCPAxis *xa = ar->axis(QCPAxis::atBottom)) {
+            xa->setTickLabels(isLast);
+            xa->setTicks(true);
+            xa->setTickLabelPadding(3);
+        }
+        if (QCPAxis *ya = ar->axis(QCPAxis::atLeft)) {
+            // Separate mode: every track shows its own Y ticks
+            if (m_yAxisMode == YAxisMode::Separate) {
+                ya->setTickLabels(true);
+                ya->setTicks(true);
+            }
+        }
+    };
+
     for (auto &sd : m_signals) {
-        if (sd.axisRect)
-            sd.axisRect->axis(QCPAxis::atBottom)
-                ->setTickLabels(sd.axisRect == lastVisible);
+        if (!sd.axisRect || !sd.axisRect->visible())
+            continue;
+        applyMargins(sd.axisRect,
+                     sd.axisRect == firstVisible,
+                     sd.axisRect == lastVisible);
+        if (sd.yAxis) {
+            sd.yAxis->setTickLabels(true);
+            sd.yAxis->setTicks(true);
+        }
     }
-    if (m_overlayXAxis)
-        m_overlayXAxis->setTickLabels(m_overlayRect == lastVisible);
+    if (m_overlayRect && m_overlayRect->visible()) {
+        applyMargins(m_overlayRect, true, true);
+        if (m_overlayXAxis) {
+            m_overlayXAxis->setTickLabels(true);
+            m_overlayXAxis->setTicks(true);
+        }
+    }
 
+    applyOverlayAxisVisibility();
     updateCursorDecorations();
     m_plot->replot();
 }
@@ -1912,7 +1931,7 @@ void GraphicView::removeSignal(int index)
     if (index < 0 || index >= m_signals.size())
         return;
 
-    // 叠加模式：先拆 overlay（迁回分栏轴），删完重建，避免轴悬空
+    // Overlay mode: tear down first, rebuild after delete (avoid dangling axes)
     if (m_yAxisMode != YAxisMode::Separate)
         teardownOverlay();
 
@@ -1922,10 +1941,10 @@ void GraphicView::removeSignal(int index)
     if (sd.graph)
         m_plot->removeGraph(sd.graph);
     if (sd.axisRect)
-        m_plot->plotLayout()->remove(sd.axisRect);   // remove 内部 delete（含其轴）
+        m_plot->plotLayout()->remove(sd.axisRect);   // remove deletes element (incl. axes)
 
     m_signals.removeAt(index);
-    m_zoomStack.clear();   // 信号索引已变，缩放历史失效
+    m_zoomStack.clear();   // signal indices changed → zoom history invalid
     updateZoomUi();
     if (m_selectedSignal >= m_signals.size())
         setSelectedSignal(m_signals.isEmpty() ? -1 : m_signals.size() - 1);
@@ -1936,6 +1955,31 @@ void GraphicView::removeSignal(int index)
         layoutAxisRects();
     updateSignalList();
     m_plot->replot();
+}
+
+int GraphicView::removeSelectedSignals()
+{
+    QList<int> rows;
+    const QList<QTreeWidgetItem *> sel = m_signalTree->selectedItems();
+    for (QTreeWidgetItem *it : sel)
+        rows.append(m_signalTree->indexOfTopLevelItem(it));
+    if (rows.isEmpty()) {
+        const int row = m_signalTree->indexOfTopLevelItem(m_signalTree->currentItem());
+        if (row >= 0 && row < m_signals.size())
+            rows.append(row);
+    }
+    if (rows.isEmpty())
+        return 0;
+
+    std::sort(rows.begin(), rows.end(), [](int a, int b) { return a > b; });
+    int removed = 0;
+    for (int row : rows) {
+        if (row >= 0 && row < m_signals.size()) {
+            removeSignal(row);
+            ++removed;
+        }
+    }
+    return removed;
 }
 
 void GraphicView::clearSignals()
@@ -1978,6 +2022,8 @@ QCPAxis *GraphicView::primaryXAxis() const
     for (auto &sd : m_signals)
         if (sd.axisRect && sd.axisRect->visible())
             return sd.axisRect->axis(QCPAxis::atBottom);
+    if (m_plot && m_plot->axisRectCount() > 0)
+        return m_plot->axisRect(0)->axis(QCPAxis::atBottom);
     return nullptr;
 }
 
@@ -2937,7 +2983,7 @@ void GraphicView::updateCursorValues()
 
 void GraphicView::ensureCursors()
 {
-    // 时间标签公共样式（ptAbsolute 像素定位，随视口由 updateCursorDecorations 维护）
+    // Time labels use ptAbsolute; updateCursorDecorations keeps them in sync
     auto setupDecor = [this](QCPItemText *t, const QColor &c) {
         t->position->setType(QCPItemPosition::ptAbsolute);
         t->setPositionAlignment(Qt::AlignHCenter | Qt::AlignTop);
@@ -2948,18 +2994,32 @@ void GraphicView::ensureCursors()
         QFont f("Consolas", 8);
         t->setFont(f);
     };
+    auto setupAbsLine = [](QCPItemStraightLine *line, const QPen &pen) {
+        // Pixel coords + no axis-rect clip: otherwise the line is interpreted as
+        // plot units (off-screen) or clipped to a single track.
+        line->setClipToAxisRect(false);
+        line->setLayer(QStringLiteral("overlay"));
+        line->point1->setType(QCPItemPosition::ptAbsolute);
+        line->point2->setType(QCPItemPosition::ptAbsolute);
+        line->setPen(pen);
+        line->setVisible(false);
+    };
     if (!m_cursor1) {
         m_cursor1 = new QCPItemStraightLine(m_plot);
-        m_cursor1->setPen(QPen(m_palette.cursor1, 1));   // 黑实线（§8.5）
+        setupAbsLine(m_cursor1, QPen(m_palette.cursor1, 1.5, Qt::DashLine));
         m_cursor1Handle = new CursorHandleItem(m_plot, m_palette.cursor1);
+        m_cursor1Handle->setLayer(QStringLiteral("overlay"));
         m_cursor1Label = new QCPItemText(m_plot);
+        m_cursor1Label->setLayer(QStringLiteral("overlay"));
         setupDecor(m_cursor1Label, m_palette.cursor1);
     }
     if (!m_cursor2) {
         m_cursor2 = new QCPItemStraightLine(m_plot);
-        m_cursor2->setPen(QPen(m_palette.cursor2, 1));   // 深蓝实线（§8.5）
+        setupAbsLine(m_cursor2, QPen(m_palette.cursor2, 1.5, Qt::DashLine));
         m_cursor2Handle = new CursorHandleItem(m_plot, m_palette.cursor2);
+        m_cursor2Handle->setLayer(QStringLiteral("overlay"));
         m_cursor2Label = new QCPItemText(m_plot);
+        m_cursor2Label->setLayer(QStringLiteral("overlay"));
         setupDecor(m_cursor2Label, m_palette.cursor2);
     }
 }
@@ -2968,9 +3028,11 @@ void GraphicView::ensureCurrentTimeLine()
 {
     if (!m_currentTimeLine) {
         m_currentTimeLine = new QCPItemStraightLine(m_plot);
-        m_currentTimeLine->setPen(QPen(m_palette.timeLine, 1.5));   // 黄实线 1.5px（§8.2.2）
-        m_currentTimeLine->point1->setCoords(QPointF(0, 0));
-        m_currentTimeLine->point2->setCoords(QPointF(0, 1));
+        m_currentTimeLine->setClipToAxisRect(false);
+        m_currentTimeLine->setLayer(QStringLiteral("overlay"));
+        m_currentTimeLine->point1->setType(QCPItemPosition::ptAbsolute);
+        m_currentTimeLine->point2->setType(QCPItemPosition::ptAbsolute);
+        m_currentTimeLine->setPen(QPen(m_palette.timeLine, 1.5));
         m_currentTimeLine->setVisible(false);
     }
 }
@@ -2979,9 +3041,11 @@ void GraphicView::ensureTrackLine()
 {
     if (!m_trackLine) {
         m_trackLine = new QCPItemStraightLine(m_plot);
+        m_trackLine->setClipToAxisRect(false);
+        m_trackLine->setLayer(QStringLiteral("overlay"));
+        m_trackLine->point1->setType(QCPItemPosition::ptAbsolute);
+        m_trackLine->point2->setType(QCPItemPosition::ptAbsolute);
         m_trackLine->setPen(QPen(m_palette.trackCursor, 1, Qt::DotLine));
-        m_trackLine->point1->setCoords(QPointF(0, 0));
-        m_trackLine->point2->setCoords(QPointF(0, 1));
         m_trackLine->setVisible(false);
     }
     if (!m_trackLabel) {
@@ -2998,18 +3062,35 @@ void GraphicView::ensureTrackLine()
     }
 }
 
+QRect GraphicView::cursorSpanRect() const
+{
+    QRect rc;
+    for (const auto &sd : m_signals) {
+        if (sd.axisRect && sd.axisRect->visible())
+            rc = rc.isNull() ? sd.axisRect->rect() : rc.united(sd.axisRect->rect());
+    }
+    if (m_overlayRect && m_overlayRect->visible())
+        rc = rc.isNull() ? m_overlayRect->rect() : rc.united(m_overlayRect->rect());
+    if (rc.isNull()) {
+        if (QCPAxisRect *pr = primaryRect())
+            rc = pr->rect();
+    }
+    if (rc.isNull() && m_plot && m_plot->axisRectCount() > 0)
+        rc = m_plot->axisRect(0)->rect();
+    return rc;
+}
+
 void GraphicView::updateCursorDecorations()
 {
-    QCPAxisRect *pr = primaryRect();
     QCPAxis *xAxis = primaryXAxis();
-    const bool valid = pr && xAxis && !pr->rect().isNull();
-    const QRect rc = valid ? pr->rect() : QRect();
+    const QRect rc = cursorSpanRect();
+    const bool valid = xAxis && !rc.isNull();
 
-    // 竖直线：ptAbsolute 像素两点（超出轨道左右 60px 隐藏）
-    auto placeLine = [&](QCPItemStraightLine *line, double t) {
+    // Vertical dashed line spans all visible tracks (CANoe Graphic rulers)
+    auto placeLine = [&](QCPItemStraightLine *line, double t, bool placed) {
         if (!line)
             return;
-        if (!valid) {
+        if (!valid || !placed) {
             line->setVisible(false);
             return;
         }
@@ -3018,16 +3099,18 @@ void GraphicView::updateCursorDecorations()
             line->setVisible(false);
             return;
         }
-        line->point1->setCoords(QPointF(px, rc.top()));
-        line->point2->setCoords(QPointF(px, rc.bottom()));
+        line->point1->setType(QCPItemPosition::ptAbsolute);
+        line->point2->setType(QCPItemPosition::ptAbsolute);
+        line->setClipToAxisRect(false);
+        line->point1->setCoords(px, rc.top());
+        line->point2->setCoords(px, rc.bottom());
         line->setVisible(true);
     };
-    // 手柄图标 + 时间标签：顶部错开两层
     auto placeDecor = [&](CursorHandleItem *handle, QCPItemText *label,
-                          double t, const QString &text) {
+                          double t, const QString &text, bool placed) {
         if (!handle || !label)
             return;
-        if (!valid) {
+        if (!valid || !placed) {
             handle->setVisible(false);
             label->setVisible(false);
             return;
@@ -3043,14 +3126,20 @@ void GraphicView::updateCursorDecorations()
         label->setText(text);
     };
 
-    placeLine(m_cursor1, m_cursor1Time);
-    placeLine(m_cursor2, m_cursor2Time);
-    placeLine(m_currentTimeLine, m_currentTime);
+    placeLine(m_cursor1, m_cursor1Time, m_cursor1Placed);
+    placeLine(m_cursor2, m_cursor2Time,
+              m_cursor2Placed && m_cursorMode == CursorMode::Double);
+    // Current-time indicator: keep full-height span when already shown
+    if (m_currentTimeLine) {
+        const bool showNow = m_currentTimeLine->visible() || m_currentTime > 0;
+        placeLine(m_currentTimeLine, m_currentTime, showNow && m_currentTime > 0);
+    }
+
     placeDecor(m_cursor1Handle, m_cursor1Label, m_cursor1Time,
-               QString::number(m_cursor1Time, 'f', 3) + "s");
+               QString::number(m_cursor1Time, 'f', 3) + "s", m_cursor1Placed);
     if (m_cursorMode == CursorMode::Double)
         placeDecor(m_cursor2Handle, m_cursor2Label, m_cursor2Time,
-                   QString::number(m_cursor2Time, 'f', 3) + "s");
+                   QString::number(m_cursor2Time, 'f', 3) + "s", m_cursor2Placed);
     else {
         if (m_cursor2Handle) m_cursor2Handle->setVisible(false);
         if (m_cursor2Label) m_cursor2Label->setVisible(false);
@@ -3069,26 +3158,62 @@ void GraphicView::setCursorMode(CursorMode mode)
         if (m_cursor1Label) { m_plot->removeItem(m_cursor1Label); m_cursor1Label = nullptr; }
         if (m_cursor2Label) { m_plot->removeItem(m_cursor2Label); m_cursor2Label = nullptr; }
         m_draggingCursor = 0;
+        m_cursor1Placed = false;
+        m_cursor2Placed = false;
+        if (!m_panMode)
+            m_plot->setCursor(Qt::ArrowCursor);
         updateCursorValues();
         m_plot->replot();
         return;
     }
 
+    // Enter placement mode: wait for plot click (CANoe Graphic rulers)
     ensureCursors();
-
-    double center = m_currentTime > 0 ? m_currentTime - m_timeWindow / 2 : 0;
-    if (mode == CursorMode::Single) {
-        m_cursor1Time = center;
-        moveCursor(1, center);
-    } else if (mode == CursorMode::Double) {
-        m_cursor1Time = center - m_timeWindow * 0.1;
-        m_cursor2Time = center + m_timeWindow * 0.1;
-        moveCursor(1, m_cursor1Time);
-        moveCursor(2, m_cursor2Time);
-    }
+    m_cursor1Placed = false;
+    m_cursor2Placed = false;
+    if (m_cursor1) m_cursor1->setVisible(false);
+    if (m_cursor2) m_cursor2->setVisible(false);
+    if (m_cursor1Handle) m_cursor1Handle->setVisible(false);
+    if (m_cursor2Handle) m_cursor2Handle->setVisible(false);
+    if (m_cursor1Label) m_cursor1Label->setVisible(false);
+    if (m_cursor2Label) m_cursor2Label->setVisible(false);
+    if (!m_panMode)
+        m_plot->setCursor(Qt::CrossCursor);
 
     updateCursorValues();
     m_plot->replot();
+}
+
+void GraphicView::placeOrMoveCursorAt(const QPoint &pos)
+{
+    QCPAxis *xAxis = primaryXAxis();
+    if (!xAxis || m_cursorMode == CursorMode::None)
+        return;
+
+    ensureCursors();
+    const double t = xAxis->pixelToCoord(pos.x());
+
+    if (m_cursorMode == CursorMode::Single) {
+        m_cursor1Placed = true;
+        moveCursor(1, t);
+        return;
+    }
+
+    // Double: place C1, then C2; afterwards move the nearer one
+    if (!m_cursor1Placed) {
+        m_cursor1Placed = true;
+        moveCursor(1, t);
+        return;
+    }
+    if (!m_cursor2Placed) {
+        m_cursor2Placed = true;
+        moveCursor(2, t);
+        return;
+    }
+    if (std::abs(t - m_cursor2Time) < std::abs(t - m_cursor1Time))
+        moveCursor(2, t);
+    else
+        moveCursor(1, t);
 }
 
 void GraphicView::moveCursor(int which, double time)

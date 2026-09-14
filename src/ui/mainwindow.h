@@ -91,9 +91,6 @@ private slots:
     // Trace/Graphic 联动（B5：模块经 shellInvoke 回调壳编排）
     void onFrameDoubleClicked(const CanFrame &frame);
     void onFrameAddToGraphic(const CanFrame &frame);
-    // Graphic 侧栏「添加信号」：DBC 信号选择弹窗（搜索/树形/Ctrl+Shift 多选）
-    // → 批量加到当前或最后的 Graphic（无则新建；经 graphic 模块 addSignals）
-    void onGraphicAddSignalRequested();
 
     // 回放
     void onPlayerProgress(int cur, int total, double curTime, double totalTime);
@@ -326,6 +323,11 @@ private:
     QToolButton *m_minBtn = nullptr;
     QToolButton *m_maxBtn = nullptr;
     QToolButton *m_closeBtn = nullptr;
+    // Title-bar layout toggles (VS Code: left / panel / right)
+    QToolButton *m_layoutLeftBtn = nullptr;
+    QToolButton *m_layoutBottomBtn = nullptr;
+    QToolButton *m_layoutRightBtn = nullptr;
+    void syncLayoutToggleButtons();
     QPoint m_dragPosition;
 };
 

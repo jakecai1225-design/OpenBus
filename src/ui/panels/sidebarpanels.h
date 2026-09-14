@@ -188,22 +188,17 @@ public:
 signals:
     void graphicPageSelected(int index);
     void newGraphicRequested();
-    /// 请求删除指定行对应的 Graphic 实例
+    /// Request deleting the Graphic page at the given list row
     void graphicDeleteRequested(int row);
-    /// 请求打开「添加信号」弹窗（从已加载 DBC 数据库搜索/多选，批量加到目标 Graphic）
-    void addSignalRequested();
 
 private slots:
     void onTemplateClicked(QListWidgetItem *item);
     void onPageSelected(int row);
-    void onDeleteGraphic();
     void onContextMenu(const QPoint &pos);
 
 private:
-    QListWidget *m_templateList = nullptr;  ///< 形态模板平铺行（doc/flow.md §7.2 平铺修订）
-    QListWidget *m_pageList;
-    QPushButton *m_delBtn = nullptr;
-    QPushButton *m_addSigBtn = nullptr;     ///< 底部「添加信号」（DBC 信号选择弹窗入口）
+    QListWidget *m_templateList = nullptr;  ///< Form template rows
+    QListWidget *m_pageList = nullptr;
 };
 
 // ============================================================

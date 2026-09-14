@@ -1017,8 +1017,11 @@ void MarketTab::showMarketDriver(const MarketIndex::DriverInfo &drv)
         auto *img = new QLabel(QStringLiteral("图片加载中…"));
         img->setAlignment(Qt::AlignCenter);
         img->setMinimumHeight(230);
-        img->setStyleSheet(QStringLiteral("background: #2a2d2e; border-radius: 4px;"
-                                          " color: #777;"));
+        img->setStyleSheet(QStringLiteral(
+            "background: %1; border: 1px solid %2; border-radius: 4px; color: %3;")
+            .arg(ThemeManager::instance()->currentTheme().panelBg,
+                 ThemeManager::instance()->currentTheme().border,
+                 ThemeManager::instance()->currentTheme().textDim));
         m_detailLay->addWidget(img);
         MarketModel::fetchMarketPixmap(MarketIndex::instance()->resolveUrl(drv.image),
                     [img](const QPixmap &pm) {

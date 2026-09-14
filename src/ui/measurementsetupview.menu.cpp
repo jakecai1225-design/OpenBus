@@ -107,56 +107,57 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
     
     // ---- Filter block ----
     else if (blockCategory == "filter") {
-        // Unified filter configuration entry point
-        auto *actFilter = m_rightMenu->addAction("配置过滤条件...");
-        actFilter->setStatusTip("Set CAN ID ranges, frame types, direction, etc.");
-        connect(actFilter, &QAction::triggered, this, [this]() {
-            showFilterConfigDialog();
+        auto *actFilter = m_rightMenu->addAction(QStringLiteral("Configure filter rules..."));
+        actFilter->setStatusTip(QStringLiteral("Set CAN ID ranges, frame types, direction, etc."));
+        connect(actFilter, &QAction::triggered, this, [this, blockId]() {
+            setBlockEnabled(blockId, true);
+            openBlockConfig(blockId);
         });
-        
-        // Clear rules (shown if any exist)
+
         const int ruleCount = block->instances.size();
         if (ruleCount > 0) {
             auto *actClear = m_rightMenu->addAction(
-                QString("清空过滤规则（%1 条）").arg(ruleCount));
-            actClear->setStatusTip("Remove all rules, data stream passes through unfiltered");
+                QStringLiteral("Clear filter rules (%1)").arg(ruleCount));
+            actClear->setStatusTip(QStringLiteral("Remove all rules; stream passes unfiltered"));
             connect(actClear, &QAction::triggered, this, [this]() {
                 clearFilterRules();
             });
         }
-        
+
         m_rightMenu->addSeparator();
-        
-        auto *actToggle = m_rightMenu->addAction(blockEnabled ? "禁用过滤" : "启用过滤");
+
+        auto *actToggle = m_rightMenu->addAction(
+            blockEnabled ? QStringLiteral("Disable filter") : QStringLiteral("Enable filter"));
         connect(actToggle, &QAction::triggered, this, [this, blockId]() {
             toggleBlock(blockId);
         });
     }
-    
-    // ---- Database block ----
+
+    // ---- Database / CAN parser block ----
     else if (blockCategory == "database") {
-        auto *actDbc = m_rightMenu->addAction("选择 DBC 文件...");
-        actDbc->setStatusTip("Select from currently loaded DBC files");
-        connect(actDbc, &QAction::triggered, this, [this]() {
-            showDbcSelectDialog();
+        auto *actDbc = m_rightMenu->addAction(QStringLiteral("Select DBC file..."));
+        actDbc->setStatusTip(QStringLiteral("Select from currently loaded DBC files"));
+        connect(actDbc, &QAction::triggered, this, [this, blockId]() {
+            setBlockEnabled(blockId, true);
+            openBlockConfig(blockId);
         });
-        
+
         m_rightMenu->addSeparator();
-        
-        // Display loaded DBC list with clickable removal
+
         if (!m_dbcFiles.isEmpty()) {
-            auto *dbcListAct = m_rightMenu->addAction(QString("已加载 DBC: %1 个").arg(m_dbcFiles.size()));
+            auto *dbcListAct = m_rightMenu->addAction(
+                QStringLiteral("Loaded DBC: %1").arg(m_dbcFiles.size()));
             dbcListAct->setEnabled(false);
             m_rightMenu->addSeparator();
             for (const auto &name : m_dbcFiles) {
-                auto *act = m_rightMenu->addAction(QString("移除  %1").arg(name));
-                act->setStatusTip("Unload this DBC file from the project");
+                auto *act = m_rightMenu->addAction(QStringLiteral("Remove  %1").arg(name));
+                act->setStatusTip(QStringLiteral("Unload this DBC file from the project"));
                 connect(act, &QAction::triggered, this, [this, name]() {
                     emit dbcRemoveRequested(name);
                 });
             }
         } else {
-            auto *noDbc = m_rightMenu->addAction("（未加载任何 DBC 文件）");
+            auto *noDbc = m_rightMenu->addAction(QStringLiteral("(no DBC loaded)"));
             noDbc->setEnabled(false);
         }
     }

@@ -1,4 +1,6 @@
 #include "bottompanel.h"
+#include "thememanager.h"
+#include "utils/svg_icon.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -10,6 +12,8 @@
 #include <QDateTime>
 #include <QFontDatabase>
 #include <QHeaderView>
+#include <QToolButton>
+#include <QMenu>
 
 BottomPanel::BottomPanel(QWidget *parent)
     : QTabWidget(parent)
@@ -19,7 +23,7 @@ BottomPanel::BottomPanel(QWidget *parent)
     QFont mono = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     mono.setPointSize(10);
 
-    // ---- 终端标签页 (集成命令行) ----
+    // ---- Terminal tab ----
     auto *termWidget = new QWidget(this);
     auto *termLayout = new QVBoxLayout(termWidget);
     termLayout->setContentsMargins(0, 0, 0, 0);
@@ -29,8 +33,8 @@ BottomPanel::BottomPanel(QWidget *parent)
     m_terminal->setObjectName("TerminalOutput");
     m_terminal->setReadOnly(true);
     m_terminal->setFont(mono);
-    m_terminal->appendPlainText("openbus 终端 v1.0.0");
-    m_terminal->appendPlainText("输入命令后按 Enter 执行 (输入 help 查看帮助)");
+    m_terminal->appendPlainText("openbus terminal v1.0.0");
+    m_terminal->appendPlainText("Type a command and press Enter (help for commands)");
     termLayout->addWidget(m_terminal, 1);
 
     auto *inputBar = new QHBoxLayout;
@@ -41,29 +45,30 @@ BottomPanel::BottomPanel(QWidget *parent)
     promptLabel->setContentsMargins(8, 4, 0, 4);
     m_cmdInput = new QLineEdit(termWidget);
     m_cmdInput->setFont(mono);
-    m_cmdInput->setPlaceholderText("输入命令后按 Enter 执行 (help 查看帮助)...");
+    m_cmdInput->setPlaceholderText("Type a command and press Enter (help)...");
     m_cmdInput->setFrame(false);
     inputBar->addWidget(promptLabel);
     inputBar->addWidget(m_cmdInput);
     termLayout->addLayout(inputBar);
 
-    addTab(termWidget, "终端");
+    addTab(termWidget, QStringLiteral("Terminal"));
 
-    // ---- 输出标签页 ----
+    // ---- Output tab ----
     m_output = new QPlainTextEdit(this);
     m_output->setObjectName("TerminalOutput");
     m_output->setReadOnly(true);
     m_output->setFont(mono);
-    addTab(m_output, "输出");
+    addTab(m_output, QStringLiteral("Output"));
 
-    // ---- 问题标签页 ----
+    // ---- Problems tab ----
     auto *problemsWidget = new QWidget(this);
     auto *problemsLayout = new QVBoxLayout(problemsWidget);
     problemsLayout->setContentsMargins(0, 0, 0, 0);
     problemsLayout->setSpacing(0);
 
     m_problemsTable = new QTableWidget(0, 3, this);
-    m_problemsTable->setHorizontalHeaderLabels({"严重度", "来源", "描述"});
+    m_problemsTable->setHorizontalHeaderLabels({
+        QStringLiteral("Severity"), QStringLiteral("Source"), QStringLiteral("Description")});
     m_problemsTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     m_problemsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     m_problemsTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
@@ -71,23 +76,79 @@ BottomPanel::BottomPanel(QWidget *parent)
     m_problemsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     problemsLayout->addWidget(m_problemsTable);
 
-    m_problemCount = new QLabel("0 个问题", this);
+    m_problemCount = new QLabel(QStringLiteral("0 problems"), this);
     m_problemCount->setObjectName("DimLabel");
     m_problemCount->setContentsMargins(10, 3, 10, 3);
     problemsLayout->addWidget(m_problemCount);
 
-    addTab(problemsWidget, "问题");
+    addTab(problemsWidget, QStringLiteral("Problems"));
 
-    // ---- 插件输出标签页 ----
+    // ---- Plugin output tab ----
     m_pluginOutput = new QPlainTextEdit(this);
     m_pluginOutput->setObjectName("TerminalOutput");
     m_pluginOutput->setReadOnly(true);
     m_pluginOutput->setFont(mono);
-    addTab(m_pluginOutput, "插件");
+    addTab(m_pluginOutput, QStringLiteral("Extensions"));
+
+    // VS Code-style corner toolbar: clear / more / close panel
+    auto *corner = new QWidget(this);
+    corner->setObjectName("PanelCornerBar");
+    auto *cornerLay = new QHBoxLayout(corner);
+    cornerLay->setContentsMargins(4, 0, 6, 0);
+    cornerLay->setSpacing(0);
+
+    auto makeCornerBtn = [corner](const QString &tip) {
+        auto *b = new QToolButton(corner);
+        b->setObjectName("PanelCornerBtn");
+        b->setIconSize(QSize(14, 14));
+        b->setAutoRaise(true);
+        b->setToolTip(tip);
+        return b;
+    };
+    m_clearBtn = makeCornerBtn(QStringLiteral("Clear"));
+    m_moreBtn = makeCornerBtn(QStringLiteral("More Actions..."));
+    m_closePanelBtn = makeCornerBtn(QStringLiteral("Close Panel"));
+    cornerLay->addWidget(m_clearBtn);
+    cornerLay->addWidget(m_moreBtn);
+    cornerLay->addWidget(m_closePanelBtn);
+    setCornerWidget(corner, Qt::TopRightCorner);
+
+    connect(m_clearBtn, &QToolButton::clicked, this, [this]() {
+        switch (currentIndex()) {
+        case TabTerminal: m_terminal->clear(); break;
+        case TabOutput: m_output->clear(); break;
+        case TabProblems: clearProblems(); break;
+        case TabPlugin: clearPluginOutput(); break;
+        default: break;
+        }
+    });
+    connect(m_moreBtn, &QToolButton::clicked, this, [this]() {
+        QMenu menu(this);
+        menu.addAction(QStringLiteral("Clear"), m_clearBtn, &QToolButton::click);
+        menu.addSeparator();
+        menu.addAction(QStringLiteral("Close Panel"), this, &BottomPanel::closeRequested);
+        menu.exec(m_moreBtn->mapToGlobal(QPoint(0, m_moreBtn->height())));
+    });
+    connect(m_closePanelBtn, &QToolButton::clicked, this, &BottomPanel::closeRequested);
+
+    refreshCornerIcons();
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            this, SLOT(refreshCornerIcons()));
 
     connect(m_cmdInput, &QLineEdit::returnPressed, this, &BottomPanel::onCommandReturnPressed);
 
     setMinimumHeight(120);
+}
+
+void BottomPanel::refreshCornerIcons()
+{
+    const QString c = ThemeManager::instance()->currentTheme().textDim;
+    if (m_clearBtn)
+        m_clearBtn->setIcon(svgIcon(":/icons/trash.svg", c, 14));
+    if (m_moreBtn)
+        m_moreBtn->setIcon(svgIcon(":/icons/kebab.svg", c, 14));
+    if (m_closePanelBtn)
+        m_closePanelBtn->setIcon(svgIcon(":/icons/close.svg", c, 14));
 }
 
 void BottomPanel::addProblem(int severity, const QString &source, const QString &message)
@@ -109,7 +170,7 @@ void BottomPanel::addProblem(int severity, const QString &source, const QString 
     m_problemsTable->setItem(row, 1, new QTableWidgetItem(source));
     m_problemsTable->setItem(row, 2, new QTableWidgetItem(message));
 
-    m_problemCount->setText(QString("%1 个问题").arg(m_problemsTable->rowCount()));
+    m_problemCount->setText(QString("%1 problems").arg(m_problemsTable->rowCount()));
 }
 
 void BottomPanel::appendOutput(const QString &text)

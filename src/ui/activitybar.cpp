@@ -57,12 +57,31 @@ ActivityBar::ActivityBar(QWidget *parent)
 
     layout->addStretch();
 
-    // 底部按钮
-    auto *settingsBtn = createButton(":/icons/settings.svg", "配置", Settings, true);
-    layout->addWidget(settingsBtn);
-    m_buttons.append({settingsBtn, Settings, "配置", "配置", ":/icons/settings.svg"});
+    // Bottom: account + settings (VS Code Activity Bar footer icons)
+    auto *accountBtn = new QToolButton(this);
+    accountBtn->setIcon(makeActivityIcon(":/icons/account.svg"));
+    accountBtn->setIconSize(QSize(24, 24));
+    accountBtn->setToolTip(QStringLiteral("Account"));
+    accountBtn->setCheckable(false);
+    accountBtn->setAutoRaise(true);
+    accountBtn->setFixedSize(48, 48);
+    accountBtn->setObjectName("ActivityBtn");
+    connect(accountBtn, &QToolButton::clicked, this, [this]() {
+        setCurrentActivity(Settings);
+        emit activityChanged(static_cast<int>(Settings));
+    });
+    layout->addWidget(accountBtn);
+    // Keep path so refreshIcons can update account too
+    m_buttons.append({accountBtn, None, QStringLiteral("Account"),
+                      QStringLiteral("Account"), ":/icons/account.svg"});
 
-    // 默认选中工程
+    auto *settingsBtn = createButton(":/icons/settings.svg",
+                                     QStringLiteral("Settings"), Settings, true);
+    layout->addWidget(settingsBtn);
+    m_buttons.append({settingsBtn, Settings, QStringLiteral("Settings"),
+                      QStringLiteral("Settings"), ":/icons/settings.svg"});
+
+    // Default: Project selected
     m_buttons[0].btn->setChecked(true);
     m_current = Project;
 }

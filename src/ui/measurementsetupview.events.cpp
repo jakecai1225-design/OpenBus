@@ -2,8 +2,8 @@
 #include <QDateTime>
 
 // ============================================================
-//  Canvas event handling — 画布事件处理
-// ============================================================
+ //  Canvas event handling
+ // ============================================================
 
 void MeasurementSetupView::onSceneClicked(const QPointF &scenePos)
 {
@@ -60,11 +60,11 @@ void MeasurementSetupView::onSceneDoubleClicked(const QPointF &scenePos)
 {
     auto *b = blockAt(scenePos);
     if (!b) return;
-    
-    // Double-click detection: two clicks within a short time window → open config page/tab
+
+    // Double-click detection: two clicks within a short time window -> open config page/tab
     qint64 now = QDateTime::currentMSecsSinceEpoch();
     bool isFastDoubleClick = (now - m_lastClickTime < DOUBLE_CLICK_INTERVAL);
-    
+
     // Data source blocks and module blocks handled separately
     if (b->category == "source") {
         if (b->id == "source_real") {
@@ -84,20 +84,19 @@ void MeasurementSetupView::onSceneDoubleClicked(const QPointF &scenePos)
                 emit sendPageOpened();
             }
         }
-    } else if (b->category == "filter" || b->category == "database" || 
-               b->id == "watcher" || b->id == "record") {
-        // Configuration blocks: double-click behavior equivalent to right-click → select configuration item
-        //   - Filter block (category="filter") → right-click→"Configure Filter Rules..."→showFilterConfigDialog()
-        //   - CAN parser block (category="database") → right-click→"Select DBC File..."→showDbcSelectDialog()
-        //   - Watcher block (id="watcher") → right-click→"Observation Variables and Statistics Setup..."→moduleOpened("watcher", "")
-        //   - Record block (id="record") → right-click→"Configure Recording Parameters..."→moduleOpened("record", "")
-        // Key fix: Qt's sceneDoubleClicked signal already guarantees double-click event; no need for isFastDoubleClick check
-        {
-            emit moduleOpened(b->id, "");
-        }
+    } else if (b->category == "filter" || b->category == "database") {
+        // Filter / CAN parser: same as other config blocks —
+        // select+enable, then open config dialog (single-click may have
+        // toggled enable; force ON so config opens on an active block).
+        setBlockEnabled(b->id, true);
+        openBlockConfig(b->id);
+    } else if (b->id == "watcher" || b->id == "record") {
+        // Same pattern: enable then open page via shell
+        setBlockEnabled(b->id, true);
+        openBlockConfig(b->id);
     } else if (b->category == "module" && (b->moduleName == "trace" || b->moduleName == "graphic")) {
         // Trace / Graphic independent blocks (e.g., trace1, graphic1)
-        // Double-click directly jumps to the tab corresponding to this block (remove erroneous association with adding same-type blocks)
+        // Double-click jumps to the tab for this block
         if (isFastDoubleClick) {
             emit moduleOpened(b->moduleName, b->id);
         }

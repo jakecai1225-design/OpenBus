@@ -241,6 +241,9 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
                 }
             }
         }
+    } else if (action == QStringLiteral("removeSelectedSignals")) {
+        if (auto *gv = qobject_cast<GraphicView *>(arg.value<QWidget *>()))
+            gv->removeSelectedSignals();
     }
 }
 
@@ -277,6 +280,9 @@ QVariant GraphicModule::query(const QString &what, const QVariant &arg)
             }
             return QVariant(sigList);
         }
+    } else if (what == QStringLiteral("removeSelectedSignals")) {
+        if (auto *gv = qobject_cast<GraphicView *>(arg.value<QWidget *>()))
+            return gv->removeSelectedSignals();
     } else if (what == QStringLiteral("dataWindow")) {
         // Return cached DataWindow widget (QWidget*)
         return QVariant::fromValue<QWidget*>(m_dataWindow);

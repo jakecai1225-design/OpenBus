@@ -53,8 +53,10 @@ int main(int argc, char *argv[])
     ModuleRegistry::instance()->registerModule(
         QStringLiteral("graphic"), &openbus_createGraphicModule);
 
-    // 应用主题
-    ThemeManager::instance()->applyTheme("Light");
+    // Light-only workbench (legacy "Dark Modern" configs are ignored)
+    ThemeManager::instance()->applyTheme(QStringLiteral("Light"));
+    if (AppConfig::instance()->getString(QStringLiteral("theme")) != QStringLiteral("Light"))
+        AppConfig::instance()->set(QStringLiteral("theme"), QStringLiteral("Light"));
 
     MainWindow window;
     window.show();

@@ -37,17 +37,22 @@ public slots:
 
 signals:
     void commandEntered(const QString &cmd);
+    void closeRequested();   // Corner "x" — hide bottom panel (VS Code)
 
 private slots:
     void onCommandReturnPressed();
+    void refreshCornerIcons();
 
 private:
     QPlainTextEdit *m_terminal;
     QPlainTextEdit *m_output;
-    QPlainTextEdit *m_pluginOutput;  ///< 插件输出文本框
+    QPlainTextEdit *m_pluginOutput;  ///< Plugin output
     QTableWidget *m_problemsTable;
     QLineEdit *m_cmdInput;
     QLabel *m_problemCount;
+    QToolButton *m_clearBtn = nullptr;
+    QToolButton *m_moreBtn = nullptr;
+    QToolButton *m_closePanelBtn = nullptr;
 };
 
 #endif // BOTTOMPANEL_H

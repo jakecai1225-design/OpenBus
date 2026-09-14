@@ -176,12 +176,13 @@ void SettingsPage::setupMetas()
         m_metas.append(m);
     };
 
-    // ---- 通用 ----
-    add("font.family", "字体族", "通用", "string", "界面字体名称");
-    add("font.size", "字体大小", "通用", "int", "界面字体大小 (px)");
-    add("window.rememberGeometry", "记住窗口大小", "通用", "bool", "下次启动恢复上次窗口尺寸");
-    add("window.width", "窗口宽度", "通用", "int", "初始窗口宽度");
-    add("window.height", "窗口高度", "通用", "int", "初始窗口高度");
+    // ---- General ----
+    add("font.family", "Font family", "General", "string", "UI font family");
+    add("font.size", "Font size", "General", "int", "UI font size (px)");
+    add("window.rememberGeometry", "Remember window size", "General", "bool",
+        "Restore last window size on next launch");
+    add("window.width", "Window width", "General", "int", "Initial window width");
+    add("window.height", "Window height", "General", "int", "Initial window height");
 
     // ---- Trace ----
     add("trace.maxFrames", "最大帧数", "Trace", "int", "缓冲区最大帧数，超过后从头部丢弃");
