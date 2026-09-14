@@ -1,0 +1,48 @@
+---
+description: No Chinese characters in code, scripts, build, or config — MD only
+alwaysApply: true
+---
+
+# No Chinese Outside Markdown
+
+## Rule
+
+**Chinese (CJK) characters are forbidden** in code, scripts, build files, and configuration. They are **only allowed in Markdown documentation** (`.md`).
+
+This prevents encoding/mojibake issues across MSYS2, Windows consoles, CI, and editors.
+
+## Forbidden locations
+
+- Source: `.c`, `.cpp`, `.h`, `.hpp`, `.py`, `.rs`, `.go`, …
+- Scripts: `.sh`, `.ps1`, `.bat`, `.cmd`
+- Build: `CMakeLists.txt`, `*.cmake`, Makefiles, Ninja-related configs
+- Config: `.json`, `.yml`, `.yaml`, `.toml`, `.ini`, `.xml` (non-doc), `.qrc` comments, etc.
+- Comments, string literals, log/UI messages, commit hook scripts, CI YAML
+
+## Allowed
+
+- `*.md` / `*.mdc` documentation only (including this rule file)
+
+## Examples
+
+```python
+# BAD
+info("配置完成")
+
+# GOOD
+info("Configure done")
+```
+
+```cmake
+# BAD
+message(STATUS "使用默认链接器")
+
+# GOOD
+message(STATUS "Using default ld.bfd linker")
+```
+
+## Agent behavior
+
+- When editing or adding any non-`.md` file, write **English only**.
+- If touching a non-`.md` file that still contains Chinese, **translate those touched regions to English** in the same change when practical.
+- Do not introduce Chinese in new code "for the user's locale".

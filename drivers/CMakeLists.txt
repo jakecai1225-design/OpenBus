@@ -1,22 +1,22 @@
 # ============================================================
-#  驱动插件（.odp 安装单元）— QPluginLoader 原生驱动
+#  Driver plugins (.odp install units) — QPluginLoader native drivers
 #
-#  每个 target 输出到 build/bin/drivers/<id>/（与 .odp 包内结构一致），
-#  pack 时用 scripts/driver_tool.py 组包（driver.json + driver_<id>.dll
-#  + 可选 icon.svg/assets/vendor → .odp）。
-#  ABI 契约：与主程序同 Qt 版本 + 同编译器（MinGW 13.1 x64, C++17）。
+#  Each target writes to build/bin/drivers/<id>/ (same layout as .odp).
+#  Pack with scripts/driver_tool.py (driver.json + driver_<id>.dll
+#  + optional icon.svg/assets/vendor -> .odp).
+#  ABI: same Qt version + same compiler as the main app (MSYS2 UCRT64, C++17).
 # ============================================================
 
-# 驱动插件公共头路径（复用 src/core 后端源码，需与 openbus_core 的
-# PUBLIC include 保持一致：spdlog 头由 core/logging.h 公共头引入）
+# Shared include paths for driver plugins (reuse src/core; keep in sync with
+# openbus_data PUBLIC includes: spdlog via core/logging.h).
 set(DRIVER_COMMON_INCLUDES ${CMAKE_SOURCE_DIR}/src)
 if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/spdlog/include")
     list(APPEND DRIVER_COMMON_INCLUDES ${CMAKE_SOURCE_DIR}/third_party/spdlog/include)
 endif()
 
-# 部署包内 driver.json 到驱动输出目录——开发态构建树即 .odp 安装布局
-# （DriverRegistry 扫描 <exe>/drivers/<id>/，清单不在场则插件不加载；
-# pack 打 .odp 时仍以包源目录清单为准）。各包 target 定义后调用。
+# Copy driver.json next to the plugin DLL so the build tree matches .odp layout
+# (DriverRegistry scans <exe>/drivers/<id>/; missing manifest => not loaded).
+# Pack still uses the package source manifest.
 function(deploy_driver_manifest target)
     add_custom_command(TARGET ${target} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

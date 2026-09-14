@@ -612,32 +612,29 @@ openbus/
 
 ## 安装教程
 
-### 依赖环境
+### 依赖环境（仅 MSYS2）
 
-- [Qt 6.8+](https://www.qt.io/download-open-source)（安装时勾选 MinGW 组件）
-- [CMake 3.21+](https://cmake.org/download/)
-- [MinGW 13+](https://www.mingw-w64.org/) 或 MSVC 2022
+本工程**只支持 MSYS2**（推荐 UCRT64）。请勿再使用 Windows 原生 CMake、Qt 官方安装器或其它 MinGW 发行版。
+
+1. 安装 [MSYS2](https://www.msys2.org/)，打开 **UCRT64** 终端
+2. 安装构建依赖（pacman）：
+
+```bash
+bash scripts/setup_msys2.sh
+# 等价于安装: toolchain / cmake / ninja / qt6-base / qt6-svg / qt6-tools / zlib / python / gdb ...
+```
 
 ### 构建步骤
 
+在 MSYS2 UCRT64 shell（或已把 `/ucrt64/bin` 置于 PATH 最前的终端）中：
+
 ```bash
-# 1. 配置（指定 Qt6 路径和编译器）
-cmake -B build -S . -G "MinGW Makefiles" \
-  -DCMAKE_PREFIX_PATH="D:/Qt/6.8.3/mingw_64" \
-  -DCMAKE_CXX_COMPILER="D:/Qt/Tools/mingw1310_64/bin/g++.exe" \
-  -DCMAKE_C_COMPILER="D:/Qt/Tools/mingw1310_64/bin/gcc.exe"
-
-# 2. 编译
-cmake --build build
-
-# 3. 部署（Windows）
-D:/Qt/6.8.3/mingw_64/bin/windeployqt.exe build/bin/openbus.exe
-
-# 4. 运行
-./build/bin/openbus.exe
+# 路径示例：工程 /d/openbus/openbus_20260727/sin ，工具链 /ucrt64
+python scripts/build.py configure --clean --qt-dir /ucrt64
+python scripts/build.py build -j8
+python scripts/build.py deploy
+python scripts/build.py run
 ```
-
-> 也可使用项目内置的 Python 构建脚本：`python scripts/build.py all`
 
 ## 使用说明
 
@@ -666,11 +663,11 @@ D:/Qt/6.8.3/mingw_64/bin/windeployqt.exe build/bin/openbus.exe
 
 | 组件 | 版本/说明 |
 |------|-----------|
-| Qt | 6.8.3 (Widgets) |
+| Qt | 6.x（MSYS2 `mingw-w64-ucrt-x86_64-qt6-*`） |
 | C++ | 17 |
-| CMake | 3.21+ |
-| 编译器 | MinGW 13.1.0 / MSVC 2022 |
-| 构建系统 | CMake + MinGW Makefiles |
+| CMake | 3.21+（MSYS2 `mingw-w64-ucrt-x86_64-cmake`） |
+| 编译器 | MSYS2 UCRT64 GCC（`mingw-w64-ucrt-x86_64-gcc`） |
+| 构建系统 | CMake + Ninja（均来自 MSYS2 pacman） |
 | UI 框架 | QMainWindow + QDockWidget + QSplitter |
 | 样式 | QSS (VS Code 风格暗色主题) |
 

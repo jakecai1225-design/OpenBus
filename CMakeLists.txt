@@ -2,92 +2,90 @@ cmake_minimum_required(VERSION 3.21)
 
 project(openbus
     VERSION 0.1.0
-    DESCRIPTION "报文解析、分析、回放、录制、trace、graphic 桌面软件"
+    DESCRIPTION "CAN/CAN FD frame analyze, replay, record, trace, graphic desktop app"
     LANGUAGES CXX
 )
 
 # ============================================================
-#  Fix for MinGW - Disable predefines generation (causes failure in AutoMoc)
+#  Fix for MinGW - Disable predefines generation (AutoMoc failure)
 # ============================================================
 set(CMAKE_MOC_PREDEFS_CMD "")
 set(CMAKE_CXX_COMPILE_OPTIONS_PCH "")
 
 # ============================================================
-#  C++ 标准
+#  C++ standard
 # ============================================================
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # ============================================================
-#  Qt 自动化处理 (MOC / UIC / RCC)
+#  Qt automoc / autouic / autorcc
 # ============================================================
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
 # ============================================================
-#  构建配置说明
-#  - PCH (预编译头) 在 src/CMakeLists.txt 中配置
-#  - 使用默认 ld.bfd 链接器（兼容性最好，无文件锁问题）
-#  - 不使用 ccache（与 MinGW g++ 13 的 PCH 不兼容，会静默崩溃）
-#  - 不使用 LLD 链接器（在 Windows 上会导致文件锁问题）
-#  - Dev 构建档（日常开发）：-O1 -g1，独立 build-dev/ 目录，
-#    与全信息 Debug（build/）并存，见 doc/拆分应用实施方案.md §3.1
+#  Build notes
+#  - Preferred toolchain: MSYS2 UCRT64 (scripts/setup_msys2.sh, scripts/build.py)
+#  - PCH is configured in src/CMakeLists.txt
+#  - Use default ld.bfd (best compatibility; no file-lock issues)
+#  - Do not use ccache (incompatible with MinGW g++ PCH; silent crashes)
+#  - Do not use LLD on Windows (can produce broken binaries / file locks)
+#  - Dev profile: -O1 -g1, separate build-dev/ alongside full Debug build/
 # ============================================================
 if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    message(STATUS "使用默认 ld.bfd 链接器")
+    message(STATUS "Using default ld.bfd linker (MSYS2/MinGW)")
 
-    # Dev 档 — 日常开发：O1 + 行号级调试信息，链接体积/耗时数量级下降
+    # Dev profile — daily develop: O1 + line-level debug; much smaller/faster link
     set(CMAKE_CXX_FLAGS_DEV "-O1 -g1")
 
-    # thin archive：只记录对象路径不复制内容，静态库重打包降为毫秒级。
-    # 静态库仅供本构建树内部链接使用，不出库/不安装，thin 引用始终有效。
-    # 回退方式：删除下面两行即恢复 ar qc 实档案。
+    # thin archive: store object paths only; static-lib repack is milliseconds.
+    # Libraries are internal to this build tree (not installed); thin refs stay valid.
+    # To revert: remove the two lines below (back to ar qc thick archives).
     #
-    # APPEND 必须同样带 T：对象列表超 Windows 命令行长度限制时 CMake 会分批
-    # 归档（第一批 CREATE，后续批 APPEND）。默认 APPEND 规则不带 T（ar q），
-    # 对已存在的 thin archive 报 "Cannot convert existing thin library to
-    # normal format"（2026-08-20 vector_blf 全量重编时实测）。qT 追加路径条目
-    # 为 binutils 官方支持，与 qcT 闭环兼容。
+    # APPEND must also use T: when the object list exceeds the Windows command-line
+    # limit, CMake batches archives (CREATE first, then APPEND). Default APPEND is
+    # ar q (no T) and fails on existing thin archives with
+    # "Cannot convert existing thin library to normal format".
+    # qT append is supported by binutils and matches qcT.
     set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> qcT <TARGET> <LINK_FLAGS> <OBJECTS>")
     set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> qT <TARGET> <OBJECTS>")
 
-    # 链接器结论（2026-08-19 实测，勿再尝试）：
-    #  - ld.bfd（默认）：唯一可靠选择
-    #  - ld.gold：MinGW 发行版内为 ELF-only 构建，链接 PE 时报
-    #    "--subsystem: unknown option" / "--enable-auto-image-base: unknown option"
-    #  - LLD：曾产出损坏的可执行文件
+    # Linker notes (do not retry casually):
+    #  - ld.bfd (default): only reliable choice here
+    #  - ld.gold: MinGW build is ELF-only; PE link fails on --subsystem / auto-image-base
+    #  - LLD: previously produced broken executables
 endif()
 
 # ============================================================
-#  输出目录
+#  Output directories
 # ============================================================
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # ============================================================
-#  查找 Qt6
+#  Find Qt6
 # ============================================================
 find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport Svg Network)
 
-# 启用 Qt 标准项目设置
 qt_standard_project_setup()
 
 # ============================================================
-#  第三方依赖
+#  Third-party deps
 # ============================================================
 include(${CMAKE_SOURCE_DIR}/third_party/Dependencies.cmake)
 
 # ============================================================
-#  子目录
+#  Subdirectories
 # ============================================================
 add_subdirectory(src)
 
-# 驱动插件（.odp 外置驱动，输出到 build/bin/drivers/<id>/）
+# Driver plugins (.odp external drivers -> build/bin/drivers/<id>/)
 add_subdirectory(drivers)
 
 # ============================================================
-#  安装规则
+#  Install
 # ============================================================
 install(TARGETS openbus
     RUNTIME DESTINATION bin

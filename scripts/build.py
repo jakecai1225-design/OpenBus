@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-openbus 项目构建脚本
+openbus build script
 
-支持命令:
-  configure  - CMake 配置
-  build      - 增量编译
-  run        - 运行程序
-  debug      - GDB 调试
-  clean      - 清理构建
-  rebuild    - 重新构建 (清理 + 配置 + 编译)
-  deploy     - 部署 Qt 运行时依赖
-  all        - 完整流程 (配置 + 编译 + 部署 + 运行)
-  status     - 显示环境状态
-  open       - 在资源管理器中打开构建目录
+Commands:
+  configure  - CMake configure
+  build      - Incremental build
+  run        - Run application
+  debug      - GDB debug
+  clean      - Clean build
+  rebuild    - Rebuild (clean + configure + build)
+  deploy     - Deploy Qt runtime deps
+  all        - Full pipeline (configure + build + deploy + run)
+  status     - Show environment status
+  open       - Open build dir in Explorer
 
-用法示例:
+Examples:
   python scripts/build.py configure --build-type Release
   python scripts/build.py build -j8
   python scripts/build.py run
@@ -22,37 +22,38 @@ openbus 项目构建脚本
   python scripts/build.py rebuild
   python scripts/build.py status
 
-Dev 快速构建档 (日常开发，-O1 -g1，独立目录与全量 Debug 并存):
+Dev profile (daily: -O1 -g1; separate dir alongside full Debug):
   python scripts/build.py configure --build-type Dev --build-dir build-dev
   python scripts/build.py build --build-dir build-dev -j8
   python scripts/build.py run --build-dir build-dev
 
-跨电脑/多环境配置:
+Multi-machine / multi-env setup:
   ============================
-  
-  本脚本自动检测并适配不同电脑的 Qt、MinGW、CMake 安装路径。
-  检测到错误时会自动提示可用的工具路径候选。
-  
-  环境变量（优先级最高）:
-    set SIN_QT_DIR=D:/Qt/6.10.1/mingw_64
-    set SIN_MINGW_DIR=D:/Qt/Tools/mingw1107_64
-    set SIN_CMAKE_DIR=C:/Program Files/CMake
-  
-  命令行参数（临时指定）:
-    python scripts/build.py configure --qt-dir D:/Qt/6.10.1/mingw_64 --mingw-dir D:/Qt/Tools/mingw1107_64
-  
-  自动检测逻辑:
-    1. 优先使用环境变量指定路径
-    2. 其次检查之前构建的 CMakeCache.txt 中的路径
-    3. 扫描常见安装位置：C/D/E 盘的多个版本
-    4. 使用内置默认值作为最终回退
-  
-  支持的自动检测位置:
-    Qt6: C:/Qt/6.x.x/mingw_64, D:/Qt/6.x.x/mingw_64, E:/Qt/6.x.x/mingw_64
-    MinGW: C:/Qt/Tools/mingw*, D:/Qt/Tools/mingw*, E:/Qt/Tools/mingw*
-    CMake: C:/Program Files/CMake, D:/Program Files/CMake, Scoop 安装等
-  
-注意：不使用 ccache (与 PCH 不兼容) 和 LLD (文件锁问题)
+
+  This project supports MSYS2 only (default UCRT64). Do not use native
+  Windows CMake, the Qt online installer, or other MinGW distros.
+
+  Use MSYS2/bash paths (auto-converted when invoking Windows PE tools):
+    /c/msys64/ucrt64          # full prefix
+    /ucrt64                   # short form inside UCRT64 shell
+    /d/openbus/.../sin        # project root
+
+  Install deps with pacman:
+    bash scripts/setup_msys2.sh
+
+  Env vars (optional, bash paths):
+    SIN_MSYS2_ROOT=/c/msys64
+    SIN_MSYS2_ENV=ucrt64
+    SIN_QT_DIR=/ucrt64
+    SIN_MINGW_DIR=/ucrt64
+    SIN_CMAKE_DIR=/ucrt64
+
+  Preferred: build inside MSYS2 UCRT64 shell:
+    python scripts/build.py configure --clean
+    python scripts/build.py build -j8
+    python scripts/build.py deploy
+
+Note: do not use ccache (PCH-incompatible) or LLD (file-lock issues)
         """
 
 import argparse
@@ -63,7 +64,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-# 启用 Windows 终端 ANSI 颜色支持
+# Enable Windows console ANSI colors
 def _enable_ansi_colors():
     if sys.platform != "win32":
         return
@@ -76,7 +77,7 @@ def _enable_ansi_colors():
 
 _enable_ansi_colors()
 
-# Windows 终端中文输出兼容
+# Windows console UTF-8 output
 if sys.platform == "win32":
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -85,152 +86,250 @@ if sys.platform == "win32":
         pass
 
 # ============================================================
-#  路径配置
+#  Paths + MSYS2/bash path conversion
 # ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-BUILD_DIR = PROJECT_ROOT / "build"          # 默认构建目录，可被 --build-dir 覆盖
+BUILD_DIR = PROJECT_ROOT / "build"          # default build dir; overridable via --build-dir
 EXECUTABLE = BUILD_DIR / "bin" / "openbus.exe"
 TOOLS_DIR = PROJECT_ROOT / "tools"
 
+# MSYS2 env names (for /ucrt64 short paths)
+_MSYS_ENV_NAMES = ("ucrt64", "mingw64", "clang64", "mingw32", "clangarm64")
+
+
+def to_msys(path) -> str:
+    """Windows / Path -> MSYS2 bash path.
+
+    Examples: C:\\msys64\\ucrt64 → /c/msys64/ucrt64
+        D:/foo/bar         → /d/foo/bar
+        /ucrt64            → /ucrt64 (unchanged)
+    """
+    if path is None:
+        return ""
+    s = str(path).strip().replace("\\", "/")
+    if not s:
+        return ""
+    # already bash-style
+    if s.startswith("/") and not s.startswith("//"):
+        return s.rstrip("/") or "/"
+    # UNC \\server\share — keep as //server/share
+    if s.startswith("//"):
+        return s.rstrip("/")
+    # X:/... or X:...
+    if len(s) >= 2 and s[1] == ":":
+        drive = s[0].lower()
+        rest = s[2:]
+        if not rest.startswith("/"):
+            rest = "/" + rest if rest else ""
+        return f"/{drive}{rest}".rstrip("/") or f"/{drive}"
+    return s
+
+
+def from_msys(path) -> Path:
+    """MSYS2 bash / Windows path -> pathlib.Path (existence checks).
+
+    Supports:
+      /c/msys64/ucrt64
+      /ucrt64、/mingw64 (short prefix vs SIN_MSYS2_ROOT or default /c/msys64)
+      C:/msys64/ucrt64、C:\\msys64\\ucrt64
+    """
+    if isinstance(path, Path):
+        return path
+    s = str(path).strip().replace("\\", "/")
+    if not s:
+        return Path()
+
+    # short /ucrt64 -> {root}/ucrt64
+    bare = s.lstrip("/")
+    if s.startswith("/") and bare in _MSYS_ENV_NAMES:
+        root = os.environ.get("SIN_MSYS2_ROOT") or "/c/msys64"
+        return from_msys(f"{to_msys(root)}/{bare}")
+
+    # /c/foo/bar → C:/foo/bar
+    if len(s) >= 3 and s[0] == "/" and s[1].isalpha() and s[2] == "/":
+        return Path(f"{s[1].upper()}:{s[2:]}")
+    if len(s) == 2 and s[0] == "/" and s[1].isalpha():
+        return Path(f"{s[1].upper()}:/")
+
+    # already Windows or relative
+    return Path(s)
+
+
+def cmake_path(path) -> str:
+    """Path for MinGW/Windows cmake.exe (must be C:/..., not /c/...)."""
+    p = from_msys(path).resolve() if Path(str(path)).exists() or str(path).startswith("/") else from_msys(path)
+    try:
+        p = p.resolve()
+    except OSError:
+        pass
+    return p.as_posix()
+
+
+def fmt_path(path) -> str:
+    """Normalize path for display as bash form."""
+    return to_msys(from_msys(path) if not isinstance(path, Path) else path)
+
 
 # ============================================================
-#  自动检测工具路径
+#  MSYS2 toolchain detection (only supported toolchain)
 # ============================================================
+
+def _msys2_roots():
+    roots = []
+    env_root = os.environ.get("SIN_MSYS2_ROOT")
+    if env_root:
+        roots.append(from_msys(env_root))
+    roots.extend([
+        from_msys("/c/msys64"),
+        from_msys("/d/msys64"),
+        from_msys("/c/tools/msys64"),
+        Path("C:/msys64"),
+        Path("D:/msys64"),
+    ])
+    seen = set()
+    out = []
+    for r in roots:
+        try:
+            key = str(r.resolve()).lower() if r.exists() else str(r).lower()
+        except OSError:
+            key = str(r).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if r.exists():
+            out.append(r)
+    return out
+
+
+def _msys2_env_names():
+    """Env priority: SIN_MSYS2_ENV > MSYSTEM > ucrt64 > mingw64 > clang64"""
+    preferred = (os.environ.get("SIN_MSYS2_ENV") or "").strip().lower()
+    msystem = (os.environ.get("MSYSTEM") or "").strip().lower()
+    ordered = []
+    for name in (preferred, msystem, "ucrt64", "mingw64", "clang64"):
+        if name and name not in ordered:
+            ordered.append(name)
+    return ordered
+
+
+def _is_msys2_prefix(path: Path) -> bool:
+    """True if path is an MSYS2 prefix (.../msys64/ucrt64); reject native Qt/CMake."""
+    try:
+        parts = [p.lower() for p in path.resolve().parts]
+    except OSError:
+        parts = [p.lower() for p in Path(path).parts]
+    if "msys64" not in parts and "msys2" not in parts:
+        return False
+    return any(env in parts for env in ("ucrt64", "mingw64", "clang64", "mingw32", "clangarm64"))
+
+
+def _msys2_prefixes():
+    """Return usable MSYS2 prefixes (with g++)."""
+    prefixes = []
+    for root in _msys2_roots():
+        for env_name in _msys2_env_names():
+            p = root / env_name
+            if (p / "bin" / "g++.exe").exists() or (p / "bin" / "g++").exists():
+                prefixes.append(p)
+    return prefixes
+
+
+def _has_qmake(prefix: Path) -> bool:
+    bin_dir = prefix / "bin"
+    return (bin_dir / "qmake6.exe").exists() or (bin_dir / "qmake6").exists() \
+        or (bin_dir / "qmake.exe").exists() or (bin_dir / "qmake").exists()
+
+
+def _is_qt_prefix(prefix: Path) -> bool:
+    if not prefix.exists() or not _is_msys2_prefix(prefix):
+        return False
+    if (prefix / "lib" / "cmake" / "Qt6" / "Qt6Config.cmake").exists():
+        return True
+    return _has_qmake(prefix)
+
+
+def _find_windeployqt(qt_bin: Path):
+    for name in ("windeployqt6.exe", "windeployqt6", "windeployqt-qt6.exe", "windeployqt.exe"):
+        p = qt_bin / name
+        if p.exists():
+            return p
+    return qt_bin / "windeployqt6.exe"
+
+
+def _append_unique(lst, path: Path):
+    if path and path not in lst:
+        lst.append(path)
+
+
+def _reject_non_msys2(path: Path, what: str) -> Path:
+    if not _is_msys2_prefix(path):
+        raise RuntimeError(
+            f"{what} must be under an MSYS2 prefix; rejected: {fmt_path(path)}\n"
+            f"Install deps: bash scripts/setup_msys2.sh\n"
+            f"Or set SIN_MSYS2_ROOT=/c/msys64  SIN_QT_DIR=/ucrt64"
+        )
+    return path
+
+
+def _find_msys2_prefix_dirs():
+    """Unified prefix candidates: same dir provides Qt / g++ / cmake."""
+    candidates = []
+
+    for key in ("SIN_QT_DIR", "SIN_MINGW_DIR", "SIN_CMAKE_DIR"):
+        val = os.environ.get(key)
+        if not val:
+            continue
+        p = from_msys(val)
+        if _is_msys2_prefix(p) and (p / "bin").exists():
+            _append_unique(candidates, p)
+
+    for p in _msys2_prefixes():
+        _append_unique(candidates, p)
+
+    return candidates
+
 
 def _find_qt_dirs():
-    """返回所有可能的 Qt6 安装路径（按优先级排序）"""
-    candidates = []
-    
-    # Qt for Python (PySide) 标准路径
-    qt_for_python_paths = [
-        Path("C:/Qt/6.11.2/mingw_64"),
-        Path("C:/Qt/6.10.1/mingw_64"),
-        Path("C:/Qt/6.9.3/mingw_64"),
-        Path("C:/Qt/6.8.3/mingw_64"),
-        Path("D:/Qt/6.11.2/mingw_64"),
-        Path("D:/Qt/6.10.1/mingw_64"),
-        Path("E:/Qt/6.11.2/mingw_64"),
-    ]
-    
-    # 检查 CMake Cache（如果之前构建过）
-    cache_file = PROJECT_ROOT / "build" / "CMakeCache.txt"
-    if cache_file.exists():
-        try:
-            content = cache_file.read_text(encoding="utf-8")
-            for line in content.splitlines():
-                if line.startswith("CMAKE_PREFIX_PATH:"):  
-                    import re
-                    match = re.search(r'CMAKE_PREFIX_PATH:STRING=(.+)', line)
-                    if match:
-                        path = Path(match.group(1))
-                        if path.exists() and (path / "bin" / "qmake.exe").exists():
-                            if path not in candidates:
-                                candidates.insert(0, path)
-        except Exception:
-            pass
-    
-    # 添加到候选列表
-    for p in qt_for_python_paths:
-        if p.exists() and (p / "bin" / "qmake.exe").exists():
-            if p not in candidates:
-                candidates.append(p)
-    
-    # 如果没有找到，尝试从环境变量读取
-    env_qt = os.environ.get("SIN_QT_DIR")
-    if env_qt:
-        env_path = Path(env_qt)
-        if env_path.exists() and (env_path / "bin" / "qmake.exe").exists():
-            if env_path not in candidates:
-                candidates.insert(0, env_path)
-    
-    return candidates
+    return [p for p in _find_msys2_prefix_dirs() if _is_qt_prefix(p)]
 
 
 def _find_mingw_dirs():
-    """返回所有可能的 MinGW 路径（按优先级排序）"""
-    candidates = []
-    
-    # MinGW 路径模板
-    mingw_paths = [
-        Path("C:/Qt/Tools/mingw1310_64"),
-        Path("C:/Qt/Tools/gcc_64"),
-        Path("C:/Qt/Tools/mingw1107_64"),
-        Path("C:/Qt/Tools/mingw10_32"),
-        Path("D:/Qt/Tools/mingw1310_64"),
-        Path("D:/Qt/Tools/mingw1107_64"),
-        Path("E:/Qt/Tools/mingw1310_64"),
-    ]
-    
-    # 检查环境变量
-    env_mingw = os.environ.get("SIN_MINGW_DIR")
-    if env_mingw:
-        env_path = Path(env_mingw)
-        if env_path.exists() and (env_path / "bin" / "g++.exe").exists():
-            if env_path not in candidates:
-                candidates.insert(0, env_path)
-    else:
-        # 没有环境变量时，从候选列表中查找
-        for p in mingw_paths:
-            if p.exists() and (p / "bin" / "g++.exe").exists():
-                candidates.append(p)
-    
-    return candidates
+    out = []
+    for p in _find_msys2_prefix_dirs():
+        if (p / "bin" / "g++.exe").exists() or (p / "bin" / "g++").exists():
+            _append_unique(out, p)
+    return out
 
 
 def _find_cmake_dirs():
-    """返回所有可能的 CMake 路径（按优先级排序）"""
-    candidates = []
-    
-    # CMake 路径模板
-    cmake_paths = [
-        Path("C:/Program Files/CMake"),
-        Path("C:/Program Files (x86)/CMake"),
-        Path("D:/Program Files/CMake"),
-        Path("D:/Program Files (x86)/CMake"),
-        Path(r"C:/Users/Developer/scoop/apps/cmake/current"),
-        Path(r"C:/Users/Developer/scoop/shims"),  # scoop 安装的 cmake
-        Path("C:/tools/cmake-3.30.3-windows-x86_64"),  # portable cmake
-        Path("C:/tools/cmake"),  # generic portable path
-    ]
-    
-    # 检查环境变量
-    env_cmake = os.environ.get("SIN_CMAKE_DIR")
-    if env_cmake:
-        env_path = Path(env_cmake)
-        if env_path.exists() and (env_path / "bin" / "cmake.exe").exists():
-            if env_path not in candidates:
-                candidates.insert(0, env_path)
-    else:
-        # 没有环境变量时，从候选列表中查找
-        for p in cmake_paths:
-            if p.exists() and (p / "bin" / "cmake.exe").exists():
-                candidates.append(p)
-    
-    return candidates
+    out = []
+    for p in _find_msys2_prefix_dirs():
+        if (p / "bin" / "cmake.exe").exists() or (p / "bin" / "cmake").exists():
+            _append_unique(out, p)
+    return out
 
 
 def set_build_dir(name):
-    """切换构建目录 (--build-dir build-dev 等)，同步更新可执行文件路径
+    """Switch build dir (--build-dir build-dev, etc.); refresh executable path
 
-    允许 Dev 档 (build-dev/) 与全量 Debug (build/) 并存，避免切档全量重编。
+    Allow Dev (build-dev/) alongside full Debug (build/) without full rebuilds.
+    Accepts bash paths: --build-dir /d/openbus/.../build-dev
     """
     global BUILD_DIR, EXECUTABLE
-    bd = Path(name)
-    BUILD_DIR = bd if bd.is_absolute() else PROJECT_ROOT / bd
+    raw = str(name)
+    if raw.startswith("/") or (len(raw) >= 2 and raw[1] == ":"):
+        bd = from_msys(raw)
+    else:
+        bd = Path(raw)
+        if not bd.is_absolute():
+            bd = PROJECT_ROOT / bd
+    BUILD_DIR = bd
     EXECUTABLE = BUILD_DIR / "bin" / "openbus.exe"
 
+
 def get_preferred_tool(finders, name, required=True):
-    """从多个候选位置中选择一个可用的工具路径
-    
-    Args:
-        finders: 函数列表，每个函数返回一个路径列表（按优先级）
-        name: 工具名称（用于错误信息）
-        required: 是否必须找到该工具
-    
-    Returns:
-        最佳匹配的路径
-    """
+    """Pick the first available tool path from candidates"""
     all_candidates = []
     for finder in finders:
         try:
@@ -239,29 +338,37 @@ def get_preferred_tool(finders, name, required=True):
                 all_candidates.extend(candidates)
         except Exception:
             pass
-    
+
     if all_candidates:
-        return all_candidates[0]  # 返回第一个找到的
-    elif required:
-        raise RuntimeError(f"{name} 未找到，请通过环境变量指定")
-    else:
-        return None
+        return all_candidates[0]
+    if required:
+        raise RuntimeError(
+            f"MSYS2 {name} not found. In UCRT64 shell run:\n"
+            f"  bash scripts/setup_msys2.sh"
+        )
+    return None
 
 
-# 使用自动检测功能设置默认工具路径
+# Defaults all point at the same MSYS2 prefix (ucrt64)
+_default_prefixes = _find_msys2_prefix_dirs()
 _default_qt_dirs = _find_qt_dirs()
 _default_mingw_dirs = _find_mingw_dirs()
 _default_cmake_dirs = _find_cmake_dirs()
 
-DEFAULT_QT_DIR = get_preferred_tool([lambda: _default_qt_dirs], "Qt6", required=False) or Path("C:/Qt/6.11.2/mingw_64")
-DEFAULT_MINGW_DIR = get_preferred_tool([lambda: _default_mingw_dirs], "MinGW", required=False) or Path("C:/Qt/Tools/mingw1310_64")
-DEFAULT_CMAKE_DIR = get_preferred_tool([lambda: _default_cmake_dirs], "CMake", required=False) or Path("C:/Program Files/CMake")
+_FALLBACK_MSYS = from_msys("/c/msys64/ucrt64")
+DEFAULT_QT_DIR = get_preferred_tool([lambda: _default_qt_dirs], "Qt6", required=False) \
+    or get_preferred_tool([lambda: _default_prefixes], "MSYS2", required=False) \
+    or _FALLBACK_MSYS
+DEFAULT_MINGW_DIR = get_preferred_tool([lambda: _default_mingw_dirs], "g++", required=False) \
+    or DEFAULT_QT_DIR
+DEFAULT_CMAKE_DIR = get_preferred_tool([lambda: _default_cmake_dirs], "CMake", required=False) \
+    or DEFAULT_QT_DIR
 
-# Dev: 日常开发档 (-O1 -g1，见根 CMakeLists.txt)，建议配合 --build-dir build-dev
+# Dev: daily profile (-O1 -g1; see root CMakeLists.txt); use --build-dir build-dev
 BUILD_TYPES = ["Dev", "Debug", "Release", "RelWithDebInfo", "MinSizeRel"]
 
 # ============================================================
-#  颜色输出
+#  Color output
 # ============================================================
 
 
@@ -299,247 +406,324 @@ def header(msg):
 
 
 # ============================================================
-#  环境与工具
+#  Environment and tools
 # ============================================================
 
 
+def _tool_exe(bin_dir: Path, name: str) -> Path:
+    """Resolve MSYS2 tool executable (prefer .exe)."""
+    for cand in (bin_dir / f"{name}.exe", bin_dir / name):
+        if cand.exists():
+            return cand
+    return bin_dir / f"{name}.exe"
+
+
+def _sanitize_path_for_msys2(msys_bins):
+    """Prepend MSYS2 to PATH; strip native Windows CMake / Qt / rogue MinGW."""
+    blocked_needles = (
+        r"\cmake\bin",
+        r"/cmake/bin",
+        r"\qt\tools",
+        r"/qt/tools",
+        r"\qt\6.",
+        r"/qt/6.",
+        r"\mingw\bin",
+        r"/mingw/bin",
+        r"\mingw64\bin",
+        r"/mingw64/bin",
+        r"program files\cmake",
+        r"program files (x86)\cmake",
+    )
+    resolved_msys = set()
+    for b in msys_bins:
+        try:
+            resolved_msys.add(Path(b).resolve())
+        except OSError:
+            pass
+    keep = []
+    for part in os.environ.get("PATH", "").split(os.pathsep):
+        if not part:
+            continue
+        try:
+            if Path(part).resolve() in resolved_msys:
+                continue
+        except OSError:
+            pass
+        low = part.replace("/", "\\").lower()
+        if any(n in low for n in blocked_needles):
+            if "msys64" in low or "msys2" in low:
+                keep.append(part)
+            continue
+        keep.append(part)
+    ordered, seen = [], set()
+    for p in list(msys_bins) + keep:
+        key = p.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(p)
+    os.environ["PATH"] = os.pathsep.join(ordered)
+
+
 class Environment:
-    """管理构建工具路径与环境变量"""
+    """Manage MSYS2 build tool paths (only supported toolchain)."""
 
     def __init__(self, args):
-        self.qt_dir = Path(getattr(args, "qt_dir", None) or DEFAULT_QT_DIR)
-        self.mingw_dir = Path(getattr(args, "mingw_dir", None) or DEFAULT_MINGW_DIR)
-        self.cmake_dir = Path(getattr(args, "cmake_dir", None) or DEFAULT_CMAKE_DIR)
+        qt = from_msys(getattr(args, "qt_dir", None) or DEFAULT_QT_DIR)
+        mingw = from_msys(getattr(args, "mingw_dir", None) or DEFAULT_MINGW_DIR)
+        cmake = from_msys(getattr(args, "cmake_dir", None) or DEFAULT_CMAKE_DIR)
+
+        self.qt_dir = _reject_non_msys2(qt, "Qt6 (--qt-dir / SIN_QT_DIR)")
+        self.mingw_dir = _reject_non_msys2(mingw, "compiler (--mingw-dir / SIN_MINGW_DIR)")
+        self.cmake_dir = _reject_non_msys2(cmake, "CMake (--cmake-dir / SIN_CMAKE_DIR)")
+
+        if self.qt_dir.resolve() != self.mingw_dir.resolve() or self.qt_dir.resolve() != self.cmake_dir.resolve():
+            warn(
+                "Qt / compiler / CMake prefixes differ; forcing align to Qt prefix:\n"
+                f"  Qt={fmt_path(self.qt_dir)}\n"
+                f"  CXX={fmt_path(self.mingw_dir)}\n"
+                f"  CMake={fmt_path(self.cmake_dir)}"
+            )
+            self.mingw_dir = self.qt_dir
+            self.cmake_dir = self.qt_dir
 
         self.qt_bin = self.qt_dir / "bin"
         self.mingw_bin = self.mingw_dir / "bin"
         self.cmake_bin = self.cmake_dir / "bin"
 
-        self.cmake = self.cmake_bin / "cmake.exe"
-        self.cxx = self.mingw_bin / "g++.exe"
-        self.cc = self.mingw_bin / "gcc.exe"
-        self.gdb = self.mingw_bin / "gdb.exe"
-        self.windeployqt = self.qt_bin / "windeployqt.exe"
+        self.cmake = _tool_exe(self.cmake_bin, "cmake")
+        self.cxx = _tool_exe(self.mingw_bin, "g++")
+        self.cc = _tool_exe(self.mingw_bin, "gcc")
+        self.gdb = _tool_exe(self.mingw_bin, "gdb")
+        self.windeployqt = _find_windeployqt(self.qt_bin)
+        self.is_msys2 = True
+        self.msys_env = next(
+            (e for e in _MSYS_ENV_NAMES
+             if e in [p.lower() for p in self.mingw_dir.parts]),
+            "ucrt64",
+        )
 
-        # ---- make 程序 (MinGW Makefiles 生成器需要) ----
-        # 优先 mingw32-make.exe，回退 make.exe
-        mingw32_make = self.mingw_bin / "mingw32-make.exe"
-        make_exe = self.mingw_bin / "make.exe"
-        if mingw32_make.exists():
-            self.make_program = mingw32_make
-        elif make_exe.exists():
-            self.make_program = make_exe
-        else:
-            self.make_program = mingw32_make  # 默认值，verify 时会报错
+        mingw32_make = _tool_exe(self.mingw_bin, "mingw32-make")
+        make_exe = _tool_exe(self.mingw_bin, "make")
+        self.make_program = mingw32_make if mingw32_make.exists() else (
+            make_exe if make_exe.exists() else mingw32_make
+        )
 
-        # ---- Ninja 构建系统 (优先 Qt Tools/ninja，回退项目本地 tools/)
-        ninja_qt = self.mingw_dir.parent / "ninja/ninja.exe"
-        ninja_local = TOOLS_DIR / "ninja/ninja.exe"
-        if ninja_qt.exists():
-            self.ninja = ninja_qt
-            self.use_ninja = True
-        elif ninja_local.exists():
-            self.ninja = ninja_local
-            self.use_ninja = True
-        else:
-            self.ninja = None
-            self.use_ninja = False
-
-        # 注意: 不使用 ccache（与 MinGW g++ 13 的 PCH 不兼容，会静默崩溃）
-        # 注意: 不使用 LLD 链接器（在 Windows 上会导致文件锁问题）
+        ninja_candidates = [
+            _tool_exe(self.mingw_bin, "ninja"),
+            _tool_exe(self.qt_bin, "ninja"),
+        ]
+        self.ninja = next((n for n in ninja_candidates if n.exists()), None)
+        self.use_ninja = self.ninja is not None
 
     def setup_path(self):
-        """将工具路径加入 PATH
-    
-        关键：MinGW bin 必须在 PATH 中，否则 cc1plus.exe 找不到
-        libgcc_s_seh-1.dll / libstdc++-6.dll / libwinpthread-1.dll 等 DLL
-        会导致编译器静默崩溃（STATUS_DLL_NOT_FOUND，退出码 -1073741515）
-        """
-        prepend = [str(self.cmake_bin), str(self.mingw_bin), str(self.qt_bin)]
+        msys_bins = [str(self.cmake_bin), str(self.mingw_bin), str(self.qt_bin)]
         if self.use_ninja and self.ninja:
-            prepend.insert(0, str(self.ninja.parent))
-        os.environ["PATH"] = os.pathsep.join(prepend) + os.pathsep + os.environ.get("PATH", "")
-    
+            msys_bins.insert(0, str(self.ninja.parent))
+        usr_bin = self.mingw_dir.parent / "usr" / "bin"
+        if usr_bin.exists():
+            msys_bins.append(str(usr_bin))
+        _sanitize_path_for_msys2(msys_bins)
+
     def print_accel_info(self):
-        """打印构建工具状态"""
-        info(f"Qt6:           {self.qt_dir}")
-        info(f"MinGW:         {self.mingw_dir}")
-        info(f"CMake:         {self.cmake_dir}")
-            
+        info(f"Toolchain:      MSYS2 / {self.msys_env}")
+        info(f"Prefix:        {fmt_path(self.mingw_dir)}")
+        info(f"Short:      /{self.msys_env}")
+        info(f"Qt6:           {fmt_path(self.qt_dir)}")
+        info(f"CMake:         {fmt_path(self.cmake)}")
         if self.use_ninja:
-            ok(f"构建系统：Ninja ({self.ninja})")
+            ok(f"Build system: Ninja ({fmt_path(self.ninja)})")
         else:
-            warn("未检测到 Ninja，使用 MinGW Makefiles（较慢）")
-    
+            warn("Ninja not found; falling back to MinGW Makefiles (slower)")
+            warn("Install: pacman -S mingw-w64-ucrt-x86_64-ninja")
+
     def _check(self, path, name, required=True):
-        exists = path.exists()
+        exists = bool(path) and path.exists()
+        shown = fmt_path(path) if path else str(path)
         if exists:
-            ok(f"{name:12s} {path}")
+            ok(f"{name:12s} {shown}")
         elif required:
-            fail(f"{name:12s} {path} (未找到)")
+            fail(f"{name:12s} {shown} (missing)")
         else:
-            warn(f"{name:12s} {path} (未找到，可选)")
+            warn(f"{name:12s} {shown} (missing, optional)")
         return exists or not required
-    
+
     def verify(self, auto_fix=False):
-        """检查必需工具是否存在，并提供修复建议"""
-        header("工具检查")
-        all_ok = True
-            
-        # 基础工具检查
+        header("Tool check (MSYS2 only)")
+        if not _is_msys2_prefix(self.qt_dir):
+            fail(f"Not an MSYS2 prefix: {fmt_path(self.qt_dir)}")
+            return False
         cmake_found = self._check(self.cmake, "CMake")
         gpp_found = self._check(self.cxx, "g++")
         gcc_found = self._check(self.cc, "gcc")
         windeployqt_found = self._check(self.windeployqt, "windeployqt")
-        gdb_found = self._check(self.gdb, "gdb", required=False)
-            
-        # 如果发现问题并启用自动修复
-        if auto_fix and not all_ok:
-            self._auto_fix_candidates()
-            
-        return cmake_found and gpp_found and gcc_found and windeployqt_found
-        
+        self._check(self.ninja or (self.mingw_bin / "ninja.exe"), "ninja", required=False)
+        self._check(self.gdb, "gdb", required=False)
+        if not (cmake_found and gpp_found and gcc_found and windeployqt_found):
+            warn("Deps incomplete; run: bash scripts/setup_msys2.sh")
+            if auto_fix:
+                self._auto_fix_candidates()
+            return False
+        return True
+
     def _auto_fix_candidates(self):
-        """提供可用的工具路径候选"""
-        print(f"\n{C.YELLOW}检测到以下可用工具路径:{C.RESET}")
-            
-        # Qt 候选
-        if not self.windeployqt.exists():
-            qt_candidates = _find_qt_dirs()
-            if qt_candidates:
-                warn(f"当前 Qt 目录不可用：{self.qt_dir}")
-                for i, qd in enumerate(qt_candidates[:3], 1):
-                    print(f"  {i}. {qd}")
-                print(f"  提示：使用 --qt-dir <路径> 指定正确的 Qt 路径\n")
-            
-        # MinGW 候选
-        if not self.cxx.exists():
-            mingw_candidates = _find_mingw_dirs()
-            if mingw_candidates:
-                warn(f"当前 MinGW 目录不可用：{self.mingw_dir}")
-                for i, md in enumerate(mingw_candidates[:3], 1):
-                    print(f"  {i}. {md}")
-                print(f"  提示：使用 --mingw-dir <路径> 指定正确的 MinGW 路径\n")
-            
-        # CMake 候选
-        if not self.cmake.exists():
-            cmake_candidates = _find_cmake_dirs()
-            if cmake_candidates:
-                warn(f"当前 CMake 目录不可用：{self.cmake_dir}")
-                for i, cd in enumerate(cmake_candidates[:3], 1):
-                    print(f"  {i}. {cd}")
-                print(f"  提示：使用 --cmake-dir <路径> 指定正确的 CMake 路径\n")
+        print(f"\n{C.YELLOW}Available MSYS2 prefixes:{C.RESET}")
+        for i, p in enumerate(_find_msys2_prefix_dirs()[:8], 1):
+            print(f"  {i}. {fmt_path(p)}  (/{p.name})")
+        print("  Install deps: bash scripts/setup_msys2.sh\n")
 
 
 def run_cmd(cmd, cwd=None, check=True):
-    """执行命令，失败时退出
+    """Run a command; exit on failure.
 
-    关键：显式传递 env 参数，确保子进程继承更新后的 PATH
+    argv for PE tools stays Windows paths; logs print bash form.
     """
-    display = " ".join(str(c) for c in cmd) if isinstance(cmd, list) else cmd
+    def _fmt_arg(c):
+        s = str(c)
+        if s.startswith("-D") and "=" in s:
+            key, _, val = s.partition("=")
+            if val and (":" in val or "\\" in val or val.startswith("/")):
+                try:
+                    return f"{key}={fmt_path(val)}"
+                except Exception:
+                    return s
+        if ":\\" in s or ":/" in s or s.startswith("/") or "\\" in s:
+            try:
+                if Path(s).exists() or s.startswith("/") or (len(s) > 1 and s[1] == ":"):
+                    return fmt_path(s)
+            except Exception:
+                pass
+        return s
+
+    display = " ".join(_fmt_arg(c) for c in cmd) if isinstance(cmd, list) else str(cmd)
     info(f"$ {display}")
     result = subprocess.run(
-        cmd, 
+        cmd,
         cwd=cwd or str(PROJECT_ROOT),
-        env=os.environ  # 显式传递当前环境的 PATH
+        env=os.environ,
     )
     if check and result.returncode != 0:
-        fail(f"命令失败 (退出码：{result.returncode})")
+        fail(f"Command failed (exit code {result.returncode})")
         sys.exit(result.returncode)
     return result
 
-
 # ============================================================
-#  命令实现
+#  Command handlers
 # ============================================================
 
 
 def cmd_configure(env, args):
-    """CMake 配置"""
-    header("CMake 配置")
+    """CMake configure"""
+    header("CMake configure")
     if not env.verify():
         sys.exit(1)
 
     env.print_accel_info()
 
-    # 如果要求 clean，先清理旧缓存
+    # If --clean, wipe the old build tree first
     if getattr(args, "clean", False):
-        info("清理旧构建目录...")
+        info("Cleaning old build directory...")
         if BUILD_DIR.exists():
             shutil.rmtree(BUILD_DIR)
-            ok(f"已删除：{BUILD_DIR}")
+            ok(f"Removed: {fmt_path(BUILD_DIR)}")
 
-    # 检查缓存文件是否与其他项目冲突（仅在未启用 --clean 时）
+    # Detect cache conflicts with other source trees / toolchains
     cache_file = BUILD_DIR / "CMakeCache.txt"
     if cache_file.exists() and not getattr(args, "clean", False):
         try:
             content = cache_file.read_text(encoding="utf-8", errors="ignore")
-            for line in content.splitlines():
-                # 检查是否来自其他源目录的缓存
-                if (line.startswith("# CMake Cache Directory") or 
-                    line.startswith("# CMAKE_SOURCE_DIR:")):
-                    # 查找所有以#开头和源码相关的行
-                    break
-            
-            # 检查是否有 CMAKE_SOURCE_DIR 且与当前项目不匹配
-            current_source = PROJECT_ROOT.as_posix()
+            current_source = cmake_path(PROJECT_ROOT)
+            conflict_reason = None
+
             for line in content.splitlines():
                 if line.startswith("CMAKE_SOURCE_DIR:STATIC="):
                     old_source = line.split("=", 1)[1].strip().strip('"')
-                    if old_source != current_source:
-                        fail(f"检测到旧的缓存文件：")
-                        fail(f"  之前构建自：{old_source}")
-                        fail(f"  当前项目：  {current_source}")
-                        fail("")
-                        fail("请执行以下操作之一：")
-                        fail("  1. python scripts/build.py configure --clean")
-                        fail("  2. 手动删除 build/ 目录后重新配置")
-                        sys.exit(1)
+                    if old_source.replace("\\", "/") != current_source:
+                        conflict_reason = (
+                            f"Source directory mismatch\n"
+                            f"  Previously built from: {fmt_path(old_source)}\n"
+                            f"  Current project:     {fmt_path(current_source)}"
+                        )
+                    break
+
+            if conflict_reason is None:
+                # On toolchain change (must stay MSYS2), wipe cache to avoid ABI mix
+                import re
+                m = re.search(r"CMAKE_PREFIX_PATH:STRING=(.+)", content)
+                if m:
+                    old_prefix = from_msys(m.group(1).split(";")[0].strip())
+                    new_prefix = env.qt_dir.resolve()
+                    if old_prefix.exists() and old_prefix.resolve() != new_prefix:
+                        conflict_reason = (
+                            f"MSYS2 prefix changed\n"
+                            f"  Cached prefix:  {fmt_path(old_prefix)}\n"
+                            f"  Current prefix: {fmt_path(new_prefix)}"
+                        )
+                    elif not _is_msys2_prefix(old_prefix):
+                        conflict_reason = (
+                            f"Non-MSYS2 cache detected (Windows Qt/CMake); must clean\n"
+                            f"  Cached prefix:  {fmt_path(old_prefix)}"
+                        )
+                m2 = re.search(r"CMAKE_CXX_COMPILER:FILEPATH=(.+)", content)
+                if conflict_reason is None and m2:
+                    old_cxx = from_msys(m2.group(1).strip())
+                    new_cxx = env.cxx.resolve()
+                    if old_cxx.exists() and old_cxx.resolve() != new_cxx:
+                        conflict_reason = (
+                            f"C++ compiler changed\n"
+                            f"  Cached compiler:  {fmt_path(old_cxx)}\n"
+                            f"  Current compiler: {fmt_path(new_cxx)}"
+                        )
+
+            if conflict_reason:
+                fail("Conflicting build cache detected:")
+                for line in conflict_reason.splitlines():
+                    fail(line)
+                fail("")
+                fail("Run: python scripts/build.py configure --clean")
+                sys.exit(1)
         except Exception as e:
-            warn(f"读取缓存文件失败：{e}")
+            warn(f"Failed to read cache: {e}")
 
     build_type = getattr(args, "build_type", "Debug")
-    info(f"构建类型：{build_type}")
-        
-    # 如果存在冲突的缓存文件且未指定 --clean，提示用户清理
-    if cache_file.exists() and not getattr(args, "clean", False):
-        fail("检测到与之前项目的冲突缓存，请执行以下操作之一：")
-        fail("  1. 使用 --clean 参数重新配置 (推荐)")
-        fail("  2. 手动删除 build/ 目录后重试")
-        sys.exit(1)
+    info(f"Build type: {build_type}")
 
     cmd = [
         str(env.cmake),
-        "-B", str(BUILD_DIR),
-        "-S", str(PROJECT_ROOT),
+        "-B", cmake_path(BUILD_DIR),
+        "-S", cmake_path(PROJECT_ROOT),
     ]
 
-    # 生成器: 优先 Ninja，回退 MinGW Makefiles
+    # Generator: prefer Ninja, else MinGW Makefiles
     if env.use_ninja:
         cmd.extend(["-G", "Ninja"])
-        info("使用 Ninja 生成器")
+        info("Using Ninja generator")
     else:
+        if not env.make_program.exists():
+            fail(f"make program not found: {fmt_path(env.make_program)}")
+            fail("On MSYS2 install ninja: pacman -S mingw-w64-ucrt-x86_64-ninja")
+            sys.exit(1)
         cmd.extend(["-G", "MinGW Makefiles"])
-        cmd.append(f"-DCMAKE_MAKE_PROGRAM={env.make_program.as_posix()}")
-        info(f"使用 MinGW Makefiles 生成器 (make: {env.make_program.name})")
+        cmd.append(f"-DCMAKE_MAKE_PROGRAM={cmake_path(env.make_program)}")
+        info(f"Using MinGW Makefiles generator (make: {env.make_program.name})")
 
     cmd.extend([
-        f"-DCMAKE_PREFIX_PATH={env.qt_dir.as_posix()}",
-        f"-DCMAKE_CXX_COMPILER={env.cxx.as_posix()}",
-        f"-DCMAKE_C_COMPILER={env.cc.as_posix()}",
+        f"-DCMAKE_PREFIX_PATH={cmake_path(env.qt_dir)}",
+        f"-DCMAKE_CXX_COMPILER={cmake_path(env.cxx)}",
+        f"-DCMAKE_C_COMPILER={cmake_path(env.cc)}",
         f"-DCMAKE_BUILD_TYPE={build_type}",
     ])
 
-    # 额外缓存定义（如 -DTRY_GOLD=ON）
+    # Extra cache defines (e.g. -DTRY_GOLD=ON)
     for d in getattr(args, "define", None) or []:
         cmd.append(f"-D{d}")
 
     run_cmd(cmd)
-    ok("CMake 配置完成")
+    ok("CMake configure done")
 
 
 def kill_running_executable():
-    """编译前自动终止正在运行的 openbus.exe，避免文件锁导致链接失败"""
+    """Kill running openbus.exe before link to avoid file locks"""
     if sys.platform != "win32":
         return
     try:
@@ -548,13 +732,13 @@ def kill_running_executable():
             capture_output=True, text=True
         )
         if result.returncode == 0:
-            warn("检测到 openbus.exe 正在运行，已自动终止")
-            # 等待进程完全退出、文件锁释放
+            warn("openbus.exe was running; terminated")
+            # Wait until process exit and file lock release
             import time
             for _ in range(20):
                 time.sleep(0.25)
                 try:
-                    # 尝试以独占模式打开文件，成功则说明锁已释放
+                    # Try exclusive open; success means lock released
                     if EXECUTABLE.exists():
                         with open(EXECUTABLE, "a"):
                             pass
@@ -566,54 +750,54 @@ def kill_running_executable():
 
 
 def cmd_build(env, args):
-    """增量编译 (首次运行自动配置)"""
-    header("增量编译")
+    """Incremental build (auto-configure on first run)"""
+    header("Incremental build")
 
     if not (BUILD_DIR / "CMakeCache.txt").exists():
-        info("构建目录未配置，自动执行 configure...")
+        info("Build dir not configured; running configure...")
         cmd_configure(env, args)
 
-    # 编译前自动终止正在运行的程序，避免文件锁
+    # Terminate running app before build to avoid file locks
     kill_running_executable()
 
-    cmd = [str(env.cmake), "--build", str(BUILD_DIR)]
+    cmd = [str(env.cmake), "--build", cmake_path(BUILD_DIR)]
     
-    # 默认只构建 main target (openbus.exe)，跳过所有测试目标
+    # Build main target openbus.exe only; skip test targets
     cmd.extend(["--target", "openbus"])
 
     jobs = args.jobs or os.cpu_count() or 4
-    # Ninja 和 MinGW Makefiles 都支持 -j 参数
+    # Both Ninja and MinGW Makefiles support -j
     cmd.extend(["--", f"-j{jobs}"])
 
     run_cmd(cmd)
-    ok(f"编译完成 ({jobs} 线程)")
+    ok(f"Build done ({jobs}  threads)")
 
 
 def cmd_run(env, args):
-    """运行程序 (自动编译)"""
-    header("运行程序")
+    """Run application (auto-build)"""
+    header("Run application")
     if not EXECUTABLE.exists():
-        info("可执行文件不存在，自动执行 build...")
+        info("Executable missing; running build...")
         cmd_build(env, args)
     else:
-        # 即使已存在，也先确保旧进程已退出
+        # Even if present, ensure previous process exited
         kill_running_executable()
 
     extra = args.args.split() if args.args else []
     cmd = [str(EXECUTABLE)] + extra
-    info(f"启动: {EXECUTABLE}")
+    info(f"Launch: {fmt_path(EXECUTABLE)}")
     subprocess.run(cmd, cwd=str(EXECUTABLE.parent))
 
 
 def cmd_debug(env, args):
-    """GDB 调试 (自动编译)"""
-    header("GDB 调试")
+    """GDB debug (auto-build)"""
+    header("GDB debug")
     if not env.gdb.exists():
-        fail(f"GDB 未找到: {env.gdb}")
+        fail(f"GDB not found: {fmt_path(env.gdb)}")
         sys.exit(1)
 
     if not EXECUTABLE.exists():
-        info("可执行文件不存在，自动执行 build...")
+        info("Executable missing; running build...")
         cmd_build(env, args)
     else:
         kill_running_executable()
@@ -624,72 +808,106 @@ def cmd_debug(env, args):
     else:
         cmd = [str(env.gdb), str(EXECUTABLE)]
 
-    info(f"调试: {EXECUTABLE}")
+    info(f"Debug: {fmt_path(EXECUTABLE)}")
     subprocess.run(cmd, cwd=str(EXECUTABLE.parent))
 
 
 def cmd_clean(env, args):
-    """清理构建目录"""
-    header("清理构建")
+    """Clean build directory"""
+    header("Clean build")
     if BUILD_DIR.exists():
-        info(f"删除: {BUILD_DIR}")
+        info(f"Removing: {fmt_path(BUILD_DIR)}")
         shutil.rmtree(BUILD_DIR)
-        ok("清理完成")
+        ok("Clean done")
     else:
-        info("构建目录不存在，无需清理")
+        info("Build dir missing; nothing to clean")
 
 
 def cmd_rebuild(env, args):
-    """重新构建: 清理 + 配置 + 编译"""
-    header("重新构建")
+    """Rebuild: clean + configure + build"""
+    header("Rebuild")
     cmd_clean(env, args)
     args.clean = False
-    # rebuild 子命令没有 --target / --jobs 参数，补齐默认值供 cmd_build 使用
+    # rebuild lacks --target/--jobs; supply defaults for cmd_build
     if not hasattr(args, "target"):
         args.target = None
     if not hasattr(args, "jobs"):
         args.jobs = None
     cmd_configure(env, args)
     cmd_build(env, args)
-    ok("重新构建完成")
+    ok("Rebuild done")
 
 
 def cmd_deploy(env, args):
-    """部署 Qt 运行时依赖 (windeployqt)"""
-    header("部署 Qt 依赖")
-    
-    # 确保 PATH 已设置
+    """Deploy Qt runtime (windeployqt)"""
+    header("Deploy Qt deps")
+
+    # Ensure PATH is set
     env.setup_path()
-    
+
     if not EXECUTABLE.exists():
-        info("可执行文件不存在，自动执行 build...")
+        info("Executable missing; running build...")
         cmd_build(env, args)
 
     run_cmd([str(env.windeployqt), str(EXECUTABLE)])
 
-    # windeployqt 无法检测静态库 (qcustomplot) 对 Qt6PrintSupport 的传递依赖，
-    # 需手动复制 Qt6PrintSupport.dll 到输出目录
+    # windeployqt misses qcustomplot static transitive Qt6PrintSupport;
+    # copy Qt6PrintSupport.dll into the output dir manually
     printsupport = env.qt_bin / "Qt6PrintSupport.dll"
     dest = EXECUTABLE.parent / "Qt6PrintSupport.dll"
     if printsupport.exists() and not dest.exists():
         shutil.copy2(str(printsupport), str(dest))
-        ok(f"手动补充复制 Qt6PrintSupport.dll（qcustomplot 静态库传递依赖）")
+        ok("Copied Qt6PrintSupport.dll (qcustomplot transitive dep)")
     elif not printsupport.exists():
-        warn(f"Qt6PrintSupport.dll 在 Qt 安装目录中未找到: {printsupport}")
+        warn(f"Qt6PrintSupport.dll not found under Qt prefix: {fmt_path(printsupport)}")
 
-    # O-2：创建 lib/fonts 目录（Qt 6 Windows 不再自带字体，目录缺失时
-    # QFontDatabase 会打警告；空目录即可消警，实际渲染回退系统
-    # DirectWrite 字体。正式发布可在 lib/fonts 放置开源字体
-    # （DejaVu / 思源黑体等，注意微软系统字体不可再分发）
+    # MSYS2/MinGW runtime DLLs: windeployqt often skips these; needed offline
+    runtime_dlls = [
+        "libgcc_s_seh-1.dll",
+        "libstdc++-6.dll",
+        "libwinpthread-1.dll",
+        "zlib1.dll",
+        "libzstd.dll",
+        "libdouble-conversion.dll",
+        "libpcre2-16.dll",
+        "libharfbuzz-0.dll",
+        "libfreetype-6.dll",
+        "libb2-1.dll",
+        "libmd4c.dll",
+        "libpng16-16.dll",
+        "libbrotlidec.dll",
+        "libbrotlicommon.dll",
+        "libbz2-1.dll",
+        "libglib-2.0-0.dll",
+        "libintl-8.dll",
+        "libiconv-2.dll",
+        "libgraphite2.dll",
+    ]
+    copied = 0
+    for name in runtime_dlls:
+        src = env.mingw_bin / name
+        if not src.exists():
+            src = env.qt_bin / name
+        dst = EXECUTABLE.parent / name
+        if src.exists() and not dst.exists():
+            shutil.copy2(str(src), str(dst))
+            copied += 1
+    if copied:
+        ok(f"Copied {copied} MinGW/MSYS2 runtime DLL(s)")
+
+    # O-2: create lib/fonts (Qt 6 on Windows ships no fonts; missing dir
+    # makes QFontDatabase warn; empty dir silences it; render falls back to
+    # DirectWrite. For release you may place open fonts under lib/fonts
+    # (DejaVu / Noto Sans CJK, etc.; do not redistribute MS system fonts)
     fonts_dir = EXECUTABLE.parent / "lib" / "fonts"
     fonts_dir.mkdir(parents=True, exist_ok=True)
 
-    ok("部署完成")
+    ok("Deploy done")
 
 
 def cmd_all(env, args):
-    """完整流程: 配置 + 编译 + 部署 + 运行"""
-    header("完整构建流程")
+    """Full pipeline: configure + build + deploy + run"""
+    header("Full build pipeline")
     cmd_configure(env, args)
     cmd_build(env, args)
     cmd_deploy(env, args)
@@ -697,43 +915,72 @@ def cmd_all(env, args):
 
 
 def cmd_status(env, args):
-    """显示环境与构建状态"""
-    header("环境状态")
-    print(f"  项目根目录：{PROJECT_ROOT}")
-    print(f"  构建目录：   {BUILD_DIR}  {'[已存在]' if BUILD_DIR.exists() else '[未创建]'}")
-    print(f"  可执行文件：{EXECUTABLE}  {'[已存在]' if EXECUTABLE.exists() else '[未构建]'}")
+    """Show environment and build status"""
+    header("Environment status")
+    print(f"  Project root: {fmt_path(PROJECT_ROOT)}")
+    print(f"  Build dir:       {fmt_path(BUILD_DIR)}  {'[exists]' if BUILD_DIR.exists() else '[missing]'}")
+    print(f"  Executable:   {fmt_path(EXECUTABLE)}  {'[exists]' if EXECUTABLE.exists() else '[not built]'}")
     print()
 
     auto_fix = getattr(args, 'auto_fix', False)
     env.verify(auto_fix=auto_fix)
     env.print_accel_info()
 
-    # 读取构建类型
+    # Read build type
     cache = BUILD_DIR / "CMakeCache.txt"
     if cache.exists():
         for line in cache.read_text(encoding="utf-8", errors="ignore").splitlines():
             if line.startswith("CMAKE_BUILD_TYPE:STRING="):
-                print(f"  构建类型:    {line.split('=', 1)[1]}")
+                print(f"  Build type:    {line.split('=', 1)[1]}")
                 break
     print()
 
 
+def cmd_setup(env, args):
+    """Install MSYS2 deps via pacman (scripts/setup_msys2.sh)"""
+    header("Install MSYS2 deps (pacman)")
+    script = PROJECT_ROOT / "scripts" / "setup_msys2.sh"
+    if not script.exists():
+        fail(f"Not found: {script}")
+        sys.exit(1)
+
+    bash_candidates = []
+    for root in _msys2_roots():
+        bash_candidates.append(root / "usr" / "bin" / "bash.exe")
+    bash = next((b for b in bash_candidates if b.exists()), None)
+    if bash is None:
+        fail("MSYS2 bash not found (install under /c/msys64)")
+        sys.exit(1)
+
+    # Use login shell to load UCRT64 env
+    env_name = (os.environ.get("SIN_MSYS2_ENV") or "ucrt64").strip().lower()
+    msys_cwd = to_msys(PROJECT_ROOT)
+
+    cmd = [
+        str(bash),
+        "-lc",
+        f"export SIN_MSYS2_ENV={env_name}; cd '{msys_cwd}' && bash scripts/setup_msys2.sh",
+    ]
+    run_cmd(cmd)
+    ok("MSYS2 deps installed; re-run status / configure")
+
+
 def cmd_open(env, args):
-    """在资源管理器中打开构建输出目录"""
-    header("打开输出目录")
+    """Open build output dir in Explorer"""
+    header("Open output directory")
     target = EXECUTABLE.parent if EXECUTABLE.parent.exists() else BUILD_DIR
     if target.exists():
         subprocess.run(["explorer", str(target)])
-        ok(f"已打开: {target}")
+        ok(f"Opened: {fmt_path(target)}")
     else:
-        fail(f"目录不存在: {target}")
+        fail(f"Directory missing: {fmt_path(target)}")
 
 
 def cmake_needs_reconfigure():
-    """任一 CMakeLists.txt 比构建系统主文件新 → 需要 reconfigure。
+    """Any CMakeLists.txt newer than build master => needs reconfigure.
 
-    无条件 reconfigure 会重写全部 flags.make（mtime 更新），Makefile 生成器
-    按时间戳判定 → 触发全量重编。仅在 CMake 变化后首次跑一次。
+    Unconditional reconfigure rewrites flags.make (mtime bump); Makefile gen
+    then rebuilds everything by timestamp. Run once after CMake changes.
     """
     masters = [BUILD_DIR / "Makefile", BUILD_DIR / "build.ninja"]
     master = next((m for m in masters if m.exists()), None)
@@ -741,7 +988,7 @@ def cmake_needs_reconfigure():
         return True
     master_ts = master.stat().st_mtime
     for cm in PROJECT_ROOT.rglob("CMakeLists.txt"):
-        # 跳过构建树副本（build/、build-dev/ 等）
+        # Skip build-tree copies (build/, build-dev/, ...)
         if any(p.lower().startswith("build") for p in cm.parts):
             continue
         if cm.stat().st_mtime > master_ts:
@@ -750,45 +997,45 @@ def cmake_needs_reconfigure():
 
 
 def cmd_test(env, args):
-    """运行测试套件 (构建 tests 聚合目标 + ctest，见 doc/测试验收方案.md v2.0)
+    """Run test suite (build tests aggregate + ctest; see doc)
 
-    只构建测试目标不重链主程序；套件各自独立进程，失败输出 qDebug 基线 diff。
+    Build test targets only; suites are separate processes; dump qDebug on fail.
     """
-    header("运行测试")
+    header("Run tests")
 
     if not (BUILD_DIR / "CMakeCache.txt").exists():
-        info("构建目录未配置，自动执行 configure...")
+        info("Build dir not configured; running configure...")
         cmd_configure(env, args)
 
     jobs = str(args.jobs or os.cpu_count() or 8)
 
-    # Makefile 生成器限制：新 target（如新增测试套件）不在旧 Makefile 中时，
-    # make 直接报 No rule 而不会先自动重生成。仅当 CMakeLists.txt 有更新时
-    # 才做增量 reconfigure（避免每次全量重编；Ninja 生成器下也无害）。
+    # Makefile gen limit: new targets missing from old Makefile need
+    # an explicit reconfigure (else No rule). Only when CMakeLists.txt changed
+    # do incremental reconfigure (avoids full rebuild; harmless under Ninja).
     if cmake_needs_reconfigure():
-        info("$ cmake 增量 reconfigure (CMakeLists.txt 有更新) ...")
+        info("$ cmake incremental reconfigure (CMakeLists.txt changed) ...")
         reconf_rc = subprocess.run(
-            [str(env.cmake), "-B", str(BUILD_DIR), "-S", str(PROJECT_ROOT)]
+            [str(env.cmake), "-B", cmake_path(BUILD_DIR), "-S", cmake_path(PROJECT_ROOT)]
         ).returncode
         if reconf_rc != 0:
-            fail(f"CMake 增量配置失败 (退出码: {reconf_rc})")
+            fail(f"CMake reconfigure failed (exit code  {reconf_rc})")
             sys.exit(1)
     else:
-        info("CMake 配置已是最新，跳过 reconfigure")
+        info("CMake config up to date; skip reconfigure")
 
-    # 仅构建测试聚合目标（避免主程序无谓重链）
-    info("$ 构建测试目标 (tests) ...")
+    # Build test aggregate only (avoid relinking main app)
+    info("$ build tests target ...")
     build_rc = subprocess.run(
-        [str(env.cmake), "--build", str(BUILD_DIR), "--target", "tests", "-j", jobs]
+        [str(env.cmake), "--build", cmake_path(BUILD_DIR), "--target", "tests", "-j", jobs]
     ).returncode
     if build_rc != 0:
-        fail(f"测试目标构建失败 (退出码: {build_rc})")
+        fail(f"Test target build failed (exit code  {build_rc})")
         sys.exit(1)
 
-    # ctest 执行（失败用例输出完整 stdout/stderr）
+    # Run ctest (print stdout/stderr on failure)
     ctest = env.cmake.with_name("ctest.exe")
     if not ctest.exists():
-        fail(f"ctest 未找到: {ctest}")
+        fail(f"ctest not found: {ctest}")
         sys.exit(1)
     info("$ ctest --output-on-failure ...")
     test_rc = subprocess.run(
@@ -796,130 +1043,135 @@ def cmd_test(env, args):
     ).returncode
 
     if test_rc == 0:
-        ok("全部测试套件通过")
+        ok("All test suites passed")
     else:
-        fail(f"存在失败的测试套件 (退出码: {test_rc})")
+        fail(f"Failing test suite(s) (exit code  {test_rc})")
     sys.exit(test_rc)
 
 
 # ============================================================
-#  参数解析
+#  Argument parsing
 # ============================================================
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="openbus 项目构建脚本",
+        description="openbus build script",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-常用命令:
-  python scripts/build.py configure                      配置 (Debug, 自动检测 Ninja)
-  python scripts/build.py configure --build-type Release  配置 (Release)
+Common commands:
+  python scripts/build.py configure                      configure (Debug, auto Ninja)
+  python scripts/build.py configure --build-type Release  configure (Release)
   python scripts/build.py configure --build-type Dev --build-dir build-dev
-                                                          配置 Dev 快速档 (独立目录)
-  python scripts/build.py build -j8                       增量编译 (8 线程)
-  python scripts/build.py build --build-dir build-dev -j8 增量编译 Dev 档
-  python scripts/build.py run                             运行
-  python scripts/build.py debug                           GDB 调试
-  python scripts/build.py clean                           清理
-  python scripts/build.py rebuild                         重新构建
-  python scripts/build.py deploy                          部署 Qt 依赖
-  python scripts/build.py all                             完整流程
-  python scripts/build.py status                          环境状态
-  python scripts/build.py open                            打开输出目录
+                                                          configure Dev profile (separate dir)
+  python scripts/build.py build -j8                       incremental build (8 jobs)
+  python scripts/build.py build --build-dir build-dev -j8 incremental build Dev profile
+  python scripts/build.py run                             run
+  python scripts/build.py debug                           GDB debug
+  python scripts/build.py clean                           clean
+  python scripts/build.py rebuild                         Rebuild
+  python scripts/build.py deploy                          Deploy Qt deps
+  python scripts/build.py all                             Full pipeline
+  python scripts/build.py status                          Environment status
+  python scripts/build.py setup                           pacman install MSYS2 deps
+  python scripts/build.py open                            Open output directory
 
-多电脑/多环境配置示例:
-  # 使用命令行参数指定不同路径（适用于不同电脑的配置）
-  python scripts/build.py configure --qt-dir D:/Qt/6.10.1/mingw_64 --mingw-dir D:/Qt/Tools/mingw1107_64
-  
-  # 使用环境变量（推荐用于固定环境）
-  set SIN_QT_DIR=D:/Qt/6.10.1/mingw_64
-  set SIN_MINGW_DIR=D:/Qt/Tools/mingw1107_64
-  set SIN_CMAKE_DIR=C:/Program Files/CMake
-  python scripts/build.py configure
+Multi-machine examples:
+  # MSYS2 (UCRT64) only; bash-style paths
+  bash scripts/setup_msys2.sh
+  python scripts/build.py configure --clean
+  python scripts/build.py build -j8
+  python scripts/build.py deploy
 
-注意：不使用 ccache (与 PCH 不兼容) 和 LLD (文件锁问题)
+  # Explicit prefix (short /ucrt64 or full /c/msys64/ucrt64)
+  python scripts/build.py configure --qt-dir /ucrt64 --mingw-dir /ucrt64 --cmake-dir /ucrt64
+
+Note: no native Windows CMake/Qt; displayed paths use /c/... form
         """,
     )
 
-    # 全局选项 (所有子命令可用；--build-dir 也可放在子命令之后)
+    # Global options (all subcommands; --build-dir may follow subcommand)
     parser.add_argument("--qt-dir", default=None,
-                        help=f"Qt6 路径\n默认：{DEFAULT_QT_DIR}\n自动检测 C/D/E 盘多个版本")
+                        help=f"MSYS2 Qt6 prefix (default: {fmt_path(DEFAULT_QT_DIR)})")
     parser.add_argument("--mingw-dir", default=None,
-                        help=f"MinGW 路径\n默认：{DEFAULT_MINGW_DIR}\n自动检测多个编译器版本")
+                        help=f"MSYS2 compiler prefix (default: {fmt_path(DEFAULT_MINGW_DIR)})")
     parser.add_argument("--cmake-dir", default=None,
-                        help=f"CMake 路径\n默认：{DEFAULT_CMAKE_DIR}\n自动检测安装位置")
+                        help=f"MSYS2 CMake prefix (default: {fmt_path(DEFAULT_CMAKE_DIR)})")
     parser.add_argument("--build-dir", default="build",
-                        help="构建目录 (默认: build；Dev 档建议 build-dev，可与全量 Debug 并存)")
+                        help="Build dir (default: build; Dev: build-dev alongside full Debug)")
 
     def add_build_dir_opt(p):
-        """子命令级 --build-dir：SUPPRESS 默认值，避免覆盖全局解析结果"""
+        """Subcommand --build-dir: SUPPRESS default so it does not override global"""
         p.add_argument("--build-dir", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
 
-    sub = parser.add_subparsers(dest="command", help="可用命令")
+    sub = parser.add_subparsers(dest="command", help="Available commands")
 
     # configure
-    p = sub.add_parser("configure", help="CMake 配置")
+    p = sub.add_parser("configure", help="CMake configure")
     p.add_argument("--build-type", choices=BUILD_TYPES, default="Debug")
     p.add_argument("--clean", action="store_true",
-                   help="配置前完全清理构建目录（包括 CMakeCache.txt）")
+                   help="Fully wipe build dir before configure (incl. CMakeCache.txt)")
     p.add_argument("-D", "--define", action="append", default=[], metavar="VAR=VALUE",
-                   help="额外 CMake 缓存定义 (如 -DTRY_GOLD=ON)，可多次使用")
+                   help="Extra CMake cache define (e.g. -DTRY_GOLD=ON); repeatable")
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_configure)
 
     # build
-    p = sub.add_parser("build", help="增量编译")
-    p.add_argument("-j", "--jobs", type=int, help="并行任务数 (默认: CPU 核心数)")
-    p.add_argument("--target", help="指定构建目标")
-    p.add_argument("--build-type", choices=BUILD_TYPES, default="Debug", help="自动配置时的构建类型")
+    p = sub.add_parser("build", help="Incremental build")
+    p.add_argument("-j", "--jobs", type=int, help="Parallel jobs (default: CPU count)")
+    p.add_argument("--target", help="Build target name")
+    p.add_argument("--build-type", choices=BUILD_TYPES, default="Debug", help="Build type when auto-configuring")
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_build)
 
     # run
-    p = sub.add_parser("run", help="运行程序")
-    p.add_argument("--args", default="", help="传递给程序的参数")
+    p = sub.add_parser("run", help="Run application")
+    p.add_argument("--args", default="", help="Arguments passed to the app")
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_run)
 
     # debug
-    p = sub.add_parser("debug", help="GDB 调试")
-    p.add_argument("--args", default="", help="传递给程序的参数")
+    p = sub.add_parser("debug", help="GDB debug")
+    p.add_argument("--args", default="", help="Arguments passed to the app")
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_debug)
 
     # clean
-    p = sub.add_parser("clean", help="清理构建目录")
+    p = sub.add_parser("clean", help="Clean build directory")
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_clean)
 
     # rebuild
-    p = sub.add_parser("rebuild", help="重新构建 (清理 + 配置 + 编译)")
+    p = sub.add_parser("rebuild", help="Rebuild (clean + configure + build)")
     p.add_argument("--build-type", choices=BUILD_TYPES, default="Debug")
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_rebuild)
 
     # deploy
-    p = sub.add_parser("deploy", help="部署 Qt 运行时依赖")
+    p = sub.add_parser("deploy", help="Deploy Qt runtime deps")
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_deploy)
 
     # all
-    p = sub.add_parser("all", help="完整流程 (配置 + 编译 + 部署 + 运行)")
+    p = sub.add_parser("all", help="Full pipeline (configure + build + deploy + run)")
     p.add_argument("--build-type", choices=BUILD_TYPES, default="Debug")
-    p.add_argument("--args", default="", help="传递给程序的参数")
+    p.add_argument("--args", default="", help="Arguments passed to the app")
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_all)
 
     # status
-    p = sub.add_parser("status", help="显示环境状态")
+    p = sub.add_parser("status", help="Show environment status")
     p.add_argument("--auto-fix", action="store_true",
-                   help="当检测到缺失工具时显示可用路径候选")
+                   help="Show path candidates when tools are missing")
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_status)
 
+    # setup — pacman install deps
+    p = sub.add_parser("setup", help="Install MSYS2 build deps via pacman")
+    p.set_defaults(func=cmd_setup)
+
     # open
-    p = sub.add_parser("open", help="在资源管理器中打开输出目录")
+    p = sub.add_parser("open", help="Open output dir in Explorer")
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_open)
 
@@ -931,7 +1183,7 @@ def main():
         parser.print_help()
         sys.exit(0)
 
-    # 生效 --build-dir（全局或子命令位置均可传入）
+    # Apply --build-dir (global or after subcommand)
     set_build_dir(getattr(args, "build_dir", "build"))
 
     env = Environment(args)

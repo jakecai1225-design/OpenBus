@@ -1,10 +1,9 @@
 # ============================================================
-#  driver_slcan — SLCAN（Lawicel 串口文本协议）外置驱动插件
+#  driver_slcan — SLCAN (Lawicel serial text protocol) plugin
 #
-#  方案 §14 v2.2 批次 1：一份驱动覆盖 SLCAN 协议全家（淘宝适配器 /
-#  Lawicel CANUSB / CANable slcan / USBtin / ESP32·Arduino DIY）。
-#  同一份 CanDeviceSlcan 源码编入本 target，串口走 Win32 系统驱动，
-#  无厂商 SDK 依赖。输出目录与 .odp 包内布局一致：
+#  One driver for the SLCAN family (Taobao adapters / Lawicel CANUSB /
+#  CANable slcan / USBtin / ESP32·Arduino DIY). Same CanDeviceSlcan
+#  sources; serial via Win32; no vendor SDK. Output layout matches .odp:
 #  build/bin/drivers/slcan/driver_slcan.dll
 # ============================================================
 

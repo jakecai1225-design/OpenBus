@@ -1,11 +1,11 @@
 # ============================================================
-#  driver_candle — Candle / GS_USB 外置驱动插件
+#  driver_candle — Candle / GS_USB external driver plugin
 #
-#  方案 §14 v2.2 批次 1：一份驱动覆盖 GS_USB 协议全家（CANable /
-#  candleLight / CANnectivity / CES CANext FD / ABE / Xylanta Saint3）。
-#  同一份 CanDeviceCandle 源码编入本 target；libusb-1.0.dll 运行时动态
-#  加载（drivers/candle/vendor → 应用目录 → PATH，scripts/download_libusb.py
-#  可自动放置到 driver/）。输出目录与 .odp 包内布局一致：
+#  One driver for the GS_USB family (CANable / candleLight /
+#  CANnectivity / CES CANext FD / ABE / Xylanta Saint3).
+#  Same CanDeviceCandle sources; libusb-1.0.dll loaded at runtime
+#  (drivers/candle/vendor -> app dir -> PATH; scripts/download_libusb.py
+#  can place it under driver/). Output matches .odp:
 #  build/bin/drivers/candle/driver_candle.dll
 # ============================================================
 

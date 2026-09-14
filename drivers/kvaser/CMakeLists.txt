@@ -1,9 +1,9 @@
 # ============================================================
-#  driver_kvaser — Kvaser 外置驱动插件（阶段 3 迁移）
+#  driver_kvaser — Kvaser external driver plugin (stage 3 migration)
 #
-#  同一份 CanDeviceKvaser 源码编入本 target（内置后端保留保底，
-#  外置 v1.0.0 与内置同版本，用于验证 Registry 覆盖/加载链路）。
-#  输出目录与 .odp 包内布局一致：build/bin/drivers/kvaser/driver_kvaser.dll
+#  Same CanDeviceKvaser sources (built-in backend kept as fallback;
+#  external v1.0.0 matches built-in for Registry load/override tests).
+#  Output matches .odp: build/bin/drivers/kvaser/driver_kvaser.dll
 # ============================================================
 
 qt_add_plugin(driver_kvaser)
