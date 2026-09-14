@@ -137,10 +137,10 @@ void ThemeManager::applyTheme(const QString &name)
 
 // 生成主题色小图标（树形分支箭头 + 缩进参考线 + SpinBox/ComboBox/表头排序上下箭头
 // + 标签关闭 × + 单选圆点 + 复选半选横线）到临时目录，供 QSS image: 引用。
-// QSS 的 image: 只能引用真实文件路径，无法使用 qrc 内的 currentColor 占位 SVG，
-// 故每次换主题时按当前配色写出小尺寸 SVG。
-// 树图标 20x24 视口匹配 Qt 分支元素（缩进 20 × 行高 24），避免 image: 拉伸变形。
-// 其余图标 10x10 视口（边框三角法在 Qt QSS 中渲染不可靠，改用真实图片）。
+// QSS image: can only reference real files, not qrc SVGs with currentColor,
+// so small SVGs are written on each theme apply.
+// Tree icons: 12x22 matches ExplorerTree indent x row height (no image stretch).
+// Other glyphs: 10x10 (CSS border triangles are unreliable in Qt QSS).
 static QString writeTreeIcons(const Theme &t)
 {
     QString dir = QDir::tempPath() + "/openbus_theme_icons";
@@ -156,17 +156,18 @@ static QString writeTreeIcons(const Theme &t)
         return true;
     };
 
+    // 12x22 matches ExplorerTree indentation (VS Code explorer density)
     const QString chevronRight = QStringLiteral(
-        "<svg width='20' height='24' xmlns='http://www.w3.org/2000/svg'>"
-        "<path d='M8 9 L13 12 L8 15' fill='none' stroke='%1' stroke-width='1.4' "
+        "<svg width='12' height='22' xmlns='http://www.w3.org/2000/svg'>"
+        "<path d='M4.5 8 L8.5 11 L4.5 14' fill='none' stroke='%1' stroke-width='1.3' "
         "stroke-linecap='round' stroke-linejoin='round'/></svg>").arg(t.textDim);
     const QString chevronDown = QStringLiteral(
-        "<svg width='20' height='24' xmlns='http://www.w3.org/2000/svg'>"
-        "<path d='M7 10 L10 13 L13 10' fill='none' stroke='%1' stroke-width='1.4' "
+        "<svg width='12' height='22' xmlns='http://www.w3.org/2000/svg'>"
+        "<path d='M3.5 9 L6 12.5 L8.5 9' fill='none' stroke='%1' stroke-width='1.3' "
         "stroke-linecap='round' stroke-linejoin='round'/></svg>").arg(t.textDim);
     const QString indentGuide = QStringLiteral(
-        "<svg width='20' height='24' xmlns='http://www.w3.org/2000/svg'>"
-        "<rect x='9' y='0' width='1' height='24' fill='%1' fill-opacity='0.5'/></svg>").arg(t.textDim);
+        "<svg width='12' height='22' xmlns='http://www.w3.org/2000/svg'>"
+        "<rect x='5.5' y='0' width='1' height='22' fill='%1' fill-opacity='0.35'/></svg>").arg(t.border);
     const auto smallChevron = [](const char *d, const QString &color) {
         return QStringLiteral(
             "<svg width='10' height='10' xmlns='http://www.w3.org/2000/svg'>"

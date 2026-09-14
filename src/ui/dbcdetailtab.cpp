@@ -1,6 +1,8 @@
 #include "dbcdetailtab.h"
 #include "core/dbcmanager.h"
 #include "core/logging.h"
+#include "ui/thememanager.h"
+#include "utils/svg_icon.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -19,6 +21,7 @@
 #include <QAction>
 #include <QFont>
 #include <QBrush>
+#include <QColor>
 #include <QDebug>
 #include <QStyle>
 
@@ -73,19 +76,21 @@ void DbcDetailTab::buildLeftPane(QSplitter *splitter)
     leftLayout->setContentsMargins(0, 0, 0, 0);
     leftLayout->setSpacing(0);
 
-    m_searchEdit = new QLineEdit(this);
+    const auto &th = ThemeManager::instance()->currentTheme();
+
+    auto *searchWrap = new QWidget(this);
+    auto *searchLay = new QHBoxLayout(searchWrap);
+    searchLay->setContentsMargins(8, 6, 8, 6);
+    searchLay->setSpacing(0);
+    m_searchEdit = new QLineEdit(searchWrap);
     m_searchEdit->setPlaceholderText("搜索信号/报文/节点...");
-    m_searchEdit->setContentsMargins(4, 4, 4, 4);
-    leftLayout->addWidget(m_searchEdit);
+    applyExplorerSearch(m_searchEdit, th.text, th.textDim);
+    searchLay->addWidget(m_searchEdit);
+    leftLayout->addWidget(searchWrap);
 
     m_tree = new QTreeWidget(this);
-    m_tree->setObjectName(QStringLiteral("ContentTree"));   // 内容区树: 全局主题规则 + 淡边框
+    applyExplorerTree(m_tree, QStringLiteral("ContentTree"));
     m_tree->setHeaderHidden(true);
-    m_tree->setRootIsDecorated(true);
-    m_tree->setIndentation(18);
-    m_tree->setAlternatingRowColors(true);
-    m_tree->setUniformRowHeights(true);
-    m_tree->setAnimated(true);
     m_tree->setExpandsOnDoubleClick(true);
     leftLayout->addWidget(m_tree, 1);
 
@@ -300,37 +305,28 @@ void DbcDetailTab::refreshTree()
                   file->fileName.toStdString(), file->messages.size(),
                   file->nodes.size(), file->valueTables.size());
 
-    // 顶层: 网络
+    const auto &th = ThemeManager::instance()->currentTheme();
+    const QIcon iconDb     = svgIcon(QStringLiteral(":/icons/database.svg"), th.text, 16);
+    const QIcon iconFolder = svgIcon(QStringLiteral(":/icons/folder.svg"), th.textDim, 16);
+    const QIcon iconNode   = svgIcon(QStringLiteral(":/icons/list.svg"), th.textDim, 16);
+    const QIcon iconMsg    = svgIcon(QStringLiteral(":/icons/list.svg"), th.text, 16);
+    const QIcon iconSig    = svgIcon(QStringLiteral(":/icons/graphic.svg"), th.textDim, 16);
+    const QIcon iconFile   = svgIcon(QStringLiteral(":/icons/file.svg"), th.textDim, 16);
+    const QBrush dimBrush(QColor(th.textDim));
+
+    // Top level: network / DBC file
     auto *netItem = new QTreeWidgetItem(m_tree, {file->fileName});
     netItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Network));
-    netItem->setExpanded(true);  // 仅顶层网络节点默认展开
-    {
-        QFont f = netItem->font(0);
-        f.setBold(true);
-        f.setPointSize(f.pointSize() + 1);
-        netItem->setFont(0, f);
-    }
+    netItem->setIcon(0, iconDb);
+    netItem->setExpanded(true);
 
-    // 辅助：给分类节点设置加粗字体
-    auto makeCategoryBold = [](QTreeWidgetItem *item) {
-        QFont f = item->font(0);
-        f.setBold(true);
-        item->setFont(0, f);
-    };
-
-    // 辅助：给信号节点设置稍微淡化的颜色
-    auto makeSignalItalic = [](QTreeWidgetItem *item) {
-        QFont f = item->font(0);
-        f.setItalic(false);
-        item->setFont(0, f);
-        // 值表条目用斜体灰色
-        QBrush brush(Qt::darkGray);
+    auto dimValueEntries = [&](QTreeWidgetItem *item) {
         for (int i = 0; i < item->childCount(); ++i) {
             QTreeWidgetItem *child = item->child(i);
             QFont cf = child->font(0);
             cf.setItalic(true);
             child->setFont(0, cf);
-            child->setForeground(0, brush);
+            child->setForeground(0, dimBrush);
         }
     };
 
@@ -371,8 +367,8 @@ void DbcDetailTab::refreshTree()
         sigItem->setData(0, RoleName, sig.name);
         // 值表条目作为子项
         buildSignalChildren(sigItem, sig);
-        // 值表条目用斜体灰色
-        makeSignalItalic(sigItem);
+        dimValueEntries(sigItem);
+        sigItem->setIcon(0, iconSig);
         return sigItem;
     };
 
@@ -380,15 +376,17 @@ void DbcDetailTab::refreshTree()
     auto *catNodes = new QTreeWidgetItem(netItem,
         {QString("Network Nodes (%1)").arg(file->nodes.size())});
     catNodes->setData(0, RoleNodeType, static_cast<int>(NodeType::CategoryNodes));
-    catNodes->setExpanded(false);  // 默认折叠
-    makeCategoryBold(catNodes);
+    catNodes->setIcon(0, iconFolder);
+    catNodes->setExpanded(false);
     for (const auto &node : file->nodes) {
         auto *nodeItem = new QTreeWidgetItem(catNodes, {node.name});
         nodeItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Node));
         nodeItem->setData(0, RoleName, node.name);
+        nodeItem->setIcon(0, iconNode);
         nodeItem->setExpanded(false);
         if (!node.txMessageIds.isEmpty()) {
             auto *txCat = new QTreeWidgetItem(nodeItem, {QString("TX (%1)").arg(node.txMessageIds.size())});
+            txCat->setIcon(0, iconFolder);
             txCat->setExpanded(false);
             for (quint32 txId : node.txMessageIds) {
                 const DbcMessage *msg = file->findMessage(txId);
@@ -402,6 +400,7 @@ void DbcDetailTab::refreshTree()
                 auto *txItem = new QTreeWidgetItem(txCat, {text});
                 txItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Message));
                 txItem->setData(0, RoleCanId, txId);
+                txItem->setIcon(0, iconMsg);
                 txItem->setExpanded(false);
                 // 信号子项
                 if (msg) {
@@ -419,6 +418,7 @@ void DbcDetailTab::refreshTree()
                 rxById[rx.first].append(rx.second);
 
             auto *rxCat = new QTreeWidgetItem(nodeItem, {QString("RX (%1)").arg(rxById.size())});
+            rxCat->setIcon(0, iconFolder);
             rxCat->setExpanded(false);
             for (auto it = rxById.constBegin(); it != rxById.constEnd(); ++it) {
                 quint32 rxId = it.key();
@@ -433,6 +433,7 @@ void DbcDetailTab::refreshTree()
                 auto *rxMsgItem = new QTreeWidgetItem(rxCat, {text});
                 rxMsgItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Message));
                 rxMsgItem->setData(0, RoleCanId, rxId);
+                rxMsgItem->setIcon(0, iconMsg);
                 rxMsgItem->setExpanded(false);
                 // 信号子项 — 只显示该节点接收的信号
                 if (msg) {
@@ -450,8 +451,8 @@ void DbcDetailTab::refreshTree()
     auto *catMsgs = new QTreeWidgetItem(netItem,
         {QString("Messages (%1)").arg(file->messages.size())});
     catMsgs->setData(0, RoleNodeType, static_cast<int>(NodeType::CategoryMessages));
+    catMsgs->setIcon(0, iconFolder);
     catMsgs->setExpanded(false);
-    makeCategoryBold(catMsgs);
     for (const auto &msg : file->messages) {
         // 报文名 + DLC + 周期信息（对齐 CANdb++）
         QString msgText = QString("0x%1  %2")
@@ -467,6 +468,7 @@ void DbcDetailTab::refreshTree()
         auto *msgItem = new QTreeWidgetItem(catMsgs, {msgText});
         msgItem->setData(0, RoleNodeType, static_cast<int>(NodeType::Message));
         msgItem->setData(0, RoleCanId, msg.id);
+        msgItem->setIcon(0, iconMsg);
         msgItem->setExpanded(false);
 
         for (const auto &sig : msg.signalList)
@@ -478,13 +480,13 @@ void DbcDetailTab::refreshTree()
         auto *catVT = new QTreeWidgetItem(netItem,
             {QString("Value Tables (%1)").arg(file->valueTables.size())});
         catVT->setData(0, RoleNodeType, static_cast<int>(NodeType::CategoryValueTables));
+        catVT->setIcon(0, iconFolder);
         catVT->setExpanded(false);
-        makeCategoryBold(catVT);
-        QBrush entryBrush(Qt::darkGray);
         for (const auto &vt : file->valueTables) {
             auto *vtItem = new QTreeWidgetItem(catVT, {vt.name});
             vtItem->setData(0, RoleNodeType, static_cast<int>(NodeType::ValueTable));
             vtItem->setData(0, RoleName, vt.name);
+            vtItem->setIcon(0, iconFile);
             vtItem->setExpanded(false);
             // 值表条目作为子项（对齐 CANdb++）
             for (const auto &entry : vt.entries) {
@@ -496,7 +498,7 @@ void DbcDetailTab::refreshTree()
                 QFont ef = entryItem->font(0);
                 ef.setItalic(true);
                 entryItem->setFont(0, ef);
-                entryItem->setForeground(0, entryBrush);
+                entryItem->setForeground(0, dimBrush);
             }
         }
     }

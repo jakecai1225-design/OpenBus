@@ -70,7 +70,7 @@ SidePanel { background-color: @sidebarBg; }
 #DbcDetailComment { color: @textDim; font-style: italic; padding: 1px 0; }
 #DbcDetailPlaceholder { color: @textDim; font-size: 14px; }
 
-/* ---- 列表 / 树 (VS Code Explorer 风格: 紧凑行高 + 圆角悬停/选中) ---- */
+/* ---- Lists / trees (VS Code Explorer: compact rows, full-width selection) ---- */
 #ProjectList { background-color: @sidebarBg; border: none; outline: none; font-size: 13px; }
 #ProjectList::item { padding: 4px 12px; min-height: 24px; border: none; border-radius: 4px; }
 #ProjectList::item:hover { background-color: @hoverBg; }
@@ -78,20 +78,41 @@ SidePanel { background-color: @sidebarBg; }
 
 QTreeWidget, QTreeView {
     background-color: @sidebarBg; border: none; outline: none; font-size: 13px;
+    show-decoration-selected: 1;
 }
-QTreeWidget::item, QTreeView::item { padding: 3px 6px; min-height: 24px; border: none; border-radius: 4px; }
+QTreeWidget::item, QTreeView::item { padding: 3px 6px; min-height: 24px; border: none; border-radius: 0; }
 QTreeWidget::item:hover, QTreeView::item:hover { background-color: @hoverBg; }
 QTreeWidget::item:selected, QTreeView::item:selected { background-color: @selectionBg; color: @text; }
 QTreeWidget::item:alternate, QTreeView::item:alternate { background-color: @altRowBg; }
 
-/* 内容区树 (DBC 信号树等): 带淡边框形成边界 */
+/* Content-area trees (DBC detail / pickers): editor-white, no boxed chrome */
 #ContentTree {
-    background-color: @contentBg; border: 1px solid @border; border-radius: 4px;
-    outline: none; font-size: 12px;
+    background-color: @contentBg; border: none; outline: none; font-size: 13px;
+    show-decoration-selected: 1;
 }
 
-/* 树形分支: VS Code 风格展开箭头 + 缩进参考线 (主题色图标由 ThemeManager 生成注入)
-   注意顺序: 参考线规则在前，箭头规则在后 (箭头位置优先) */
+/* Sidebar explorer trees: inherit sidebar surface */
+#ExplorerTree, #ProjectTree {
+    background-color: @sidebarBg; border: none; outline: none; font-size: 13px;
+    show-decoration-selected: 1;
+}
+
+#ExplorerTree::item, #ContentTree::item, #ProjectTree::item {
+    padding: 1px 6px 1px 4px; min-height: 22px; border: none; border-radius: 0;
+    border-left: 2px solid transparent;
+}
+#ExplorerTree::item:hover, #ContentTree::item:hover, #ProjectTree::item:hover {
+    background-color: @hoverBg;
+}
+#ExplorerTree::item:selected, #ContentTree::item:selected, #ProjectTree::item:selected {
+    background-color: @selectionBg; color: @text;
+    border-left: 2px solid @accent;
+}
+#ExplorerTree::item:alternate, #ContentTree::item:alternate, #ProjectTree::item:alternate {
+    background-color: transparent;
+}
+
+/* Branch: indent guides first, chevrons override (ThemeManager injects URLs) */
 QTreeWidget::branch, QTreeView::branch { background: transparent; }
 QTreeWidget::branch:has-siblings, QTreeView::branch:has-siblings { image: url("@treeGuide"); }
 QTreeWidget::branch:has-children:closed, QTreeView::branch:has-children:closed {

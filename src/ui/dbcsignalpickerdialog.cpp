@@ -39,18 +39,14 @@ DbcSignalPickerDialog::DbcSignalPickerDialog(DbcManager *mgr, const QString &tit
     setMinimumSize(520, 520);
 
     auto *lay = new QVBoxLayout(this);
-    const QString iconColor = ThemeManager::instance()->currentTheme().text;
-    const QString dimColor = QStringLiteral("#6c6c6c");
+    const auto &th = ThemeManager::instance()->currentTheme();
+    const QString iconColor = th.text;
 
-    // ---- 顶部：搜索框 + 全部展开/收拢 ----
     auto *searchRow = new QHBoxLayout;
     m_searchEdit = new QLineEdit(this);
     m_searchEdit->setPlaceholderText(
         QStringLiteral("搜索信号 / 报文名（跨全部已加载 DBC 数据库）…"));
-    m_searchEdit->setClearButtonEnabled(true);
-    applyClearButtonIcon(m_searchEdit, iconColor);
-    m_searchEdit->addAction(svgIcon(":/icons/search.svg", dimColor, 14),
-                            QLineEdit::LeadingPosition);
+    applyExplorerSearch(m_searchEdit, th.text, th.textDim);
     searchRow->addWidget(m_searchEdit, 1);
 
     auto *expandBtn = new QToolButton(this);
@@ -65,11 +61,9 @@ DbcSignalPickerDialog::DbcSignalPickerDialog(DbcManager *mgr, const QString &tit
 
     // ---- 中部：三级树（文件 → 报文 → 信号）----
     m_tree = new QTreeWidget(this);
+    applyExplorerTree(m_tree, QStringLiteral("ContentTree"));
     m_tree->setHeaderHidden(true);
-    m_tree->setSelectionMode(QAbstractItemView::ExtendedSelection);  // Ctrl/Shift 多选
-    m_tree->setSelectionBehavior(QAbstractItemView::SelectItems);
-    m_tree->setUniformRowHeights(true);
-    m_tree->setAlternatingRowColors(true);
+    m_tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
     lay->addWidget(m_tree, 1);
 
     // 空态提示（无数据库 / 搜索无命中时显示）
@@ -131,7 +125,7 @@ void DbcSignalPickerDialog::rebuildTree()
 
     const QString filter = m_searchEdit->text().trimmed();
     const bool filtering = !filter.isEmpty();
-    const QString dimColor = QStringLiteral("#6c6c6c");
+    const QString dimColor = ThemeManager::instance()->currentTheme().textDim;
 
     const bool hasFiles = m_mgr && !m_mgr->files().isEmpty();
     int visibleRows = 0;   // 树中报文行计数（空态判断用）

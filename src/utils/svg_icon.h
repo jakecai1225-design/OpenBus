@@ -8,8 +8,11 @@
 #include <QPixmap>
 #include <QLineEdit>
 #include <QToolButton>
+#include <QTreeWidget>
+#include <QAbstractItemView>
+#include <QSize>
 
-// 读取 SVG 文件，替换 currentColor 为指定颜色，渲染为 QPixmap
+// Load SVG, replace currentColor, render to QPixmap
 inline QPixmap renderSvgPixmap(const QString &resourcePath, const QString &color, int size = 22)
 {
     QFile file(resourcePath);
@@ -26,19 +29,52 @@ inline QPixmap renderSvgPixmap(const QString &resourcePath, const QString &color
     return pixmap;
 }
 
-// 便捷封装：直接返回单色 QIcon
+// Convenience wrapper: monochrome QIcon
 inline QIcon svgIcon(const QString &resourcePath, const QString &color, int size = 16)
 {
     return QIcon(renderSvgPixmap(resourcePath, color, size));
 }
 
-// QLineEdit 内嵌清除按钮（setClearButtonEnabled）默认使用原生 × 图标，
-// 深色主题下几乎不可见 — 换为主题色 close.svg 图标
+// Native QLineEdit clear-button glyph is easy to miss — use themed close.svg
 inline void applyClearButtonIcon(QLineEdit *edit, const QString &color)
 {
     const auto buttons = edit->findChildren<QToolButton *>();
     for (auto *btn : buttons)
         btn->setIcon(svgIcon(":/icons/close.svg", color, 12));
+}
+
+/// Leading search glyph + themed clear button (VS Code explorer filter).
+inline void applyExplorerSearch(QLineEdit *edit, const QString &iconColor, const QString &dimColor)
+{
+    if (!edit)
+        return;
+    edit->setClearButtonEnabled(true);
+    applyClearButtonIcon(edit, iconColor);
+    edit->addAction(svgIcon(QStringLiteral(":/icons/search.svg"), dimColor, 14),
+                    QLineEdit::LeadingPosition);
+}
+
+/// VS Code Explorer tree: compact rows, indent guides + chevrons (via QSS),
+/// full-row selection including the branch column.
+inline void applyExplorerTree(QTreeWidget *tree,
+                              const QString &objectName = QStringLiteral("ExplorerTree"))
+{
+    if (!tree)
+        return;
+    if (!objectName.isEmpty())
+        tree->setObjectName(objectName);
+    tree->setRootIsDecorated(true);
+    tree->setIndentation(12);
+    tree->setIconSize(QSize(16, 16));
+    tree->setAlternatingRowColors(false);
+    tree->setUniformRowHeights(true);
+    tree->setAnimated(false);
+    tree->setItemsExpandable(true);
+    tree->setAllColumnsShowFocus(true);
+    tree->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tree->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    tree->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    tree->setFocusPolicy(Qt::StrongFocus);
 }
 
 #endif // OPENBUS_SVG_ICON_H

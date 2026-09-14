@@ -1,6 +1,8 @@
 #include "dbcimportdialog.h"
 #include "core/dbcmanager.h"
 #include "core/dbcdata.h"
+#include "ui/thememanager.h"
+#include "utils/svg_icon.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -37,9 +39,10 @@ DbcImportDialog::DbcImportDialog(DbcManager *dbcManager, QWidget *parent)
     auto *searchLayout = new QHBoxLayout;
     searchLayout->setSpacing(6);
 
+    const auto &th = ThemeManager::instance()->currentTheme();
     m_searchEdit = new QLineEdit(this);
     m_searchEdit->setPlaceholderText("输入 CAN ID (如 0x123) 或信号名进行搜索...");
-    m_searchEdit->setClearButtonEnabled(true);
+    applyExplorerSearch(m_searchEdit, th.text, th.textDim);
 
     m_searchByIdBtn = new QRadioButton("按 ID", this);
     m_searchBySignalBtn = new QRadioButton("按信号", this);
@@ -60,6 +63,7 @@ DbcImportDialog::DbcImportDialog(DbcManager *dbcManager, QWidget *parent)
 
     // ---- 树 ----
     m_tree = new QTreeWidget(this);
+    applyExplorerTree(m_tree, QStringLiteral("ContentTree"));
     m_tree->setHeaderLabels({"报文 / 信号", "CAN ID", "DLC", "周期(ms)"});
     m_tree->setColumnWidth(0, 280);
     m_tree->setColumnWidth(1, 80);
@@ -116,13 +120,15 @@ void DbcImportDialog::populateTree()
     if (!m_dbcManager)
         return;
 
+    const auto &th = ThemeManager::instance()->currentTheme();
+    const QIcon iconDb  = svgIcon(QStringLiteral(":/icons/database.svg"), th.text, 16);
+    const QIcon iconMsg = svgIcon(QStringLiteral(":/icons/list.svg"), th.text, 16);
+    const QIcon iconSig = svgIcon(QStringLiteral(":/icons/graphic.svg"), th.textDim, 16);
+
     for (const auto &file : m_dbcManager->files()) {
-        // DBC 文件节点
         auto *fileItem = new QTreeWidgetItem(m_tree, {file.fileName});
+        fileItem->setIcon(0, iconDb);
         fileItem->setExpanded(true);
-        QFont f = fileItem->font(0);
-        f.setBold(true);
-        fileItem->setFont(0, f);
 
         for (const auto &msg : file.messages) {
             QString idStr = QString("0x%1").arg(msg.id, 0, 16).toUpper();
@@ -131,11 +137,11 @@ void DbcImportDialog::populateTree()
                  idStr,
                  QString::number(msg.dlc),
                  msg.cycleTime > 0 ? QString::number(msg.cycleTime) : "-"});
+            msgItem->setIcon(0, iconMsg);
             msgItem->setData(0, RoleCanId, msg.id);
             msgItem->setData(0, RoleIsMsg, true);
             msgItem->setExpanded(false);
 
-            // 信号子节点
             for (const auto &sig : msg.signalList) {
                 QString sigText = sig.name;
                 if (!sig.valueTable.isEmpty()) {
@@ -145,6 +151,7 @@ void DbcImportDialog::populateTree()
                     sigText += QString("  [%1]").arg(vals.join(", "));
                 }
                 auto *sigItem = new QTreeWidgetItem(msgItem, {sigText, "", "", ""});
+                sigItem->setIcon(0, iconSig);
                 sigItem->setData(0, RoleIsMsg, false);
             }
         }

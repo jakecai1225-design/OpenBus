@@ -86,12 +86,10 @@ ProjectPanel::ProjectPanel(QWidget *parent)
     auto *cl = contentLayout();
 
     m_projectTree = new QTreeWidget(this);
-    m_projectTree->setObjectName("ProjectTree");
+    applyExplorerTree(m_projectTree, QStringLiteral("ProjectTree"));
     m_projectTree->setHeaderHidden(true);
-    m_projectTree->setIndentation(16);
     m_projectTree->setColumnCount(1);
-    m_projectTree->setRootIsDecorated(true);
-    m_projectTree->setExpandsOnDoubleClick(false);  // 双击不折叠，用于切换工程
+    m_projectTree->setExpandsOnDoubleClick(false);  // double-click switches project, not collapse
     cl->addWidget(m_projectTree, 3);
 
     // 最近工程列表（与工程树按 2:3 共享面板高度：去掉 100px 封顶后
@@ -143,6 +141,11 @@ void ProjectPanel::refreshList()
     m_projectTree->blockSignals(true);
     m_projectTree->clear();
 
+    const auto &th = ThemeManager::instance()->currentTheme();
+    const QIcon iconFolder = svgIcon(QStringLiteral(":/icons/folder.svg"), th.textDim, 16);
+    const QIcon iconFile   = svgIcon(QStringLiteral(":/icons/file.svg"), th.textDim, 16);
+    const QIcon iconDb     = svgIcon(QStringLiteral(":/icons/database.svg"), th.text, 16);
+
     for (int i = 0; i < m_projects.size(); ++i) {
         const auto &proj = m_projects[i];
         QString label = proj.name;
@@ -150,33 +153,35 @@ void ProjectPanel::refreshList()
             label += "  (当前)";
 
         auto *projItem = new QTreeWidgetItem(m_projectTree, {label});
-        projItem->setData(0, Qt::UserRole, i);  // 存储工程索引
-        projItem->setExpanded(false);  // 默认折叠，点击箭头展开
+        projItem->setIcon(0, iconFolder);
+        projItem->setData(0, Qt::UserRole, i);  // project index
+        projItem->setExpanded(false);
 
-        // ---- 子节点：工程文件 ----
         if (!proj.filePath.isEmpty()) {
             auto *fItem = new QTreeWidgetItem(projItem,
                 {QStringLiteral("[工程] ") + QFileInfo(proj.filePath).fileName()});
+            fItem->setIcon(0, iconFile);
             fItem->setData(0, Qt::UserRole, proj.filePath);
             fItem->setToolTip(0, proj.filePath);
         }
 
-        // ---- 子节点：回放文件 ----
         QString playback = extractPlaybackFile(proj.stateJson);
         if (!playback.isEmpty()) {
             auto *fItem = new QTreeWidgetItem(projItem,
                 {QStringLiteral("[回放] ") + QFileInfo(playback).fileName()});
+            fItem->setIcon(0, iconFile);
             fItem->setData(0, Qt::UserRole, playback);
             fItem->setToolTip(0, playback);
         }
 
-        // ---- 子节点：DBC 文件 ----
         auto dbcFiles = extractDbcFiles(proj.stateJson);
         if (!dbcFiles.isEmpty()) {
             auto *catItem = new QTreeWidgetItem(projItem,
                 {QStringLiteral("DBC 文件 (") + QString::number(dbcFiles.size()) + ")"});
+            catItem->setIcon(0, iconFolder);
             for (const auto &f : dbcFiles) {
                 auto *fItem = new QTreeWidgetItem(catItem, {QFileInfo(f).fileName()});
+                fItem->setIcon(0, iconDb);
                 fItem->setData(0, Qt::UserRole, f);
                 fItem->setToolTip(0, f);
             }
@@ -192,20 +197,23 @@ void ProjectPanel::refreshList()
         if (!recFiles.isEmpty()) {
             auto *catItem = new QTreeWidgetItem(projItem,
                 {QStringLiteral("录制文件 (") + QString::number(recFiles.size()) + ")"});
+            catItem->setIcon(0, iconFolder);
             for (const auto &f : recFiles) {
                 auto *fItem = new QTreeWidgetItem(catItem, {QFileInfo(f).fileName()});
+                fItem->setIcon(0, iconFile);
                 fItem->setData(0, Qt::UserRole, f);
                 fItem->setToolTip(0, f);
             }
         }
 
-        // ---- 子节点：离线分析文件 ----
         auto offlineFiles = extractOfflineFiles(proj.stateJson);
         if (!offlineFiles.isEmpty()) {
             auto *catItem = new QTreeWidgetItem(projItem,
                 {QStringLiteral("离线分析文件 (") + QString::number(offlineFiles.size()) + ")"});
+            catItem->setIcon(0, iconFolder);
             for (const auto &f : offlineFiles) {
                 auto *fItem = new QTreeWidgetItem(catItem, {QFileInfo(f).fileName()});
+                fItem->setIcon(0, iconFile);
                 fItem->setData(0, Qt::UserRole, f);
                 fItem->setToolTip(0, f);
             }
@@ -462,10 +470,9 @@ DbcPanel::DbcPanel(QWidget *parent)
     : SidePanel("数据库", parent)
 {
     m_tree = new QTreeWidget(this);
+    applyExplorerTree(m_tree);
     m_tree->setHeaderHidden(true);
-    m_tree->setIndentation(16);         // 树形缩进
     m_tree->setColumnCount(1);
-    m_tree->setRootIsDecorated(false);  // 顶层无展开箭头，分类节点自行控制
     m_tree->setExpandsOnDoubleClick(false);
 
     auto *cl = contentLayout();
@@ -503,26 +510,26 @@ DbcPanel::DbcPanel(QWidget *parent)
 
 void DbcPanel::initCategoryNodes()
 {
-    const QString iconColor = ThemeManager::instance()->currentTheme().text;
-    
-    // 创建协议分类根节点
+    const QString iconColor = ThemeManager::instance()->currentTheme().textDim;
+    const QIcon folderIcon = svgIcon(QStringLiteral(":/icons/folder.svg"), iconColor, 16);
+
     m_catCanFd    = new QTreeWidgetItem(m_tree, {QStringLiteral("CAN / CANFD")});
-    m_catCanFd->setIcon(0, svgIcon(":/icons/database.svg", iconColor, 16));
-    
+    m_catCanFd->setIcon(0, folderIcon);
+
     m_catCanopen  = new QTreeWidgetItem(m_tree, {QStringLiteral("CANopen")});
-    m_catCanopen->setIcon(0, svgIcon(":/icons/gear.svg", iconColor, 16));
-    
+    m_catCanopen->setIcon(0, folderIcon);
+
     m_catEthercat = new QTreeWidgetItem(m_tree, {QStringLiteral("EtherCAT")});
-    m_catEthercat->setIcon(0, svgIcon(":/icons/extensions.svg", iconColor, 16));
-    
+    m_catEthercat->setIcon(0, folderIcon);
+
     m_catLin      = new QTreeWidgetItem(m_tree, {QStringLiteral("LIN")});
-    m_catLin->setIcon(0, svgIcon(":/icons/list.svg", iconColor, 16));
-    
+    m_catLin->setIcon(0, folderIcon);
+
     m_catJ1939    = new QTreeWidgetItem(m_tree, {QStringLiteral("J1939")});
-    m_catJ1939->setIcon(0, svgIcon(":/icons/file.svg", iconColor, 16));
-    
+    m_catJ1939->setIcon(0, folderIcon);
+
     m_catAutosar  = new QTreeWidgetItem(m_tree, {QStringLiteral("AUTOSAR")});
-    m_catAutosar->setIcon(0, svgIcon(":/icons/gear.svg", iconColor, 16));
+    m_catAutosar->setIcon(0, folderIcon);
 
     for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
         auto *cat = m_tree->topLevelItem(i);
@@ -1012,8 +1019,8 @@ DevicePanel::DevicePanel(QWidget *parent)
     auto *cl = contentLayout();
 
     m_deviceTree = new QTreeWidget(this);
+    applyExplorerTree(m_deviceTree);
     m_deviceTree->setHeaderHidden(true);
-    m_deviceTree->setIndentation(12);
     m_deviceTree->setExpandsOnDoubleClick(false);
     cl->addWidget(m_deviceTree, 1);
 
