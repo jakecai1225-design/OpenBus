@@ -838,68 +838,153 @@ def cmd_rebuild(env, args):
     ok("Rebuild done")
 
 
+def _pe_dll_imports(pe_path: Path, objdump: Path):
+    """Return DLL names imported by a PE file (via objdump -p)."""
+    if not pe_path.exists() or not objdump.exists():
+        return []
+    try:
+        r = subprocess.run(
+            [str(objdump), "-p", str(pe_path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="ignore",
+            check=False,
+        )
+    except OSError:
+        return []
+    names = []
+    for line in (r.stdout or "").splitlines():
+        line = line.strip()
+        # "DLL Name: foo.dll"
+        if line.lower().startswith("dll name:"):
+            name = line.split(":", 1)[1].strip()
+            if name:
+                names.append(name)
+    return names
+
+
+def _is_system_dll(name: str) -> bool:
+    n = name.lower()
+    if n.startswith("api-ms-win-"):
+        return True
+    if n.startswith("ext-ms-"):
+        return True
+    system = {
+        "kernel32.dll", "user32.dll", "gdi32.dll", "shell32.dll", "advapi32.dll",
+        "ole32.dll", "oleaut32.dll", "uuid.dll", "comdlg32.dll", "winspool.drv",
+        "ws2_32.dll", "wsock32.dll", "iphlpapi.dll", "dwmapi.dll", "uxtheme.dll",
+        "imm32.dll", "version.dll", "setupapi.dll", "winmm.dll", "crypt32.dll",
+        "bcrypt.dll", "ncrypt.dll", "secur32.dll", "shlwapi.dll", "comctl32.dll",
+        "msvcrt.dll", "ntdll.dll", "rpcrt4.dll", "mpr.dll", "netapi32.dll",
+        "userenv.dll", "dnsapi.dll", "wtsapi32.dll", "dxgi.dll", "d3d11.dll",
+        "d3d12.dll", "d3d9.dll", "opengl32.dll", "glu32.dll", "gdiplus.dll",
+        "psapi.dll", "dbghelp.dll", "imagehlp.dll", "winhttp.dll", "wininet.dll",
+        "normaliz.dll", "powrprof.dll", "cfgmgr32.dll", "devobj.dll",
+    }
+    return n in system
+
+
+def _deploy_msys2_runtime_deps(env, out_dir: Path):
+    """Recursively copy MinGW/MSYS2 DLLs required by the exe and local DLLs.
+
+    windeployqt does not ship ICU/PCRE/harfbuzz/etc. with correct SONAMEs
+    (e.g. libpcre2-16-0.dll, libicuuc78.dll). Resolve imports with objdump.
+    """
+    objdump = _tool_exe(env.mingw_bin, "objdump")
+    if not objdump.exists():
+        warn(f"objdump not found: {fmt_path(objdump)}; skip recursive runtime deploy")
+        return 0
+
+    search_dirs = [env.mingw_bin, env.qt_bin]
+    # Seeds: exe + every DLL already in the output dir
+    queue = []
+    for p in [EXECUTABLE] + sorted(out_dir.glob("*.dll")):
+        if p.is_file():
+            queue.append(p)
+
+    copied = 0
+    seen = set()
+    while queue:
+        pe = queue.pop()
+        key = pe.resolve() if pe.exists() else pe
+        if key in seen:
+            continue
+        seen.add(key)
+
+        for dll_name in _pe_dll_imports(pe, objdump):
+            if _is_system_dll(dll_name):
+                continue
+            dest = out_dir / dll_name
+            if dest.exists():
+                # Still walk into it for transitive deps
+                queue.append(dest)
+                continue
+
+            src = None
+            for d in search_dirs:
+                cand = d / dll_name
+                if cand.exists():
+                    src = cand
+                    break
+            if src is None:
+                # Case-insensitive fallback under mingw bin
+                lower = dll_name.lower()
+                for d in search_dirs:
+                    if not d.exists():
+                        continue
+                    for cand in d.glob("*.dll"):
+                        if cand.name.lower() == lower:
+                            src = cand
+                            break
+                    if src:
+                        break
+            if src is None:
+                continue
+
+            shutil.copy2(str(src), str(dest))
+            copied += 1
+            info(f"  + {dll_name}")
+            queue.append(dest)
+
+    return copied
+
+
 def cmd_deploy(env, args):
-    """Deploy Qt runtime (windeployqt)"""
+    """Deploy Qt runtime (windeployqt) + MSYS2 transitive DLLs"""
     header("Deploy Qt deps")
 
-    # Ensure PATH is set
     env.setup_path()
 
     if not EXECUTABLE.exists():
         info("Executable missing; running build...")
         cmd_build(env, args)
 
+    out_dir = EXECUTABLE.parent
+
     run_cmd([str(env.windeployqt), str(EXECUTABLE)])
 
-    # windeployqt misses qcustomplot static transitive Qt6PrintSupport;
-    # copy Qt6PrintSupport.dll into the output dir manually
+    # windeployqt misses qcustomplot static transitive Qt6PrintSupport
     printsupport = env.qt_bin / "Qt6PrintSupport.dll"
-    dest = EXECUTABLE.parent / "Qt6PrintSupport.dll"
+    dest = out_dir / "Qt6PrintSupport.dll"
     if printsupport.exists() and not dest.exists():
         shutil.copy2(str(printsupport), str(dest))
         ok("Copied Qt6PrintSupport.dll (qcustomplot transitive dep)")
     elif not printsupport.exists():
         warn(f"Qt6PrintSupport.dll not found under Qt prefix: {fmt_path(printsupport)}")
 
-    # MSYS2/MinGW runtime DLLs: windeployqt often skips these; needed offline
-    runtime_dlls = [
-        "libgcc_s_seh-1.dll",
-        "libstdc++-6.dll",
-        "libwinpthread-1.dll",
-        "zlib1.dll",
-        "libzstd.dll",
-        "libdouble-conversion.dll",
-        "libpcre2-16.dll",
-        "libharfbuzz-0.dll",
-        "libfreetype-6.dll",
-        "libb2-1.dll",
-        "libmd4c.dll",
-        "libpng16-16.dll",
-        "libbrotlidec.dll",
-        "libbrotlicommon.dll",
-        "libbz2-1.dll",
-        "libglib-2.0-0.dll",
-        "libintl-8.dll",
-        "libiconv-2.dll",
-        "libgraphite2.dll",
-    ]
-    copied = 0
-    for name in runtime_dlls:
-        src = env.mingw_bin / name
-        if not src.exists():
-            src = env.qt_bin / name
-        dst = EXECUTABLE.parent / name
-        if src.exists() and not dst.exists():
-            shutil.copy2(str(src), str(dst))
-            copied += 1
+    info("Resolving MSYS2/MinGW runtime DLLs (objdump)...")
+    copied = _deploy_msys2_runtime_deps(env, out_dir)
     if copied:
         ok(f"Copied {copied} MinGW/MSYS2 runtime DLL(s)")
+    else:
+        ok("MSYS2 runtime DLLs already complete (or none needed)")
 
     # O-2: create lib/fonts (Qt 6 on Windows ships no fonts; missing dir
     # makes QFontDatabase warn; empty dir silences it; render falls back to
     # DirectWrite. For release you may place open fonts under lib/fonts
     # (DejaVu / Noto Sans CJK, etc.; do not redistribute MS system fonts)
-    fonts_dir = EXECUTABLE.parent / "lib" / "fonts"
+    fonts_dir = out_dir / "lib" / "fonts"
     fonts_dir.mkdir(parents=True, exist_ok=True)
 
     ok("Deploy done")
