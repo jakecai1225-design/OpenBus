@@ -13,6 +13,8 @@ set(SRC_CORE
     core/recorder.cpp
     core/player.h
     core/player.cpp
+    core/capturelog.h
+    core/capturelog.cpp
     core/cansimulator.h
     core/cansimulator.cpp
     core/candevice.h

@@ -4,7 +4,7 @@
 #include <QWidget>
 #include <QVector>
 #include <QColor>
-#include <QTimer>
+#include <QHash>
 #include "core/canframe.h"
 #include "core/dbcdata.h"
 #include "graphic/downsample.h"
@@ -135,6 +135,7 @@ public:
 
 public slots:
     void onFrame(const CanFrame &frame);
+    void onFrames(const QVector<CanFrame> &frames);
     void clearData();
 
     /// 从外部文件加载帧数据（BLF/ASC/CSV）
@@ -157,6 +158,7 @@ protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private:
     struct SignalData {
@@ -171,10 +173,11 @@ private:
         bool hasMinMax = false;             ///< 是否已计算 min/max
         bool minMaxDirty = false;           ///< 环形缓冲覆盖后需重算 min/max
         bool userHidden = false;            ///< 用户通过复选框隐藏
-        RingBuffer<graphic::Sample> rawData;  ///< 原始数据（卡尺测量基准）
+        RingBuffer<graphic::Sample> rawData{65536};
         double cachedT1 = 0.0;              ///< 显示缓存对应视口左边界
         double cachedT2 = -1.0;             ///< 显示缓存对应视口右边界
-        bool cacheValid = false;            ///< 显示缓存有效
+        bool cacheValid = false;            ///< display cache valid
+        bool displayDirty = true;           ///< samples changed since last downsample
     };
 
     /// 缩放历史栈条目（按信号索引存 Y 范围，避免轴对象生命周期问题）
@@ -221,19 +224,21 @@ private:
     double m_currentTime = 0.0;
 
     // --- 性能节流 ---
-    QTimer m_replotTimer;               ///< 定时批量 replot (50ms = 20fps)
-    bool m_replotPending = false;       ///< 有待重绘的数据
-    QTimer m_valueTimer;                ///< 定时刷新信号列表值 (200ms)
-    static constexpr int REPLOT_INTERVAL_MS = 50;
+    QTimer m_replotTimer;
+    bool m_replotPending = false;
+    QTimer m_valueTimer;
     static constexpr int VALUE_UPDATE_MS = 200;
-    static constexpr int RAW_CAPACITY = 1000000;  ///< 每信号原始数据容量（环形缓冲）
+    int m_replotIntervalMs = 33;
+    int m_rawMaxCapacity = 200000;
+
+    QHash<quint64, QVector<int>> m_idIndex;
 
     // --- 视口降采样 ---
     bool m_dataDirty = false;                          ///< 原始数据有更新，需重建显示数据
     graphic::Strategy m_dsStrategy = graphic::Strategy::MinMax;  ///< 抽稀策略
 
     // --- 采样点 ---
-    bool m_showPoints = true;
+    bool m_showPoints = false;
 
     // --- 暂停 ---
     bool m_paused = false;
@@ -453,6 +458,7 @@ private:
 
     /// 原始数据入环形缓冲（覆盖最旧时标记 min/max 重算）
     void pushSample(SignalData &sd, double t, double v);
+    void rebuildIdIndex();
 
     /// min/max 失效时重算（供 Y 轴自适应/列表显示）
     static void ensureMinMax(SignalData &sd);

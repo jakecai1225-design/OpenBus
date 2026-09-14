@@ -21,6 +21,7 @@ This is the centralized documentation hub for the OpenBUS project, focusing on c
 | | [CLI Shell Protocol](CLI_Shell_Protocol.md) | Command-line interface specification |
 | | [Trace Module](Trace_Module_Design.md) | CAN frame viewing, filtering, offline analysis |
 | | [Graphic Module](Graphic_Module_Design.md) | Signal waveform plotting + playback |
+| | [Trace/Graphic Performance](Trace_Graphic_Performance_Plan.md) | A/B/C plan for CANoe-class fluidity |
 | | [Flow Module](Flow_Module_Design.md) | Data flow visualization interface |
 | **🔧 Development Infrastructure** | [English Coding Policy](English_Coding_Policy.md) | Mandatory English-only coding standards |
 | | [Build Environment Setup](Build_Environment.md) | Qt/MinGW/CMake configuration |

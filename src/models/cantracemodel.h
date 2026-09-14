@@ -242,8 +242,11 @@ private:
     void commitBatch(const QVector<CanFrame> &frames);
 
 signals:
-    /// 新帧已提交到模型（flush 后发出，用于刷新统计）
+    /// New frames flushed into the model (for stats / autoscroll)
     void framesCommitted(int count);
+    /// Ring wrap: `shift` oldest rows dropped, row count unchanged.
+    /// Proxies should remap without a million-row dataChanged.
+    void ringWrapped(int shift);
 };
 
 #endif // CANTRACEMODEL_H

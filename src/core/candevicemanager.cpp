@@ -147,8 +147,7 @@ void CanDeviceManager::drainQueue()
     if (got == 0)
         return;
 
-    for (const auto &frame : frames)
-        emit frameGenerated(frame);
+    emit framesGenerated(frames);
 }
 
 // ---- 状态查询 ----

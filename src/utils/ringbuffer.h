@@ -61,10 +61,24 @@ public:
         m_count = 0;
     }
 
+    /// Grow capacity (logical order preserved). No-op if capacity <= current.
+    void growTo(int capacity)
+    {
+        if (capacity <= m_capacity)
+            return;
+        std::vector<T> next(static_cast<size_t>(capacity));
+        for (int i = 0; i < m_count; ++i)
+            next[static_cast<size_t>(i)] = std::move((*this).at(i));
+        m_data.swap(next);
+        m_head = 0;
+        m_capacity = capacity;
+    }
+
+    /// Reset to a new capacity and drop contents.
     void reserve(int capacity)
     {
         m_capacity = capacity > 0 ? capacity : 1;
-        m_data.resize(m_capacity);
+        m_data.resize(static_cast<size_t>(m_capacity));
         m_head = 0;
         m_count = 0;
     }

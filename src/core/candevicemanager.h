@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QTimer>
 #include <QThread>
+#include <QVector>
 #include <atomic>
 #include <memory>
 #include "core/canframe.h"
@@ -102,8 +103,10 @@ public slots:
     void drainQueue();
 
 signals:
-    /// 帧到达（与 CanSimulator::frameGenerated 同签名）
+    /// Single-frame signal (compat). Prefer framesGenerated on the hot path.
     void frameGenerated(const CanFrame &frame);
+    /// Bulk delivery from drainQueue (same contract as CanSimulator).
+    void framesGenerated(const QVector<CanFrame> &frames);
 
     /// 设备连接状态变化
     void connectionChanged(bool connected, const QString &deviceName);

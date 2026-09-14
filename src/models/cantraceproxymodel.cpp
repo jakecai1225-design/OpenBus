@@ -39,6 +39,10 @@ void CanTraceProxyModel::setSourceModel(QAbstractItemModel *sourceModel)
                 this, &CanTraceProxyModel::onSourceRowsRemoved);
         connect(sourceModel, &QAbstractItemModel::dataChanged,
                 this, &CanTraceProxyModel::onSourceDataChanged);
+        if (auto *tm = qobject_cast<CanTraceModel *>(sourceModel)) {
+            connect(tm, &CanTraceModel::ringWrapped,
+                    this, &CanTraceProxyModel::onSourceRingWrapped);
+        }
         connect(sourceModel, &QAbstractItemModel::modelAboutToBeReset,
                 this, &CanTraceProxyModel::onSourceModelAboutToBeReset);
         connect(sourceModel, &QAbstractItemModel::modelReset,
@@ -734,8 +738,12 @@ void CanTraceProxyModel::onSourceRowsInserted(const QModelIndex &parent, int fir
         }
     }
 
-    if (m_sortColumn < 0) {
-        // 未排序：增量追加（O(1)/行）
+    const bool appendOnly =
+        (m_sortColumn < 0)
+        || (m_sortColumn == CanTraceModel::ColNo && m_sortOrder == Qt::AscendingOrder);
+
+    if (appendOnly) {
+        // Capture order / ColNo ascending: O(1) tail insert (no merge / layoutChanged)
         if (!accepted.isEmpty()) {
             int insertStart = m_proxyRows.size();
             beginInsertRows({}, insertStart, insertStart + accepted.size() - 1);
@@ -847,8 +855,18 @@ void CanTraceProxyModel::onSourceModelReset()
     emitPacketCount();
 }
 
+void CanTraceProxyModel::onSourceRingWrapped(int shift)
+{
+    auto *model = traceModel();
+    if (!model)
+        return;
+    handleFullShift(shift, {Qt::DisplayRole, Qt::BackgroundRole, Qt::ForegroundRole,
+                            CanTraceModel::MarkedRole});
+    m_lastSeq = model->seqCounter();
+}
+
 // ============================================================
-//  环形缓冲区覆盖：整体内容前移
+//  Ring wrap: logical rows shift forward
 // ============================================================
 
 void CanTraceProxyModel::handleFullShift(int shift, const QVector<int> &roles)

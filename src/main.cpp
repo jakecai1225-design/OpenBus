@@ -22,6 +22,7 @@ int main(int argc, char *argv[])
 {
     // 注册元类型，支持信号/槽传递 CanFrame
     qRegisterMetaType<CanFrame>("CanFrame");
+    qRegisterMetaType<QVector<CanFrame>>("QVector<CanFrame>");
 
     QApplication app(argc, argv);
     app.setApplicationName("openbus");

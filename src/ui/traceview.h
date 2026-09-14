@@ -19,6 +19,7 @@ class QActionGroup;
 class DbcManager;
 class QTimer;
 class QTabWidget;
+class QTreeWidget;
 class TraceStatisticsWidget;
 class TraceDiffWidget;
 
@@ -178,11 +179,9 @@ private:
 };
 
 /**
- * @brief 信号解析面板 — 紧凑文本显示 DBC 信号解码值
+ * @brief Signal decode panel — selectable DBC signal list for the current frame.
  *
- *   EngineRPM:     1234.500 rpm
- *   ThrottlePos:   45.200 %
- *   coolantTemp:   89.000 C
+ * Right-click / double-click a signal to add it to Graphic (via shell).
  */
 class SignalDecodeWidget : public QWidget
 {
@@ -194,9 +193,23 @@ public:
     void setFrame(const CanFrame &frame);
     void clear();
 
+signals:
+    /// Request adding one decoded signal to the Graphic page.
+    void signalAddToGraphic(quint32 canId, const QString &signalName);
+
+private slots:
+    void onContextMenu(const QPoint &pos);
+    void onItemDoubleClicked();
+
 private:
-    QPlainTextEdit *m_edit;
+    void emitAddSelected();
+
+    QLabel *m_msgLabel = nullptr;
+    QTreeWidget *m_tree = nullptr;
     DbcManager *m_dbcMgr = nullptr;
+    quint32 m_canId = 0;
+    bool m_extended = false;
+    bool m_hasFrame = false;
 };
 
 /**

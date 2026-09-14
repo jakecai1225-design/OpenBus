@@ -134,6 +134,7 @@ private slots:
     void onSourceRowsRemoved(const QModelIndex &parent, int first, int last);
     void onSourceDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight,
                              const QVector<int> &roles);
+    void onSourceRingWrapped(int shift);
     void onSourceModelAboutToBeReset();
     void onSourceModelReset();
 

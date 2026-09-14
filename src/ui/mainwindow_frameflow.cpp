@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include <QTimer>
 #include "core/canframe.h"
+#include "core/capturelog.h"
 #include "core/recorder.h"
 #include "core/player.h"
 #include "core/cansimulator.h"
@@ -101,50 +102,68 @@
 
 void MainWindow::onFrameReceived(const CanFrame &frame)
 {
-    // 测量未运行时直接断流 — 不再向任何数据块分发帧
-    if (!m_measurementRunning)
+    QVector<CanFrame> one;
+    one.append(frame);
+    onFramesReceived(one);
+}
+
+void MainWindow::onFramesReceived(const QVector<CanFrame> &frames)
+{
+    if (frames.isEmpty() || !m_measurementRunning)
         return;
 
-    // 发送到所有启用的 Graphic 视图（含 DataWindow），仅向运行中的 Trace
-    // 标签页追加帧（经模块分发，拆分方案 B5）
-    graphicInvoke(QStringLiteral("onFrame"), QVariant::fromValue(frame));
-    traceInvoke(QStringLiteral("onFrame"), QVariant::fromValue(frame));
-    // Flow 页接收帧（测量统计经 flow 模块分发，拆分方案 B4）
-    flowInvoke(QStringLiteral("onFrame"), QVariant::fromValue(frame));
-    if (m_recording)
-        m_recorder->recordFrame(frame);
-    // 发送到总线统计引擎
-    if (m_busStats)
-        m_busStats->onFrame(frame);
-    // 发送到 I/O Graph
-    if (m_ioGraph)
-        m_ioGraph->onFrame(frame);
-    // 发送到 Watcher 观测页（doc/Watcher方案.md：最新帧缓存 + 懒解码，500ms 刷新）
-    if (m_watcherView)
-        m_watcherView->onFrame(frame);
-    // 更新状态栏帧数（使用独立计数器，不依赖当前标签页类型）
-    m_receivedFrameCount++;
+    // Phase B foundation: one shared capture ring for the process
+    CaptureLog::instance()->appendBatch(frames);
+
+    // Module fan-out — one invoke per batch (not per frame)
+    graphicInvoke(QStringLiteral("onFrames"), QVariant::fromValue(frames));
+    traceInvoke(QStringLiteral("onFrames"), QVariant::fromValue(frames));
+    flowInvoke(QStringLiteral("onFrames"), QVariant::fromValue(frames));
+
+    if (m_recording) {
+        for (const auto &frame : frames)
+            m_recorder->recordFrame(frame);
+    }
+    if (m_busStats) {
+        for (const auto &frame : frames)
+            m_busStats->onFrame(frame);
+    }
+    if (m_ioGraph) {
+        for (const auto &frame : frames)
+            m_ioGraph->onFrame(frame);
+    }
+    if (m_watcherView) {
+        for (const auto &frame : frames)
+            m_watcherView->onFrame(frame);
+    }
+
+    m_receivedFrameCount += frames.size();
+    // Status bar: once per batch (was once per frame)
     if (m_player->isLoaded()) {
-        // 文件回放模式：显示 "当前 / 总数"
-        int total = m_player->totalFrames();
+        const int total = m_player->totalFrames();
         m_frameCountLabel->setText(
             QString::number(m_receivedFrameCount) + " / " +
             QString::number(total) + " 帧");
         m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
     } else {
-        // 硬件实时模式：仅显示当前计数
         m_frameCountLabel->setText(QString::number(m_receivedFrameCount) + " 帧");
         m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
     }
 
-    // 通知插件系统
-    if (m_pluginManager)
-        m_pluginManager->onFrameReceived(frame);
+    if (m_pluginManager) {
+        for (const auto &frame : frames)
+            m_pluginManager->onFrameReceived(frame);
+    }
 }
 
 void MainWindow::onFramePlayed(const CanFrame &frame)
 {
     onFrameReceived(frame);
+}
+
+void MainWindow::onFramesPlayed(const QVector<CanFrame> &frames)
+{
+    onFramesReceived(frames);
 }
 
 // ============================================================
@@ -210,7 +229,7 @@ void MainWindow::onFrameAddToGraphic(const CanFrame &frame)
         return;
     QVariantList sigMaps;
     for (const auto &sig : msg->signalList)
-        sigMaps.append(buildSignalMap(frame.id, frame.extended, sig.name, sig));
+        sigMaps.append(buildSignalMap(frame.id & 0x1FFFFFFF, frame.extended, sig.name, sig));
     graphicInvoke(QStringLiteral("addSignals"),
                   QVariantList{ QVariant::fromValue(targetGv), sigMaps });
     m_bottomPanel->appendOutput(
@@ -358,6 +377,11 @@ void MainWindow::onMeasurementToggled(bool running)
     m_measurementRunning = running;
     if (running) {
         m_receivedFrameCount = 0;  // 重置帧计数器
+        const int cap = qBound(
+            1000,
+            AppConfig::instance()->getInt(QStringLiteral("trace.maxFrames"), 10000),
+            1000000);
+        CaptureLog::instance()->setCapacity(cap);
         // 新测量会话：总线统计引擎与 Watcher 观测数据全部归零重新累计
         // （修复统计跨会话累计的缺陷，doc/Watcher方案.md §4.6）
         if (m_busStats)

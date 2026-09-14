@@ -91,21 +91,22 @@ int CsvReader::readAll(QVector<CanFrame> &frames)
 
     int count = 0;
     bool hasHeader = false;
+    double baseTime = 0.0;
+    bool hasBase = false;
 
     while (!ts.atEnd()) {
         QString line = ts.readLine().trimmed();
         if (line.isEmpty())
             continue;
 
-        // 跳过表头
+        // Skip header
         if (!hasHeader) {
             if (line.toLower().startsWith("timestamp"))
                 hasHeader = true;
             continue;
         }
 
-        // 解析 CSV 行
-        // 格式: timestamp,channel,direction,id,extended,fd,brs,esi,dlc,"data"
+        // Format: timestamp,channel,direction,id,extended,fd,brs,esi,dlc,"data"
         QStringList parts;
         bool inQuote = false;
         int start = 0;
@@ -132,7 +133,6 @@ int CsvReader::readAll(QVector<CanFrame> &frames)
 
         frame.direction = (parts[2].toUpper() == "TX") ? CanFrame::Tx : CanFrame::Rx;
 
-        // ID 支持 0x 前缀和纯 hex
         QString idStr = parts[3];
         if (idStr.startsWith("0x", Qt::CaseInsensitive))
             idStr = idStr.mid(2);
@@ -146,7 +146,6 @@ int CsvReader::readAll(QVector<CanFrame> &frames)
         frame.dlc = static_cast<quint8>(parts[8].toUInt(&ok));
         if (!ok) frame.dlc = 0;
 
-        // 解析数据
         if (parts.size() > 9) {
             QString dataStr = parts[9];
             dataStr.remove('"');
@@ -158,6 +157,13 @@ int CsvReader::readAll(QVector<CanFrame> &frames)
                     frame.data.append(static_cast<char>(val));
             }
         }
+
+        // Relative timestamps (same as ASC/BLF/TRC/PCAP) so Graphic viewport [0, window] works
+        if (!hasBase) {
+            baseTime = frame.timestamp;
+            hasBase = true;
+        }
+        frame.timestamp -= baseTime;
 
         frames.append(frame);
         ++count;

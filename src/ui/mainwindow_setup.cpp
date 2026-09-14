@@ -193,13 +193,17 @@ void MainWindow::connectExtensionsPanel()
 
 void MainWindow::connectDataPipeline()
 {
-    // 模拟器 → 帧接收（DEF-08 字符串信号）
+    // Bulk ingress (Phase A) — one slot per drain tick, not per CAN frame
+    connect(m_simulator, SIGNAL(framesGenerated(QVector<CanFrame>)),
+            this, SLOT(onFramesReceived(QVector<CanFrame>)));
+    connect(m_deviceManager, SIGNAL(framesGenerated(QVector<CanFrame>)),
+            this, SLOT(onFramesReceived(QVector<CanFrame>)));
+    // Keep single-frame path for Tx echo / rare emitters
     connect(m_simulator, SIGNAL(frameGenerated(CanFrame)),
             this, SLOT(onFrameReceived(CanFrame)));
-
-    // 硬件设备管理器 → 帧接收（与模拟器同信号）
     connect(m_deviceManager, SIGNAL(frameGenerated(CanFrame)),
             this, SLOT(onFrameReceived(CanFrame)));
+
     auto *connRelay = new SignalRelay(this);
     connRelay->fnBoolString = [this](bool connected, const QString &name) {
         if (connected) {
@@ -225,7 +229,9 @@ void MainWindow::connectDataPipeline()
     connect(m_deviceManager, SIGNAL(errorOccurred(QString)),
             errRelay, SLOT(fireQString(QString)));
 
-    // 回放器
+    // Playback — prefer bulk framesPlayed (Phase A)
+    connect(m_player, SIGNAL(framesPlayed(QVector<CanFrame>)),
+            this, SLOT(onFramesPlayed(QVector<CanFrame>)));
     connect(m_player, SIGNAL(framePlayed(CanFrame)), this, SLOT(onFramePlayed(CanFrame)));
     connect(m_player, SIGNAL(progressChanged(int,int,double,double)), this, SLOT(onPlayerProgress(int,int,double,double)));
     connect(m_player, SIGNAL(stateChanged(bool)), this, SLOT(onPlayerStateChanged(bool)));

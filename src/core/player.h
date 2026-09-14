@@ -53,6 +53,8 @@ public slots:
 
 signals:
     void framePlayed(const CanFrame &frame);
+    /// Bulk frames advanced in one tick (Phase A — avoids per-frame GUI fan-out).
+    void framesPlayed(const QVector<CanFrame> &frames);
     void progressChanged(int currentFrame, int totalFrames,
                          double currentTime, double totalTime);
     void finished();

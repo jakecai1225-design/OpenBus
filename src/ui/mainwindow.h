@@ -84,9 +84,12 @@ private slots:
     void onImportLog();
     void onAutoScrollToggled(bool on);
 
-    // 数据流
+    // Data path
     void onFrameReceived(const CanFrame &frame);
+    /// Bulk path (Phase A): one slot per drain / playback tick.
+    void onFramesReceived(const QVector<CanFrame> &frames);
     void onFramePlayed(const CanFrame &frame);
+    void onFramesPlayed(const QVector<CanFrame> &frames);
 
     // Trace/Graphic 联动（B5：模块经 shellInvoke 回调壳编排）
     void onFrameDoubleClicked(const CanFrame &frame);

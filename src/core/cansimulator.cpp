@@ -132,11 +132,10 @@ void CanSimulator::workerLoop()
 void CanSimulator::drainQueue()
 {
     QVector<CanFrame> frames;
-    // 批量出队，最多 512 帧/次（避免单次消费时间过长阻塞 UI）
+    // Bulk dequeue up to 512 frames per tick (avoid one GUI storm per CAN frame)
     size_t got = m_queue.tryDequeueBulk(frames, 512);
     if (got == 0)
         return;
 
-    for (const auto &frame : frames)
-        emit frameGenerated(frame);
+    emit framesGenerated(frames);
 }

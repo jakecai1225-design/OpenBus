@@ -100,7 +100,24 @@ QWidget *GraphicModule::createPage(const QString &pageId, const QVariant &param,
 
 void GraphicModule::invoke(const QString &action, const QVariant &arg)
 {
-    if (action == QStringLiteral("onFrame")) {
+    if (action == QStringLiteral("onFrames")) {
+        const QVector<CanFrame> frames = arg.value<QVector<CanFrame>>();
+        if (frames.isEmpty())
+            return;
+        const auto views = m_viewList;
+        for (const auto &gvPtr : views) {
+            GraphicView *gv = gvPtr.data();
+            if (!gv)
+                continue;
+            const bool flowEnabled = gv->property("flowEnabled").toBool();
+            if (!gv->property("flowEnabled").isValid() || flowEnabled)
+                gv->onFrames(frames);
+        }
+        if (m_dataWindow) {
+            for (const auto &frame : frames)
+                m_dataWindow->onFrame(frame);
+        }
+    } else if (action == QStringLiteral("onFrame")) {
         // Dispatch frame to all live GraphicViews that have flowEnabled=true
         const CanFrame frame = arg.value<CanFrame>();
         const auto views = m_viewList;   // 快照：分发中视图销毁不使迭代器失效

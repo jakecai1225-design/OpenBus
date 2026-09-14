@@ -195,6 +195,7 @@ void SettingsPage::setupMetas()
     add("graphic.timeWindow", "时间窗口 (秒)", "Graphic", "double", "波形图显示最近 N 秒数据");
     add("graphic.antialiasing", "抗锯齿", "Graphic", "bool", "波形图启用抗锯齿渲染");
     add("graphic.fps", "刷新率 (FPS)", "Graphic", "int", "波形图刷新帧率");
+    add("graphic.maxSamples", "每信号最大点数", "Graphic", "int", "环形缓冲上限，超出后覆盖最旧点");
 
     // ---- Record ----
     add("record.defaultFormat", "默认录制格式", "Record", "combo", "新录制文件的默认格式", {"openbus", "asc", "blf"});

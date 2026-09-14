@@ -46,6 +46,7 @@ public:
 
 public slots:
     void onFrame(const CanFrame &frame);
+    void onFrames(const QVector<CanFrame> &frames);
 
 signals:
     void triggered(const QString &expr, double timestamp);

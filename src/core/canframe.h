@@ -3,6 +3,7 @@
 
 #include <QByteArray>
 #include <QMetaType>
+#include <QVector>
 #include <cstdint>
 
 /**
@@ -120,5 +121,6 @@ struct CanFrame
 };
 
 Q_DECLARE_METATYPE(CanFrame)
+Q_DECLARE_METATYPE(QVector<CanFrame>)
 
 #endif // CANFRAME_H

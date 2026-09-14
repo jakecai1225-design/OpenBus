@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QTimer>
 #include <QThread>
+#include <QVector>
 #include <atomic>
 #include "core/canframe.h"
 #include "utils/message_queue.h"
@@ -41,7 +42,10 @@ public slots:
     void stop();
 
 signals:
+    /// Single-frame signal (compat / low-rate paths). Prefer framesGenerated on the hot path.
     void frameGenerated(const CanFrame &frame);
+    /// Bulk delivery from drainQueue (Phase A: one GUI slot per drain tick).
+    void framesGenerated(const QVector<CanFrame> &frames);
 
 private slots:
     void drainQueue();

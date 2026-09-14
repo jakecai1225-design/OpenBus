@@ -178,6 +178,7 @@ json AppConfig::defaultConfig()
         {"graphic.timeWindow", 30.0},
         {"graphic.antialiasing", true},
         {"graphic.fps", 30},
+        {"graphic.maxSamples", 200000},
 
         // ---- Record ----
         {"record.defaultFormat", "openbus"},

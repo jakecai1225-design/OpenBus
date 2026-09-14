@@ -3,6 +3,7 @@
 #include "signalconfigdialog.h"
 #include "dbcsignalpickerdialog.h"
 #include "core/dbcmanager.h"
+#include "core/appconfig.h"
 #include "utils/svg_icon.h"
 #include <QMessageBox>
 #include <spdlog/spdlog.h>
@@ -23,6 +24,7 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QResizeEvent>
+#include <QShowEvent>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
@@ -197,8 +199,12 @@ GraphicView::GraphicView(QWidget *parent)
     setupUi();
     setAcceptDrops(true);
 
-    // 性能节流：50ms 定时批量重绘
-    m_replotTimer.setInterval(REPLOT_INTERVAL_MS);
+    const auto *cfg = AppConfig::instance();
+    const int fps = qBound(10, cfg->getInt(QStringLiteral("graphic.fps"), 30), 60);
+    m_replotIntervalMs = qMax(16, 1000 / fps);
+    m_rawMaxCapacity = qBound(8192, cfg->getInt(QStringLiteral("graphic.maxSamples"), 200000), 1000000);
+
+    m_replotTimer.setInterval(m_replotIntervalMs);
     m_replotTimer.setSingleShot(true);
     connect(&m_replotTimer, &QTimer::timeout, this, [this]() { onReplotTimeout(); });
 
@@ -539,8 +545,11 @@ void GraphicView::setupUi()
     auto *cursorPlot = new CursorPlot(m_splitter);
     m_plot = cursorPlot;
     m_plot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom);
-    m_plot->setSelectionRectMode(QCP::srmNone);  // 框选缩放自实现（多轨道 X 同步）
-    m_plot->setAntialiasedElements(QCP::aeAll);
+    m_plot->setSelectionRectMode(QCP::srmNone);
+    if (AppConfig::instance()->getBool(QStringLiteral("graphic.antialiasing"), true))
+        m_plot->setAntialiasedElements(QCP::aeAxes | QCP::aeGrid | QCP::aeZeroLine);
+    else
+        m_plot->setNotAntialiasedElements(QCP::aeAll);
     // 清除默认 axisRect，后面按信号数量动态创建
     m_plot->plotLayout()->clear();
 
@@ -1886,6 +1895,7 @@ void GraphicView::addSignal(const Signal &sig,
     sd.nameLabel->setFont(labelFont);
 
     m_signals.append(sd);
+    rebuildIdIndex();
 
     // 线型/散点（applyDisplayMode 需 graph 就绪，入列后调用）
     applyDisplayMode(m_signals.last());
@@ -1898,31 +1908,44 @@ void GraphicView::addSignal(const Signal &sig,
     else
         layoutAxisRects();
 
-    // 离线回放历史回填：重扫已播前缀仅写本信号（CANoe 同款——
-    // 添加即显示完整历史曲线；实时采集模式 history 为空、行为不变）
+    // Offline history backfill: rescan played prefix for this signal only
+    // (CANoe-style — curve appears immediately; live capture passes nullptr)
     if (history && !history->isEmpty()) {
         const int count = historyCount < 0 ? history->size()
                                            : qMin(historyCount, history->size());
         SignalData &ns = m_signals.last();
         for (int i = 0; i < count; ++i) {
             const CanFrame &f = history->at(i);
-            if ((f.id & 0x1FFFFFFF) == sig.canId && f.extended == sig.extended) {
+            if ((f.id & 0x1FFFFFFF) == (sig.canId & 0x1FFFFFFF) &&
+                f.extended == sig.extended) {
                 double val = extractValue(f, sig);
                 if (!std::isnan(val))
                     pushSample(ns, f.timestamp, val);
             }
         }
-        // 回填数据量大，Y 轴按数据范围自适应（同 loadFile 既有逻辑）
+        // Match loadFile: Y from data, X from full sample span (not [0, timeWindow]).
+        // Otherwise absolute timestamps / late epochs fall outside the default viewport
+        // and downsample returns only 0–2 edge points — looks like "missing samples".
         ensureMinMax(ns);
         if (QCPAxis *ya = valueAxisFor(ns); ya && ns.hasMinMax) {
             double margin = (ns.dataMax - ns.dataMin) * 0.05;
             if (margin <= 0) margin = 1.0;
             ya->setRange(ns.dataMin - margin, ns.dataMax + margin);
         }
+        if (!ns.rawData.empty()) {
+            const double t0 = ns.rawData.at(0).t;
+            const double t1 = ns.rawData.at(ns.rawData.size() - 1).t;
+            m_currentTime = std::max(m_currentTime, t1);
+            double tStart = t0;
+            double tEnd = t1;
+            if (tEnd <= tStart)
+                tEnd = tStart + 1.0;
+            setXRangeAll(QCPRange(tStart, tEnd), false);
+        }
     }
 
     updateSignalList();
-    refreshDisplayData();   // 分栏模式补齐（叠加模式经 applyYAxisMode 已含，幂等）
+    refreshDisplayData();   // Separate-mode fill (overlay already refreshed via applyYAxisMode)
     m_plot->replot();
 }
 
@@ -1944,6 +1967,7 @@ void GraphicView::removeSignal(int index)
         m_plot->plotLayout()->remove(sd.axisRect);   // remove deletes element (incl. axes)
 
     m_signals.removeAt(index);
+    rebuildIdIndex();
     m_zoomStack.clear();   // signal indices changed → zoom history invalid
     updateZoomUi();
     if (m_selectedSignal >= m_signals.size())
@@ -1996,6 +2020,7 @@ void GraphicView::clearSignals()
         }
     }
     m_signals.clear();
+    rebuildIdIndex();
     m_zoomStack.clear();
     updateZoomUi();
     setSelectedSignal(-1);
@@ -2535,8 +2560,11 @@ void GraphicView::clearData()
 
 void GraphicView::pushSample(SignalData &sd, double t, double v)
 {
+    if (sd.rawData.full() && sd.rawData.capacity() < m_rawMaxCapacity) {
+        const int next = qMin(m_rawMaxCapacity, qMax(sd.rawData.capacity() * 2, 65536));
+        sd.rawData.growTo(next);
+    }
     if (sd.rawData.push({t, v})) {
-        // 覆盖了最旧元素 → 增量 min/max 失效，需重算
         sd.minMaxDirty = true;
     }
     if (!sd.hasMinMax) {
@@ -2547,6 +2575,7 @@ void GraphicView::pushSample(SignalData &sd, double t, double v)
         if (v < sd.dataMin) sd.dataMin = v;
         if (v > sd.dataMax) sd.dataMax = v;
     }
+    sd.displayDirty = true;
     m_dataDirty = true;
 }
 
@@ -2591,7 +2620,7 @@ void GraphicView::refreshDisplayData()
         if (!sd.graph)
             continue;
         // 视口缓存命中：数据未变且视口未变
-        if (!m_dataDirty && sd.cacheValid &&
+        if (!m_dataDirty && !sd.displayDirty && sd.cacheValid &&
             sd.cachedT1 == vp.lower && sd.cachedT2 == vp.upper)
             continue;
         const QVector<graphic::Sample> disp =
@@ -2604,6 +2633,7 @@ void GraphicView::refreshDisplayData()
         sd.cachedT1 = vp.lower;
         sd.cachedT2 = vp.upper;
         sd.cacheValid = true;
+        sd.displayDirty = false;
     }
     m_dataDirty = false;
     updateCursorDecorations();   // 视口变化 → 卡尺/时间线像素重定位
@@ -2611,79 +2641,84 @@ void GraphicView::refreshDisplayData()
 
 void GraphicView::onFrame(const CanFrame &frame)
 {
-    spdlog::debug("{} [{}] Frame arrived: id=0x{:X} ext={} len={} ts={}",
-                  "[Graphic]", frame.timestamp, frame.id, frame.extended,
-                  frame.data.size(), frame.timestamp);
+    QVector<CanFrame> one;
+    one.append(frame);
+    onFrames(one);
+}
 
-    // 暂停时仅更新当前时间，不添加数据
+void GraphicView::onFrames(const QVector<CanFrame> &frames)
+{
+    if (frames.isEmpty())
+        return;
+
     if (m_paused) {
-        m_currentTime = frame.timestamp;
+        m_currentTime = frames.last().timestamp;
         return;
     }
 
-    m_currentTime = frame.timestamp;
-
     bool hasData = false;
-    int signalMatches = 0;
-    for (int si = 0; si < m_signals.size(); ++si) {
-        auto &sd = m_signals[si];
-        const bool idMatch = (frame.id & 0x1FFFFFFF) == sd.config.canId;
-        const bool extMatch = frame.extended == sd.config.extended;
-
-        if (idMatch && extMatch) {
-            spdlog::debug("{} [{}] Signal MATCH: index={} name='{}' canId=0x{:X} ext={}",
-                          "[Graphic]", frame.timestamp,
-                          si,
-                          sd.config.name.toStdString(),
-                          sd.config.canId, sd.config.extended);
-
-            double val = extractValue(frame, sd.config);
-            spdlog::debug("{} [{}] extractValue result: {} (is_nan={})", 
-                          "[Graphic]", frame.timestamp, val, std::isnan(val));
-
-            if (!std::isnan(val)) {
-                // 原始数据入环形缓冲（百万点容量，满后覆盖最旧；
-                // 显示数据由 onReplotTimeout → refreshDisplayData 按视口抽稀重建）
-                pushSample(sd, frame.timestamp, val);
-
-                // 自动调整 Y 轴范围（仅在数据超出当前范围时扩展；
-                // 当前生效轴 = 分栏 yAxis / 叠加 overlayYAxis）
-                if (QCPAxis *ya = valueAxisFor(sd)) {
-                    double curMin = ya->range().lower;
-                    double curMax = ya->range().upper;
-                    if (val < curMin) {
-                        double range = curMax - curMin;
-                        ya->setRange(val, curMax + (curMin - val) * 0.1 + range * 0.05);
-                    }
-                    if (val > curMax) {
-                        double range = curMax - curMin;
-                        ya->setRange(curMin - (val - curMax) * 0.1 - range * 0.05, val);
-                    }
+    for (const auto &frame : frames) {
+        m_currentTime = frame.timestamp;
+        // Mask ID like loadFile / history backfill — high bits must not break the index key
+        const quint64 key = (quint64(frame.id & 0x1FFFFFFF) << 1) |
+                            (frame.extended ? 1ull : 0ull);
+        const auto idxs = m_idIndex.value(key);
+        for (int si : idxs) {
+            auto &sd = m_signals[si];
+            const double val = extractValue(frame, sd.config);
+            if (std::isnan(val))
+                continue;
+            pushSample(sd, frame.timestamp, val);
+            if (QCPAxis *ya = valueAxisFor(sd)) {
+                const double curMin = ya->range().lower;
+                const double curMax = ya->range().upper;
+                if (val < curMin) {
+                    const double range = curMax - curMin;
+                    ya->setRange(val, curMax + (curMin - val) * 0.1 + range * 0.05);
                 }
-
-                hasData = true;
+                if (val > curMax) {
+                    const double range = curMax - curMin;
+                    ya->setRange(curMin - (val - curMax) * 0.1 - range * 0.05, val);
+                }
             }
+            hasData = true;
         }
     }
 
     if (hasData) {
-        // 刷新时间轴范围（不触发 replot，由定时器处理；
-        // 时间线像素位置由 onReplotTimeout → updateCursorDecorations 维护）
-        double tEnd = m_currentTime;
-        double tStart = std::max(0.0, tEnd - m_timeWindow);
+        const double tEnd = m_currentTime;
+        const double tStart = std::max(0.0, tEnd - m_timeWindow);
         setXRangeAll(QCPRange(tStart, tEnd), false);
-
-        // 标记需要重绘
         m_replotPending = true;
-        // 启动定时器（如果未运行）
-        if (!m_replotTimer.isActive())
+        if (isVisible() && !m_replotTimer.isActive())
             m_replotTimer.start();
     }
 }
 
+void GraphicView::rebuildIdIndex()
+{
+    m_idIndex.clear();
+    for (int i = 0; i < m_signals.size(); ++i) {
+        const auto &c = m_signals[i].config;
+        const quint64 key = (quint64(c.canId & 0x1FFFFFFF) << 1) |
+                            (c.extended ? 1ull : 0ull);
+        m_idIndex[key].append(i);
+    }
+}
+
+void GraphicView::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    if (m_replotPending && !m_replotTimer.isActive())
+        m_replotTimer.start();
+}
+
 void GraphicView::onReplotTimeout()
 {
-    if (!m_replotPending) return;
+    if (!m_replotPending)
+        return;
+    if (!isVisible())
+        return;
     m_replotPending = false;
     refreshDisplayData();
     updateCursorDecorations();
@@ -2810,8 +2845,11 @@ void GraphicView::refreshTimeAxis()
 {
     double tEnd = m_currentTime;
     double tStart = std::max(0.0, tEnd - m_timeWindow);
+    // Avoid degenerate [0,0] after clearData — empty range makes downsample return nothing
+    if (tEnd <= tStart)
+        tEnd = tStart + m_timeWindow;
     setXRangeAll(QCPRange(tStart, tEnd), false);
-    // blocker 挡掉了 rangeChanged → 手动重建显示数据
+    // blocker blocked rangeChanged → rebuild display data manually
     refreshDisplayData();
     m_plot->replot(QCustomPlot::rpQueuedReplot);
 }
@@ -3292,11 +3330,39 @@ bool GraphicView::valueAtTime(const RingBuffer<graphic::Sample> &raw, double tim
 
 void GraphicView::fitAll()
 {
-    pushZoomState();   // 适应前记录缩放历史（no-op 时由栈顶去重拦截）
-    double tEnd = m_currentTime;
-    double tStart = std::max(0.0, tEnd - m_timeWindow);
-    setXRangeAll(QCPRange(tStart, tEnd), false);
-    // Y 轴适配（当前生效轴：分栏/叠加；基于原始数据 min/max，覆盖重算后生效）
+    pushZoomState();
+    // Fit X to full sample span (same as fitXOnly), then fit Y — not merely the
+    // sliding live time-window, which hid most offline history after backfill.
+    bool hasData = false;
+    double tMin = 0.0, tMax = 0.0;
+    for (const auto &sd : m_signals) {
+        const int n = sd.rawData.size();
+        if (n == 0)
+            continue;
+        const double t0 = sd.rawData.at(0).t;
+        const double t1 = sd.rawData.at(n - 1).t;
+        if (!hasData) {
+            tMin = t0;
+            tMax = t1;
+            hasData = true;
+        } else {
+            tMin = std::min(tMin, t0);
+            tMax = std::max(tMax, t1);
+        }
+    }
+    if (hasData) {
+        double margin = (tMax - tMin) * 0.02;
+        if (margin <= 0)
+            margin = 0.5;
+        setXRangeAll(QCPRange(tMin - margin, tMax + margin), false);
+        m_currentTime = std::max(m_currentTime, tMax);
+    } else {
+        double tEnd = m_currentTime;
+        double tStart = std::max(0.0, tEnd - m_timeWindow);
+        if (tEnd <= tStart)
+            tEnd = tStart + m_timeWindow;
+        setXRangeAll(QCPRange(tStart, tEnd), false);
+    }
     for (auto &sd : m_signals) {
         ensureMinMax(sd);
         if (QCPAxis *ya = valueAxisFor(sd); ya && sd.hasMinMax) {

@@ -147,12 +147,15 @@ void Player::onTick()
     double elapsedReal = (QDateTime::currentMSecsSinceEpoch() - m_tickStartMs) / 1000.0;
     double targetTime = m_playbackBaseTime + elapsedReal * m_speed;
 
-    // 发射所有时间戳 <= targetTime 的帧
+    // Emit all frames with timestamp <= targetTime as one batch
+    QVector<CanFrame> batch;
     while (m_currentIndex < m_frames.size() &&
            m_frames.at(m_currentIndex).timestamp <= targetTime) {
-        emit framePlayed(m_frames.at(m_currentIndex));
+        batch.append(m_frames.at(m_currentIndex));
         ++m_currentIndex;
     }
+    if (!batch.isEmpty())
+        emit framesPlayed(batch);
 
     if (m_currentIndex >= m_frames.size()) {
         if (m_loop) {

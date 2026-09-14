@@ -7,6 +7,7 @@
 #include "models/viewportproxy.h"
 #include "core/dbcmanager.h"
 #include "core/dbcdata.h"
+#include "core/appconfig.h"
 #include "utils/canutils.h"
 #include "utils/svg_icon.h"
 #include "ui/thememanager.h"
@@ -32,6 +33,9 @@
 #include <QTabWidget>
 #include <QLabel>
 #include <QPlainTextEdit>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
+#include <QHeaderView>
 #include <QInputDialog>
 #include <QLineEdit>
 #include <QSet>
@@ -136,12 +140,13 @@ void TraceView::setupAppearance()
     setColumnHidden(CanTraceModel::ColFrameCount, true);
     setColumnHidden(CanTraceModel::ColSignal, true);
 
-    // 默认按帧编号升序排序（实际排序在 setModel 后执行）
-    m_sortColumn = CanTraceModel::ColNo;
+    // Default: capture order (append-only). ColNo is the same order — sorting
+    // it would force layoutChanged + O(n) merge on every flush.
+    m_sortColumn = -1;
     m_sortOrder = Qt::AscendingOrder;
     auto *fh = qobject_cast<FilterHeaderView *>(horizontalHeader());
     if (fh)
-        fh->setSortState(CanTraceModel::ColNo, Qt::AscendingOrder);
+            fh->clearSortState();
 
     // 表头信号
     connect(filterHeader, &QHeaderView::sectionClicked,
@@ -1544,8 +1549,12 @@ void FrameInfoWidget::clear()
 }
 
 // ============================================================
-//  SignalDecodeWidget — 紧凑文本信号解析
+//  SignalDecodeWidget — selectable signal list
 // ============================================================
+
+namespace {
+constexpr int kSignalNameRole = Qt::UserRole;
+}
 
 SignalDecodeWidget::SignalDecodeWidget(QWidget *parent)
     : QWidget(parent)
@@ -1554,60 +1563,108 @@ SignalDecodeWidget::SignalDecodeWidget(QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    // T8: 标题由 Trace Explorer 标签页提供（“信号”）
-    m_edit = new QPlainTextEdit(this);
-    m_edit->setReadOnly(true);
-    QFont mono = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-    mono.setPointSize(10);
-    m_edit->setFont(mono);
-    m_edit->setPlaceholderText("选中报文查看信号解析...");
-    layout->addWidget(m_edit, 1);
+    m_msgLabel = new QLabel(this);
+    m_msgLabel->setContentsMargins(8, 4, 8, 2);
+    m_msgLabel->setText(QStringLiteral("Select a frame to decode signals..."));
+    layout->addWidget(m_msgLabel);
+
+    m_tree = new QTreeWidget(this);
+    applyExplorerTree(m_tree, QStringLiteral("TraceSignalTree"));
+    m_tree->setRootIsDecorated(false);
+    m_tree->setHeaderLabels({QStringLiteral("Signal"), QStringLiteral("Value")});
+    m_tree->setColumnCount(2);
+    m_tree->header()->setStretchLastSection(true);
+    m_tree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_tree->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
+    layout->addWidget(m_tree, 1);
+
+    connect(m_tree, &QTreeWidget::customContextMenuRequested,
+            this, &SignalDecodeWidget::onContextMenu);
+    connect(m_tree, &QTreeWidget::itemDoubleClicked,
+            this, [this](QTreeWidgetItem *, int) { onItemDoubleClicked(); });
 }
 
 void SignalDecodeWidget::setFrame(const CanFrame &frame)
 {
+    m_canId = frame.id;
+    m_extended = frame.extended;
+    m_hasFrame = true;
+    m_tree->clear();
+
     if (!m_dbcMgr) {
-        m_edit->setPlainText("(未加载 DBC 文件)");
+        m_msgLabel->setText(QStringLiteral("(No DBC loaded)"));
         return;
     }
 
-    // 使用批量解码 API（O(1) 哈希查找 + 批量解码）
     auto decoded = m_dbcMgr->decodeFrame(frame.id, frame.data);
     if (decoded.isEmpty()) {
-        m_edit->setPlainText(QString("ID %1 未在 DBC 中定义")
-            .arg(CanUtils::formatId(frame.id, frame.extended)));
+        m_msgLabel->setText(QStringLiteral("ID %1 is not defined in DBC")
+                                .arg(CanUtils::formatId(frame.id, frame.extended)));
         return;
     }
 
-    // 报文名称（从索引查找）
     const DbcMessage *msg = m_dbcMgr->findMessage(frame.id);
-    QString text = QString("%1  (0x%2)\n")
-        .arg(msg ? msg->name : "?")
-        .arg(frame.id, 0, 16).toUpper();
-    text += "-----------------------------------\n\n";
-
-    // 计算信号名最大宽度
-    int maxName = 0;
-    for (const auto &ds : decoded)
-        maxName = qMax(maxName, ds.name.length());
-    maxName = qMin(maxName + 2, 24);
+    m_msgLabel->setText(QStringLiteral("%1  (%2)")
+                            .arg(msg ? msg->name : QStringLiteral("?"))
+                            .arg(CanUtils::formatId(frame.id, frame.extended)));
 
     for (const auto &ds : decoded) {
         QString valStr = QString::number(ds.physValue, 'f', 3);
         if (!ds.unit.isEmpty())
-            valStr += " " + ds.unit;
-        // 值表描述（如有）
+            valStr += QLatin1Char(' ') + ds.unit;
         if (!ds.valueDesc.isEmpty())
-            valStr += QString("  [%1]").arg(ds.valueDesc);
-        text += QString("%1  %2\n").arg(ds.name, -maxName).arg(valStr);
-    }
+            valStr += QStringLiteral("  [%1]").arg(ds.valueDesc);
 
-    m_edit->setPlainText(text);
+        auto *item = new QTreeWidgetItem(m_tree);
+        item->setText(0, ds.name);
+        item->setText(1, valStr);
+        item->setData(0, kSignalNameRole, ds.name);
+        item->setToolTip(0, ds.name);
+        item->setToolTip(1, valStr);
+    }
 }
 
 void SignalDecodeWidget::clear()
 {
-    m_edit->clear();
+    m_hasFrame = false;
+    m_canId = 0;
+    m_extended = false;
+    m_tree->clear();
+    m_msgLabel->setText(QStringLiteral("Select a frame to decode signals..."));
+}
+
+void SignalDecodeWidget::emitAddSelected()
+{
+    if (!m_hasFrame)
+        return;
+    QTreeWidgetItem *item = m_tree->currentItem();
+    if (!item)
+        return;
+    const QString name = item->data(0, kSignalNameRole).toString();
+    if (name.isEmpty())
+        return;
+    emit signalAddToGraphic(m_canId, name);
+}
+
+void SignalDecodeWidget::onContextMenu(const QPoint &pos)
+{
+    QTreeWidgetItem *item = m_tree->itemAt(pos);
+    if (!item || item->data(0, kSignalNameRole).toString().isEmpty())
+        return;
+
+    m_tree->setCurrentItem(item);
+
+    QMenu menu(this);
+    QAction *addAct = menu.addAction(QStringLiteral("Add to Graphic"));
+    if (menu.exec(m_tree->viewport()->mapToGlobal(pos)) == addAct)
+        emitAddSelected();
+}
+
+void SignalDecodeWidget::onItemDoubleClicked()
+{
+    emitAddSelected();
 }
 
 // ============================================================
@@ -1962,6 +2019,8 @@ TraceTab::TraceTab(QWidget *parent)
     // 每个标签页拥有独立的数据模型
     // 模型链: CanTraceModel → CanTraceProxyModel → ViewportProxyModel → TraceView
     m_traceModel = new CanTraceModel(this);
+    const int maxFrames = AppConfig::instance()->getInt("trace.maxFrames", 10000);
+    m_traceModel->setMaxFrames(qBound(1000, maxFrames, 1000000));
     m_proxyModel = new CanTraceProxyModel(this);
     m_proxyModel->setSourceModel(m_traceModel);
     m_viewportProxy = new ViewportProxyModel(this);

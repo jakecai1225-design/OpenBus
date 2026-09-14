@@ -309,8 +309,15 @@ void FlowModule::invoke(const QString &action, const QVariant &arg)
                 tab->setDevice(l.at(0).toInt(), l.at(1).toInt(),
                                l.at(2).toString(), l.at(3).toInt());
         }
+    } else if (action == QStringLiteral("onFrames")) {
+        const QVector<CanFrame> frames = arg.value<QVector<CanFrame>>();
+        if (frames.isEmpty())
+            return;
+        for (auto it = m_pages.constBegin(); it != m_pages.constEnd(); ++it) {
+            if (auto *msv = qobject_cast<MeasurementSetupView *>(it.value()))
+                msv->onFrame(frames.last());
+        }
     } else if (action == QStringLiteral("onFrame")) {
-        // 帧分发（壳 onFrameReceived → 模块页内部消化）
         const CanFrame frame = arg.value<CanFrame>();
         for (auto it = m_pages.constBegin(); it != m_pages.constEnd(); ++it) {
             if (auto *msv = qobject_cast<MeasurementSetupView *>(it.value()))

@@ -7,6 +7,7 @@
 #include "models/viewportproxy.h"
 #include "core/dbcmanager.h"
 #include "core/filterpresetmanager.h"
+#include "core/canframe.h"
 
 #include <QAbstractItemView>
 #include <QDebug>
@@ -99,6 +100,13 @@ QWidget *TraceModule::createPage(const QString &pageId, const QVariant &param, S
         ctx.shellInvoke("frameAddToGraphic", QVariant::fromValue(frame));
     });
 
+    // Signal list: add one selected signal to Graphic (same shell path as DBC detail)
+    QObject::connect(tab->signalDecode(), &SignalDecodeWidget::signalAddToGraphic, tab,
+                     [ctx](quint32 canId, const QString &signalName) {
+        ctx.shellInvoke(QStringLiteral("signalDoubleClicked"),
+                        QVariantList{ canId, signalName });
+    });
+
     // Clear filter requested
     QObject::connect(traceView, &TraceView::clearFilterRequested, tab, [tab]() {
         tab->clearAllFilters();
@@ -131,19 +139,27 @@ QWidget *TraceModule::createPage(const QString &pageId, const QVariant &param, S
 void TraceModule::invoke(const QString &action, const QVariant &arg)
 {
     // Frame reception: hot path, dispatch to all running tabs
-    if (action == QStringLiteral("onFrame")) {
+    if (action == QStringLiteral("onFrames")) {
+        const QVector<CanFrame> frames = arg.value<QVector<CanFrame>>();
+        if (frames.isEmpty())
+            return;
+        const auto tabs = m_tabList;
+        for (const auto &tabPtr : tabs) {
+            TraceTab *tab = tabPtr.data();
+            if (!tab || !tab->isRunning())
+                continue;
+            // Pending + 50 ms flush — do not scroll per frame (scroll on framesCommitted)
+            for (const auto &frame : frames)
+                tab->appendFrame(frame);
+        }
+    } else if (action == QStringLiteral("onFrame")) {
         const CanFrame frame = arg.value<CanFrame>();
-        const auto tabs = m_tabList;   // 快照：分发中标签销毁不使迭代器失效
+        const auto tabs = m_tabList;
         for (const auto &tabPtr : tabs) {
             TraceTab *tab = tabPtr.data();
             if (!tab || !tab->isRunning())
                 continue;
             tab->appendFrame(frame);
-            if (m_autoScroll && !tab->isOverwriteMode()) {
-                auto *tv = tab->traceView();
-                if (tv)
-                    tv->scrollToBottom();
-            }
         }
     } else if (action == QStringLiteral("setAutoScroll")) {
         m_autoScroll = arg.toBool();

@@ -344,18 +344,15 @@ void CanTraceModel::commitBatch(const QVector<CanFrame> &frames)
                 m_ringBuffer.push(frames[i]);
                 m_seqCounter++;
             }
-            // 批量通知数据移动
-            emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
-                             {Qt::DisplayRole, Qt::BackgroundRole, Qt::ForegroundRole, MarkedRole});
+            emit ringWrapped(batchSize - remaining);
         }
     } else {
-        // 缓冲区已满：逐帧覆盖
+        // Buffer already full: overwrite oldest
         for (const auto &f : frames) {
             m_ringBuffer.push(f);
             m_seqCounter++;
         }
-        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
-                         {Qt::DisplayRole, Qt::BackgroundRole, Qt::ForegroundRole, MarkedRole});
+        emit ringWrapped(batchSize);
     }
 
     invalidateRowCache();
@@ -409,8 +406,7 @@ void CanTraceModel::commitFrame(const CanFrame &frame)
         // 所有逻辑行数据已移动，通知视图刷新可见行
         // 清除行缓存（数据位置已变化）
         invalidateRowCache();
-        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
-                         {Qt::DisplayRole, Qt::BackgroundRole, Qt::ForegroundRole, MarkedRole});
+        emit ringWrapped(1);
     }
 }
 

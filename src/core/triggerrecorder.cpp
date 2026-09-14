@@ -105,6 +105,12 @@ void TriggerRecorder::onFrame(const CanFrame &frame)
     }
 }
 
+void TriggerRecorder::onFrames(const QVector<CanFrame> &frames)
+{
+    for (const auto &frame : frames)
+        onFrame(frame);
+}
+
 void TriggerRecorder::checkTrigger(const CanFrame &frame)
 {
     if (m_state != State::Idle) return;

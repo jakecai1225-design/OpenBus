@@ -400,10 +400,10 @@ QWidget *TransceiveModule::createRecordPage(ShellContext &ctx)
         if (!m_triggerRecorder) {
             m_triggerRecorder = new TriggerRecorder(tab);
             // DEF-08 字符串信号：simulator/deviceManager 定义于 data.dll
-            QObject::connect(m_ctx.simulator, SIGNAL(frameGenerated(CanFrame)),
-                             m_triggerRecorder, SLOT(onFrame(CanFrame)));
-            QObject::connect(m_ctx.deviceManager, SIGNAL(frameGenerated(CanFrame)),
-                             m_triggerRecorder, SLOT(onFrame(CanFrame)));
+            QObject::connect(m_ctx.simulator, SIGNAL(framesGenerated(QVector<CanFrame>)),
+                             m_triggerRecorder, SLOT(onFrames(QVector<CanFrame>)));
+            QObject::connect(m_ctx.deviceManager, SIGNAL(framesGenerated(QVector<CanFrame>)),
+                             m_triggerRecorder, SLOT(onFrames(QVector<CanFrame>)));
         }
 
         TriggerRecorder::Config config;
