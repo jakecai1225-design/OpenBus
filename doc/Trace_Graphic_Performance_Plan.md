@@ -1,6 +1,6 @@
 # Trace / Graphic Performance Plan (A / B / C)
 
-> **Status**: Active — Phase A landed; Phase B foundation (CaptureLog) landed; B3–B7 next  
+> **Status**: Active — Phase A done; Phase B: CaptureLog + Trace pull (B1/B2/B5 partial); B3/B4/B6/B7 next  
 > **Last Updated**: 2026-09-14  
 > **Goal**: Reach or exceed CANoe-class fluidity on Trace and Graphic under high bus load, many signals, and long history.
 
@@ -79,9 +79,13 @@ Hard rules:
 | B2 | Shell appends every measurement batch into CaptureLog once | done |
 | B3 | Shared sample store keyed by `(canId, startBit, length)` — Graphic tabs subscribe | pending |
 | B4 | Decode / MinMax bucket update off GUI (worker or timer on non-GUI thread) | pending |
-| B5 | Trace tabs share CaptureLog + filter cursor (stop per-tab 1e6 rings where possible) | pending |
-| B6 | Hidden Graphic: append samples optional; never composite | pending |
+| B5 | Trace tabs share CaptureLog + filter cursor (stop per-tab 1e6 rings where possible) | partial |
+| B6 | Hidden Graphic: append samples optional; never composite | partial |
 | B7 | Prefer overlay / fewer AxisRects when signal count is high | pending |
+
+**B5 notes (2026-09-14)**: Trace display still uses a per-tab ring (`trace.maxFrames`), but live ingest no longer runs on the shell fan-out stack. Trace tabs pull via `CaptureLog::copyAfterSeq` on a timer; `capture.maxFrames` (default 500k) holds burst history. Background tabs use a slower pull/flush budget. Full “tabs as cameras only” (no per-tab ring) remains Phase C-adjacent.
+
+**B6 notes**: Hidden Graphic already skips `replot`; Watcher/IOGraph skip ingest when not visible.
 
 ---
 
@@ -115,8 +119,8 @@ Hard rules:
 | `src/models/cantracemodel.cpp` / `cantraceproxymodel.cpp` | Flush / sort / wrap |
 | `src/ui/graphicmodule.cpp` / `graphicview.cpp` | Decode + replot |
 | `src/ui/graphic/downsample.cpp` | Viewport MinMax |
-| `src/core/appconfig.cpp` | `trace.maxFrames`, `graphic.fps`, `graphic.maxSamples` |
-| `src/core/capturelog.cpp` | Shared measurement ring (Phase B) |
+| `src/core/appconfig.cpp` | `trace.maxFrames`, `capture.maxFrames`, `graphic.fps`, `graphic.maxSamples` |
+| `src/core/capturelog.cpp` | Shared measurement ring; Trace pull cursor |
 | `src/core/player.cpp` | Batch `framesPlayed` |
 
 ---
@@ -125,3 +129,4 @@ Hard rules:
 
 - **2026-09-14**: Persist A/B/C plan; implement A then B (not C yet). Analysis concluded GUI per-frame fan-out + Trace sort/scroll + Graphic paint/downsample are the primary bottlenecks for many-signals + long-history loads.
 - **2026-09-14**: Phase A (A1–A11) implemented. Phase B: CaptureLog append on the measurement path (B1–B2). Remaining: shared sample store, off-GUI decode, Trace reading CaptureLog, overlay-for-many-signals (B3–B7). Phase C still deferred.
+- **2026-09-14**: Trace Phase B5 partial — live Trace ingest pulls from CaptureLog (decoupled from shell); `enqueueFrames` + pending soft-cap; background tab budget; `capture.maxFrames`; status-bar / Watcher / IOGraph throttling. Next: B3 shared sample store for Graphic.

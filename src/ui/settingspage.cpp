@@ -190,6 +190,8 @@ void SettingsPage::setupMetas()
     add("trace.autoScroll", "自动滚动", "Trace", "bool", "新帧到达时自动滚动到底部");
     add("trace.showGrid", "显示网格线", "Trace", "bool", "表格中显示网格线");
     add("trace.alternatingRowColors", "交替行颜色", "Trace", "bool", "奇偶行使用不同背景色");
+    add("capture.maxFrames", "Capture ring size", "Trace", "int",
+        "Process-wide CaptureLog capacity (Trace display ring is trace.maxFrames)");
 
     // ---- Graphic ----
     add("graphic.timeWindow", "时间窗口 (秒)", "Graphic", "double", "波形图显示最近 N 秒数据");

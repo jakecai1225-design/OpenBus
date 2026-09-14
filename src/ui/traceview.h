@@ -323,6 +323,10 @@ public:
 
     void appendFrame(const CanFrame &frame);
     void appendFrames(const QVector<CanFrame> &frames);
+    /// Pull new frames from CaptureLog into the model pending queue (Phase B).
+    void pullFromCaptureLog();
+    /// Reset CaptureLog read cursor (measurement start / clear).
+    void resetCaptureCursor();
     void clearTrace();
     int frameCount() const;
     bool setFilterExpression(const QString &expr);
@@ -356,33 +360,37 @@ protected:
 private slots:
     void onSelectionChanged();
     void onPacketCountTimer();
+    void onCapturePullTimer();
 
 private:
-    /// 更新视窗缩略图控件
+    /// Update viewport overview widget
     void updateViewportOverview();
+    /// Lower flush rate when the tab is not visible (Phase B background budget).
+    void updateCapturePullBudget();
+
     FilterBar *m_filterBar = nullptr;
     TraceView *m_traceView = nullptr;
     QSplitter *m_vSplitter = nullptr;
-    QTabWidget *m_explorerTabs = nullptr;           ///< T8: 底部 Trace Explorer 标签外壳
+    QTabWidget *m_explorerTabs = nullptr;
     FrameInfoWidget *m_frameInfo = nullptr;
     SignalDecodeWidget *m_signalDecode = nullptr;
-    TraceStatisticsWidget *m_statistics = nullptr;  ///< T9: 选中帧统计
-    TraceDiffWidget *m_diff = nullptr;              ///< T10: 选中帧差异对比
+    TraceStatisticsWidget *m_statistics = nullptr;
+    TraceDiffWidget *m_diff = nullptr;
 
     CanTraceModel *m_traceModel = nullptr;
     CanTraceProxyModel *m_proxyModel = nullptr;
     ViewportProxyModel *m_viewportProxy = nullptr;
     BookmarkManager *m_bookmarkManager = nullptr;
     ViewportOverview *m_viewportOverview = nullptr;
-    bool m_autoScrollViewport = true;  ///< 视窗自动跟随新数据
+    bool m_autoScrollViewport = true;
     bool m_running = false;
+    quint64 m_captureSeq = 0;              ///< CaptureLog cursor (exclusive)
+    QTimer *m_capturePullTimer = nullptr;  ///< Pull CaptureLog → pending
 
-    // ---- 设置菜单 ----
-    QActionGroup *m_timeFormatGroup = nullptr;  ///< 时间格式互斥动作组
-    QTimer *m_packetCountTimer = nullptr;      ///< 分组计数防抖定时器
-    bool m_packetCountDirty = false;           ///< 分组计数待更新标记
+    QActionGroup *m_timeFormatGroup = nullptr;
+    QTimer *m_packetCountTimer = nullptr;
+    bool m_packetCountDirty = false;
 
-    // ---- M1 预埋：协议 / 形态身份（doc/flow.md §十三）----
     QString m_protocolId = QStringLiteral("can");
     QString m_formId = QStringLiteral("framelist");
 };

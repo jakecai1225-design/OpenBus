@@ -291,13 +291,26 @@ void CanTraceModel::flushPending()
 void CanTraceModel::appendFrame(const CanFrame &frame)
 {
     m_pendingFrames.append(frame);
+    if (m_pendingFrames.size() >= pendingSoftCap())
+        flushPending();
+}
+
+void CanTraceModel::enqueueFrames(const QVector<CanFrame> &frames)
+{
+    if (frames.isEmpty())
+        return;
+    m_pendingFrames.reserve(m_pendingFrames.size() + frames.size());
+    m_pendingFrames += frames;
+    // Soft cap: flush early so a 50 ms stall cannot accumulate unbounded pending
+    if (m_pendingFrames.size() >= pendingSoftCap())
+        flushPending();
 }
 
 void CanTraceModel::appendFrames(const QVector<CanFrame> &frames)
 {
     if (frames.isEmpty())
         return;
-    // 离线加载：直接批量提交，不经过 pending 队列
+    // Offline load: commit immediately (bypass pending)
     commitBatch(frames);
     emit framesCommitted(m_ringBuffer.size());
 }

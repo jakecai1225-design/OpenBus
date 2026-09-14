@@ -138,7 +138,8 @@ QWidget *TraceModule::createPage(const QString &pageId, const QVariant &param, S
 
 void TraceModule::invoke(const QString &action, const QVariant &arg)
 {
-    // Frame reception: hot path, dispatch to all running tabs
+    // Frame reception: live path pulls CaptureLog on a timer (Phase B).
+    // Keep onFrames/onFrame for import / compat callers.
     if (action == QStringLiteral("onFrames")) {
         const QVector<CanFrame> frames = arg.value<QVector<CanFrame>>();
         if (frames.isEmpty())
@@ -148,9 +149,8 @@ void TraceModule::invoke(const QString &action, const QVariant &arg)
             TraceTab *tab = tabPtr.data();
             if (!tab || !tab->isRunning())
                 continue;
-            // Pending + 50 ms flush — do not scroll per frame (scroll on framesCommitted)
-            for (const auto &frame : frames)
-                tab->appendFrame(frame);
+            // Bulk enqueue into pending (model flushes on its timer)
+            tab->traceModel()->enqueueFrames(frames);
         }
     } else if (action == QStringLiteral("onFrame")) {
         const CanFrame frame = arg.value<CanFrame>();
@@ -160,6 +160,12 @@ void TraceModule::invoke(const QString &action, const QVariant &arg)
             if (!tab || !tab->isRunning())
                 continue;
             tab->appendFrame(frame);
+        }
+    } else if (action == QStringLiteral("resetCaptureCursor")) {
+        const auto tabs = m_tabList;
+        for (const auto &tabPtr : tabs) {
+            if (TraceTab *tab = tabPtr.data())
+                tab->resetCaptureCursor();
         }
     } else if (action == QStringLiteral("setAutoScroll")) {
         m_autoScroll = arg.toBool();
@@ -201,8 +207,10 @@ void TraceModule::invoke(const QString &action, const QVariant &arg)
         const auto tabs = m_tabList;
         for (const auto &tabPtr : tabs) {
             TraceTab *tab = tabPtr.data();
-            if (tab)
+            if (tab) {
+                tab->resetCaptureCursor();
                 tab->clearTrace();
+            }
         }
     } else if (action == QStringLiteral("clearAll")) {
         // Full clear: trace + info panels
@@ -210,6 +218,7 @@ void TraceModule::invoke(const QString &action, const QVariant &arg)
         for (const auto &tabPtr : tabs) {
             TraceTab *tab = tabPtr.data();
             if (tab) {
+                tab->resetCaptureCursor();
                 tab->clearTrace();
                 tab->frameInfo()->clear();
                 tab->signalDecode()->clear();

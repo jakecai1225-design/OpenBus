@@ -112,12 +112,12 @@ void MainWindow::onFramesReceived(const QVector<CanFrame> &frames)
     if (frames.isEmpty() || !m_measurementRunning)
         return;
 
-    // Phase B foundation: one shared capture ring for the process
+    // Phase B: single shared capture ring — Trace pulls on its own timer
     CaptureLog::instance()->appendBatch(frames);
 
-    // Module fan-out — one invoke per batch (not per frame)
+    // Graphic still fans out directly (shared sample store = B3 next)
     graphicInvoke(QStringLiteral("onFrames"), QVariant::fromValue(frames));
-    traceInvoke(QStringLiteral("onFrames"), QVariant::fromValue(frames));
+    // Trace no longer on this stack — avoids GUI stall dropping device/queue frames
     flowInvoke(QStringLiteral("onFrames"), QVariant::fromValue(frames));
 
     if (m_recording) {
@@ -128,26 +128,33 @@ void MainWindow::onFramesReceived(const QVector<CanFrame> &frames)
         for (const auto &frame : frames)
             m_busStats->onFrame(frame);
     }
-    if (m_ioGraph) {
+    // Skip heavy side panels when hidden (same GUI thread as Trace/Graphic)
+    if (m_ioGraph && m_ioGraph->isVisible()) {
         for (const auto &frame : frames)
             m_ioGraph->onFrame(frame);
     }
-    if (m_watcherView) {
+    if (m_watcherView && m_watcherView->isVisible()) {
         for (const auto &frame : frames)
             m_watcherView->onFrame(frame);
     }
 
     m_receivedFrameCount += frames.size();
-    // Status bar: once per batch (was once per frame)
-    if (m_player->isLoaded()) {
-        const int total = m_player->totalFrames();
-        m_frameCountLabel->setText(
-            QString::number(m_receivedFrameCount) + " / " +
-            QString::number(total) + " 帧");
-        m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
-    } else {
-        m_frameCountLabel->setText(QString::number(m_receivedFrameCount) + " 帧");
-        m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
+
+    // Status bar: throttle to ~10 Hz (was once per batch, still too hot under load)
+    static qint64 s_lastStatusMs = 0;
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    if (nowMs - s_lastStatusMs >= 100) {
+        s_lastStatusMs = nowMs;
+        if (m_player->isLoaded()) {
+            const int total = m_player->totalFrames();
+            m_frameCountLabel->setText(
+                QString::number(m_receivedFrameCount) + " / " +
+                QString::number(total) + " 帧");
+            m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
+        } else {
+            m_frameCountLabel->setText(QString::number(m_receivedFrameCount) + " 帧");
+            m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
+        }
     }
 
     if (m_pluginManager) {
@@ -376,14 +383,16 @@ void MainWindow::onMeasurementToggled(bool running)
 {
     m_measurementRunning = running;
     if (running) {
-        m_receivedFrameCount = 0;  // 重置帧计数器
-        const int cap = qBound(
-            1000,
-            AppConfig::instance()->getInt(QStringLiteral("trace.maxFrames"), 10000),
-            1000000);
-        CaptureLog::instance()->setCapacity(cap);
-        // 新测量会话：总线统计引擎与 Watcher 观测数据全部归零重新累计
-        // （修复统计跨会话累计的缺陷，doc/Watcher方案.md §4.6）
+        m_receivedFrameCount = 0;  // reset frame counter
+        // CaptureLog holds process history (larger than Trace display ring)
+        const int captureCap = qBound(
+            10000,
+            AppConfig::instance()->getInt(QStringLiteral("capture.maxFrames"), 500000),
+            2000000);
+        CaptureLog::instance()->setCapacity(captureCap);
+        traceInvoke(QStringLiteral("resetCaptureCursor"));
+        // New measurement session: bus stats + Watcher reset
+        // (fixes cross-session accumulation, doc/Watcher方案.md §4.6)
         if (m_busStats)
             m_busStats->clear();
         if (m_watcherView)

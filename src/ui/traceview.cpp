@@ -8,6 +8,7 @@
 #include "core/dbcmanager.h"
 #include "core/dbcdata.h"
 #include "core/appconfig.h"
+#include "core/capturelog.h"
 #include "utils/canutils.h"
 #include "utils/svg_icon.h"
 #include "ui/thememanager.h"
@@ -2376,15 +2377,14 @@ TraceTab::TraceTab(QWidget *parent)
         m_traceModel->setVisibleRange(first, last);
     });
 
-    // Phase 2: 帧提交后更新分组统计 + 视窗自动跟随（DEF-08 字符串信号）
+    // Phase 2: after flush — stats + autoscroll (skip scroll when tab hidden)
     auto *commitRelay = new SignalRelay(this);
     commitRelay->fire0 = [this]() {
         m_packetCountDirty = true;
-        // 自动跟随: 视窗滚动到末尾显示最新数据
-        if (m_autoScrollViewport && m_traceView->autoScrollEnabled())
+        if (isVisible() && m_autoScrollViewport && m_traceView->autoScrollEnabled())
             m_traceView->scrollToBottom();
-        // 标记缩略图缓存为脏
-        m_viewportOverview->markCacheDirty();
+        if (isVisible())
+            m_viewportOverview->markCacheDirty();
     };
     connect(m_traceModel, SIGNAL(framesCommitted(int)), commitRelay, SLOT(fire()));
 
@@ -2399,12 +2399,19 @@ TraceTab::TraceTab(QWidget *parent)
     };
     connect(m_proxyModel, SIGNAL(packetCountChanged(int,int)), packetRelay, SLOT(fire()));
 
-    // 分组计数防抖 — 高频帧到达时最多每 100ms 刷新一次
+    // Packet-count debounce — at most every 100 ms under high load
     m_packetCountTimer = new QTimer(this);
     m_packetCountTimer->setSingleShot(false);
     m_packetCountTimer->setInterval(100);
     connect(m_packetCountTimer, &QTimer::timeout, this, &TraceTab::onPacketCountTimer);
     m_packetCountTimer->start();
+
+    // Phase B: pull CaptureLog on a timer (decoupled from shell ingress)
+    m_capturePullTimer = new QTimer(this);
+    m_capturePullTimer->setSingleShot(false);
+    m_capturePullTimer->setInterval(50);
+    connect(m_capturePullTimer, &QTimer::timeout, this, &TraceTab::onCapturePullTimer);
+    m_capturePullTimer->start();
 
     // 过滤条件变化时立即更新（不防抖；DEF-08 字符串信号）
     auto *filterCountRelay = new SignalRelay(this);
@@ -2438,6 +2445,11 @@ void TraceTab::setDbcManager(DbcManager *mgr)
 void TraceTab::setRunning(bool running)
 {
     m_running = running;
+    if (running) {
+        // Catch up from whatever CaptureLog already holds
+        pullFromCaptureLog();
+        updateCapturePullBudget();
+    }
 }
 
 bool TraceTab::isOverwriteMode() const
@@ -2448,7 +2460,7 @@ bool TraceTab::isOverwriteMode() const
 void TraceTab::appendFrame(const CanFrame &frame)
 {
     m_traceModel->appendFrame(frame);
-    m_packetCountDirty = true;  // 由防抖定时器批量刷新
+    m_packetCountDirty = true;
 }
 
 void TraceTab::appendFrames(const QVector<CanFrame> &frames)
@@ -2457,10 +2469,47 @@ void TraceTab::appendFrames(const QVector<CanFrame> &frames)
     m_packetCountDirty = true;
 }
 
+void TraceTab::resetCaptureCursor()
+{
+    m_captureSeq = 0;
+}
+
+void TraceTab::pullFromCaptureLog()
+{
+    if (!m_running)
+        return;
+    QVector<CanFrame> batch;
+    quint64 newSeq = m_captureSeq;
+    const int n = CaptureLog::instance()->copyAfterSeq(m_captureSeq, &batch, &newSeq);
+    m_captureSeq = newSeq;
+    if (n <= 0)
+        return;
+    m_traceModel->enqueueFrames(batch);
+    m_packetCountDirty = true;
+}
+
+void TraceTab::onCapturePullTimer()
+{
+    updateCapturePullBudget();
+    pullFromCaptureLog();
+}
+
+void TraceTab::updateCapturePullBudget()
+{
+    if (!m_capturePullTimer || !m_traceModel)
+        return;
+    // Visible tab: 50 ms pull + High model flush; background: 200 ms (B5/B6 budget)
+    const bool vis = isVisible();
+    const int pullMs = vis ? 50 : 200;
+    if (m_capturePullTimer->interval() != pullMs)
+        m_capturePullTimer->setInterval(pullMs);
+    m_traceModel->setRefreshRate(vis ? CanTraceModel::High : CanTraceModel::Low);
+}
+
 void TraceTab::clearTrace()
 {
     m_traceModel->clear();
-    m_packetCountDirty = true;  // 防抖定时器会处理
+    m_packetCountDirty = true;
     m_autoScrollViewport = true;
     updateViewportOverview();
 }

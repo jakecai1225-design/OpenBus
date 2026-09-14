@@ -174,6 +174,9 @@ json AppConfig::defaultConfig()
         {"trace.showGrid", true},
         {"trace alternatingRowColors", true},
 
+        // ---- Capture (Phase B shared ring; Trace display ring is separate) ----
+        {"capture.maxFrames", 500000},
+
         // ---- Graphic ----
         {"graphic.timeWindow", 30.0},
         {"graphic.antialiasing", true},

@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QVector>
 #include <QDateTime>
+#include <QtGlobal>
 #include "core/canframe.h"
 #include "utils/ringbuffer.h"
 
@@ -59,10 +60,13 @@ public:
 
     // ---- 数据操作 ----
 
-    /// 追加单帧（实时捕获场景，缓冲到 pending 队列）
+    /// Append one frame into pending (live capture).
     void appendFrame(const CanFrame &frame);
 
-    /// 批量追加（回放场景，直接写入不经过 pending 队列）
+    /// Append a batch into pending without committing (live CaptureLog pull).
+    void enqueueFrames(const QVector<CanFrame> &frames);
+
+    /// Commit a batch immediately (offline import / file load).
     void appendFrames(const QVector<CanFrame> &frames);
 
     /// 清空所有帧
@@ -236,10 +240,12 @@ private:
     // ---- 列对齐配置 ----
     QHash<int, Qt::Alignment> m_columnAlignments;  ///< 用户自定义对齐（列号 → 对齐）
 
-    /// 实际将帧写入环形缓冲区（flush 时调用）
+    /// Write one frame into the ring (flush path).
     void commitFrame(const CanFrame &frame);
-    /// 提交一批 pending 帧
+    /// Commit a pending batch into the ring.
     void commitBatch(const QVector<CanFrame> &frames);
+    /// Flush when pending grows beyond this (avoids multi-100k commits).
+    int pendingSoftCap() const { return qMax(2048, m_maxFrames / 8); }
 
 signals:
     /// New frames flushed into the model (for stats / autoscroll)

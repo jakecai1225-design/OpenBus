@@ -10,7 +10,7 @@ CaptureLog *CaptureLog::instance()
 
 CaptureLog::CaptureLog(QObject *parent)
     : QObject(parent)
-    , m_ring(100000)
+    , m_ring(500000)
 {
 }
 
@@ -75,6 +75,27 @@ int CaptureLog::copyRange(int from, int count, QVector<CanFrame> *out) const
     for (int i = from; i < end; ++i)
         out->append(m_ring.at(i));
     return out->size();
+}
+
+int CaptureLog::copyAfterSeq(quint64 afterSeq, QVector<CanFrame> *out, quint64 *newSeq) const
+{
+    if (!out)
+        return 0;
+    QMutexLocker lock(&m_mutex);
+    if (newSeq)
+        *newSeq = m_seq;
+    out->clear();
+    if (afterSeq >= m_seq || m_ring.empty())
+        return 0;
+
+    const int n = m_ring.size();
+    const quint64 want = m_seq - afterSeq;
+    const int take = static_cast<int>(qMin<quint64>(want, static_cast<quint64>(n)));
+    const int from = n - take;
+    out->reserve(take);
+    for (int i = from; i < n; ++i)
+        out->append(m_ring.at(i));
+    return take;
 }
 
 bool CaptureLog::latest(CanFrame *out) const
