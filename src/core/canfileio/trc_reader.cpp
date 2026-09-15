@@ -66,11 +66,15 @@ int TrcReader::readAll(QVector<CanFrame> &frames)
         // 尝试解析帧行
         CanFrame frame;
         if (parseLine(line, frame, ++seq)) {
-            if (!hasBaseTime) {
-                baseTime = frame.timestamp;
-                hasBaseTime = true;
+            if (!keepAbsoluteTimestamps()) {
+                if (!hasBaseTime) {
+                    baseTime = frame.timestamp;
+                    hasBaseTime = true;
+                }
+                frame.timestamp -= baseTime;
             }
-            frame.timestamp -= baseTime;
+            if (frame.timestampNs == 0)
+                frame.timestampNs = static_cast<quint64>(frame.timestamp * 1e9 + 0.5);
             frames.append(frame);
             ++count;
         }

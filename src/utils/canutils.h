@@ -3,6 +3,7 @@
 
 #include <QString>
 #include <QDateTime>
+#include <QVector>
 #include <functional>
 
 struct CanFrame;
@@ -26,17 +27,27 @@ namespace CanUtils
     /// 返回 "yyyy-MM-dd HH:mm:ss.zzzzzz" 格式
     QString formatDateTime(const QDateTime &start, double seconds, int precision);
 
-    /// CAN ID 格式化（扩展帧 8 位 hex，标准帧 3 位 hex）
+    /// CAN ID formatted as hex (extended 8 digits, standard 3)
     QString formatId(quint32 id, bool extended);
 
-    /// 数据字节格式化（"01 02 03 ..."）
+    /// Data bytes ("01 02 03 ...")
     QString formatData(const QByteArray &data);
 
-    /// DLC 显示（CAN FD 时显示实际长度）
+    /// DLC display (actual length for CAN FD)
     QString formatDlc(quint8 dlc, bool fd);
 
-    /// 帧标志摘要（"FD BRS ESI" 等）
+    /// Frame flags summary ("FD BRS ESI" etc.)
     QString formatFlags(const CanFrame &frame);
+
+    /**
+     * Rebase a frame list so the first frame is t=0 (shared Trace/Graphic axis).
+     * Also fills timestampNs from timestamp when unset.
+     * No-op on empty input. Mutates in place.
+     */
+    void makeRelativeToFirst(QVector<CanFrame> &frames);
+
+    /// Ensure timestampNs matches timestamp (for file/offline frames).
+    void syncTimestampNs(CanFrame &frame);
 
     // ---- 过滤器 ----
 

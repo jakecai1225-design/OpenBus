@@ -258,10 +258,24 @@ void WatcherView::clearData()
 
 void WatcherView::onRefreshTimer()
 {
-    if (m_paused)
+    if (m_paused || !isVisible())
         return;
     refreshWatchTable();
     refreshStatistics();
+}
+
+void WatcherView::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    if (!m_refreshTimer.isActive())
+        m_refreshTimer.start();
+    onRefreshTimer();
+}
+
+void WatcherView::hideEvent(QHideEvent *event)
+{
+    QWidget::hideEvent(event);
+    m_refreshTimer.stop();
 }
 
 void WatcherView::refreshWatchTable()

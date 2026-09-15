@@ -11,8 +11,66 @@ CanTraceProxyModel::CanTraceProxyModel(QObject *parent)
 {
 }
 
+bool CanTraceProxyModel::hasActiveFilters() const
+{
+    return filterActive() || !m_columnFilters.isEmpty() || !m_columnFilterValues.isEmpty();
+}
+
+bool CanTraceProxyModel::isAppendOnlyOrder() const
+{
+    return (m_sortColumn < 0)
+        || (m_sortColumn == CanTraceModel::ColNo && m_sortOrder == Qt::AscendingOrder);
+}
+
+CanTraceProxyModel::MapMode CanTraceProxyModel::computeMapMode() const
+{
+    if (!isAppendOnlyOrder())
+        return MapMode::DenseMaps;
+    if (!hasActiveFilters())
+        return MapMode::Passthrough;
+    return MapMode::AcceptIndex;
+}
+
+int CanTraceProxyModel::proxyRowCount() const
+{
+    if (m_mapMode == MapMode::Passthrough) {
+        auto *src = sourceModel();
+        return src ? src->rowCount() : 0;
+    }
+    return m_acceptIndex.size();
+}
+
+int CanTraceProxyModel::displayedCount() const
+{
+    return proxyRowCount();
+}
+
+int CanTraceProxyModel::sourceRowAtProxy(int proxyRow) const
+{
+    if (m_mapMode == MapMode::Passthrough)
+        return proxyRow;
+    if (proxyRow < 0 || proxyRow >= m_acceptIndex.size())
+        return -1;
+    return m_acceptIndex.at(proxyRow);
+}
+
+int CanTraceProxyModel::proxyRowOfSource(int sourceRow) const
+{
+    if (sourceRow < 0)
+        return -1;
+    if (m_mapMode == MapMode::Passthrough) {
+        auto *src = sourceModel();
+        if (!src || sourceRow >= src->rowCount())
+            return -1;
+        return sourceRow;
+    }
+    if (m_mapMode == MapMode::DenseMaps)
+        return m_sourceToProxy.value(sourceRow, -1);
+    return m_acceptIndex.indexOf(sourceRow);
+}
+
 // ============================================================
-//  QAbstractProxyModel 基础映射
+//  QAbstractProxyModel mapping
 // ============================================================
 
 void CanTraceProxyModel::setSourceModel(QAbstractItemModel *sourceModel)
@@ -22,13 +80,11 @@ void CanTraceProxyModel::setSourceModel(QAbstractItemModel *sourceModel)
 
     beginResetModel();
 
-    // 断开旧源模型信号
     if (this->sourceModel())
         disconnect(this->sourceModel(), nullptr, this, nullptr);
 
     QAbstractProxyModel::setSourceModel(sourceModel);
 
-    // 断开基类可能建立的转发连接，全部信号由本类处理
     if (sourceModel)
         disconnect(sourceModel, nullptr, this, nullptr);
 
@@ -51,7 +107,7 @@ void CanTraceProxyModel::setSourceModel(QAbstractItemModel *sourceModel)
                 this, &QAbstractItemModel::headerDataChanged);
     }
 
-    buildMapping();   // 在 reset 事务内完成重建，不发额外信号
+    buildMapping();
     if (auto *m = traceModel())
         m_lastSeq = m->seqCounter();
     endResetModel();
@@ -62,9 +118,7 @@ QModelIndex CanTraceProxyModel::mapToSource(const QModelIndex &proxyIndex) const
 {
     if (!proxyIndex.isValid() || proxyIndex.model() != this)
         return {};
-    if (proxyIndex.row() < 0 || proxyIndex.row() >= m_proxyRows.size())
-        return {};
-    int srcRow = m_proxyRows.at(proxyIndex.row());
+    const int srcRow = sourceRowAtProxy(proxyIndex.row());
     auto *src = sourceModel();
     if (!src || srcRow < 0 || srcRow >= src->rowCount())
         return {};
@@ -75,8 +129,8 @@ QModelIndex CanTraceProxyModel::mapFromSource(const QModelIndex &sourceIndex) co
 {
     if (!sourceIndex.isValid() || sourceIndex.model() != sourceModel())
         return {};
-    int p = m_sourceToProxy.value(sourceIndex.row(), -1);
-    if (p < 0 || p >= m_proxyRows.size())
+    const int p = proxyRowOfSource(sourceIndex.row());
+    if (p < 0 || p >= proxyRowCount())
         return {};
     return createIndex(p, sourceIndex.column());
 }
@@ -85,7 +139,7 @@ int CanTraceProxyModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid())
         return 0;
-    return m_proxyRows.size();
+    return proxyRowCount();
 }
 
 int CanTraceProxyModel::columnCount(const QModelIndex &parent) const
@@ -100,7 +154,7 @@ QModelIndex CanTraceProxyModel::index(int row, int column, const QModelIndex &pa
 {
     if (parent.isValid())
         return {};
-    if (row < 0 || row >= m_proxyRows.size() || column < 0 || column >= columnCount())
+    if (row < 0 || row >= proxyRowCount() || column < 0 || column >= columnCount())
         return {};
     return createIndex(row, column);
 }
@@ -113,7 +167,6 @@ QModelIndex CanTraceProxyModel::parent(const QModelIndex &child) const
 
 QVariant CanTraceProxyModel::data(const QModelIndex &proxyIndex, int role) const
 {
-    // 仅翻译 Time 列显示文本（时间戳模式/精度），其余角色与列直接转发源模型
     if (role == Qt::DisplayRole && proxyIndex.isValid()
         && proxyIndex.column() == CanTraceModel::ColTime) {
         auto *model = traceModel();
@@ -122,7 +175,7 @@ QVariant CanTraceProxyModel::data(const QModelIndex &proxyIndex, int role) const
         QModelIndex sourceIdx = mapToSource(proxyIndex);
         if (!sourceIdx.isValid())
             return {};
-        const CanFrame &f = model->frameAt(sourceIdx.row());
+        const CanFrame f = model->frameAt(sourceIdx.row());
         int prec = m_timePrecision;
 
         switch (m_timestampMode) {
@@ -134,8 +187,6 @@ QVariant CanTraceProxyModel::data(const QModelIndex &proxyIndex, int role) const
             return CanUtils::formatTime(f.timestamp - prev, prec);
         }
         case SinceDisplay:
-            // 冻结模式：显示值 = 排序键快照（顺序与显示值严格对应）；
-            // 否则按当前代理序实时推导
             return CanUtils::formatTime(deltaSortFrozen() ? deltaKey(sourceIdx.row())
                                                           : displayDelta(sourceIdx.row()), prec);
         case DateTimeOfDay:
@@ -153,7 +204,7 @@ QVariant CanTraceProxyModel::data(const QModelIndex &proxyIndex, int role) const
 }
 
 // ============================================================
-//  主过滤表达式
+//  Main filter expression
 // ============================================================
 
 bool CanTraceProxyModel::setFilterExpression(const QString &expr)
@@ -185,7 +236,7 @@ void CanTraceProxyModel::clearFilter()
 }
 
 // ============================================================
-//  按列过滤
+//  Column filters
 // ============================================================
 
 void CanTraceProxyModel::setColumnFilter(int column, const QString &text)
@@ -223,12 +274,11 @@ bool CanTraceProxyModel::matchColumnFilter(int sourceRow, int column) const
     auto *model = traceModel();
     if (!model) return true;
 
-    const CanFrame &frame = model->frameAt(sourceRow);
+    const CanFrame frame = model->frameAt(sourceRow);
     QString filter = m_columnFilters.value(column).toLower();
 
     switch (column) {
     case CanTraceModel::ColNo: {
-        // 支持 ">10", "<50", "123" 等（No. 取真实帧序号，环形覆盖后仍正确）
         qint64 seq = static_cast<qint64>(model->seqCounter() - (quint64)model->rowCount()
                                          + (quint64)sourceRow + 1);
         if (filter.startsWith(">"))
@@ -238,7 +288,6 @@ bool CanTraceProxyModel::matchColumnFilter(int sourceRow, int column) const
         return QString::number(seq).contains(filter);
     }
     case CanTraceModel::ColTime: {
-        // 支持 ">0.5", "<1.0", "0.3" 等范围
         QString val = CanUtils::formatTime(frame.timestamp);
         if (filter.startsWith(">"))
             return frame.timestamp > filter.mid(1).trimmed().toDouble();
@@ -247,7 +296,6 @@ bool CanTraceProxyModel::matchColumnFilter(int sourceRow, int column) const
         return val.contains(filter);
     }
     case CanTraceModel::ColDelta: {
-        // 计算与上一帧的时间增量
         double prev = (sourceRow > 0) ? model->frameAt(sourceRow - 1).timestamp : frame.timestamp;
         double delta = frame.timestamp - prev;
         QString val = CanUtils::formatTime(delta);
@@ -260,11 +308,10 @@ bool CanTraceProxyModel::matchColumnFilter(int sourceRow, int column) const
     case CanTraceModel::ColChannel:
         return QString::number(frame.channel).contains(filter);
     case CanTraceModel::ColDirection: {
-        QString dir = (frame.direction == CanFrame::Rx) ? "rx" : "tx";
+        QString dir = (frame.direction == CanFrame::Rx) ? QStringLiteral("rx") : QStringLiteral("tx");
         return dir.contains(filter);
     }
     case CanTraceModel::ColId: {
-        // 支持 "0x123", "123", ">0x100" 等
         if (filter.startsWith(">")) {
             quint32 cmp = CanUtils::parseHex(filter.mid(1).trimmed());
             return frame.id > cmp;
@@ -281,7 +328,6 @@ bool CanTraceProxyModel::matchColumnFilter(int sourceRow, int column) const
         return idStr.contains(filter);
     }
     case CanTraceModel::ColName:
-        // DBC 报文名包含匹配
         return messageName(sourceRow).toLower().contains(filter);
     case CanTraceModel::ColDlc:
         return CanUtils::formatDlc(frame.dlc, frame.fd).contains(filter);
@@ -302,7 +348,7 @@ bool CanTraceProxyModel::matchColumnFilter(int sourceRow, int column) const
 }
 
 // ============================================================
-//  值集过滤（Excel 风格复选框）
+//  Value-set filters (Excel-style)
 // ============================================================
 
 void CanTraceProxyModel::setColumnFilterValues(int column, const QSet<QString> &values)
@@ -327,7 +373,6 @@ QString CanTraceProxyModel::columnDisplayText(int sourceRow, int column) const
     auto *model = traceModel();
     if (!model)
         return {};
-    // 获取源模型的显示文本（已格式化，走行缓存）
     QModelIndex idx = model->index(sourceRow, column);
     return model->data(idx, Qt::DisplayRole).toString();
 }
@@ -336,34 +381,27 @@ bool CanTraceProxyModel::matchColumnFilterValues(int sourceRow, int column) cons
 {
     auto it = m_columnFilterValues.constFind(column);
     if (it == m_columnFilterValues.end())
-        return true;  // 该列无值集过滤
+        return true;
 
     QString displayText = columnDisplayText(sourceRow, column);
     return it.value().contains(displayText);
 }
 
-// ============================================================
-//  行过滤（主表达式 + 列过滤 + 值集过滤）
-// ============================================================
-
 bool CanTraceProxyModel::filterAcceptsRow(int sourceRow) const
 {
-    // 主过滤表达式
     if (m_filterEngine && m_filterEngine->isValid() && !m_filterEngine->isEmpty()) {
         auto *model = traceModel();
         if (!model) return true;
-        const CanFrame &frame = model->frameAt(sourceRow);
+        const CanFrame frame = model->frameAt(sourceRow);
         if (!m_filterEngine->evaluate(frame))
             return false;
     }
 
-    // 按列过滤
     for (auto it = m_columnFilters.constBegin(); it != m_columnFilters.constEnd(); ++it) {
         if (!matchColumnFilter(sourceRow, it.key()))
             return false;
     }
 
-    // 值集过滤（Excel 风格复选框）
     for (auto it = m_columnFilterValues.constBegin(); it != m_columnFilterValues.constEnd(); ++it) {
         if (!matchColumnFilterValues(sourceRow, it.key()))
             return false;
@@ -373,7 +411,7 @@ bool CanTraceProxyModel::filterAcceptsRow(int sourceRow) const
 }
 
 // ============================================================
-//  时间戳显示模式
+//  Timestamp display mode
 // ============================================================
 
 void CanTraceProxyModel::setTimestampMode(TimestampMode mode)
@@ -382,9 +420,6 @@ void CanTraceProxyModel::setTimestampMode(TimestampMode mode)
         return;
     m_timestampMode = mode;
 
-    // Time 列排序激活时排序键语义随模式切换：
-    // 切到 SinceDisplay → 按当前显示序拍增量快照（进入冻结态）后按快照重排；
-    // 切走 → 快照作废，回到绝对时间戳键重排
     if (m_sortColumn == CanTraceModel::ColTime) {
         if (mode == SinceDisplay) {
             refreshDeltaKeys();
@@ -395,8 +430,7 @@ void CanTraceProxyModel::setTimestampMode(TimestampMode mode)
         resortCurrent();
     }
 
-    // 刷新 Time 列所有可见行（显示模式影响显示文本；排序链变化见上）
-    int rows = m_proxyRows.size();
+    int rows = proxyRowCount();
     if (rows > 0) {
         emit dataChanged(index(0, CanTraceModel::ColTime),
                          index(rows - 1, CanTraceModel::ColTime),
@@ -410,8 +444,7 @@ void CanTraceProxyModel::setTimePrecision(int precision)
         return;
     m_timePrecision = precision;
 
-    // 刷新 Time 列和 Delta 列所有可见行
-    int rows = m_proxyRows.size();
+    int rows = proxyRowCount();
     if (rows > 0) {
         emit dataChanged(index(0, CanTraceModel::ColTime),
                          index(rows - 1, CanTraceModel::ColTime),
@@ -430,11 +463,11 @@ int CanTraceProxyModel::capturedCount() const
 
 void CanTraceProxyModel::emitPacketCount()
 {
-    emit packetCountChanged(capturedCount(), m_proxyRows.size());
+    emit packetCountChanged(capturedCount(), displayedCount());
 }
 
 // ============================================================
-//  排序
+//  Sort
 // ============================================================
 
 void CanTraceProxyModel::sort(int column, Qt::SortOrder order)
@@ -446,19 +479,11 @@ void CanTraceProxyModel::sort(int column, Qt::SortOrder order)
     m_sortOrder = order;
 
     if (column < 0) {
-        // 取消排序 — 恢复捕获顺序（源行号升序）；快照冻结同步解除
-        // （显示回到实时推导）
         m_deltaSortFrozen = false;
-        withLayoutChange([this]() {
-            std::sort(m_proxyRows.begin(), m_proxyRows.end());
-            rebuildSourceToProxy();
-        });
+        rebuildMapping();
         return;
     }
 
-    // 进入 Time+SinceDisplay 排序：以点击时刻显示序拍增量快照（排序键
-    // =用户此刻看到的显示值；冻结中切换升降序沿用旧快照，值不漂移）；
-    // 离开（排到其他列）则解除冻结
     if (column == CanTraceModel::ColTime && m_timestampMode == SinceDisplay) {
         if (!m_deltaSortFrozen) {
             refreshDeltaKeys();
@@ -468,18 +493,20 @@ void CanTraceProxyModel::sort(int column, Qt::SortOrder order)
         m_deltaSortFrozen = false;
     }
 
-    resortCurrent();
+    rebuildMapping();
 }
 
 void CanTraceProxyModel::resortCurrent()
 {
     withLayoutChange([this]() {
-        // 稳定排序：等值元素保持输入序（源序），升降序由比较器方向决定
-        std::stable_sort(m_proxyRows.begin(), m_proxyRows.end(),
-                         [this](int a, int b) {
+        auto &rows = m_acceptIndex.rowsMutable();
+        std::stable_sort(rows.begin(), rows.end(),
+                         [this](quint32 a, quint32 b) {
                              return m_sortOrder == Qt::AscendingOrder
-                                 ? lessThan(a, b) : lessThan(b, a);
+                                 ? lessThan(static_cast<int>(a), static_cast<int>(b))
+                                 : lessThan(static_cast<int>(b), static_cast<int>(a));
                          });
+        m_mapMode = MapMode::DenseMaps;
         rebuildSourceToProxy();
     });
 }
@@ -490,18 +517,13 @@ bool CanTraceProxyModel::lessThan(int sourceLeft, int sourceRight) const
     if (!model)
         return sourceLeft < sourceRight;
 
-    const CanFrame &fl = model->frameAt(sourceLeft);
-    const CanFrame &fr = model->frameAt(sourceRight);
+    const CanFrame fl = model->frameAt(sourceLeft);
+    const CanFrame fr = model->frameAt(sourceRight);
 
     switch (m_sortColumn) {
     case CanTraceModel::ColNo:
-        // 源行号序 == No. 序（环形覆盖下仍单调）
         return sourceLeft < sourceRight;
     case CanTraceModel::ColTime:
-        // 对齐 Wireshark：Time 列排序键恒为帧的绝对捕获时间戳，
-        // 显示模式（绝对/增量/日期/Unix）仅改变显示文本，不改变排序语义。
-        // 例外（用户需求 2026-08-24）：SinceDisplay 模式下按显示分组增量
-        // 排序——快照键（进入该排序时冻结的显示值，见 refreshDeltaKeys）
         if (m_deltaSortFrozen)
             return deltaKey(sourceLeft) < deltaKey(sourceRight);
         return fl.timestamp < fr.timestamp;
@@ -532,7 +554,7 @@ bool CanTraceProxyModel::lessThan(int sourceLeft, int sourceRight) const
 }
 
 // ============================================================
-//  Phase 3: 双向映射
+//  Mapping rebuild (T2 lean modes)
 // ============================================================
 
 CanTraceModel *CanTraceProxyModel::traceModel() const
@@ -547,38 +569,43 @@ QString CanTraceProxyModel::messageName(int sourceRow) const
 
 double CanTraceProxyModel::displayDelta(int sourceRow) const
 {
-    // O(1) 由映射推导：与上一个“显示”行的增量（SinceDisplay 模式）
     auto *model = traceModel();
     if (!model || sourceRow < 0 || sourceRow >= model->rowCount())
         return 0.0;
-    int p = m_sourceToProxy.value(sourceRow, -1);
+    int p = proxyRowOfSource(sourceRow);
     double ts = model->frameAt(sourceRow).timestamp;
     if (p <= 0)
-        return ts;  // 首个显示行：显示其自身时间戳（与旧行为一致）
-    return ts - model->frameAt(m_proxyRows.at(p - 1)).timestamp;
+        return ts;
+    const int prevSrc = sourceRowAtProxy(p - 1);
+    if (prevSrc < 0)
+        return ts;
+    return ts - model->frameAt(prevSrc).timestamp;
 }
 
 void CanTraceProxyModel::refreshDeltaKeys()
 {
-    // 按当前代理序（=此刻显示序）逐行推导增量快照：在排序发生前调用，
-    // 快照与用户此刻看到的显示值一致（首行 = 自身时间戳，与 displayDelta
-    // 首行语义一致）
     auto *model = traceModel();
     int n = model ? model->rowCount() : 0;
     m_displayDeltaKeys.resize(n);
     m_displayDeltaKeys.fill(0.0);
-    if (!model || m_proxyRows.isEmpty()) {
+    const int proxyN = proxyRowCount();
+    if (!model || proxyN <= 0) {
         m_lastAcceptedSourceRow = -1;
         return;
     }
     double prevTs = 0.0;
-    for (int p = 0; p < m_proxyRows.size(); ++p) {
-        const double ts = model->frameAt(m_proxyRows.at(p)).timestamp;
-        m_displayDeltaKeys[m_proxyRows.at(p)] = (p == 0) ? ts : ts - prevTs;
+    int maxSrc = -1;
+    for (int p = 0; p < proxyN; ++p) {
+        const int src = sourceRowAtProxy(p);
+        if (src < 0)
+            continue;
+        const double ts = model->frameAt(src).timestamp;
+        m_displayDeltaKeys[src] = (p == 0) ? ts : ts - prevTs;
         prevTs = ts;
+        if (src > maxSrc)
+            maxSrc = src;
     }
-    // 源序最后一个显示行（新帧增量推导链尾；排序后代理序乱序，取最大源行）
-    m_lastAcceptedSourceRow = *std::max_element(m_proxyRows.cbegin(), m_proxyRows.cend());
+    m_lastAcceptedSourceRow = maxSrc;
 }
 
 double CanTraceProxyModel::deltaKey(int sourceRow) const
@@ -589,54 +616,54 @@ double CanTraceProxyModel::deltaKey(int sourceRow) const
 
 void CanTraceProxyModel::buildMapping()
 {
-    // 无信号重建：接受过滤（源序）→ 排序 → 反向映射
     auto *model = traceModel();
-    m_proxyRows.clear();
+    m_acceptIndex.clear();
+    m_sourceToProxy.clear();
     if (!model) {
-        m_sourceToProxy.clear();
+        m_mapMode = MapMode::Passthrough;
         return;
     }
 
-    int total = model->rowCount();
-    m_proxyRows.reserve(total);
-    m_sourceToProxy.resize(total);
-    std::fill(m_sourceToProxy.begin(), m_sourceToProxy.end(), -1);
+    m_mapMode = computeMapMode();
+    const int total = model->rowCount();
 
-    // 1) 接受过滤（源序）
+    if (m_mapMode == MapMode::Passthrough) {
+        // Identity: no accepted list, no reverse map.
+        if (m_deltaSortFrozen)
+            refreshDeltaKeys();
+        return;
+    }
+
+    m_acceptIndex.reserve(hasActiveFilters() ? qMin(total, 4096) : total);
     for (int i = 0; i < total; ++i) {
         if (!filterAcceptsRow(i))
             continue;
-        m_sourceToProxy[i] = m_proxyRows.size();
-        m_proxyRows.append(i);
+        m_acceptIndex.append(i);
     }
 
-    // 1.5) 冻结中的过滤重建：显示集合已变，按新集合源序重拍增量快照
-    //     （排序键与显示值同步刷新）
     if (m_deltaSortFrozen)
         refreshDeltaKeys();
 
-    // 2) 排序
-    if (m_sortColumn >= 0) {
-        std::stable_sort(m_proxyRows.begin(), m_proxyRows.end(),
-                         [this](int a, int b) {
+    if (m_mapMode == MapMode::DenseMaps) {
+        auto &rows = m_acceptIndex.rowsMutable();
+        std::stable_sort(rows.begin(), rows.end(),
+                         [this](quint32 a, quint32 b) {
                              return m_sortOrder == Qt::AscendingOrder
-                                 ? lessThan(a, b) : lessThan(b, a);
+                                 ? lessThan(static_cast<int>(a), static_cast<int>(b))
+                                 : lessThan(static_cast<int>(b), static_cast<int>(a));
                          });
+        rebuildSourceToProxy();
     }
-
-    // 3) 重建反向映射
-    std::fill(m_sourceToProxy.begin(), m_sourceToProxy.end(), -1);
-    for (int p = 0; p < m_proxyRows.size(); ++p)
-        m_sourceToProxy[m_proxyRows.at(p)] = p;
 }
 
 void CanTraceProxyModel::rebuildSourceToProxy()
 {
     auto *model = traceModel();
-    m_sourceToProxy.resize(model ? model->rowCount() : 0);
+    const int total = model ? model->rowCount() : 0;
+    m_sourceToProxy.resize(total);
     std::fill(m_sourceToProxy.begin(), m_sourceToProxy.end(), -1);
-    for (int p = 0; p < m_proxyRows.size(); ++p)
-        m_sourceToProxy[m_proxyRows.at(p)] = p;
+    for (int p = 0; p < m_acceptIndex.size(); ++p)
+        m_sourceToProxy[m_acceptIndex.at(p)] = p;
 }
 
 void CanTraceProxyModel::rebuildMapping()
@@ -646,13 +673,11 @@ void CanTraceProxyModel::rebuildMapping()
 
 void CanTraceProxyModel::withLayoutChange(const std::function<void()> &mutate)
 {
-    // 捕获持久索引当前指向的源行
     const QModelIndexList persist = persistentIndexList();
     QVector<int> srcRows;
     srcRows.reserve(persist.size());
     for (const QModelIndex &p : persist)
-        srcRows.append((p.row() >= 0 && p.row() < m_proxyRows.size())
-                           ? m_proxyRows.at(p.row()) : -1);
+        srcRows.append(sourceRowAtProxy(p.row()));
 
     emit layoutAboutToBeChanged();
     mutate();
@@ -661,7 +686,7 @@ void CanTraceProxyModel::withLayoutChange(const std::function<void()> &mutate)
     for (int i = 0; i < persist.size(); ++i) {
         if (!persist.at(i).isValid())
             continue;
-        int p = srcRows.at(i) >= 0 ? m_sourceToProxy.value(srcRows.at(i), -1) : -1;
+        int p = srcRows.at(i) >= 0 ? proxyRowOfSource(srcRows.at(i)) : -1;
         from.append(persist.at(i));
         to.append(p >= 0 ? createIndex(p, persist.at(i).column()) : QModelIndex());
     }
@@ -672,17 +697,21 @@ void CanTraceProxyModel::withLayoutChange(const std::function<void()> &mutate)
 
 void CanTraceProxyModel::forwardDataChanged(int srcTop, int srcBottom, const QVector<int> &roles)
 {
-    if (m_proxyRows.isEmpty() || srcBottom < srcTop || srcTop < 0)
+    const int n = proxyRowCount();
+    if (n <= 0 || srcBottom < srcTop || srcTop < 0)
         return;
 
     int pTop = -1, pBottom = -1;
-    if (m_proxyRows.size() == m_sourceToProxy.size()) {
-        // 快速路径：无过滤（全部行显示）
+    if (m_mapMode == MapMode::Passthrough) {
+        pTop = srcTop;
+        pBottom = qMin(srcBottom, n - 1);
+    } else if (!hasActiveFilters() && m_mapMode == MapMode::DenseMaps
+               && m_acceptIndex.size() == m_sourceToProxy.size()) {
         pTop = 0;
-        pBottom = m_proxyRows.size() - 1;
+        pBottom = n - 1;
     } else {
-        for (int r = srcTop; r <= srcBottom && r < m_sourceToProxy.size(); ++r) {
-            int p = m_sourceToProxy.at(r);
+        for (int r = srcTop; r <= srcBottom; ++r) {
+            int p = proxyRowOfSource(r);
             if (p >= 0) {
                 if (pTop < 0)
                     pTop = p;
@@ -696,7 +725,7 @@ void CanTraceProxyModel::forwardDataChanged(int srcTop, int srcBottom, const QVe
 }
 
 // ============================================================
-//  源模型信号处理
+//  Source model signals
 // ============================================================
 
 void CanTraceProxyModel::onSourceRowsInserted(const QModelIndex &parent, int first, int last)
@@ -708,29 +737,39 @@ void CanTraceProxyModel::onSourceRowsInserted(const QModelIndex &parent, int fir
 
     m_lastSeq = model->seqCounter();
 
-    if (first != m_sourceToProxy.size()) {
-        // 非尾部插入（CanTraceModel 理论上只尾部插入）→ 全量重建
+    if (m_mapMode == MapMode::Passthrough) {
+        beginInsertRows({}, first, last);
+        endInsertRows();
+        emitPacketCount();
+        return;
+    }
+
+    // Only tail inserts are incremental (CanTraceModel / CaptureLog camera).
+    if (last != model->rowCount() - 1) {
         rebuildMapping();
         emitPacketCount();
         return;
     }
 
-    int newCount = last - first + 1;
-    m_sourceToProxy.resize(m_sourceToProxy.size() + newCount, -1);
+    const int newCount = last - first + 1;
+    if (m_mapMode == MapMode::DenseMaps && first != m_sourceToProxy.size()) {
+        rebuildMapping();
+        emitPacketCount();
+        return;
+    }
+    if (m_mapMode == MapMode::DenseMaps)
+        m_sourceToProxy.resize(m_sourceToProxy.size() + newCount, -1);
 
-    // 先评估新行，再通知视图（begin 前 rowCount 须保持旧值）
     QVector<int> accepted;
     accepted.reserve(newCount);
-    const bool deltaFrozen = m_deltaSortFrozen;  // 新行增量快照 + 链尾维护
+    const bool deltaFrozen = m_deltaSortFrozen;
     if (deltaFrozen)
-        m_displayDeltaKeys.resize(m_sourceToProxy.size());
+        m_displayDeltaKeys.resize(model->rowCount());
     for (int r = first; r <= last; ++r) {
         if (!filterAcceptsRow(r))
             continue;
         accepted.append(r);
         if (deltaFrozen) {
-            // 新行增量：与源序上一显示行的差（未排序显示序下与实时显示值
-            // 一致；冻结模式下作为该行的显示/排序键）
             const double prevTs = (m_lastAcceptedSourceRow >= 0)
                 ? model->frameAt(m_lastAcceptedSourceRow).timestamp : 0.0;
             m_displayDeltaKeys[r] = model->frameAt(r).timestamp - prevTs;
@@ -738,50 +777,47 @@ void CanTraceProxyModel::onSourceRowsInserted(const QModelIndex &parent, int fir
         }
     }
 
-    const bool appendOnly =
-        (m_sortColumn < 0)
-        || (m_sortColumn == CanTraceModel::ColNo && m_sortOrder == Qt::AscendingOrder);
-
-    if (appendOnly) {
-        // Capture order / ColNo ascending: O(1) tail insert (no merge / layoutChanged)
+    if (m_mapMode == MapMode::AcceptIndex) {
         if (!accepted.isEmpty()) {
-            int insertStart = m_proxyRows.size();
+            const int insertStart = m_acceptIndex.size();
             beginInsertRows({}, insertStart, insertStart + accepted.size() - 1);
-            for (int r : accepted) {
-                m_sourceToProxy[r] = m_proxyRows.size();
-                m_proxyRows.append(r);
-            }
+            m_acceptIndex.appendMany(accepted);
             endInsertRows();
         }
-    } else {
-        // 排序模式：本批按排序键归并进 m_proxyRows（O(n+k) 单次，layoutChanged 通知）
-        if (!accepted.isEmpty()) {
-            std::stable_sort(accepted.begin(), accepted.end(),
-                             [this](int a, int b) {
-                                 return m_sortOrder == Qt::AscendingOrder
-                                     ? lessThan(a, b) : lessThan(b, a);
-                             });
-            withLayoutChange([this, &accepted]() {
-                QVector<int> merged;
-                merged.resize(m_proxyRows.size() + accepted.size());
-                // merge 等值时取旧集合在前 → 新行稳定排到等值行之后
-                std::merge(m_proxyRows.begin(), m_proxyRows.end(),
-                           accepted.begin(), accepted.end(), merged.begin(),
-                           [this](int a, int b) {
-                               return m_sortOrder == Qt::AscendingOrder
-                                   ? lessThan(a, b) : lessThan(b, a);
-                           });
-                m_proxyRows = std::move(merged);
-                rebuildSourceToProxy();
-            });
-        }
+        emitPacketCount();
+        return;
+    }
+
+    // DenseMaps: merge accepted rows by sort key.
+    if (!accepted.isEmpty()) {
+        std::stable_sort(accepted.begin(), accepted.end(),
+                         [this](int a, int b) {
+                             return m_sortOrder == Qt::AscendingOrder
+                                 ? lessThan(a, b) : lessThan(b, a);
+                         });
+        withLayoutChange([this, &accepted]() {
+            QVector<quint32> merged;
+            merged.resize(m_acceptIndex.size() + accepted.size());
+            QVector<quint32> incoming;
+            incoming.reserve(accepted.size());
+            for (int r : accepted)
+                incoming.append(static_cast<quint32>(r));
+            std::merge(m_acceptIndex.rows().begin(), m_acceptIndex.rows().end(),
+                       incoming.begin(), incoming.end(), merged.begin(),
+                       [this](quint32 a, quint32 b) {
+                           return m_sortOrder == Qt::AscendingOrder
+                               ? lessThan(static_cast<int>(a), static_cast<int>(b))
+                               : lessThan(static_cast<int>(b), static_cast<int>(a));
+                       });
+            m_acceptIndex.rowsMutable() = std::move(merged);
+            rebuildSourceToProxy();
+        });
     }
     emitPacketCount();
 }
 
 void CanTraceProxyModel::onSourceRowsRemoved(const QModelIndex &parent, int first, int last)
 {
-    // CanTraceModel 从不删除行（环形覆盖走 dataChanged，清空走 reset），防御性重建
     Q_UNUSED(parent);
     Q_UNUSED(first);
     Q_UNUSED(last);
@@ -807,9 +843,11 @@ void CanTraceProxyModel::onSourceDataChanged(const QModelIndex &topLeft,
 
     quint64 seq = model->seqCounter();
 
-    // 环形缓冲覆盖：全区间内容前移 + seqCounter 推进 + 行数不变
     if (srcTop == 0 && srcBottom == srcRows - 1 && srcRows > 0
-        && seq != m_lastSeq && srcRows == m_sourceToProxy.size()) {
+        && seq != m_lastSeq
+        && (m_mapMode == MapMode::Passthrough
+            || (m_mapMode == MapMode::DenseMaps && srcRows == m_sourceToProxy.size())
+            || m_mapMode == MapMode::AcceptIndex)) {
         int shift = static_cast<int>(qMin<quint64>(seq - m_lastSeq, static_cast<quint64>(srcRows)));
         m_lastSeq = seq;
         handleFullShift(shift, roles);
@@ -817,14 +855,15 @@ void CanTraceProxyModel::onSourceDataChanged(const QModelIndex &topLeft,
     }
     m_lastSeq = seq;
 
-    // 小区间数据变化：逐行重评估过滤成员（内容变化可能改变接受状态）
     int span = srcBottom - srcTop + 1;
-    bool mayAffectFilter = span <= 64 && (roles.isEmpty() || roles.contains(Qt::DisplayRole));
+    bool mayAffectFilter = hasActiveFilters()
+        && span <= 64
+        && (roles.isEmpty() || roles.contains(Qt::DisplayRole));
     if (mayAffectFilter) {
         bool changed = false;
         for (int r = srcTop; r <= srcBottom; ++r) {
             bool acceptedNow = filterAcceptsRow(r);
-            bool acceptedBefore = m_sourceToProxy.value(r, -1) >= 0;
+            bool acceptedBefore = proxyRowOfSource(r) >= 0;
             if (acceptedNow != acceptedBefore) {
                 changed = true;
                 break;
@@ -837,7 +876,6 @@ void CanTraceProxyModel::onSourceDataChanged(const QModelIndex &topLeft,
         }
     }
 
-    // 常规转发（标记/着色等仅改颜色角色的变化不会触发上面的重评估）
     forwardDataChanged(srcTop, srcBottom, roles);
 }
 
@@ -850,7 +888,7 @@ void CanTraceProxyModel::onSourceModelReset()
 {
     if (auto *m = traceModel())
         m_lastSeq = m->seqCounter();
-    buildMapping();   // 处于 reset 事务内
+    buildMapping();
     endResetModel();
     emitPacketCount();
 }
@@ -865,10 +903,6 @@ void CanTraceProxyModel::onSourceRingWrapped(int shift)
     m_lastSeq = model->seqCounter();
 }
 
-// ============================================================
-//  Ring wrap: logical rows shift forward
-// ============================================================
-
 void CanTraceProxyModel::handleFullShift(int shift, const QVector<int> &roles)
 {
     auto *model = traceModel();
@@ -876,16 +910,19 @@ void CanTraceProxyModel::handleFullShift(int shift, const QVector<int> &roles)
         return;
     int n = model->rowCount();
     if (shift <= 0 || shift >= n) {
-        // 一次性覆盖量超过缓冲区 → 内容整体替换，全量重建
         rebuildMapping();
         forwardDataChanged(0, n - 1, roles);
         emitPacketCount();
         return;
     }
 
-    if (m_sortColumn >= 0) {
-        // 排序模式：行身份已变，排序序无法廉价维护（与旧代理一致退化为内容更新）。
-        // 仅重评估尾部 shift 行（新帧内容）的接受状态，成员翻转则全量重建。
+    if (m_mapMode == MapMode::Passthrough) {
+        forwardDataChanged(0, n - 1, roles);
+        emitPacketCount();
+        return;
+    }
+
+    if (m_mapMode == MapMode::DenseMaps) {
         bool changed = false;
         for (int r = n - shift; r < n; ++r) {
             bool acceptedNow = filterAcceptsRow(r);
@@ -896,10 +933,8 @@ void CanTraceProxyModel::handleFullShift(int shift, const QVector<int> &roles)
             }
         }
         if (changed) {
-            rebuildMapping();  // buildMapping 内含冻结快照重拍
+            rebuildMapping();
         } else if (m_deltaSortFrozen) {
-            // 冻结中的行号平移：旧行 s+shift 的键 → 新行 s；尾部新帧逐行
-            // 补键（与源序上一显示行的差，链尾随平移更新）
             m_displayDeltaKeys.resize(n);
             for (int s = 0; s + shift < n; ++s)
                 m_displayDeltaKeys[s] = m_displayDeltaKeys[s + shift];
@@ -907,48 +942,52 @@ void CanTraceProxyModel::handleFullShift(int shift, const QVector<int> &roles)
                                           ? m_lastAcceptedSourceRow - shift : -1;
             for (int r = n - shift; r < n; ++r) {
                 if (m_sourceToProxy.value(r, -1) < 0)
-                    continue;  // 被过滤行无需键
+                    continue;
                 const double prevTs = (m_lastAcceptedSourceRow >= 0)
                     ? model->frameAt(m_lastAcceptedSourceRow).timestamp : 0.0;
                 m_displayDeltaKeys[r] = model->frameAt(r).timestamp - prevTs;
                 m_lastAcceptedSourceRow = r;
             }
         }
+        // Sorted views: source identities moved — rebuild maps.
+        if (!changed)
+            rebuildMapping();
         forwardDataChanged(0, n - 1, roles);
         emitPacketCount();
         return;
     }
 
-    // 未排序模式：accept(i) = accept_old(i + shift)，源序保持
-    // 旧行 s → 新行 s-shift；尾部 [n-shift, n) 为新帧，逐行评估
-    int oldCount = m_proxyRows.size();
-    QVector<int> shifted;
-    shifted.reserve(oldCount);
-    for (int s : m_proxyRows) {
-        if (s >= shift)
-            shifted.append(s - shift);
-    }
-    int tailStart = n - shift;
+    // AcceptIndex: shift accepted rows, evaluate new tail.
+    const int oldCount = m_acceptIndex.size();
+    QVector<int> newTail;
+    newTail.reserve(shift);
+    const int tailStart = n - shift;
     for (int r = tailStart; r < n; ++r) {
         if (filterAcceptsRow(r))
-            shifted.append(r);
+            newTail.append(r);
     }
-    int newCount = shifted.size();
 
-    // 行数差异以尾部 insert/remove 通知（内容全部变化）
+    QVector<quint32> next;
+    next.reserve(oldCount);
+    for (quint32 s : m_acceptIndex.rows()) {
+        if (static_cast<int>(s) >= shift)
+            next.append(s - static_cast<quint32>(shift));
+    }
+    for (int r : newTail)
+        next.append(static_cast<quint32>(r));
+    const int newCount = next.size();
+
     if (newCount > oldCount) {
         beginInsertRows({}, oldCount, newCount - 1);
-        m_proxyRows = std::move(shifted);
+        m_acceptIndex.rowsMutable() = std::move(next);
         endInsertRows();
     } else if (newCount < oldCount) {
         beginRemoveRows({}, newCount, oldCount - 1);
-        m_proxyRows = std::move(shifted);
+        m_acceptIndex.rowsMutable() = std::move(next);
         endRemoveRows();
     } else {
-        m_proxyRows = std::move(shifted);
+        m_acceptIndex.rowsMutable() = std::move(next);
     }
-
-    rebuildSourceToProxy();
 
     if (newCount > 0)
         emit dataChanged(index(0, 0), index(newCount - 1, columnCount() - 1), roles);

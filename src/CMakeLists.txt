@@ -15,6 +15,9 @@ set(SRC_CORE
     core/player.cpp
     core/capturelog.h
     core/capturelog.cpp
+    core/tracefilterindex.h
+    core/samplestore.h
+    core/samplestore.cpp
     core/cansimulator.h
     core/cansimulator.cpp
     core/candevice.h

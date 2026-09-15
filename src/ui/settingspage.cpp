@@ -185,11 +185,20 @@ void SettingsPage::setupMetas()
     add("window.height", "Window height", "General", "int", "Initial window height");
 
     // ---- Trace ----
-    add("trace.maxFrames", "最大帧数", "Trace", "int", "缓冲区最大帧数，超过后从头部丢弃");
-    add("trace.overwriteMode", "覆盖模式", "Trace", "bool", "同 CAN ID 的帧只保留一行");
-    add("trace.autoScroll", "自动滚动", "Trace", "bool", "新帧到达时自动滚动到底部");
-    add("trace.showGrid", "显示网格线", "Trace", "bool", "表格中显示网格线");
-    add("trace.alternatingRowColors", "交替行颜色", "Trace", "bool", "奇偶行使用不同背景色");
+    add("trace.maxFrames", "Max frames (local ring)", "Trace", "int",
+        "Local Trace ring capacity for offline/overwrite (live uses CaptureLog)");
+    add("trace.cacheRows", "Viewport cache rows", "Trace", "int",
+        "QTableView window size (T3); display cost ≈ this many rows");
+    add("trace.visibleRows", "Visible rows hint", "Trace", "int",
+        "Typical on-screen rows; cacheRows should be ~2x this");
+    add("trace.overwriteMode", "Overwrite mode", "Trace", "bool",
+        "One row per CAN ID; new frames refresh that row");
+    add("trace.autoScroll", "Auto-scroll", "Trace", "bool",
+        "Scroll to newest frames on arrival");
+    add("trace.showGrid", "Show grid", "Trace", "bool",
+        "Draw grid lines in the Trace table");
+    add("trace.alternatingRowColors", "Alternating row colors", "Trace", "bool",
+        "Alternate row background colors");
     add("capture.maxFrames", "Capture ring size", "Trace", "int",
         "Process-wide CaptureLog capacity (Trace display ring is trace.maxFrames)");
 
@@ -198,6 +207,8 @@ void SettingsPage::setupMetas()
     add("graphic.antialiasing", "抗锯齿", "Graphic", "bool", "波形图启用抗锯齿渲染");
     add("graphic.fps", "刷新率 (FPS)", "Graphic", "int", "波形图刷新帧率");
     add("graphic.maxSamples", "每信号最大点数", "Graphic", "int", "环形缓冲上限，超出后覆盖最旧点");
+    add("graphic.overlayAutoThreshold", "Auto overlay threshold", "Graphic", "int",
+        "Switch to overlay Y-axis when signal count reaches this (default 2; 0=disable)");
 
     // ---- Record ----
     add("record.defaultFormat", "默认录制格式", "Record", "combo", "新录制文件的默认格式", {"openbus", "asc", "blf"});

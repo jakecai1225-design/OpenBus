@@ -159,11 +159,15 @@ int CsvReader::readAll(QVector<CanFrame> &frames)
         }
 
         // Relative timestamps (same as ASC/BLF/TRC/PCAP) so Graphic viewport [0, window] works
-        if (!hasBase) {
-            baseTime = frame.timestamp;
-            hasBase = true;
+        if (!keepAbsoluteTimestamps()) {
+            if (!hasBase) {
+                baseTime = frame.timestamp;
+                hasBase = true;
+            }
+            frame.timestamp -= baseTime;
         }
-        frame.timestamp -= baseTime;
+        if (frame.timestampNs == 0)
+            frame.timestampNs = static_cast<quint64>(frame.timestamp * 1e9 + 0.5);
 
         frames.append(frame);
         ++count;

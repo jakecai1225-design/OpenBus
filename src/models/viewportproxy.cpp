@@ -1,10 +1,16 @@
 #include "viewportproxy.h"
 
-#include <QDebug>
-
 ViewportProxyModel::ViewportProxyModel(QObject *parent)
     : QAbstractProxyModel(parent)
 {
+}
+
+void ViewportProxyModel::notifyViewportContentChanged()
+{
+    const int n = rowCount();
+    if (n <= 0)
+        return;
+    emit dataChanged(index(0, 0), index(n - 1, columnCount() - 1));
 }
 
 void ViewportProxyModel::setViewportStart(int start)
@@ -18,16 +24,14 @@ void ViewportProxyModel::setViewportStart(int start)
     int cols = columnCount();
 
     if (m_lastReportedRowCount == newRowCount && newRowCount > 0) {
-        // 行数不变 — 只发 dataChanged，保持滚动条位置和选中状态
-        emit dataChanged(index(0, 0), index(newRowCount - 1, cols - 1));
+        // Same window length — refresh cells only (keeps selection / inner scroll).
+        notifyViewportContentChanged();
     } else if (newRowCount > m_lastReportedRowCount) {
-        // 行数增加 — 更新已有行 + 插入新行
         if (m_lastReportedRowCount > 0)
             emit dataChanged(index(0, 0), index(m_lastReportedRowCount - 1, cols - 1));
         beginInsertRows({}, m_lastReportedRowCount, newRowCount - 1);
         endInsertRows();
     } else if (newRowCount < m_lastReportedRowCount) {
-        // 行数减少 — 更新剩余行 + 移除多余行
         if (newRowCount > 0)
             emit dataChanged(index(0, 0), index(newRowCount - 1, cols - 1));
         if (m_lastReportedRowCount > newRowCount) {
@@ -35,7 +39,6 @@ void ViewportProxyModel::setViewportStart(int start)
             endRemoveRows();
         }
     } else {
-        // newRowCount == 0
         beginResetModel();
         endResetModel();
     }
@@ -134,24 +137,9 @@ void ViewportProxyModel::sort(int column, Qt::SortOrder order)
     if (!sourceModel())
         return;
 
-    if (column < 0) {
-        // 取消排序 — 恢复原始捕获顺序
-        m_sorting = true;
-        emit layoutAboutToBeChanged();
-        sourceModel()->sort(-1, order);
-        m_viewportStart = clampStart(m_viewportStart);
-        m_lastReportedRowCount = rowCount();
-        emit layoutChanged();
-        m_sorting = false;
-        emit viewportChanged();
-        return;
-    }
-
-    // 将排序请求转发给源模型（CanFilterProxyModel），同时通知视图布局即将变化
-    m_sorting = true;  // 防止源模型 layoutChanged 信号重复转发
+    m_sorting = true;
     emit layoutAboutToBeChanged();
     sourceModel()->sort(column, order);
-    // 排序后重新钳制视窗位置并同步行数
     m_viewportStart = clampStart(m_viewportStart);
     m_lastReportedRowCount = rowCount();
     emit layoutChanged();
@@ -164,11 +152,9 @@ void ViewportProxyModel::ensureVisible(int sourceRow)
     if (sourceRow < 0)
         return;
 
-    // 已在视窗内
     if (sourceRow >= m_viewportStart && sourceRow < m_viewportStart + rowCount())
         return;
 
-    // 移动视窗使该行可见 — 尽量居中
     int newStart = sourceRow - m_viewportSize / 2;
     setViewportStart(clampStart(newStart));
 }
@@ -195,19 +181,17 @@ int ViewportProxyModel::clampStart(int start) const
 
 void ViewportProxyModel::adjustOnStructuralChange()
 {
-    // 源模型行数变化后，调整视窗位置并同步行数到视图
+    const int oldStart = m_viewportStart;
     m_viewportStart = clampStart(m_viewportStart);
     int newRowCount = rowCount();
     int cols = columnCount();
 
     if (newRowCount > m_lastReportedRowCount) {
-        // 行数增加 — 更新已有行 + 插入新行
         if (m_lastReportedRowCount > 0)
             emit dataChanged(index(0, 0), index(m_lastReportedRowCount - 1, cols - 1));
         beginInsertRows({}, m_lastReportedRowCount, newRowCount - 1);
         endInsertRows();
     } else if (newRowCount < m_lastReportedRowCount) {
-        // 行数减少 — 更新剩余行 + 移除多余行
         if (newRowCount > 0)
             emit dataChanged(index(0, 0), index(newRowCount - 1, cols - 1));
         if (m_lastReportedRowCount > newRowCount) {
@@ -215,8 +199,9 @@ void ViewportProxyModel::adjustOnStructuralChange()
             endRemoveRows();
         }
     } else if (newRowCount > 0) {
-        // 行数不变但数据可能已变化（排序、覆盖等）
-        emit dataChanged(index(0, 0), index(newRowCount - 1, cols - 1));
+        // Fixed window length: either slid (follow end) or content changed in place.
+        Q_UNUSED(oldStart);
+        notifyViewportContentChanged();
     }
 
     m_lastReportedRowCount = newRowCount;
@@ -227,14 +212,12 @@ void ViewportProxyModel::onSourceDataChanged(const QModelIndex &topLeft,
                                               const QModelIndex &bottomRight,
                                               const QVector<int> &roles)
 {
-    // 将源模型行号映射到视窗内行号
     int proxyTop = topLeft.row() - m_viewportStart;
     int proxyBottom = bottomRight.row() - m_viewportStart;
     int rc = rowCount();
     if (proxyBottom < 0 || proxyTop >= rc)
-        return;  // 变化区域不在视窗内
+        return;
 
-    // 裁剪到视窗范围
     proxyTop = qMax(0, proxyTop);
     proxyBottom = qMin(rc - 1, proxyBottom);
     if (proxyTop > proxyBottom)
@@ -250,8 +233,6 @@ void ViewportProxyModel::onSourceHeaderDataChanged(Qt::Orientation orientation,
     emit headerDataChanged(orientation, first, last);
 }
 
-// ---- setSourceModel: 连接信号 ----
-
 void ViewportProxyModel::setSourceModel(QAbstractItemModel *sourceModel)
 {
     if (sourceModel == this->sourceModel())
@@ -259,10 +240,8 @@ void ViewportProxyModel::setSourceModel(QAbstractItemModel *sourceModel)
 
     beginResetModel();
 
-    // 断开旧源模型信号
-    if (this->sourceModel()) {
+    if (this->sourceModel())
         disconnect(this->sourceModel(), nullptr, this, nullptr);
-    }
 
     QAbstractProxyModel::setSourceModel(sourceModel);
     m_viewportStart = 0;
@@ -296,8 +275,7 @@ void ViewportProxyModel::setSourceModel(QAbstractItemModel *sourceModel)
         connect(sourceModel, &QAbstractItemModel::layoutChanged,
                 this, [this]() {
             if (m_sorting)
-                return;  // sort() 已处理
-            // 排序/过滤变化后调整视窗
+                return;
             m_viewportStart = clampStart(m_viewportStart);
             m_lastReportedRowCount = rowCount();
             emit layoutChanged();

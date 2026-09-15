@@ -8,22 +8,20 @@
 #include <functional>
 #include <memory>
 #include "core/filter_engine.h"
+#include "core/tracefilterindex.h"
 
 class CanTraceModel;
 
 /**
- * @brief CAN 报文增量过滤代理模型（Phase 3）
+ * @brief Incremental Trace filter proxy (Phase 3 + T2 lean maps).
  *
- * 替代 CanFilterProxyModel（QSortFilterProxyModel）。
- * QSortFilterProxyModel 在 invalidateFilter() 时对全部行重评估；
- * 本代理仅评估新增行，已有行的过滤结果通过映射表保留：
+ * Mapping modes (T2):
+ * - Passthrough: no filters, capture order — identity map, no per-history vectors
+ * - AcceptIndex: filters on, capture order — TraceFilterIndex of accepted rows only;
+ *   reverse lookup via binary search (no dense source→proxy)
+ * - DenseMaps: user sort active — accepted list + dense reverse map (legacy path)
  *
- * - 新增行：仅评估新行，追加到映射尾部（O(1)/行）
- * - 过滤条件变化：单次全量遍历重评估 + layoutChanged
- * - 排序：独立排序索引（m_proxyRows），不动源模型行号
- * - SinceDisplay 增量：由映射直接推导，无需全量重算
- *
- * 模型链: CanTraceModel → CanTraceProxyModel → ViewportProxyModel → TraceView
+ * Model chain: CanTraceModel → CanTraceProxyModel → ViewportProxyModel → TraceView
  */
 class CanTraceProxyModel : public QAbstractProxyModel
 {
@@ -101,8 +99,8 @@ public:
 
     /// 捕获分组数（源模型总行数）
     int capturedCount() const;
-    /// 显示分组数（过滤后行数）
-    int displayedCount() const { return m_proxyRows.size(); }
+    /// Displayed (accepted) row count
+    int displayedCount() const;
 
     /// 手动触发分组计数信号（新增帧后调用）
     void emitPacketCount();
@@ -145,62 +143,58 @@ private:
     QHash<int, QString> m_columnFilters;       ///< column -> 过滤文本
     QHash<int, QSet<QString>> m_columnFilterValues;  ///< column -> 选中的值集合（Excel 风格）
     TimestampMode m_timestampMode = Absolute;
-    int m_timePrecision = 6;  ///< 时间显示精度（-1=auto, 0=秒, 3=毫秒, 6=微秒, 9=纳秒）
+    int m_timePrecision = 6;  ///< Time display precision (-1=auto, 0=s, 3=ms, 6=us, 9=ns)
 
-    // ---- Phase 3: 双向映射 ----
-    QVector<int> m_proxyRows;    ///< 代理行号 → 源模型行号（排序时为排序序）
-    QVector<int> m_sourceToProxy;  ///< 源模型行号 → 代理行号（-1 = 被过滤）
+    /// T2 mapping mode — avoids O(history) dense reverse maps on the live path.
+    enum class MapMode {
+        Passthrough,  ///< No filters; proxy row == source row
+        AcceptIndex,  ///< Filter index only (capture order)
+        DenseMaps     ///< Sorted view: index + dense reverse map
+    };
+    MapMode m_mapMode = MapMode::Passthrough;
+    TraceFilterIndex m_acceptIndex; ///< Accepted source rows (proxy order)
+    QVector<int> m_sourceToProxy;   ///< Dense reverse map; empty unless DenseMaps
+
     int m_sortColumn = -1;
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
 
-    /// SinceDisplay 模式显示增量：由映射 O(1) 实时推导（data() 路径）
-    quint64 m_lastSeq = 0;             ///< 上次同步时源模型的 seqCounter（检测环形覆盖）
+    /// SinceDisplay: derived from mapping (data() path)
+    quint64 m_lastSeq = 0;
 
-    /// Time+SinceDisplay 排序的增量快照（用户需求 2026-08-24：支持按显示
-    /// 分组排序）。增量依赖显示顺序、显示顺序又依赖排序 → 循环依赖；
-    /// 解法：进入该排序时按当时显示序拍快照作排序键，此后显示值沿用
-    /// 快照（列表顺序与显示值严格对应，值不随排序重排漂移；效果等同
-    /// 把"间隔"当普通列值排序）。取消排序/切换模式/改过滤时快照重建或作废。
-    bool m_deltaSortFrozen = false;    ///< 增量快照冻结模式激活中
-    QVector<double> m_displayDeltaKeys; ///< 源行号 → 增量快照（排序键 = 冻结显示值）
-    int m_lastAcceptedSourceRow = -1;  ///< 源序上一显示行（新帧增量推导）
+    /// Time+SinceDisplay sort snapshot (frozen display deltas as sort keys)
+    bool m_deltaSortFrozen = false;
+    QVector<double> m_displayDeltaKeys;
+    int m_lastAcceptedSourceRow = -1;
 
     CanTraceModel *traceModel() const;
 
-    /// 主表达式 + 列过滤 + 值集过滤 的综合判定
+    bool hasActiveFilters() const;
+    bool isAppendOnlyOrder() const;
+    MapMode computeMapMode() const;
+    int proxyRowCount() const;
+    int sourceRowAtProxy(int proxyRow) const;
+    int proxyRowOfSource(int sourceRow) const;
+
     bool filterAcceptsRow(int sourceRow) const;
     bool matchColumnFilter(int sourceRow, int column) const;
     bool matchColumnFilterValues(int sourceRow, int column) const;
     QString columnDisplayText(int sourceRow, int column) const;
 
-    /// 排序比较（按 m_sortColumn），相等时按源行号保证稳定
     bool lessThan(int sourceLeft, int sourceRight) const;
-    /// SinceDisplay 模式下源行的时间增量（由映射 O(1) 推导）
     double displayDelta(int sourceRow) const;
-    /// 增量快照冻结激活（Time+SinceDisplay 排序中：显示值=排序键快照）
     bool deltaSortFrozen() const { return m_deltaSortFrozen; }
-    /// 按当前代理序刷新增量快照（进入冻结态前调用；快照=此刻显示值）
     void refreshDeltaKeys();
-    /// 源行的增量快照键（无快照时退化为 0）
     double deltaKey(int sourceRow) const;
-    /// DBC 报文名（Name 列排序/过滤用）
     QString messageName(int sourceRow) const;
 
-    /// 过滤/重置后全量重建映射（O(n)，单次，含持久索引重映射）
     void rebuildMapping();
-    /// 由 m_proxyRows 重建 m_sourceToProxy（O(n)）
     void rebuildSourceToProxy();
 
-    /// layoutChanged 事务：捕获持久索引 → layoutAboutToBeChanged → mutate → 重映射持久索引 → layoutChanged
     void withLayoutChange(const std::function<void()> &mutate);
-    /// 无信号重建映射（须处于 reset/layout 事务内调用）
     void buildMapping();
-    /// 按当前排序列/方向重排 m_proxyRows（含持久索引重映射）
     void resortCurrent();
-    /// 转发源数据变化（源行区间 → 代理行区间，中间被过滤行会导致多刷，无碍）
     void forwardDataChanged(int srcTop, int srcBottom, const QVector<int> &roles);
 
-    /// 环形缓冲区覆盖（shift>0）：内容整体前移，accept(i) = accept_old(i+shift)
     void handleFullShift(int shift, const QVector<int> &roles);
 };
 

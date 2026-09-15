@@ -1,4 +1,5 @@
 #include "csv_importer.h"
+#include "utils/canutils.h"
 
 #include <QFile>
 #include <QTextStream>
@@ -67,7 +68,10 @@ QVector<CanFrame> CsvImporter::importFile(
 
     if (progress) progress(1.0);
 
-    qDebug() << "CSV 导入完成:" << frames.size() << "帧";
+    // Same Trace/Graphic axis as CanFileIO CSV reader (first frame = 0)
+    CanUtils::makeRelativeToFirst(frames);
+
+    qDebug() << "CSV import done:" << frames.size() << "frames";
     return frames;
 }
 

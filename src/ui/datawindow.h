@@ -59,6 +59,10 @@ private slots:
     void onRemoveSignal();
     void onClearAll();
 
+protected:
+    void showEvent(QShowEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
+
 private:
     QTableWidget *m_table = nullptr;
     QToolBar *m_toolbar = nullptr;

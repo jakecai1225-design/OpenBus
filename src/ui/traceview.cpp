@@ -23,6 +23,7 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QHideEvent>
+#include <QShowEvent>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QResizeEvent>
@@ -420,7 +421,8 @@ const CanFrame *TraceView::selectedFrame() const
     QModelIndex sourceIdx = fp ? fp->mapToSource(filterIdx) : filterIdx;
     if (!sourceIdx.isValid() || sourceIdx.row() < 0 || sourceIdx.row() >= source->rowCount())
         return nullptr;
-    return &source->frameAt(sourceIdx.row());
+    m_selectedFrameScratch = source->frameAt(sourceIdx.row());
+    return &m_selectedFrameScratch;
 }
 
 void TraceView::contextMenuEvent(QContextMenuEvent *event)
@@ -1678,7 +1680,7 @@ ViewportOverview::ViewportOverview(QWidget *parent)
     setAttribute(Qt::WA_OpaquePaintEvent, true);
     setMouseTracking(true);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
-    setFixedWidth(60);
+    setFixedWidth(18);
 
     m_rebuildTimer = new QTimer(this);
     m_rebuildTimer->setSingleShot(true);
@@ -1688,7 +1690,7 @@ ViewportOverview::ViewportOverview(QWidget *parent)
         update();
     });
 
-    // 拖拽定时器 — 轮询全局鼠标位置，不依赖隐式鼠标 grab
+    // Drag poll — global mouse position, no implicit grab required
     m_dragTimer = new QTimer(this);
     m_dragTimer->setInterval(16);  // ~60fps
     connect(m_dragTimer, &QTimer::timeout, this, [this]() { onDragTimer(); });
@@ -1734,69 +1736,12 @@ void ViewportOverview::resizeEvent(QResizeEvent *event)
 
 void ViewportOverview::rebuildCache()
 {
-    if (!m_proxy || !m_filterProxy || !m_traceModel) {
-        m_cachePixmap = QPixmap();
-        return;
-    }
-
-    int total = m_proxy->sourceRowCount();
-    m_cachedTotal = total;
+    // Density cache retired — strip is theme background only; viewport tint
+    // is painted live in paintEvent so outside the window matches the UI.
+    m_cachePixmap = QPixmap();
+    if (m_proxy)
+        m_cachedTotal = m_proxy->sourceRowCount();
     m_cachedHeight = height();
-    int h = height();
-    if (h < 2 || total == 0) {
-        m_cachePixmap = QPixmap();
-        return;
-    }
-
-    m_cachePixmap = QPixmap(size());
-    m_cachePixmap.fill(QColor(0xf8, 0xf8, 0xf8));
-
-    QPainter p(&m_cachePixmap);
-    p.setRenderHint(QPainter::Antialiasing, false);
-
-    // 每个像素行映射到 total/h 行，采样统计 Rx/Tx 比例
-    double step = (double)total / h;
-    QColor rxColor(76, 175, 80, 200);    // 绿色
-    QColor txColor(33, 150, 243, 200);  // 蓝色
-    int barWidth = width() - 4;
-
-    for (int y = 0; y < h; ++y) {
-        int rowStart = (int)(y * step);
-        int rowEnd = (int)((y + 1) * step);
-        if (rowEnd <= rowStart)
-            rowEnd = rowStart + 1;
-        if (rowEnd > total)
-            rowEnd = total;
-
-        // 直接访问 CanFrame::direction — 避免 data() 字符串格式化开销
-        int rxCount = 0, txCount = 0;
-        int sampleStep = qMax(1, (rowEnd - rowStart) / 10);
-        for (int r = rowStart; r < rowEnd; r += sampleStep) {
-            QModelIndex filterIdx = m_filterProxy->index(r, 0);
-            if (!filterIdx.isValid())
-                continue;
-            QModelIndex sourceIdx = m_filterProxy->mapToSource(filterIdx);
-            if (!sourceIdx.isValid() || sourceIdx.row() >= m_traceModel->frameCount())
-                continue;
-            const CanFrame &frame = m_traceModel->frameAt(sourceIdx.row());
-            if (frame.direction == CanFrame::Rx)
-                rxCount++;
-            else
-                txCount++;
-        }
-
-        int sampled = rxCount + txCount;
-        if (sampled == 0)
-            continue;
-
-        // 按 Rx/Tx 比例绘制水平密度条
-        int rxW = (int)((double)rxCount / sampled * barWidth);
-        int txW = barWidth - rxW;
-        if (rxW > 0)
-            p.fillRect(2, y, rxW, 1, rxColor);
-        if (txW > 0)
-            p.fillRect(2 + rxW, y, txW, 1, txColor);
-    }
 }
 
 void ViewportOverview::paintEvent(QPaintEvent *)
@@ -1804,62 +1749,39 @@ void ViewportOverview::paintEvent(QPaintEvent *)
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing, true);
 
-    // 背景
-    p.fillRect(rect(), QColor(0xf8, 0xf8, 0xf8));
+    const QColor bg = palette().color(QPalette::Base);
+    p.fillRect(rect(), bg);
+
+    // Subtle track border so the strip is noticeable beside the table.
+    p.setPen(QPen(QColor(0xc0, 0xc0, 0xc0), 1));
+    p.setBrush(Qt::NoBrush);
+    p.drawRect(rect().adjusted(0, 0, -1, -1));
 
     if (!m_proxy)
         return;
 
-    int total = m_proxy->sourceRowCount();
+    const int total = m_proxy->sourceRowCount();
     if (total == 0)
         return;
 
-    // 重建缓存（如有需要）
     if (m_cacheDirty || m_cachedTotal != total || m_cachedHeight != height()) {
         rebuildCache();
         m_cacheDirty = false;
     }
 
-    // 绘制密度缓存
-    if (!m_cachePixmap.isNull())
-        p.drawPixmap(0, 0, m_cachePixmap);
-
-    // 10% 网格线
-    p.setPen(QPen(QColor(0xd0, 0xd0, 0xd0), 1, Qt::DotLine));
-    for (int i = 1; i < 10; ++i) {
-        int y = height() * i / 10;
-        p.drawLine(0, y, width(), y);
-    }
-
-    // 绘制视窗高亮矩形
-    QRect vpRect = viewportRect();
+    // Viewport window — light green, min height enforced in viewportRect().
+    const QRect vpRect = viewportRect();
     if (!vpRect.isNull() && vpRect.height() > 0) {
-        // 半透明蓝色填充
-        p.fillRect(vpRect, QColor(0x4a, 0x90, 0xd9, 50));
-        // 边框
-        p.setPen(QPen(QColor(0x2a, 0x70, 0xb9), 2));
+        p.fillRect(vpRect, QColor(0xc8, 0xe6, 0xc9));
+        p.setPen(QPen(QColor(0x81, 0xc7, 0x84), 1));
         p.setBrush(Qt::NoBrush);
-        p.drawRoundedRect(vpRect.adjusted(0, 0, -1, -1), 3, 3);
-        // 顶部和底部拖拽手柄
-        p.setBrush(QColor(0x2a, 0x70, 0xb9));
+        p.drawRect(vpRect.adjusted(0, 0, -1, -1));
+        p.setBrush(QColor(0x66, 0xbb, 0x6a));
         p.setPen(Qt::NoPen);
-        int cx = width() / 2;
-        p.drawRoundedRect(QRect(cx - 10, vpRect.top(), 20, 5), 2, 2);
-        p.drawRoundedRect(QRect(cx - 10, vpRect.bottom() - 4, 20, 5), 2, 2);
-    }
-
-    // 位置文本
-    int vpStart = m_proxy->viewportStart();
-    int vpSize = m_proxy->viewportSize();
-    QFont smallFont = font();
-    smallFont.setPointSize(7);
-    p.setFont(smallFont);
-    p.setPen(QColor(0x55, 0x55, 0x55));
-    p.drawText(QRect(0, 0, width(), 16), Qt::AlignCenter,
-               QString::number(vpStart + 1));
-    if (total > vpSize) {
-        p.drawText(QRect(0, height() - 16, width(), 16), Qt::AlignCenter,
-                   QString::number(total));
+        const int cx = width() / 2;
+        const int gw = qMin(10, width() - 4);
+        p.drawRoundedRect(QRect(cx - gw / 2, vpRect.top(), gw, 3), 1, 1);
+        p.drawRoundedRect(QRect(cx - gw / 2, vpRect.bottom() - 2, gw, 3), 1, 1);
     }
 }
 
@@ -1867,16 +1789,34 @@ QRect ViewportOverview::viewportRect() const
 {
     if (!m_proxy)
         return {};
-    int total = m_proxy->sourceRowCount();
+    const int total = m_proxy->sourceRowCount();
     if (total == 0)
         return {};
-    int vpStart = m_proxy->viewportStart();
-    int vpSize = m_proxy->viewportSize();
-    int h = height();
+    const int vpStart = m_proxy->viewportStart();
+    const int vpSize = m_proxy->viewportSize();
+    const int h = height();
+    if (h < 2)
+        return {};
+
     double fracStart = (double)vpStart / total;
     double fracEnd = (double)(vpStart + qMin(vpSize, total - vpStart)) / total;
     int y1 = (int)(fracStart * h);
     int y2 = (int)(fracEnd * h);
+
+    // Keep the thumb grabable when history >> viewport (min ~24 px).
+    constexpr int kMinThumb = 24;
+    if (y2 - y1 < kMinThumb) {
+        const int mid = (y1 + y2) / 2;
+        y1 = mid - kMinThumb / 2;
+        y2 = y1 + kMinThumb;
+        if (y1 < 0) {
+            y1 = 0;
+            y2 = qMin(h, kMinThumb);
+        } else if (y2 > h) {
+            y2 = h;
+            y1 = qMax(0, h - kMinThumb);
+        }
+    }
     if (y2 <= y1)
         y2 = y1 + 1;
     return QRect(1, y1, width() - 2, y2 - y1);
@@ -2000,9 +1940,9 @@ void ViewportOverview::wheelEvent(QWheelEvent *event)
     if (total == 0)
         return;
 
-    // 滚轮移动视窗
+    // Wheel moves the viewport window across the filtered history.
     int delta = event->angleDelta().y();
-    int step = m_proxy->viewportSize() / 4;  // 每次滚动 1/4 视窗
+    int step = qMax(m_proxy->viewportSize() / 4, qMax(1, total / 200));
     if (step < 1)
         step = 1;
     int direction = delta > 0 ? -step : step;
@@ -2020,13 +1960,17 @@ TraceTab::TraceTab(QWidget *parent)
     // 每个标签页拥有独立的数据模型
     // 模型链: CanTraceModel → CanTraceProxyModel → ViewportProxyModel → TraceView
     m_traceModel = new CanTraceModel(this);
+    // Local ring only for offline import / overwrite; live uses CaptureLog camera (B5).
     const int maxFrames = AppConfig::instance()->getInt("trace.maxFrames", 10000);
     m_traceModel->setMaxFrames(qBound(1000, maxFrames, 1000000));
+    m_traceModel->setCaptureLogCamera(true);
     m_proxyModel = new CanTraceProxyModel(this);
     m_proxyModel->setSourceModel(m_traceModel);
     m_viewportProxy = new ViewportProxyModel(this);
     m_viewportProxy->setSourceModel(m_proxyModel);
-    m_viewportProxy->setViewportSize(2000);  // CANoe 风格: 固定 2000 行视窗
+    // T3: table sees ~cacheRows only (not thousands); overview scrolls the window.
+    const int cacheRows = AppConfig::instance()->getInt("trace.cacheRows", 128);
+    m_viewportProxy->setViewportSize(qBound(32, cacheRows, 2048));
     m_bookmarkManager = new BookmarkManager(this);
 
     auto *layout = new QVBoxLayout(this);
@@ -2108,7 +2052,15 @@ TraceTab::TraceTab(QWidget *parent)
     owAct->setCheckable(true);
     owAct->setChecked(false);  // 默认不开启
     owAct->setToolTip(QStringLiteral("开启后每个 CAN ID 固定一行，新帧刷新行数据和帧数\n关闭后为滚动模式，每帧新增一行"));
-    connect(owAct, &QAction::toggled, m_traceModel, &CanTraceModel::setOverwriteMode);
+    connect(owAct, &QAction::toggled, this, [this](bool on) {
+        m_traceModel->setOverwriteMode(on);
+        if (!on && m_running) {
+            // Back to shared CaptureLog camera
+            m_captureSeq = 0;
+            m_traceModel->setCaptureLogCamera(true);
+            pullFromCaptureLog();
+        }
+    });
 
     // ---- 错误帧高亮 ----
     settingsMenu->addSeparator();
@@ -2350,41 +2302,51 @@ TraceTab::TraceTab(QWidget *parent)
     connect(m_traceView->selectionModel(), &QItemSelectionModel::selectionChanged,
             this, &TraceTab::onSelectionChanged);
 
-    // CANoe 风格: 视窗缩略图 ↔ 视窗位置
+    // CANoe-style: overview ↔ viewport window
     connect(m_viewportOverview, &ViewportOverview::viewportMoved,
             this, [this](int start) {
         m_viewportProxy->setViewportStart(start);
-        // 视窗切换后重置滚动条到新视窗顶部
         m_traceView->verticalScrollBar()->setValue(0);
-        // 用户手动拖动视窗 → 取消自动跟随
         m_autoScrollViewport = false;
+        // Prefill format cache for the new window (T3 VisibleRowCache).
+        const int first = m_viewportProxy->viewportStart();
+        const int last = first + m_viewportProxy->rowCount() + 5;
+        m_traceModel->setVisibleRange(first, last);
     });
 
-    // 视窗位置变化 → 更新缩略图（DEF-08 字符串信号：models 层类定义于 data.dll）
+    // Viewport moved (follow-end / structural) → overview + cache window
     auto *viewportRelay = new SignalRelay(this);
     viewportRelay->fire0 = [this]() {
         m_viewportOverview->update();
+        const int first = m_viewportProxy->viewportStart();
+        const int last = first + m_viewportProxy->rowCount() + 5;
+        m_traceModel->setVisibleRange(first, last);
     };
     connect(m_viewportProxy, SIGNAL(viewportChanged()), viewportRelay, SLOT(fire()));
 
-    // Phase 1: 可见行范围 → CanTraceModel 行缓存淘汰
+    // Phase 1: visible rows inside the viewport window → Trace format cache
     connect(m_traceView->verticalScrollBar(), &QScrollBar::valueChanged,
             this, [this]() {
         auto *sb = m_traceView->verticalScrollBar();
         int first = m_viewportProxy->viewportStart() + sb->value();
-        int pageHeight = m_traceView->viewport()->height() / 22; // 行高 22px
+        int pageHeight = qMax(1, m_traceView->viewport()->height() / 22);
         int last = first + pageHeight + 5;
         m_traceModel->setVisibleRange(first, last);
     });
 
-    // Phase 2: after flush — stats + autoscroll (skip scroll when tab hidden)
+    // Phase 1: after flush — stats + autoscroll (skip scroll when tab hidden)
     auto *commitRelay = new SignalRelay(this);
     commitRelay->fire0 = [this]() {
         m_packetCountDirty = true;
         if (isVisible() && m_autoScrollViewport && m_traceView->autoScrollEnabled())
             m_traceView->scrollToBottom();
-        if (isVisible())
+        if (isVisible()) {
             m_viewportOverview->markCacheDirty();
+            // T4: keep format/color cache warm for the current window.
+            const int first = m_viewportProxy->viewportStart();
+            const int last = first + m_viewportProxy->rowCount() + 5;
+            m_traceModel->setVisibleRange(first, last);
+        }
     };
     connect(m_traceModel, SIGNAL(framesCommitted(int)), commitRelay, SLOT(fire()));
 
@@ -2409,7 +2371,7 @@ TraceTab::TraceTab(QWidget *parent)
     // Phase B: pull CaptureLog on a timer (decoupled from shell ingress)
     m_capturePullTimer = new QTimer(this);
     m_capturePullTimer->setSingleShot(false);
-    m_capturePullTimer->setInterval(50);
+    m_capturePullTimer->setInterval(16);
     connect(m_capturePullTimer, &QTimer::timeout, this, &TraceTab::onCapturePullTimer);
     m_capturePullTimer->start();
 
@@ -2446,7 +2408,9 @@ void TraceTab::setRunning(bool running)
 {
     m_running = running;
     if (running) {
-        // Catch up from whatever CaptureLog already holds
+        // Live path: CaptureLog camera (re-enable after offline/overwrite local mode)
+        if (!m_traceModel->isOverwriteMode())
+            m_traceModel->setCaptureLogCamera(true);
         pullFromCaptureLog();
         updateCapturePullBudget();
     }
@@ -2478,14 +2442,67 @@ void TraceTab::pullFromCaptureLog()
 {
     if (!m_running)
         return;
+
+    // T5: background Trace — advance CaptureLog cursor only (no model/proxy notify).
+    if (!isVisible()) {
+        advanceCaptureCursorOnly();
+        return;
+    }
+
+    if (m_traceModel->isCaptureLogCamera()) {
+        const int n = m_traceModel->syncFromCaptureLog(&m_captureSeq, 256);
+        if (n > 0)
+            m_packetCountDirty = true;
+        return;
+    }
     QVector<CanFrame> batch;
     quint64 newSeq = m_captureSeq;
-    const int n = CaptureLog::instance()->copyAfterSeq(m_captureSeq, &batch, &newSeq);
+    const int n = CaptureLog::instance()->copyAfterSeq(m_captureSeq, &batch, &newSeq, 256);
     m_captureSeq = newSeq;
     if (n <= 0)
         return;
     m_traceModel->enqueueFrames(batch);
     m_packetCountDirty = true;
+}
+
+void TraceTab::advanceCaptureCursorOnly()
+{
+    quint64 seq = 0;
+    CaptureLog::instance()->snapshot(nullptr, &seq, nullptr);
+    m_captureSeq = seq;
+}
+
+void TraceTab::resyncCaptureCameraOnShow()
+{
+    if (!m_running || !m_traceModel || !m_traceModel->isCaptureLogCamera())
+        return;
+    int logSize = 0;
+    quint64 logSeq = 0;
+    CaptureLog::instance()->snapshot(&logSize, &logSeq, nullptr);
+    m_captureSeq = logSeq;
+    m_traceModel->adoptCaptureLogSnapshot(logSize, logSeq);
+    m_packetCountDirty = true;
+    if (m_autoScrollViewport && m_traceView && m_traceView->autoScrollEnabled())
+        m_traceView->scrollToBottom();
+    const int first = m_viewportProxy ? m_viewportProxy->viewportStart() : 0;
+    const int last = first + (m_viewportProxy ? m_viewportProxy->rowCount() : 0) + 5;
+    m_traceModel->setVisibleRange(first, last);
+}
+
+void TraceTab::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    resyncCaptureCameraOnShow();
+    updateCapturePullBudget();
+}
+
+void TraceTab::hideEvent(QHideEvent *event)
+{
+    QWidget::hideEvent(event);
+    // Jump cursor to tip so we do not replay a backlog when shown again.
+    if (m_running)
+        advanceCaptureCursorOnly();
+    updateCapturePullBudget();
 }
 
 void TraceTab::onCapturePullTimer()
@@ -2498,12 +2515,25 @@ void TraceTab::updateCapturePullBudget()
 {
     if (!m_capturePullTimer || !m_traceModel)
         return;
-    // Visible tab: 50 ms pull + High model flush; background: 200 ms (B5/B6 budget)
+    // Visible: 16 ms streaming; background: cheap cursor tick only (T5).
     const bool vis = isVisible();
-    const int pullMs = vis ? 50 : 200;
+    const int pullMs = vis ? 16 : 500;
     if (m_capturePullTimer->interval() != pullMs)
         m_capturePullTimer->setInterval(pullMs);
-    m_traceModel->setRefreshRate(vis ? CanTraceModel::High : CanTraceModel::Low);
+    m_traceModel->setRefreshRate(vis ? CanTraceModel::High : CanTraceModel::Paused);
+}
+
+void TraceTab::onPacketCountTimer()
+{
+    if (!m_packetCountDirty || !isVisible())
+        return;
+    m_packetCountDirty = false;
+    int marked = m_traceModel->markedRows().size();
+    m_filterBar->setPacketCountText(
+        QStringLiteral("捕获: %1 | 显示: %2 | 标记: %3")
+            .arg(m_proxyModel->capturedCount())
+            .arg(m_proxyModel->displayedCount())
+            .arg(marked));
 }
 
 void TraceTab::clearTrace()
@@ -2569,19 +2599,6 @@ void TraceTab::updateViewportOverview()
     // 造成"有时不显示"；数据不足时绘制空底即可
     m_viewportOverview->markCacheDirty();
     m_viewportOverview->update();
-}
-
-void TraceTab::onPacketCountTimer()
-{
-    if (!m_packetCountDirty)
-        return;
-    m_packetCountDirty = false;
-    int marked = m_traceModel->markedRows().size();
-    m_filterBar->setPacketCountText(
-        QStringLiteral("捕获: %1 | 显示: %2 | 标记: %3")
-            .arg(m_proxyModel->capturedCount())
-            .arg(m_proxyModel->displayedCount())
-            .arg(marked));
 }
 
 void TraceTab::onSelectionChanged()

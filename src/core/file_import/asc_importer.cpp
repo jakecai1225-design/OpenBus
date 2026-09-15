@@ -1,4 +1,5 @@
 #include "asc_importer.h"
+#include "utils/canutils.h"
 
 #include <QFile>
 #include <QTextStream>
@@ -59,7 +60,10 @@ QVector<CanFrame> AscImporter::importFile(
 
     if (progress) progress(1.0);
 
-    qDebug() << "ASC 导入完成:" << frames.size() << "帧, 跳过" << skipped << "行";
+    // Same Trace/Graphic axis as CanFileIO ASC reader (first frame = 0)
+    CanUtils::makeRelativeToFirst(frames);
+
+    qDebug() << "ASC import done:" << frames.size() << "frames, skipped" << skipped << "lines";
     return frames;
 }
 

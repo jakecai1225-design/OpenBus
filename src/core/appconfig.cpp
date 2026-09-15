@@ -169,10 +169,12 @@ json AppConfig::defaultConfig()
 
         // ---- Trace ----
         {"trace.maxFrames", 10000},
+        {"trace.cacheRows", 128},
+        {"trace.visibleRows", 64},
         {"trace.overwriteMode", false},
         {"trace.autoScroll", true},
         {"trace.showGrid", true},
-        {"trace alternatingRowColors", true},
+        {"trace.alternatingRowColors", true},
 
         // ---- Capture (Phase B shared ring; Trace display ring is separate) ----
         {"capture.maxFrames", 500000},
@@ -182,6 +184,7 @@ json AppConfig::defaultConfig()
         {"graphic.antialiasing", true},
         {"graphic.fps", 30},
         {"graphic.maxSamples", 200000},
+        {"graphic.overlayAutoThreshold", 2},
 
         // ---- Record ----
         {"record.defaultFormat", "openbus"},

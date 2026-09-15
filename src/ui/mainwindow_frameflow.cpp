@@ -2,6 +2,7 @@
 #include <QTimer>
 #include "core/canframe.h"
 #include "core/capturelog.h"
+#include "core/samplestore.h"
 #include "core/recorder.h"
 #include "core/player.h"
 #include "core/cansimulator.h"
@@ -112,12 +113,13 @@ void MainWindow::onFramesReceived(const QVector<CanFrame> &frames)
     if (frames.isEmpty() || !m_measurementRunning)
         return;
 
-    // Phase B: single shared capture ring — Trace pulls on its own timer
+    // Phase B: CaptureLog (Trace) + SampleStore (Graphic) — decode subscribed once
     CaptureLog::instance()->appendBatch(frames);
+    SampleStore::instance()->ingestFrames(frames);
 
-    // Graphic still fans out directly (shared sample store = B3 next)
+    // DataWindow still needs frames; GraphicView pulls SampleStore on its timer
     graphicInvoke(QStringLiteral("onFrames"), QVariant::fromValue(frames));
-    // Trace no longer on this stack — avoids GUI stall dropping device/queue frames
+    // Trace pulls CaptureLog on its timer
     flowInvoke(QStringLiteral("onFrames"), QVariant::fromValue(frames));
 
     if (m_recording) {
@@ -140,20 +142,20 @@ void MainWindow::onFramesReceived(const QVector<CanFrame> &frames)
 
     m_receivedFrameCount += frames.size();
 
-    // Status bar: throttle to ~10 Hz (was once per batch, still too hot under load)
+    // Status bar: throttle to ~5 Hz (T5 — Trace/Graphic own the hot path)
     static qint64 s_lastStatusMs = 0;
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-    if (nowMs - s_lastStatusMs >= 100) {
+    if (nowMs - s_lastStatusMs >= 200) {
         s_lastStatusMs = nowMs;
         if (m_player->isLoaded()) {
             const int total = m_player->totalFrames();
             m_frameCountLabel->setText(
                 QString::number(m_receivedFrameCount) + " / " +
-                QString::number(total) + " 帧");
-            m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
+                QString::number(total) + " frames");
+            m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + " rows");
         } else {
-            m_frameCountLabel->setText(QString::number(m_receivedFrameCount) + " 帧");
-            m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
+            m_frameCountLabel->setText(QString::number(m_receivedFrameCount) + " frames");
+            m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + " rows");
         }
     }
 
@@ -384,15 +386,22 @@ void MainWindow::onMeasurementToggled(bool running)
     m_measurementRunning = running;
     if (running) {
         m_receivedFrameCount = 0;  // reset frame counter
-        // CaptureLog holds process history (larger than Trace display ring)
+        // CaptureLog is the live Trace history (tabs are cameras; B5)
         const int captureCap = qBound(
             10000,
             AppConfig::instance()->getInt(QStringLiteral("capture.maxFrames"), 500000),
             2000000);
         CaptureLog::instance()->setCapacity(captureCap);
         traceInvoke(QStringLiteral("resetCaptureCursor"));
+
+        const int sampleCap = qBound(
+            8192,
+            AppConfig::instance()->getInt(QStringLiteral("graphic.maxSamples"), 200000),
+            1000000);
+        SampleStore::instance()->setCapacity(sampleCap);
+        SampleStore::instance()->clear();
+
         // New measurement session: bus stats + Watcher reset
-        // (fixes cross-session accumulation, doc/Watcher方案.md §4.6)
         if (m_busStats)
             m_busStats->clear();
         if (m_watcherView)
@@ -428,16 +437,20 @@ void MainWindow::onMeasurementToggled(bool running)
                     return;
                 }
             } else {
-                // 逐个文件加载帧并合并
+                // Multi-file: keep absolute file timestamps, then rebase once so
+                // Trace and Graphic share one axis (not per-file t=0 collisions).
                 QVector<CanFrame> allFrames;
                 QStringList loadedNames;
+                const bool multiFile = paths.size() > 1;
                 for (const auto &path : paths) {
                     auto reader = CanFileIOFactory::createReader(path);
                     if (!reader || !reader->open(path)) {
                         m_bottomPanel->appendOutput(
-                            QStringLiteral("解析失败: %1").arg(QFileInfo(path).fileName()));
+                            QStringLiteral("Parse failed: %1").arg(QFileInfo(path).fileName()));
                         continue;
                     }
+                    if (multiFile)
+                        reader->setKeepAbsoluteTimestamps(true);
                     QVector<CanFrame> frames;
                     int count = reader->readAll(frames);
                     reader->close();
@@ -445,26 +458,26 @@ void MainWindow::onMeasurementToggled(bool running)
                         allFrames += frames;
                         loadedNames << QFileInfo(path).fileName();
                         m_bottomPanel->appendOutput(
-                            QStringLiteral("已加载: %1 (%2 帧)")
+                            QStringLiteral("Loaded: %1 (%2 frames)")
                                 .arg(QFileInfo(path).fileName()).arg(count));
                     }
                 }
                 if (allFrames.isEmpty()) {
-                    QMessageBox::warning(this, QStringLiteral("离线分析"),
-                        QStringLiteral("所有文件解析失败或为空"));
-                    // 测量未真正启动：复位 Flow 页按钮状态
+                    QMessageBox::warning(this, QStringLiteral("Offline analysis"),
+                        QStringLiteral("All files failed to parse or were empty"));
                     m_measurementRunning = false;
                     flowInvoke(QStringLiteral("setMeasurementRunning"), false);
                     return;
                 }
-                // 按时间戳排序合并帧
                 std::sort(allFrames.begin(), allFrames.end(),
                           [](const CanFrame &a, const CanFrame &b) {
                               return a.timestamp < b.timestamp;
                           });
+                if (multiFile)
+                    CanUtils::makeRelativeToFirst(allFrames);
                 m_player->loadFrames(allFrames);
                 m_bottomPanel->appendOutput(
-                    QStringLiteral("共加载 %1 个文件, %2 帧")
+                    QStringLiteral("Loaded %1 file(s), %2 frames")
                         .arg(loadedNames.size()).arg(allFrames.size()));
             }
 

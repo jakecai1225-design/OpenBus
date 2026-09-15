@@ -13,6 +13,8 @@
 #include <QTableWidgetItem>
 #include <QHeaderView>
 #include <QLabel>
+#include <QShowEvent>
+#include <QHideEvent>
 #include <cmath>
 
 DataWindow::DataWindow(QWidget *parent)
@@ -127,7 +129,23 @@ void DataWindow::onFrame(const CanFrame &frame)
 
 void DataWindow::onRefreshTimer()
 {
+    if (!isVisible())
+        return;
     refreshTable();
+}
+
+void DataWindow::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    if (!m_refreshTimer.isActive())
+        m_refreshTimer.start();
+    refreshTable();
+}
+
+void DataWindow::hideEvent(QHideEvent *event)
+{
+    QWidget::hideEvent(event);
+    m_refreshTimer.stop();
 }
 
 void DataWindow::refreshTable()

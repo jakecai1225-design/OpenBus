@@ -10,6 +10,7 @@
 #include <QDateTime>
 #include <QtGlobal>
 #include "core/canframe.h"
+#include "core/capturelog.h"
 #include "utils/ringbuffer.h"
 
 class FilterEngine;
@@ -76,12 +77,31 @@ public:
     void setMaxFrames(int max);
     int maxFrames() const { return m_maxFrames; }
 
-    /// 获取指定行帧（const 引用）
-    const CanFrame &frameAt(int row) const;
-    const CanFrame &frameAt(const QModelIndex &index) const { return frameAt(index.row()); }
+    /// Get frame at logical row (by value — CaptureLog camera has no stable refs).
+    CanFrame frameAt(int row) const;
+    CanFrame frameAt(const QModelIndex &index) const { return frameAt(index.row()); }
 
-    /// 当前帧总数
-    int frameCount() const { return m_ringBuffer.size(); }
+    /// Cheap meta for paint / filter keys (no payload copy). Prefer over frameAt in data().
+    bool frameMetaAt(int row, CaptureFrameMeta *out) const;
+
+    /// Current frame total (camera: CaptureLog view size; else local ring).
+    int frameCount() const { return displaySize(); }
+
+    /// Phase B5: live Trace mirrors CaptureLog (no per-tab frame ring).
+    void setCaptureLogCamera(bool enabled);
+    bool isCaptureLogCamera() const { return m_captureCamera; }
+
+    /**
+     * Sync camera rowCount/seq to CaptureLog; advance @p cursorSeq by at most
+     * @p maxRows (streaming). Emits insertRows / ringWrapped. Returns frames visited.
+     */
+    int syncFromCaptureLog(quint64 *cursorSeq, int maxRows = 256);
+
+    /**
+     * T5: adopt CaptureLog size/seq in one reset (no incremental proxy notify).
+     * Used when a background Trace tab becomes visible again.
+     */
+    void adoptCaptureLogSnapshot(int size, quint64 seq);
 
     /// 捕获起始的 wall-clock 时间（用于 DateTimeOfDay / SecondsSinceEpoch 时间戳模式）
     QDateTime captureStartTime() const { return m_captureStartDateTime; }
@@ -182,24 +202,27 @@ public:
     /// 手动 flush pending 帧（暂停刷新时调用以一次性提交）
     void flushPending();
 
-    // ---- Phase 1: 行缓存管理 ----
+    // ---- Phase 1 / T4: visible-row cache (format + color off paint) ----
 
-    /// 通知可见行范围变化，淘汰不可见行缓存
+    /// Notify visible/window row range; prunes and prefills cache (DBC/color).
     void setVisibleRange(int first, int last);
-    /// 清除所有行缓存（时间格式切换、着色规则变化时调用）
+    /// Drop all row caches (time format / color rules / DBC change).
     void invalidateRowCache();
 
 private:
-    // ---- Phase 4: 环形缓冲区存储 ----
-    // 注意: m_maxFrames 必须在 m_ringBuffer 之前声明，
-    // 因为 C++ 按声明顺序初始化成员，m_ringBuffer 构造依赖 m_maxFrames 的值。
+    // ---- Phase 4 / B5 storage ----
+    // m_maxFrames before m_ringBuffer (ctor init order).
+    // Live CaptureLog camera: m_viewRows mirrors CaptureLog; local ring unused.
+    // Offline / overwrite: local m_ringBuffer owns frames.
     int m_maxFrames = 1000000;
     RingBuffer<CanFrame> m_ringBuffer;
-    quint64 m_seqCounter = 0;   ///< 帧序列号（永不回退，用于 No. 列）
-    QDateTime m_captureStartDateTime;  ///< 捕获起始 wall-clock 时间（首次提交帧时设置）
+    bool m_captureCamera = false;  ///< B5: read frames from CaptureLog
+    int m_viewRows = 0;            ///< camera-mode rowCount
+    quint64 m_seqCounter = 0;   ///< frame sequence (never decreases; No. column)
+    QDateTime m_captureStartDateTime;  ///< wall-clock at first commit
 
     bool m_overwriteMode = false;
-    bool m_errorFrameHighlight = true;  ///< 错误帧整行高亮（默认开启）
+    bool m_errorFrameHighlight = true;  ///< highlight error frames (default on)
 
     // ---- 时间参考点 ----
     bool m_hasTimeRef = false;        ///< 是否已设置时间参考点
@@ -218,17 +241,30 @@ private:
     QVector<ColorRule> m_colorRules;
     QVector<FilterEngine *> m_colorFilters;  ///< 与 m_colorRules 下标对齐（nullptr = 不参与求值）
 
-    // ---- Phase 1: 行缓存 ----
+    // ---- Phase 1 / T4: visible-row cache ----
     struct RowCache {
-        QString cols[ColCount];      ///< 各列格式化字符串
-        QColor bgColor;              ///< 背景色（着色规则结果缓存）
-        bool bgValid = false;        ///< 背景色缓存是否有效
-        bool valid = false;          ///< 整个缓存是否有效
+        QString cols[ColCount];
+        QColor bgColor;
+        QColor fgColor;
+        bool bgValid = false;
+        bool fgValid = false;
+        bool colsFilled = false; ///< All columns formatted (incl. ColSignal)
+        bool valid = false;
     };
     mutable QHash<int, RowCache> m_rowCache;
-    int m_cacheFirst = -1;  ///< 当前缓存的可见行起始
-    int m_cacheLast = -1;   ///< 当前缓存的可见行结束
+    int m_cacheFirst = -1;
+    int m_cacheLast = -1;
+
     void formatCell(int row, int col, const CanFrame &f, QString &out) const;
+    void formatCellMeta(int row, int col, const CaptureFrameMeta &m, QString &out) const;
+    CanFrame frameWithPayload(int row, const CaptureFrameMeta &meta) const;
+    static bool columnNeedsPayload(int col);
+
+    /// Eagerly format columns + evaluate color rules for one row (T4).
+    void fillRowCache(int row) const;
+    /// Fill every row in [m_cacheFirst, m_cacheLast].
+    void prefillVisibleCache() const;
+    quint64 seqForRow(int row) const;
 
     // ---- Phase 2: 批量更新 ----
     QVector<CanFrame> m_pendingFrames;
@@ -246,6 +282,9 @@ private:
     void commitBatch(const QVector<CanFrame> &frames);
     /// Flush when pending grows beyond this (avoids multi-100k commits).
     int pendingSoftCap() const { return qMax(2048, m_maxFrames / 8); }
+    int displaySize() const { return m_captureCamera ? m_viewRows : m_ringBuffer.size(); }
+    /// Leave camera mode and use the local ring (offline import / overwrite).
+    void leaveCaptureCameraForLocal();
 
 signals:
     /// New frames flushed into the model (for stats / autoscroll)

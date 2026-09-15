@@ -74,8 +74,9 @@ private:
     double m_playbackBaseTime = 0.0; // 对应的帧时间偏移
 
     QTimer m_timer;
+    qint64 m_lastProgressMs = 0;
 
-    void emitProgress();
+    void emitProgress(bool force = false);
 };
 
 #endif // PLAYER_H

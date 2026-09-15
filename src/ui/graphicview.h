@@ -5,8 +5,10 @@
 #include <QVector>
 #include <QColor>
 #include <QHash>
+#include <QTimer>
 #include "core/canframe.h"
 #include "core/dbcdata.h"
+#include "core/samplestore.h"
 #include "graphic/downsample.h"
 
 class DbcManager;
@@ -100,6 +102,7 @@ public:
     enum class FocusMode { AllColor, SelectedColor, SelectedOnly };
 
     explicit GraphicView(QWidget *parent = nullptr);
+    ~GraphicView() override;
 
     /// 添加信号；history 非空时回填历史帧前缀（离线回放场景：添加即
     /// 显示到当前进度的完整曲线，仅写本信号、不影响既有信号；
@@ -159,25 +162,35 @@ protected:
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
     void showEvent(QShowEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
+
+private slots:
+    void onSamplePullTimer();
 
 private:
     struct SignalData {
         Signal config;
+        SampleKey storeKey;
+        quint64 sampleSeq = 0;          ///< SampleStore cursor (exclusive)
+        bool storeSubscribed = false;
         QCPGraph *graph = nullptr;
-        QCPAxis *yAxis = nullptr;           ///< 分栏模式的 Y 轴
-        QCPAxis *overlayYAxis = nullptr;    ///< 叠加模式的 Y 轴
-        QCPAxisRect *axisRect = nullptr;    ///< 分栏模式的轴区
-        QCPItemText *nameLabel = nullptr;   ///< 信号名叠加文本
-        double dataMin = 0.0;               ///< 数据最小值
-        double dataMax = 0.0;               ///< 数据最大值
-        bool hasMinMax = false;             ///< 是否已计算 min/max
-        bool minMaxDirty = false;           ///< 环形缓冲覆盖后需重算 min/max
-        bool userHidden = false;            ///< 用户通过复选框隐藏
+        QCPAxis *yAxis = nullptr;
+        QCPAxis *overlayYAxis = nullptr;
+        QCPAxisRect *axisRect = nullptr;
+        QCPItemText *nameLabel = nullptr;
+        double dataMin = 0.0;
+        double dataMax = 0.0;
+        bool hasMinMax = false;
+        bool minMaxDirty = false;
+        bool userHidden = false;
+        /// Local ring only when not subscribed to SampleStore (offline twin path).
+        /// Store-backed signals use LOD + valueAtTime — no per-view raw twin (P1-1).
         RingBuffer<graphic::Sample> rawData{65536};
-        double cachedT1 = 0.0;              ///< 显示缓存对应视口左边界
-        double cachedT2 = -1.0;             ///< 显示缓存对应视口右边界
-        bool cacheValid = false;            ///< display cache valid
-        bool displayDirty = true;           ///< samples changed since last downsample
+        double cachedT1 = 0.0;
+        double cachedT2 = -1.0;
+        bool cachedShowPoints = false;
+        bool cacheValid = false;
+        bool displayDirty = true;
     };
 
     /// 缩放历史栈条目（按信号索引存 Y 范围，避免轴对象生命周期问题）
@@ -233,6 +246,9 @@ private:
 
     QHash<quint64, QVector<int>> m_idIndex;
 
+    // Phase B3: pull decoded samples from SampleStore (not per-view decode)
+    QTimer m_samplePullTimer;
+
     // --- 视口降采样 ---
     bool m_dataDirty = false;                          ///< 原始数据有更新，需重建显示数据
     graphic::Strategy m_dsStrategy = graphic::Strategy::MinMax;  ///< 抽稀策略
@@ -248,7 +264,8 @@ private:
 
     // --- G7 显示/Y 轴/缩放轴/聚焦 模式 ---
     DisplayMode m_displayMode = DisplayMode::Step;  ///< 新信号默认线型
-    YAxisMode m_yAxisMode = YAxisMode::Separate;
+    YAxisMode m_yAxisMode = YAxisMode::OverlaySelected;  ///< P1-3: overlay default
+    bool m_yAxisModeUserLocked = false;  ///< user changed Y-mode combo; skip auto-overlay
     ZoomAxisMode m_zoomAxis = ZoomAxisMode::XY;
     FocusMode m_focusMode = FocusMode::AllColor;
     int m_selectedSignal = -1;                       ///< 信号列表当前选中行
@@ -380,6 +397,8 @@ private:
 
     /// Y 轴三模式切换（分栏 / 叠加·选中轴 / 叠加·全部轴）
     void applyYAxisMode();
+    /// B7: auto-switch to overlay when signal count crosses threshold.
+    void maybeAutoOverlay();
     void buildOverlay();
     void teardownOverlay();
 
@@ -397,6 +416,9 @@ private:
     void setZoomAxisMode(ZoomAxisMode m);
     /// 以视口中心（或指定像素位置）为基准缩放，受缩放轴模式约束
     void zoomAt(double factor, const QPointF &plotPos);
+
+    /// Zoom axis range about @p anchor (data coord under the cursor stays fixed).
+    static QCPRange zoomRangeAbout(const QCPRange &r, double anchor, double factor);
 
     /// 缩放历史栈
     void pushZoomState();
@@ -459,6 +481,13 @@ private:
     /// 原始数据入环形缓冲（覆盖最旧时标记 min/max 重算）
     void pushSample(SignalData &sd, double t, double v);
     void rebuildIdIndex();
+
+    /// Subscribe signal to SampleStore; optional history backfill into the store.
+    void subscribeStore(SignalData &sd, const QVector<CanFrame> *history, int historyCount);
+    void unsubscribeStore(SignalData &sd);
+    /// Pull new samples from SampleStore into local display rings.
+    void pullFromSampleStore();
+    void updateSamplePullBudget();
 
     /// min/max 失效时重算（供 Y 轴自适应/列表显示）
     static void ensureMinMax(SignalData &sd);

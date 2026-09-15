@@ -5,6 +5,8 @@
 #include <QVector>
 #include <QHash>
 #include <QTimer>
+#include <QShowEvent>
+#include <QHideEvent>
 #include "core/canframe.h"
 #include "core/dbcdata.h"
 
@@ -50,17 +52,21 @@ public:
                          QWidget *parent = nullptr);
 
 public slots:
-    /// 最新帧缓存（壳 onFrameReceived 直调，同 m_ioGraph 先例）
+    /// Latest-frame cache (shell onFrameReceived; same pattern as IOGraph).
     void onFrame(const CanFrame &frame);
-    /// 复位变量统计与帧缓存（新测量会话由壳调用）
+    /// Reset variable stats + frame cache (new measurement session).
     void clearData();
 
+protected:
+    void showEvent(QShowEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
+
 private slots:
-    void onAddVariables();      ///< DBC 信号选择弹窗批量添加（搜索/树形/多选）
+    void onAddVariables();
     void onRemoveSelected();
     void onClearVariables();
-    void onResetStats();        ///< 引擎 clear() + 变量统计复位
-    void onRefreshTimer();      ///< 500ms：变量表 + 统计页刷新（暂停时跳过）
+    void onResetStats();
+    void onRefreshTimer();  ///< 500ms UI refresh when visible (T5: stopped when hidden)
 
 private:
     DbcManager *m_dbc = nullptr;

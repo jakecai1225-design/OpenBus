@@ -387,7 +387,10 @@ int AscReader::readAll(QVector<CanFrame> &frames)
             baseTime = frame.timestamp;
             hasBaseTime = true;
         }
-        frame.timestamp -= baseTime;
+        if (!keepAbsoluteTimestamps())
+            frame.timestamp -= baseTime;
+        if (frame.timestampNs == 0)
+            frame.timestampNs = static_cast<quint64>(frame.timestamp * 1e9 + 0.5);
 
         frames.append(frame);
         ++count;

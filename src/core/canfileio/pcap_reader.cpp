@@ -202,10 +202,14 @@ int PcapReader::readAll(QVector<CanFrame> &frames)
         }
 
         if (parsed) {
-            // 转换为相对时间
-            if (baseTime < 0)
-                baseTime = frame.timestamp;
-            frame.timestamp -= baseTime;
+            // Shared Trace/Graphic axis: relative to first frame unless merging files
+            if (!keepAbsoluteTimestamps()) {
+                if (baseTime < 0)
+                    baseTime = frame.timestamp;
+                frame.timestamp -= baseTime;
+            }
+            if (frame.timestampNs == 0)
+                frame.timestampNs = static_cast<quint64>(frame.timestamp * 1e9 + 0.5);
             frames.append(frame);
             ++count;
         }

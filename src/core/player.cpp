@@ -1,5 +1,6 @@
 #include "player.h"
 #include "core/canfileio/canfileio_factory.h"
+#include "utils/canutils.h"
 
 #include <QDateTime>
 #include <algorithm>
@@ -8,7 +9,8 @@ Player::Player(QObject *parent)
     : QObject(parent)
 {
     m_timer.setTimerType(Qt::PreciseTimer);
-    m_timer.setInterval(1); // 1ms 精度
+    // 16 ms: stream frames to GUI; 1 ms starved ticks dump huge batches (stutter).
+    m_timer.setInterval(16);
     connect(&m_timer, &QTimer::timeout, this, &Player::onTick);
 }
 
@@ -28,8 +30,11 @@ bool Player::load(const QString &filePath)
     if (count < 0)
         return false;
 
+    for (auto &f : m_frames)
+        CanUtils::syncTimestampNs(f);
+
     m_currentIndex = 0;
-    emitProgress();
+    emitProgress(true);
     return true;
 }
 
@@ -37,8 +42,12 @@ void Player::loadFrames(const QVector<CanFrame> &frames)
 {
     stop();
     m_frames = frames;
+    // Keep file/measurement timestamps; only fill timestampNs if missing.
+    // Never stamp with QDateTime::current* — Trace and Graphic share CanFrame::timestamp.
+    for (auto &f : m_frames)
+        CanUtils::syncTimestampNs(f);
     m_currentIndex = 0;
-    emitProgress();
+    emitProgress(true);
 }
 
 void Player::unload()
@@ -46,7 +55,7 @@ void Player::unload()
     stop();
     m_frames.clear();
     m_currentIndex = 0;
-    emitProgress();
+    emitProgress(true);
 }
 
 double Player::totalTime() const
@@ -93,7 +102,7 @@ void Player::stop()
     m_timer.stop();
     m_currentIndex = 0;
     emit stateChanged(false);
-    emitProgress();
+    emitProgress(true);
 }
 
 void Player::seekTo(double seconds)
@@ -114,7 +123,7 @@ void Player::seekTo(double seconds)
         m_playbackBaseTime = m_frames.at(m_currentIndex).timestamp;
         m_timer.start();
     }
-    emitProgress();
+    emitProgress(true);
 }
 
 void Player::setSpeed(double speed)
@@ -147,19 +156,29 @@ void Player::onTick()
     double elapsedReal = (QDateTime::currentMSecsSinceEpoch() - m_tickStartMs) / 1000.0;
     double targetTime = m_playbackBaseTime + elapsedReal * m_speed;
 
-    // Emit all frames with timestamp <= targetTime as one batch
+    // Stream: cap per tick so a starved timer / dense log cannot dump tens of thousands
+    // of frames onto the GUI in one shot (Trace looked bursty, not continuous).
+    constexpr int kMaxBatch = 256;
     QVector<CanFrame> batch;
+    batch.reserve(qMin(kMaxBatch, m_frames.size() - m_currentIndex));
     while (m_currentIndex < m_frames.size() &&
-           m_frames.at(m_currentIndex).timestamp <= targetTime) {
+           m_frames.at(m_currentIndex).timestamp <= targetTime &&
+           batch.size() < kMaxBatch) {
         batch.append(m_frames.at(m_currentIndex));
         ++m_currentIndex;
     }
     if (!batch.isEmpty())
         emit framesPlayed(batch);
 
+    if (batch.size() >= kMaxBatch && m_currentIndex < m_frames.size() &&
+        m_frames.at(m_currentIndex).timestamp <= targetTime) {
+        // Hold playback clock at last emitted timestamp so remaining frames stream.
+        m_playbackBaseTime = batch.last().timestamp;
+        m_tickStartMs = QDateTime::currentMSecsSinceEpoch();
+    }
+
     if (m_currentIndex >= m_frames.size()) {
         if (m_loop) {
-            // 循环回放：重置到开头继续
             m_currentIndex = 0;
             m_tickStartMs = QDateTime::currentMSecsSinceEpoch();
             m_playbackBaseTime = m_frames.at(0).timestamp;
@@ -171,10 +190,14 @@ void Player::onTick()
         }
     }
 
-    emitProgress();
+    emitProgress(false);
 }
 
-void Player::emitProgress()
+void Player::emitProgress(bool force)
 {
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (!force && m_lastProgressMs != 0 && now - m_lastProgressMs < 50)
+        return;
+    m_lastProgressMs = now;
     emit progressChanged(m_currentIndex, m_frames.size(), currentTime(), totalTime());
 }

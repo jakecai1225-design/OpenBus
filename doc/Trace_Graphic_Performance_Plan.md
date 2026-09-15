@@ -1,11 +1,57 @@
 # Trace / Graphic Performance Plan (A / B / C)
 
-> **Status**: Active — Phase A done; Phase B: CaptureLog + Trace pull (B1/B2/B5 partial); B3/B4/B6/B7 next  
-> **Last Updated**: 2026-09-14  
+> **Status**: Active — Trace T1–T5 + Graphic Stage 2 + B6 done; next = measure / P2 if needed  
+> **Last Updated**: 2026-09-15  
 > **Goal**: Reach or exceed CANoe-class fluidity on Trace and Graphic under high bus load, many signals, and long history.
 
 This document is the durable product decision for Trace/Graphic performance work.
 Do not replace it with chat notes; update checkboxes and status here as work lands.
+Agent shortcut: `.cursor/rules/trace-graphic-performance.mdc` (alwaysApply).
+
+**Trace redesign (primary)**: `doc/Trace_Virtual_List_Redesign.md` — Wireshark/CANoe-style virtual list; do not treat batch/timer caps as the main fix.
+
+---
+
+## Optimization backlog (P0 / P1 / P2)
+
+Prioritized for Trace + Graphic smoothness. Work top-down; land one vertical slice at a time.
+
+### Trace redesign T0–T5 (do these first)
+
+| # | Item | Status |
+|---|------|--------|
+| T0 | Freeze Trace budgets / acceptance checklist | done (doc) |
+| T1 | CaptureLog SoA + cheap `frameMetaAt` (P0-3 part) | done |
+| T2 | Filter index beside CaptureLog (P0-2) | done |
+| T3 | Virtual viewport Trace model (C1 brought forward) | done |
+| T4 | DBC / ColSignal / color off paint (P0-3 + P1-2) | done |
+| T5 | Shell / background silence (P0-4 / B6) | done |
+
+### P0 — mapped / residual
+
+| # | Item | Status |
+|---|------|--------|
+| P0-1 | Graphic MinMax / LOD in SampleStore worker | done |
+| P0-2 | Trace filter index | → **T2** |
+| P0-3 | Trace cheap `frameAt` / format | → **T1 + T4** |
+| P0-4 | Finish B6 shell silence | → **T5** |
+
+### P1 — Graphic Stage 2 (after Trace T3)
+
+| # | Item | Status |
+|---|------|--------|
+| P1-1 | Graphic: remove per-view rawData twin of SampleStore | done |
+| P1-2 | Trace: DBC / ColSignal / color off paint | → **T4** (done) |
+| P1-3 | Graphic: tighter display budget | done |
+| P1-4 | Multi-tab CPU budget: full rate only for visible page | → **T5** (done) |
+
+### P2 — Phase C (later)
+
+| # | Item | Status |
+|---|------|--------|
+| P2-1 / C1 | Custom virtual Trace list painter | → **T3** (thin model first; custom paint if needed) |
+| P2-2 / C2 | GPU / custom Graphic strip compositor | deferred |
+| P2-3 / C3 | Full subscription engine + LOD pyramid | deferred |
 
 ---
 
@@ -77,15 +123,29 @@ Hard rules:
 |---|------|--------|
 | B1 | `CaptureLog` ring (process-unique in `openbus_data`) — append batch, seq, capacity | done |
 | B2 | Shell appends every measurement batch into CaptureLog once | done |
-| B3 | Shared sample store keyed by `(canId, startBit, length)` — Graphic tabs subscribe | pending |
-| B4 | Decode / MinMax bucket update off GUI (worker or timer on non-GUI thread) | pending |
-| B5 | Trace tabs share CaptureLog + filter cursor (stop per-tab 1e6 rings where possible) | partial |
-| B6 | Hidden Graphic: append samples optional; never composite | partial |
-| B7 | Prefer overlay / fewer AxisRects when signal count is high | pending |
+| B3 | Shared sample store keyed by `(canId, startBit, length)` — Graphic tabs subscribe | done |
+| B4 | Decode / MinMax bucket update off GUI (worker or timer on non-GUI thread) | done (decode + LOD) |
+| B5 | Trace tabs share CaptureLog + filter cursor (stop per-tab 1e6 rings where possible) | done |
+| B6 | Hidden Graphic: append samples optional; never composite | done |
+| B7 | Prefer overlay / fewer AxisRects when signal count is high | done |
+
+**B5 notes (2026-09-15)**: Live Trace is a CaptureLog camera — `syncFromCaptureLog` updates rowCount/seq only; `frameAt` reads the shared ring. No per-tab live frame copy. Offline import and overwrite mode still use a local ring (`leaveCaptureCameraForLocal`). `trace.maxFrames` sizes the offline fallback ring; `capture.maxFrames` is the live history limit.
 
 **B5 notes (2026-09-14)**: Trace display still uses a per-tab ring (`trace.maxFrames`), but live ingest no longer runs on the shell fan-out stack. Trace tabs pull via `CaptureLog::copyAfterSeq` on a timer; `capture.maxFrames` (default 500k) holds burst history. Background tabs use a slower pull/flush budget. Full “tabs as cameras only” (no per-tab ring) remains Phase C-adjacent.
 
-**B6 notes**: Hidden Graphic already skips `replot`; Watcher/IOGraph skip ingest when not visible.
+**B3 notes (2026-09-15)**: `SampleStore` in `openbus_data` — subscribe/refcount by SampleKey; shell `ingestFrames` once; GraphicView pulls on a timer into local display rings. Unsubscribed IDs cost ~0. Multi-tab same signal shares one decoded ring.
+
+**B4 notes (2026-09-15)**: `SampleStore::ingestFrames` queues batches to a low-priority worker thread; decode + ring push run off GUI. `seriesUpdated` crosses threads via queued metatype. History `appendSamples` stays synchronous.
+
+**P0-1 / B4 LOD (2026-09-15)**: Worker `pushOne` maintains running Y range + incremental MinMax LOD buckets (`samplesPerBucket ≈ capacity/4096`). Graphic `refreshDisplayData` uses `copyDownsampled` (O(buckets)); falls back to local raw downsample if cold. Cursors still use per-view `rawData` (P1-1). Next P0: Trace filter index.
+
+**Trace stream (2026-09-15)**: Player 16 ms tick + 256-frame cap (hold clock if more due); Trace camera syncs at most 256 rows / 16 ms instead of jumping to CaptureLog tip every 50 ms.
+
+**B7 notes (2026-09-15)**: `graphic.overlayAutoThreshold` (default 2) auto-switches Y-axis to OverlaySelected when adding signals; user combo changes set `m_yAxisModeUserLocked` so manual Separate is respected. P1-3 also defaults new views to OverlaySelected.
+
+**B6 notes (2026-09-15)**: Hidden Graphic stops pull / value / replot timers after tip-cursor advance; Watcher and DataWindow stop refresh timers when hidden; shell skips DataWindow ingest when not visible. SampleStore still ingests once for all subscribers.
+
+**B6 notes (earlier)**: Hidden Graphic already skipped `replot` and slowed SampleStore pull; Watcher/IOGraph skip ingest when not visible.
 
 ---
 
@@ -121,6 +181,7 @@ Hard rules:
 | `src/ui/graphic/downsample.cpp` | Viewport MinMax |
 | `src/core/appconfig.cpp` | `trace.maxFrames`, `capture.maxFrames`, `graphic.fps`, `graphic.maxSamples` |
 | `src/core/capturelog.cpp` | Shared measurement ring; Trace pull cursor |
+| `src/core/samplestore.cpp` | Shared decoded samples; Graphic subscribe/pull |
 | `src/core/player.cpp` | Batch `framesPlayed` |
 
 ---
@@ -130,3 +191,19 @@ Hard rules:
 - **2026-09-14**: Persist A/B/C plan; implement A then B (not C yet). Analysis concluded GUI per-frame fan-out + Trace sort/scroll + Graphic paint/downsample are the primary bottlenecks for many-signals + long-history loads.
 - **2026-09-14**: Phase A (A1–A11) implemented. Phase B: CaptureLog append on the measurement path (B1–B2). Remaining: shared sample store, off-GUI decode, Trace reading CaptureLog, overlay-for-many-signals (B3–B7). Phase C still deferred.
 - **2026-09-14**: Trace Phase B5 partial — live Trace ingest pulls from CaptureLog (decoupled from shell); `enqueueFrames` + pending soft-cap; background tab budget; `capture.maxFrames`; status-bar / Watcher / IOGraph throttling. Next: B3 shared sample store for Graphic.
+- **2026-09-15**: Phase B3 — `SampleStore` subscribe/ingest/pull; Graphic decode once per key; views timer-pull. Next: B4 off-GUI decode, B7 overlay for many signals.
+- **2026-09-15**: Phase B4 — SampleStore worker-thread ingest; B7 — auto overlay above `graphic.overlayAutoThreshold`.
+- **2026-09-15**: Phase B5 — Trace CaptureLog camera (no per-tab live ring); offline/overwrite keep local ring.
+- **2026-09-15**: Persist P0/P1/P2 backlog in this doc + `.cursor/rules/trace-graphic-performance.mdc`.
+- **2026-09-15**: P0-1 — SampleStore worker MinMax LOD + `copyDownsampled` / `valueRange`; Graphic display path prefers store LOD.
+- **2026-09-15**: Graphic crash/lag hotfix — capped pull, LOD-only display lock path, ingest queue soft-cap.
+- **2026-09-15**: Trace/Graphic time axis — use file/`CanFrame::timestamp` only (no PC-now on playback/plot); align Graphic ticker with Trace; import rebase; multi-file single rebase; CaptureLog history backfill.
+- **2026-09-15**: User requested CANoe/Wireshark-class redesign; Trace first. Added `doc/Trace_Virtual_List_Redesign.md` (T0–T5). Next code: T1 SoA, then T2 filter index, then T3 virtual viewport. Graphic P1 after T3. Stop prioritizing batch/timer caps as primary fix.
+- **2026-09-15**: T1 — CaptureLog SoA (`CaptureFrameMeta` + 64 B payload slabs); `frameMetaAt` / `copyDataAt`; Trace `data()` meta-first (payload only for Data/Signal / color filters / FrameRole). Next: T2 filter index.
+- **2026-09-15**: T2 — `TraceFilterIndex` + proxy MapMode (Passthrough / AcceptIndex / DenseMaps). Live no-filter path is identity (no O(history) maps); filtered capture-order keeps accepted list only (binary-search reverse). Next: T3 virtual viewport.
+- **2026-09-15**: T3 — Viewport `trace.cacheRows` (default 128); format-cache prefill on window move; overview uses `frameMetaAt`; removed full-history `dataChanged` on CaptureLog wrap. Next: T4.
+- **2026-09-15**: T4 — VisibleRowCache prefills DBC ColSignal + color rules; `data()` paint path cache-hit; rule/DBC changes notify window only. Next: T5.
+- **2026-09-15**: T5 — background Trace cursor-only + adopt-on-show; Graphic tip-only when hidden; Watcher timer stopped when hidden; status bar ~5 Hz. Next: Graphic Stage 2 (P1).
+- **2026-09-15**: P1-1 — Graphic store-backed signals no longer twin `rawData`; pull advances cursor only; display/cursors/`fit*` use SampleStore (`copyDownsampled` / `valueAtTime` / `timeRange`). P1-3 partial: skip `userHidden` in `refreshDisplayData`. Next: finish P1-3 overlay/dirty budget.
+- **2026-09-15**: P1-3 — OverlaySelected default; `overlayAutoThreshold` default 2; per-signal `displayDirty` (no global twin rebuild); skip hidden in refresh; drop duplicate cursor update on replot. Graphic Stage 2 complete. Next: P2 / measure.
+- **2026-09-15**: B6 complete — hidden Graphic stops pull/value/replot timers (tip once on hide); DataWindow timer + shell fan-out gated on visibility. Phase B closed. Next: manual acceptance; P2 (C1b/C2/C3) only if still heavy.

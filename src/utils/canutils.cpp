@@ -22,20 +22,38 @@ QString formatTime(double seconds)
 QString formatTime(double seconds, int precision)
 {
     if (precision < 0) {
-        // 自动精度: 根据值大小选择
+        // Auto precision by magnitude
         if (seconds >= 1.0)
-            precision = 6;   // 微秒
+            precision = 6;
         else if (seconds >= 0.001)
-            precision = 9;   // 纳秒
+            precision = 9;
         else
             precision = 9;
     }
-    // 限制到 0-9
     precision = qBound(0, precision, 9);
 
     if (precision == 0)
         return QString::number(seconds, 'f', 0);
     return QString::number(seconds, 'f', precision);
+}
+
+void syncTimestampNs(CanFrame &frame)
+{
+    if (frame.timestampNs == 0 && frame.timestamp > 0.0)
+        frame.timestampNs = static_cast<quint64>(frame.timestamp * 1e9 + 0.5);
+}
+
+void makeRelativeToFirst(QVector<CanFrame> &frames)
+{
+    if (frames.isEmpty())
+        return;
+    const double t0 = frames.first().timestamp;
+    for (auto &f : frames) {
+        f.timestamp -= t0;
+        if (f.timestamp < 0.0)
+            f.timestamp = 0.0;
+        f.timestampNs = static_cast<quint64>(f.timestamp * 1e9 + 0.5);
+    }
 }
 
 QString formatDateTime(const QDateTime &start, double seconds, int precision)

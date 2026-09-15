@@ -1,4 +1,5 @@
 #include "cantracemodel.h"
+#include "core/capturelog.h"
 #include "core/filter_engine.h"
 #include "core/dbcmanager.h"
 #include "utils/canutils.h"
@@ -6,7 +7,7 @@
 CanTraceModel::CanTraceModel(QObject *parent)
     : QAbstractTableModel(parent), m_ringBuffer(m_maxFrames)
 {
-    // Phase 2: 批量刷新定时器
+    // Phase 2: batch flush timer
     m_flushTimer.setSingleShot(false);
     m_flushTimer.setInterval(static_cast<int>(m_refreshRate));
     connect(&m_flushTimer, &QTimer::timeout, this, [this]() {
@@ -24,7 +25,7 @@ int CanTraceModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid())
         return 0;
-    return m_ringBuffer.size();
+    return displaySize();
 }
 
 int CanTraceModel::columnCount(const QModelIndex &parent) const
@@ -36,89 +37,86 @@ int CanTraceModel::columnCount(const QModelIndex &parent) const
 
 QVariant CanTraceModel::data(const QModelIndex &index, int role) const
 {
-    if (!index.isValid() || index.row() < 0 || index.row() >= m_ringBuffer.size())
+    const int n = displaySize();
+    if (!index.isValid() || index.row() < 0 || index.row() >= n)
         return {};
 
-    const CanFrame &f = m_ringBuffer.at(index.row());
+    const int row = index.row();
+    const bool inWindow = (row >= m_cacheFirst && row <= m_cacheLast && m_cacheFirst >= 0);
+
+    // T4: prefer prefilled cache — no DBC decode / color-rule eval on paint.
+    if (inWindow) {
+        auto it = m_rowCache.constFind(row);
+        if (it == m_rowCache.cend() || !it->colsFilled || !it->bgValid || !it->fgValid)
+            fillRowCache(row);
+        it = m_rowCache.constFind(row);
+        if (it != m_rowCache.cend() && it->valid) {
+            if (role == Qt::DisplayRole) {
+                const QString &cached = it->cols[index.column()];
+                if (!cached.isNull())
+                    return cached;
+            } else if (role == Qt::BackgroundRole) {
+                if (it->bgValid)
+                    return it->bgColor.isValid() ? QVariant(it->bgColor) : QVariant();
+            } else if (role == Qt::ForegroundRole) {
+                if (it->fgValid)
+                    return it->fgColor;
+            }
+        }
+    }
+
+    CaptureFrameMeta meta;
+    if (!frameMetaAt(row, &meta))
+        return {};
 
     if (role == FrameRole)
-        return QVariant::fromValue(f);
+        return QVariant::fromValue(frameWithPayload(row, meta));
 
-    if (role == MarkedRole) {
-        quint64 seq = m_seqCounter - m_ringBuffer.size() + index.row();
-        return m_markedRows.contains(seq);
-    }
+    if (role == MarkedRole)
+        return m_markedRows.contains(seqForRow(row));
 
     if (role == Qt::ToolTipRole) {
-        quint64 seq = m_seqCounter - m_ringBuffer.size() + index.row();
-        auto labelIt = m_rowLabels.find(seq);
+        auto labelIt = m_rowLabels.find(seqForRow(row));
         if (labelIt != m_rowLabels.end())
             return labelIt.value();
+        return {};
     }
 
-    if (role == Qt::TextAlignmentRole) {
-        // G17: 支持用户自定义对齐
+    if (role == Qt::TextAlignmentRole)
         return int(effectiveAlignment(index.column()));
-    }
 
+    // Fallback outside window: meta-only colors (no rule/payload on paint).
     if (role == Qt::ForegroundRole) {
-        // 着色规则前景色优先（此前完全未生效）
-        int ruleIdx = matchingColorRule(f);
-        if (ruleIdx >= 0 && m_colorRules[ruleIdx].foreground.isValid())
-            return m_colorRules[ruleIdx].foreground;
-        if (f.isErrorFrame())
+        if (meta.isErrorFrame())
             return QColor(0xD0, 0x20, 0x20);
-        if (f.direction == CanFrame::Tx)
+        if (meta.direction() == CanFrame::Tx)
             return QColor(0x10, 0x50, 0xD0);
         return QColor(0x20, 0x20, 0x20);
     }
 
     if (role == Qt::BackgroundRole) {
-        quint64 seq = m_seqCounter - m_ringBuffer.size() + index.row();
-        // 用户自定义颜色
+        const quint64 seq = seqForRow(row);
         auto colorIt = m_rowColors.find(seq);
         if (colorIt != m_rowColors.end())
             return colorIt.value();
-        // Phase 1: 着色规则结果从行缓存获取
-        if (index.row() >= m_cacheFirst && index.row() <= m_cacheLast) {
-            auto it = m_rowCache.find(index.row());
-            if (it != m_rowCache.end() && it->valid && it->bgValid)
-                return it->bgColor;
-        }
-        // 未命中缓存，实时求值
-        int ruleIdx = matchingColorRule(f);
-        if (ruleIdx >= 0)
-            return m_colorRules[ruleIdx].background;
         if (m_markedRows.contains(seq))
             return QColor(0xFF, 0xF3, 0xB0);
-        // 时间参考点行高亮
         if (m_hasTimeRef && seq == m_timeRefSeq)
             return QColor(0xB2, 0xDF, 0xDB);
-        if (m_errorFrameHighlight && f.isErrorFrame())
+        if (m_errorFrameHighlight && meta.isErrorFrame())
             return QColor(0xFF, 0xCD, 0xD2);
-        if (f.fd)
+        if (meta.fd())
             return QColor(0xE8, 0xF5, 0xE8);
         return {};
     }
 
     if (role == Qt::DisplayRole) {
-        // Phase 1: 先查行缓存
-        if (index.row() >= m_cacheFirst && index.row() <= m_cacheLast) {
-            auto it = m_rowCache.find(index.row());
-            if (it != m_rowCache.end() && it->valid) {
-                const QString &cached = it->cols[index.column()];
-                if (!cached.isNull())
-                    return cached;
-            }
-        }
-        // 未命中缓存，格式化并写入缓存
         QString formatted;
-        formatCell(index.row(), index.column(), f, formatted);
-        // 仅在可见行范围内写入缓存
-        if (index.row() >= m_cacheFirst && index.row() <= m_cacheLast) {
-            RowCache &rc = m_rowCache[index.row()];
-            rc.cols[index.column()] = formatted;
-            rc.valid = true;
+        if (columnNeedsPayload(index.column())) {
+            const CanFrame f = frameWithPayload(row, meta);
+            formatCell(row, index.column(), f, formatted);
+        } else {
+            formatCellMeta(row, index.column(), meta, formatted);
         }
         return formatted;
     }
@@ -149,75 +147,95 @@ QVariant CanTraceModel::headerData(int section, Qt::Orientation orientation,
 }
 
 // ============================================================
-//  Phase 1: 行缓存格式化
+//  Phase 1: row format cache (meta-first for T1)
 // ============================================================
 
-void CanTraceModel::formatCell(int row, int col, const CanFrame &f, QString &out) const
+bool CanTraceModel::columnNeedsPayload(int col)
+{
+    return col == ColData || col == ColSignal;
+}
+
+void CanTraceModel::formatCellMeta(int row, int col, const CaptureFrameMeta &m, QString &out) const
 {
     switch (col) {
     case ColNo:
-        out = QString::number(m_seqCounter - m_ringBuffer.size() + row + 1);
+        out = QString::number(m_seqCounter - static_cast<quint64>(displaySize())
+                              + static_cast<quint64>(row) + 1);
         return;
     case ColTime:
         if (m_hasTimeRef)
-            out = CanUtils::formatTime(f.timestamp - m_timeRefTimestamp);
+            out = CanUtils::formatTime(m.timestamp - m_timeRefTimestamp);
         else
-            out = CanUtils::formatTime(f.timestamp);
+            out = CanUtils::formatTime(m.timestamp);
         return;
     case ColDelta: {
-        double prev = (row > 0) ? m_ringBuffer.at(row - 1).timestamp : f.timestamp;
-        out = CanUtils::formatTime(f.timestamp - prev);
+        double prev = m.timestamp;
+        if (row > 0) {
+            CaptureFrameMeta prevMeta;
+            if (frameMetaAt(row - 1, &prevMeta))
+                prev = prevMeta.timestamp;
+        }
+        out = CanUtils::formatTime(m.timestamp - prev);
         return;
     }
     case ColChannel:
-        out = QString::number(f.channel);
+        out = QString::number(m.channel);
         return;
     case ColDirection:
-        out = (f.direction == CanFrame::Rx) ? "Rx" : "Tx";
+        out = (m.direction() == CanFrame::Rx) ? QStringLiteral("Rx") : QStringLiteral("Tx");
         return;
     case ColId:
-        out = CanUtils::formatId(f.id, f.extended);
+        out = CanUtils::formatId(m.id, m.extended());
         return;
     case ColName: {
-        // DBC 报文名称（未加载 DBC 或未匹配时为空）
         if (!m_dbcManager) {
             out = QStringLiteral("");
             return;
         }
-        const DbcMessage *msg = m_dbcManager->findMessage(f.id);
+        const DbcMessage *msg = m_dbcManager->findMessage(m.id);
         out = msg ? msg->name : QStringLiteral("");
         return;
     }
     case ColDlc:
-        out = CanUtils::formatDlc(f.dlc, f.fd);
-        return;
-    case ColData:
-        out = CanUtils::formatData(f.data);
+        out = CanUtils::formatDlc(m.dlc, m.fd());
         return;
     case ColFlags:
-        out = CanUtils::formatFlags(f);
+        out = CanUtils::formatFlags(m.toFrameSkeleton());
         return;
     case ColFrameCount:
-        out = QString::number(m_idCount.value(f.id, 0));
+        out = QString::number(m_idCount.value(m.id, 0));
+        return;
+    default:
+        out = QStringLiteral("");
+        return;
+    }
+}
+
+void CanTraceModel::formatCell(int row, int col, const CanFrame &f, QString &out) const
+{
+    if (!columnNeedsPayload(col)) {
+        formatCellMeta(row, col, CaptureFrameMeta::fromFrame(f), out);
+        return;
+    }
+    switch (col) {
+    case ColData:
+        out = CanUtils::formatData(f.data);
         return;
     case ColSignal: {
         if (!m_dbcManager) {
             out = QStringLiteral("");
             return;
         }
-        // 查找匹配的报文定义
         const DbcMessage *msg = m_dbcManager->findMessage(f.id);
         if (!msg) {
             out = QStringLiteral("");
             return;
         }
-        // 解码所有信号
         auto decoded = m_dbcManager->decodeFrame(f.id, f.data);
         if (decoded.isEmpty()) {
             out = QStringLiteral("");
             return;
         }
-        // 格式化: Sig1=value Sig2=value ...
         QStringList parts;
         for (const auto &sig : decoded) {
             QString val;
@@ -230,33 +248,154 @@ void CanTraceModel::formatCell(int row, int col, const CanFrame &f, QString &out
             parts.append(QStringLiteral("%1=%2").arg(sig.name).arg(val));
         }
         out = parts.join(QStringLiteral("  "));
-        // 截断过长内容
         if (out.length() > 200)
             out = out.left(200) + QStringLiteral("...");
         return;
     }
+    default:
+        out = QStringLiteral("");
+        return;
     }
 }
 
 void CanTraceModel::setVisibleRange(int first, int last)
 {
-    // 淘汰范围外的缓存
+    if (last < first) {
+        m_cacheFirst = -1;
+        m_cacheLast = -1;
+        return;
+    }
+
+    // Keep a small pad so slight scrolls reuse filled rows.
+    const int pad = 16;
     for (auto it = m_rowCache.begin(); it != m_rowCache.end();) {
-        int row = it.key();
-        if (row < first - 50 || row > last + 50)
+        const int row = it.key();
+        if (row < first - pad || row > last + pad)
             it = m_rowCache.erase(it);
         else
             ++it;
     }
     m_cacheFirst = first;
     m_cacheLast = last;
+    prefillVisibleCache();
 }
 
 void CanTraceModel::invalidateRowCache()
 {
     m_rowCache.clear();
-    m_cacheFirst = -1;
-    m_cacheLast = -1;
+    // Keep m_cacheFirst/Last; refill so paint stays cache-hit after sync/wrap.
+    if (m_cacheFirst >= 0)
+        prefillVisibleCache();
+}
+
+quint64 CanTraceModel::seqForRow(int row) const
+{
+    const int n = displaySize();
+    if (row < 0 || row >= n)
+        return 0;
+    return m_seqCounter - static_cast<quint64>(n) + static_cast<quint64>(row);
+}
+
+void CanTraceModel::fillRowCache(int row) const
+{
+    const int n = displaySize();
+    if (row < 0 || row >= n)
+        return;
+
+    RowCache &rc = m_rowCache[row];
+    if (rc.colsFilled && rc.bgValid && rc.fgValid)
+        return;
+
+    CaptureFrameMeta meta;
+    if (!frameMetaAt(row, &meta))
+        return;
+
+    CanFrame frame;
+    bool haveFrame = false;
+    auto ensureFrame = [&]() {
+        if (!haveFrame) {
+            frame = frameWithPayload(row, meta);
+            haveFrame = true;
+        }
+    };
+
+    if (!rc.colsFilled) {
+        for (int c = 0; c < ColCount; ++c) {
+            if (columnNeedsPayload(c)) {
+                ensureFrame();
+                formatCell(row, c, frame, rc.cols[c]);
+            } else {
+                formatCellMeta(row, c, meta, rc.cols[c]);
+            }
+        }
+        rc.colsFilled = true;
+    }
+
+    const quint64 seq = seqForRow(row);
+
+    if (!rc.fgValid) {
+        rc.fgColor = QColor(0x20, 0x20, 0x20);
+        if (!m_colorFilters.isEmpty()) {
+            ensureFrame();
+            const int ruleIdx = matchingColorRule(frame);
+            if (ruleIdx >= 0 && m_colorRules[ruleIdx].foreground.isValid())
+                rc.fgColor = m_colorRules[ruleIdx].foreground;
+            else if (meta.isErrorFrame())
+                rc.fgColor = QColor(0xD0, 0x20, 0x20);
+            else if (meta.direction() == CanFrame::Tx)
+                rc.fgColor = QColor(0x10, 0x50, 0xD0);
+        } else if (meta.isErrorFrame()) {
+            rc.fgColor = QColor(0xD0, 0x20, 0x20);
+        } else if (meta.direction() == CanFrame::Tx) {
+            rc.fgColor = QColor(0x10, 0x50, 0xD0);
+        }
+        rc.fgValid = true;
+    }
+
+    if (!rc.bgValid) {
+        rc.bgColor = QColor(); // invalid = default brush
+        auto colorIt = m_rowColors.constFind(seq);
+        if (colorIt != m_rowColors.cend()) {
+            rc.bgColor = colorIt.value();
+        } else if (!m_colorFilters.isEmpty()) {
+            ensureFrame();
+            const int ruleIdx = matchingColorRule(frame);
+            if (ruleIdx >= 0)
+                rc.bgColor = m_colorRules[ruleIdx].background;
+            else if (m_markedRows.contains(seq))
+                rc.bgColor = QColor(0xFF, 0xF3, 0xB0);
+            else if (m_hasTimeRef && seq == m_timeRefSeq)
+                rc.bgColor = QColor(0xB2, 0xDF, 0xDB);
+            else if (m_errorFrameHighlight && meta.isErrorFrame())
+                rc.bgColor = QColor(0xFF, 0xCD, 0xD2);
+            else if (meta.fd())
+                rc.bgColor = QColor(0xE8, 0xF5, 0xE8);
+        } else if (m_markedRows.contains(seq)) {
+            rc.bgColor = QColor(0xFF, 0xF3, 0xB0);
+        } else if (m_hasTimeRef && seq == m_timeRefSeq) {
+            rc.bgColor = QColor(0xB2, 0xDF, 0xDB);
+        } else if (m_errorFrameHighlight && meta.isErrorFrame()) {
+            rc.bgColor = QColor(0xFF, 0xCD, 0xD2);
+        } else if (meta.fd()) {
+            rc.bgColor = QColor(0xE8, 0xF5, 0xE8);
+        }
+        rc.bgValid = true;
+    }
+
+    rc.valid = true;
+}
+
+void CanTraceModel::prefillVisibleCache() const
+{
+    if (m_cacheFirst < 0 || m_cacheLast < m_cacheFirst)
+        return;
+    const int n = displaySize();
+    if (n <= 0)
+        return;
+    const int lo = qMax(0, m_cacheFirst);
+    const int hi = qMin(n - 1, m_cacheLast);
+    for (int r = lo; r <= hi; ++r)
+        fillRowCache(r);
 }
 
 // ============================================================
@@ -279,17 +418,183 @@ void CanTraceModel::flushPending()
 {
     if (m_pendingFrames.isEmpty())
         return;
+    if (m_captureCamera)
+        leaveCaptureCameraForLocal();
     commitBatch(m_pendingFrames);
     m_pendingFrames.clear();
-    emit framesCommitted(m_ringBuffer.size());
+    emit framesCommitted(displaySize());
 }
 
 // ============================================================
-//  Phase 4: 环形缓冲区数据操作
+//  Phase 4 / B5 data ops
 // ============================================================
+
+void CanTraceModel::setCaptureLogCamera(bool enabled)
+{
+    if (m_captureCamera == enabled)
+        return;
+    beginResetModel();
+    m_captureCamera = enabled;
+    m_pendingFrames.clear();
+    m_ringBuffer.clear();
+    if (!enabled)
+        m_ringBuffer.reserve(m_maxFrames);
+    else
+        m_ringBuffer.reserve(1);
+    m_viewRows = 0;
+    m_seqCounter = 0;
+    m_captureStartDateTime = QDateTime();
+    m_idToRow.clear();
+    m_idCount.clear();
+    m_markedRows.clear();
+    m_rowColors.clear();
+    m_rowLabels.clear();
+    m_hasTimeRef = false;
+    m_timeRefSeq = 0;
+    m_timeRefTimestamp = 0.0;
+    invalidateRowCache();
+    endResetModel();
+}
+
+void CanTraceModel::leaveCaptureCameraForLocal()
+{
+    if (!m_captureCamera)
+        return;
+    beginResetModel();
+    m_captureCamera = false;
+    m_viewRows = 0;
+    m_seqCounter = 0;
+    m_ringBuffer.clear();
+    m_ringBuffer.reserve(m_maxFrames);
+    m_pendingFrames.clear();
+    m_idToRow.clear();
+    m_idCount.clear();
+    m_markedRows.clear();
+    m_rowColors.clear();
+    m_rowLabels.clear();
+    m_hasTimeRef = false;
+    m_timeRefSeq = 0;
+    m_timeRefTimestamp = 0.0;
+    m_captureStartDateTime = QDateTime();
+    invalidateRowCache();
+    endResetModel();
+}
+
+int CanTraceModel::syncFromCaptureLog(quint64 *cursorSeq, int maxRows)
+{
+    if (!m_captureCamera || !cursorSeq)
+        return 0;
+
+    quint64 newSeq = *cursorSeq;
+    const int cap = maxRows > 0 ? maxRows : 256;
+    const int visited = CaptureLog::instance()->visitAfterSeq(
+        *cursorSeq,
+        [this](const CanFrame &f) { m_idCount[f.id]++; },
+        &newSeq,
+        cap);
+
+    int logSize = 0;
+    quint64 logSeq = 0;
+    CaptureLog::instance()->snapshot(&logSize, &logSeq, nullptr);
+
+    int size = 0;
+    if (newSeq > logSeq - static_cast<quint64>(logSize))
+        size = static_cast<int>(newSeq - (logSeq - static_cast<quint64>(logSize)));
+    size = qBound(0, size, logSize);
+    const quint64 seq = newSeq;
+
+    const int oldSize = m_viewRows;
+    const quint64 oldSeq = m_seqCounter;
+    const quint64 oldBase = oldSeq - static_cast<quint64>(oldSize);
+    const quint64 newBase = seq - static_cast<quint64>(size);
+
+    if (oldSeq == 0 && seq > 0 && !m_captureStartDateTime.isValid())
+        m_captureStartDateTime = QDateTime::currentDateTime();
+
+    *cursorSeq = newSeq;
+
+    if (size == oldSize && seq == oldSeq)
+        return 0;
+
+    if (seq < oldSeq || (size == 0 && oldSize > 0 && seq == 0)) {
+        beginResetModel();
+        m_viewRows = size;
+        m_seqCounter = seq;
+        if (size == 0) {
+            m_idCount.clear();
+            m_markedRows.clear();
+            m_rowColors.clear();
+            m_rowLabels.clear();
+            m_hasTimeRef = false;
+            m_timeRefSeq = 0;
+            m_timeRefTimestamp = 0.0;
+            m_captureStartDateTime = QDateTime();
+        }
+        invalidateRowCache();
+        endResetModel();
+        emit framesCommitted(size);
+        return visited;
+    }
+
+    if (newBase > oldBase) {
+        const quint64 shift64 = newBase - oldBase;
+        const int shift = static_cast<int>(qMin<quint64>(shift64, static_cast<quint64>(INT_MAX)));
+        m_viewRows = size;
+        m_seqCounter = seq;
+        invalidateRowCache();
+        emit ringWrapped(shift);
+        // Do not emit dataChanged over the full history — ViewportProxy maps the
+        // visible window; ringWrapped / follow-end refresh covers the table.
+    } else if (size > oldSize) {
+        beginInsertRows({}, oldSize, size - 1);
+        m_viewRows = size;
+        m_seqCounter = seq;
+        endInsertRows();
+    } else if (seq > oldSeq) {
+        m_viewRows = size;
+        m_seqCounter = seq;
+        invalidateRowCache();
+        emit ringWrapped(static_cast<int>(qMin<quint64>(seq - oldSeq,
+                                                         static_cast<quint64>(INT_MAX))));
+    } else {
+        m_viewRows = size;
+        m_seqCounter = seq;
+        invalidateRowCache();
+    }
+
+    emit framesCommitted(size);
+    return visited;
+}
+
+void CanTraceModel::adoptCaptureLogSnapshot(int size, quint64 seq)
+{
+    if (!m_captureCamera)
+        return;
+    size = qMax(0, size);
+    beginResetModel();
+    m_viewRows = size;
+    m_seqCounter = seq;
+    if (size == 0) {
+        m_idCount.clear();
+        m_markedRows.clear();
+        m_rowColors.clear();
+        m_rowLabels.clear();
+        m_hasTimeRef = false;
+        m_timeRefSeq = 0;
+        m_timeRefTimestamp = 0.0;
+        m_captureStartDateTime = QDateTime();
+    } else if (!m_captureStartDateTime.isValid()) {
+        m_captureStartDateTime = QDateTime::currentDateTime();
+    }
+    invalidateRowCache();
+    endResetModel();
+    emit framesCommitted(size);
+}
 
 void CanTraceModel::appendFrame(const CanFrame &frame)
 {
+    if (m_captureCamera)
+        leaveCaptureCameraForLocal();
     m_pendingFrames.append(frame);
     if (m_pendingFrames.size() >= pendingSoftCap())
         flushPending();
@@ -299,9 +604,10 @@ void CanTraceModel::enqueueFrames(const QVector<CanFrame> &frames)
 {
     if (frames.isEmpty())
         return;
+    if (m_captureCamera)
+        leaveCaptureCameraForLocal();
     m_pendingFrames.reserve(m_pendingFrames.size() + frames.size());
     m_pendingFrames += frames;
-    // Soft cap: flush early so a 50 ms stall cannot accumulate unbounded pending
     if (m_pendingFrames.size() >= pendingSoftCap())
         flushPending();
 }
@@ -310,9 +616,10 @@ void CanTraceModel::appendFrames(const QVector<CanFrame> &frames)
 {
     if (frames.isEmpty())
         return;
-    // Offline load: commit immediately (bypass pending)
+    if (m_captureCamera)
+        leaveCaptureCameraForLocal();
     commitBatch(frames);
-    emit framesCommitted(m_ringBuffer.size());
+    emit framesCommitted(displaySize());
 }
 
 void CanTraceModel::commitBatch(const QVector<CanFrame> &frames)
@@ -427,6 +734,7 @@ void CanTraceModel::clear()
 {
     beginResetModel();
     m_ringBuffer.clear();
+    m_viewRows = 0;
     m_seqCounter = 0;
     m_captureStartDateTime = QDateTime();
     m_idToRow.clear();
@@ -446,7 +754,11 @@ void CanTraceModel::setMaxFrames(int max)
 {
     m_maxFrames = max;
     beginResetModel();
-    m_ringBuffer.reserve(max);
+    if (m_captureCamera)
+        m_ringBuffer.reserve(1);
+    else
+        m_ringBuffer.reserve(max);
+    m_viewRows = 0;
     m_seqCounter = 0;
     m_captureStartDateTime = QDateTime();
     m_idToRow.clear();
@@ -461,13 +773,48 @@ void CanTraceModel::setMaxFrames(int max)
     endResetModel();
 }
 
-const CanFrame &CanTraceModel::frameAt(int row) const
+CanFrame CanTraceModel::frameAt(int row) const
 {
+    if (row < 0 || row >= displaySize())
+        return {};
+    if (m_captureCamera) {
+        CanFrame f;
+        if (!CaptureLog::instance()->frameAt(row, &f))
+            return {};
+        return f;
+    }
     return m_ringBuffer.at(row);
+}
+
+bool CanTraceModel::frameMetaAt(int row, CaptureFrameMeta *out) const
+{
+    if (!out || row < 0 || row >= displaySize())
+        return false;
+    if (m_captureCamera)
+        return CaptureLog::instance()->frameMetaAt(row, out);
+    *out = CaptureFrameMeta::fromFrame(m_ringBuffer.at(row));
+    return true;
+}
+
+CanFrame CanTraceModel::frameWithPayload(int row, const CaptureFrameMeta &meta) const
+{
+    CanFrame f = meta.toFrameSkeleton();
+    if (m_captureCamera) {
+        CaptureLog::instance()->copyDataAt(row, &f.data);
+        return f;
+    }
+    if (row >= 0 && row < m_ringBuffer.size())
+        f.data = m_ringBuffer.at(row).data;
+    return f;
 }
 
 QVector<CanFrame> CanTraceModel::frames() const
 {
+    if (m_captureCamera) {
+        QVector<CanFrame> result;
+        CaptureLog::instance()->copyRange(0, m_viewRows, &result);
+        return result;
+    }
     QVector<CanFrame> result;
     result.reserve(m_ringBuffer.size());
     for (int i = 0; i < m_ringBuffer.size(); ++i)
@@ -482,18 +829,18 @@ QVector<CanFrame> CanTraceModel::frames() const
 QList<QPair<QString, int>> CanTraceModel::uniqueValues(int column) const
 {
     QList<QPair<QString, int>> result;
-    int total = m_ringBuffer.size();
+    int total = displaySize();
     if (total == 0)
         return result;
 
-    // ID 列：直接利用 m_idCount，效率最高
+    // ID column: use m_idCount
     if (column == ColId) {
-        // 需要判断是否为扩展帧——遍历查找第一个匹配帧
         for (auto it = m_idCount.constBegin(); it != m_idCount.constEnd(); ++it) {
             bool extended = false;
             for (int i = 0; i < total; ++i) {
-                if (m_ringBuffer.at(i).id == it.key()) {
-                    extended = m_ringBuffer.at(i).extended;
+                const CanFrame f = frameAt(i);
+                if (f.id == it.key()) {
+                    extended = f.extended;
                     break;
                 }
             }
@@ -506,16 +853,14 @@ QList<QPair<QString, int>> CanTraceModel::uniqueValues(int column) const
         return result;
     }
 
-    // 其他列：遍历所有帧，收集唯一值
     QHash<QString, int> valueCounts;
     QString tmp;
     for (int i = 0; i < total; ++i) {
-        const CanFrame &f = m_ringBuffer.at(i);
+        const CanFrame f = frameAt(i);
         formatCell(i, column, f, tmp);
         valueCounts[tmp]++;
     }
 
-    // 转换为列表并排序
     for (auto it = valueCounts.constBegin(); it != valueCounts.constEnd(); ++it)
         result.append({it.key(), it.value()});
 
@@ -533,9 +878,9 @@ QList<QPair<QString, int>> CanTraceModel::uniqueValues(int column) const
 
 void CanTraceModel::toggleMark(int row)
 {
-    if (row < 0 || row >= m_ringBuffer.size())
+    if (row < 0 || row >= displaySize())
         return;
-    quint64 seq = m_seqCounter - m_ringBuffer.size() + row;
+    quint64 seq = m_seqCounter - static_cast<quint64>(displaySize()) + static_cast<quint64>(row);
     if (m_markedRows.contains(seq))
         m_markedRows.remove(seq);
     else
@@ -546,9 +891,9 @@ void CanTraceModel::toggleMark(int row)
 
 void CanTraceModel::setMarked(int row, bool marked)
 {
-    if (row < 0 || row >= m_ringBuffer.size())
+    if (row < 0 || row >= displaySize())
         return;
-    quint64 seq = m_seqCounter - m_ringBuffer.size() + row;
+    quint64 seq = m_seqCounter - static_cast<quint64>(displaySize()) + static_cast<quint64>(row);
     if (marked)
         m_markedRows.insert(seq);
     else
@@ -559,26 +904,26 @@ void CanTraceModel::setMarked(int row, bool marked)
 
 bool CanTraceModel::isMarked(int row) const
 {
-    if (row < 0 || row >= m_ringBuffer.size())
+    if (row < 0 || row >= displaySize())
         return false;
-    quint64 seq = m_seqCounter - m_ringBuffer.size() + row;
+    quint64 seq = m_seqCounter - static_cast<quint64>(displaySize()) + static_cast<quint64>(row);
     return m_markedRows.contains(seq);
 }
 
 void CanTraceModel::clearMarks()
 {
     m_markedRows.clear();
-    if (m_ringBuffer.size() > 0)
-        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
+    if (displaySize() > 0)
+        emit dataChanged(index(0, 0), index(displaySize() - 1, ColCount - 1),
                          {Qt::BackgroundRole, MarkedRole});
 }
 
 QList<int> CanTraceModel::markedRows() const
 {
     QList<int> result;
-    int size = m_ringBuffer.size();
+    int size = displaySize();
     for (int row = 0; row < size; ++row) {
-        quint64 seq = m_seqCounter - size + row;
+        quint64 seq = m_seqCounter - static_cast<quint64>(size) + static_cast<quint64>(row);
         if (m_markedRows.contains(seq))
             result.append(row);
     }
@@ -588,9 +933,9 @@ QList<int> CanTraceModel::markedRows() const
 
 void CanTraceModel::setRowColor(int row, const QColor &color)
 {
-    if (row < 0 || row >= m_ringBuffer.size())
+    if (row < 0 || row >= displaySize())
         return;
-    quint64 seq = m_seqCounter - m_ringBuffer.size() + row;
+    quint64 seq = m_seqCounter - static_cast<quint64>(displaySize()) + static_cast<quint64>(row);
     if (color.isValid())
         m_rowColors[seq] = color;
     else
@@ -601,17 +946,17 @@ void CanTraceModel::setRowColor(int row, const QColor &color)
 
 QColor CanTraceModel::rowColor(int row) const
 {
-    if (row < 0 || row >= m_ringBuffer.size())
+    if (row < 0 || row >= displaySize())
         return {};
-    quint64 seq = m_seqCounter - m_ringBuffer.size() + row;
+    quint64 seq = m_seqCounter - static_cast<quint64>(displaySize()) + static_cast<quint64>(row);
     return m_rowColors.value(seq);
 }
 
 void CanTraceModel::clearColors()
 {
     m_rowColors.clear();
-    if (m_ringBuffer.size() > 0)
-        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
+    if (displaySize() > 0)
+        emit dataChanged(index(0, 0), index(displaySize() - 1, ColCount - 1),
                          {Qt::BackgroundRole});
 }
 
@@ -621,15 +966,15 @@ void CanTraceModel::clearColors()
 
 void CanTraceModel::setTimeReference(int row)
 {
-    if (row < 0 || row >= m_ringBuffer.size())
+    if (row < 0 || row >= displaySize())
         return;
     quint64 oldSeq = m_timeRefSeq;
-    m_timeRefSeq = m_seqCounter - m_ringBuffer.size() + row;
-    m_timeRefTimestamp = m_ringBuffer.at(row).timestamp;
+    m_timeRefSeq = m_seqCounter - static_cast<quint64>(displaySize()) + static_cast<quint64>(row);
+    m_timeRefTimestamp = frameAt(row).timestamp;
     m_hasTimeRef = true;
     invalidateRowCache();
-    if (m_ringBuffer.size() > 0) {
-        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
+    if (displaySize() > 0) {
+        emit dataChanged(index(0, 0), index(displaySize() - 1, ColCount - 1),
                          {Qt::DisplayRole, Qt::BackgroundRole});
         Q_UNUSED(oldSeq);
     }
@@ -643,8 +988,8 @@ void CanTraceModel::clearTimeReference()
     m_timeRefSeq = 0;
     m_timeRefTimestamp = 0.0;
     invalidateRowCache();
-    if (m_ringBuffer.size() > 0)
-        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
+    if (displaySize() > 0)
+        emit dataChanged(index(0, 0), index(displaySize() - 1, ColCount - 1),
                          {Qt::DisplayRole, Qt::BackgroundRole});
 }
 
@@ -652,8 +997,8 @@ int CanTraceModel::timeReferenceRow() const
 {
     if (!m_hasTimeRef)
         return -1;
-    int row = static_cast<int>(m_timeRefSeq) - (m_seqCounter - m_ringBuffer.size());
-    if (row < 0 || row >= m_ringBuffer.size())
+    int row = static_cast<int>(m_timeRefSeq) - static_cast<int>(m_seqCounter - static_cast<quint64>(displaySize()));
+    if (row < 0 || row >= displaySize())
         return -1;
     return row;
 }
@@ -663,9 +1008,9 @@ int CanTraceModel::timeReferenceRow() const
 
 void CanTraceModel::setRowLabel(int row, const QString &label)
 {
-    if (row < 0 || row >= m_ringBuffer.size())
+    if (row < 0 || row >= displaySize())
         return;
-    quint64 seq = m_seqCounter - m_ringBuffer.size() + row;
+    quint64 seq = m_seqCounter - static_cast<quint64>(displaySize()) + static_cast<quint64>(row);
     if (label.isEmpty())
         m_rowLabels.remove(seq);
     else
@@ -676,18 +1021,18 @@ void CanTraceModel::setRowLabel(int row, const QString &label)
 
 QString CanTraceModel::rowLabel(int row) const
 {
-    if (row < 0 || row >= m_ringBuffer.size())
+    if (row < 0 || row >= displaySize())
         return {};
-    quint64 seq = m_seqCounter - m_ringBuffer.size() + row;
+    quint64 seq = m_seqCounter - static_cast<quint64>(displaySize()) + static_cast<quint64>(row);
     return m_rowLabels.value(seq);
 }
 
 QList<QPair<int, QString>> CanTraceModel::labeledMarks() const
 {
     QList<QPair<int, QString>> result;
-    int size = m_ringBuffer.size();
+    int size = displaySize();
     for (int row = 0; row < size; ++row) {
-        quint64 seq = m_seqCounter - size + row;
+        quint64 seq = m_seqCounter - static_cast<quint64>(size) + static_cast<quint64>(row);
         if (m_markedRows.contains(seq) || m_rowColors.contains(seq) || m_rowLabels.contains(seq)) {
             QString label = m_rowLabels.value(seq,
                 QString("#%1").arg(row + 1));
@@ -700,8 +1045,8 @@ QList<QPair<int, QString>> CanTraceModel::labeledMarks() const
 void CanTraceModel::clearLabels()
 {
     m_rowLabels.clear();
-    if (m_ringBuffer.size() > 0)
-        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
+    if (displaySize() > 0)
+        emit dataChanged(index(0, 0), index(displaySize() - 1, ColCount - 1),
                          {Qt::BackgroundRole, Qt::ToolTipRole});
 }
 
@@ -734,9 +1079,13 @@ void CanTraceModel::setColorRules(const QVector<ColorRule> &rules)
     }
 
     invalidateRowCache();
-    if (m_ringBuffer.size() > 0)
-        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
-                         {Qt::BackgroundRole, Qt::ForegroundRole});
+    if (m_cacheFirst >= 0 && displaySize() > 0) {
+        const int lo = qMax(0, m_cacheFirst);
+        const int hi = qMin(displaySize() - 1, m_cacheLast);
+        if (lo <= hi)
+            emit dataChanged(index(lo, 0), index(hi, ColCount - 1),
+                             {Qt::BackgroundRole, Qt::ForegroundRole, Qt::DisplayRole});
+    }
 }
 
 void CanTraceModel::clearColorRules()
@@ -747,9 +1096,13 @@ void CanTraceModel::clearColorRules()
     m_colorRules.clear();
 
     invalidateRowCache();
-    if (m_ringBuffer.size() > 0)
-        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
-                         {Qt::BackgroundRole, Qt::ForegroundRole});
+    if (m_cacheFirst >= 0 && displaySize() > 0) {
+        const int lo = qMax(0, m_cacheFirst);
+        const int hi = qMin(displaySize() - 1, m_cacheLast);
+        if (lo <= hi)
+            emit dataChanged(index(lo, 0), index(hi, ColCount - 1),
+                             {Qt::BackgroundRole, Qt::ForegroundRole, Qt::DisplayRole});
+    }
 }
 
 int CanTraceModel::matchingColorRule(const CanFrame &frame) const
@@ -762,16 +1115,20 @@ int CanTraceModel::matchingColorRule(const CanFrame &frame) const
 }
 
 // ============================================================
-//  DBC 管理器
+//  DBC manager
 // ============================================================
 
 void CanTraceModel::setDbcManager(DbcManager *mgr)
 {
     m_dbcManager = mgr;
     invalidateRowCache();
-    if (m_ringBuffer.size() > 0)
-        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
-                         {Qt::DisplayRole});
+    if (m_cacheFirst >= 0 && displaySize() > 0) {
+        const int lo = qMax(0, m_cacheFirst);
+        const int hi = qMin(displaySize() - 1, m_cacheLast);
+        if (lo <= hi)
+            emit dataChanged(index(lo, 0), index(hi, ColCount - 1),
+                             {Qt::DisplayRole});
+    }
 }
 
 // ============================================================
@@ -782,12 +1139,14 @@ void CanTraceModel::setOverwriteMode(bool mode)
 {
     if (m_overwriteMode == mode)
         return;
+    // Overwrite needs a mutable local ring — leave CaptureLog camera.
+    if (mode && m_captureCamera)
+        leaveCaptureCameraForLocal();
     m_overwriteMode = mode;
     if (mode) {
-        // 进入覆盖模式：构建 ID→行映射
         m_idToRow.clear();
-        for (int i = 0; i < m_ringBuffer.size(); ++i)
-            m_idToRow[m_ringBuffer.at(i).id] = i;
+        for (int i = 0; i < displaySize(); ++i)
+            m_idToRow[frameAt(i).id] = i;
     } else {
         m_idToRow.clear();
     }
@@ -803,13 +1162,13 @@ void CanTraceModel::setErrorFrameHighlight(bool enabled)
         return;
     m_errorFrameHighlight = enabled;
     invalidateRowCache();
-    if (m_ringBuffer.size() > 0)
-        emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1),
+    if (displaySize() > 0)
+        emit dataChanged(index(0, 0), index(displaySize() - 1, ColCount - 1),
                          {Qt::BackgroundRole});
 }
 
 // ============================================================
-//  列对齐配置
+//  Column alignment
 // ============================================================
 
 static const QHash<int, Qt::Alignment> &getDefaultAlignments()

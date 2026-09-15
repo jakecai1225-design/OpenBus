@@ -138,8 +138,9 @@ private slots:
 
 private:
     bool m_autoScroll = true;
-    int m_pinnedSourceRow = -1;  ///< 过滤变化前锁定的源模型行号
-    QString m_lastFindText;      ///< 上次查找文本
+    mutable CanFrame m_selectedFrameScratch;  ///< stable storage for selectedFrame()
+    int m_pinnedSourceRow = -1;  ///< source row pinned before filter change
+    QString m_lastFindText;      ///< last find text
 
     // ---- 3-state 排序状态 ----
     int m_sortColumn = -1;              ///< 当前排序列（-1 = 未排序）
@@ -254,8 +255,8 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void hideEvent(QHideEvent *event) override;
-    QSize sizeHint() const override { return {60, 100}; }
-    QSize minimumSizeHint() const override { return {60, 50}; }
+    QSize sizeHint() const override { return {18, 100}; }
+    QSize minimumSizeHint() const override { return {14, 50}; }
 
 private:
     ViewportProxyModel *m_proxy = nullptr;
@@ -356,6 +357,8 @@ protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
 
 private slots:
     void onSelectionChanged();
@@ -367,6 +370,10 @@ private:
     void updateViewportOverview();
     /// Lower flush rate when the tab is not visible (Phase B background budget).
     void updateCapturePullBudget();
+    /// T5: advance CaptureLog cursor without model/proxy notify.
+    void advanceCaptureCursorOnly();
+    /// T5: one-shot adopt CaptureLog tip when tab becomes visible.
+    void resyncCaptureCameraOnShow();
 
     FilterBar *m_filterBar = nullptr;
     TraceView *m_traceView = nullptr;

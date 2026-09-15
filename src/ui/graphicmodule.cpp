@@ -3,7 +3,9 @@
 #include "datawindow.h"
 #include "core/dbcmanager.h"
 #include "core/dbcdata.h"
-#include "core/player.h"   // 离线回放历史回填（F1：ShellContext.player → addSignal history）
+#include "core/player.h"
+#include "core/samplestore.h"
+#include "core/capturelog.h"
 
 #include <QFileIconProvider>
 #include <QFileDialog>
@@ -101,38 +103,17 @@ QWidget *GraphicModule::createPage(const QString &pageId, const QVariant &param,
 void GraphicModule::invoke(const QString &action, const QVariant &arg)
 {
     if (action == QStringLiteral("onFrames")) {
+        // Phase B3: GraphicView pulls SampleStore; only DataWindow still needs frames
         const QVector<CanFrame> frames = arg.value<QVector<CanFrame>>();
         if (frames.isEmpty())
             return;
-        const auto views = m_viewList;
-        for (const auto &gvPtr : views) {
-            GraphicView *gv = gvPtr.data();
-            if (!gv)
-                continue;
-            const bool flowEnabled = gv->property("flowEnabled").toBool();
-            if (!gv->property("flowEnabled").isValid() || flowEnabled)
-                gv->onFrames(frames);
-        }
-        if (m_dataWindow) {
+        if (m_dataWindow && m_dataWindow->isVisible()) {
             for (const auto &frame : frames)
                 m_dataWindow->onFrame(frame);
         }
     } else if (action == QStringLiteral("onFrame")) {
-        // Dispatch frame to all live GraphicViews that have flowEnabled=true
         const CanFrame frame = arg.value<CanFrame>();
-        const auto views = m_viewList;   // 快照：分发中视图销毁不使迭代器失效
-        for (const auto &gvPtr : views) {
-            GraphicView *gv = gvPtr.data();
-            if (!gv)
-                continue;
-            // Check flowEnabled property (default true if not set)
-            bool flowEnabled = gv->property("flowEnabled").toBool();
-            if (!gv->property("flowEnabled").isValid() || flowEnabled) {
-                gv->onFrame(frame);
-            }
-        }
-        // Also update DataWindow (cached in module)
-        if (m_dataWindow)
+        if (m_dataWindow && m_dataWindow->isVisible())
             m_dataWindow->onFrame(frame);
     } else if (action == QStringLiteral("setFlowEnabled")) {
         // Set flow gate on specific instance
@@ -147,7 +128,7 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
             }
         }
     } else if (action == QStringLiteral("clearDataAll")) {
-        // Clear all GraphicViews data (does NOT clear DataWindow per original semantics)
+        SampleStore::instance()->clear();
         const auto views = m_viewList;
         for (const auto &gvPtr : views) {
             GraphicView *gv = gvPtr.data();
@@ -316,13 +297,23 @@ const QVector<CanFrame> *GraphicModule::replayHistory(int *count) const
 {
     if (count)
         *count = -1;
-    // 仅离线回放模式（Player 已加载帧）有历史可回填；
-    // 实时采集流不回头，返回 nullptr 维持现状行为
-    if (!m_ctx.player || !m_ctx.player->isLoaded())
+    // Prefer Player (file timestamps, never PC-now). Prefix = already played.
+    if (m_ctx.player && m_ctx.player->isLoaded()) {
+        if (count)
+            *count = m_ctx.player->currentFrameIndex();
+        return &m_ctx.player->frames();
+    }
+    // Measurement path: CaptureLog is the same source Trace cameras read —
+    // backfill Graphic with identical timestamps.
+    CaptureLog *log = CaptureLog::instance();
+    const int n = log->size();
+    if (n <= 0)
         return nullptr;
-    // 已播前缀（不“剧透”未播数据）：播放中 = 当前位置之前，
-    // 播完/暂停 = 全量/暂停点
+    m_captureHistoryCache.clear();
+    log->copyRange(0, n, &m_captureHistoryCache);
+    if (m_captureHistoryCache.isEmpty())
+        return nullptr;
     if (count)
-        *count = m_ctx.player->currentFrameIndex();
-    return &m_ctx.player->frames();
+        *count = m_captureHistoryCache.size();
+    return &m_captureHistoryCache;
 }

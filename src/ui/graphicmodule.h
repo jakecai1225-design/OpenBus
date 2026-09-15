@@ -48,9 +48,10 @@ private:
     DataWindow *m_dataWindow = nullptr;                            ///< Cached DataWindow instance (single)
     ShellContext m_ctx;                                           ///< Stored context for dialog/dataWindow parent
 
-    /// 离线回放源（Player 已加载时输出全量帧指针 + 已播前缀计数到 *count；
-    /// 实时采集模式返回 nullptr——数据流不回头，无历史可回填）
+    /// Offline Player frames, else CaptureLog snapshot (same timestamps as Trace).
     const QVector<CanFrame> *replayHistory(int *count) const;
+
+    mutable QVector<CanFrame> m_captureHistoryCache;  ///< CaptureLog snapshot for Graphic backfill
 };
 
 #endif // GRAPHIC_MODULE_H

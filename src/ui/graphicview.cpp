@@ -4,6 +4,8 @@
 #include "dbcsignalpickerdialog.h"
 #include "core/dbcmanager.h"
 #include "core/appconfig.h"
+#include "core/samplestore.h"
+#include "utils/canutils.h"
 #include "utils/svg_icon.h"
 #include <QMessageBox>
 #include <spdlog/spdlog.h>
@@ -25,6 +27,7 @@
 #include <QWheelEvent>
 #include <QResizeEvent>
 #include <QShowEvent>
+#include <QHideEvent>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
@@ -146,15 +149,8 @@ public:
     {
         Q_UNUSED(locale); Q_UNUSED(formatChar); Q_UNUSED(precision);
         if (tick < 0) return {};
-        int totalMs = static_cast<int>(tick * 1000 + 0.5);
-        int ms = totalMs % 1000;
-        int totalSec = totalMs / 1000;
-        int sec = totalSec % 60;
-        int min = totalSec / 60;
-        if (min > 0)
-            return QString("%1:%2.%3")
-                .arg(min).arg(sec, 2, 10, QChar('0')).arg(ms / 100);
-        return QString("%1.%2").arg(sec).arg(ms / 100, 1, 10, QChar('0'));
+        // Match Trace Absolute Time column (file/measurement seconds, not PC wall clock)
+        return CanUtils::formatTime(tick, 6);
     }
 };
 
@@ -208,6 +204,11 @@ GraphicView::GraphicView(QWidget *parent)
     m_replotTimer.setSingleShot(true);
     connect(&m_replotTimer, &QTimer::timeout, this, [this]() { onReplotTimeout(); });
 
+    // Phase B3: pull shared SampleStore on a timer (decode happens once in the store)
+    m_samplePullTimer.setInterval(m_replotIntervalMs);
+    connect(&m_samplePullTimer, &QTimer::timeout, this, &GraphicView::onSamplePullTimer);
+    m_samplePullTimer.start();
+
     // 信号列表值刷新：200ms
     m_valueTimer.setInterval(VALUE_UPDATE_MS);
     connect(&m_valueTimer, &QTimer::timeout, this, [this]() { updateSignalValues(); });
@@ -228,6 +229,12 @@ GraphicView::GraphicView(QWidget *parent)
     // 不依赖任何业务轴生命周期
     ensureCurrentTimeLine();
     ensureTrackLine();
+}
+
+GraphicView::~GraphicView()
+{
+    for (auto &sd : m_signals)
+        unsubscribeStore(sd);
 }
 
 QColor GraphicView::autoColor(int index)
@@ -400,13 +407,14 @@ void GraphicView::setupUi()
     m_focusCombo->addItem("选中彩色");
     m_focusCombo->addItem("仅选中");
 
-    // Y 轴显示方式（对标 CANoe 三态）
+    // Y-axis layout (CANoe-style three modes); P1-3 default = OverlaySelected
     m_yAxisModeCombo = new QComboBox(m_toolbar);
-    m_yAxisModeCombo->setToolTip("Y 轴显示方式：分栏 / 叠加");
+    m_yAxisModeCombo->setToolTip(QStringLiteral("Y-axis layout: separate / overlay"));
     m_yAxisModeCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    m_yAxisModeCombo->addItem("分栏");
-    m_yAxisModeCombo->addItem("叠加·选中轴");
-    m_yAxisModeCombo->addItem("叠加·全部轴");
+    m_yAxisModeCombo->addItem(QStringLiteral("Separate"));
+    m_yAxisModeCombo->addItem(QStringLiteral("Overlay · selected"));
+    m_yAxisModeCombo->addItem(QStringLiteral("Overlay · all"));
+    m_yAxisModeCombo->setCurrentIndex(1);
 
     m_pointsToggle = new QCheckBox("采样点", m_toolbar);
     m_pointsToggle->setToolTip("显示/隐藏采样点");
@@ -472,7 +480,7 @@ void GraphicView::setupUi()
     m_toolbar->addWidget(m_focusCombo);
     m_toolbar->addWidget(m_pointsToggle);
     m_toolbar->addSeparator();
-    auto *yaLabel = new QLabel("Y轴:", m_toolbar);
+    auto *yaLabel = new QLabel(QStringLiteral("Y:"), m_toolbar);
     yaLabel->setToolTip(m_yAxisModeCombo->toolTip());
     m_toolbar->addWidget(yaLabel);
     m_toolbar->addWidget(m_yAxisModeCombo);
@@ -663,7 +671,7 @@ void GraphicView::setupUi()
     connect(m_undoZoomBtn, &QToolButton::clicked, this, [this]() { undoZoom(); });
     connect(m_timeBackBtn, &QToolButton::clicked, this, [this]() { shiftTimeAxis(-0.1); });
     connect(m_timeFwdBtn, &QToolButton::clicked, this, [this]() { shiftTimeAxis(0.1); });
-    connect(m_yUpBtn, &QToolButton::clicked, this, [this]() { shiftYAxis(0.1); });
+    connect(m_yUpBtn, &QToolButton::clicked, this, [this]() { shiftYAxis(+0.1); });
     connect(m_yDownBtn, &QToolButton::clicked, this, [this]() { shiftYAxis(-0.1); });
     connect(m_rubberZoomBtn, &QToolButton::toggled, this, [this](bool on) {
         m_rubberZoom = on;
@@ -706,6 +714,7 @@ void GraphicView::setupUi()
     // ---- Y 轴显示方式（分栏/叠加·选中轴/叠加·全部轴） ----
     connect(m_yAxisModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int idx) {
+        m_yAxisModeUserLocked = true;  // B7: manual choice wins over auto-overlay
         m_yAxisMode = idx == 1 ? YAxisMode::OverlaySelected
                    : idx == 2 ? YAxisMode::OverlayAll
                               : YAxisMode::Separate;
@@ -739,10 +748,13 @@ void GraphicView::setupUi()
         setSelectedSignal(cur ? m_signalTree->indexOfTopLevelItem(cur) : -1);
     });
 
-    // ---- 采样点开关（统一走 applyDisplayModeAll，含聚焦置灰色处理） ----
+    // ---- Sample markers (rebuild display so zoom-in uses true samples) ----
     connect(m_pointsToggle, &QCheckBox::toggled, this, [this](bool on) {
         m_showPoints = on;
+        for (auto &sd : m_signals)
+            sd.displayDirty = true;
         applyDisplayModeAll();
+        refreshDisplayData();
         m_plot->replot();
     });
 
@@ -854,9 +866,9 @@ void GraphicView::setupUi()
         }
     });
 
-    // ---- 鼠标滚轮缩放 (同步所有 axisRect 的 X 轴) ----
+    // ---- Mouse wheel zoom (anchor under cursor stays fixed — CANoe-like) ----
     cursorPlot->onWheel = [this](QWheelEvent *event) {
-        // 轴区命中（§十）：X 轴区仅缩 X / Y 轴区仅缩该 Y（覆盖缩放轴模式下拉）
+        // Axis-band hit: X band → X only / Y band → that Y (overrides zoom-axis combo)
         int zoneSig = -1;
         if (const int zone = axisZoneAt(event->position().toPoint(), &zoneSig)) {
             const double factor = (event->angleDelta().y() > 0) ? 0.8 : 1.25;
@@ -865,21 +877,18 @@ void GraphicView::setupUi()
             m_zoomPushTimer.start();
             if (zone == 1) {
                 if (QCPAxis *xAxis = primaryXAxis()) {
-                    const double center = xAxis->pixelToCoord(event->position().x());
-                    const double newRange = xAxis->range().size() * factor;
-                    setXRangeAll(QCPRange(center - newRange / 2, center + newRange / 2), false);
+                    const double anchor = xAxis->pixelToCoord(event->position().x());
+                    setXRangeAll(zoomRangeAbout(xAxis->range(), anchor, factor), false);
                 }
             } else {
                 auto zoomYAxis = [&](QCPAxis *ya) {
-                    const double yCenter = ya->pixelToCoord(event->position().y());
-                    const double newYRange = ya->range().size() * factor;
-                    ya->setRange(yCenter - newYRange / 2, yCenter + newYRange / 2);
+                    const double anchor = ya->pixelToCoord(event->position().y());
+                    ya->setRange(zoomRangeAbout(ya->range(), anchor, factor));
                 };
                 if (zoneSig >= 0) {
                     if (QCPAxis *ya = valueAxisFor(m_signals[zoneSig]))
                         zoomYAxis(ya);
                 } else if (m_yAxisMode != YAxisMode::Separate) {
-                    // 叠加模式轴带间隙：全部 Y
                     for (auto &sd : m_signals)
                         if (QCPAxis *ya = valueAxisFor(sd))
                             zoomYAxis(ya);
@@ -891,7 +900,6 @@ void GraphicView::setupUi()
             return;
         }
 
-        // 找到鼠标位置对应的 axisRect（绘图区）
         QPoint pos = event->position().toPoint();
         QCPAxisRect *targetAr = nullptr;
         for (auto &sd : m_signals) {
@@ -900,7 +908,6 @@ void GraphicView::setupUi()
                 break;
             }
         }
-        // 叠加模式下命中 overlay rect
         if (!targetAr && m_overlayRect && m_overlayRect->visible() &&
             m_overlayRect->rect().contains(pos))
             targetAr = m_overlayRect;
@@ -909,50 +916,41 @@ void GraphicView::setupUi()
         const double factor = (event->angleDelta().y() > 0) ? 0.8 : 1.25;
         QCPAxis *xAxis = targetAr->axis(QCPAxis::atBottom);
 
-        // 缩放历史（新一轮滚动前记录一次，500ms 内连续滚动合并为一级）
         if (!m_zoomPushTimer.isActive())
             pushZoomState();
         m_zoomPushTimer.start();
 
-        // X：以鼠标位置为中心（仅X / XY 模式）
+        // X: zoom about mouse time (XOnly / XY)
         if (m_zoomAxis != ZoomAxisMode::YOnly) {
-            double center = xAxis->pixelToCoord(pos.x());
-            double newRange = xAxis->range().size() * factor;
-            setXRangeAll(QCPRange(center - newRange / 2, center + newRange / 2), false);
+            const double anchor = xAxis->pixelToCoord(pos.x());
+            setXRangeAll(zoomRangeAbout(xAxis->range(), anchor, factor), false);
         }
 
-        // Y：仅目标轨道（仅Y / XY 模式）
+        // Y: zoom about mouse value so the point under the cursor stays put
         if (m_zoomAxis != ZoomAxisMode::XOnly) {
-            for (auto &sd : m_signals) {
-                if (sd.axisRect == targetAr ||
-                    (m_yAxisMode != YAxisMode::Separate && sd.overlayYAxis)) {
-                    QCPAxis *ya = valueAxisFor(sd);
-                    if (!ya || sd.axisRect != targetAr)
-                        continue;
-                    double yCenter = ya->pixelToCoord(pos.y());
-                    double newYRange = ya->range().size() * factor;
-                    ya->setRange(yCenter - newYRange / 2, yCenter + newYRange / 2);
-                    break;
-                }
-            }
-            // 叠加模式：目标 rect 无分栏轨道 → 缩全部叠加 Y 轴
-            if (m_yAxisMode != YAxisMode::Separate) {
-                bool hitSeparate = false;
-                for (auto &sd : m_signals)
-                    if (sd.axisRect == targetAr) { hitSeparate = true; break; }
-                if (!hitSeparate) {
-                    for (auto &sd : m_signals) {
-                        if (QCPAxis *ya = valueAxisFor(sd)) {
-                            double yCenter = ya->pixelToCoord(pos.y());
-                            double newYRange = ya->range().size() * factor;
-                            ya->setRange(yCenter - newYRange / 2, yCenter + newYRange / 2);
-                        }
+            auto zoomOneY = [&](QCPAxis *ya) {
+                if (!ya)
+                    return;
+                const double anchor = ya->pixelToCoord(pos.y());
+                ya->setRange(zoomRangeAbout(ya->range(), anchor, factor));
+            };
+            if (m_yAxisMode == YAxisMode::Separate) {
+                for (auto &sd : m_signals) {
+                    if (sd.axisRect == targetAr) {
+                        zoomOneY(valueAxisFor(sd));
+                        break;
                     }
                 }
+            } else if (m_yAxisMode == YAxisMode::OverlaySelected
+                       && m_selectedSignal >= 0
+                       && m_selectedSignal < m_signals.size()) {
+                zoomOneY(valueAxisFor(m_signals[m_selectedSignal]));
+            } else {
+                for (auto &sd : m_signals)
+                    zoomOneY(valueAxisFor(sd));
             }
         }
 
-        // blocker 挡掉了 rangeChanged → 手动重建显示数据
         refreshDisplayData();
         m_plot->replot();
         event->accept();
@@ -1844,6 +1842,27 @@ void GraphicView::applyYAxisMode()
     m_plot->replot();
 }
 
+void GraphicView::maybeAutoOverlay()
+{
+    // B7 / P1-3: separate AxisRects are expensive — prefer overlay above threshold
+    // (default mode is already OverlaySelected; this recovers if user is still Separate).
+    const int thr = AppConfig::instance()->getInt(
+        QStringLiteral("graphic.overlayAutoThreshold"), 2);
+    if (thr <= 0 || m_yAxisModeUserLocked)
+        return;
+    if (m_signals.size() < thr)
+        return;
+    if (m_yAxisMode != YAxisMode::Separate)
+        return;
+
+    m_yAxisMode = YAxisMode::OverlaySelected;
+    if (m_yAxisModeCombo) {
+        QSignalBlocker blocker(m_yAxisModeCombo);
+        m_yAxisModeCombo->setCurrentIndex(1);
+    }
+    applyYAxisMode();
+}
+
 void GraphicView::addSignal(const Signal &sig,
                             const QVector<CanFrame> *history, int historyCount)
 {
@@ -1908,44 +1927,40 @@ void GraphicView::addSignal(const Signal &sig,
     else
         layoutAxisRects();
 
-    // Offline history backfill: rescan played prefix for this signal only
-    // (CANoe-style — curve appears immediately; live capture passes nullptr)
-    if (history && !history->isEmpty()) {
-        const int count = historyCount < 0 ? history->size()
-                                           : qMin(historyCount, history->size());
-        SignalData &ns = m_signals.last();
-        for (int i = 0; i < count; ++i) {
-            const CanFrame &f = history->at(i);
-            if ((f.id & 0x1FFFFFFF) == (sig.canId & 0x1FFFFFFF) &&
-                f.extended == sig.extended) {
-                double val = extractValue(f, sig);
-                if (!std::isnan(val))
-                    pushSample(ns, f.timestamp, val);
-            }
-        }
-        // Match loadFile: Y from data, X from full sample span (not [0, timeWindow]).
-        // Otherwise absolute timestamps / late epochs fall outside the default viewport
-        // and downsample returns only 0–2 edge points — looks like "missing samples".
-        ensureMinMax(ns);
-        if (QCPAxis *ya = valueAxisFor(ns); ya && ns.hasMinMax) {
-            double margin = (ns.dataMax - ns.dataMin) * 0.05;
-            if (margin <= 0) margin = 1.0;
-            ya->setRange(ns.dataMin - margin, ns.dataMax + margin);
-        }
-        if (!ns.rawData.empty()) {
-            const double t0 = ns.rawData.at(0).t;
-            const double t1 = ns.rawData.at(ns.rawData.size() - 1).t;
+    // Phase B3: subscribe shared store (+ optional offline history backfill)
+    subscribeStore(m_signals.last(), history, historyCount);
+    pullFromSampleStore();
+
+    SignalData &ns = m_signals.last();
+    ensureMinMax(ns);
+    if (QCPAxis *ya = valueAxisFor(ns); ya && ns.hasMinMax) {
+        double margin = (ns.dataMax - ns.dataMin) * 0.05;
+        if (margin <= 0) margin = 1.0;
+        ya->setRange(ns.dataMin - margin, ns.dataMax + margin);
+    }
+    if (!ns.rawData.empty()) {
+        const double t0 = ns.rawData.at(0).t;
+        const double t1 = ns.rawData.at(ns.rawData.size() - 1).t;
+        m_currentTime = std::max(m_currentTime, t1);
+        double tStart = t0;
+        double tEnd = t1;
+        if (tEnd <= tStart)
+            tEnd = tStart + 1.0;
+        setXRangeAll(QCPRange(tStart, tEnd), false);
+    } else if (ns.storeSubscribed) {
+        double t0 = 0.0, t1 = 0.0;
+        if (SampleStore::instance()->timeRange(ns.storeKey, &t0, &t1)) {
             m_currentTime = std::max(m_currentTime, t1);
-            double tStart = t0;
-            double tEnd = t1;
-            if (tEnd <= tStart)
-                tEnd = tStart + 1.0;
-            setXRangeAll(QCPRange(tStart, tEnd), false);
+            if (t1 <= t0)
+                t1 = t0 + 1.0;
+            setXRangeAll(QCPRange(t0, t1), false);
         }
     }
 
+    maybeAutoOverlay();
+
     updateSignalList();
-    refreshDisplayData();   // Separate-mode fill (overlay already refreshed via applyYAxisMode)
+    refreshDisplayData();
     m_plot->replot();
 }
 
@@ -1959,6 +1974,7 @@ void GraphicView::removeSignal(int index)
         teardownOverlay();
 
     auto &sd = m_signals[index];
+    unsubscribeStore(sd);
     if (sd.nameLabel)
         m_plot->removeItem(sd.nameLabel);
     if (sd.graph)
@@ -2010,6 +2026,7 @@ void GraphicView::clearSignals()
 {
     teardownOverlay();
     for (auto &sd : m_signals) {
+        unsubscribeStore(sd);
         if (sd.nameLabel)
             m_plot->removeItem(sd.nameLabel);
         if (sd.graph)
@@ -2257,24 +2274,12 @@ void GraphicView::setSelectedSignal(int index)
 
 void GraphicView::refreshNameLabels()
 {
-    for (int i = 0; i < m_signals.size(); ++i) {
-        auto &sd = m_signals[i];
+    // QCPItemText does not render HTML — rich-text labels were drawn as raw markup
+    // and stacked over waveforms in overlay mode. Names/colors live in the signal list.
+    for (auto &sd : m_signals) {
         if (!sd.nameLabel)
             continue;
-        QString text = sd.config.name;
-        if (!sd.config.dbcSig.unit.isEmpty())
-            text += " [" + sd.config.dbcSig.unit + "]";
-        const bool dim = m_focusMode != FocusMode::AllColor &&
-                         m_selectedSignal >= 0 && i != m_selectedSignal;
-        // 富文本：信号色块 + 名字（主题前景色/置灰），对标 CANoe 信号名标签（§8.4）
-        // 色块用 background-color 空白串实现（不依赖 ■ 字形，避免字体缺字渲染为方块）
-        sd.nameLabel->setText(QString("<span style='background-color:%1;'>&nbsp;&nbsp;&nbsp;</span>&nbsp;"
-                                      "<span style='color:%2'>%3</span>")
-            .arg(sd.config.color.name(),
-                 (dim ? m_palette.dimCurve : m_palette.nameTagFg).name(),
-                 text.toHtmlEscaped()));
-        sd.nameLabel->setBrush(QBrush(m_palette.nameTagBg));
-        sd.nameLabel->setPen(QPen(m_palette.nameTagBorder, 1));
+        sd.nameLabel->setVisible(false);
     }
 }
 
@@ -2308,20 +2313,20 @@ void GraphicView::shiftTimeAxis(double frac)
 
 void GraphicView::shiftYAxis(double frac)
 {
-    // 平移选中信号的 Y 轴（分栏=所在轨道轴，叠加=overlay 轴；无选中 no-op）
+    // Pan selected signal's Y axis. Positive frac = move waveform up on screen
+    // (decrease axis values; QCP left axis has larger values at the top).
     if (m_selectedSignal < 0 || m_selectedSignal >= m_signals.size())
         return;
     QCPAxis *ya = valueAxisFor(m_signals[m_selectedSignal]);
     if (!ya)
         return;
-    // 连续平移（按住箭头）合并为一级缩放历史（同滚轮防抖）
     if (!m_zoomPushTimer.isActive())
         pushZoomState();
     m_zoomPushTimer.start();
     const QCPRange r = ya->range();
     const double d = r.size() * frac;
-    ya->setRange(r.lower + d, r.upper + d);
-    m_plot->replot(QCustomPlot::rpQueuedReplot);   // Y 范围不影响采样，仅需重绘
+    ya->setRange(r.lower - d, r.upper - d);
+    m_plot->replot(QCustomPlot::rpQueuedReplot);
 }
 
 void GraphicView::zoomAt(double factor, const QPointF &plotPos)
@@ -2332,23 +2337,32 @@ void GraphicView::zoomAt(double factor, const QPointF &plotPos)
     const int px = static_cast<int>(plotPos.x());
     const int py = static_cast<int>(plotPos.y());
     if (m_zoomAxis != ZoomAxisMode::YOnly) {
-        const double center = xAxis->pixelToCoord(px);
-        const double newRange = xAxis->range().size() * factor;
-        setXRangeAll(QCPRange(center - newRange / 2, center + newRange / 2), false);
+        const double anchor = xAxis->pixelToCoord(px);
+        setXRangeAll(zoomRangeAbout(xAxis->range(), anchor, factor), false);
     }
     if (m_zoomAxis != ZoomAxisMode::XOnly) {
-        // 工具栏缩放无特定轨道 → 全部信号 Y
         for (auto &sd : m_signals) {
             QCPAxis *ya = valueAxisFor(sd);
             if (!ya)
                 continue;
-            const double yCenter = ya->pixelToCoord(py);
-            const double newYRange = ya->range().size() * factor;
-            ya->setRange(yCenter - newYRange / 2, yCenter + newYRange / 2);
+            const double anchor = ya->pixelToCoord(py);
+            ya->setRange(zoomRangeAbout(ya->range(), anchor, factor));
         }
     }
     refreshDisplayData();
     m_plot->replot();
+}
+
+QCPRange GraphicView::zoomRangeAbout(const QCPRange &r, double anchor, double factor)
+{
+    if (factor <= 0.0 || !qIsFinite(factor) || !qIsFinite(anchor))
+        return r;
+    // Keep the data value under the cursor fixed in pixel space (X and Y).
+    const double lo = anchor - (anchor - r.lower) * factor;
+    const double hi = anchor + (r.upper - anchor) * factor;
+    if (!qIsFinite(lo) || !qIsFinite(hi) || lo == hi)
+        return r;
+    return QCPRange(lo, hi);
 }
 
 GraphicView::ZoomState GraphicView::currentZoomState() const
@@ -2521,7 +2535,10 @@ int GraphicView::rawSampleCount(int index) const
 {
     if (index < 0 || index >= m_signals.size())
         return -1;
-    return m_signals.at(index).rawData.size();
+    const auto &sd = m_signals.at(index);
+    if (sd.storeSubscribed)
+        return SampleStore::instance()->sampleCount(sd.storeKey);
+    return sd.rawData.size();
 }
 
 void GraphicView::loadSignalConfigs(const QVector<Signal> &configs)
@@ -2541,11 +2558,13 @@ void GraphicView::clearData()
         if (sd.graph)
             sd.graph->data()->clear();
         sd.rawData.clear();
+        sd.sampleSeq = 0;
         sd.hasMinMax = false;
         sd.minMaxDirty = false;
         sd.dataMin = 0.0;
         sd.dataMax = 0.0;
         sd.cacheValid = false;
+        sd.displayDirty = true;
     }
     m_dataDirty = true;
     m_currentTime = 0.0;
@@ -2560,8 +2579,13 @@ void GraphicView::clearData()
 
 void GraphicView::pushSample(SignalData &sd, double t, double v)
 {
-    if (sd.rawData.full() && sd.rawData.capacity() < m_rawMaxCapacity) {
-        const int next = qMin(m_rawMaxCapacity, qMax(sd.rawData.capacity() * 2, 65536));
+    // P1-1: store-backed signals must not twin SampleStore into rawData.
+    if (sd.storeSubscribed)
+        return;
+
+    const int capLimit = m_rawMaxCapacity;
+    if (sd.rawData.full() && sd.rawData.capacity() < capLimit) {
+        const int next = qMin(capLimit, qMax(sd.rawData.capacity() * 2, 4096));
         sd.rawData.growTo(next);
     }
     if (sd.rawData.push({t, v})) {
@@ -2575,12 +2599,23 @@ void GraphicView::pushSample(SignalData &sd, double t, double v)
         if (v < sd.dataMin) sd.dataMin = v;
         if (v > sd.dataMax) sd.dataMax = v;
     }
+    // P1-3: per-signal dirty only (do not force full-view rebuild via m_dataDirty).
     sd.displayDirty = true;
-    m_dataDirty = true;
 }
 
 void GraphicView::ensureMinMax(SignalData &sd)
 {
+    // P0-1: prefer SampleStore running range (maintained on worker ingest)
+    if (sd.storeSubscribed) {
+        double mn = 0.0, mx = 0.0;
+        if (SampleStore::instance()->valueRange(sd.storeKey, &mn, &mx)) {
+            sd.dataMin = mn;
+            sd.dataMax = mx;
+            sd.hasMinMax = true;
+            sd.minMaxDirty = false;
+            return;
+        }
+    }
     if (!sd.minMaxDirty)
         return;
     const int n = sd.rawData.size();
@@ -2607,40 +2642,73 @@ void GraphicView::refreshDisplayData()
     if (m_signals.isEmpty())
         return;
 
-    // 主视口（当前模式主 X 轴：分栏首个可见轨道 / 叠加 overlay X）
     QCPAxis *primaryX = primaryXAxis();
     if (!primaryX)
         return;
     const QCPRange vp = primaryX->range();
 
-    // 目标点数 ≈ 2 × 视口像素宽
-    const int targetPoints = std::max(400, m_plot->width() * graphic::POINTS_PER_PIXEL);
+    // Target points ≈ 2 × viewport pixel width (line budget).
+    // With markers on, raise budget so local zoom shows real samples (CANoe-like).
+    int targetPoints = std::max(400, m_plot->width() * graphic::POINTS_PER_PIXEL);
+    if (m_showPoints)
+        targetPoints = std::max(targetPoints, std::min(20000, m_plot->width() * 8));
+    SampleStore *store = SampleStore::instance();
 
     for (auto &sd : m_signals) {
         if (!sd.graph)
             continue;
-        // 视口缓存命中：数据未变且视口未变
-        if (!m_dataDirty && !sd.displayDirty && sd.cacheValid &&
-            sd.cachedT1 == vp.lower && sd.cachedT2 == vp.upper)
+        // P1-3: skip hidden signals (no LOD copy / graph rebuild).
+        if (sd.userHidden) {
+            if (sd.graph->dataCount() > 0)
+                sd.graph->data()->clear();
+            sd.cacheValid = false;
+            sd.displayDirty = false;
             continue;
-        const QVector<graphic::Sample> disp =
-            graphic::downsample(sd.rawData, vp.lower, vp.upper, targetPoints, m_dsStrategy);
+        }
+        // Per-signal dirty + viewport cache; m_dataDirty is global clear/invalidate only.
+        if (!m_dataDirty && !sd.displayDirty && sd.cacheValid &&
+            sd.cachedT1 == vp.lower && sd.cachedT2 == vp.upper &&
+            sd.cachedShowPoints == m_showPoints)
+            continue;
+
         QVector<QCPGraphData> graphData;
-        graphData.reserve(disp.size());
-        for (const auto &s : disp)
-            graphData.append(QCPGraphData(s.t, s.v));
+
+        // Prefer store: raw when viewport sample count ≤ budget, else MinMax LOD.
+        bool usedStore = false;
+        if (sd.storeSubscribed) {
+            QVector<SignalSample> disp;
+            const int n = store->copyDownsampled(
+                sd.storeKey, vp.lower, vp.upper, targetPoints, &disp);
+            if (n > 0) {
+                graphData.reserve(disp.size());
+                for (const auto &s : disp)
+                    graphData.append(QCPGraphData(s.t, s.v));
+                usedStore = true;
+            }
+        }
+
+        if (!usedStore) {
+            const QVector<graphic::Sample> disp =
+                graphic::downsample(sd.rawData, vp.lower, vp.upper, targetPoints, m_dsStrategy);
+            graphData.reserve(disp.size());
+            for (const auto &s : disp)
+                graphData.append(QCPGraphData(s.t, s.v));
+        }
+
         sd.graph->data()->set(graphData, true);
         sd.cachedT1 = vp.lower;
         sd.cachedT2 = vp.upper;
+        sd.cachedShowPoints = m_showPoints;
         sd.cacheValid = true;
         sd.displayDirty = false;
     }
     m_dataDirty = false;
-    updateCursorDecorations();   // 视口变化 → 卡尺/时间线像素重定位
+    updateCursorDecorations();
 }
 
 void GraphicView::onFrame(const CanFrame &frame)
 {
+    // Live path uses SampleStore; keep for rare single-frame callers / file tools
     QVector<CanFrame> one;
     one.append(frame);
     onFrames(one);
@@ -2648,10 +2716,24 @@ void GraphicView::onFrame(const CanFrame &frame)
 
 void GraphicView::onFrames(const QVector<CanFrame> &frames)
 {
+    // Phase B3: live measurement no longer decodes here — SampleStore::ingestFrames
+    // runs once in the shell; this view pulls on m_samplePullTimer.
+    // Keep a lightweight path for paused time tracking / legacy direct callers.
     if (frames.isEmpty())
         return;
-
     if (m_paused) {
+        m_currentTime = frames.last().timestamp;
+        return;
+    }
+    // If store has no subscription yet (e.g. mid-construction), fall back to local decode
+    bool anySub = false;
+    for (const auto &sd : m_signals) {
+        if (sd.storeSubscribed) {
+            anySub = true;
+            break;
+        }
+    }
+    if (anySub) {
         m_currentTime = frames.last().timestamp;
         return;
     }
@@ -2659,7 +2741,6 @@ void GraphicView::onFrames(const QVector<CanFrame> &frames)
     bool hasData = false;
     for (const auto &frame : frames) {
         m_currentTime = frame.timestamp;
-        // Mask ID like loadFile / history backfill — high bits must not break the index key
         const quint64 key = (quint64(frame.id & 0x1FFFFFFF) << 1) |
                             (frame.extended ? 1ull : 0ull);
         const auto idxs = m_idIndex.value(key);
@@ -2669,20 +2750,132 @@ void GraphicView::onFrames(const QVector<CanFrame> &frames)
             if (std::isnan(val))
                 continue;
             pushSample(sd, frame.timestamp, val);
+            hasData = true;
+        }
+    }
+    if (hasData) {
+        const double tEnd = m_currentTime;
+        const double tStart = std::max(0.0, tEnd - m_timeWindow);
+        setXRangeAll(QCPRange(tStart, tEnd), false);
+        m_replotPending = true;
+        if (isVisible() && !m_replotTimer.isActive())
+            m_replotTimer.start();
+    }
+}
+
+void GraphicView::subscribeStore(SignalData &sd,
+                                 const QVector<CanFrame> *history, int historyCount)
+{
+    sd.storeKey = SampleKey::fromSignal(sd.config.canId, sd.config.extended, sd.config.dbcSig);
+    sd.sampleSeq = 0;
+    sd.storeSubscribed = SampleStore::instance()->subscribe(sd.storeKey, sd.config.dbcSig);
+    if (!sd.storeSubscribed)
+        return;
+
+    // P1-1: drop any local twin — SampleStore is SoT for live/subscribed series.
+    sd.rawData.clear();
+    sd.rawData.reserve(1);
+
+    if (history && !history->isEmpty()) {
+        const int count = historyCount < 0 ? history->size()
+                                           : qMin(historyCount, history->size());
+        // Cap backfill on GUI thread (full CaptureLog dump can freeze / OOM)
+        constexpr int kMaxHistoryBackfill = 50000;
+        const int start = qMax(0, count - kMaxHistoryBackfill);
+        QVector<SignalSample> samples;
+        samples.reserve(qMin(count - start, kMaxHistoryBackfill));
+        for (int i = start; i < count; ++i) {
+            const CanFrame &f = history->at(i);
+            if ((f.id & 0x1FFFFFFF) != (sd.config.canId & 0x1FFFFFFF) ||
+                f.extended != sd.config.extended)
+                continue;
+            const double val = extractValue(f, sd.config);
+            if (std::isnan(val))
+                continue;
+            samples.append({f.timestamp, val});
+        }
+        if (!samples.isEmpty())
+            SampleStore::instance()->appendSamples(sd.storeKey, samples);
+    }
+}
+
+void GraphicView::unsubscribeStore(SignalData &sd)
+{
+    if (!sd.storeSubscribed)
+        return;
+    SampleStore::instance()->unsubscribe(sd.storeKey);
+    sd.storeSubscribed = false;
+    sd.sampleSeq = 0;
+}
+
+void GraphicView::pullFromSampleStore()
+{
+    if (m_paused || m_signals.isEmpty())
+        return;
+
+    // T5: hidden Graphic — advance sample cursors to tip only (no twin push / replot).
+    if (!isVisible()) {
+        SampleStore *store = SampleStore::instance();
+        for (auto &sd : m_signals) {
+            if (!sd.storeSubscribed)
+                continue;
+            SignalSample latest;
+            quint64 tipSeq = sd.sampleSeq;
+            if (store->latestSample(sd.storeKey, &latest, &tipSeq)) {
+                sd.sampleSeq = tipSeq;
+                m_currentTime = latest.t;
+            }
+        }
+        return;
+    }
+
+    bool hasData = false;
+    SampleStore *store = SampleStore::instance();
+
+    for (auto &sd : m_signals) {
+        if (!sd.storeSubscribed)
+            continue;
+
+        SignalSample latest;
+        quint64 tipSeq = sd.sampleSeq;
+        if (!store->latestSample(sd.storeKey, &latest, &tipSeq))
+            continue;
+        if (tipSeq == sd.sampleSeq)
+            continue;
+
+        // P1-1: no local raw twin — only advance cursor; display uses LOD.
+        // P1-3: mark only this signal dirty (viewport scroll still invalidates via cache miss).
+        sd.sampleSeq = tipSeq;
+        m_currentTime = latest.t;
+        sd.displayDirty = true;
+
+        double mn = 0.0, mx = 0.0;
+        if (store->valueRange(sd.storeKey, &mn, &mx)) {
+            sd.dataMin = mn;
+            sd.dataMax = mx;
+            sd.hasMinMax = true;
+            sd.minMaxDirty = false;
             if (QCPAxis *ya = valueAxisFor(sd)) {
                 const double curMin = ya->range().lower;
                 const double curMax = ya->range().upper;
-                if (val < curMin) {
-                    const double range = curMax - curMin;
-                    ya->setRange(val, curMax + (curMin - val) * 0.1 + range * 0.05);
+                bool changed = false;
+                double lo = curMin, hi = curMax;
+                if (mn < curMin) {
+                    lo = mn;
+                    changed = true;
                 }
-                if (val > curMax) {
-                    const double range = curMax - curMin;
-                    ya->setRange(curMin - (val - curMax) * 0.1 - range * 0.05, val);
+                if (mx > curMax) {
+                    hi = mx;
+                    changed = true;
+                }
+                if (changed) {
+                    const double pad = (hi - lo) * 0.05;
+                    ya->setRange(lo - pad, hi + pad);
                 }
             }
-            hasData = true;
         }
+
+        hasData = true;
     }
 
     if (hasData) {
@@ -2693,6 +2886,21 @@ void GraphicView::onFrames(const QVector<CanFrame> &frames)
         if (isVisible() && !m_replotTimer.isActive())
             m_replotTimer.start();
     }
+}
+
+void GraphicView::onSamplePullTimer()
+{
+    updateSamplePullBudget();
+    pullFromSampleStore();
+}
+
+void GraphicView::updateSamplePullBudget()
+{
+    // Visible: match replot interval. Hidden views stop the timer in hideEvent (B6).
+    if (!isVisible())
+        return;
+    if (m_samplePullTimer.interval() != m_replotIntervalMs)
+        m_samplePullTimer.setInterval(m_replotIntervalMs);
 }
 
 void GraphicView::rebuildIdIndex()
@@ -2709,8 +2917,35 @@ void GraphicView::rebuildIdIndex()
 void GraphicView::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
+    // B6: resume composite timers only while visible (match Watcher/Trace T5).
+    if (!m_samplePullTimer.isActive())
+        m_samplePullTimer.start();
+    if (!m_valueTimer.isActive())
+        m_valueTimer.start();
+    updateSamplePullBudget();
+    pullFromSampleStore();
     if (m_replotPending && !m_replotTimer.isActive())
         m_replotTimer.start();
+}
+
+void GraphicView::hideEvent(QHideEvent *event)
+{
+    QWidget::hideEvent(event);
+    // B6: never composite in background — tip cursors once, then stop timers.
+    SampleStore *store = SampleStore::instance();
+    for (auto &sd : m_signals) {
+        if (!sd.storeSubscribed)
+            continue;
+        SignalSample latest;
+        quint64 tipSeq = sd.sampleSeq;
+        if (store->latestSample(sd.storeKey, &latest, &tipSeq)) {
+            sd.sampleSeq = tipSeq;
+            m_currentTime = latest.t;
+        }
+    }
+    m_samplePullTimer.stop();
+    m_valueTimer.stop();
+    m_replotTimer.stop();
 }
 
 void GraphicView::onReplotTimeout()
@@ -2720,8 +2955,9 @@ void GraphicView::onReplotTimeout()
     if (!isVisible())
         return;
     m_replotPending = false;
+    // refreshDisplayData rebuilds only dirty / viewport-missed graphs; always
+    // replot for live X-axis scroll + cursors (cheap when graph data unchanged).
     refreshDisplayData();
-    updateCursorDecorations();
     m_plot->replot(QCustomPlot::rpQueuedReplot);
 
     if (m_cursorMode != CursorMode::None)
@@ -2887,7 +3123,10 @@ void GraphicView::updateSignalList()
         // 列 7: ID
         item->setText(7, QString("0x%1").arg(sd.config.canId, 0, 16).toUpper());
         // 列 8: 点数
-        item->setText(8, QString::number(sd.rawData.size()));
+        item->setText(8, QString::number(
+            sd.storeSubscribed
+                ? SampleStore::instance()->sampleCount(sd.storeKey)
+                : sd.rawData.size()));
         item->setData(0, Qt::UserRole, i);
         m_signalTree->addTopLevelItem(item);
     }
@@ -2905,37 +3144,46 @@ void GraphicView::invertSignalSelection()
 
 void GraphicView::updateSignalValues()
 {
-    // 卡尺激活时列表值随卡尺（CANoe），否则显示实时最新值
+    // Cursor mode: list values follow cursors (CANoe-style).
     if (m_cursorMode != CursorMode::None)
         return;
 
+    SampleStore *store = SampleStore::instance();
     for (int i = 0; i < m_signals.size() && i < m_signalTree->topLevelItemCount(); ++i) {
         auto *item = m_signalTree->topLevelItem(i);
         auto &sd = m_signals[i];
 
-        if (sd.rawData.empty()) {
-            item->setText(2, "—");
-            item->setText(3, "—");
-            item->setText(8, "0");
+        double physVal = 0.0;
+        bool got = false;
+        if (sd.storeSubscribed) {
+            SignalSample latest;
+            if (store->latestSample(sd.storeKey, &latest)) {
+                physVal = latest.v;
+                got = true;
+            }
+        } else if (!sd.rawData.empty()) {
+            physVal = sd.rawData.at(sd.rawData.size() - 1).v;
+            got = true;
+        }
+
+        if (!got) {
+            item->setText(2, QStringLiteral("—"));
+            item->setText(3, QStringLiteral("—"));
+            item->setText(8, QStringLiteral("0"));
             continue;
         }
 
-        // 原始数据最后一个点（不受显示抽稀影响）
-        const graphic::Sample &last = sd.rawData.at(sd.rawData.size() - 1);
-        double physVal = last.v;
-
-        // 原始值
         double factor = sd.config.dbcSig.factor;
         if (factor == 0) factor = 1.0;
         quint64 rawVal = static_cast<quint64>((physVal - sd.config.dbcSig.offset) / factor + 0.5);
 
         item->setText(2, QString::number(physVal, 'f', 3));
         item->setText(3, QString::number(rawVal));
-        // Min/Max 列也更新（覆盖重算后生效）
         ensureMinMax(sd);
-        item->setText(5, sd.hasMinMax ? QString::number(sd.dataMin, 'f', 2) : "—");
-        item->setText(6, sd.hasMinMax ? QString::number(sd.dataMax, 'f', 2) : "—");
-        item->setText(8, QString::number(sd.rawData.size()));
+        item->setText(5, sd.hasMinMax ? QString::number(sd.dataMin, 'f', 2) : QStringLiteral("—"));
+        item->setText(6, sd.hasMinMax ? QString::number(sd.dataMax, 'f', 2) : QStringLiteral("—"));
+        item->setText(8, QString::number(
+            sd.storeSubscribed ? store->sampleCount(sd.storeKey) : sd.rawData.size()));
     }
 }
 
@@ -2955,7 +3203,12 @@ void GraphicView::updateCursorValues()
         auto &sd = m_signals[i];
 
         double physVal = 0.0;
-        if (!sd.rawData.empty() && valueAtTime(sd.rawData, m_cursor1Time, physVal)) {
+        bool got = false;
+        if (sd.storeSubscribed)
+            got = SampleStore::instance()->valueAtTime(sd.storeKey, m_cursor1Time, &physVal);
+        if (!got && !sd.rawData.empty())
+            got = valueAtTime(sd.rawData, m_cursor1Time, physVal);
+        if (got) {
             double factor = sd.config.dbcSig.factor;
             if (factor == 0) factor = 1.0;
             quint64 rawVal = static_cast<quint64>((physVal - sd.config.dbcSig.offset) / factor + 0.5);
@@ -2967,8 +3220,13 @@ void GraphicView::updateCursorValues()
         }
 
         if (m_cursorMode == CursorMode::Double && m_cursor2) {
-            double physVal2;
-            if (!sd.rawData.empty() && valueAtTime(sd.rawData, m_cursor2Time, physVal2)) {
+            double physVal2 = 0.0;
+            bool got2 = false;
+            if (sd.storeSubscribed)
+                got2 = SampleStore::instance()->valueAtTime(sd.storeKey, m_cursor2Time, &physVal2);
+            if (!got2 && !sd.rawData.empty())
+                got2 = valueAtTime(sd.rawData, m_cursor2Time, physVal2);
+            if (got2) {
                 double delta = physVal2 - physVal;
                 item->setText(2, QString("%1 → %2 (Δ%3)")
                     .arg(physVal, 0, 'f', 3)
@@ -3001,12 +3259,20 @@ void GraphicView::updateCursorValues()
             info += QString("  f ≈ %1 Hz").arg(freq, 0, 'f', 2);
 
         for (int i = 0; i < m_signals.size(); ++i) {
-            double v1, v2;
-            if (!m_signals[i].rawData.empty() &&
-                valueAtTime(m_signals[i].rawData, m_cursor1Time, v1) &&
-                valueAtTime(m_signals[i].rawData, m_cursor2Time, v2)) {
+            double v1 = 0.0, v2 = 0.0;
+            bool ok1 = false, ok2 = false;
+            auto &sd = m_signals[i];
+            if (sd.storeSubscribed) {
+                ok1 = SampleStore::instance()->valueAtTime(sd.storeKey, m_cursor1Time, &v1);
+                ok2 = SampleStore::instance()->valueAtTime(sd.storeKey, m_cursor2Time, &v2);
+            }
+            if (!ok1 && !sd.rawData.empty())
+                ok1 = valueAtTime(sd.rawData, m_cursor1Time, v1);
+            if (!ok2 && !sd.rawData.empty())
+                ok2 = valueAtTime(sd.rawData, m_cursor2Time, v2);
+            if (ok1 && ok2) {
                 info += QString("  Δ%1 = %2")
-                    .arg(m_signals[i].config.name)
+                    .arg(sd.config.name)
                     .arg(v2 - v1, 0, 'f', 3);
             }
         }
@@ -3331,16 +3597,21 @@ bool GraphicView::valueAtTime(const RingBuffer<graphic::Sample> &raw, double tim
 void GraphicView::fitAll()
 {
     pushZoomState();
-    // Fit X to full sample span (same as fitXOnly), then fit Y — not merely the
-    // sliding live time-window, which hid most offline history after backfill.
     bool hasData = false;
     double tMin = 0.0, tMax = 0.0;
+    SampleStore *store = SampleStore::instance();
     for (const auto &sd : m_signals) {
-        const int n = sd.rawData.size();
-        if (n == 0)
+        double t0 = 0.0, t1 = 0.0;
+        bool ok = false;
+        if (sd.storeSubscribed)
+            ok = store->timeRange(sd.storeKey, &t0, &t1);
+        else if (!sd.rawData.empty()) {
+            t0 = sd.rawData.at(0).t;
+            t1 = sd.rawData.at(sd.rawData.size() - 1).t;
+            ok = true;
+        }
+        if (!ok)
             continue;
-        const double t0 = sd.rawData.at(0).t;
-        const double t1 = sd.rawData.at(n - 1).t;
         if (!hasData) {
             tMin = t0;
             tMax = t1;
@@ -3378,15 +3649,21 @@ void GraphicView::fitAll()
 
 void GraphicView::fitXOnly()
 {
-    // 收集全部信号时间范围（rawData 按时序追加，首尾即 min/max）
     bool hasData = false;
     double tMin = 0.0, tMax = 0.0;
+    SampleStore *store = SampleStore::instance();
     for (const auto &sd : m_signals) {
-        const int n = sd.rawData.size();
-        if (n == 0)
+        double t0 = 0.0, t1 = 0.0;
+        bool ok = false;
+        if (sd.storeSubscribed)
+            ok = store->timeRange(sd.storeKey, &t0, &t1);
+        else if (!sd.rawData.empty()) {
+            t0 = sd.rawData.at(0).t;
+            t1 = sd.rawData.at(sd.rawData.size() - 1).t;
+            ok = true;
+        }
+        if (!ok)
             continue;
-        const double t0 = sd.rawData.at(0).t;
-        const double t1 = sd.rawData.at(n - 1).t;
         if (!hasData) {
             tMin = t0;
             tMax = t1;
@@ -3460,19 +3737,24 @@ QString GraphicView::formatTime(double seconds)
 void GraphicView::updateStatusBar()
 {
     QStringList parts;
-    parts << QString("信号: %1").arg(m_signals.size());
+    parts << QStringLiteral("Signals: %1").arg(m_signals.size());
 
     int totalPoints = 0;
-    for (const auto &sd : m_signals)
-        totalPoints += sd.rawData.size();
-    parts << QString("采样点: %1").arg(totalPoints);
-    parts << QString("时间: %1").arg(formatTime(m_currentTime));
-    parts << QString("窗口: %1s").arg(m_timeWindow);
+    SampleStore *store = SampleStore::instance();
+    for (const auto &sd : m_signals) {
+        if (sd.storeSubscribed)
+            totalPoints += store->sampleCount(sd.storeKey);
+        else
+            totalPoints += sd.rawData.size();
+    }
+    parts << QStringLiteral("Samples: %1").arg(totalPoints);
+    parts << QStringLiteral("Time: %1").arg(formatTime(m_currentTime));
+    parts << QStringLiteral("Window: %1s").arg(m_timeWindow);
 
     if (m_paused)
-        parts << "[已暂停]";
+        parts << QStringLiteral("[Paused]");
 
-    m_statusLabel->setText(parts.join("  |  "));
+    m_statusLabel->setText(parts.join(QStringLiteral("  |  ")));
 }
 
 // ============================================================

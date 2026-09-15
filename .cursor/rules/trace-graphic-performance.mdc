@@ -1,0 +1,36 @@
+---
+description: Trace/Graphic performance roadmap — prefer these next optimizations; keep plan doc in sync
+alwaysApply: true
+---
+
+# Trace / Graphic Performance Roadmap
+
+Durable detail:
+- Parent: `doc/Trace_Graphic_Performance_Plan.md`
+- Trace redesign: `doc/Trace_Virtual_List_Redesign.md`
+
+Update those docs when work lands. This rule tells agents **what to optimize next**.
+
+## Product rule
+
+Trace and Graphic are make-or-break. Trace T1–T5, Graphic Stage 2 (P1-1 / P1-3), and B6 are done.
+Measurement ≠ UI: decode / filter / MinMax / LOD never in `paintEvent` / `replot`.
+
+## Done (do not redo)
+
+- Phase A/B (incl. B6 timer silence) + P0-1 LOD
+- T0–T5 Trace redesign
+- P1-1 Graphic: no per-view rawData twin for SampleStore-backed signals
+- P1-3 Graphic: OverlaySelected default, skip hidden, per-signal dirty rebuild
+- T5 / P1-4 visibility silence
+
+## Next — measure, then P2 if needed
+
+1. Manual acceptance under high load (Trace + Graphic together)
+2. Only if still heavy: C1b custom Trace painter / C2 Graphic strip compositor / C3 LOD pyramid
+
+## Agent behavior
+
+- Prefer measurement + user-reported hotspots over drive-by refactors.
+- English only in non-`.md` files (see `no-chinese-in-code`).
+- After landing an item: mark it in `doc/Trace_Graphic_Performance_Plan.md` + Decision log.

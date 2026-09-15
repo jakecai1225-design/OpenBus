@@ -585,7 +585,11 @@ int BlfReader::parseUncompressedObjects(const QByteArray &data, QVector<CanFrame
                 m_impl->baseTime = timestamp;
                 m_impl->hasBaseTime = true;
             }
-            frame.timestamp = timestamp - m_impl->baseTime;
+            frame.timestamp = keepAbsoluteTimestamps()
+                                  ? timestamp
+                                  : (timestamp - m_impl->baseTime);
+            if (frame.timestampNs == 0)
+                frame.timestampNs = static_cast<quint64>(frame.timestamp * 1e9 + 0.5);
             frames.append(frame);
             ++totalFrames;
         }

@@ -16,12 +16,15 @@ struct CanFrame
 {
     enum Direction { Rx = 0, Tx = 1 };
 
-    /// 相对开始时间（秒），精度到微秒（向后兼容字段，由 timestampNs 派生）
+    /// Shared Trace/Graphic time axis (seconds).
+    /// - File / offline: timestamp carried in the log (readers may rebase to first frame = 0).
+    /// - Live capture: derived from hardware or steady_clock from measurement start.
+    /// - Playback must NEVER replace this with wall-clock "now".
+    /// Same CanFrame must show the same value in Trace Time column and Graphic X.
     double timestamp = 0.0;
 
-    /// 纳秒级时间戳（相对测量开始的单调时钟纳秒数，0=未设置）
-    /// 由 CanDeviceManager 统一使用 std::chrono::steady_clock 填充，
-    /// 确保多设备时间轴一致，避免厂商时钟差异
+    /// Nanoseconds matching @ref timestamp when set (timestamp * 1e9 for file frames).
+    /// Live path may fill from steady_clock; 0 means unset.
     quint64 timestampNs = 0;
 
     /// CAN ID（标准 11 位 / 扩展 29 位）

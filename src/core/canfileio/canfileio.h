@@ -88,28 +88,34 @@ public:
 // ============================================================
 
 /**
- * @brief 报文文件读取器接口
+ * @brief Message file reader interface
  *
- * 子类实现具体格式的读取逻辑。
- * 生命周期：open() → readAll() → close()
+ * Lifecycle: open() → readAll() → close()
+ *
+ * Timestamps: by default each file is rebased so the first frame is t=0
+ * (shared Trace/Graphic axis). Set keepAbsoluteTimestamps(true) before
+ * readAll when merging multiple files, then call CanUtils::makeRelativeToFirst
+ * once on the merged vector.
  */
 class CanFileReader
 {
 public:
     virtual ~CanFileReader() = default;
 
-    /// 打开文件准备读取
     virtual bool open(const QString &filePath) = 0;
 
-    /// 读取所有帧到 frames 容器
-    /// @return 成功读取的帧数，-1 表示失败
+    /// @return frames read, or -1 on failure
     virtual int readAll(QVector<CanFrame> &frames) = 0;
 
-    /// 关闭文件
     virtual void close() = 0;
-
-    /// 是否已打开
     virtual bool isOpen() const = 0;
+
+    /// When false (default), rebase so first frame in this file is t=0.
+    void setKeepAbsoluteTimestamps(bool keep) { m_keepAbsoluteTimestamps = keep; }
+    bool keepAbsoluteTimestamps() const { return m_keepAbsoluteTimestamps; }
+
+protected:
+    bool m_keepAbsoluteTimestamps = false;
 };
 
 #endif // CANFILEIO_H
