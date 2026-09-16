@@ -372,10 +372,17 @@ void FlowModule::invoke(const QString &action, const QVariant &arg)
                 msv->setBlockError(l.at(0).toString(), l.at(1).toBool());
         }
     } else if (action == QStringLiteral("setDeviceConfig")) {
-        // 恢复设备连接页界面配置（不连接设备，仅恢复参数）
+        // Restore device connection UI (does not connect)
         const QVariantMap cfg = arg.toMap();
         if (auto *tab = qobject_cast<DeviceConnectionTab *>(
                 m_pages.value(QStringLiteral("device")))) {
+            if (cfg.contains(QStringLiteral("deviceKind"))) {
+                tab->setDevice(
+                    cfg.value(QStringLiteral("deviceKind")).toInt(),
+                    cfg.value(QStringLiteral("deviceIndex")).toInt(),
+                    cfg.value(QStringLiteral("deviceName")).toString(),
+                    cfg.value(QStringLiteral("deviceSubType")).toInt());
+            }
             if (cfg.contains(QStringLiteral("baudrate")))
                 tab->setBaudrate(cfg.value(QStringLiteral("baudrate")).toInt());
             if (cfg.contains(QStringLiteral("channel")))
@@ -385,6 +392,17 @@ void FlowModule::invoke(const QString &action, const QVariant &arg)
             if (cfg.value(QStringLiteral("fdBaudrate")).toInt() > 0)
                 tab->setDataBaudrate(cfg.value(QStringLiteral("fdBaudrate")).toInt());
         }
+    } else if (action == QStringLiteral("setBlockEnabledMap")) {
+        const QVariantMap en = arg.toMap();
+        if (auto *msv = qobject_cast<MeasurementSetupView *>(
+                m_pages.value(QStringLiteral("setup")))) {
+            for (auto it = en.constBegin(); it != en.constEnd(); ++it)
+                msv->setBlockEnabled(it.key(), it.value().toBool());
+        }
+    } else if (action == QStringLiteral("setFilterRules")) {
+        if (auto *msv = qobject_cast<MeasurementSetupView *>(
+                m_pages.value(QStringLiteral("setup"))))
+            msv->setFilterRules(arg.toStringList());
     }
 }
 
@@ -424,10 +442,29 @@ QVariant FlowModule::query(const QString &what, const QVariant &arg)
             cfg.insert(QStringLiteral("canFd"), tab->isCanFd());
             cfg.insert(QStringLiteral("fdBaudrate"), tab->dataBaudrate());
             cfg.insert(QStringLiteral("deviceKind"), tab->deviceKind());
+            cfg.insert(QStringLiteral("deviceIndex"), tab->deviceIndex());
+            cfg.insert(QStringLiteral("deviceSubType"), tab->deviceSubType());
+            cfg.insert(QStringLiteral("deviceName"), tab->deviceName());
             cfg.insert(QStringLiteral("baudrate"), tab->baudrate());
             cfg.insert(QStringLiteral("channel"), tab->channel());
         }
         return cfg;
+    }
+    if (what == QStringLiteral("blockEnabledMap")) {
+        QVariantMap en;
+        if (auto *msv = qobject_cast<MeasurementSetupView *>(
+                m_pages.value(QStringLiteral("setup")))) {
+            const auto map = msv->blockEnabledMap();
+            for (auto it = map.constBegin(); it != map.constEnd(); ++it)
+                en.insert(it.key(), it.value());
+        }
+        return en;
+    }
+    if (what == QStringLiteral("filterRules")) {
+        if (auto *msv = qobject_cast<MeasurementSetupView *>(
+                m_pages.value(QStringLiteral("setup"))))
+            return msv->filterRules();
+        return QStringList();
     }
     return {};
 }

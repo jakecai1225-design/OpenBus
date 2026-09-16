@@ -441,7 +441,7 @@ void MainWindow::connectProjectPanel()
             this, &MainWindow::onProjectCreated);
     connect(m_sideBar->projectPanel(), &ProjectPanel::openProjectRequested,
             this, [this](const QString &path) {
-        // 保存当前工程状态到状态快照
+        // Save current project snapshot before switching
         auto &projs = m_sideBar->projectPanel()->projectsRef();
         int curIdx = m_sideBar->projectPanel()->currentIndex();
         captureProjectState();
@@ -451,14 +451,13 @@ void MainWindow::connectProjectPanel()
             ProjectManager::instance()->saveProject();
         if (ProjectManager::instance()->loadProject(path)) {
             applyProjectState();
-            // 更新当前工程的 stateJson 并刷新树形列表
+            // Sync sidebar entry to the loaded project name/path
+            const QString loadedName = ProjectManager::instance()->currentProjectName();
+            m_sideBar->projectPanel()->activateProject(path, loadedName);
             int newIdx = m_sideBar->projectPanel()->currentIndex();
-            if (newIdx >= 0 && newIdx < projs.size()) {
+            if (newIdx >= 0 && newIdx < projs.size())
                 projs[newIdx].stateJson = ProjectManager::instance()->toJsonString();
-                m_sideBar->projectPanel()->refreshList();
-            }
-            m_bottomPanel->appendOutput(QStringLiteral("工程已加载: ") +
-                                        ProjectManager::instance()->currentProjectName());
+            m_bottomPanel->appendOutput(QStringLiteral("工程已加载: ") + loadedName);
         }
     });
     connect(m_sideBar->projectPanel(), &ProjectPanel::saveProjectRequested,
@@ -475,13 +474,14 @@ void MainWindow::connectProjectPanel()
     if (!lastProj.isEmpty() && QFile::exists(lastProj)) {
         if (ProjectManager::instance()->loadProject(lastProj)) {
             applyProjectState();
-            // 同步工程面板：替换默认工程为上次加载的工程
+            // Sync project panel: replace default entry with last loaded project
             auto &projs = m_sideBar->projectPanel()->projectsRef();
             if (!projs.isEmpty()) {
-                projs[0].name = ProjectManager::instance()->currentProjectName();
-                projs[0].filePath = lastProj;
-                projs[0].stateJson = ProjectManager::instance()->toJsonString();
-                m_sideBar->projectPanel()->refreshList();
+                const QString loadedName = ProjectManager::instance()->currentProjectName();
+                m_sideBar->projectPanel()->activateProject(lastProj, loadedName);
+                int idx = m_sideBar->projectPanel()->currentIndex();
+                if (idx >= 0 && idx < projs.size())
+                    projs[idx].stateJson = ProjectManager::instance()->toJsonString();
             }
         }
     }

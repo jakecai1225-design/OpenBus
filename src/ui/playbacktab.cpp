@@ -23,6 +23,8 @@
 #include <QHeaderView>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QVariantMap>
+#include <QVariantList>
 
 PlaybackTab::PlaybackTab(QWidget *parent)
     : QWidget(parent)
@@ -197,38 +199,40 @@ void PlaybackTab::onAddFile()
         CanFileIO::allFileFilters());
     if (paths.isEmpty()) return;
 
-    for (const auto &path : paths) {
-        QFileInfo fi(path);
-        int row = m_fileList->rowCount();
-        m_fileList->insertRow(row);
-
-        auto *numItem = new QTableWidgetItem(QString::number(row + 1));
-        numItem->setTextAlignment(Qt::AlignCenter);
-        m_fileList->setItem(row, 0, numItem);
-
-        auto *nameItem = new QTableWidgetItem(fi.fileName());
-        nameItem->setData(Qt::UserRole, path);  // 存储完整路径
-        nameItem->setToolTip(path);
-        m_fileList->setItem(row, 1, nameItem);
-
-        m_fileList->setItem(row, 2, new QTableWidgetItem("解析中..."));
-        m_fileList->setItem(row, 3, new QTableWidgetItem("-"));
-        m_fileList->setItem(row, 5, new QTableWidgetItem("就绪"));
-
-        // 进度条
-        auto *bar = new QProgressBar();
-        bar->setRange(0, 100);
-        bar->setValue(0);
-        bar->setFormat("—");
-        bar->setAlignment(Qt::AlignCenter);
-        m_fileList->setCellWidget(row, 4, bar);
-
-        // 加入解析队列
-        m_parseQueue.enqueue(row);
-    }
+    for (const auto &path : paths)
+        addFilePath(path);
 
     if (!m_parseTimer->isActive())
         m_parseTimer->start();
+}
+
+void PlaybackTab::addFilePath(const QString &path)
+{
+    QFileInfo fi(path);
+    int row = m_fileList->rowCount();
+    m_fileList->insertRow(row);
+
+    auto *numItem = new QTableWidgetItem(QString::number(row + 1));
+    numItem->setTextAlignment(Qt::AlignCenter);
+    m_fileList->setItem(row, 0, numItem);
+
+    auto *nameItem = new QTableWidgetItem(fi.fileName());
+    nameItem->setData(Qt::UserRole, path);  // 存储完整路径
+    nameItem->setToolTip(path);
+    m_fileList->setItem(row, 1, nameItem);
+
+    m_fileList->setItem(row, 2, new QTableWidgetItem("解析中..."));
+    m_fileList->setItem(row, 3, new QTableWidgetItem("-"));
+    m_fileList->setItem(row, 5, new QTableWidgetItem("就绪"));
+
+    auto *bar = new QProgressBar();
+    bar->setRange(0, 100);
+    bar->setValue(0);
+    bar->setFormat("—");
+    bar->setAlignment(Qt::AlignCenter);
+    m_fileList->setCellWidget(row, 4, bar);
+
+    m_parseQueue.enqueue(row);
 }
 
 void PlaybackTab::onRemoveFile()
@@ -474,6 +478,93 @@ void PlaybackTab::setFileInfo(const QString &fileName, int frames, double durati
                 statusItem->setText("已加载");
             m_currentLoadedRow = i;
             break;
+        }
+    }
+}
+
+QVariantMap PlaybackTab::configMap() const
+{
+    QVariantMap m;
+    m.insert(QStringLiteral("speed"), m_speedCombo->currentData().toDouble());
+    m.insert(QStringLiteral("loop"), m_loopChk->isChecked());
+    m.insert(QStringLiteral("autoScroll"), m_autoScrollChk->isChecked());
+    m.insert(QStringLiteral("channelIndex"), m_channelCombo->currentIndex());
+    m.insert(QStringLiteral("filter"), m_filterEdit->text());
+    m.insert(QStringLiteral("currentRow"), m_currentLoadedRow);
+
+    QStringList files;
+    files.reserve(m_fileList->rowCount());
+    for (int i = 0; i < m_fileList->rowCount(); ++i) {
+        const auto *nameItem = m_fileList->item(i, 1);
+        if (nameItem) {
+            const QString path = nameItem->data(Qt::UserRole).toString();
+            if (!path.isEmpty())
+                files << path;
+        }
+    }
+    m.insert(QStringLiteral("files"), files);
+    return m;
+}
+
+void PlaybackTab::loadConfig(const QVariantMap &map)
+{
+    if (map.isEmpty())
+        return;
+
+    if (map.contains(QStringLiteral("speed"))) {
+        const double speed = map.value(QStringLiteral("speed")).toDouble();
+        const int idx = m_speedCombo->findData(speed);
+        if (idx >= 0)
+            m_speedCombo->setCurrentIndex(idx);
+        emit speedChanged(m_speedCombo->currentData().toDouble());
+    }
+    if (map.contains(QStringLiteral("loop"))) {
+        const bool on = map.value(QStringLiteral("loop")).toBool();
+        m_loopChk->setChecked(on);
+        emit loopToggled(on);
+    }
+    if (map.contains(QStringLiteral("autoScroll"))) {
+        const bool on = map.value(QStringLiteral("autoScroll")).toBool();
+        m_autoScrollChk->setChecked(on);
+        emit autoScrollToggled(on);
+    }
+    if (map.contains(QStringLiteral("channelIndex"))) {
+        const int ci = map.value(QStringLiteral("channelIndex")).toInt();
+        if (ci >= 0 && ci < m_channelCombo->count())
+            m_channelCombo->setCurrentIndex(ci);
+    }
+    if (map.contains(QStringLiteral("filter")))
+        m_filterEdit->setText(map.value(QStringLiteral("filter")).toString());
+
+    const QStringList files = map.value(QStringLiteral("files")).toStringList();
+    if (!files.isEmpty()) {
+        m_fileList->setRowCount(0);
+        m_parseQueue.clear();
+        m_currentLoadedRow = -1;
+        for (const auto &path : files)
+            addFilePath(path);
+        if (!m_parseTimer->isActive())
+            m_parseTimer->start();
+
+        const int wantRow = map.value(QStringLiteral("currentRow"), 0).toInt();
+        if (wantRow >= 0 && wantRow < m_fileList->rowCount()) {
+            auto *nameItem = m_fileList->item(wantRow, 1);
+            if (nameItem) {
+                const QString path = nameItem->data(Qt::UserRole).toString();
+                if (!path.isEmpty()) {
+                    m_currentLoadedRow = wantRow;
+                    emit fileLoaded(path);
+                }
+            }
+        } else if (m_fileList->rowCount() > 0) {
+            auto *nameItem = m_fileList->item(0, 1);
+            if (nameItem) {
+                const QString path = nameItem->data(Qt::UserRole).toString();
+                if (!path.isEmpty()) {
+                    m_currentLoadedRow = 0;
+                    emit fileLoaded(path);
+                }
+            }
         }
     }
 }

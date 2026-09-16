@@ -48,6 +48,7 @@
 #include "core/plugin/pluginmanager.h"
 #include "core/plugin/plugininfo.h"
 #include "models/viewportproxy.h"
+#include "ui/watcherview.h"
 
 #include <QMenuBar>
 #include <QMenu>
@@ -203,7 +204,10 @@ void MainWindow::onProjectSwitched(int index)
         applyProjectState();
     }
 
-    // 3. 刷新树形列表，更新 "(当前)" 标记和文件子节点
+    // 3. Refresh tree: active marker + section title + file children
+    projects[index].name = ProjectManager::instance()->currentProjectName().isEmpty()
+                               ? projects[index].name
+                               : ProjectManager::instance()->currentProjectName();
     projects[index].stateJson = ProjectManager::instance()->toJsonString();
     m_sideBar->projectPanel()->refreshList();
 }
@@ -246,21 +250,34 @@ void MainWindow::captureProjectState()
         st.channel = m_simulator->channel();
     }
 
-    // 设备配置（CAN FD / 数据段波特率 / 设备类型，经 flow 模块查询）
+    // Device config (CAN FD / baud / full device identity via Flow module)
     const QVariantMap devCfg = flowQuery(QStringLiteral("deviceConfig")).toMap();
     if (!devCfg.isEmpty()) {
         st.deviceConfig.fd = devCfg.value(QStringLiteral("canFd")).toBool();
         st.deviceConfig.fdBaudrate = devCfg.value(QStringLiteral("fdBaudrate")).toInt();
-        st.deviceConfig.type = QStringLiteral("devKind%1")
-                                   .arg(devCfg.value(QStringLiteral("deviceKind")).toInt());
-        // 覆盖 simulator 值——设备连接页是用户实际配置的来源
+        st.deviceConfig.kind = devCfg.value(QStringLiteral("deviceKind")).toInt();
+        st.deviceConfig.index = devCfg.value(QStringLiteral("deviceIndex")).toInt();
+        st.deviceConfig.subType = devCfg.value(QStringLiteral("deviceSubType")).toInt();
+        st.deviceConfig.name = devCfg.value(QStringLiteral("deviceName")).toString();
+        st.deviceConfig.type = QStringLiteral("devKind%1").arg(st.deviceConfig.kind);
         if (devCfg.value(QStringLiteral("baudrate")).toInt() > 0)
             st.baudrate = devCfg.value(QStringLiteral("baudrate")).toInt();
         if (devCfg.value(QStringLiteral("channel")).toInt() > 0)
             st.channel = devCfg.value(QStringLiteral("channel")).toInt();
     }
 
-    // DBC 文件
+    // Flow block enables
+    st.flowBlockEnabled.clear();
+    {
+        const QVariantMap en = flowQuery(QStringLiteral("blockEnabledMap")).toMap();
+        for (auto it = en.constBegin(); it != en.constEnd(); ++it)
+            st.flowBlockEnabled.insert(it.key(), it.value().toBool());
+    }
+
+    // Flow filter rule summaries
+    st.flowFilterRules = flowQuery(QStringLiteral("filterRules")).toStringList();
+
+    // DBC files
     st.dbcFiles.clear();
     if (m_dbcManager) {
         for (const auto &f : m_dbcManager->files())
@@ -281,6 +298,8 @@ void MainWindow::captureProjectState()
             ti.title = QString("帧列表%1").arg(id.mid(5).toInt());
             ti.filterExpression = traceQuery(QStringLiteral("filterExpression"),
                                              id).toString();
+            ti.colorRules = traceQuery(QStringLiteral("colorRules"), id).toList();
+            ti.hasColorRules = true;
             st.traces.append(ti);
         }
     }
@@ -308,14 +327,39 @@ void MainWindow::captureProjectState()
                 sc.canId = sig.value(QStringLiteral("canId")).toUInt();
                 sc.name = sig.value(QStringLiteral("name")).toString();
                 sc.extended = sig.value(QStringLiteral("extended")).toBool();
+                sc.color = sig.value(QStringLiteral("color")).toString();
+                sc.displayMode = sig.value(QStringLiteral("displayMode"), 1).toInt();
                 gi.sigList.append(sc);
             }
             st.graphics.append(gi);
         }
     }
 
-    // 离线分析文件列表（经收发模块查询）
+    // Watcher variables
+    st.watchers.clear();
+    if (m_watcherView) {
+        for (const auto &e : m_watcherView->watchEntries()) {
+            ProjectWatcherEntry we;
+            we.canId = e.canId;
+            we.name = e.name;
+            we.messageName = e.messageName;
+            we.extended = e.extended;
+            st.watchers.append(we);
+        }
+    }
+
+    // Offline analysis file list (via transceive module)
     st.offlineFiles = transceiveQuery(QStringLiteral("offlineFiles")).toStringList();
+    // Seed offline from Flow playback path when file-mode and list empty
+    if (st.sourceMode == 1 && !st.filePath.isEmpty()
+        && QFile::exists(st.filePath)
+        && !st.offlineFiles.contains(st.filePath))
+        st.offlineFiles.prepend(st.filePath);
+
+    // Record tab UI + send list (empty if tabs never opened)
+    st.recordConfig = transceiveQuery(QStringLiteral("recordConfig")).toMap();
+    st.sendEntries = transceiveQuery(QStringLiteral("sendEntries")).toList();
+    st.playbackConfig = transceiveQuery(QStringLiteral("playbackConfig")).toMap();
 
     // 标签页顺序
     st.openTabs.clear();
@@ -356,10 +400,11 @@ void MainWindow::applyProjectState()
                     text.contains(QStringLiteral("回放")) ||
                     text.contains(QStringLiteral("离线分析")) ||
                     text.contains(QStringLiteral("录制")) ||
-                    text.contains(QStringLiteral("发送"))) {
+                    text.contains(QStringLiteral("发送")) ||
+                    text.contains(QStringLiteral("Watcher"))) {
                     QWidget *w = tw->widget(i);
                     tw->removeTab(i);
-                    delete w;  // 立即销毁，防止 use-after-free
+                    delete w;  // immediate destroy — avoid use-after-free
                 }
             }
         }
@@ -372,7 +417,7 @@ void MainWindow::applyProjectState()
     // 下文重建实例完成后误删新注册的 flow 画布块
     QCoreApplication::sendPostedEvents(nullptr, QEvent::MetaCall);
 
-    // 3. 卸载所有 DBC 并重新加载
+    // 3. Unload all DBC and reload
     auto dbcFiles = m_dbcManager->files();
     for (const auto &f : dbcFiles)
         m_dbcManager->unloadDbc(f.filePath);
@@ -384,28 +429,36 @@ void MainWindow::applyProjectState()
         }
     }
 
-    // 4. 设置数据源（经 flow 模块，拆分方案 B4）
+    // Ensure Flow setup page exists before source/device restore (do not rely on openTabs)
+    onOpenMeasurementSetup();
+
+    // 4. Data source (via flow module)
     flowInvoke(QStringLiteral("setSource"), st.sourceMode);
     flowInvoke(QStringLiteral("setFilePath"), st.filePath);
 
-    // 5. 波特率 / 通道 / 设备配置
+    // 5. Baud / channel / full device identity (via Flow module)
     m_simulator->setChannel(static_cast<quint8>(st.channel));
     m_simulator->setBaudrate(st.baudrate);
-    // 恢复设备连接页界面配置（不连接设备，仅恢复参数；经 flow 模块）
     QVariantMap devCfg;
     devCfg.insert(QStringLiteral("baudrate"), st.baudrate);
     devCfg.insert(QStringLiteral("channel"), st.channel);
     devCfg.insert(QStringLiteral("canFd"), st.deviceConfig.fd);
     devCfg.insert(QStringLiteral("fdBaudrate"), st.deviceConfig.fdBaudrate);
+    devCfg.insert(QStringLiteral("deviceKind"), st.deviceConfig.kind);
+    devCfg.insert(QStringLiteral("deviceIndex"), st.deviceConfig.index);
+    devCfg.insert(QStringLiteral("deviceSubType"), st.deviceConfig.subType);
+    devCfg.insert(QStringLiteral("deviceName"),
+                  st.deviceConfig.name.isEmpty()
+                      ? QStringLiteral("Device")
+                      : st.deviceConfig.name);
     flowInvoke(QStringLiteral("setDeviceConfig"), devCfg);
 
     // 6. 按保存顺序重建标签页（Trace/Graphic 先仅创建，配置在步骤 7/8
     //    回填；DBC 详情/预览等复杂页面暂不重建，后续版本支持）
     for (const QString &tabName : st.openTabs) {
         if (tabName.contains(QStringLiteral("Flow"), Qt::CaseInsensitive)) {
-            // 创建 Flow 页 + 默认 trace1/graphic1（已存在则复用；
-            // 兼容旧工程保存的 "Flow" 标题）
-            onOpenMeasurementSetup();
+            // Already ensured above — skip second open (avoids extra default tabs)
+            continue;
         } else if (isTraceTabText(tabName)) {
             QString numPart = tabName;
             numPart.remove(QStringLiteral("帧列表"))
@@ -424,6 +477,8 @@ void MainWindow::applyProjectState()
             onOpenOfflineAnalysisTab();
         } else if (tabName.contains(QStringLiteral("录制"))) {
             onOpenRecordTab();
+        } else if (tabName.contains(QStringLiteral("Watcher"))) {
+            onOpenWatcher();
         }
     }
 
@@ -436,6 +491,9 @@ void MainWindow::applyProjectState()
         if (tab && !t.filterExpression.isEmpty())
             traceInvoke(QStringLiteral("setFilterExpression"),
                         QVariantList{ QVariant::fromValue(tab), t.filterExpression });
+        if (tab && t.hasColorRules)
+            traceInvoke(QStringLiteral("setColorRules"),
+                        QVariantList{ QVariant::fromValue(tab), t.colorRules });
     }
     // 若保存状态中没有 Trace 实例，则创建默认的
     if (m_traceInstances.isEmpty())
@@ -454,8 +512,12 @@ void MainWindow::applyProjectState()
         for (const auto &s : g.sigList) {
             const DbcMessage *msg = m_dbcManager->findMessage(s.canId);
             const DbcSignal *ds = msg ? msg->findSignal(s.name) : nullptr;
-            sigMaps.append(buildSignalMap(s.canId, s.extended, s.name,
-                                          ds ? *ds : DbcSignal()));
+            QVariantMap sm = buildSignalMap(s.canId, s.extended, s.name,
+                                           ds ? *ds : DbcSignal());
+            if (!s.color.isEmpty())
+                sm.insert(QStringLiteral("color"), s.color);
+            sm.insert(QStringLiteral("displayMode"), s.displayMode);
+            sigMaps.append(sm);
         }
         if (!sigMaps.isEmpty())
             graphicInvoke(QStringLiteral("loadSignalConfigs"),
@@ -465,11 +527,57 @@ void MainWindow::applyProjectState()
     if (m_graphicInstances.isEmpty())
         createGraphicInstance(QStringLiteral("graphic1"));
 
-    // 9. 恢复离线分析文件列表（经收发模块转发；页面未开时静默忽略）
-    if (!st.offlineFiles.isEmpty())
-        transceiveInvoke(QStringLiteral("addOfflineFiles"), st.offlineFiles);
+    // 9. Offline analysis files + seed from Flow playback path
+    {
+        QStringList offline = st.offlineFiles;
+        if (st.sourceMode == 1 && !st.filePath.isEmpty()
+            && QFile::exists(st.filePath)
+            && !offline.contains(st.filePath))
+            offline.prepend(st.filePath);
+        if (!offline.isEmpty()) {
+            onOpenOfflineAnalysisTab();  // ensure tab exists — addOfflineFiles no-ops otherwise
+            transceiveInvoke(QStringLiteral("addOfflineFiles"), offline);
+        }
+    }
 
-    // 10. 更新 flow 视图（经 flow 模块，拆分方案 B4）
+    // 9a. Record tab UI config
+    if (!st.recordConfig.isEmpty()) {
+        onOpenRecordTab();
+        transceiveInvoke(QStringLiteral("loadRecordConfig"), st.recordConfig);
+    }
+
+    // 9a2. Send list entries
+    if (!st.sendEntries.isEmpty()) {
+        onOpenSendTab();
+        transceiveInvoke(QStringLiteral("loadSendEntries"), st.sendEntries);
+    }
+
+    // 9a3. Playback tab UI config
+    if (!st.playbackConfig.isEmpty()) {
+        onOpenPlaybackTab();
+        transceiveInvoke(QStringLiteral("loadPlaybackConfig"), st.playbackConfig);
+    }
+
+    // 9b. Watcher signal list (open tab if entries exist)
+    if (!st.watchers.isEmpty()) {
+        if (!m_watcherView)
+            onOpenWatcher();
+        if (m_watcherView) {
+            QVector<WatcherView::WatchEntry> entries;
+            entries.reserve(st.watchers.size());
+            for (const auto &w : st.watchers) {
+                WatcherView::WatchEntry e;
+                e.canId = w.canId;
+                e.name = w.name;
+                e.messageName = w.messageName;
+                e.extended = w.extended;
+                entries.append(e);
+            }
+            m_watcherView->loadWatchEntries(entries);
+        }
+    }
+
+    // 10. Update Flow canvas (via flow module)
     flowInvoke(QStringLiteral("clearTraceGraphicInstances"), {});
     for (const auto &t : st.traces)
         flowInvoke(QStringLiteral("addModuleInstance"),
@@ -479,21 +587,23 @@ void MainWindow::applyProjectState()
                    QVariantList{ QStringLiteral("graphic"), g.id, g.title });
     flowInvoke(QStringLiteral("rebuildScene"), {});
 
-    // 11. 恢复活跃标签页
-    if (m_editorArea && !st.activeTab.isEmpty()) {
-        const auto allTabs = m_editorArea->allTabWidgets();
-        for (auto *tw : allTabs) {
-            for (int i = 0; i < tw->count(); ++i) {
-                if (tw->tabText(i).trimmed() == st.activeTab) {
-                    tw->setCurrentIndex(i);
-                    if (m_tabLabel) m_tabLabel->setText(tw->tabText(i));
-                    break;
-                }
-            }
-        }
+    // 10b. Restore Flow block enable flags (after rebuild)
+    if (!st.flowBlockEnabled.isEmpty()) {
+        QVariantMap en;
+        for (auto it = st.flowBlockEnabled.constBegin();
+             it != st.flowBlockEnabled.constEnd(); ++it)
+            en.insert(it.key(), it.value());
+        flowInvoke(QStringLiteral("setBlockEnabledMap"), en);
     }
 
-    // 12. 更新窗口标题
+    // 10c. Filter rules (always clear then set — avoid cross-project leak)
+    flowInvoke(QStringLiteral("setFilterRules"), st.flowFilterRules);
+
+    // 11. Always land on Flow after project activate/restore (do not restore
+    //    last activeTab — user expects a consistent entry point).
+    onOpenMeasurementSetup();
+
+    // 12. Window title
     setWindowTitle(QStringLiteral("openbus - %1").arg(st.name));
 
     m_bottomPanel->appendOutput(QStringLiteral("工程现场已恢复: %1").arg(st.name));

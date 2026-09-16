@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QList>
+#include <QVariantList>
 
 class QTableWidget;
 class QPushButton;
@@ -32,6 +33,10 @@ class SignalSendTab : public QWidget
 public:
     explicit SignalSendTab(QWidget *parent = nullptr);
     void setDbcManager(DbcManager *mgr);
+
+    /// Send-list rows for project save/restore (skips status/ops columns)
+    QVariantList exportEntries() const;
+    void loadEntries(const QVariantList &entries);
 
 signals:
     void sendAllRequested();

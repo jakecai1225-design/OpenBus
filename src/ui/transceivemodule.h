@@ -23,7 +23,8 @@ class TriggerRecorder;
  *  - 壳编排类动作（回放链路、清视图、状态栏）经 ctx.shellInvoke 反向委托
  *
  * 壳对页面的操控经 invoke()（setRecording/setFileInfo/setProgress/
- * setPlayerLoaded），离线文件查询经 query("offlineFiles")。
+ * setPlayerLoaded/loadRecordConfig/loadSendEntries/loadPlaybackConfig），查询经 query
+ * （offlineFiles / recordConfig / sendEntries / playbackConfig）。
  */
 class TransceiveModule : public IBusinessModule {
 public:

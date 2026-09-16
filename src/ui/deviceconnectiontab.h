@@ -43,11 +43,14 @@ public:
     int  channel() const;             ///< 选中的通道号 (1-based, 0=未选)
     bool isCanFd() const;             ///< 是否启用 CAN FD
     int  dataBaudrate() const;         ///< 数据段波特率 (CAN FD)
-    int  deviceKind() const;          ///< 设备类型 (0=模拟器, 1=ZLG, ...)
-    void setBaudrate(int baud);      ///< 设置仲裁段波特率
-    void setChannel(int ch);          ///< 设置选中通道 (1-based)
-    void setCanFd(bool fd);           ///< 启用/禁用 CAN FD
-    void setDataBaudrate(int baud);   ///< 设置数据段波特率
+    int  deviceKind() const;          ///< device kind (0=simulator, 1=ZLG, ...)
+    int  deviceIndex() const { return m_devIndex; }
+    int  deviceSubType() const { return m_devSubType; }
+    QString deviceName() const { return m_deviceName; }
+    void setBaudrate(int baud);      ///< set arbitration baudrate
+    void setChannel(int ch);          ///< set selected channel (1-based)
+    void setCanFd(bool fd);           ///< enable/disable CAN FD
+    void setDataBaudrate(int baud);   ///< set data baudrate
 
 signals:
     void deviceConnectRequested(const QString &device, int baudrate);

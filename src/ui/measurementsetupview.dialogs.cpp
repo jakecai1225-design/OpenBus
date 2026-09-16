@@ -107,6 +107,25 @@ void MeasurementSetupView::clearFilterRules()
     emit filterRulesChanged(QStringList());
 }
 
+void MeasurementSetupView::setFilterRules(const QStringList &rules)
+{
+    auto it = m_blocks.find("filter");
+    if (it == m_blocks.end())
+        return;
+    it->instances.clear();
+    int i = 0;
+    for (const QString &title : rules) {
+        if (title.isEmpty())
+            continue;
+        InstanceItem rule;
+        rule.id = QStringLiteral("rule%1").arg(++i);
+        rule.title = title;
+        it->instances.append(rule);
+    }
+    rebuildScene();
+    emit filterRulesChanged(filterRules());
+}
+
 void MeasurementSetupView::showFilterConfigDialog()
 {
     QDialog dlg(this);

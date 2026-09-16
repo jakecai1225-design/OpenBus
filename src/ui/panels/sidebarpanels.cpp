@@ -46,6 +46,15 @@
 #include <QToolButton>
 #include <QPointer>
 #include <QScrollArea>
+#include <QProcess>
+#include <QDir>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QSizePolicy>
+#include <QPainter>
+#include <QPixmap>
+#include <QBrush>
+#include <QFont>
 
 // ============================================================
 //  SidePanel 基类
@@ -77,63 +86,210 @@ void SidePanel::setupTitle(const QString &title)
 }
 
 // ============================================================
+//  ExplorerSection — VS Code twistie section
+// ============================================================
+
+ExplorerSection::ExplorerSection(const QString &title, QWidget *parent)
+    : QWidget(parent)
+{
+    setObjectName(QStringLiteral("ExplorerSection"));
+    auto *lay = new QVBoxLayout(this);
+    lay->setContentsMargins(0, 0, 0, 0);
+    lay->setSpacing(0);
+
+    auto *headerRow = new QWidget(this);
+    headerRow->setObjectName(QStringLiteral("ExplorerSectionHeaderRow"));
+    auto *headerLay = new QHBoxLayout(headerRow);
+    headerLay->setContentsMargins(0, 0, 6, 0);
+    headerLay->setSpacing(4);
+
+    m_header = new QToolButton(headerRow);
+    m_header->setObjectName(QStringLiteral("ExplorerSectionHeader"));
+    m_header->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_header->setAutoRaise(true);
+    m_header->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_header->setCursor(Qt::PointingHandCursor);
+    m_header->setFocusPolicy(Qt::NoFocus);
+    connect(m_header, &QToolButton::clicked, this, &ExplorerSection::toggle);
+    headerLay->addWidget(m_header, 0);
+
+    m_statusDot = new QLabel(QStringLiteral("●"), headerRow);
+    m_statusDot->setObjectName(QStringLiteral("ExplorerSectionStatusDot"));
+    m_statusDot->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    m_statusDot->setStyleSheet(QStringLiteral(
+        "QLabel#ExplorerSectionStatusDot { color: #22C55E; font-size: 11px; }"));
+    m_statusDot->setVisible(false);
+    headerLay->addWidget(m_statusDot, 0, Qt::AlignVCenter);
+    headerLay->addStretch(1);
+
+    lay->addWidget(headerRow);
+
+    m_body = new QWidget(this);
+    m_body->setObjectName(QStringLiteral("ExplorerSectionBody"));
+    m_bodyLayout = new QVBoxLayout(m_body);
+    m_bodyLayout->setContentsMargins(0, 0, 0, 0);
+    m_bodyLayout->setSpacing(0);
+    lay->addWidget(m_body, 1);
+
+    setTitle(title);
+    updateHeaderChrome();
+}
+
+void ExplorerSection::setTitle(const QString &title)
+{
+    m_header->setText(title.toUpper());
+    m_header->setToolTip(title);
+}
+
+QString ExplorerSection::title() const
+{
+    return m_header->text();
+}
+
+void ExplorerSection::setExpanded(bool expanded)
+{
+    if (m_expanded == expanded)
+        return;
+    m_expanded = expanded;
+    m_body->setVisible(m_expanded);
+    updateHeaderChrome();
+}
+
+void ExplorerSection::toggle()
+{
+    setExpanded(!m_expanded);
+}
+
+void ExplorerSection::refreshTheme()
+{
+    updateHeaderChrome();
+}
+
+void ExplorerSection::setStatusDotVisible(bool on)
+{
+    if (m_statusDot)
+        m_statusDot->setVisible(on);
+}
+
+void ExplorerSection::updateHeaderChrome()
+{
+    const auto &th = ThemeManager::instance()->currentTheme();
+    const QString icon = m_expanded ? QStringLiteral(":/icons/chevron-down.svg")
+                                    : QStringLiteral(":/icons/chevron-right.svg");
+    m_header->setIcon(svgIcon(icon, th.textDim, 12));
+    m_header->setStyleSheet(QString());
+}
+
+// ============================================================
 //  ProjectPanel
 // ============================================================
 
 ProjectPanel::ProjectPanel(QWidget *parent)
-    : SidePanel("工程列表", parent)
+    : SidePanel("EXPLORER", parent)
 {
     auto *cl = contentLayout();
 
-    m_projectTree = new QTreeWidget(this);
+    // Active project section (plain title + trailing green status ●)
+    m_projectSection = new ExplorerSection(QStringLiteral("当前工程"), this);
+    m_projectTree = new QTreeWidget(m_projectSection->bodyWidget());
     applyExplorerTree(m_projectTree, QStringLiteral("ProjectTree"));
     m_projectTree->setHeaderHidden(true);
-    m_projectTree->setColumnCount(1);
-    m_projectTree->setExpandsOnDoubleClick(false);  // double-click switches project, not collapse
-    cl->addWidget(m_projectTree, 3);
+    m_projectTree->setColumnCount(2);
+    m_projectTree->setRootIsDecorated(true);
+    m_projectTree->header()->setStretchLastSection(false);
+    m_projectTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_projectTree->header()->setSectionResizeMode(1, QHeaderView::Fixed);
+    m_projectTree->setColumnWidth(1, 18);
+    m_projectTree->setExpandsOnDoubleClick(false);
+    m_projectTree->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_projectSection->bodyLayout()->addWidget(m_projectTree, 1);
+    cl->addWidget(m_projectSection, 3);
 
-    // 最近工程列表（与工程树按 2:3 共享面板高度：去掉 100px 封顶后
-    // 条目多时内部滚动，底部按钮与列表不再被挤压裁切，截图反馈 2026-08-23）
-    auto *recentLabel = new QLabel("最近打开", this);
-    recentLabel->setObjectName("SidePanelSubTitle");
-    cl->addWidget(recentLabel);
-    m_recentList = new QListWidget(this);
-    cl->addWidget(m_recentList, 2);
-
-    auto *btnBar = new QHBoxLayout;
-    btnBar->setContentsMargins(8, 6, 8, 6);
-    btnBar->setSpacing(4);
-    auto *newBtn = new QPushButton("新建", this);
-    auto *openBtn = new QPushButton("打开", this);
-    auto *saveBtn = new QPushButton("保存", this);
-    auto *delBtn = new QPushButton("删除", this);
-    btnBar->addWidget(newBtn);
-    btnBar->addWidget(openBtn);
-    btnBar->addWidget(saveBtn);
-    btnBar->addWidget(delBtn);
-    cl->addLayout(btnBar);
+    // Recent section (collapsible)
+    m_recentSection = new ExplorerSection(QStringLiteral("Recent"), this);
+    m_recentList = new QListWidget(m_recentSection->bodyWidget());
+    m_recentList->setObjectName(QStringLiteral("ExplorerRecentList"));
+    m_recentList->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_recentSection->bodyLayout()->addWidget(m_recentList, 1);
+    cl->addWidget(m_recentSection, 2);
 
     ProjectContext defaultProj;
-    defaultProj.name = "默认工程";
+    defaultProj.name = QStringLiteral("Default Project");
     m_projects.append(defaultProj);
     m_currentIndex = 0;
     refreshList();
     refreshRecentList();
 
-    connect(newBtn, &QPushButton::clicked, this, &ProjectPanel::onNewProject);
-    connect(openBtn, &QPushButton::clicked, this, &ProjectPanel::onOpenProject);
-    connect(saveBtn, &QPushButton::clicked, this, &ProjectPanel::onSaveProject);
-    connect(delBtn, &QPushButton::clicked, this, &ProjectPanel::onDeleteProject);
+    // Refresh section twistie icons on theme change
+    auto *themeRelay = new SignalRelay(this);
+    themeRelay->fire0 = [this]() {
+        if (m_projectSection)
+            m_projectSection->refreshTheme();
+        if (m_recentSection)
+            m_recentSection->refreshTheme();
+    };
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            themeRelay, SLOT(fire()));
+
     connect(m_projectTree, &QTreeWidget::itemClicked,
             this, &ProjectPanel::onProjectItemClicked);
     connect(m_projectTree, &QTreeWidget::itemDoubleClicked,
             this, &ProjectPanel::onProjectItemDoubleClicked);
+    connect(m_projectTree, &QWidget::customContextMenuRequested,
+            this, &ProjectPanel::onProjectTreeContextMenu);
+    connect(m_recentList, &QWidget::customContextMenuRequested,
+            this, &ProjectPanel::onRecentListContextMenu);
     connect(m_recentList, &QListWidget::itemDoubleClicked,
             this, [this](QListWidgetItem *item) {
-        QString path = item->data(Qt::UserRole).toString();
+        const QString path = item->data(Qt::UserRole).toString();
         if (!path.isEmpty())
             emit openProjectRequested(path);
     });
+}
+
+void ProjectPanel::updateProjectSectionTitle()
+{
+    if (!m_projectSection)
+        return;
+    // Fixed section label; active cue is the trailing green ● only
+    m_projectSection->setTitle(QStringLiteral("当前工程"));
+    const bool hasActive = (m_currentIndex >= 0 && m_currentIndex < m_projects.size());
+    m_projectSection->setStatusDotVisible(hasActive);
+}
+
+void ProjectPanel::activateProject(const QString &filePath, const QString &name)
+{
+    if (filePath.isEmpty())
+        return;
+
+    const QString resolvedName = name.isEmpty()
+                                     ? QFileInfo(filePath).completeBaseName()
+                                     : name;
+
+    for (int i = 0; i < m_projects.size(); ++i) {
+        if (m_projects[i].filePath == filePath) {
+            m_currentIndex = i;
+            m_projects[i].name = resolvedName;
+            refreshList();
+            return;
+        }
+    }
+
+    // Reuse lone unsaved placeholder instead of stacking another root
+    if (m_projects.size() == 1 && m_projects[0].filePath.isEmpty()) {
+        m_projects[0].filePath = filePath;
+        m_projects[0].name = resolvedName;
+        m_currentIndex = 0;
+        refreshList();
+        return;
+    }
+
+    ProjectContext proj;
+    proj.filePath = filePath;
+    proj.name = resolvedName;
+    m_projects.append(proj);
+    m_currentIndex = m_projects.size() - 1;
+    refreshList();
 }
 
 void ProjectPanel::refreshList()
@@ -146,20 +302,28 @@ void ProjectPanel::refreshList()
     const QIcon iconFile   = svgIcon(QStringLiteral(":/icons/file.svg"), th.textDim, 16);
     const QIcon iconDb     = svgIcon(QStringLiteral(":/icons/database.svg"), th.text, 16);
 
+    updateProjectSectionTitle();
+
     for (int i = 0; i < m_projects.size(); ++i) {
         const auto &proj = m_projects[i];
-        QString label = proj.name;
-        if (i == m_currentIndex)
-            label += "  (当前)";
+        QString label = proj.name.isEmpty() ? QStringLiteral("Untitled") : proj.name;
+        const bool active = (i == m_currentIndex);
 
         auto *projItem = new QTreeWidgetItem(m_projectTree, {label});
         projItem->setIcon(0, iconFolder);
-        projItem->setData(0, Qt::UserRole, i);  // project index
-        projItem->setExpanded(false);
+        projItem->setData(0, Qt::UserRole, i);
+        projItem->setExpanded(active);
+        if (active) {
+            // Trailing green ● only (col 1); name stays plain
+            projItem->setText(1, QStringLiteral("●"));
+            projItem->setForeground(1, QBrush(QColor(0x22, 0xC5, 0x5E)));
+            projItem->setTextAlignment(1, Qt::AlignRight | Qt::AlignVCenter);
+            projItem->setToolTip(0, QStringLiteral("Active project"));
+        }
 
         if (!proj.filePath.isEmpty()) {
             auto *fItem = new QTreeWidgetItem(projItem,
-                {QStringLiteral("[工程] ") + QFileInfo(proj.filePath).fileName()});
+                {QStringLiteral("[Project] ") + QFileInfo(proj.filePath).fileName()});
             fItem->setIcon(0, iconFile);
             fItem->setData(0, Qt::UserRole, proj.filePath);
             fItem->setToolTip(0, proj.filePath);
@@ -168,7 +332,7 @@ void ProjectPanel::refreshList()
         QString playback = extractPlaybackFile(proj.stateJson);
         if (!playback.isEmpty()) {
             auto *fItem = new QTreeWidgetItem(projItem,
-                {QStringLiteral("[回放] ") + QFileInfo(playback).fileName()});
+                {QStringLiteral("[Playback] ") + QFileInfo(playback).fileName()});
             fItem->setIcon(0, iconFile);
             fItem->setData(0, Qt::UserRole, playback);
             fItem->setToolTip(0, playback);
@@ -177,8 +341,9 @@ void ProjectPanel::refreshList()
         auto dbcFiles = extractDbcFiles(proj.stateJson);
         if (!dbcFiles.isEmpty()) {
             auto *catItem = new QTreeWidgetItem(projItem,
-                {QStringLiteral("DBC 文件 (") + QString::number(dbcFiles.size()) + ")"});
+                {QStringLiteral("DBC (") + QString::number(dbcFiles.size()) + QStringLiteral(")")});
             catItem->setIcon(0, iconFolder);
+            catItem->setExpanded(i == m_currentIndex);
             for (const auto &f : dbcFiles) {
                 auto *fItem = new QTreeWidgetItem(catItem, {QFileInfo(f).fileName()});
                 fItem->setIcon(0, iconDb);
@@ -187,17 +352,17 @@ void ProjectPanel::refreshList()
             }
         }
 
-        // ---- 子节点：录制文件 ----
         auto recFiles = extractRecordFiles(proj.stateJson);
-        // 合并 ProjectContext 中直接存储的录制文件
         for (const auto &f : proj.recordFiles) {
             if (!recFiles.contains(f))
                 recFiles << f;
         }
         if (!recFiles.isEmpty()) {
             auto *catItem = new QTreeWidgetItem(projItem,
-                {QStringLiteral("录制文件 (") + QString::number(recFiles.size()) + ")"});
+                {QStringLiteral("Recordings (") + QString::number(recFiles.size())
+                 + QStringLiteral(")")});
             catItem->setIcon(0, iconFolder);
+            catItem->setExpanded(i == m_currentIndex);
             for (const auto &f : recFiles) {
                 auto *fItem = new QTreeWidgetItem(catItem, {QFileInfo(f).fileName()});
                 fItem->setIcon(0, iconFile);
@@ -209,8 +374,10 @@ void ProjectPanel::refreshList()
         auto offlineFiles = extractOfflineFiles(proj.stateJson);
         if (!offlineFiles.isEmpty()) {
             auto *catItem = new QTreeWidgetItem(projItem,
-                {QStringLiteral("离线分析文件 (") + QString::number(offlineFiles.size()) + ")"});
+                {QStringLiteral("Offline (") + QString::number(offlineFiles.size())
+                 + QStringLiteral(")")});
             catItem->setIcon(0, iconFolder);
+            catItem->setExpanded(i == m_currentIndex);
             for (const auto &f : offlineFiles) {
                 auto *fItem = new QTreeWidgetItem(catItem, {QFileInfo(f).fileName()});
                 fItem->setIcon(0, iconFile);
@@ -219,16 +386,14 @@ void ProjectPanel::refreshList()
             }
         }
 
-        // 无文件时的提示
         if (proj.filePath.isEmpty() && playback.isEmpty() &&
             dbcFiles.isEmpty() && recFiles.isEmpty() && offlineFiles.isEmpty()) {
             auto *empty = new QTreeWidgetItem(projItem,
-                {QStringLiteral("(无关联文件)")});
+                {QStringLiteral("(no linked files)")});
             empty->setFlags(Qt::NoItemFlags);
         }
     }
 
-    // 选中当前工程
     if (m_currentIndex >= 0 && m_currentIndex < m_projectTree->topLevelItemCount())
         m_projectTree->setCurrentItem(m_projectTree->topLevelItem(m_currentIndex));
     m_projectTree->blockSignals(false);
@@ -308,7 +473,6 @@ void ProjectPanel::refreshRecentList()
     if (!m_recentList) return;
     m_recentList->clear();
 
-    // 从 SessionManager 读取最近工程列表（含元数据）
     auto items = SessionManager::instance()->recentItems();
     for (const auto &var : items) {
         auto map = var.toMap();
@@ -316,9 +480,9 @@ void ProjectPanel::refreshRecentList()
         if (p.isEmpty()) continue;
         QString name = map.value("name").toString();
         if (name.isEmpty())
-            name = QFileInfo(p).fileName();
+            name = QFileInfo(p).completeBaseName();
         if (map.value("pinned").toBool())
-            name = QStringLiteral("[置顶] ") + name;
+            name = QStringLiteral("[Pinned] ") + name;
 
         auto *listItem = new QListWidgetItem(name);
         listItem->setToolTip(p);
@@ -330,13 +494,16 @@ void ProjectPanel::refreshRecentList()
 void ProjectPanel::onDeleteProject()
 {
     if (m_projects.size() <= 1) {
-        QMessageBox::information(this, "删除工程", "至少保留一个工程");
+        QMessageBox::information(this, QStringLiteral("Delete Project"),
+                                 QStringLiteral("Keep at least one project."));
         return;
     }
     if (m_currentIndex < 0) return;
 
-    auto reply = QMessageBox::question(this, "删除工程",
-        QString("确定删除工程 \"%1\"?").arg(m_projects[m_currentIndex].name));
+    auto reply = QMessageBox::question(
+        this, QStringLiteral("Delete Project"),
+        QStringLiteral("Remove project \"%1\" from the list?")
+            .arg(m_projects[m_currentIndex].name));
     if (reply != QMessageBox::Yes) return;
 
     m_projects.removeAt(m_currentIndex);
@@ -349,11 +516,9 @@ void ProjectPanel::onProjectItemClicked(QTreeWidgetItem *item, int column)
 {
     Q_UNUSED(column)
     if (!item) return;
-    // 只处理顶层工程节点
     if (item->parent()) return;
     int idx = item->data(0, Qt::UserRole).toInt();
     if (idx < 0 || idx >= m_projects.size()) return;
-    // 单击仅更新选中索引，不触发切换
     m_currentIndex = idx;
 }
 
@@ -362,23 +527,172 @@ void ProjectPanel::onProjectItemDoubleClicked(QTreeWidgetItem *item, int column)
     Q_UNUSED(column)
     if (!item) return;
 
-    // 子节点双击 — 打开文件预览标签页
     if (item->parent()) {
         QString filePath = item->data(0, Qt::UserRole).toString();
         if (!filePath.isEmpty())
             emit filePreviewRequested(filePath);
-        return;  // 分类节点无 UserRole，不做操作
+        return;
     }
 
-    // 顶层工程节点双击 — 切换工程
     int idx = item->data(0, Qt::UserRole).toInt();
     if (idx < 0 || idx >= m_projects.size()) return;
     m_currentIndex = idx;
     emit projectSwitched(m_currentIndex);
 }
 
+QString ProjectPanel::pathForTreeItem(QTreeWidgetItem *item) const
+{
+    if (!item)
+        return {};
+
+    if (!item->parent()) {
+        const int idx = item->data(0, Qt::UserRole).toInt();
+        if (idx >= 0 && idx < m_projects.size())
+            return m_projects[idx].filePath;
+        return {};
+    }
+
+    return item->data(0, Qt::UserRole).toString();
+}
+
+void ProjectPanel::revealInFileManager(const QString &path)
+{
+    if (path.isEmpty())
+        return;
+
+    const QFileInfo fi(path);
+    if (!fi.exists())
+        return;
+
+#ifdef Q_OS_WIN
+    const QString native = QDir::toNativeSeparators(fi.absoluteFilePath());
+    QProcess::startDetached(QStringLiteral("explorer.exe"),
+                            {QStringLiteral("/select,%1").arg(native)});
+#else
+    const QString dir = fi.isDir() ? fi.absoluteFilePath() : fi.absolutePath();
+    QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
+#endif
+}
+
+void ProjectPanel::onProjectTreeContextMenu(const QPoint &pos)
+{
+    QTreeWidgetItem *item = m_projectTree->itemAt(pos);
+    if (item)
+        m_projectTree->setCurrentItem(item);
+
+    QMenu menu(this);
+
+    QAction *newAct = menu.addAction(QStringLiteral("New Project..."));
+    QAction *openAct = menu.addAction(QStringLiteral("Open Project..."));
+    menu.addSeparator();
+
+    const bool isFileLeaf = item && item->parent()
+                            && !item->data(0, Qt::UserRole).toString().isEmpty();
+    int projIdx = -1;
+    if (item && !item->parent()) {
+        projIdx = item->data(0, Qt::UserRole).toInt();
+    } else if (item) {
+        QTreeWidgetItem *root = item;
+        while (root->parent())
+            root = root->parent();
+        projIdx = root->data(0, Qt::UserRole).toInt();
+    }
+
+    QAction *saveAct = nullptr;
+    QAction *deleteAct = nullptr;
+    QAction *switchAct = nullptr;
+    QAction *revealAct = nullptr;
+    QAction *previewAct = nullptr;
+
+    if (projIdx >= 0 && projIdx < m_projects.size()) {
+        if (projIdx != m_currentIndex)
+            switchAct = menu.addAction(QStringLiteral("Switch to Project"));
+        saveAct = menu.addAction(QStringLiteral("Save Project"));
+        deleteAct = menu.addAction(QStringLiteral("Delete Project"));
+        menu.addSeparator();
+    }
+
+    const QString path = pathForTreeItem(item);
+    if (!path.isEmpty()) {
+        revealAct = menu.addAction(QStringLiteral("Reveal in File Explorer"));
+        revealAct->setEnabled(QFileInfo::exists(path));
+        if (isFileLeaf) {
+            previewAct = menu.addAction(QStringLiteral("Open Preview"));
+            previewAct->setEnabled(QFileInfo::exists(path));
+        }
+    }
+
+    QAction *chosen = menu.exec(m_projectTree->viewport()->mapToGlobal(pos));
+    if (!chosen)
+        return;
+
+    if (chosen == newAct) {
+        onNewProject();
+    } else if (chosen == openAct) {
+        onOpenProject();
+    } else if (chosen == switchAct && projIdx >= 0) {
+        m_currentIndex = projIdx;
+        refreshList();
+        emit projectSwitched(m_currentIndex);
+    } else if (chosen == saveAct && projIdx >= 0) {
+        m_currentIndex = projIdx;
+        onSaveProject();
+    } else if (chosen == deleteAct && projIdx >= 0) {
+        m_currentIndex = projIdx;
+        onDeleteProject();
+    } else if (chosen == revealAct) {
+        revealInFileManager(path);
+    } else if (chosen == previewAct) {
+        emit filePreviewRequested(path);
+    }
+}
+
+void ProjectPanel::onRecentListContextMenu(const QPoint &pos)
+{
+    QListWidgetItem *item = m_recentList->itemAt(pos);
+
+    QMenu menu(this);
+    QAction *newAct = menu.addAction(QStringLiteral("New Project..."));
+    QAction *openAct = menu.addAction(QStringLiteral("Open Project..."));
+
+    QAction *openRecentAct = nullptr;
+    QAction *revealAct = nullptr;
+    QAction *removeRecentAct = nullptr;
+
+    QString path;
+    if (item) {
+        m_recentList->setCurrentItem(item);
+        path = item->data(Qt::UserRole).toString();
+        menu.addSeparator();
+        openRecentAct = menu.addAction(QStringLiteral("Open"));
+        openRecentAct->setEnabled(!path.isEmpty() && QFileInfo::exists(path));
+        revealAct = menu.addAction(QStringLiteral("Reveal in File Explorer"));
+        revealAct->setEnabled(!path.isEmpty() && QFileInfo::exists(path));
+        menu.addSeparator();
+        removeRecentAct = menu.addAction(QStringLiteral("Remove from Recent"));
+        removeRecentAct->setEnabled(!path.isEmpty());
+    }
+
+    QAction *chosen = menu.exec(m_recentList->viewport()->mapToGlobal(pos));
+    if (!chosen)
+        return;
+
+    if (chosen == newAct) {
+        onNewProject();
+    } else if (chosen == openAct) {
+        onOpenProject();
+    } else if (chosen == openRecentAct && !path.isEmpty()) {
+        emit openProjectRequested(path);
+    } else if (chosen == revealAct) {
+        revealInFileManager(path);
+    } else if (chosen == removeRecentAct && !path.isEmpty()) {
+        SessionManager::instance()->removeRecent(path);
+        refreshRecentList();
+    }
+}
+
 // ============================================================
-//  ProjectPanel — 工程文件信息解析辅助
+//  ProjectPanel — project file info helpers
 // ============================================================
 
 QStringList ProjectPanel::extractDbcFiles(const QString &stateJson) const

@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QDateTime>
+#include <QMetaType>
 
 // ============================================================
 //  单例
@@ -161,9 +162,9 @@ json ProjectManager::stateToJson(const ProjectState &st,
 {
     json j;
     j["name"] = st.name.toStdString();
-    j["version"] = 2;
+    j["version"] = 3;
 
-    // ---- meta（v2 新增）----
+    // ---- meta ----
     j["meta"]["name"] = st.name.toStdString();
     j["meta"]["created"] = st.meta.created.toStdString();
     j["meta"]["modified"] = st.meta.modified.toStdString();
@@ -174,7 +175,7 @@ json ProjectManager::stateToJson(const ProjectState &st,
     j["meta"]["tags"] = tagArr;
     j["meta"]["notes"] = st.meta.notes.toStdString();
 
-    // ---- resources（v2 新增，相对路径）----
+    // ---- resources (relative paths) ----
     json dbcRel = json::array();
     for (const auto &f : st.dbcFiles)
         dbcRel.push_back(resolver.relativize(f).toStdString());
@@ -190,14 +191,21 @@ json ProjectManager::stateToJson(const ProjectState &st,
         offRel.push_back(resolver.relativize(f).toStdString());
     j["resources"]["offline"] = offRel;
 
-    // ---- device（v2 新增）----
+    if (!st.filePath.isEmpty())
+        j["resources"]["playback"] = resolver.relativize(st.filePath).toStdString();
+
+    // ---- device ----
     j["device"]["type"] = st.deviceConfig.type.toStdString();
+    j["device"]["kind"] = st.deviceConfig.kind;
+    j["device"]["index"] = st.deviceConfig.index;
+    j["device"]["subType"] = st.deviceConfig.subType;
+    j["device"]["name"] = st.deviceConfig.name.toStdString();
     j["device"]["channel"] = st.channel;
     j["device"]["baudrate"] = st.baudrate;
     j["device"]["fd"] = st.deviceConfig.fd;
     j["device"]["fdBaudrate"] = st.deviceConfig.fdBaudrate;
 
-    // ---- 以下为 v1 兼容字段（绝对路径），旧版 openbus 仍可读取 ----
+    // ---- v1-compat source (absolute filePath kept for older readers) ----
     j["source"]["mode"] = st.sourceMode;
     j["source"]["filePath"] = st.filePath.toStdString();
     j["source"]["baudrate"] = st.baudrate;
@@ -208,7 +216,7 @@ json ProjectManager::stateToJson(const ProjectState &st,
         dbcArr.push_back(f.toStdString());
     j["dbc"]["files"] = dbcArr;
 
-    // ---- Trace / Graphic 实例（格式不变；M1 新增 protocolId/formId 身份字段）----
+    // ---- Trace / Graphic ----
     json traceArr = json::array();
     for (const auto &t : st.traces) {
         json tj;
@@ -217,6 +225,17 @@ json ProjectManager::stateToJson(const ProjectState &st,
         tj["filter"] = t.filterExpression.toStdString();
         tj["protocolId"] = t.protocolId.toStdString();
         tj["formId"] = t.formId.toStdString();
+        json rulesArr = json::array();
+        for (const auto &rv : t.colorRules) {
+            const QVariantMap r = rv.toMap();
+            json rj;
+            rj["expr"] = r.value(QStringLiteral("expr")).toString().toStdString();
+            rj["background"] = r.value(QStringLiteral("background")).toString().toStdString();
+            rj["foreground"] = r.value(QStringLiteral("foreground")).toString().toStdString();
+            rj["enabled"] = r.value(QStringLiteral("enabled"), true).toBool();
+            rulesArr.push_back(rj);
+        }
+        tj["colorRules"] = rulesArr;
         traceArr.push_back(tj);
     }
     j["traces"] = traceArr;
@@ -234,6 +253,9 @@ json ProjectManager::stateToJson(const ProjectState &st,
             sj["canId"] = s.canId;
             sj["name"] = s.name.toStdString();
             sj["extended"] = s.extended;
+            if (!s.color.isEmpty())
+                sj["color"] = s.color.toStdString();
+            sj["displayMode"] = s.displayMode;
             sigArr.push_back(sj);
         }
         gj["signals"] = sigArr;
@@ -241,13 +263,102 @@ json ProjectManager::stateToJson(const ProjectState &st,
     }
     j["graphics"] = graphicArr;
 
-    // ---- 录制文件（v1 兼容，绝对路径）----
+    // ---- Watcher ----
+    json watchArr = json::array();
+    for (const auto &w : st.watchers) {
+        json wj;
+        wj["canId"] = w.canId;
+        wj["name"] = w.name.toStdString();
+        wj["messageName"] = w.messageName.toStdString();
+        wj["extended"] = w.extended;
+        watchArr.push_back(wj);
+    }
+    j["watchers"] = watchArr;
+
+    // ---- Flow block enables ----
+    json flowEn = json::object();
+    for (auto it = st.flowBlockEnabled.constBegin();
+         it != st.flowBlockEnabled.constEnd(); ++it)
+        flowEn[it.key().toStdString()] = it.value();
+    j["flow"]["blockEnabled"] = flowEn;
+    json filterArr = json::array();
+    for (const auto &r : st.flowFilterRules)
+        filterArr.push_back(r.toStdString());
+    j["flow"]["filterRules"] = filterArr;
+
+    // ---- Record files (v1 absolute) + UI config ----
     json recArr = json::array();
     for (const auto &f : st.recordFiles)
         recArr.push_back(f.toStdString());
     j["record"]["files"] = recArr;
+    if (!st.recordConfig.isEmpty()) {
+        json cfg = json::object();
+        for (auto it = st.recordConfig.constBegin();
+             it != st.recordConfig.constEnd(); ++it) {
+            const QVariant &v = it.value();
+            switch (v.typeId()) {
+            case QMetaType::Bool:
+                cfg[it.key().toStdString()] = v.toBool();
+                break;
+            case QMetaType::Int:
+            case QMetaType::LongLong:
+                cfg[it.key().toStdString()] = v.toLongLong();
+                break;
+            case QMetaType::Double:
+                cfg[it.key().toStdString()] = v.toDouble();
+                break;
+            default:
+                cfg[it.key().toStdString()] = v.toString().toStdString();
+                break;
+            }
+        }
+        j["record"]["config"] = cfg;
+    }
 
-    // ---- 标签页 ----
+    // ---- Send entries ----
+    json sendArr = json::array();
+    for (const auto &ev : st.sendEntries) {
+        const QVariantMap e = ev.toMap();
+        json sj;
+        sj["enabled"] = e.value(QStringLiteral("enabled")).toBool();
+        sj["id"] = e.value(QStringLiteral("id")).toString().toStdString();
+        sj["name"] = e.value(QStringLiteral("name")).toString().toStdString();
+        sj["dlc"] = e.value(QStringLiteral("dlc")).toInt();
+        sj["data"] = e.value(QStringLiteral("data")).toString().toStdString();
+        sj["period"] = e.value(QStringLiteral("period")).toInt();
+        sj["count"] = e.value(QStringLiteral("count")).toInt();
+        sendArr.push_back(sj);
+    }
+    j["send"]["entries"] = sendArr;
+
+    // ---- Playback UI config ----
+    if (!st.playbackConfig.isEmpty()) {
+        json cfg = json::object();
+        for (auto it = st.playbackConfig.constBegin();
+             it != st.playbackConfig.constEnd(); ++it) {
+            const QString key = it.key();
+            const QVariant &v = it.value();
+            if (key == QStringLiteral("files") && v.canConvert<QStringList>()) {
+                json files = json::array();
+                for (const auto &f : v.toStringList())
+                    files.push_back(resolver.relativize(f).toStdString());
+                cfg["files"] = files;
+            } else if (v.typeId() == QMetaType::Bool) {
+                cfg[key.toStdString()] = v.toBool();
+            } else if (v.typeId() == QMetaType::Int
+                       || v.typeId() == QMetaType::LongLong) {
+                cfg[key.toStdString()] = v.toLongLong();
+            } else if (v.typeId() == QMetaType::Double
+                       || v.typeId() == QMetaType::Float) {
+                cfg[key.toStdString()] = v.toDouble();
+            } else {
+                cfg[key.toStdString()] = v.toString().toStdString();
+            }
+        }
+        j["playback"]["config"] = cfg;
+    }
+
+    // ---- Tabs ----
     json tabArr = json::array();
     for (const auto &t : st.openTabs)
         tabArr.push_back(t.toStdString());
@@ -307,23 +418,40 @@ ProjectState ProjectManager::jsonToState(const json &j,
                 if (f.is_string())
                     st.offlineFiles << resolver.resolve(QString::fromStdString(f.get<std::string>()));
         }
+        if (r.contains("playback") && r["playback"].is_string())
+            st.filePath = resolver.resolve(
+                QString::fromStdString(r["playback"].get<std::string>()));
     }
 
-    // ---- device（v2 新增）----
+    // ---- device (v2+) ----
     if (version >= 2 && j.contains("device")) {
         const auto &d = j["device"];
         if (d.contains("type") && d["type"].is_string())
             st.deviceConfig.type = QString::fromStdString(d["type"].get<std::string>());
+        if (d.contains("kind") && d["kind"].is_number_integer())
+            st.deviceConfig.kind = d["kind"].get<int>();
+        if (d.contains("index") && d["index"].is_number_integer())
+            st.deviceConfig.index = d["index"].get<int>();
+        if (d.contains("subType") && d["subType"].is_number_integer())
+            st.deviceConfig.subType = d["subType"].get<int>();
+        if (d.contains("name") && d["name"].is_string())
+            st.deviceConfig.name = QString::fromStdString(d["name"].get<std::string>());
         if (d.contains("fd")) st.deviceConfig.fd = d["fd"].get<bool>();
         if (d.contains("fdBaudrate")) st.deviceConfig.fdBaudrate = d["fdBaudrate"].get<int>();
+        // Legacy: type "devKindN" when kind missing
+        if (st.deviceConfig.kind == 0 && st.deviceConfig.type.startsWith(QStringLiteral("devKind")))
+            st.deviceConfig.kind = st.deviceConfig.type.mid(7).toInt();
     }
 
-    // ---- source（v1/v2 兼容，始终读取）----
+    // ---- source (v1/v2; filePath overridden by resources.playback when set) ----
     if (j.contains("source")) {
         const auto &src = j["source"];
         if (src.contains("mode")) st.sourceMode = src["mode"].get<int>();
-        if (src.contains("filePath") && src["filePath"].is_string())
-            st.filePath = QString::fromStdString(src["filePath"].get<std::string>());
+        if (st.filePath.isEmpty() && src.contains("filePath") && src["filePath"].is_string()) {
+            const QString fp = QString::fromStdString(src["filePath"].get<std::string>());
+            // Prefer resolve when relative; absolute paths pass through
+            st.filePath = QFileInfo(fp).isAbsolute() ? fp : resolver.resolve(fp);
+        }
         if (src.contains("baudrate")) st.baudrate = src["baudrate"].get<int>();
         if (src.contains("channel")) st.channel = src["channel"].get<int>();
     }
@@ -341,6 +469,73 @@ ProjectState ProjectManager::jsonToState(const json &j,
                 st.recordFiles << QString::fromStdString(f.get<std::string>());
     }
 
+    // ---- Record UI config ----
+    if (j.contains("record") && j["record"].contains("config")
+        && j["record"]["config"].is_object()) {
+        for (auto it = j["record"]["config"].begin();
+             it != j["record"]["config"].end(); ++it) {
+            const QString key = QString::fromStdString(it.key());
+            const auto &v = it.value();
+            if (v.is_boolean())
+                st.recordConfig.insert(key, v.get<bool>());
+            else if (v.is_number_integer())
+                st.recordConfig.insert(key, static_cast<qint64>(v.get<long long>()));
+            else if (v.is_number_float())
+                st.recordConfig.insert(key, v.get<double>());
+            else if (v.is_string())
+                st.recordConfig.insert(key, QString::fromStdString(v.get<std::string>()));
+        }
+    }
+
+    // ---- Send entries ----
+    if (j.contains("send") && j["send"].contains("entries")
+        && j["send"]["entries"].is_array()) {
+        for (const auto &s : j["send"]["entries"]) {
+            QVariantMap e;
+            if (s.contains("enabled")) e.insert(QStringLiteral("enabled"), s["enabled"].get<bool>());
+            if (s.contains("id") && s["id"].is_string())
+                e.insert(QStringLiteral("id"),
+                         QString::fromStdString(s["id"].get<std::string>()));
+            if (s.contains("name") && s["name"].is_string())
+                e.insert(QStringLiteral("name"),
+                         QString::fromStdString(s["name"].get<std::string>()));
+            if (s.contains("dlc")) e.insert(QStringLiteral("dlc"), s["dlc"].get<int>());
+            if (s.contains("data") && s["data"].is_string())
+                e.insert(QStringLiteral("data"),
+                         QString::fromStdString(s["data"].get<std::string>()));
+            if (s.contains("period")) e.insert(QStringLiteral("period"), s["period"].get<int>());
+            if (s.contains("count")) e.insert(QStringLiteral("count"), s["count"].get<int>());
+            st.sendEntries.append(e);
+        }
+    }
+
+    // ---- Playback UI config ----
+    if (j.contains("playback") && j["playback"].contains("config")
+        && j["playback"]["config"].is_object()) {
+        const auto &cfg = j["playback"]["config"];
+        for (auto it = cfg.begin(); it != cfg.end(); ++it) {
+            const QString key = QString::fromStdString(it.key());
+            const auto &v = it.value();
+            if (key == QStringLiteral("files") && v.is_array()) {
+                QStringList files;
+                for (const auto &f : v)
+                    if (f.is_string())
+                        files << resolver.resolve(
+                            QString::fromStdString(f.get<std::string>()));
+                st.playbackConfig.insert(key, files);
+            } else if (v.is_boolean()) {
+                st.playbackConfig.insert(key, v.get<bool>());
+            } else if (v.is_number_integer()) {
+                st.playbackConfig.insert(key, static_cast<qint64>(v.get<long long>()));
+            } else if (v.is_number_float()) {
+                st.playbackConfig.insert(key, v.get<double>());
+            } else if (v.is_string()) {
+                st.playbackConfig.insert(key,
+                    QString::fromStdString(v.get<std::string>()));
+            }
+        }
+    }
+
     // ---- Trace 实例 ----
     if (j.contains("traces") && j["traces"].is_array()) {
         for (const auto &t : j["traces"]) {
@@ -354,6 +549,26 @@ ProjectState ProjectManager::jsonToState(const json &j,
                 ti.protocolId = QString::fromStdString(t["protocolId"].get<std::string>());
             if (t.contains("formId") && t["formId"].is_string())
                 ti.formId = QString::fromStdString(t["formId"].get<std::string>());
+            if (t.contains("colorRules") && t["colorRules"].is_array()) {
+                ti.hasColorRules = true;
+                for (const auto &r : t["colorRules"]) {
+                    QVariantMap rm;
+                    if (r.contains("expr") && r["expr"].is_string())
+                        rm.insert(QStringLiteral("expr"),
+                                  QString::fromStdString(r["expr"].get<std::string>()));
+                    if (r.contains("background") && r["background"].is_string())
+                        rm.insert(QStringLiteral("background"),
+                                  QString::fromStdString(r["background"].get<std::string>()));
+                    if (r.contains("foreground") && r["foreground"].is_string())
+                        rm.insert(QStringLiteral("foreground"),
+                                  QString::fromStdString(r["foreground"].get<std::string>()));
+                    if (r.contains("enabled"))
+                        rm.insert(QStringLiteral("enabled"), r["enabled"].get<bool>());
+                    else
+                        rm.insert(QStringLiteral("enabled"), true);
+                    ti.colorRules.append(rm);
+                }
+            }
             st.traces.append(ti);
         }
     }
@@ -376,6 +591,10 @@ ProjectState ProjectManager::jsonToState(const json &j,
                     if (s.contains("name") && s["name"].is_string())
                         sc.name = QString::fromStdString(s["name"].get<std::string>());
                     if (s.contains("extended")) sc.extended = s["extended"].get<bool>();
+                    if (s.contains("color") && s["color"].is_string())
+                        sc.color = QString::fromStdString(s["color"].get<std::string>());
+                    if (s.contains("displayMode") && s["displayMode"].is_number_integer())
+                        sc.displayMode = s["displayMode"].get<int>();
                     gi.sigList.append(sc);
                 }
             }
@@ -383,7 +602,38 @@ ProjectState ProjectManager::jsonToState(const json &j,
         }
     }
 
-    // ---- 标签页 ----
+    // ---- Watcher ----
+    if (j.contains("watchers") && j["watchers"].is_array()) {
+        for (const auto &w : j["watchers"]) {
+            ProjectWatcherEntry we;
+            if (w.contains("canId")) we.canId = w["canId"].get<quint32>();
+            if (w.contains("name") && w["name"].is_string())
+                we.name = QString::fromStdString(w["name"].get<std::string>());
+            if (w.contains("messageName") && w["messageName"].is_string())
+                we.messageName = QString::fromStdString(w["messageName"].get<std::string>());
+            if (w.contains("extended")) we.extended = w["extended"].get<bool>();
+            st.watchers.append(we);
+        }
+    }
+
+    // ---- Flow block enables ----
+    if (j.contains("flow") && j["flow"].contains("blockEnabled")
+        && j["flow"]["blockEnabled"].is_object()) {
+        for (auto it = j["flow"]["blockEnabled"].begin();
+             it != j["flow"]["blockEnabled"].end(); ++it) {
+            if (it.value().is_boolean())
+                st.flowBlockEnabled.insert(
+                    QString::fromStdString(it.key()), it.value().get<bool>());
+        }
+    }
+    if (j.contains("flow") && j["flow"].contains("filterRules")
+        && j["flow"]["filterRules"].is_array()) {
+        for (const auto &r : j["flow"]["filterRules"])
+            if (r.is_string())
+                st.flowFilterRules << QString::fromStdString(r.get<std::string>());
+    }
+
+    // ---- Tabs ----
     if (j.contains("tabs")) {
         const auto &tabs = j["tabs"];
         if (tabs.contains("open") && tabs["open"].is_array()) {

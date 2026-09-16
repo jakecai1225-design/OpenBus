@@ -5,6 +5,9 @@
 #include <QString>
 #include <QStringList>
 #include <QList>
+#include <QHash>
+#include <QVariantMap>
+#include <QVariantList>
 #include <nlohmann/json.hpp>
 #include "resourceresolver.h"
 
@@ -21,6 +24,9 @@ struct ProjectTraceInstance {
     QString id;
     QString title;
     QString filterExpression;
+    /// Color rules: list of {expr, background, foreground, enabled}
+    QVariantList colorRules;
+    bool hasColorRules = false;  ///< true if project JSON contained colorRules
     QString protocolId = QStringLiteral("can");     ///< 协议身份（M2 ProtocolRegistry 键）
     QString formId = QStringLiteral("framelist");   ///< 形态身份（TR1；后续 TraceFormRegistry 键）
 };
@@ -32,6 +38,8 @@ struct ProjectSigCfg {
     quint32 canId = 0;
     QString name;
     bool extended = false;
+    QString color;           // optional "#RRGGBB"
+    int displayMode = 1;     // GraphicView::DisplayMode (default Step)
 };
 
 /**
@@ -62,50 +70,73 @@ struct ProjectMeta {
 };
 
 /**
- * @brief 设备配置 — 结构化设备参数（v2 新增）
- *
- * channel / baudrate 仍保留在 ProjectState 顶层，此处仅存放新增字段。
+ * @brief Device config — structured device parameters (v2+)
  */
 struct ProjectDeviceConfig {
-    QString type;              // "USBCANFD_200U" 等
+    QString type;              // legacy string e.g. "devKind1"
+    int kind = 0;              // 0=simulator, 1=ZLG, 2=PEAK, ...
+    int index = 0;             // device ordinal
+    int subType = 0;           // vendor subtype (e.g. ZLG USBCANFD_200U)
+    QString name;              // display name
     bool fd = false;
     int fdBaudrate = 2000000;
 };
 
 /**
- * @brief 工程状态数据结构 — 描述一个工程的完整现场
+ * @brief Watcher variable entry (project snapshot)
+ */
+struct ProjectWatcherEntry {
+    quint32 canId = 0;
+    QString name;
+    QString messageName;
+    bool extended = false;
+};
+
+/**
+ * @brief Full project snapshot — restore desk so Start Measurement needs no re-setup
  *
- * v2 新增 meta / deviceConfig 字段，其余字段保持兼容。
- * 外部资源路径在运行时使用绝对路径；序列化时通过 ResourceResolver
- * 转为相对路径写入 JSON resources 节点。
+ * v2: meta / deviceConfig. v3: watchers, flow block enables, richer device identity,
+ * relativized playback path under resources.playback, record UI config, send entries.
  */
 struct ProjectState {
     QString name;
 
-    // 数据源
+    // Data source
     int sourceMode = 0;       // 0=Hardware, 1=File
-    QString filePath;          // 回放文件路径
+    QString filePath;          // playback / Flow file path
     int baudrate = 500000;
     int channel = 1;
 
     // DBC
     QStringList dbcFiles;
 
-    // Trace / Graphic 实例
+    // Trace / Graphic instances
     QList<ProjectTraceInstance> traces;
     QList<ProjectGraphicInstance> graphics;
 
-    // 录制文件
-    QStringList recordFiles;
+    // Watcher variables
+    QList<ProjectWatcherEntry> watchers;
 
-    // 离线分析文件（离线分析页加载的报文文件列表）
+    // Flow block enable map (blockId -> enabled); empty = defaults
+    QHash<QString, bool> flowBlockEnabled;
+    // Filter block rule summaries (human-readable titles on the canvas)
+    QStringList flowFilterRules;
+
+    // Record / offline analysis files
+    QStringList recordFiles;
     QStringList offlineFiles;
 
-    // 打开的标签页顺序
+    // Record tab UI settings (directory/prefix/split/filter/trigger)
+    QVariantMap recordConfig;
+    // Signal-send table rows (enabled/id/name/dlc/data/period/count)
+    QVariantList sendEntries;
+    // Playback tab UI (speed/loop/files/channel/filter)
+    QVariantMap playbackConfig;
+
+    // Open tab order
     QStringList openTabs;
     QString activeTab;
 
-    // ---- v2 新增字段 ----
     ProjectMeta meta;
     ProjectDeviceConfig deviceConfig;
 };

@@ -42,20 +42,53 @@ private:
 };
 
 // ============================================================
-//  工程上下文数据
+//  VS Code–style collapsible explorer section (twistie + body)
+// ============================================================
+class ExplorerSection : public QWidget
+{
+    Q_OBJECT
+public:
+    explicit ExplorerSection(const QString &title, QWidget *parent = nullptr);
+
+    void setTitle(const QString &title);
+    QString title() const;
+    QVBoxLayout *bodyLayout() const { return m_bodyLayout; }
+    QWidget *bodyWidget() const { return m_body; }
+
+    bool isExpanded() const { return m_expanded; }
+    void setExpanded(bool expanded);
+    void refreshTheme();
+    /// Trailing green status dot (plain title + green ● only)
+    void setStatusDotVisible(bool on);
+
+public slots:
+    void toggle();
+
+private:
+    void updateHeaderChrome();
+
+    QToolButton *m_header = nullptr;
+    QLabel *m_statusDot = nullptr;
+    QWidget *m_body = nullptr;
+    QVBoxLayout *m_bodyLayout = nullptr;
+    bool m_expanded = true;
+};
+
+// ============================================================
+//  Project context
 // ============================================================
 struct ProjectContext
 {
     QString name;
-    QString filePath;     ///< 工程文件路径
+    QString filePath;     ///< project file path
     QStringList dbcFiles;
     QStringList recordFiles;
     QString layoutConfig;
-    QString stateJson;    ///< 工程状态 JSON 快照（未保存到文件时用于切换恢复）
+    QString stateJson;    ///< state snapshot when unsaved
 };
 
 // ============================================================
-//  工程面板 — 项目列表入口
+//  Project panel — explorer sections: active project + recent
 // ============================================================
 class ProjectPanel : public SidePanel
 {
@@ -66,14 +99,16 @@ public:
     const QList<ProjectContext> &projects() const { return m_projects; }
     QList<ProjectContext> &projectsRef() { return m_projects; }
     int currentIndex() const { return m_currentIndex; }
-    void refreshList();  ///< 刷新工程列表 UI
+    void refreshList();  ///< refresh project tree UI
+    /// Activate / insert project by path and sync display name (Recent / Open)
+    void activateProject(const QString &filePath, const QString &name = QString());
 
 signals:
     void projectSwitched(int index);
     void projectCreated(const QString &name);
     void openProjectRequested(const QString &filePath);
     void saveProjectRequested(const QString &filePath);
-    void filePreviewRequested(const QString &filePath);  ///< 请求打开文件预览标签页
+    void filePreviewRequested(const QString &filePath);
 
 private slots:
     void onNewProject();
@@ -81,16 +116,22 @@ private slots:
     void onDeleteProject();
     void onProjectItemClicked(QTreeWidgetItem *item, int column);
     void onProjectItemDoubleClicked(QTreeWidgetItem *item, int column);
+    void onProjectTreeContextMenu(const QPoint &pos);
+    void onRecentListContextMenu(const QPoint &pos);
     void onOpenProject();
     void onOpenRecent();
 
 private:
-    QTreeWidget *m_projectTree;
+    ExplorerSection *m_projectSection = nullptr;
+    ExplorerSection *m_recentSection = nullptr;
+    QTreeWidget *m_projectTree = nullptr;
     QListWidget *m_recentList = nullptr;
     QList<ProjectContext> m_projects;
     int m_currentIndex = -1;
     void refreshRecentList();
-    /// 从 stateJson 解析关键文件信息列表
+    void updateProjectSectionTitle();
+    static void revealInFileManager(const QString &path);
+    QString pathForTreeItem(QTreeWidgetItem *item) const;
     QStringList extractDbcFiles(const QString &stateJson) const;
     QStringList extractRecordFiles(const QString &stateJson) const;
     QStringList extractOfflineFiles(const QString &stateJson) const;

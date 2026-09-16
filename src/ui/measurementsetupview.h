@@ -5,6 +5,7 @@
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QMap>
+#include <QHash>
 #include <QSet>
 #include <QString>
 #include <QList>
@@ -58,11 +59,15 @@ public:
     /// 清除所有 Trace/Graphic 实例块（切换工程时调用）
     void clearTraceGraphicInstances();
 
-    /// 查询模块块的使能状态（默认 true）
+    /// Query module block enable (default true if unknown)
     bool isBlockEnabled(const QString &blockId) const;
+    /// All blockId → enabled (for project snapshot)
+    QHash<QString, bool> blockEnabledMap() const;
+    /// Set block enable (source real/file excluded; emits moduleToggled)
+    void setBlockEnabled(const QString &id, bool enabled);
 
-    /// 标记/清除块运行异常（异常块红灯闪烁；恢复后熄灭。
-    /// 数据源块（source_real）与功能块通用）
+    /// Mark/clear block runtime error (error blinks red; clears when recovered.
+    /// Applies to source_real and function blocks)
     void setBlockError(const QString &blockId, bool on);
 
 public slots:
@@ -102,6 +107,9 @@ public slots:
     void showDbcSelectDialog();
     /// Filter 块当前规则摘要列表（块内实例行标题）
     QStringList filterRules() const;
+    void clearFilterRules();
+    /// Replace filter rule titles on the Filter block (project restore).
+    void setFilterRules(const QStringList &rules);
 
 private:
     // ---- UI ----
@@ -185,8 +193,6 @@ private:
     void updateConnections();
     BlockItem *blockAt(const QPointF &scenePos);
     void toggleBlock(const QString &id);
-    /// 设置块使能状态（数据源块除外；变化时发 moduleToggled）
-    void setBlockEnabled(const QString &id, bool enabled);
     /// 块配置统一入口（已启用块单击/双击/右键「配置」共用）
     void openBlockConfig(const QString &blockId);
 
@@ -216,8 +222,6 @@ private:
     QMenu *m_rightMenu = nullptr;
     void buildContextMenu(BlockItem *block, const QPointF &scenePos);
     void buildEmptyAreaMenu(const QPointF &scenePos);
-    /// 清空 Filter 块全部过滤规则
-    void clearFilterRules();
 };
 
 #endif // MEASUREMENTSETUPVIEW_H

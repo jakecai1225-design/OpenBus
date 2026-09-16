@@ -122,12 +122,15 @@ public:
      *                "setFileInfo"（arg = QVariantList {name, total, totalTime}）
      *                "setProgress"（arg = QVariantList {cur, total, curTime, totalTime}）
      *                "setPlayerLoaded"（arg = QVariantList {loaded, playing}）
+     *                "loadRecordConfig" / "loadSendEntries" / "loadPlaybackConfig"
+     *                "addOfflineFiles"
      *  - trace（B5）: "onFrame"(CanFrame) / "setAutoScroll"(bool)
      *                / "setRunning"(QVariantList{id, bool}) / "setRunningAll"(bool)
      *                / "clearTraceAll" / "clearAll"
      *                / "appendFrames"(QVariantList{QWidget* target, QVariantList frames})
      *                / "setFilterExpression"(QVariantList{QWidget*, expr, report})
      *                / "jumpToFrame"(QVariantList{QWidget*, int}) / "editColorRules"
+     *                / "setColorRules"(QVariantList{QWidget*, QVariantList rules})
      *  - graphic（B5）: "onFrame"(CanFrame) / "setFlowEnabled"(QVariantList{QWidget*, bool})
      *                / "clearDataAll"
      *                / "addSignal"(QVariantList{QWidget*, sigMap}) — sigMap 字段：
@@ -183,9 +186,13 @@ public:
      *
      * 已约定查询：
      *  - transceive: "offlineFiles"（离线分析页文件列表 → QStringList）
+     *                / "recordConfig"（录制页 UI → QVariantMap）
+     *                / "sendEntries"（发送页列表 → QVariantList）
+     *                / "playbackConfig"（回放页 UI → QVariantMap）
      *  - trace: "isTrace"(QWidget*→bool) / "instance"(id→QWidget*)
      *           / "filterExpression"(id→QString) / "frameCount"(QWidget*→int)
      *           / "activeInstance"(→QWidget* 首个存活实例)
+     *           / "colorRules"(id|QWidget*→QVariantList)
      *  - graphic: "isGraphic"(QWidget*→bool) / "instance"(id→QWidget*)
      *             / "lastInstance"(→QWidget*) / "signalConfigs"(QWidget*→
      *             QVariantList{name, canId, extended, displayMode, dbcSig, color})

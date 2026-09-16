@@ -221,6 +221,38 @@ void WatcherView::onClearVariables()
     m_latestFrames.clear();
 }
 
+void WatcherView::loadWatchEntries(const QVector<WatchEntry> &entries)
+{
+    m_entries.clear();
+    m_watchTable->setRowCount(0);
+    m_latestFrames.clear();
+
+    for (const auto &src : entries) {
+        WatchEntry entry = src;
+        entry.hasValue = false;
+        entry.minValue = 0.0;
+        entry.maxValue = 0.0;
+        entry.currentValue = 0.0;
+        // Prefer live DBC definition when available
+        if (m_dbc) {
+            const DbcMessage *msg = m_dbc->findMessage(entry.canId);
+            if (msg) {
+                if (const DbcSignal *ds = msg->findSignal(entry.name))
+                    entry.sig = *ds;
+                if (entry.messageName.isEmpty())
+                    entry.messageName = msg->name;
+            }
+        }
+        m_entries.append(entry);
+        const int row = m_watchTable->rowCount();
+        m_watchTable->insertRow(row);
+        m_watchTable->setItem(row, 0, new QTableWidgetItem(entry.name));
+        for (int c = 1; c < 7; ++c)
+            m_watchTable->setItem(row, c, new QTableWidgetItem(QStringLiteral("—")));
+    }
+    refreshWatchTable();
+}
+
 void WatcherView::onResetStats()
 {
     if (m_stats)

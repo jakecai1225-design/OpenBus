@@ -115,6 +115,18 @@ void TransceiveModule::invoke(const QString &action, const QVariant &arg)
         if (QWidget *w = m_pages.value(QStringLiteral("offlineanalysis")))
             if (auto *tab = qobject_cast<OfflineAnalysisTab *>(w))
                 tab->addFiles(arg.toStringList());
+    } else if (action == QStringLiteral("loadRecordConfig")) {
+        if (QWidget *w = m_pages.value(QStringLiteral("record")))
+            if (auto *tab = qobject_cast<RecordTab *>(w))
+                tab->loadConfig(arg.toMap());
+    } else if (action == QStringLiteral("loadSendEntries")) {
+        if (QWidget *w = m_pages.value(QStringLiteral("signalsend")))
+            if (auto *tab = qobject_cast<SignalSendTab *>(w))
+                tab->loadEntries(arg.toList());
+    } else if (action == QStringLiteral("loadPlaybackConfig")) {
+        if (QWidget *w = m_pages.value(QStringLiteral("playback")))
+            if (auto *tab = qobject_cast<PlaybackTab *>(w))
+                tab->loadConfig(arg.toMap());
     }
 }
 
@@ -124,6 +136,18 @@ QVariant TransceiveModule::query(const QString &what, const QVariant &)
         if (QWidget *w = m_pages.value(QStringLiteral("offlineanalysis")))
             if (auto *tab = qobject_cast<OfflineAnalysisTab *>(w))
                 return tab->filePaths();
+    } else if (what == QStringLiteral("recordConfig")) {
+        if (QWidget *w = m_pages.value(QStringLiteral("record")))
+            if (auto *tab = qobject_cast<RecordTab *>(w))
+                return tab->configMap();
+    } else if (what == QStringLiteral("sendEntries")) {
+        if (QWidget *w = m_pages.value(QStringLiteral("signalsend")))
+            if (auto *tab = qobject_cast<SignalSendTab *>(w))
+                return tab->exportEntries();
+    } else if (what == QStringLiteral("playbackConfig")) {
+        if (QWidget *w = m_pages.value(QStringLiteral("playback")))
+            if (auto *tab = qobject_cast<PlaybackTab *>(w))
+                return tab->configMap();
     }
     return {};
 }

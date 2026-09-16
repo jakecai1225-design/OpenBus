@@ -409,16 +409,17 @@ QComboBox QAbstractItemView {
     selection-color: #000000;
 }
 
-/* ---- 状态栏 ---- */
+/* ---- Status bar (match workbench bar colors) ---- */
 QStatusBar {
-    background-color: #0066b8;
-    color: #ffffff;
-    border-top: 1px solid #005a9e;
+    background-color: #f3f3f3;
+    color: #3b3b3b;
+    border-top: 1px solid #e5e5e5;
     font-size: 11px;
 }
 
 QStatusBar QLabel {
     padding: 1px 8px;
+    color: #3b3b3b;
 }
 
 /* ---- 复选框 ---- */
@@ -460,6 +461,28 @@ QGroupBox::title {
     padding: 4px 8px;
     color: #6c6c6c;
     font-size: 11px;
+}
+
+/* VS Code explorer section header (twistie + title) */
+#ExplorerSectionHeader {
+    background-color: transparent;
+    color: #6c6c6c;
+    border: none;
+    border-radius: 0;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: left;
+}
+#ExplorerSectionHeader:hover {
+    background-color: #e8e8e8;
+    color: #3b3b3b;
+}
+
+#ExplorerRecentList {
+    border: none;
+    background: transparent;
+    outline: none;
 }
 
 #SidePanelButton {

@@ -51,8 +51,8 @@ void ThemeManager::initThemes()
     light.buttonPress = "#cccccc";
     light.buttonDisabledBg = "#f0f0f0";
     light.buttonDisabledText = "#b0b0b0";
-    light.statusBg = "#005fb8";
-    light.statusFg = "#ffffff";
+    light.statusBg = "#f3f3f3";
+    light.statusFg = "#3b3b3b";
     // Match workbench (no dark terminal island in light UI)
     light.terminalBg = "#ffffff";
     light.terminalFg = "#3b3b3b";
@@ -165,9 +165,11 @@ static QString writeTreeIcons(const Theme &t)
         "<svg width='12' height='22' xmlns='http://www.w3.org/2000/svg'>"
         "<path d='M3.5 9 L6 12.5 L8.5 9' fill='none' stroke='%1' stroke-width='1.3' "
         "stroke-linecap='round' stroke-linejoin='round'/></svg>").arg(t.textDim);
+    // Thin gray indent guide (VS Code explorer) — 1px centered, muted
     const QString indentGuide = QStringLiteral(
         "<svg width='12' height='22' xmlns='http://www.w3.org/2000/svg'>"
-        "<rect x='5.5' y='0' width='1' height='22' fill='%1' fill-opacity='0.35'/></svg>").arg(t.border);
+        "<rect x='5.5' y='0' width='1' height='22' fill='%1' fill-opacity='0.45'/>"
+        "</svg>").arg(t.textDim);
     const auto smallChevron = [](const char *d, const QString &color) {
         return QStringLiteral(
             "<svg width='10' height='10' xmlns='http://www.w3.org/2000/svg'>"

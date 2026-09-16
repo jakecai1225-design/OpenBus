@@ -573,23 +573,17 @@ void GraphicView::setupUi()
     m_splitter->setStretchFactor(1, 1);
     m_splitter->setSizes({300, 700});
 
-    // ---- 卡尺信息面板（底部，可隐藏） ----
+    // ---- Cursor info (bottom; rulers only) ----
     m_cursorInfoLabel = new QLabel(this);
     m_cursorInfoLabel->setObjectName("CursorInfoLabel");
     m_cursorInfoLabel->setStyleSheet(infoLabelQss());
     m_cursorInfoLabel->setVisible(false);
 
-    // ---- 底部状态栏 ----
-    m_statusLabel = new QLabel(this);
-    m_statusLabel->setStyleSheet(
-        QString("QLabel { padding: 3px 8px; background: %1; color: %2; "
-                "border-top: 1px solid %3; font-family: Consolas, monospace; font-size: 11px; }")
-            .arg(th.statusBg, th.statusFg, th.border));
-    m_statusLabel->setText("就绪 — 请添加信号或拖入文件");
+    // Local status strip removed — summary goes to the shell status bar.
+    m_statusLabel = nullptr;
 
     mainLayout->addWidget(m_splitter, 1);
     mainLayout->addWidget(m_cursorInfoLabel);
-    mainLayout->addWidget(m_statusLabel);
 
     // ---- G15 P3/P4: 信号列表列配置（右键菜单）----
     connect(m_signalTree->header(), &QHeaderView::customContextMenuRequested,
@@ -1569,10 +1563,7 @@ void GraphicView::applyPalette()
     updateToolbarIcons();
     m_signalTree->setStyleSheet(treeQss());
     m_cursorInfoLabel->setStyleSheet(infoLabelQss());
-    m_statusLabel->setStyleSheet(QString(
-        "QLabel { padding: 3px 8px; background: %1; color: %2; "
-        "border-top: 1px solid %3; font-family: Consolas, monospace; font-size: 11px; }")
-        .arg(th.statusBg, th.statusFg, th.border));
+    // Local status strip removed — summary goes to shell status bar.
 
     // 全部轨道 + 叠加轨道重新着色（重置 X 刻度开关后由 layoutAxisRects 恢复）
     for (auto &sd : m_signals) {
@@ -3258,25 +3249,7 @@ void GraphicView::updateCursorValues()
         if (freq > 0)
             info += QString("  f ≈ %1 Hz").arg(freq, 0, 'f', 2);
 
-        for (int i = 0; i < m_signals.size(); ++i) {
-            double v1 = 0.0, v2 = 0.0;
-            bool ok1 = false, ok2 = false;
-            auto &sd = m_signals[i];
-            if (sd.storeSubscribed) {
-                ok1 = SampleStore::instance()->valueAtTime(sd.storeKey, m_cursor1Time, &v1);
-                ok2 = SampleStore::instance()->valueAtTime(sd.storeKey, m_cursor2Time, &v2);
-            }
-            if (!ok1 && !sd.rawData.empty())
-                ok1 = valueAtTime(sd.rawData, m_cursor1Time, v1);
-            if (!ok2 && !sd.rawData.empty())
-                ok2 = valueAtTime(sd.rawData, m_cursor2Time, v2);
-            if (ok1 && ok2) {
-                info += QString("  Δ%1 = %2")
-                    .arg(sd.config.name)
-                    .arg(v2 - v1, 0, 'f', 3);
-            }
-        }
-
+        // Ruler metrics only — per-signal Δ lives in the signal list columns.
         m_cursorInfoLabel->setText(info);
     }
 }
@@ -3754,7 +3727,10 @@ void GraphicView::updateStatusBar()
     if (m_paused)
         parts << QStringLiteral("[Paused]");
 
-    m_statusLabel->setText(parts.join(QStringLiteral("  |  ")));
+    const QString text = parts.join(QStringLiteral("  |  "));
+    if (m_statusLabel)
+        m_statusLabel->setText(text);
+    emit statusInfoChanged(text);
 }
 
 // ============================================================

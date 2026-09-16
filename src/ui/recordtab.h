@@ -2,6 +2,7 @@
 #define RECORDTAB_H
 
 #include <QWidget>
+#include <QVariantMap>
 
 class QPushButton;
 class QLineEdit;
@@ -31,6 +32,10 @@ public:
     QString directory() const { return m_dirEdit->text(); }
     QString prefix() const { return m_prefixEdit->text(); }
     QString format() const { return m_formatCombo->currentData().toString(); }
+
+    /// Full UI config for project save/restore
+    QVariantMap configMap() const;
+    void loadConfig(const QVariantMap &map);
 
 signals:
     void recordToggled(bool on);

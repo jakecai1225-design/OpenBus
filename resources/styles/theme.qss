@@ -43,6 +43,14 @@ SidePanel { background-color: @sidebarBg; }
 #SidePanelSubTitle { font-weight: 600; padding: 6px 12px; color: @textDim; font-size: 12px; }
 #SidePanelButton { text-align: left; padding: 8px 12px; font-size: 13px; }
 
+#ExplorerSectionHeader {
+    background-color: transparent; color: @textDim;
+    border: none; border-radius: 0;
+    padding: 4px 8px; font-size: 11px; font-weight: 700; text-align: left;
+}
+#ExplorerSectionHeader:hover { background-color: @hoverBg; color: @text; }
+#ExplorerRecentList { border: none; background: transparent; outline: none; }
+
 /* 侧栏底部动作按钮（VS Code 风格：扁平无框，悬停高亮；如设备面板「扫描设备」） */
 #SidePanelFooterButton {
     background-color: transparent; color: @text;
@@ -99,22 +107,41 @@ QTreeWidget::item:alternate, QTreeView::item:alternate { background-color: @altR
 
 #ExplorerTree::item, #ContentTree::item, #ProjectTree::item {
     padding: 1px 6px 1px 4px; min-height: 22px; border: none; border-radius: 0;
-    border-left: 2px solid transparent;
 }
 #ExplorerTree::item:hover, #ContentTree::item:hover, #ProjectTree::item:hover {
     background-color: @hoverBg;
 }
 #ExplorerTree::item:selected, #ContentTree::item:selected, #ProjectTree::item:selected {
+    /* Soft row highlight only — no accent left bar (that painted thick blue
+       guides into the branch column with show-decoration-selected). */
     background-color: @selectionBg; color: @text;
-    border-left: 2px solid @accent;
+    border: none;
 }
 #ExplorerTree::item:alternate, #ContentTree::item:alternate, #ProjectTree::item:alternate {
     background-color: transparent;
 }
 
-/* Branch: indent guides first, chevrons override (ThemeManager injects URLs) */
-QTreeWidget::branch, QTreeView::branch { background: transparent; }
-QTreeWidget::branch:has-siblings, QTreeView::branch:has-siblings { image: url("@treeGuide"); }
+/* Branch: thin gray indent guides (VS Code); chevrons override on expanders */
+QTreeWidget::branch, QTreeView::branch {
+    background: transparent;
+    border: none;
+}
+QTreeWidget::branch:selected, QTreeView::branch:selected,
+QTreeWidget::branch:hover, QTreeView::branch:hover {
+    background: transparent;
+    border: none;
+}
+QTreeWidget::branch:has-siblings, QTreeView::branch:has-siblings {
+    image: url("@treeGuide");
+    border: none;
+}
+QTreeWidget::branch:has-siblings:adjoins-item, QTreeView::branch:has-siblings:adjoins-item {
+    image: url("@treeGuide");
+}
+QTreeWidget::branch:!has-children:!has-siblings:adjoins-item,
+QTreeView::branch:!has-children:!has-siblings:adjoins-item {
+    image: url("@treeGuide");
+}
 QTreeWidget::branch:has-children:closed, QTreeView::branch:has-children:closed {
     image: url("@treeChevronRight");
 }

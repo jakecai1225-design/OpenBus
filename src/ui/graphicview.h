@@ -154,8 +154,11 @@ signals:
     /// 文件拖放后加载完成
     void fileLoaded(int frameCount);
 
-    /// 卡尺被移动（which: 1/2），用于多视图游标联动
+    /// Cursor moved (which: 1/2) — multi-view cursor link
     void cursorMoved(int which, double time);
+
+    /// Compact status line for the shell status bar (Signals / Samples / …)
+    void statusInfoChanged(const QString &text);
 
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override;

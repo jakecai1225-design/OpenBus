@@ -1002,8 +1002,16 @@ bool MeasurementSetupView::isBlockEnabled(const QString &blockId) const
 {
     auto it = m_blocks.find(blockId);
     if (it == m_blocks.end())
-        return true;  // 不存在则默认启用
+        return true;  // missing → enabled by default
     return it->enabled;
+}
+
+QHash<QString, bool> MeasurementSetupView::blockEnabledMap() const
+{
+    QHash<QString, bool> out;
+    for (auto it = m_blocks.constBegin(); it != m_blocks.constEnd(); ++it)
+        out.insert(it.key(), it->enabled);
+    return out;
 }
 
 void MeasurementSetupView::removeModuleBlock(const QString &blockId)

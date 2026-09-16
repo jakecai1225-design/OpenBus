@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QQueue>
 #include <QTimer>
+#include <QVariantMap>
 
 class QPushButton;
 class QSlider;
@@ -37,6 +38,10 @@ public:
     void setProgress(int cur, int total, double curTime, double totalTime);
     void setFileInfo(const QString &fileName, int frames, double duration);
 
+    /// Full UI config for project save/restore
+    QVariantMap configMap() const;
+    void loadConfig(const QVariantMap &map);
+
 signals:
     void playRequested();
     void pauseRequested();
@@ -61,6 +66,7 @@ private slots:
 private:
     void parseFileInfo(int row);
     void renumberRows();
+    void addFilePath(const QString &path);
 
     // 回放控制
     QPushButton *m_playBtn;

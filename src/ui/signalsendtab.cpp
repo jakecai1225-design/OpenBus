@@ -22,6 +22,8 @@
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QRegularExpression>
+#include <QVariantList>
+#include <QVariantMap>
 
 // ============================================================
 //  Static helpers
@@ -773,4 +775,87 @@ void SignalSendTab::onRowMoveDown(int row)
     if (row >= m_sendTable->rowCount() - 1)
         return;
     onRowMoveUp(row + 1);
+}
+
+QVariantList SignalSendTab::exportEntries() const
+{
+    QVariantList list;
+    list.reserve(m_sendTable->rowCount());
+    for (int i = 0; i < m_sendTable->rowCount(); ++i) {
+        QVariantMap e;
+        const auto *checkItem = m_sendTable->item(i, 0);
+        e.insert(QStringLiteral("enabled"),
+                 checkItem && checkItem->checkState() == Qt::Checked);
+        const auto *idItem = m_sendTable->item(i, 2);
+        e.insert(QStringLiteral("id"), idItem ? idItem->text() : QString());
+        const auto *nameItem = m_sendTable->item(i, 3);
+        e.insert(QStringLiteral("name"), nameItem ? nameItem->text() : QString());
+        const auto *dlcItem = m_sendTable->item(i, 4);
+        e.insert(QStringLiteral("dlc"), dlcItem ? dlcItem->text().toInt() : 0);
+        const auto *dataItem = m_sendTable->item(i, 5);
+        e.insert(QStringLiteral("data"), dataItem ? dataItem->text() : QString());
+        const auto *periodItem = m_sendTable->item(i, 6);
+        e.insert(QStringLiteral("period"), periodItem ? periodItem->text().toInt() : 0);
+        const auto *countItem = m_sendTable->item(i, 7);
+        QString countStr = countItem ? countItem->text() : QStringLiteral("∞");
+        int count = (countStr == QStringLiteral("∞") || countStr.isEmpty())
+                        ? 0
+                        : countStr.toInt();
+        e.insert(QStringLiteral("count"), count);
+        list.append(e);
+    }
+    return list;
+}
+
+void SignalSendTab::loadEntries(const QVariantList &entries)
+{
+    m_sendTable->setRowCount(0);
+    m_selectedRow = -1;
+    for (const auto &v : entries) {
+        const QVariantMap e = v.toMap();
+        if (e.isEmpty())
+            continue;
+
+        QString idStr = e.value(QStringLiteral("id")).toString().trimmed();
+        quint32 id = 0;
+        if (idStr.startsWith(QStringLiteral("0x"), Qt::CaseInsensitive))
+            id = idStr.mid(2).toUInt(nullptr, 16);
+        else
+            id = idStr.toUInt(nullptr, 16);
+        if (id == 0 && !idStr.isEmpty())
+            id = idStr.toUInt();
+
+        QString name = e.value(QStringLiteral("name")).toString();
+        if (name.isEmpty() && m_dbcManager && id != 0) {
+            if (const auto *msg = m_dbcManager->findMessage(id))
+                name = msg->name;
+        }
+
+        const int dlc = e.value(QStringLiteral("dlc")).toInt();
+        const QString dataHex = e.value(QStringLiteral("data")).toString();
+        const int period = e.value(QStringLiteral("period")).toInt();
+        const int count = e.value(QStringLiteral("count")).toInt();
+        const bool enabled = e.value(QStringLiteral("enabled"), true).toBool();
+
+        const int row = m_sendTable->rowCount();
+        m_sendTable->insertRow(row);
+
+        auto *checkItem = new QTableWidgetItem;
+        checkItem->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled);
+        checkItem->setCheckState(enabled ? Qt::Checked : Qt::Unchecked);
+        m_sendTable->setItem(row, 0, checkItem);
+        m_sendTable->setItem(row, 1, new QTableWidgetItem(QString::number(row + 1)));
+        m_sendTable->setItem(row, 2, new QTableWidgetItem(formatIdHex(id)));
+        m_sendTable->setItem(row, 3, new QTableWidgetItem(name));
+        m_sendTable->setItem(row, 4, new QTableWidgetItem(QString::number(dlc)));
+        m_sendTable->setItem(row, 5, new QTableWidgetItem(dataHex));
+        m_sendTable->setItem(row, 6, new QTableWidgetItem(QString::number(period)));
+        m_sendTable->setItem(row, 7,
+                             new QTableWidgetItem(count == 0 ? QStringLiteral("∞")
+                                                             : QString::number(count)));
+        m_sendTable->setItem(row, 8, new QTableWidgetItem(QStringLiteral("就绪")));
+        m_sendTable->setCellWidget(row, 9, createOpWidget());
+    }
+    if (m_sendTable->rowCount() > 0)
+        m_sendTable->selectRow(0);
 }

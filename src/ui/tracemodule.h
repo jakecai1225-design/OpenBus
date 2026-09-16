@@ -42,7 +42,8 @@ public:
      *                "clearTraceAll", "clearAll",
      *                "appendFrames"(QVariantList{QWidget* target, QVariantList frames}),
      *                "setFilterExpression"(QVariantList{QWidget*, expr, report}),
-     *                "jumpToFrame"(QVariantList{QWidget*, int}), "editColorRules"
+     *                "jumpToFrame"(QVariantList{QWidget*, int}), "editColorRules",
+     *                "setColorRules"(QVariantList{QWidget*, QVariantList rules})
      * @param arg: can vary per action
      */
     void invoke(const QString &action, const QVariant &arg) override;
@@ -53,7 +54,7 @@ public:
      *              "filterExpression"(id→QString), "frameCount"(QWidget*→int),
      *              "selectedFrames"(QWidget*→QVariantList<CanFrame>),
      *              "recentFrames"([QWidget*,count]→QVariantList<CanFrame>),
-     *              "colorRules"(QVariantList of maps)
+     *              "colorRules"(id|QWidget*→QVariantList of maps)
      */
     QVariant query(const QString &what, const QVariant &arg) override;
 

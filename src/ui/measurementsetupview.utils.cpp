@@ -116,3 +116,11 @@ bool MeasurementSetupView::isBlockEnabled(const QString &blockId) const
         return true;  // Non-existent blocks default to enabled
     return it->enabled;
 }
+
+QHash<QString, bool> MeasurementSetupView::blockEnabledMap() const
+{
+    QHash<QString, bool> out;
+    for (auto it = m_blocks.constBegin(); it != m_blocks.constEnd(); ++it)
+        out.insert(it.key(), it->enabled);
+    return out;
+}

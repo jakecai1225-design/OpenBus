@@ -51,6 +51,11 @@ public:
     explicit WatcherView(DbcManager *dbc, BusStatistics *stats,
                          QWidget *parent = nullptr);
 
+    /// Project snapshot: identity of watched variables (no live values).
+    QVector<WatchEntry> watchEntries() const { return m_entries; }
+    /// Replace watch list (rehydrates DbcSignal from DBC when possible).
+    void loadWatchEntries(const QVector<WatchEntry> &entries);
+
 public slots:
     /// Latest-frame cache (shell onFrameReceived; same pattern as IOGraph).
     void onFrame(const CanFrame &frame);

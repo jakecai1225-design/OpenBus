@@ -10,6 +10,7 @@
 #include "core/canframe.h"
 
 #include <QAbstractItemView>
+#include <QColor>
 #include <QDebug>
 #include <QFileDialog>
 #include <QLineEdit>
@@ -320,6 +321,27 @@ void TraceModule::invoke(const QString &action, const QVariant &arg)
                 }
             }
         }
+    } else if (action == QStringLiteral("setColorRules")) {
+        // Project restore: QVariantList{QWidget* tab, QVariantList rules}
+        if (arg.canConvert(QVariant::List)) {
+            const auto l = arg.toList();
+            if (l.size() >= 2) {
+                auto *tab = qobject_cast<TraceTab *>(l[0].value<QWidget *>());
+                if (tab && tab->traceModel()) {
+                    QVector<CanTraceModel::ColorRule> modelRules;
+                    for (const auto &rv : l[1].toList()) {
+                        const QVariantMap m = rv.toMap();
+                        CanTraceModel::ColorRule mr;
+                        mr.expr = m.value(QStringLiteral("expr")).toString();
+                        mr.background = QColor(m.value(QStringLiteral("background")).toString());
+                        mr.foreground = QColor(m.value(QStringLiteral("foreground")).toString());
+                        mr.enabled = m.value(QStringLiteral("enabled"), true).toBool();
+                        modelRules.append(mr);
+                    }
+                    tab->traceModel()->setColorRules(modelRules);
+                }
+            }
+        }
     }
 }
 
@@ -388,16 +410,18 @@ QVariant TraceModule::query(const QString &what, const QVariant &arg)
             return out;
         }
     } else if (what == QStringLiteral("colorRules")) {
-        // Return current color rules from any instance (or all?) as QVariantList of maps
-        auto tab = qobject_cast<TraceTab*>(arg.value<QWidget*>());
+        // Arg: QWidget* tab OR instance id (QString)
+        TraceTab *tab = qobject_cast<TraceTab *>(arg.value<QWidget *>());
+        if (!tab)
+            tab = m_instances.value(arg.toString());
         if (tab && tab->traceModel()) {
             QVariantList rules;
             for (const auto &r : tab->traceModel()->colorRules()) {
                 QVariantMap m;
-                m["expr"] = r.expr;
-                m["background"] = r.background.name();
-                m["foreground"] = r.foreground.name();
-                m["enabled"] = r.enabled;
+                m.insert(QStringLiteral("expr"), r.expr);
+                m.insert(QStringLiteral("background"), r.background.name());
+                m.insert(QStringLiteral("foreground"), r.foreground.name());
+                m.insert(QStringLiteral("enabled"), r.enabled);
                 rules.append(m);
             }
             return rules;

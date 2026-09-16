@@ -6,6 +6,7 @@
 #include "core/player.h"
 #include "core/samplestore.h"
 #include "core/capturelog.h"
+#include "core/signalrelay.h"
 
 #include <QFileIconProvider>
 #include <QFileDialog>
@@ -60,9 +61,20 @@ QWidget *GraphicModule::createPage(const QString &pageId, const QVariant &param,
         }
         m_viewList.append(gv);
 
+        // Forward Graphic status line to shell status bar (visible views only).
+        if (ctx.shellInvoke) {
+            auto *relay = new SignalRelay(gv);
+            auto shellInvoke = ctx.shellInvoke;
+            relay->fnString = [gv, shellInvoke](const QString &text) {
+                if (gv->isVisible())
+                    shellInvoke(QStringLiteral("statusMessage"), text);
+            };
+            QObject::connect(gv, SIGNAL(statusInfoChanged(QString)),
+                             relay, SLOT(fireQString(QString)));
+        }
+
         // Cursor linkage: bidirectional sync with all existing views
-        // (UniqueConnection 去重；首个视图无对端、第二个起逐对互连；
-        //  模块非 QObject，接收端为对端 GraphicView 本身)
+        // (UniqueConnection dedupes; first view has no peer)
         for (const auto &otherPtr : qAsConst(m_viewList)) {
             GraphicView *other = otherPtr.data();
             if (!other || other == gv)
@@ -229,6 +241,11 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
                                 gs.canId = smap.value("canId").toUInt();
                                 gs.extended = smap.value("extended").toBool();
                                 gs.displayMode = smap.value("displayMode", 1).toInt();
+                                if (smap.contains(QStringLiteral("color"))) {
+                                    const QColor c(smap.value(QStringLiteral("color")).toString());
+                                    if (c.isValid())
+                                        gs.color = c;
+                                }
                                 if (smap.contains("dbcSig"))
                                     gs.dbcSig = dbcSignalFromMap(smap.value("dbcSig").toMap());
                                 sigs.append(gs);

@@ -17,6 +17,7 @@
 #include <QDir>
 #include <QMessageBox>
 #include <QUrl>
+#include <QVariantMap>
 
 RecordTab::RecordTab(QWidget *parent)
     : QWidget(parent)
@@ -292,4 +293,82 @@ void RecordTab::onStopClicked()
     m_pauseBtn->setText("暂停");
     m_pauseBtn->setEnabled(false);
     m_stopBtn->setEnabled(false);
+}
+
+QVariantMap RecordTab::configMap() const
+{
+    QVariantMap m;
+    m.insert(QStringLiteral("directory"), m_dirEdit->text());
+    m.insert(QStringLiteral("prefix"), m_prefixEdit->text());
+    m.insert(QStringLiteral("format"), m_formatCombo->currentData().toString());
+    m.insert(QStringLiteral("splitBySize"), m_splitBySize->isChecked());
+    m.insert(QStringLiteral("sizeMb"), m_sizeSpin->value());
+    m.insert(QStringLiteral("splitByTime"), m_splitByTime->isChecked());
+    m.insert(QStringLiteral("timeSec"), m_timeSpin->value());
+    m.insert(QStringLiteral("ringMode"), m_ringChk->isChecked());
+    m.insert(QStringLiteral("maxFiles"), 10);
+    m.insert(QStringLiteral("bufferIndex"), m_bufferCombo->currentIndex());
+    m.insert(QStringLiteral("filterAll"), m_filterAll->isChecked());
+    m.insert(QStringLiteral("filterRx"), m_filterRx->isChecked());
+    m.insert(QStringLiteral("filterTx"), m_filterTx->isChecked());
+    m.insert(QStringLiteral("filterFd"), m_filterFd->isChecked());
+    m.insert(QStringLiteral("idFilter"), m_idFilterEdit->text());
+    m.insert(QStringLiteral("triggerEnable"), m_triggerEnable->isChecked());
+    m.insert(QStringLiteral("triggerExpr"), m_triggerExprEdit->text());
+    m.insert(QStringLiteral("preTrigger"), m_preTriggerSpin->value());
+    m.insert(QStringLiteral("postTrigger"), m_postTriggerSpin->value());
+    m.insert(QStringLiteral("repeatTrigger"), m_repeatTriggerChk->isChecked());
+    return m;
+}
+
+void RecordTab::loadConfig(const QVariantMap &map)
+{
+    if (map.isEmpty())
+        return;
+
+    if (map.contains(QStringLiteral("directory")))
+        m_dirEdit->setText(map.value(QStringLiteral("directory")).toString());
+    if (map.contains(QStringLiteral("prefix")))
+        m_prefixEdit->setText(map.value(QStringLiteral("prefix")).toString());
+    if (map.contains(QStringLiteral("format"))) {
+        const QString fmt = map.value(QStringLiteral("format")).toString();
+        const int idx = m_formatCombo->findData(fmt);
+        if (idx >= 0)
+            m_formatCombo->setCurrentIndex(idx);
+    }
+    if (map.contains(QStringLiteral("splitBySize")))
+        m_splitBySize->setChecked(map.value(QStringLiteral("splitBySize")).toBool());
+    if (map.contains(QStringLiteral("sizeMb")))
+        m_sizeSpin->setValue(map.value(QStringLiteral("sizeMb")).toInt());
+    if (map.contains(QStringLiteral("splitByTime")))
+        m_splitByTime->setChecked(map.value(QStringLiteral("splitByTime")).toBool());
+    if (map.contains(QStringLiteral("timeSec")))
+        m_timeSpin->setValue(map.value(QStringLiteral("timeSec")).toInt());
+    if (map.contains(QStringLiteral("ringMode")))
+        m_ringChk->setChecked(map.value(QStringLiteral("ringMode")).toBool());
+    if (map.contains(QStringLiteral("bufferIndex"))) {
+        const int bi = map.value(QStringLiteral("bufferIndex")).toInt();
+        if (bi >= 0 && bi < m_bufferCombo->count())
+            m_bufferCombo->setCurrentIndex(bi);
+    }
+    if (map.contains(QStringLiteral("filterAll")))
+        m_filterAll->setChecked(map.value(QStringLiteral("filterAll")).toBool());
+    if (map.contains(QStringLiteral("filterRx")))
+        m_filterRx->setChecked(map.value(QStringLiteral("filterRx")).toBool());
+    if (map.contains(QStringLiteral("filterTx")))
+        m_filterTx->setChecked(map.value(QStringLiteral("filterTx")).toBool());
+    if (map.contains(QStringLiteral("filterFd")))
+        m_filterFd->setChecked(map.value(QStringLiteral("filterFd")).toBool());
+    if (map.contains(QStringLiteral("idFilter")))
+        m_idFilterEdit->setText(map.value(QStringLiteral("idFilter")).toString());
+    if (map.contains(QStringLiteral("triggerEnable")))
+        m_triggerEnable->setChecked(map.value(QStringLiteral("triggerEnable")).toBool());
+    if (map.contains(QStringLiteral("triggerExpr")))
+        m_triggerExprEdit->setText(map.value(QStringLiteral("triggerExpr")).toString());
+    if (map.contains(QStringLiteral("preTrigger")))
+        m_preTriggerSpin->setValue(map.value(QStringLiteral("preTrigger")).toDouble());
+    if (map.contains(QStringLiteral("postTrigger")))
+        m_postTriggerSpin->setValue(map.value(QStringLiteral("postTrigger")).toDouble());
+    if (map.contains(QStringLiteral("repeatTrigger")))
+        m_repeatTriggerChk->setChecked(map.value(QStringLiteral("repeatTrigger")).toBool());
 }
