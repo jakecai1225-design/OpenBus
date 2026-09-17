@@ -173,8 +173,8 @@ void MainWindow::connectExtensionsPanel()
                 this, &MainWindow::onOpenMarketTab);
     }
 
-    // 统一插件市场标签页（见 setupMarketTab）
-    setupMarketTab();
+    // MarketTab is created lazily in onOpenMarketTab / installFromFile —
+    // do not pre-create it as a visible MainWindow child (covers menu bar).
 
     // pluginListChanged → 刷新市场页已装列表（连接在 manager 上，标签页删除后仍安全）
     if (m_pluginManager) {

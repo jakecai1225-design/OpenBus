@@ -150,12 +150,12 @@ void MainWindow::onFramesReceived(const QVector<CanFrame> &frames)
         if (m_player->isLoaded()) {
             const int total = m_player->totalFrames();
             m_frameCountLabel->setText(
-                QString::number(m_receivedFrameCount) + " / " +
-                QString::number(total) + " frames");
-            m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + " rows");
+                QStringLiteral("%1 / %2 frames")
+                    .arg(m_receivedFrameCount)
+                    .arg(total));
         } else {
-            m_frameCountLabel->setText(QString::number(m_receivedFrameCount) + " frames");
-            m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + " rows");
+            m_frameCountLabel->setText(
+                QStringLiteral("%1 frames").arg(m_receivedFrameCount));
         }
     }
 

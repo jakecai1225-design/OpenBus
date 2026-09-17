@@ -359,20 +359,25 @@ void MainWindow::createLayout()
     leftLayout->setContentsMargins(0, 0, 0, 0);
     leftLayout->setSpacing(0);
 
-    m_activityBar = new ActivityBar(this);
-    m_sideBar = new SideBar(this);
+    m_activityBar = new ActivityBar(leftContainer);
+    m_sideBar = new SideBar(leftContainer);
 
     leftLayout->addWidget(m_activityBar);
     leftLayout->addWidget(m_sideBar, 1);
 
-    m_leftDock = new QDockWidget("侧边栏", this);
+    m_leftDock = new QDockWidget("Sidebar", this);
     m_leftDock->setObjectName("LeftDock");
+    m_leftDock->setAttribute(Qt::WA_StyledBackground, true);
     m_leftDock->setWidget(leftContainer);
     m_leftDock->setFeatures(QDockWidget::DockWidgetMovable |
                             QDockWidget::DockWidgetClosable |
                             QDockWidget::DockWidgetFloatable);
     m_leftDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    m_leftDock->setTitleBarWidget(new QWidget());
+    {
+        auto *titleBar = new QWidget(m_leftDock);
+        titleBar->setFixedHeight(0);
+        m_leftDock->setTitleBarWidget(titleBar);
+    }
     m_leftDock->setMinimumWidth(0);
     addDockWidget(Qt::LeftDockWidgetArea, m_leftDock);
 
@@ -393,27 +398,37 @@ void MainWindow::createLayout()
     // ---- 右侧 Dock ----
     m_rightPanel = new RightPanel(this);
     m_rightPanel->setAttribute(Qt::WA_StyledBackground, true);
-    m_rightDock = new QDockWidget("右侧栏", this);
+    m_rightDock = new QDockWidget("Right", this);
     m_rightDock->setObjectName("RightDock");
+    m_rightDock->setAttribute(Qt::WA_StyledBackground, true);
     m_rightDock->setWidget(m_rightPanel);
     m_rightDock->setFeatures(QDockWidget::DockWidgetMovable |
                              QDockWidget::DockWidgetClosable |
                              QDockWidget::DockWidgetFloatable);
     m_rightDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    m_rightDock->setTitleBarWidget(new QWidget());
+    {
+        auto *titleBar = new QWidget(m_rightDock);
+        titleBar->setFixedHeight(0);
+        m_rightDock->setTitleBarWidget(titleBar);
+    }
     addDockWidget(Qt::RightDockWidgetArea, m_rightDock);
 
     // ---- 底部 Dock ----
     m_bottomPanel = new BottomPanel(this);
     m_bottomPanel->setAttribute(Qt::WA_StyledBackground, true);
-    m_bottomDock = new QDockWidget("输出", this);
+    m_bottomDock = new QDockWidget("Output", this);
     m_bottomDock->setObjectName("BottomDock");
+    m_bottomDock->setAttribute(Qt::WA_StyledBackground, true);
     m_bottomDock->setWidget(m_bottomPanel);
     m_bottomDock->setFeatures(QDockWidget::DockWidgetMovable |
                               QDockWidget::DockWidgetClosable |
                               QDockWidget::DockWidgetFloatable);
     m_bottomDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
-    m_bottomDock->setTitleBarWidget(new QWidget());
+    {
+        auto *titleBar = new QWidget(m_bottomDock);
+        titleBar->setFixedHeight(0);
+        m_bottomDock->setTitleBarWidget(titleBar);
+    }
     addDockWidget(Qt::BottomDockWidgetArea, m_bottomDock);
 
     resizeDocks({m_leftDock}, {280}, Qt::Horizontal);
@@ -443,24 +458,27 @@ void MainWindow::createLayout()
 
 void MainWindow::createStatusBar()
 {
-    m_statusLabel = new QLabel("就绪", this);
-    m_connLabel = new QLabel("未连接", this);
-    m_errorLabel = new QLabel("", this);
-    m_tabLabel = new QLabel("Trace", this);
-    m_rowCountLabel = new QLabel("0行", this);
-    m_selectedLabel = new QLabel("选中0行", this);
-    m_filterLabel = new QLabel("过滤0/0", this);
-    m_frameCountLabel = new QLabel("0 帧", this);
-    m_timeLabel = new QLabel("0.000s", this);
+    m_statusLabel = new QLabel(QStringLiteral("Ready"), this);
+    m_connLabel = new QLabel(QStringLiteral("Disconnected"), this);
+    m_errorLabel = new QLabel(QString(), this);
+    m_tabLabel = new QLabel(QStringLiteral("Trace"), this);
+    // Slim permanent strip: tab | frames (disp/capt) | selection | time
+    // Dropped duplicate row-count and filter-ratio labels (Trace reports via traceStatus).
+    m_frameCountLabel = new QLabel(QStringLiteral("0 frames"), this);
+    m_selectedLabel = new QLabel(QStringLiteral("Sel: 0"), this);
+    m_timeLabel = new QLabel(QStringLiteral("0.000s"), this);
+    // Legacy labels kept for older call sites; hidden to reclaim space
+    m_rowCountLabel = new QLabel(this);
+    m_rowCountLabel->hide();
+    m_filterLabel = new QLabel(this);
+    m_filterLabel->hide();
 
     statusBar()->addWidget(m_statusLabel, 1);
     statusBar()->addWidget(m_connLabel);
     statusBar()->addWidget(m_errorLabel);
     statusBar()->addPermanentWidget(m_tabLabel);
-    statusBar()->addPermanentWidget(m_rowCountLabel);
-    statusBar()->addPermanentWidget(m_selectedLabel);
-    statusBar()->addPermanentWidget(m_filterLabel);
     statusBar()->addPermanentWidget(m_frameCountLabel);
+    statusBar()->addPermanentWidget(m_selectedLabel);
     statusBar()->addPermanentWidget(m_timeLabel);
 }
 

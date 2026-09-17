@@ -185,6 +185,9 @@ void MainWindow::setupMarketTab()
         return;
     ShellContext ctx = makeShellContext();
     m_marketWidget = mod->createWidget(ctx);
+    // Keep off-screen until openTab() reparents into the editor area
+    if (m_marketWidget)
+        m_marketWidget->hide();
 
     // 标签页被关闭后 widget 被删除 → 置空指针，避免悬空引用
     connect(m_marketWidget, &QObject::destroyed, this, [this]() {
@@ -243,10 +246,10 @@ ShellContext MainWindow::makeShellContext()
             // 设备连接状态栏（B4：设备页经 flow 模块）
             m_connLabel->setText(arg.toString());
         } else if (action == QStringLiteral("deviceDisconnected")) {
-            m_connLabel->setText(QStringLiteral("未连接"));
+            m_connLabel->setText(QStringLiteral("Disconnected"));
             m_measurementRunning = false;
             traceInvoke(QStringLiteral("setRunningAll"), false);
-            m_bottomPanel->appendOutput(QStringLiteral("数据流已停止"));
+            m_bottomPanel->appendOutput(QStringLiteral("Data stream stopped"));
         } else if (action == QStringLiteral("openOfflineAnalysis")) {
             onOpenOfflineAnalysisTab();
         } else if (action == QStringLiteral("openDevicePage")) {
@@ -288,17 +291,38 @@ ShellContext MainWindow::makeShellContext()
             // Trace 右键"添加信号到 Graphic"（拆分方案 B5）→ 壳查 DBC 加全部信号
             onFrameAddToGraphic(arg.value<CanFrame>());
         } else if (action == QStringLiteral("traceSelectionChanged")) {
-            // Trace 选中行数变化（拆分方案 B5）→ 状态栏"选中N行"
-            m_selectedLabel->setText(arg.toInt() > 0 ? QStringLiteral("选中1行")
-                                                     : QStringLiteral("选中0行"));
+            // Trace selection count → status bar (kept for older callers)
+            const int n = arg.toInt();
+            m_selectedLabel->setText(n > 0 ? QStringLiteral("Sel: %1").arg(n)
+                                           : QStringLiteral("Sel: 0"));
+        } else if (action == QStringLiteral("traceStatus")) {
+            // Concise Trace status from TraceTab (replaces in-tab status strip)
+            const QVariantMap info = arg.toMap();
+            const int captured = info.value(QStringLiteral("captured")).toInt();
+            const int displayed = info.value(QStringLiteral("displayed")).toInt();
+            const int selected = info.value(QStringLiteral("selected")).toInt();
+            const QString selDetail = info.value(QStringLiteral("selDetail")).toString();
+            if (displayed == captured || captured <= 0)
+                m_frameCountLabel->setText(QStringLiteral("%1 frames").arg(displayed));
+            else
+                m_frameCountLabel->setText(
+                    QStringLiteral("%1 / %2").arg(displayed).arg(captured));
+            if (selected <= 0)
+                m_selectedLabel->setText(QStringLiteral("Sel: 0"));
+            else if (!selDetail.isEmpty() && selected == 1)
+                m_selectedLabel->setText(QStringLiteral("Sel: 1 @ %1").arg(selDetail));
+            else
+                m_selectedLabel->setText(QStringLiteral("Sel: %1").arg(selected));
         } else if (action == QStringLiteral("traceFileLoaded")) {
-            // Trace 文件拖放加载完成（拆分方案 B5）→ 底部输出 + 状态栏帧数
+            // Trace file drop load complete → output + status frames
             const int count = arg.toInt();
             if (count < 0) {
-                m_bottomPanel->appendOutput(QStringLiteral("文件加载失败"));
+                m_bottomPanel->appendOutput(QStringLiteral("File load failed"));
             } else {
-                m_bottomPanel->appendOutput(QString("已加载 %1 帧").arg(count));
-                m_frameCountLabel->setText(QString::number(count) + QStringLiteral(" 帧"));
+                m_bottomPanel->appendOutput(
+                    QStringLiteral("Loaded %1 frames").arg(count));
+                m_frameCountLabel->setText(
+                    QStringLiteral("%1 frames").arg(count));
             }
         } else if (action == QStringLiteral("appendFrames")) {
             // Tx 回环注入（信号发生器/周期发送）→ 转发给 TraceModule

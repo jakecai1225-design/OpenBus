@@ -5,67 +5,93 @@
 #include <QSplitter>
 #include <QTabWidget>
 #include <QMainWindow>
+#include <QPointer>
+
+class DockDropOverlay;
+class SplitEditorArea;
+class QTabBar;
 
 /**
- * @brief 分离标签页的独立窗口
+ * @brief Floating window for a detached editor tab (multi-monitor friendly).
  *
- * 当标签页被拖出主窗口或通过右键菜单分离时，widget 会被放入此窗口。
- * 关闭此窗口时，widget 会被重新放回 SplitEditorArea 的标签页中。
+ * Double-click the native title bar (or the in-window tab) to merge back.
+ * Closing the window also merges the tab back (does not destroy content).
+ * Drag the in-window tab onto the main editor to dock with drop zones.
  */
 class DetachedTabWindow : public QMainWindow
 {
     Q_OBJECT
 public:
-    DetachedTabWindow(QWidget *widget, const QString &label, QWidget *parent = nullptr);
+    DetachedTabWindow(QWidget *widget, const QString &label,
+                      SplitEditorArea *editor, QWidget *parent = nullptr);
 
     QWidget *containedWidget() const { return m_widget; }
     QString label() const { return m_label; }
 
+    /// Steal content and close without emitting reattachRequested.
+    QWidget *takePage();
+
 signals:
-    /// 窗口关闭时请求重新放回主标签页
     void reattachRequested(QWidget *widget, const QString &label);
 
 protected:
+    bool event(QEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
 
 private:
     QWidget *m_widget = nullptr;
     QString m_label;
+    QTabBar *m_tabBar = nullptr;
+    QPointer<SplitEditorArea> m_editor;
+    bool m_suppressReattach = false;
+    bool m_dragArmed = false;
+    QPoint m_pressGlobal;
 };
 
-// ============================================================
-
 /**
- * @brief VS Code 风格可拆分编辑器区域
+ * @brief Industrial / VS Code-style splittable editor area.
  *
- * 支持右键标签页 "Split Right" / "Split Down" 创建并排视图。
- * 每个拆分组是一个 QTabWidget，组与组之间用 QSplitter 分隔。
- * 当一个组没有标签页时自动移除该组。
- * 支持拖拽标签页到主窗口外分离为独立窗口。
+ * Drag a tab over a pane to see Center / Left / Right / Top / Bottom zones.
+ * Drop outside the main editor to float; drag a float tab back to dock.
+ * Double-click a main tab to detach; double-click a float title to merge.
  */
 class SplitEditorArea : public QWidget
 {
     Q_OBJECT
 
 public:
+    enum class DockZone {
+        None = 0,
+        Center,
+        Left,
+        Right,
+        Top,
+        Bottom,
+        Float
+    };
+    Q_ENUM(DockZone)
+
     explicit SplitEditorArea(QWidget *parent = nullptr);
+    ~SplitEditorArea() override;
 
     int addTab(QWidget *widget, const QString &label);
     QWidget *currentWidget() const;
     QTabWidget *activeTabWidget() const;
     QList<QTabWidget *> allTabWidgets() const;
 
-    /// 检查标签页是否已固定
     bool isPinned(QWidget *w) const;
 
-    /// 将标签页分离到独立窗口
     void detachTab(QTabWidget *tabs, int index);
-
-    /// 将独立窗口中的 widget 重新放回标签页
     void reattachTab(QWidget *widget, const QString &label);
-
-    /// 关闭指定标签页（外部调用入口：移除标签 + deleteLater + 清理空组 + 发 tabListChanged）
     void closeTab(QTabWidget *tabs, int index);
+
+    void beginDockDragFromTab(QTabWidget *tabs, int index);
+    void beginDockDragFromFloat(DetachedTabWindow *win);
+    void updateDockDrag(const QPoint &globalPos);
+    void finishDockDrag(const QPoint &globalPos);
+    void cancelDockDrag();
+    bool isDockDragging() const { return m_drag.active; }
 
 signals:
     void currentChanged(int index);
@@ -73,31 +99,54 @@ signals:
     void tabContextMenuRequested(int index, const QPoint &pos);
     void tabListChanged();
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private slots:
     void onTabBarContextMenu(int index, const QPoint &pos);
 
 private:
+    struct DockDragState {
+        bool active = false;
+        QPointer<QTabWidget> sourceTabs;
+        int sourceIndex = -1;
+        QPointer<QWidget> widget;
+        QString label;
+        QPointer<DetachedTabWindow> sourceFloat;
+        bool fromFloat = false;
+    };
+
     QSplitter *m_rootSplitter = nullptr;
     QTabWidget *m_firstTabs = nullptr;
     QList<DetachedTabWindow *> m_detachedWindows;
+    DockDropOverlay *m_overlay = nullptr;
+    DockDragState m_drag;
 
     QTabWidget *createTabWidget();
-    void splitTab(QTabWidget *source, int index, Qt::Orientation orient);
-    void removeEmptySplits();
-    QSplitter *parentSplitter(QWidget *w) const;
-    void replaceWidgetInSplitter(QSplitter *split, QWidget *old, QWidget *newW);
-
-    // 标签页拖拽分离检测
     void installDragOutFilter(QTabWidget *tabs);
-
-    // 为标签页安装 SVG 关闭按钮（替换 Qt 默认文字 × 按钮）
     void setupCloseButton(QTabWidget *tabs, int index);
 
-    // Pin / 关闭操作
+    void splitTab(QTabWidget *source, int index, Qt::Orientation orient);
+    void insertBeside(QTabWidget *target, QWidget *widget, const QString &label,
+                      Qt::Orientation orient, bool before);
+    void dropWidget(QTabWidget *target, DockZone zone,
+                    QWidget *widget, const QString &label);
+    void removeEmptySplits();
+    QSplitter *parentSplitter(QWidget *w) const;
+
+    QTabWidget *tabWidgetAtGlobal(const QPoint &globalPos) const;
+    DockZone hitTestZone(QTabWidget *target, const QPoint &globalPos) const;
+    void showOverlay(QTabWidget *target, DockZone zone);
+    void hideOverlay();
+
     void togglePin(QTabWidget *tabs, int index);
     void closeOthers(QTabWidget *tabs, int keepIndex);
     void closeRight(QTabWidget *tabs, int startIndex);
     void closeAll(QTabWidget *tabs);
+
+    void registerDetachedWindow(DetachedTabWindow *win);
+    DetachedTabWindow *createDetachedWindow(QWidget *widget, const QString &label,
+                                            const QPoint &globalPos);
 };
 
 #endif // SPLITEDITORAREA_H

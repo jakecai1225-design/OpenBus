@@ -1,7 +1,7 @@
 # Trace / Graphic Performance Plan (A / B / C)
 
-> **Status**: Active — Trace T1–T5 + Graphic Stage 2 + B6 done; next = measure / P2 if needed  
-> **Last Updated**: 2026-09-15  
+> **Status**: Active — Trace T1–T5 + Graphic Stage 2 + B6 done; UX U1–U5 done; next = measure / P2 if needed  
+> **Last Updated**: 2026-09-17  
 > **Goal**: Reach or exceed CANoe-class fluidity on Trace and Graphic under high bus load, many signals, and long history.
 
 This document is the durable product decision for Trace/Graphic performance work.
@@ -207,3 +207,5 @@ Hard rules:
 - **2026-09-15**: P1-1 — Graphic store-backed signals no longer twin `rawData`; pull advances cursor only; display/cursors/`fit*` use SampleStore (`copyDownsampled` / `valueAtTime` / `timeRange`). P1-3 partial: skip `userHidden` in `refreshDisplayData`. Next: finish P1-3 overlay/dirty budget.
 - **2026-09-15**: P1-3 — OverlaySelected default; `overlayAutoThreshold` default 2; per-signal `displayDirty` (no global twin rebuild); skip hidden in refresh; drop duplicate cursor update on replot. Graphic Stage 2 complete. Next: P2 / measure.
 - **2026-09-15**: B6 complete — hidden Graphic stops pull/value/replot timers (tip once on hide); DataWindow timer + shell fan-out gated on visibility. Phase B closed. Next: manual acceptance; P2 (C1b/C2/C3) only if still heavy.
+- **2026-09-17**: Trace UX track opened (`doc/Trace_UX_Redesign.md`). Performance T0–T5 unchanged. **U1–U5 landed** (action/status strip, filter chips, right Signals pane, sticky columns, To Graphic + status precision). Next: manual acceptance; C1b only if still heavy.
+- **2026-09-17**: **U6 Trace chrome densify** — actions after narrow filter edit; in-tab status strip removed; shell status bar slimmed (`tab | frames | Sel | time`). See `doc/Trace_UX_Redesign.md`.

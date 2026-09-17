@@ -33,7 +33,7 @@ void ThemeManager::initThemes()
     light.barBg = "#f3f3f3";
     light.barFg = "#3b3b3b";
     light.barHover = "#e8e8e8";
-    light.barBorder = "#e5e5e5";
+    light.barBorder = "#d0d0d0";
     light.activityBarBg = "#f3f3f3";
     light.activityBarFg = "#616161";
     light.activityBarHover = "#e8e8e8";
@@ -42,8 +42,9 @@ void ThemeManager::initThemes()
     light.accent = "#005fb8";
     light.accentHover = "#1f7ad3";
     light.accentBorder = "#005a9e";
-    light.border = "#e5e5e5";
-    light.borderDim = "#ececec";
+    // VS Code-like panel borders: visible on #f3/#f8 surfaces (was too faint at #e5)
+    light.border = "#d0d0d0";
+    light.borderDim = "#e0e0e0";
     light.selectionBg = "#cce8ff";
     light.hoverBg = "#f0f0f0";
     light.buttonBg = "#e8e8e8";

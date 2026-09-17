@@ -6,12 +6,14 @@
 #include <QPlainTextEdit>
 #include <QList>
 #include <QPixmap>
+#include <QVariantMap>
 #include "core/canframe.h"
 
 class CanTraceModel;
 class CanTraceProxyModel;
 class ViewportProxyModel;
 class FilterBar;
+class FilterChipBar;
 class BookmarkManager;
 class QSplitter;
 class QLabel;
@@ -20,6 +22,7 @@ class DbcManager;
 class QTimer;
 class QTabWidget;
 class QTreeWidget;
+class QToolButton;
 class TraceStatisticsWidget;
 class TraceDiffWidget;
 
@@ -98,6 +101,10 @@ public:
 
 public slots:
     void scrollToBottom();
+    void onGoToPacket();
+    void onFind();
+    void onFindNext();
+    void onFindPrevious();
 
 signals:
     void frameDoubleClicked(const CanFrame &frame);
@@ -131,10 +138,6 @@ private slots:
     void onColorSelected();
     void onClearMarks();
     void onClearColors();
-    void onGoToPacket();
-    void onFind();
-    void onFindNext();
-    void onFindPrevious();
 
 private:
     bool m_autoScroll = true;
@@ -283,21 +286,21 @@ private:
 };
 
 /**
- * @brief Wireshark 风格 Trace 页面 — 整体三栏
+ * @brief Trace page — CANoe measurement list + Wireshark filter/navigate
  *
  *   ┌────────────────────────────────┐
- *   │ FilterBar (Start/Stop + Filter) │
+ *   │ FilterBar (display filter)      │
  *   ├────────────────────────────────┤
- *   │ 工具条 (时间戳模式 + 分组统计)    │
+ *   │ ActionStrip (follow / find / go)│
  *   ├────────────────────────────────┤
- *   │ TraceView (报文列表)            │
+ *   │ Overview | TraceView            │
  *   ├────────────────────────────────┤
- *   │ Trace Explorer 底部标签          │
- *   │ (详情/信号/统计/差异)            │
+ *   │ Explorer (detail/signal/stats)  │
+ *   ├────────────────────────────────┤
+ *   │ StatusStrip (counts / follow)   │
  *   └────────────────────────────────┘
  *
- * 每个 TraceTab 拥有独立的 CanTraceModel + CanTraceProxyModel，
- * 通过 Start/Stop 按钮控制是否接收帧数据。
+ * Each TraceTab owns CanTraceModel + proxies; live path is CaptureLog camera.
  */
 class TraceTab : public QWidget
 {
@@ -331,27 +334,29 @@ public:
     void clearTrace();
     int frameCount() const;
     bool setFilterExpression(const QString &expr);
-    /// 仅清除主过滤表达式（不影响列过滤）
+    /// Clear main filter expression only (column filters unchanged)
     void clearFilter();
-    /// 清除主过滤表达式 + 所有列过滤
+    /// Clear main filter + all column filters
     void clearAllFilters();
     QString filterExpression() const;
 
-    /// 从外部文件加载帧数据（BLF/ASC/CSV）
+    /// Load frames from external file (BLF/ASC/CSV)
     void loadFile(const QString &path);
 
-    /// 更新分组统计显示
+    /// Refresh capture / displayed / marked counts on the status strip
     void updatePacketCount();
 
-    /// M1 预埋：协议 / 形态身份（doc/flow.md §十三）——多协议就绪前恒为 can/framelist
+    /// M1: protocol / form identity (doc/flow.md §13) — can/framelist until multi-protocol
     QString protocolId() const { return m_protocolId; }
     void setProtocolId(const QString &id) { m_protocolId = id; }
     QString formId() const { return m_formId; }
     void setFormId(const QString &id) { m_formId = id; }
 
 signals:
-    /// 文件拖放后加载完成
+    /// Emitted after drag-drop file load completes
     void fileLoaded(int frameCount);
+    /// Push concise Trace status into the shell status bar (no in-tab strip)
+    void statusInfoChanged(const QVariantMap &info);
 
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override;
@@ -366,23 +371,39 @@ private slots:
     void onCapturePullTimer();
 
 private:
-    /// Update viewport overview widget
     void updateViewportOverview();
-    /// Lower flush rate when the tab is not visible (Phase B background budget).
     void updateCapturePullBudget();
-    /// T5: advance CaptureLog cursor without model/proxy notify.
     void advanceCaptureCursorOnly();
-    /// T5: one-shot adopt CaptureLog tip when tab becomes visible.
     void resyncCaptureCameraOnShow();
+    /// U1: sync Follow button + status text with auto-scroll state
+    void syncFollowUi();
+    void setFollowLatest(bool on);
+    /// U2: rebuild active-filter chip strip from proxy state
+    void refreshFilterChips();
+    void onFilterChipDismissed(const QString &id);
+    /// U3: show/hide right-side Signals pane; persist splitter
+    void setSideSignalsVisible(bool on);
+    void saveSplitterState() const;
+    void restoreSplitterState();
+    /// U5: send current selection to Graphic
+    void sendSelectionToGraphic();
+    /// U5: status line with filter / selection precision
+    void refreshStatusStrip(int captured = -1, int displayed = -1);
 
     FilterBar *m_filterBar = nullptr;
+    FilterChipBar *m_chipBar = nullptr;
+    QToolButton *m_followBtn = nullptr;
+    QToolButton *m_signalsPaneBtn = nullptr;
+    QToolButton *m_toGraphicBtn = nullptr;
     TraceView *m_traceView = nullptr;
     QSplitter *m_vSplitter = nullptr;
+    QSplitter *m_hSplitter = nullptr;       ///< U3: list | signals
     QTabWidget *m_explorerTabs = nullptr;
     FrameInfoWidget *m_frameInfo = nullptr;
     SignalDecodeWidget *m_signalDecode = nullptr;
     TraceStatisticsWidget *m_statistics = nullptr;
     TraceDiffWidget *m_diff = nullptr;
+    int m_signalsTabIndex = -1;             ///< bottom-tab index when side pane off
 
     CanTraceModel *m_traceModel = nullptr;
     CanTraceProxyModel *m_proxyModel = nullptr;
@@ -390,6 +411,7 @@ private:
     BookmarkManager *m_bookmarkManager = nullptr;
     ViewportOverview *m_viewportOverview = nullptr;
     bool m_autoScrollViewport = true;
+    bool m_sideSignalsVisible = true;
     bool m_running = false;
     quint64 m_captureSeq = 0;              ///< CaptureLog cursor (exclusive)
     QTimer *m_capturePullTimer = nullptr;  ///< Pull CaptureLog → pending

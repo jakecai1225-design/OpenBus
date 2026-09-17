@@ -34,6 +34,8 @@ QIcon MarketModule::icon() const
 QWidget *MarketModule::createWidget(ShellContext &ctx)
 {
     m_tab = new MarketTab(ctx.mainWindow);
+    // Not yet in a tab: must stay hidden or it paints over the menu bar
+    m_tab->hide();
 
     // 插件操作请求 → PluginManager（迁移自 MainWindow::setupMarketTab；
     // PluginManager 为 data 层单例，模块可直接访问。

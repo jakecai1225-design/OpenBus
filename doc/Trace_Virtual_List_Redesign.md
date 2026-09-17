@@ -225,3 +225,4 @@ Optional: log `trace.paint_ms` / `trace.sync_ms` p95 in debug builds.
 - **2026-09-15**: T5 landed — background Trace cursor-only; Graphic/Watcher silent when hidden; status ~5 Hz. Trace redesign T1–T5 complete for mainline.
 - **2026-09-15**: Graphic Stage 2 — P1-1 (no raw twin) + P1-3 (overlay default, dirty/hidden budget).
 - **2026-09-15**: B6 complete — hidden Graphic/DataWindow timers stopped; Phase B closed.
+- **2026-09-17**: Product UX track: `doc/Trace_UX_Redesign.md` (CANoe+Wireshark chrome). **U1–U5 landed**; does not change T1–T5 data path.

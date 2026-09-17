@@ -102,10 +102,13 @@ public:
     /// Displayed (accepted) row count
     int displayedCount() const;
 
-    /// 手动触发分组计数信号（新增帧后调用）
+    /// Manually emit packet-count signal (after append)
     void emitPacketCount();
 
-    // ---- 排序 ----
+    /// True if main expression or any column filter is active
+    bool hasActiveFilters() const;
+
+    // ---- Sort ----
 
     void sort(int column, Qt::SortOrder order) override;
     int sortColumn() const { return m_sortColumn; }
@@ -168,7 +171,6 @@ private:
 
     CanTraceModel *traceModel() const;
 
-    bool hasActiveFilters() const;
     bool isAppendOnlyOrder() const;
     MapMode computeMapMode() const;
     int proxyRowCount() const;

@@ -29,11 +29,14 @@
 #include <QResizeEvent>
 #include <QCursor>
 #include <QMessageBox>
+#include <QSignalBlocker>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QSplitter>
 #include <QTabWidget>
 #include <QLabel>
+#include <QToolButton>
+#include <QFrame>
 #include <QPlainTextEdit>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
@@ -186,8 +189,8 @@ void TraceView::saveColumnLayout()
 
     QSettings settings;
     settings.beginGroup(QStringLiteral("TraceLayout"));
-    // G17: 版本升级到 4（支持列对齐配置）
-    settings.setValue(QStringLiteral("layout_version"), 4);
+    // G17: version 5 — sticky Ch/Id/Data + alignment
+    settings.setValue(QStringLiteral("layout_version"), 5);
     int colCount = model()->columnCount();
     for (int c = 0; c < colCount; ++c) {
         QString prefix = QStringLiteral("col_%1").arg(c);
@@ -213,14 +216,15 @@ void TraceView::restoreColumnLayout()
     QSettings settings;
     settings.beginGroup(QStringLiteral("TraceLayout"));
 
-    // 列布局版本（v4: 新增列对齐配置；旧版 < 3 丢弃）
-    if (settings.value(QStringLiteral("layout_version"), 1).toInt() < 3) {
+    // Column layout version (v5: sticky Ch/Id/Data; v4: alignment; discard < 3)
+    const int ver = settings.value(QStringLiteral("layout_version"), 1).toInt();
+    if (ver < 3) {
         settings.endGroup();
         return;
     }
     int colCount = model()->columnCount();
 
-    // G17: 先恢复对齐配置（在可见性/顺序之前，因为需要模型有效）
+    // G17: restore alignment first (needs a live model)
     for (int c = 0; c < colCount; ++c) {
         QString prefix = QStringLiteral("col_%1").arg(c);
         if (settings.contains(prefix + "_alignment")) {
@@ -232,16 +236,31 @@ void TraceView::restoreColumnLayout()
         }
     }
 
-    // 先恢复可见性（隐藏的列跳过宽度和位置设置）
+    // Restore visibility — U4 sticky columns always stay visible
+    auto isSticky = [](int c) {
+        return c == CanTraceModel::ColNo
+            || c == CanTraceModel::ColChannel
+            || c == CanTraceModel::ColId
+            || c == CanTraceModel::ColData;
+    };
     for (int c = 0; c < colCount; ++c) {
         QString prefix = QStringLiteral("col_%1").arg(c);
         if (settings.contains(prefix + "_hidden")) {
             bool hidden = settings.value(prefix + "_hidden").toBool();
-            // No. 列永远可见
-            if (c == CanTraceModel::ColNo)
+            if (isSticky(c))
                 hidden = false;
             hdr->setSectionHidden(c, hidden);
         }
+    }
+    // Fresh install / upgrade to v5: ensure analysis columns stay hidden by default
+    if (ver < 5) {
+        hdr->setSectionHidden(CanTraceModel::ColDelta, true);
+        hdr->setSectionHidden(CanTraceModel::ColFlags, true);
+        hdr->setSectionHidden(CanTraceModel::ColFrameCount, true);
+        hdr->setSectionHidden(CanTraceModel::ColSignal, true);
+        for (int c : {CanTraceModel::ColNo, CanTraceModel::ColChannel,
+                      CanTraceModel::ColId, CanTraceModel::ColData})
+            hdr->setSectionHidden(c, false);
     }
 
     // 恢复列顺序（按 visualIndex 排序）
@@ -514,7 +533,7 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
         QMenu *colorMenu = markMenu->addMenu(QStringLiteral("着色选中行"));
         struct PresetColor { const char *name; QColor color; };
         static const PresetColor presetColors[] = {
-            { "红色",   QColor(0xFF, 0xCDD, 0xCD) },
+            { "红色",   QColor(0xFF, 0xCD, 0xD2) },
             { "橙色",   QColor(0xFF, 0xE0, 0xB2) },
             { "黄色",   QColor(0xFF, 0xF3, 0xB0) },
             { "绿色",   QColor(0xC8, 0xE6, 0xC9) },
@@ -1019,13 +1038,15 @@ void TraceView::showHeaderMenu(int column, const QPoint &pos)
         auto *act = colVisMenu->addAction(colName);
         act->setCheckable(true);
         act->setChecked(!hdr->isSectionHidden(c));
-        // No. 列不可隐藏
-        if (c == CanTraceModel::ColNo) {
+        // U4: No / Ch / Id / Data stay visible (measurement essentials)
+        if (c == CanTraceModel::ColNo || c == CanTraceModel::ColChannel
+            || c == CanTraceModel::ColId || c == CanTraceModel::ColData) {
             act->setEnabled(false);
             act->setChecked(true);
         }
         connect(act, &QAction::toggled, this, [this, c](bool visible) {
             horizontalHeader()->setSectionHidden(c, !visible);
+            saveColumnLayout();
         });
     }
 
@@ -1981,7 +2002,87 @@ TraceTab::TraceTab(QWidget *parent)
     m_filterBar = new FilterBar(this);
     layout->addWidget(m_filterBar);
 
-    // ---- 设置菜单（时间格式等，挂载到 FilterBar 的设置按钮上） ----
+    // Compact Trace action icons — grouped next to filter apply/clear
+    auto *actionLay = m_filterBar->actionsLayout();
+    const QString iconCol = ThemeManager::instance()->currentTheme().text;
+    auto makeIconBtn = [host = m_filterBar, iconCol](const QString &iconPath,
+                                                     const QString &tip) {
+        auto *btn = new QToolButton(host);
+        btn->setIcon(svgIcon(iconPath, iconCol, 16));
+        btn->setToolTip(tip);
+        btn->setAutoRaise(true);
+        btn->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        btn->setFixedSize(26, 22);
+        btn->setIconSize(QSize(16, 16));
+        return btn;
+    };
+    auto addSep = [actionLay, host = m_filterBar]() {
+        auto *sep = new QFrame(host);
+        sep->setFrameShape(QFrame::VLine);
+        sep->setFrameShadow(QFrame::Sunken);
+        sep->setFixedHeight(16);
+        actionLay->addWidget(sep);
+    };
+
+    // Search / navigate (closest to filter edit)
+    auto *findBtn = makeIconBtn(QStringLiteral(":/icons/search.svg"),
+                                QStringLiteral("Find in Trace (Ctrl+F)"));
+    auto *goToBtn = makeIconBtn(QStringLiteral(":/icons/goto.svg"),
+                                QStringLiteral("Go to frame number (Ctrl+G)"));
+    actionLay->addWidget(findBtn);
+    actionLay->addWidget(goToBtn);
+
+    addSep();
+
+    // Live follow
+    m_followBtn = makeIconBtn(QStringLiteral(":/icons/follow.svg"),
+                              QStringLiteral("Follow latest frames (CANoe scroll lock)"));
+    m_followBtn->setCheckable(true);
+    m_followBtn->setChecked(true);
+    actionLay->addWidget(m_followBtn);
+
+    addSep();
+
+    // Same-ID navigation
+    auto *sameIdPrevBtn = makeIconBtn(QStringLiteral(":/icons/id-prev.svg"),
+                                      QStringLiteral("Previous same CAN ID (Ctrl+Up)"));
+    auto *sameIdNextBtn = makeIconBtn(QStringLiteral(":/icons/id-next.svg"),
+                                      QStringLiteral("Next same CAN ID (Ctrl+Down)"));
+    actionLay->addWidget(sameIdPrevBtn);
+    actionLay->addWidget(sameIdNextBtn);
+
+    addSep();
+
+    // Mark navigation
+    auto *markPrevBtn = makeIconBtn(QStringLiteral(":/icons/mark-prev.svg"),
+                                    QStringLiteral("Previous marked row (Ctrl+,)"));
+    auto *markNextBtn = makeIconBtn(QStringLiteral(":/icons/mark-next.svg"),
+                                    QStringLiteral("Next marked row (Ctrl+.)"));
+    actionLay->addWidget(markPrevBtn);
+    actionLay->addWidget(markNextBtn);
+
+    addSep();
+
+    // Analysis / panes
+    m_toGraphicBtn = makeIconBtn(QStringLiteral(":/icons/graphic.svg"),
+                                 QStringLiteral("Add selected frame signals to Graphic"));
+    actionLay->addWidget(m_toGraphicBtn);
+
+    m_signalsPaneBtn = makeIconBtn(QStringLiteral(":/icons/layout-sidebar-right.svg"),
+                                   QStringLiteral("Show/hide right-side Signals pane"));
+    m_signalsPaneBtn->setCheckable(true);
+    m_signalsPaneBtn->setChecked(true);
+    actionLay->addWidget(m_signalsPaneBtn);
+
+    // U2: active filter chips (only visible when a filter is on)
+    m_chipBar = new FilterChipBar(this);
+    layout->addWidget(m_chipBar);
+    connect(m_chipBar, &FilterChipBar::chipDismissed,
+            this, &TraceTab::onFilterChipDismissed);
+    connect(m_chipBar, &FilterChipBar::clearAllRequested,
+            this, &TraceTab::clearAllFilters);
+
+    // ---- Settings menu (time format etc. on FilterBar gear) ----
     // 两级级联结构（对齐 Wireshark View 菜单模式）：
     // 主菜单仅展示入口，子菜单承载互斥选项，避免单级平铺过高遮挡表格
     auto *settingsMenu = new QMenu(m_filterBar->settingsButton());
@@ -2253,17 +2354,21 @@ TraceTab::TraceTab(QWidget *parent)
             static_cast<CanTraceModel::RefreshRate>(interval));
     });
 
-    // 垂直分割: TraceView (上) | 底部信息 (下)
+    // Vertical split: (list + optional side signals) | bottom explorer
     m_vSplitter = new QSplitter(Qt::Vertical, this);
-    m_vSplitter->setHandleWidth(2);
+    m_vSplitter->setHandleWidth(1);
 
-    // CANoe 风格: 视窗缩略图 (左侧) + TraceView (右侧，内置滚动条)
-    auto *viewportContainer = new QWidget(this);
+    // U3: horizontal split — overview+list | Signals pane
+    m_hSplitter = new QSplitter(Qt::Horizontal, this);
+    m_hSplitter->setHandleWidth(1);
+    m_hSplitter->setChildrenCollapsible(false);
+
+    // CANoe-style: overview (left) + TraceView (right) inside left pane
+    auto *viewportContainer = new QWidget(m_hSplitter);
     auto *hLayout = new QHBoxLayout(viewportContainer);
     hLayout->setContentsMargins(0, 0, 0, 0);
     hLayout->setSpacing(0);
 
-    // 视窗缩略图 — 可拖拽的缩略图导航条 (左侧)
     m_viewportOverview = new ViewportOverview(viewportContainer);
     m_viewportOverview->setViewportProxy(m_viewportProxy);
     m_viewportOverview->setFilterProxy(m_proxyModel);
@@ -2275,32 +2380,64 @@ TraceTab::TraceTab(QWidget *parent)
     m_traceView->restoreColumnLayout();
     hLayout->addWidget(m_traceView, 1);
 
-    m_vSplitter->addWidget(viewportContainer);
+    m_hSplitter->addWidget(viewportContainer);
 
-    // ---- T8: Trace Explorer 底部标签外壳（详情/信号/统计/差异，§九 G-U1） ----
+    // Signals live on the right by default (Wireshark 3-pane); bottom keeps Detail/Stats/Diff
+    m_signalDecode = new SignalDecodeWidget(m_hSplitter);
+    m_hSplitter->addWidget(m_signalDecode);
+    m_hSplitter->setStretchFactor(0, 4);
+    m_hSplitter->setStretchFactor(1, 1);
+    m_hSplitter->setSizes({700, 260});
+
+    m_vSplitter->addWidget(m_hSplitter);
+
+    // Bottom explorer: Detail / Statistics / Diff (Signals moved to side pane)
     m_explorerTabs = new QTabWidget(this);
+    m_explorerTabs->setObjectName(QStringLiteral("TraceExplorer"));
     m_explorerTabs->setDocumentMode(true);
 
     m_frameInfo = new FrameInfoWidget(this);
-    m_signalDecode = new SignalDecodeWidget(this);
     m_statistics = new TraceStatisticsWidget(this);
     m_diff = new TraceDiffWidget(this);
 
-    m_explorerTabs->addTab(m_frameInfo, QStringLiteral("详情"));
-    m_explorerTabs->addTab(m_signalDecode, QStringLiteral("信号"));
-    m_explorerTabs->addTab(m_statistics, QStringLiteral("统计"));
-    m_explorerTabs->addTab(m_diff, QStringLiteral("差异"));
+    m_explorerTabs->addTab(m_frameInfo, QStringLiteral("Detail"));
+    m_explorerTabs->addTab(m_statistics, QStringLiteral("Statistics"));
+    m_explorerTabs->addTab(m_diff, QStringLiteral("Diff"));
 
     m_vSplitter->addWidget(m_explorerTabs);
-    m_vSplitter->setSizes({500, 200});
+    m_vSplitter->setSizes({500, 180});
     m_vSplitter->setStretchFactor(0, 3);
     m_vSplitter->setStretchFactor(1, 1);
 
     layout->addWidget(m_vSplitter, 1);
 
-    // 选中行变化 → 更新底部面板
+    restoreSplitterState();
+    {
+        QSettings st;
+        m_sideSignalsVisible = st.value(QStringLiteral("TraceLayout/sideSignalsVisible"), true).toBool();
+        setSideSignalsVisible(m_sideSignalsVisible);
+        if (m_signalsPaneBtn) {
+            const QSignalBlocker b(m_signalsPaneBtn);
+            m_signalsPaneBtn->setChecked(m_sideSignalsVisible);
+        }
+    }
+
+    // Selection → bottom explorer panels
     connect(m_traceView->selectionModel(), &QItemSelectionModel::selectionChanged,
             this, &TraceTab::onSelectionChanged);
+
+    // Filter-row actions → TraceView
+    connect(m_followBtn, &QToolButton::toggled, this, [this](bool on) {
+        setFollowLatest(on);
+    });
+    connect(findBtn, &QToolButton::clicked, m_traceView, &TraceView::onFind);
+    connect(goToBtn, &QToolButton::clicked, m_traceView, &TraceView::onGoToPacket);
+    connect(sameIdPrevBtn, &QToolButton::clicked, m_traceView, &TraceView::goToPrevSameId);
+    connect(sameIdNextBtn, &QToolButton::clicked, m_traceView, &TraceView::goToNextSameId);
+    connect(markPrevBtn, &QToolButton::clicked, m_traceView, &TraceView::goToPrevMark);
+    connect(markNextBtn, &QToolButton::clicked, m_traceView, &TraceView::goToNextMark);
+    connect(m_toGraphicBtn, &QToolButton::clicked, this, &TraceTab::sendSelectionToGraphic);
+    connect(m_signalsPaneBtn, &QToolButton::toggled, this, &TraceTab::setSideSignalsVisible);
 
     // CANoe-style: overview ↔ viewport window
     connect(m_viewportOverview, &ViewportOverview::viewportMoved,
@@ -2308,6 +2445,7 @@ TraceTab::TraceTab(QWidget *parent)
         m_viewportProxy->setViewportStart(start);
         m_traceView->verticalScrollBar()->setValue(0);
         m_autoScrollViewport = false;
+        syncFollowUi();
         // Prefill format cache for the new window (T3 VisibleRowCache).
         const int first = m_viewportProxy->viewportStart();
         const int last = first + m_viewportProxy->rowCount() + 5;
@@ -2352,7 +2490,10 @@ TraceTab::TraceTab(QWidget *parent)
 
     // 过滤/排序变化后重置视窗到开头（DEF-08 字符串信号）
     auto *layoutRelay = new SignalRelay(this);
-    layoutRelay->fire0 = [this]() { m_autoScrollViewport = true; };
+    layoutRelay->fire0 = [this]() {
+        m_autoScrollViewport = true;
+        syncFollowUi();
+    };
     connect(m_proxyModel, SIGNAL(layoutAboutToBeChanged()), layoutRelay, SLOT(fire()));
     auto *packetRelay = new SignalRelay(this);
     packetRelay->fire0 = [this]() {
@@ -2375,23 +2516,29 @@ TraceTab::TraceTab(QWidget *parent)
     connect(m_capturePullTimer, &QTimer::timeout, this, &TraceTab::onCapturePullTimer);
     m_capturePullTimer->start();
 
-    // 过滤条件变化时立即更新（不防抖；DEF-08 字符串信号）
+    // Filter change → refresh counts immediately (DEF-08 string signal)
     auto *filterCountRelay = new SignalRelay(this);
     filterCountRelay->fnIntInt = [this](int captured, int displayed) {
-        int marked = m_traceModel->markedRows().size();
+        refreshStatusStrip(captured, displayed);
         m_filterBar->setPacketCountText(
-            QStringLiteral("捕获: %1 | 显示: %2 | 标记: %3").arg(captured).arg(displayed).arg(marked));
+            QStringLiteral("Captured: %1 | Displayed: %2 | Marked: %3")
+                .arg(captured)
+                .arg(displayed)
+                .arg(m_traceModel->markedRows().size()));
         m_packetCountDirty = false;
+        refreshFilterChips();
     };
     connect(m_proxyModel, SIGNAL(packetCountChanged(int,int)),
             filterCountRelay, SLOT(fireIntInt(int,int)));
 
-    // 启用拖放
+    // Enable drag-drop
     setAcceptDrops(true);
+    syncFollowUi();
 }
 
 TraceTab::~TraceTab()
 {
+    saveSplitterState();
     if (m_traceView)
         m_traceView->saveColumnLayout();
 }
@@ -2528,12 +2675,208 @@ void TraceTab::onPacketCountTimer()
     if (!m_packetCountDirty || !isVisible())
         return;
     m_packetCountDirty = false;
-    int marked = m_traceModel->markedRows().size();
-    m_filterBar->setPacketCountText(
-        QStringLiteral("捕获: %1 | 显示: %2 | 标记: %3")
-            .arg(m_proxyModel->capturedCount())
-            .arg(m_proxyModel->displayedCount())
-            .arg(marked));
+    updatePacketCount();
+}
+
+void TraceTab::setFollowLatest(bool on)
+{
+    m_autoScrollViewport = on;
+    if (m_traceView)
+        m_traceView->setAutoScrollEnabled(on);
+    if (on && m_traceView)
+        m_traceView->scrollToBottom();
+    syncFollowUi();
+}
+
+void TraceTab::syncFollowUi()
+{
+    const bool follow = m_autoScrollViewport && m_traceView
+                        && m_traceView->autoScrollEnabled();
+    if (m_followBtn) {
+        const QSignalBlocker blocker(m_followBtn);
+        m_followBtn->setChecked(follow);
+        m_followBtn->setToolTip(follow
+            ? QStringLiteral("Follow latest frames — On (click to unlock)")
+            : QStringLiteral("Follow latest frames — Off (click to lock)"));
+    }
+    refreshStatusStrip();
+}
+
+void TraceTab::refreshFilterChips()
+{
+    if (!m_chipBar || !m_proxyModel)
+        return;
+
+    QVector<QPair<QString, QString>> chips;
+    if (m_proxyModel->filterActive()) {
+        chips.append({QStringLiteral("expr"),
+                      QStringLiteral("Filter: %1").arg(m_proxyModel->filterExpression())});
+    }
+    for (int c = 0; c < CanTraceModel::ColCount; ++c) {
+        const QString colName = m_traceModel
+            ? m_traceModel->headerData(c, Qt::Horizontal).toString()
+            : QString::number(c);
+        if (m_proxyModel->hasColumnFilter(c)) {
+            chips.append({QStringLiteral("col:%1").arg(c),
+                          QStringLiteral("%1: %2")
+                              .arg(colName, m_proxyModel->columnFilter(c))});
+        }
+        if (m_proxyModel->hasColumnFilterValues(c)) {
+            const auto vals = m_proxyModel->columnFilterValues(c);
+            QStringList parts;
+            int n = 0;
+            for (const QString &v : vals) {
+                if (n++ >= 3) {
+                    parts << QStringLiteral("...");
+                    break;
+                }
+                parts << v;
+            }
+            chips.append({QStringLiteral("colvals:%1").arg(c),
+                          QStringLiteral("%1 in {%2}")
+                              .arg(colName, parts.join(QStringLiteral(", ")))});
+        }
+    }
+    m_chipBar->setChips(chips);
+}
+
+void TraceTab::onFilterChipDismissed(const QString &id)
+{
+    if (!m_proxyModel)
+        return;
+    if (id == QLatin1String("expr")) {
+        clearFilter();
+        if (m_filterBar)
+            m_filterBar->setFilterText(QString());
+        return;
+    }
+    if (id.startsWith(QLatin1String("col:"))) {
+        bool ok = false;
+        const int col = id.mid(4).toInt(&ok);
+        if (ok) {
+            m_traceView->pinSelection();
+            m_proxyModel->clearColumnFilter(col);
+            m_traceView->restoreSelection();
+            refreshFilterChips();
+            updateViewportOverview();
+        }
+        return;
+    }
+    if (id.startsWith(QLatin1String("colvals:"))) {
+        bool ok = false;
+        const int col = id.mid(8).toInt(&ok);
+        if (ok) {
+            m_traceView->pinSelection();
+            m_proxyModel->clearColumnFilterValues(col);
+            m_traceView->restoreSelection();
+            refreshFilterChips();
+            updateViewportOverview();
+        }
+    }
+}
+
+void TraceTab::setSideSignalsVisible(bool on)
+{
+    m_sideSignalsVisible = on;
+    if (!m_hSplitter || !m_signalDecode || !m_explorerTabs)
+        return;
+
+    if (on) {
+        if (m_signalsTabIndex >= 0) {
+            m_explorerTabs->removeTab(m_signalsTabIndex);
+            m_signalsTabIndex = -1;
+        }
+        if (m_hSplitter->indexOf(m_signalDecode) < 0)
+            m_hSplitter->addWidget(m_signalDecode);
+        m_signalDecode->show();
+        if (m_hSplitter->sizes().value(1, 0) < 80)
+            m_hSplitter->setSizes({700, 260});
+    } else {
+        m_signalDecode->setParent(m_explorerTabs);
+        if (m_signalsTabIndex < 0)
+            m_signalsTabIndex = m_explorerTabs->addTab(m_signalDecode, QStringLiteral("Signals"));
+        QList<int> sz = m_hSplitter->sizes();
+        if (sz.size() >= 2) {
+            sz[0] = sz[0] + sz[1];
+            sz[1] = 0;
+            m_hSplitter->setSizes(sz);
+        }
+    }
+    if (m_signalsPaneBtn) {
+        const QSignalBlocker b(m_signalsPaneBtn);
+        m_signalsPaneBtn->setChecked(on);
+    }
+    QSettings st;
+    st.setValue(QStringLiteral("TraceLayout/sideSignalsVisible"), on);
+}
+
+void TraceTab::saveSplitterState() const
+{
+    QSettings st;
+    if (m_vSplitter)
+        st.setValue(QStringLiteral("TraceLayout/vSplitter"), m_vSplitter->saveState());
+    if (m_hSplitter)
+        st.setValue(QStringLiteral("TraceLayout/hSplitter"), m_hSplitter->saveState());
+    st.setValue(QStringLiteral("TraceLayout/sideSignalsVisible"), m_sideSignalsVisible);
+}
+
+void TraceTab::restoreSplitterState()
+{
+    QSettings st;
+    if (m_vSplitter) {
+        const QByteArray v = st.value(QStringLiteral("TraceLayout/vSplitter")).toByteArray();
+        if (!v.isEmpty())
+            m_vSplitter->restoreState(v);
+    }
+    if (m_hSplitter) {
+        const QByteArray h = st.value(QStringLiteral("TraceLayout/hSplitter")).toByteArray();
+        if (!h.isEmpty())
+            m_hSplitter->restoreState(h);
+    }
+}
+
+void TraceTab::sendSelectionToGraphic()
+{
+    if (!m_traceView)
+        return;
+    const CanFrame *frame = m_traceView->selectedFrame();
+    if (!frame)
+        return;
+    emit m_traceView->frameAddToGraphic(*frame);
+}
+
+void TraceTab::refreshStatusStrip(int captured, int displayed)
+{
+    if (!m_proxyModel)
+        return;
+    if (captured < 0)
+        captured = m_proxyModel->capturedCount();
+    if (displayed < 0)
+        displayed = m_proxyModel->displayedCount();
+    const int marked = m_traceModel ? m_traceModel->markedRows().size() : 0;
+    const bool follow = m_autoScrollViewport && m_traceView
+                        && m_traceView->autoScrollEnabled();
+    const bool filterOn = m_proxyModel->hasActiveFilters();
+    int selCount = 0;
+    QString selDetail;
+    if (m_traceView) {
+        const QList<int> rows = m_traceView->selectedSourceRows();
+        selCount = rows.size();
+        const CanFrame *frame = m_traceView->selectedFrame();
+        if (frame && selCount == 1) {
+            selDetail = QStringLiteral("%1s")
+                            .arg(frame->timestamp, 0, 'f', 3);
+        }
+    }
+    QVariantMap info;
+    info.insert(QStringLiteral("captured"), captured);
+    info.insert(QStringLiteral("displayed"), displayed);
+    info.insert(QStringLiteral("marked"), marked);
+    info.insert(QStringLiteral("filterOn"), filterOn);
+    info.insert(QStringLiteral("follow"), follow);
+    info.insert(QStringLiteral("selected"), selCount);
+    info.insert(QStringLiteral("selDetail"), selDetail);
+    emit statusInfoChanged(info);
 }
 
 void TraceTab::clearTrace()
@@ -2541,6 +2884,8 @@ void TraceTab::clearTrace()
     m_traceModel->clear();
     m_packetCountDirty = true;
     m_autoScrollViewport = true;
+    syncFollowUi();
+    refreshFilterChips();
     updateViewportOverview();
 }
 
@@ -2555,17 +2900,21 @@ bool TraceTab::setFilterExpression(const QString &expr)
     bool ok = m_proxyModel->setFilterExpression(expr);
     m_traceView->restoreSelection();
     m_autoScrollViewport = true;
+    syncFollowUi();
     updateViewportOverview();
+    refreshFilterChips();
     return ok;
 }
 
 void TraceTab::clearFilter()
 {
     m_traceView->pinSelection();
-    m_proxyModel->clearFilter();  // 仅清除主表达式，保留列过滤
+    m_proxyModel->clearFilter();  // main expression only; keep column filters
     m_traceView->restoreSelection();
     m_autoScrollViewport = true;
+    syncFollowUi();
     updateViewportOverview();
+    refreshFilterChips();
 }
 
 void TraceTab::clearAllFilters()
@@ -2575,7 +2924,9 @@ void TraceTab::clearAllFilters()
     m_proxyModel->clearAllColumnFilters();
     m_traceView->restoreSelection();
     m_autoScrollViewport = true;
+    syncFollowUi();
     updateViewportOverview();
+    refreshFilterChips();
 }
 
 QString TraceTab::filterExpression() const
@@ -2627,6 +2978,7 @@ void TraceTab::onSelectionChanged()
     }
     m_statistics->setFrames(frames, rows.size() > frames.size());
     m_diff->setFrames(frames);
+    refreshStatusStrip();
 }
 
 // ============================================================

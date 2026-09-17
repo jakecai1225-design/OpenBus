@@ -2,20 +2,23 @@
 #define FILTERBAR_H
 
 #include <QWidget>
+#include <QVector>
+#include <QPair>
+#include <QString>
 
 class QLineEdit;
-class QPushButton;
 class QToolButton;
 class QLabel;
 class QMenu;
+class QHBoxLayout;
+class QScrollArea;
 class FilterPresetManager;
 
 /**
- * @brief Wireshark 风格显示过滤栏
+ * @brief Wireshark-style display filter bar
  *
- * 左侧为覆盖模式切换，右侧为过滤输入框。
- * 开始/停止由 flow 标签页全局控制，本组件不再包含独立按钮。
- * 右侧有预设过滤下拉按钮（对标 CANoe Filter Presets）。
+ * Left: status + expanding filter edit + apply/clear;
+ * then Trace action icons; right: presets / help / settings.
  */
 class FilterBar : public QWidget
 {
@@ -26,22 +29,19 @@ public:
 
     QString filterText() const;
     bool filterActive() const;
+    void setFilterText(const QString &text);
 
-    /// 设置过滤预设管理器
     void setPresetManager(FilterPresetManager *mgr);
-
-    /// 返回设置按钮，外部可设置其弹出菜单
     QToolButton *settingsButton() const { return m_settingsBtn; }
-
-    /// 更新分组统计标签
     void setPacketCountText(const QString &text);
+
+    /// Slot for Trace action icons (Find / Follow / …) — after apply/clear
+    QHBoxLayout *actionsLayout() const { return m_actionsLay; }
 
 signals:
     void filterApplied(const QString &filter);
     void filterCleared();
-    /// 刷新率变化（Phase 2: High=50ms / Medium=100ms / Low=200ms / Paused=0）
     void refreshRateChanged(int intervalMs);
-    /// 清空整个报文列表（区别于 filterCleared 的仅清过滤表达式）
     void clearListRequested();
 
 private slots:
@@ -53,18 +53,49 @@ private slots:
     void onSaveAsPreset();
 
 private:
-    QLineEdit *m_edit;
-    QPushButton *m_applyBtn;
-    QPushButton *m_clearBtn;
-    QToolButton *m_helpBtn;
-    QToolButton *m_presetBtn;
-    QToolButton *m_settingsBtn;
-    QToolButton *m_clearListBtn;   // 清空列表（数据，非过滤表达式）
-    QLabel *m_statusIcon;
-    QLabel *m_packetCountLabel;
+    QLineEdit *m_edit = nullptr;
+    QToolButton *m_applyBtn = nullptr;
+    QToolButton *m_clearBtn = nullptr;
+    QToolButton *m_helpBtn = nullptr;
+    QToolButton *m_presetBtn = nullptr;
+    QToolButton *m_settingsBtn = nullptr;
+    QToolButton *m_clearListBtn = nullptr;
+    QLabel *m_statusIcon = nullptr;
+    QLabel *m_packetCountLabel = nullptr;
+    QWidget *m_actionsHost = nullptr;
+    QHBoxLayout *m_actionsLay = nullptr;
     FilterPresetManager *m_presetMgr = nullptr;
 
     void refreshPresets();
+};
+
+/**
+ * @brief U2: active-filter chip strip (main expr + column filters)
+ *
+ * Each chip is id + label; clicking × emits chipDismissed(id).
+ * "Clear all" emits clearAllRequested when any chip is present.
+ */
+class FilterChipBar : public QWidget
+{
+    Q_OBJECT
+public:
+    explicit FilterChipBar(QWidget *parent = nullptr);
+
+    void setChips(const QVector<QPair<QString, QString>> &chips); // id, label
+    int chipCount() const { return m_chipCount; }
+
+signals:
+    void chipDismissed(const QString &id);
+    void clearAllRequested();
+
+private:
+    QScrollArea *m_scroll = nullptr;
+    QWidget *m_inner = nullptr;
+    QHBoxLayout *m_lay = nullptr;
+    QToolButton *m_clearAllBtn = nullptr;
+    int m_chipCount = 0;
+
+    void rebuild(const QVector<QPair<QString, QString>> &chips);
 };
 
 #endif // FILTERBAR_H

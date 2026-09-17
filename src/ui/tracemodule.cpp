@@ -118,6 +118,11 @@ QWidget *TraceModule::createPage(const QString &pageId, const QVariant &param, S
         ctx.shellInvoke("traceFileLoaded", count);
     });
 
+    // Trace status → shell status bar (no in-tab status strip)
+    QObject::connect(tab, &TraceTab::statusInfoChanged, tab, [ctx](const QVariantMap &info) {
+        ctx.shellInvoke(QStringLiteral("traceStatus"), info);
+    });
+
     // Register instance by id（param 为壳/flow 页传入的 instanceId；
     // 空串键留给 createWidget 无参路径）
     const QString id = param.userType() == QMetaType::QString
