@@ -7,6 +7,74 @@
 #include <QFileInfo>
 #include <QDateTime>
 #include <QMetaType>
+#include <QVariantList>
+#include <QByteArray>
+
+namespace {
+
+json variantToJson(const QVariant &v)
+{
+    switch (v.typeId()) {
+    case QMetaType::Bool:
+        return v.toBool();
+    case QMetaType::Int:
+    case QMetaType::LongLong:
+        return v.toLongLong();
+    case QMetaType::Double:
+    case QMetaType::Float:
+        return v.toDouble();
+    case QMetaType::QString:
+        return v.toString().toStdString();
+    case QMetaType::QStringList: {
+        json arr = json::array();
+        for (const QString &s : v.toStringList())
+            arr.push_back(s.toStdString());
+        return arr;
+    }
+    case QMetaType::QVariantList: {
+        json arr = json::array();
+        for (const QVariant &item : v.toList())
+            arr.push_back(variantToJson(item));
+        return arr;
+    }
+    case QMetaType::QVariantMap: {
+        json obj = json::object();
+        const QVariantMap m = v.toMap();
+        for (auto it = m.constBegin(); it != m.constEnd(); ++it)
+            obj[it.key().toStdString()] = variantToJson(it.value());
+        return obj;
+    }
+    default:
+        return v.toString().toStdString();
+    }
+}
+
+QVariant jsonToVariant(const json &j)
+{
+    if (j.is_boolean())
+        return j.get<bool>();
+    if (j.is_number_integer())
+        return static_cast<qint64>(j.get<long long>());
+    if (j.is_number_float())
+        return j.get<double>();
+    if (j.is_string())
+        return QString::fromStdString(j.get<std::string>());
+    if (j.is_array()) {
+        QVariantList list;
+        for (const auto &el : j)
+            list << jsonToVariant(el);
+        return list;
+    }
+    if (j.is_object()) {
+        QVariantMap map;
+        for (auto it = j.begin(); it != j.end(); ++it)
+            map.insert(QString::fromStdString(it.key()), jsonToVariant(it.value()));
+        return map;
+    }
+    return {};
+}
+
+} // namespace
 
 // ============================================================
 //  单例
@@ -162,7 +230,7 @@ json ProjectManager::stateToJson(const ProjectState &st,
 {
     json j;
     j["name"] = st.name.toStdString();
-    j["version"] = 3;
+    j["version"] = 4;
 
     // ---- meta ----
     j["meta"]["name"] = st.name.toStdString();
@@ -364,6 +432,14 @@ json ProjectManager::stateToJson(const ProjectState &st,
         tabArr.push_back(t.toStdString());
     j["tabs"]["open"] = tabArr;
     j["tabs"]["active"] = st.activeTab.toStdString();
+    if (!st.editorLayout.isEmpty())
+        j["tabs"]["layout"] = variantToJson(st.editorLayout);
+
+    // ---- Window chrome (geometry + dock state) ----
+    if (!st.windowGeometry.isEmpty())
+        j["window"]["geometry"] = QString::fromLatin1(st.windowGeometry.toBase64()).toStdString();
+    if (!st.windowState.isEmpty())
+        j["window"]["state"] = QString::fromLatin1(st.windowState.toBase64()).toStdString();
 
     return j;
 }
@@ -643,6 +719,18 @@ ProjectState ProjectManager::jsonToState(const json &j,
         }
         if (tabs.contains("active") && tabs["active"].is_string())
             st.activeTab = QString::fromStdString(tabs["active"].get<std::string>());
+        if (tabs.contains("layout") && tabs["layout"].is_object())
+            st.editorLayout = jsonToVariant(tabs["layout"]).toMap();
+    }
+
+    if (j.contains("window")) {
+        const auto &w = j["window"];
+        if (w.contains("geometry") && w["geometry"].is_string())
+            st.windowGeometry = QByteArray::fromBase64(
+                QByteArray::fromStdString(w["geometry"].get<std::string>()));
+        if (w.contains("state") && w["state"].is_string())
+            st.windowState = QByteArray::fromBase64(
+                QByteArray::fromStdString(w["state"].get<std::string>()));
     }
 
     return st;

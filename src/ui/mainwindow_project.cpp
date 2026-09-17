@@ -361,20 +361,22 @@ void MainWindow::captureProjectState()
     st.sendEntries = transceiveQuery(QStringLiteral("sendEntries")).toList();
     st.playbackConfig = transceiveQuery(QStringLiteral("playbackConfig")).toMap();
 
-    // 标签页顺序
+    // 标签页顺序 + 分栏 / 浮动布局
     st.openTabs.clear();
     st.activeTab.clear();
+    st.editorLayout.clear();
     if (m_editorArea) {
-        const auto allTabs = m_editorArea->allTabWidgets();
-        for (auto *tw : allTabs) {
-            for (int i = 0; i < tw->count(); ++i)
-                st.openTabs << tw->tabText(i).trimmed();
-            int idx = tw->currentIndex();
-            if (idx >= 0 && idx < tw->count())
-                st.activeTab = tw->tabText(idx).trimmed();
-            break;
-        }
+        st.editorLayout = m_editorArea->saveLayout();
+        st.openTabs = m_editorArea->collectTabTitles();
+        const QString active = st.editorLayout.value(QStringLiteral("active")).toString();
+        if (!active.isEmpty())
+            st.activeTab = active;
+        else if (!st.openTabs.isEmpty())
+            st.activeTab = st.openTabs.first();
     }
+
+    st.windowGeometry = saveGeometry();
+    st.windowState = saveState();
 
     ProjectManager::instance()->currentStateRef() = st;
 }
@@ -392,6 +394,7 @@ void MainWindow::applyProjectState()
     //    使用 delete 而非 deleteLater — 必须在 DBC 卸载前销毁 widget，
     //    防止旧 TraceTab/GraphicView 在 DBC 卸载后访问已释放的 DBC 数据
     if (m_editorArea) {
+        m_editorArea->discardDetachedWindows();
         const auto allTabs = m_editorArea->allTabWidgets();
         for (auto *tw : allTabs) {
             for (int i = tw->count() - 1; i >= 0; --i) {
@@ -599,11 +602,21 @@ void MainWindow::applyProjectState()
     // 10c. Filter rules (always clear then set — avoid cross-project leak)
     flowInvoke(QStringLiteral("setFilterRules"), st.flowFilterRules);
 
-    // 11. Always land on Flow after project activate/restore (do not restore
-    //    last activeTab — user expects a consistent entry point).
-    onOpenMeasurementSetup();
+    // 11. Restore editor split / float layout (after all pages exist)
+    if (m_editorArea && !st.editorLayout.isEmpty())
+        m_editorArea->restoreLayout(st.editorLayout);
 
-    // 12. Window title
+    // 11b. Restore main window geometry + dock layout
+    if (!st.windowGeometry.isEmpty())
+        restoreGeometry(st.windowGeometry);
+    if (!st.windowState.isEmpty())
+        restoreState(st.windowState);
+
+    // 12. Prefer Flow as entry unless layout restored a specific active tab
+    if (st.editorLayout.isEmpty())
+        onOpenMeasurementSetup();
+
+    // 13. Window title
     setWindowTitle(QStringLiteral("openbus - %1").arg(st.name));
 
     m_bottomPanel->appendOutput(QStringLiteral("工程现场已恢复: %1").arg(st.name));

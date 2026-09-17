@@ -8,6 +8,7 @@
 #include <QHash>
 #include <QVariantMap>
 #include <QVariantList>
+#include <QByteArray>
 #include <nlohmann/json.hpp>
 #include "resourceresolver.h"
 
@@ -136,6 +137,11 @@ struct ProjectState {
     // Open tab order
     QStringList openTabs;
     QString activeTab;
+
+    // Editor split / float layout (v4); window chrome geometry
+    QVariantMap editorLayout;
+    QByteArray windowGeometry;
+    QByteArray windowState;
 
     ProjectMeta meta;
     ProjectDeviceConfig deviceConfig;

@@ -6,17 +6,16 @@
 #include <QTabWidget>
 #include <QMainWindow>
 #include <QPointer>
+#include <QVariantMap>
 
 class DockDropOverlay;
 class SplitEditorArea;
-class QTabBar;
 
 /**
  * @brief Floating window for a detached editor tab (multi-monitor friendly).
  *
- * Double-click the native title bar (or the in-window tab) to merge back.
- * Closing the window also merges the tab back (does not destroy content).
- * Drag the in-window tab onto the main editor to dock with drop zones.
+ * No in-window tab strip — the OS title bar shows the name and content is full-bleed.
+ * Double-click the title bar (or close the window) to merge back into the main editor.
  */
 class DetachedTabWindow : public QMainWindow
 {
@@ -30,31 +29,27 @@ public:
 
     /// Steal content and close without emitting reattachRequested.
     QWidget *takePage();
+    /// Close and delete content (project switch) — no reattach.
+    void destroyContent();
 
 signals:
     void reattachRequested(QWidget *widget, const QString &label);
 
 protected:
     bool event(QEvent *event) override;
-    bool eventFilter(QObject *watched, QEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
 
 private:
+    void mergeBack();
+
     QWidget *m_widget = nullptr;
     QString m_label;
-    QTabBar *m_tabBar = nullptr;
     QPointer<SplitEditorArea> m_editor;
     bool m_suppressReattach = false;
-    bool m_dragArmed = false;
-    QPoint m_pressGlobal;
 };
 
 /**
- * @brief Industrial / VS Code-style splittable editor area.
- *
- * Drag a tab over a pane to see Center / Left / Right / Top / Bottom zones.
- * Drop outside the main editor to float; drag a float tab back to dock.
- * Double-click a main tab to detach; double-click a float title to merge.
+ * @brief VS Code-style splittable editor: drag-split, float, layout persistence.
  */
 class SplitEditorArea : public QWidget
 {
@@ -93,6 +88,14 @@ public:
     void cancelDockDrag();
     bool isDockDragging() const { return m_drag.active; }
 
+    /// Persist / restore splitter tree + floating windows (titles identify pages).
+    QVariantMap saveLayout() const;
+    void restoreLayout(const QVariantMap &layout);
+    /// Destroy floating windows without merging (project switch).
+    void discardDetachedWindows();
+    /// Flat tab titles in DFS order (compat with openTabs).
+    QStringList collectTabTitles() const;
+
 signals:
     void currentChanged(int index);
     void tabCloseRequested(int index);
@@ -101,6 +104,9 @@ signals:
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
 
 private slots:
     void onTabBarContextMenu(int index, const QPoint &pos);
@@ -146,7 +152,17 @@ private:
 
     void registerDetachedWindow(DetachedTabWindow *win);
     DetachedTabWindow *createDetachedWindow(QWidget *widget, const QString &label,
-                                            const QPoint &globalPos);
+                                            const QPoint &globalPos,
+                                            const QRect &geometry = QRect());
+
+    QVariantMap serializeWidget(QWidget *w) const;
+    QWidget *buildFromLayout(const QVariantMap &node,
+                             QHash<QString, QWidget *> &pages);
+    void collectTitlesFromNode(const QVariantMap &node, QStringList &out) const;
+
+    /// True for SplitEditorArea panes only — never Trace Detail/Signals etc.
+    static bool isEditorTabPane(const QTabWidget *tw);
+    bool isEditorChromeSplitter(const QSplitter *sp) const;
 };
 
 #endif // SPLITEDITORAREA_H
