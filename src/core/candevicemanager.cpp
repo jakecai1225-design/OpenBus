@@ -170,6 +170,8 @@ bool CanDeviceManager::sendFrame(const CanFrame &frame, CanFrame *echo)
             return;
         *echo = frame;
         echo->direction = CanFrame::Tx;
+        // Match hardware Rx channel numbering (1-based) so Trace columns align.
+        echo->channel = static_cast<quint8>(m_channel + 1);
         if (echo->timestampNs == 0) {
             const auto nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::steady_clock::now() - m_startClock).count();

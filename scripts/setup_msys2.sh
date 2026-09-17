@@ -33,6 +33,7 @@ PACKAGES=(
   "${PKG_PREFIX}-qt6-translations"
   "${PKG_PREFIX}-python"
   "${PKG_PREFIX}-python-pyzmq"
+  "${PKG_PREFIX}-python-pyqt6"
   "${PKG_PREFIX}-gdb"
   # Plugin host (ZMQ) + Candle (libusb)
   "${PKG_PREFIX}-zeromq"

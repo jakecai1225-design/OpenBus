@@ -496,9 +496,13 @@ void MainWindow::onMeasurementToggled(bool running)
                                       flowQuery(QStringLiteral("isBlockEnabled"), traceId).toBool() });
         }
     } else {
-        m_bottomPanel->appendOutput("测量停止");
+        m_bottomPanel->appendOutput(QStringLiteral("Measurement stopped"));
         m_simulator->stop();
-        m_deviceManager->stop();
+        // Keep real hardware (e.g. PCAN-USB) open across measurement stop so
+        // UDS / Transceive can resume after Flow Start without reconnect.
+        // Trace / plugin fan-out stays gated by m_measurementRunning.
+        if (m_deviceManager && !m_deviceManager->isRealDevice())
+            m_deviceManager->stop();
         m_player->stop();
         traceInvoke(QStringLiteral("setRunningAll"), false);
     }

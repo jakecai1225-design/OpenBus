@@ -135,9 +135,13 @@ def activate(context):
         )
         from PyQt6.QtCore import QTimer, Qt
         from PyQt6.QtGui import QColor, QFont
-    except ImportError:
-        sin.output.append("UDS 诊断插件需要 PyQt6: pip install PyQt6")
-        return
+    except ImportError as e:
+        msg = (
+            "UDS diagnostic requires PyQt6 in the plugin-host Python "
+            f"(MSYS2: pacman -S mingw-w64-ucrt-x86_64-python-pyqt6): {e}"
+        )
+        sin.output.append(msg)
+        raise RuntimeError(msg) from e
 
     # ================================================================
     #  协议栈

@@ -281,16 +281,21 @@ void MainWindow::onPluginSendFrame(const CanFrame &frame)
 
     CanFrame echo;
     if (m_deviceManager->sendFrame(frame, &echo)) {
-        // Tx loopback (CANoe-style): push into the same hub as bus Rx so
-        // Trace (CaptureLog) / Graphic (SampleStore) / Flow all see it.
-        // Gated by measurement via onFrameReceived — start measurement first.
+        // Tx loopback (CANoe-style): same hub as bus Rx → CaptureLog / SampleStore /
+        // Flow / PluginManager PUB. Measurement gate applies in onFramesReceived.
         onFrameReceived(echo);
+        if (!m_measurementRunning) {
+            m_bottomPanel->appendOutput(
+                QStringLiteral("Plugin Tx sent on bus (ID=0x%1) but measurement is "
+                               "stopped — Trace / UDS Rx gated. Start measurement on Flow.")
+                    .arg(frame.id & 0x1FFFFFFF, 0, 16).toUpper());
+        }
         return;
     }
 
     QString reason;
     if (!m_deviceManager->isRunning())
-        reason = QStringLiteral("device not running — connect device / start measurement");
+        reason = QStringLiteral("device not running — connect PCAN/simulator first");
     else if (!m_deviceManager->isRealDevice())
         reason = QStringLiteral("simulator not running");
     else
