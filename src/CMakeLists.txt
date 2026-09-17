@@ -113,6 +113,8 @@ set(SRC_CORE
     core/plugin/plugininfo.cpp
     core/plugin/pluginhost.h
     core/plugin/pluginhost.cpp
+    core/plugin/pluginzmq.h
+    core/plugin/pluginzmq.cpp
     core/plugin/pluginconvertjob.h
     core/plugin/pluginconvertjob.cpp
     core/plugin/pluginmanager.h
@@ -246,6 +248,43 @@ target_link_libraries(openbus_data PUBLIC Qt6::Svg)
 
 # Network: MarketIndex (market.json / images / driver package download)
 target_link_libraries(openbus_data PRIVATE Qt6::Network)
+
+# ZeroMQ: plugin host control (ROUTER/DEALER) + data (PUB) — scheme B
+find_path(ZMQ_INCLUDE_DIR zmq.h)
+find_library(ZMQ_LIBRARY NAMES zmq libzmq)
+if(ZMQ_INCLUDE_DIR AND ZMQ_LIBRARY)
+    target_include_directories(openbus_data PRIVATE ${ZMQ_INCLUDE_DIR})
+    target_link_libraries(openbus_data PRIVATE ${ZMQ_LIBRARY})
+    message(STATUS "ZeroMQ found: ${ZMQ_LIBRARY}")
+    # Runtime DLL must sit beside the DLL (Explorer launch has no MSYS PATH).
+    # openbus.exe shares the same OUTPUT dir as openbus_data.
+    get_filename_component(_zmq_libdir "${ZMQ_LIBRARY}" DIRECTORY)
+    get_filename_component(_zmq_prefix "${_zmq_libdir}" DIRECTORY)
+    set(OPENBUS_ZMQ_DLL "${_zmq_prefix}/bin/libzmq.dll")
+    if(EXISTS "${OPENBUS_ZMQ_DLL}")
+        add_custom_command(TARGET openbus_data POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${OPENBUS_ZMQ_DLL}"
+                    "$<TARGET_FILE_DIR:openbus_data>/libzmq.dll"
+            COMMENT "Copying libzmq.dll next to openbus_data"
+        )
+        # libzmq pulls libsodium (SONAME libsodium-26.dll on current MSYS2)
+        set(_sodium_dll "${_zmq_prefix}/bin/libsodium-26.dll")
+        if(EXISTS "${_sodium_dll}")
+            add_custom_command(TARGET openbus_data POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${_sodium_dll}"
+                        "$<TARGET_FILE_DIR:openbus_data>/libsodium-26.dll"
+                COMMENT "Copying libsodium-26.dll (libzmq dependency)"
+            )
+        endif()
+    else()
+        message(WARNING "libzmq.dll not found at ${OPENBUS_ZMQ_DLL}; runtime will fail outside MSYS PATH")
+        unset(OPENBUS_ZMQ_DLL)
+    endif()
+else()
+    message(FATAL_ERROR "ZeroMQ not found (install mingw-w64-ucrt-x86_64-zeromq / cppzmq)")
+endif()
 
 # zlib: blf.cpp needs zlib inflate (MSYS2 / MinGW libz)
 find_package(ZLIB QUIET)
@@ -800,6 +839,16 @@ target_link_libraries(openbus PRIVATE
     # shell drives Graphic/DataWindow + signal add via createPage/invoke/query
     openbus_graphic
 )
+
+# Ensure libzmq.dll is beside openbus.exe even if only the exe is rebuilt
+if(DEFINED OPENBUS_ZMQ_DLL AND EXISTS "${OPENBUS_ZMQ_DLL}")
+    add_custom_command(TARGET openbus POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${OPENBUS_ZMQ_DLL}"
+                "$<TARGET_FILE_DIR:openbus>/libzmq.dll"
+        COMMENT "Copying libzmq.dll next to openbus.exe"
+    )
+endif()
 
 # ============================================================
 #  Windows: GUI subsystem (no console window)

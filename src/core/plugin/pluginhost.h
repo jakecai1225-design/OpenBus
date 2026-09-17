@@ -8,16 +8,15 @@
 #include <functional>
 
 class QProcess;
+class QProcessEnvironment;
 class QTimer;
+class PluginZmqHub;
 
 /**
- * @brief Python 插件宿主进程管理 — QProcess + JSON-RPC over stdin/stdout
+ * @brief Python plugin host process — QProcess lifecycle + ZMQ JSON-RPC control.
  *
- * 负责：
- * - 启动/停止 Python 子进程 (sin_host.py)
- * - 通过 newline-delimited JSON 进行双向通信
- * - 管理异步请求的回调
- * - 崩溃后自动重启（指数退避）
+ * Control plane: PluginZmqHub ROUTER/DEALER (JSON-RPC 2.0).
+ * Data plane:    PluginZmqHub PUB (binary frames) — see PluginManager flush.
  */
 class PluginHost : public QObject
 {
@@ -27,79 +26,61 @@ public:
     explicit PluginHost(QObject *parent = nullptr);
     ~PluginHost();
 
-    /// 启动 Python 宿主进程
-    /// @param pythonExe Python 解释器路径
-    /// @param hostScript sin_host.py 的完整路径
-    /// @param sdkDir SDK 目录路径（设置 SIN_SDK_DIR 环境变量）
-    /// @param pluginsDir 插件根目录路径（设置 SIN_PLUGINS_DIR 环境变量）
+    /// Start ZMQ hub then launch Python host (sin_host.py).
     bool start(const QString &pythonExe, const QString &hostScript,
                const QString &sdkDir, const QString &pluginsDir);
 
-    /// 停止宿主进程
     void stop();
-
-    /// 是否正在运行
     bool isRunning() const;
-
-    /// 返回宿主进程 PID（未运行返回 0）
+    /// Process alive (may still be waiting for host.hello).
+    bool isProcessAlive() const;
     qint64 processId() const;
 
-    // ---- JSON-RPC 发送 ----
+    /// Restart process using cached start() arguments (no-op if already alive).
+    bool ensureProcess();
 
-    /// 发送通知（无需回复）
+    PluginZmqHub *zmqHub() const { return m_zmq; }
+
     void sendNotification(const QString &method, const QJsonObject &params = {});
-
-    /// 发送请求（需回复，异步回调）
     void sendRequest(const QString &method, const QJsonObject &params,
                      std::function<void(const QJsonValue &)> callback);
-
-    /// 发送请求（无需回调）
     void sendRequest(const QString &method, const QJsonObject &params = {});
-
-    /// 发送响应（回复 Python 宿主的请求）
     void sendResponse(const QJsonValue &id, const QJsonValue &result);
-
-    /// 发送错误响应（未知方法等，避免 SDK 侧阻塞到超时）
     void sendErrorResponse(const QJsonValue &id, int code, const QString &message);
 
 signals:
-    /// 收到来自 Python 宿主的通知/请求
     void messageReceived(const QString &method, const QJsonObject &params, const QJsonValue &id);
-
-    /// 宿主进程已启动
     void hostStarted();
-
-    /// 宿主进程崩溃
     void hostCrashed();
-
-    /// 宿主进程错误
     void hostError(const QString &error);
 
 private slots:
-    void onReadyRead();
+    void onCtrlMessage(const QByteArray &jsonUtf8);
     void onProcessFinished(int exitCode, int exitStatus);
     void onProcessError(int error);
     void onRestartTimer();
+    void onHelloTimeout();
 
 private:
     QProcess *m_process = nullptr;
-    QByteArray m_readBuffer;         ///< 不完整行缓冲
+    PluginZmqHub *m_zmq = nullptr;
     int m_nextRequestId = 1;
     QHash<int, std::function<void(const QJsonValue &)>> m_pendingRequests;
     QTimer *m_restartTimer = nullptr;
-    int m_restartAttempts = 0;       ///< 当前重启尝试次数
+    QTimer *m_helloTimer = nullptr;
+    int m_restartAttempts = 0;
+    bool m_helloSeen = false;
 
-    // 启动参数缓存（用于重启）
     QString m_pythonExe;
     QString m_hostScript;
     QString m_sdkDir;
     QString m_pluginsDir;
 
     void sendMessage(const QJsonObject &msg);
-    void handleLine(const QByteArray &line);
+    void handleJsonObject(const QJsonObject &obj);
     void scheduleRestart();
+    void prepareHostEnvironment(QProcessEnvironment &env) const;
 
-    /// 停机标志：stop() 主动终止时置 -1，抑制 kill 触发的自动重启
     static constexpr int kStopped = -1;
 };
 

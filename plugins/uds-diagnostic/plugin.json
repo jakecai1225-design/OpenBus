@@ -1,0 +1,19 @@
+{
+    "name": "uds-diagnostic",
+    "version": "1.1.0",
+    "author": "sin",
+    "description": "UDS diagnostic client (ISO 14229, G10): ISO-TP FC/BS/STmin, P2/P2* and 0x78, service forms + response decode, DID dict/periodic poll, DTC lists, seed-key security access (3 algos), 34/36/37 flash helper. Targets ZCANPro / CANoe / TSMaster.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:udsDiagnostic.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "udsDiagnostic.open",
+                "title": "Protocol: UDS Diagnostic"
+            }
+        ]
+    }
+}

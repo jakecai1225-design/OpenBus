@@ -1936,6 +1936,13 @@ FrameRow *ExtensionsPanel::makeRow(const MarketEntryData &e)
         l->setAttribute(Qt::WA_TransparentForMouseEvents, true);
 
     row->setOnClick([this, item = e.item]() { emit itemActivated(item); });
+    // Double-click installed plugin → start / restart (control channel activate)
+    if (e.item.kind == MarketItem::InstalledPlugin) {
+        row->setOnDoubleClick([this, id = e.item.id]() {
+            emit pluginActivated(id);
+        });
+        row->setToolTip(QStringLiteral("Double-click to run; gear for more actions"));
+    }
     return row;
 }
 

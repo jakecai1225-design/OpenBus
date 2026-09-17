@@ -1,4 +1,5 @@
 #include "pluginhost.h"
+#include "pluginzmq.h"
 #include "core/logging.h"
 
 #include <QProcess>
@@ -7,6 +8,8 @@
 #include <QJsonValue>
 #include <QTimer>
 #include <QDir>
+#include <QFileInfo>
+#include <QProcessEnvironment>
 
 PluginHost::PluginHost(QObject *parent)
     : QObject(parent)
@@ -14,11 +17,65 @@ PluginHost::PluginHost(QObject *parent)
     m_restartTimer = new QTimer(this);
     m_restartTimer->setSingleShot(true);
     connect(m_restartTimer, &QTimer::timeout, this, &PluginHost::onRestartTimer);
+
+    m_helloTimer = new QTimer(this);
+    m_helloTimer->setSingleShot(true);
+    connect(m_helloTimer, &QTimer::timeout, this, &PluginHost::onHelloTimeout);
 }
 
 PluginHost::~PluginHost()
 {
     stop();
+}
+
+void PluginHost::prepareHostEnvironment(QProcessEnvironment &env) const
+{
+    // Plugin host must run against MSYS2-prefixed Python (PyQt6 / pyzmq / Qt6
+    // platform plugins + DLLs). When openbus is started from Explorer, PATH
+    // often lacks ucrt64/bin — inject it from the chosen interpreter.
+    const QFileInfo pyInfo(m_pythonExe);
+    const QString pyBin = pyInfo.absolutePath();               // .../ucrt64/bin
+    const QDir pyRoot = QFileInfo(pyBin).dir();               // .../ucrt64
+    const QDir msysRoot = QFileInfo(pyRoot.absolutePath()).dir(); // .../msys64
+    const QString usrBin = msysRoot.filePath(QStringLiteral("usr/bin"));
+
+    QStringList pathParts;
+    if (!pyBin.isEmpty())
+        pathParts << QDir::toNativeSeparators(pyBin);
+    if (QDir(usrBin).exists())
+        pathParts << QDir::toNativeSeparators(usrBin);
+    const QString existing = env.value(QStringLiteral("PATH"));
+    if (!existing.isEmpty())
+        pathParts << existing;
+    env.insert(QStringLiteral("PATH"), pathParts.join(QLatin1Char(';')));
+
+    // Mark the child as UCRT64 so native packages resolve consistently
+    const QString prefixName = pyRoot.dirName().toLower(); // ucrt64 / mingw64 / ...
+    if (prefixName == QLatin1String("ucrt64")
+        || prefixName == QLatin1String("clang64")
+        || prefixName == QLatin1String("mingw64")) {
+        env.insert(QStringLiteral("MSYSTEM"), prefixName.toUpper());
+        env.insert(QStringLiteral("MSYSTEM_PREFIX"),
+                   QDir::toNativeSeparators(pyRoot.absolutePath()));
+        env.insert(QStringLiteral("MINGW_PREFIX"),
+                   QDir::toNativeSeparators(pyRoot.absolutePath()));
+    }
+
+    // openbus may inherit QT_PLUGIN_PATH=<exe>/plugins (Python plugin tree).
+    // That breaks PyQt6 platforms — point at Qt shipped with MSYS2 Python.
+    env.remove(QStringLiteral("QT_PLUGIN_PATH"));
+    env.remove(QStringLiteral("QT_QPA_PLATFORM_PLUGIN_PATH"));
+    const QString qtPlugins = pyRoot.filePath(QStringLiteral("share/qt6/plugins"));
+    if (QDir(qtPlugins).exists()) {
+        env.insert(QStringLiteral("QT_PLUGIN_PATH"),
+                   QDir::toNativeSeparators(qtPlugins));
+        env.insert(QStringLiteral("QT_QPA_PLATFORM_PLUGIN_PATH"),
+                   QDir::toNativeSeparators(qtPlugins + QStringLiteral("/platforms")));
+    }
+    // Never force offscreen for real plugin UI windows
+    if (env.value(QStringLiteral("QT_QPA_PLATFORM"))
+            .compare(QStringLiteral("offscreen"), Qt::CaseInsensitive) == 0)
+        env.remove(QStringLiteral("QT_QPA_PLATFORM"));
 }
 
 bool PluginHost::start(const QString &pythonExe, const QString &hostScript,
@@ -28,6 +85,21 @@ bool PluginHost::start(const QString &pythonExe, const QString &hostScript,
     m_hostScript = hostScript;
     m_sdkDir = sdkDir;
     m_pluginsDir = pluginsDir;
+    m_helloSeen = false;
+    m_helloTimer->stop();
+
+    if (!m_zmq) {
+        m_zmq = new PluginZmqHub(this);
+        connect(m_zmq, &PluginZmqHub::ctrlMessageReceived,
+                this, &PluginHost::onCtrlMessage);
+        connect(m_zmq, &PluginZmqHub::hubError, this, &PluginHost::hostError);
+    }
+    if (!m_zmq->isRunning()) {
+        if (!m_zmq->start()) {
+            emit hostError(QStringLiteral("Failed to start ZMQ hub"));
+            return false;
+        }
+    }
 
     if (m_process) {
         m_process->deleteLater();
@@ -35,18 +107,27 @@ bool PluginHost::start(const QString &pythonExe, const QString &hostScript,
     }
 
     m_process = new QProcess(this);
-    m_process->setProcessChannelMode(QProcess::MergedChannels);
+    m_process->setProcessChannelMode(QProcess::SeparateChannels);
+    // Avoid stdout pipe fill stalling the host before host.hello
+    m_process->setStandardOutputFile(QProcess::nullDevice());
 
-    // 设置环境变量供 sin_host.py 读取
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    prepareHostEnvironment(env);
     if (!sdkDir.isEmpty())
-        env.insert("SIN_SDK_DIR", sdkDir);
+        env.insert(QStringLiteral("SIN_SDK_DIR"), sdkDir);
     if (!pluginsDir.isEmpty())
-        env.insert("SIN_PLUGINS_DIR", pluginsDir);
+        env.insert(QStringLiteral("SIN_PLUGINS_DIR"), pluginsDir);
+    env.insert(QStringLiteral("SIN_ZMQ_CTRL"), m_zmq->ctrlEndpoint());
+    env.insert(QStringLiteral("SIN_ZMQ_DATA"), m_zmq->dataEndpoint());
     m_process->setProcessEnvironment(env);
 
-    connect(m_process, &QProcess::readyReadStandardOutput,
-            this, &PluginHost::onReadyRead);
+    connect(m_process, &QProcess::readyReadStandardError, this, [this]() {
+        if (!m_process)
+            return;
+        const QByteArray err = m_process->readAllStandardError();
+        if (!err.isEmpty())
+            spdlog::info("PluginHost[stderr]: {}", err.trimmed().toStdString());
+    });
     connect(m_process, &QProcess::finished,
             this, [this](int exitCode, QProcess::ExitStatus status) {
         onProcessFinished(exitCode, static_cast<int>(status));
@@ -56,68 +137,80 @@ bool PluginHost::start(const QString &pythonExe, const QString &hostScript,
         onProcessError(static_cast<int>(error));
     });
 
-    QStringList args;
-    args << hostScript;
+    spdlog::info("PluginHost: starting Python host: {} {} (ctrl={} data={})",
+                 pythonExe.toStdString(), hostScript.toStdString(),
+                 m_zmq->ctrlEndpoint().toStdString(),
+                 m_zmq->dataEndpoint().toStdString());
 
-    spdlog::info("PluginHost: 启动 Python 宿主: {} {}", pythonExe.toStdString(),
-                 hostScript.toStdString());
-
-    m_process->start(pythonExe, args);
+    m_process->start(pythonExe, QStringList() << hostScript);
 
     if (!m_process->waitForStarted(5000)) {
-        spdlog::error("PluginHost: Python 宿主启动失败: {}",
+        spdlog::error("PluginHost: failed to start: {}",
                       m_process->errorString().toStdString());
         emit hostError(m_process->errorString());
         return false;
     }
 
     m_restartAttempts = 0;
-    spdlog::info("PluginHost: Python 宿主已启动 (PID={})",
+    spdlog::info("PluginHost: process started (PID={}), waiting for host.hello",
                  m_process->processId());
-    emit hostStarted();
+    m_helloTimer->start(8000);
     return true;
 }
 
 void PluginHost::stop()
 {
-    // 停机标志优先：后续 kill 触发的 onProcessFinished/onProcessError
-    // 据此跳过自动重启（否则应用退出后 1s 会拉起僵尸宿主进程）
     m_restartAttempts = kStopped;
     m_restartTimer->stop();
+    m_helloTimer->stop();
+    m_helloSeen = false;
 
-    if (!m_process)
-        return;
-
-    // 发送 shutdown 通知让 Python 优雅退出
-    sendNotification("shutdown");
-
-    if (!m_process->waitForFinished(3000)) {
-        spdlog::warn("PluginHost: Python 宿主未响应 shutdown，强制终止");
-        m_process->kill();
-        m_process->waitForFinished(1000);
+    if (m_process) {
+        sendNotification(QStringLiteral("shutdown"));
+        if (!m_process->waitForFinished(3000)) {
+            spdlog::warn("PluginHost: host did not exit after shutdown, killing");
+            m_process->kill();
+            m_process->waitForFinished(1000);
+        }
+        m_process->deleteLater();
+        m_process = nullptr;
     }
 
-    m_process->deleteLater();
-    m_process = nullptr;
+    if (m_zmq) {
+        m_zmq->stop();
+    }
 }
 
 bool PluginHost::isRunning() const
 {
+    return isProcessAlive() && m_helloSeen;
+}
+
+bool PluginHost::isProcessAlive() const
+{
     return m_process && m_process->state() == QProcess::Running;
+}
+
+bool PluginHost::ensureProcess()
+{
+    if (isProcessAlive())
+        return true;
+    if (m_pythonExe.isEmpty() || m_hostScript.isEmpty())
+        return false;
+    return start(m_pythonExe, m_hostScript, m_sdkDir, m_pluginsDir);
 }
 
 qint64 PluginHost::processId() const
 {
-    return (m_process && m_process->state() == QProcess::Running)
-               ? m_process->processId() : 0;
+    return isProcessAlive() ? m_process->processId() : 0;
 }
 
 void PluginHost::sendNotification(const QString &method, const QJsonObject &params)
 {
     QJsonObject msg;
-    msg["jsonrpc"] = "2.0";
-    msg["method"] = method;
-    msg["params"] = params;
+    msg[QStringLiteral("jsonrpc")] = QStringLiteral("2.0");
+    msg[QStringLiteral("method")] = method;
+    msg[QStringLiteral("params")] = params;
     sendMessage(msg);
 }
 
@@ -128,10 +221,10 @@ void PluginHost::sendRequest(const QString &method, const QJsonObject &params,
     m_pendingRequests[id] = callback;
 
     QJsonObject msg;
-    msg["jsonrpc"] = "2.0";
-    msg["method"] = method;
-    msg["params"] = params;
-    msg["id"] = id;
+    msg[QStringLiteral("jsonrpc")] = QStringLiteral("2.0");
+    msg[QStringLiteral("method")] = method;
+    msg[QStringLiteral("params")] = params;
+    msg[QStringLiteral("id")] = id;
     sendMessage(msg);
 }
 
@@ -142,90 +235,72 @@ void PluginHost::sendRequest(const QString &method, const QJsonObject &params)
 
 void PluginHost::sendResponse(const QJsonValue &id, const QJsonValue &result)
 {
-    if (!isRunning() || id.isNull() || id.isUndefined())
+    if (id.isNull() || id.isUndefined())
         return;
 
     QJsonObject msg;
-    msg["jsonrpc"] = "2.0";
-    msg["result"] = result;
-    msg["id"] = id;
+    msg[QStringLiteral("jsonrpc")] = QStringLiteral("2.0");
+    msg[QStringLiteral("result")] = result;
+    msg[QStringLiteral("id")] = id;
     sendMessage(msg);
 }
 
 void PluginHost::sendErrorResponse(const QJsonValue &id, int code, const QString &message)
 {
-    if (!isRunning() || id.isNull() || id.isUndefined())
+    if (id.isNull() || id.isUndefined())
         return;
 
     QJsonObject err;
-    err["code"] = code;
-    err["message"] = message;
+    err[QStringLiteral("code")] = code;
+    err[QStringLiteral("message")] = message;
 
     QJsonObject msg;
-    msg["jsonrpc"] = "2.0";
-    msg["error"] = err;
-    msg["id"] = id;
+    msg[QStringLiteral("jsonrpc")] = QStringLiteral("2.0");
+    msg[QStringLiteral("error")] = err;
+    msg[QStringLiteral("id")] = id;
     sendMessage(msg);
 }
 
 void PluginHost::sendMessage(const QJsonObject &msg)
 {
-    if (!isRunning()) {
-        spdlog::warn("PluginHost: 无法发送消息，宿主未运行");
+    if (!m_zmq || !m_zmq->isRunning()) {
+        spdlog::warn("PluginHost: cannot send, ZMQ hub not running");
         return;
     }
-
-    QByteArray data = QJsonDocument(msg).toJson(QJsonDocument::Compact);
-    data.append('\n');
-    m_process->write(data);
+    const QByteArray data = QJsonDocument(msg).toJson(QJsonDocument::Compact);
+    m_zmq->sendCtrl(data);
 }
 
-void PluginHost::onReadyRead()
-{
-    if (!m_process)
-        return;
-
-    m_readBuffer.append(m_process->readAllStandardOutput());
-
-    // 按行处理（newline-delimited JSON）
-    int idx;
-    while ((idx = m_readBuffer.indexOf('\n')) >= 0) {
-        QByteArray line = m_readBuffer.left(idx).trimmed();
-        m_readBuffer.remove(0, idx + 1);
-        if (!line.isEmpty())
-            handleLine(line);
-    }
-}
-
-void PluginHost::handleLine(const QByteArray &line)
+void PluginHost::onCtrlMessage(const QByteArray &jsonUtf8)
 {
     QJsonParseError parseError;
-    QJsonDocument doc = QJsonDocument::fromJson(line, &parseError);
-    if (parseError.error != QJsonParseError::NoError) {
-        spdlog::warn("PluginHost: JSON 解析错误: {} (原始: {})",
+    const QJsonDocument doc = QJsonDocument::fromJson(jsonUtf8, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+        spdlog::warn("PluginHost: JSON parse error: {} raw={}",
                      parseError.errorString().toStdString(),
-                     QString::fromUtf8(line).toStdString());
+                     QString::fromUtf8(jsonUtf8.left(200)).toStdString());
         return;
     }
+    handleJsonObject(doc.object());
+}
 
-    QJsonObject obj = doc.object();
-    QString method = obj.value("method").toString();
-    QJsonObject params = obj.value("params").toObject();
-    QJsonValue id = obj.value("id");
+void PluginHost::handleJsonObject(const QJsonObject &obj)
+{
+    const QString method = obj.value(QStringLiteral("method")).toString();
+    const QJsonObject params = obj.value(QStringLiteral("params")).toObject();
+    const QJsonValue id = obj.value(QStringLiteral("id"));
 
-    // 如果是响应（有 result 或 error，且有 id）
-    if (id.isDouble() && (obj.contains("result") || obj.contains("error"))) {
-        int reqId = id.toInt();
+    if (id.isDouble() && (obj.contains(QStringLiteral("result"))
+                          || obj.contains(QStringLiteral("error")))) {
+        const int reqId = id.toInt();
         auto it = m_pendingRequests.find(reqId);
         if (it != m_pendingRequests.end()) {
             if (it.value()) {
-                if (obj.contains("error")) {
-                    spdlog::warn("PluginHost: 请求 {} 返回错误: {}",
-                                 reqId,
-                                 QString::fromUtf8(QJsonDocument(obj.value("error").toObject()).toJson(QJsonDocument::Compact)).toStdString());
+                if (obj.contains(QStringLiteral("error"))) {
+                    spdlog::warn("PluginHost: request {} error", reqId);
                     it.value()(QJsonValue());
                 } else {
-                    it.value()(obj.value("result"));
+                    it.value()(obj.value(QStringLiteral("result")));
                 }
             }
             m_pendingRequests.erase(it);
@@ -233,19 +308,47 @@ void PluginHost::handleLine(const QByteArray &line)
         return;
     }
 
-    // 否则是通知/请求
+    if (method == QLatin1String("host.hello")) {
+        if (!m_helloSeen) {
+            m_helloSeen = true;
+            m_helloTimer->stop();
+            spdlog::info("PluginHost: host.hello received");
+            emit hostStarted();
+        }
+        return;
+    }
+
     emit messageReceived(method, params, id);
+}
+
+void PluginHost::onHelloTimeout()
+{
+    if (m_helloSeen)
+        return;
+    QString detail = QStringLiteral("Plugin host did not send host.hello within 8s");
+    if (m_process) {
+        const QByteArray err = m_process->readAllStandardError();
+        if (!err.isEmpty())
+            detail += QStringLiteral("\n") + QString::fromUtf8(err.left(500));
+    }
+    spdlog::error("PluginHost: {}", detail.toStdString());
+    emit hostError(detail);
+    // Kill so the next activatePlugin can restart a clean host
+    if (m_process && m_process->state() != QProcess::NotRunning) {
+        m_process->kill();
+        m_process->waitForFinished(2000);
+    }
 }
 
 void PluginHost::onProcessFinished(int exitCode, int exitStatus)
 {
-    spdlog::info("PluginHost: Python 宿主退出 (code={}, status={})",
+    spdlog::info("PluginHost: Python host exited (code={}, status={})",
                  exitCode, exitStatus);
+    m_helloSeen = false;
 
     if (m_restartAttempts < 0)
-        return;  // stop() 主动终止
+        return;
 
-    // 非正常退出 → 尝试重启
     if (exitCode != 0) {
         emit hostCrashed();
         scheduleRestart();
@@ -254,37 +357,36 @@ void PluginHost::onProcessFinished(int exitCode, int exitStatus)
 
 void PluginHost::onProcessError(int error)
 {
-    spdlog::error("PluginHost: 进程错误: {}",
+    Q_UNUSED(error);
+    spdlog::error("PluginHost: process error: {}",
                   m_process ? m_process->errorString().toStdString() : "unknown");
 
     if (m_restartAttempts < 0)
-        return;  // stop() 主动终止
+        return;
 
-    emit hostError(m_process ? m_process->errorString() : QStringLiteral("未知错误"));
+    emit hostError(m_process ? m_process->errorString()
+                             : QStringLiteral("unknown error"));
     scheduleRestart();
 }
 
 void PluginHost::onRestartTimer()
 {
     if (m_restartAttempts == kStopped)
-        return;   // stop() 竞态保护
+        return;
 
-    spdlog::info("PluginHost: 尝试重启 (第 {} 次)", m_restartAttempts + 1);
+    spdlog::info("PluginHost: restart attempt {}", m_restartAttempts + 1);
     start(m_pythonExe, m_hostScript, m_sdkDir, m_pluginsDir);
 }
 
 void PluginHost::scheduleRestart()
 {
     m_restartAttempts++;
-
     if (m_restartAttempts > 3) {
-        spdlog::error("PluginHost: 重启超过 3 次，放弃");
-        emit hostError(QStringLiteral("插件宿主多次崩溃，已停止自动重启"));
+        spdlog::error("PluginHost: restart limit exceeded");
+        emit hostError(QStringLiteral("Plugin host crashed repeatedly"));
         return;
     }
-
-    // 指数退避: 1s → 2s → 4s
-    int delayMs = 1000 * (1 << (m_restartAttempts - 1));
-    spdlog::info("PluginHost: {}ms 后重启", delayMs);
+    const int delayMs = 1000 * (1 << (m_restartAttempts - 1));
+    spdlog::info("PluginHost: restart in {} ms", delayMs);
     m_restartTimer->start(delayMs);
 }

@@ -3,6 +3,7 @@
 
 #include <QFrame>
 #include <QMetaType>
+#include <QMouseEvent>
 #include <QPixmap>
 #include <QString>
 #include <QStringList>
@@ -35,6 +36,7 @@ public:
     }
     using ClickCb = std::function<void()>;
     void setOnClick(ClickCb cb) { m_cb = std::move(cb); }
+    void setOnDoubleClick(ClickCb cb) { m_dblCb = std::move(cb); }
     void setSelected(bool sel)
     {
         setStyleSheet(sel
@@ -47,10 +49,23 @@ public:
     QLabel *iconLabel = nullptr;
 
 protected:
-    void mousePressEvent(QMouseEvent *) override { if (m_cb) m_cb(); }
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::LeftButton && m_cb)
+            m_cb();
+        QFrame::mousePressEvent(event);
+    }
+    void mouseDoubleClickEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::LeftButton && m_dblCb)
+            m_dblCb();
+        else
+            QFrame::mouseDoubleClickEvent(event);
+    }
 
 private:
     ClickCb m_cb;
+    ClickCb m_dblCb;
 };
 
 /// 行条目聚合数据（市场页列表与侧边栏迷你市场共用，方案 §13.10）

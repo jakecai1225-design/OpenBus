@@ -55,10 +55,16 @@ public:
     /// 宿主进程 PID（未运行返回 0）
     qint64 hostProcessId() const;
 
-    /// Python 解释器路径
+    /// Python interpreter path (cached after host start)
     QString pythonExecutable() const { return m_pythonExe; }
 
-    /// 注入工程 DBC 管理器（signals.* 解码/编码用；纯消费者，不持有）
+    /// Resolve MSYS2 UCRT64 Python with PyQt6 + pyzmq (plugin host requirement).
+    /// Order: SIN_PYTHON → MSYSTEM_PREFIX/MINGW_PREFIX → common msys64 roots →
+    /// optional bundled runtime. Bare PATH `python`/`py` is rejected unless it
+    /// resolves under an MSYS2 *64 prefix and imports PyQt6 + zmq.
+    static QString resolvePluginPython();
+
+    /// Inject project DBC manager (signals.* decode/encode; consumer only)
     /// MainWindow 创建 DbcManager 后注入；未注入时 signals.* 返回错误
     void setDbcManager(DbcManager *mgr) { m_dbcManager = mgr; }
 
@@ -159,6 +165,9 @@ private:
 
     // 声明 onFrame 激活事件的插件（懒激活候选，discoverPlugins 重算）
     QSet<QString> m_onFramePlugins;
+
+    // Activations requested before host.hello — flushed in onHostStarted()
+    QStringList m_pendingActivations;
 
     // 慢消费者保护：缓冲上限丢弃计数（flush 时告警并清零）
     int m_droppedFrames = 0;

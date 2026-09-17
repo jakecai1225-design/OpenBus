@@ -194,6 +194,7 @@ public:
     }
     using ClickCb = std::function<void()>;
     void setOnClick(ClickCb cb) { m_cb = std::move(cb); }
+    void setOnDoubleClick(ClickCb cb) { m_dblCb = std::move(cb); }
 
     QLabel *iconLabel = nullptr;
     QLabel *nameLabel = nullptr;
@@ -203,10 +204,23 @@ public:
     QPushButton *actionBtn = nullptr;
 
 protected:
-    void mousePressEvent(QMouseEvent *) override { if (m_cb) m_cb(); }
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::LeftButton && m_cb)
+            m_cb();
+        QFrame::mousePressEvent(event);
+    }
+    void mouseDoubleClickEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::LeftButton && m_dblCb)
+            m_dblCb();
+        else
+            QFrame::mouseDoubleClickEvent(event);
+    }
 
 private:
     ClickCb m_cb;
+    ClickCb m_dblCb;
 };
 
 namespace {
@@ -749,7 +763,7 @@ void MarketTab::rebuildList()
         auto *flowHost = new QWidget;
         auto *flow = new FlowLayout(flowHost, 0, 12, 12);
         for (const auto &d : entries) {
-            // 安装态三形态（与详情页按钮组一致：安装 / 更新 / 已安装）
+            // Install state: install / update / already installed
             const QString local = d.isDriver
                                       ? installedDriverVersion(d.item.id)
                                       : installedPluginVersion(d.item.id);
@@ -768,10 +782,30 @@ void MarketTab::rebuildList()
             const MarketItem item = d.item;
             auto *card = makeMarketCard(
                 d, [this, item]() { selectItem(item); }, onInstall);
-            if (onInstall)
+            if (onInstall) {
                 card->actionBtn->setText(
-                    local.isEmpty() ? QStringLiteral("安装")
-                                    : QStringLiteral("更新"));
+                    local.isEmpty() ? QStringLiteral("Install")
+                                    : QStringLiteral("Update"));
+            }
+            // Already-installed plugin: Run button + double-click → activate
+            const bool installedPlugin =
+                (!d.isDriver && !local.isEmpty())
+                || d.item.kind == MarketItem::InstalledPlugin;
+            if (installedPlugin) {
+                const QString pluginName = d.item.id;
+                card->actionBtn->setText(QStringLiteral("Run"));
+                card->actionBtn->setEnabled(true);
+                card->actionBtn->disconnect();
+                QObject::connect(card->actionBtn, &QPushButton::clicked, card,
+                                 [this, pluginName]() {
+                    emit pluginActivateRequested(pluginName);
+                });
+                card->setOnDoubleClick([this, pluginName]() {
+                    emit pluginActivateRequested(pluginName);
+                });
+                card->setToolTip(QStringLiteral(
+                    "Run / double-click to start; single-click for details"));
+            }
             loadCardIcon(card->iconLabel, d.icon);
             flow->addWidget(card);
         }
@@ -864,15 +898,34 @@ void MarketTab::rebuildList()
         return;
     }
 
-    // ---- 浏览态分区（默认 = 精选推荐 + 最近更新；排序切换 = 全部条目单区） ----
+    // ---- Browse mode: Installed (local) first, then marketplace sections ----
     if (sortIdx == 1) {
         std::stable_sort(all.begin(), all.end(), byUpdated);
-        addSection(QStringLiteral("全部条目 · 最近更新"), all);
+        addSection(QStringLiteral("All · Recently updated"), all);
     } else if (sortIdx == 2) {
         std::stable_sort(all.begin(), all.end(), byName);
-        addSection(QStringLiteral("全部条目 · 按名称"), all);
+        addSection(QStringLiteral("All · By name"), all);
     } else {
-        // 精选推荐：驱动/插件交错取前 6（无运营位数据前的确定性策展）
+        // Local installed plugins (always visible so UDS can be double-clicked)
+        if (wantPlugins) {
+            QVector<CardData> installed;
+            for (const auto &p : PluginManager::instance()->discoveredPlugins()) {
+                CardData d;
+                d.item = { MarketItem::InstalledPlugin, p.name };
+                d.title = p.name;
+                d.vendor = p.author;
+                d.version = p.version;
+                d.summary = p.description;
+                d.isDriver = false;
+                d.searchFields = { p.name, p.author, p.description };
+                if (MarketIndex::matchWords(text, d.searchFields))
+                    installed.append(d);
+            }
+            if (!installed.isEmpty())
+                addSection(QStringLiteral("Installed · Double-click to run"),
+                           installed);
+        }
+
         QVector<CardData> featured;
         int i = 0, j = 0;
         while (featured.size() < 6 && (i < drivers.size() || j < plugins.size())) {
@@ -881,10 +934,10 @@ void MarketTab::rebuildList()
             if (j < plugins.size())
                 featured.append(plugins.at(j++));
         }
-        addSection(QStringLiteral("精选推荐"), featured);
+        addSection(QStringLiteral("Featured"), featured);
 
         std::stable_sort(all.begin(), all.end(), byUpdated);
-        addSection(QStringLiteral("最近更新"), all);
+        addSection(QStringLiteral("Recently updated"), all);
     }
 }
 
@@ -1572,35 +1625,7 @@ QString MarketTab::findAppBaseDir()
 
 QString MarketTab::findPythonExecutable()
 {
-    QStringList candidates;
-    const QString envPython =
-        QProcessEnvironment::systemEnvironment().value(QStringLiteral("SIN_PYTHON"));
-    if (!envPython.isEmpty())
-        candidates << envPython;
-
-    // 捆绑运行时 Python（<exeDir>/runtime/python/python.exe，打包方案 §6.1）——
-    // 与 PluginManager::findPythonExecutable 同一候选顺序，优先于系统 Python
-    const QString bundled = QDir(QCoreApplication::applicationDirPath())
-                                .filePath(QStringLiteral("runtime/python/python.exe"));
-    if (QFileInfo::exists(bundled))
-        candidates << QDir::toNativeSeparators(bundled);
-
-    candidates << QStringLiteral("python3")
-               << QStringLiteral("python")
-               << QStringLiteral("py");
-
-    for (const auto &cmd : candidates) {
-        QProcess proc;
-        proc.start(cmd, { QStringLiteral("-c"),
-                          QStringLiteral("import sys; print(sys.executable)") });
-        if (proc.waitForFinished(3000) && proc.exitCode() == 0) {
-            const QString path =
-                QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
-            if (!path.isEmpty() && QFileInfo::exists(path))
-                return path;
-        }
-    }
-    return QString();
+    return PluginManager::resolvePluginPython();
 }
 
 QString MarketTab::runDriverTool(const QStringList &args, QJsonObject *result)

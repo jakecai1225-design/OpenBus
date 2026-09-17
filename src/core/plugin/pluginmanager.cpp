@@ -1,5 +1,6 @@
 #include "pluginmanager.h"
 #include "pluginhost.h"
+#include "pluginzmq.h"
 #include "pluginconvertjob.h"
 #include "core/canframe.h"
 #include "core/logging.h"
@@ -95,44 +96,135 @@ QString PluginManager::findAppBaseDir() const
 
 QString PluginManager::findPythonExecutable() const
 {
-    // 按优先级查找 Python 解释器
+    return resolvePluginPython();
+}
+
+QString PluginManager::resolvePluginPython()
+{
+    auto looksLikeMsysPrefixBin = [](const QString &exePath) -> bool {
+        const QString n = QDir::fromNativeSeparators(exePath).toLower();
+        // .../ucrt64/bin/python.exe  or clang64 / mingw64
+        return n.contains(QLatin1String("/ucrt64/bin/"))
+            || n.contains(QLatin1String("/clang64/bin/"))
+            || n.contains(QLatin1String("/mingw64/bin/"));
+    };
+
+    auto probePython = [](const QString &cmd) -> QString {
+        if (cmd.isEmpty())
+            return {};
+        QProcess proc;
+        // Require the same stack the plugin host needs (MSYS2 packages).
+        proc.start(cmd, {
+            QStringLiteral("-c"),
+            QStringLiteral(
+                "import sys\n"
+                "import PyQt6\n"
+                "import zmq\n"
+                "print(sys.executable)")
+        });
+        if (!proc.waitForFinished(8000) || proc.exitCode() != 0)
+            return {};
+        const QString path =
+            QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+        if (path.isEmpty() || !QFileInfo::exists(path))
+            return {};
+        return QDir::toNativeSeparators(path);
+    };
+
     QStringList candidates;
 
-    // 环境变量指定的 Python
-    QString envPython = QProcessEnvironment::systemEnvironment().value("SIN_PYTHON");
+    const QProcessEnvironment sysEnv = QProcessEnvironment::systemEnvironment();
+    const QString envPython = sysEnv.value(QStringLiteral("SIN_PYTHON"));
     if (!envPython.isEmpty())
         candidates << envPython;
 
-    // 捆绑运行时 Python（<exeDir>/runtime/python/python.exe）——
-    // 便携版/安装包自带（打包方案 §6.1），优先于系统 Python；
-    // SIN_PYTHON 环境变量仍最高优先，便于用户替换自带解释器
+    // Active MSYS2 prefix (when openbus was launched from an UCRT64 shell)
+    const QStringList prefixEnvKeys = {
+        QStringLiteral("MSYSTEM_PREFIX"),
+        QStringLiteral("MINGW_PREFIX"),
+    };
+    for (const QString &key : prefixEnvKeys) {
+        const QString prefix = sysEnv.value(key);
+        if (prefix.isEmpty())
+            continue;
+        const QString py = QDir(prefix).filePath(QStringLiteral("bin/python.exe"));
+        if (QFileInfo::exists(py))
+            candidates << QDir::toNativeSeparators(py);
+    }
+
+    // Common MSYS2 install roots → prefer ucrt64 (matches openbus toolchain)
+    QStringList roots;
+    const QString sinMsys = sysEnv.value(QStringLiteral("SIN_MSYS2"));
+    if (!sinMsys.isEmpty())
+        roots << sinMsys;
+    const QString msysPrefix = sysEnv.value(QStringLiteral("MSYS2_PREFIX"));
+    if (!msysPrefix.isEmpty())
+        roots << msysPrefix;
+    roots << QStringLiteral("C:/msys64")
+          << QStringLiteral("D:/msys64")
+          << QStringLiteral("C:/msys2")
+          << QStringLiteral("D:/msys2");
+
+    const QStringList envs = {
+        QStringLiteral("ucrt64"),
+        QStringLiteral("clang64"),
+        QStringLiteral("mingw64"),
+    };
+    for (const QString &root : roots) {
+        for (const QString &envName : envs) {
+            const QString py = QDir(root).filePath(envName + QStringLiteral("/bin/python.exe"));
+            if (QFileInfo::exists(py))
+                candidates << QDir::toNativeSeparators(py);
+        }
+    }
+
+    // Optional portable bundle (must still provide PyQt6 + zmq)
     const QString bundled = QDir(QCoreApplication::applicationDirPath())
                                 .filePath(QStringLiteral("runtime/python/python.exe"));
     if (QFileInfo::exists(bundled))
         candidates << QDir::toNativeSeparators(bundled);
 
-    // 系统路径中的 python / python3
-    candidates << "python3"
-               << "python"
-               << "py";
-
-    for (const auto &cmd : candidates) {
-        QProcess proc;
-        QStringList args;
-        args << "-c" << "import sys; print(sys.executable)";
-        proc.start(cmd, args);
-        if (proc.waitForFinished(3000) && proc.exitCode() == 0) {
-            QString path = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
-            if (!path.isEmpty() && QFileInfo::exists(path)) {
-                spdlog::info("PluginManager: 找到 Python: {} ({})", path.toStdString(),
-                             cmd.toStdString());
-                return path;
-            }
-        }
+    // Deduplicate while preserving order
+    QStringList unique;
+    for (const QString &c : candidates) {
+        if (!unique.contains(c, Qt::CaseInsensitive))
+            unique << c;
     }
 
-    spdlog::warn("PluginManager: 未找到系统 Python 解释器");
-    return QString();
+    for (const QString &cmd : unique) {
+        const QString path = probePython(cmd);
+        if (path.isEmpty()) {
+            spdlog::debug("PluginManager: Python candidate rejected (need PyQt6+zmq): {}",
+                          cmd.toStdString());
+            continue;
+        }
+        // SIN_PYTHON / bundled may live outside msys — accept if probe passed.
+        // Auto-discovered PATH names are not in the list; only explicit paths.
+        spdlog::info("PluginManager: using plugin Python: {} (via {})",
+                     path.toStdString(), cmd.toStdString());
+        return path;
+    }
+
+    // Last resort: only accept `python` on PATH if it is clearly MSYS2 *64
+    // and imports PyQt6+zmq (blocks Windows Store / official python.org).
+    for (const QString &cmd : {QStringLiteral("python"), QStringLiteral("python3")}) {
+        const QString path = probePython(cmd);
+        if (path.isEmpty())
+            continue;
+        if (!looksLikeMsysPrefixBin(path)) {
+            spdlog::warn("PluginManager: ignoring non-MSYS2 Python on PATH: {}",
+                         path.toStdString());
+            continue;
+        }
+        spdlog::info("PluginManager: using plugin Python from PATH: {}",
+                     path.toStdString());
+        return path;
+    }
+
+    spdlog::warn("PluginManager: no MSYS2 Python with PyQt6+pyzmq found "
+                 "(install mingw-w64-ucrt-x86_64-python-pyqt6 and "
+                 "mingw-w64-ucrt-x86_64-python-pyzmq, or set SIN_PYTHON)");
+    return {};
 }
 
 void PluginManager::discoverPlugins()
@@ -184,31 +276,37 @@ void PluginManager::initialize()
 
 void PluginManager::startHostIfNeeded()
 {
-    if (m_host)
-        return;   // 宿主已运行（如安装首个插件后补启）
+    if (m_host && m_host->isProcessAlive())
+        return;   // host process already up (hello may still be pending)
 
     if (m_plugins.isEmpty()) {
-        spdlog::info("PluginManager: 无插件，跳过宿主启动");
+        spdlog::info("PluginManager: no plugins, skip host start");
         return;
     }
 
     if (m_pythonExe.isEmpty())
         m_pythonExe = findPythonExecutable();
     if (m_pythonExe.isEmpty()) {
-        spdlog::warn("PluginManager: 未找到 Python，插件系统不可用");
+        spdlog::warn("PluginManager: MSYS2 Python (PyQt6+pyzmq) not found, "
+                     "plugin system unavailable");
         return;
     }
 
     if (!QFileInfo::exists(m_hostScriptPath)) {
-        spdlog::warn("PluginManager: 宿主脚本不存在: {}", m_hostScriptPath.toStdString());
+        spdlog::warn("PluginManager: host script missing: {}",
+                     m_hostScriptPath.toStdString());
+        return;
+    }
+
+    if (m_host) {
+        // Process died but PluginHost object remains — restart with cached args
+        if (!m_host->ensureProcess())
+            spdlog::error("PluginManager: failed to restart plugin host");
         return;
     }
 
     m_host = new PluginHost(this);
 
-    // 单例有意泄漏不析构（见 instance()，DEF-07）：Python 宿主改经
-    // qApp aboutToQuit 优雅关闭（事件循环仍在 → QProcess I/O 合法），
-    // 避免 DLL 卸载阶段静态析构触发加载器锁崩溃
     if (qApp)
         connect(qApp, &QCoreApplication::aboutToQuit,
                 this, &PluginManager::shutdown);
@@ -218,50 +316,56 @@ void PluginManager::startHostIfNeeded()
     connect(m_host, &PluginHost::hostStarted,
             this, &PluginManager::onHostStarted);
     connect(m_host, &PluginHost::hostCrashed, []() {
-        spdlog::warn("PluginManager: 插件宿主崩溃");
+        spdlog::warn("PluginManager: plugin host crashed");
+    });
+    connect(m_host, &PluginHost::hostError, this, [this](const QString &err) {
+        spdlog::error("PluginManager: host error: {}", err.toStdString());
+        emit outputMessage(QStringLiteral("[plugin host] ") + err);
     });
 
     if (!m_host->start(m_pythonExe, m_hostScriptPath, m_sdkDir, m_pluginsDir)) {
-        spdlog::error("PluginManager: 插件宿主启动失败");
+        spdlog::error("PluginManager: failed to start plugin host");
         return;
     }
 
-    // 启动帧批量定时器（100ms）
     if (!m_frameBatchTimerId)
         m_frameBatchTimerId = startTimer(100);
 }
 
 void PluginManager::onHostStarted()
 {
-    // 崩溃自愈（方案 §一 2）：宿主重启后是空壳进程，订阅表失效、
-    // 已激活插件需重新发送 activate 通知（activate() 内重新注册 on_frame
-    // 回调 → 重新 subscribeFrames，数据链路自动恢复）。
-    // 首次启动时 m_activatedPlugins 为空 → 无操作。
     if (!m_frameSubscribers.isEmpty())
-        spdlog::info("PluginManager: 宿主重启，重建数据链路订阅");
+        spdlog::info("PluginManager: host restarted, rebuilding frame subscriptions");
     m_frameSubscribers.clear();
 
-    if (m_activatedPlugins.isEmpty())
-        return;
+    // Crash recovery: re-activate plugins that were marked active
+    if (!m_activatedPlugins.isEmpty()) {
+        spdlog::info("PluginManager: host restarted, re-activating {} plugin(s)",
+                     m_activatedPlugins.size());
+        const QStringList names = m_activatedPlugins.values();
+        m_activatedPlugins.clear();
+        for (const auto &name : names) {
+            if (!m_plugins.contains(name))
+                continue;
+            activatePlugin(name);
+        }
+    }
 
-    spdlog::info("PluginManager: 宿主重启，重新激活 {} 个插件",
-                 m_activatedPlugins.size());
-    const QStringList names = m_activatedPlugins.values();
-    for (const auto &name : names) {
-        if (!m_plugins.contains(name))
-            continue;
-        const PluginInfo &info = m_plugins[name];
-        QJsonObject params;
-        params["plugin"] = name;
-        params["directory"] = info.directory;
-        params["main"] = info.mainScript;
-        m_host->sendNotification("activate", params);
-        spdlog::info("PluginManager: 重新激活插件 '{}'", name.toStdString());
+    // First-start / race: flush activations requested before host.hello
+    if (!m_pendingActivations.isEmpty()) {
+        const QStringList pending = m_pendingActivations;
+        m_pendingActivations.clear();
+        spdlog::info("PluginManager: flushing {} pending activation(s)",
+                     pending.size());
+        for (const auto &name : pending)
+            activatePlugin(name);
     }
 }
 
 void PluginManager::shutdown()
 {
+    m_pendingActivations.clear();
+
     if (m_frameBatchTimerId) {
         killTimer(m_frameBatchTimerId);
         m_frameBatchTimerId = 0;
@@ -319,12 +423,70 @@ void PluginManager::reactivatePlugin(const QString &name)
     if (m_disabledPlugins.contains(name))
         m_disabledPlugins.remove(name);
 
-    // 已激活的插件先停用再激活（重新创建 UI 窗口等）
+    // Ensure host is up before deactivate/activate (install-then-run race)
+    startHostIfNeeded();
+
     if (m_activatedPlugins.contains(name))
         deactivatePlugin(name);
     activatePlugin(name);
 
     emit pluginListChanged();
+}
+
+void PluginManager::activatePlugin(const QString &name)
+{
+    if (m_disabledPlugins.contains(name)) {
+        spdlog::warn("PluginManager: refuse activate disabled plugin '{}'",
+                     name.toStdString());
+        return;
+    }
+
+    if (!m_plugins.contains(name)) {
+        spdlog::warn("PluginManager: plugin '{}' not found", name.toStdString());
+        return;
+    }
+
+    startHostIfNeeded();
+    if (!m_host) {
+        spdlog::warn("PluginManager: cannot activate '{}': host unavailable",
+                     name.toStdString());
+        return;
+    }
+
+    // Wait for host.hello before sending activate (ROUTER drops early messages)
+    if (!m_host->isRunning()) {
+        if (!m_pendingActivations.contains(name))
+            m_pendingActivations.append(name);
+        spdlog::info("PluginManager: queued activate '{}' (waiting for host.hello)",
+                     name.toStdString());
+        return;
+    }
+
+    if (m_activatedPlugins.contains(name))
+        return;
+
+    const PluginInfo &info = m_plugins[name];
+
+    QJsonObject params;
+    params[QStringLiteral("plugin")] = name;
+    params[QStringLiteral("directory")] = info.directory;
+    params[QStringLiteral("main")] = info.mainScript;
+
+    m_host->sendNotification(QStringLiteral("activate"), params);
+    m_activatedPlugins.insert(name);
+
+    spdlog::info("PluginManager: activated plugin '{}'", name.toStdString());
+
+    // Open primary UI command if declared (onCommand:xxx)
+    for (const QString &ev : info.activationEvents) {
+        if (ev.startsWith(QStringLiteral("onCommand:"))) {
+            const QString cmdId = ev.mid(QStringLiteral("onCommand:").size());
+            if (!cmdId.isEmpty())
+                m_host->sendNotification(QStringLiteral("executeCommand"),
+                                         {{QStringLiteral("id"), cmdId}});
+            break;
+        }
+    }
 }
 
 bool PluginManager::isHostRunning() const
@@ -339,42 +501,16 @@ qint64 PluginManager::hostProcessId() const
 
 void PluginManager::onStartup()
 {
-    if (!m_host || !m_host->isRunning())
+    startHostIfNeeded();
+    if (!m_host)
         return;
 
     for (const auto &info : m_plugins) {
         if (m_disabledPlugins.contains(info.name))
             continue;
-        if (info.activatesOnStartup() && !m_activatedPlugins.contains(info.name)) {
+        if (info.activatesOnStartup() && !m_activatedPlugins.contains(info.name))
             activatePlugin(info.name);
-        }
     }
-}
-
-void PluginManager::activatePlugin(const QString &name)
-{
-    if (!m_host || !m_host->isRunning())
-        return;
-
-    if (m_activatedPlugins.contains(name))
-        return;
-
-    if (!m_plugins.contains(name)) {
-        spdlog::warn("PluginManager: 插件 '{}' 不存在", name.toStdString());
-        return;
-    }
-
-    const PluginInfo &info = m_plugins[name];
-
-    QJsonObject params;
-    params["plugin"] = name;
-    params["directory"] = info.directory;
-    params["main"] = info.mainScript;
-
-    m_host->sendNotification("activate", params);
-    m_activatedPlugins.insert(name);
-
-    spdlog::info("PluginManager: 激活插件 '{}'", name.toStdString());
 }
 
 void PluginManager::deactivatePlugin(const QString &name)
@@ -471,14 +607,17 @@ void PluginManager::timerEvent(QTimerEvent *event)
             m_droppedFrames = 0;
         }
         if (!m_frameBuffer.isEmpty()) {
-            // 分块发送（每批 ≤100 帧，方案 §二），避免单行 JSON 过大
+            // Scheme B: binary FRAME_BATCH over ZMQ PUB (chunks of <=100).
+            PluginZmqHub *hub = m_host->zmqHub();
             const int total = m_frameBuffer.size();
             for (int off = 0; off < total; off += kFramesPerBatch) {
                 const int end = qMin(total, off + kFramesPerBatch);
-                QJsonArray framesArray;
+                QList<CanFrame> chunk;
+                chunk.reserve(end - off);
                 for (int i = off; i < end; ++i)
-                    framesArray.append(frameToJson(m_frameBuffer.at(i)));
-                m_host->sendNotification("frameReceived", {{"frames", framesArray}});
+                    chunk.append(m_frameBuffer.at(i));
+                if (hub)
+                    hub->publishFrameBatch(chunk);
             }
             m_frameBuffer.clear();
         }
