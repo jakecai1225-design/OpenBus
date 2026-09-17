@@ -161,25 +161,24 @@ QWidget *TransceiveModule::createSendPage(ShellContext &ctx)
     auto *tab = new SignalSendTab(ctx.mainWindow);
     tab->setDbcManager(ctx.dbcManager);
 
-    // Tx 回环注入器 — 统一处理所有发送场景的回环帧注入
-    auto injectTxLoopback = [this, tab](const CanFrame &frame) {
+    // Unified Tx loopback → CaptureLog / SampleStore / Flow (same as plugin send).
+    // Do NOT use appendFrames here: that targets TraceTab only and bypasses the
+    // live CaptureLog camera path (and previously passed SignalSendTab by mistake).
+    auto injectTxLoopback = [this](const CanFrame &frame) {
         if (m_ctx.shellInvoke) {
             QVariantList frameList;
             frameList.append(QVariant::fromValue(frame));
-            QVariantList argList;
-            argList.append(QVariant::fromValue(tab));
-            argList.append(frameList);
-            m_ctx.shellInvoke(QStringLiteral("appendFrames"), argList);
+            m_ctx.shellInvoke(QStringLiteral("ingestTxEcho"), frameList);
         }
     };
 
-    auto sendFrame = [this, &injectTxLoopback](quint32 id, const QByteArray &data) {
+    auto sendFrame = [this, injectTxLoopback](quint32 id, const QByteArray &data) {
         CanFrame frame;
         frame.id = id;
         frame.dlc = CanFrame::lengthToDlc(data.size());
         frame.data = data;
         frame.direction = CanFrame::Tx;
-        
+
         bool success = false;
         if (m_ctx.deviceManager) {
             CanFrame echo;
@@ -190,36 +189,37 @@ QWidget *TransceiveModule::createSendPage(ShellContext &ctx)
         return success;
     };
 
-    // 发送单帧
+    // Single-frame send
     QObject::connect(tab, &SignalSendTab::sendSingleRequested,
                      tab, [this, sendFrame](quint32 id, const QByteArray &data) {
         if (sendFrame(id, data)) {
             if (m_ctx.appendOutput)
-                m_ctx.appendOutput(QString("发送：ID=0x%1, DLC=%2")
+                m_ctx.appendOutput(QStringLiteral("Sent: ID=0x%1, DLC=%2")
                                        .arg(id, 0, 16).toUpper().arg(data.size()));
         } else {
             if (m_ctx.appendOutput)
-                m_ctx.appendOutput(QString("发送失败 (设备未连接或为模拟器): ID=0x%1")
-                                       .arg(id, 0, 16).toUpper());
+                m_ctx.appendOutput(
+                    QStringLiteral("Send failed (device not running): ID=0x%1")
+                        .arg(id, 0, 16).toUpper());
         }
     });
 
-    // 发送行（单次或周期）— 周期发送定时器归模块所有
+    // Row send (one-shot or periodic) — timers owned by this module
     QObject::connect(tab, &SignalSendTab::sendRowRequested,
-                     tab, [this, sendFrame, tab, &injectTxLoopback](int row, quint32 id, const QByteArray &data,
+                     tab, [this, sendFrame, tab, injectTxLoopback](int row, quint32 id, const QByteArray &data,
                                             int period, int count) {
         if (sendFrame(id, data)) {
             if (m_ctx.appendOutput)
-                m_ctx.appendOutput(QString("发送行%1: ID=0x%2, DLC=%3")
+                m_ctx.appendOutput(QStringLiteral("Send row %1: ID=0x%2, DLC=%3")
                                        .arg(row + 1).arg(id, 0, 16).toUpper().arg(data.size()));
         } else {
             if (m_ctx.appendOutput)
-                m_ctx.appendOutput(QString("发送失败 (设备未连接或为模拟器): ID=0x%1")
-                                       .arg(id, 0, 16).toUpper());
+                m_ctx.appendOutput(
+                    QStringLiteral("Send failed (device not running): ID=0x%1")
+                        .arg(id, 0, 16).toUpper());
         }
 
         if (period > 0) {
-            // 停止该行已有的定时器
             auto it = m_periodicSenders.find(row);
             if (it != m_periodicSenders.end()) {
                 it.value()->stop();
@@ -229,9 +229,9 @@ QWidget *TransceiveModule::createSendPage(ShellContext &ctx)
 
             auto *timer = new QTimer(tab);
             timer->setInterval(period);
-            int remaining = count;  // 0 = 无限
+            int remaining = count;  // 0 = infinite
             QObject::connect(timer, &QTimer::timeout, tab,
-                    [this, id, data, row, count, timer, remaining, &injectTxLoopback]() mutable {
+                    [this, id, data, row, count, timer, remaining, injectTxLoopback]() mutable {
                 CanFrame f;
                 f.id = id;
                 f.dlc = CanFrame::lengthToDlc(data.size());
@@ -251,7 +251,8 @@ QWidget *TransceiveModule::createSendPage(ShellContext &ctx)
                         m_periodicSenders.remove(row);
                         if (m_ctx.appendOutput)
                             m_ctx.appendOutput(
-                                QString("行%1 周期发送完成 (%2 次)").arg(row + 1).arg(count));
+                                QStringLiteral("Row %1 periodic send done (%2 times)")
+                                    .arg(row + 1).arg(count));
                     }
                 }
             });

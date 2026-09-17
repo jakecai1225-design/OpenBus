@@ -10,15 +10,14 @@
 #include <cstring>
 
 // ============================================================
-//  GS_USB 协议常量（参照 Linux 内核 gs_usb.c / candleLight_fw gs_usb.h）
-//  多字节字段一律小端；本实现仅面向 Windows/x64（小端主机，结构体直接 memcpy）
+//  GS_USB protocol constants (Linux gs_usb.c / candleLight_fw gs_usb.h)
+//  Multi-byte fields are little-endian; Windows/x64 host is LE → memcpy OK
 // ============================================================
 namespace {
 
-constexpr quint8 kEpIn = 0x81;   ///< 批量输入端点
-constexpr quint8 kEpOut = 0x02;  ///< 批量输出端点
+constexpr quint8 kEpIn = 0x81;
+constexpr quint8 kEpOut = 0x02;
 
-// 控制请求（vendor, 接口接收方）：0x41 = OUT，0xC1 = IN；wValue=通道，wIndex=接口 0
 constexpr quint8 kBmReqOut = 0x41;
 constexpr quint8 kBmReqIn = 0xC1;
 
@@ -30,49 +29,44 @@ constexpr quint8 kBreqDeviceConfig = 5;
 constexpr quint8 kBreqDataBittiming = 10;
 constexpr quint8 kBreqBtConstExt = 11;
 
-constexpr quint32 kByteOrderMagic = 0x0000beef;  ///< HOST_FORMAT 小端魔数
-constexpr quint32 kEchoIdRx = 0xffffffff;        ///< echo_id 为该值 = 接收帧
+constexpr quint32 kByteOrderMagic = 0x0000beef;
+constexpr quint32 kEchoIdRx = 0xffffffff;
 
 constexpr quint8 kModeReset = 0;
 constexpr quint8 kModeStart = 1;
 
-// 设备特征位（bt_const.feature）与请求的模式特征位（gs_device_mode.feature）
-// 是两个不同位空间，数值恰有重叠（HW_TIMESTAMP/FD），不可混用
 constexpr quint32 kFeatHwTimestamp = (1u << 4);
 constexpr quint32 kFeatFd = (1u << 8);
 constexpr quint32 kModeHwTimestamp = (1u << 4);
 constexpr quint32 kModeFd = (1u << 8);
 
-// 帧标志位（gs_host_frame.flags）
 constexpr quint8 kFlagOverflow = 0x01;
 constexpr quint8 kFlagFd = 0x02;
 constexpr quint8 kFlagBrs = 0x04;
 constexpr quint8 kFlagEsi = 0x08;
 
-// CAN ID 标志位（与 linux/can.h 一致）
 constexpr quint32 kCanEffFlag = 0x80000000u;
 constexpr quint32 kCanIdMask = 0x1fffffffu;
 
-// 帧布局：12 字节头 + data + 可选 timestamp_us
 constexpr int kFrameHdrSize = 12;
-constexpr int kClassicTsOff = 20;  // data[8] 之后
-constexpr int kClassicTxSize = 20; // 发送不带时间戳
-constexpr int kFdTsOff = 76;       // data[64] 之后
+constexpr int kClassicTsOff = 20;
+constexpr int kClassicTxSize = 20;
+constexpr int kFdTsOff = 76;
 constexpr int kFdTxSize = 76;
-constexpr int kRxBufSize = 80;     // fd_ts = 最大帧
+constexpr int kRxBufSize = 80;
 
 constexpr int kLibusbErrTimeout = -7;
 
-/// VID/PID 白名单：内核 gs_usb_table + 生态常用 CANable
+/// VID/PID whitelist: kernel gs_usb_table + common CANable targets
 struct VidPid {
     quint16 vid;
     quint16 pid;
     const char *model;
 };
 constexpr VidPid kWhitelist[] = {
-    { 0x1d50, 0x606f, "GS_USB / candleLight" }, // Geschwister Schneider USB2CAN、candleLight DIY
-    { 0x1209, 0x8c00, "CANable (candle)" },     // candleLight_fw 官方 CANable 目标
-    { 0x1209, 0x2323, "candleLight" },          // 原版 candleLight
+    { 0x1d50, 0x606f, "GS_USB / candleLight" },
+    { 0x1209, 0x8c00, "CANable (candle)" },
+    { 0x1209, 0x2323, "candleLight" },
     { 0x1209, 0xca01, "CANnectivity" },
     { 0x1cd2, 0x606f, "CES CANext FD" },
     { 0x16d0, 0x10b8, "ABE CANDebugger FD" },
@@ -82,7 +76,7 @@ constexpr VidPid kWhitelist[] = {
 } // namespace
 
 // ============================================================
-//  libusb 动态加载（共享单例，进程内永不卸载）
+//  libusb dynamic load (shared singleton, never unloaded)
 // ============================================================
 
 CanDeviceCandle::LibUsb &CanDeviceCandle::usb()
@@ -93,7 +87,7 @@ CanDeviceCandle::LibUsb &CanDeviceCandle::usb()
         return u;
     tried = true;
 
-    auto resolveAll = [](QLibrary &lib) {  // 静态变量 u 无需捕获
+    auto resolveAll = [](QLibrary &lib) {
         u.init = reinterpret_cast<int (*)(void **)>(lib.resolve("libusb_init"));
         u.exit = reinterpret_cast<void (*)(void *)>(lib.resolve("libusb_exit"));
         u.get_device_list = reinterpret_cast<long (*)(void *, void ***)>(lib.resolve("libusb_get_device_list"));
@@ -103,6 +97,8 @@ CanDeviceCandle::LibUsb &CanDeviceCandle::usb()
         u.dev_address = reinterpret_cast<quint8 (*)(void *)>(lib.resolve("libusb_get_device_address"));
         u.open = reinterpret_cast<int (*)(void *, void **)>(lib.resolve("libusb_open"));
         u.close = reinterpret_cast<void (*)(void *)>(lib.resolve("libusb_close"));
+        u.ref_device = reinterpret_cast<void *(*)(void *)>(lib.resolve("libusb_ref_device"));
+        u.unref_device = reinterpret_cast<void (*)(void *)>(lib.resolve("libusb_unref_device"));
         u.claim_interface = reinterpret_cast<int (*)(void *, int)>(lib.resolve("libusb_claim_interface"));
         u.release_interface = reinterpret_cast<int (*)(void *, int)>(lib.resolve("libusb_release_interface"));
         u.auto_detach = reinterpret_cast<int (*)(void *, int)>(lib.resolve("libusb_set_auto_detach_kernel_driver"));
@@ -110,14 +106,13 @@ CanDeviceCandle::LibUsb &CanDeviceCandle::usb()
         u.bulk = reinterpret_cast<int (*)(void *, quint8, quint8 *, int, int *, unsigned)>(lib.resolve("libusb_bulk_transfer"));
         u.ok = u.init && u.exit && u.get_device_list && u.free_device_list
             && u.get_device_descriptor && u.bus_number && u.dev_address
-            && u.open && u.close && u.claim_interface && u.release_interface
+            && u.open && u.close && u.ref_device && u.unref_device
+            && u.claim_interface && u.release_interface
             && u.control && u.bulk;
         return u.ok;
     };
 
-    // 加载顺序（方案 §7.3）：drivers/candle/vendor → 应用目录 → 系统搜索路径。
-    // QLibrary 故意不析构（堆分配永不 delete）：满足「加载后永不卸载」约束，
-    // 避免 usb 设备状态被 DllMain 析构破坏
+    // Load order (plan §7.3): drivers/candle/vendor → app dir → PATH
     const QString exeDir = QCoreApplication::applicationDirPath();
     QStringList candidates = {
         exeDir + QStringLiteral("/drivers/candle/vendor/libusb-1.0.dll"),
@@ -132,8 +127,9 @@ CanDeviceCandle::LibUsb &CanDeviceCandle::usb()
             loaded = lib;
             break;
         }
-        OPENBUS_LOG_WARN("Candle", "加载 {} 失败: {}", c.toStdString(), lib->errorString().toStdString());
-        delete lib; // 未成功解析的库可安全释放
+        OPENBUS_LOG_WARN("Candle", "load {} failed: {}", c.toStdString(),
+                         lib->errorString().toStdString());
+        delete lib;
     }
     if (!loaded) {
         auto *lib = new QLibrary(QStringLiteral("libusb-1.0"));
@@ -143,13 +139,11 @@ CanDeviceCandle::LibUsb &CanDeviceCandle::usb()
             delete lib;
     }
     if (!loaded)
-        return u; // 静默失败：未装 libusb 时枚举自然为空，不刷日志
+        return u;
 
-    // 显式初始化默认上下文——不依赖 libusb 的 NULL-context 惰性初始化：
-    // 部分 Windows 构建（实测 PyPI wheel 1.0.29）该路径未初始化即解引用，
-    // libusb_get_device_list 直接 AV 崩溃
+    // Explicit default-context init (some Windows builds crash on NULL lazy init)
     if (u.init(nullptr) != 0) {
-        OPENBUS_LOG_WARN("Candle", "libusb_init 失败");
+        OPENBUS_LOG_WARN("Candle", "libusb_init failed");
         u.ok = false;
         return u;
     }
@@ -161,13 +155,8 @@ bool CanDeviceCandle::isAvailable()
     return usb().ok;
 }
 
-// ============================================================
-//  构造 / 析构
-// ============================================================
-
 CanDeviceCandle::CanDeviceCandle(int subType)
 {
-    // 型号仅用于市场页展示：同一 GS_USB 协议，能力（FD/时间戳）由 bt_const 探测
     (void)subType;
 }
 
@@ -176,16 +165,23 @@ CanDeviceCandle::~CanDeviceCandle()
     close();
 }
 
-// ============================================================
-//  枚举
-// ============================================================
-
 QString CanDeviceCandle::modelForVidPid(quint16 vid, quint16 pid)
 {
     for (const auto &w : kWhitelist)
         if (w.vid == vid && w.pid == pid)
             return QString::fromLatin1(w.model);
     return QString();
+}
+
+void CanDeviceCandle::releaseMatches(std::vector<UsbMatch> &matches)
+{
+    const LibUsb &u = usb();
+    for (UsbMatch &m : matches) {
+        if (m.dev && u.unref_device)
+            u.unref_device(m.dev);
+        m.dev = nullptr;
+    }
+    matches.clear();
 }
 
 std::vector<CanDeviceCandle::UsbMatch> CanDeviceCandle::collectWhitelisted()
@@ -206,52 +202,76 @@ std::vector<CanDeviceCandle::UsbMatch> CanDeviceCandle::collectWhitelisted()
             continue;
         m.model = modelForVidPid(m.desc.idVendor, m.desc.idProduct);
         if (m.model.isEmpty())
-            continue; // 宁可漏不可错：严格白名单（方案 §14.5.2）
+            continue;
         m.bus = u.bus_number(m.dev);
         m.addr = u.dev_address(m.dev);
+        // Keep device alive after free_device_list(..., 1)
+        u.ref_device(m.dev);
         out.push_back(m);
     }
     u.free_device_list(list, 1);
     return out;
 }
 
+bool CanDeviceCandle::probeDeviceConfig(const UsbMatch &m, quint8 *channelsOut)
+{
+    const LibUsb &u = usb();
+    void *h = nullptr;
+    if (u.open(m.dev, &h) != 0)
+        return false;
+    quint8 conf[12] = {};
+    quint8 channels = 0;
+    if (devCtrlIn(h, kBreqDeviceConfig, 0, conf, sizeof(conf)))
+        channels = conf[3];
+    u.close(h);
+    if (channels < 1 || channels > 8)
+        return false;
+    if (channelsOut)
+        *channelsOut = channels;
+    return true;
+}
+
+std::vector<CanDeviceCandle::UsbMatch> CanDeviceCandle::collectOpenable()
+{
+    std::vector<UsbMatch> out;
+    auto matches = collectWhitelisted();
+    for (UsbMatch &m : matches) {
+        quint8 channels = 0;
+        if (!probeDeviceConfig(m, &channels)) {
+            // Copy packed USB descriptor fields before fmt (cannot bind packed refs).
+            const auto vid = static_cast<unsigned>(m.desc.idVendor);
+            const auto pid = static_cast<unsigned>(m.desc.idProduct);
+            OPENBUS_LOG_WARN("Candle",
+                "found {} ({:04x}:{:04x}) but cannot open — bind WinUSB/libusb?",
+                m.model.toStdString(), vid, pid);
+            continue;
+        }
+        m.channels = channels;
+        out.push_back(m);
+        m.dev = nullptr; // ownership moved
+    }
+    releaseMatches(matches);
+    return out;
+}
+
 std::vector<ICanDevice::DeviceInfo> CanDeviceCandle::enumerate()
 {
     std::vector<DeviceInfo> out;
-    const LibUsb &u = usb();
-    if (!u.ok)
+    if (!usb().ok)
         return out;
 
-    for (const UsbMatch &m : collectWhitelisted()) {
-        void *h = nullptr;
-        if (u.open(m.dev, &h) != 0) {
-            OPENBUS_LOG_WARN("Candle", "发现 {} ({:04x}:{:04x}) 但无法打开：可能未绑定 WinUSB/libusb 驱动",
-                             m.model.toStdString(), m.desc.idVendor, m.desc.idProduct);
-            continue;
-        }
-        // DEVICE_CONFIG 探测通道数（宁可漏不可错：打不开的不进列表）
-        quint8 conf[12] = {};
-        quint8 channels = 0;
-        quint32 swVer = 0;
-        if (devCtrlIn(h, kBreqDeviceConfig, 0, conf, sizeof(conf))) {
-            channels = conf[3];
-            std::memcpy(&swVer, conf + 4, 4);
-        }
-        u.close(h);
-        if (channels < 1 || channels > 8) {
-            OPENBUS_LOG_WARN("Candle", "{} 探测通道数异常: {}", m.model.toStdString(), int(channels));
-            continue;
-        }
-
+    auto matches = collectOpenable();
+    for (const UsbMatch &m : matches) {
         DeviceInfo di;
         di.brand = Brand::Candle;
         di.name = QStringLiteral("%1 @ %2-%3").arg(m.model).arg(int(m.bus)).arg(int(m.addr));
         di.deviceType = 0;
         di.deviceIndex = int(out.size());
-        di.channels = channels;
+        di.channels = m.channels;
         di.driverId = QStringLiteral("candle");
         out.push_back(di);
     }
+    releaseMatches(matches);
     return out;
 }
 
@@ -314,77 +334,87 @@ bool CanDeviceCandle::open(int devIndex, int channel, int arbBaud, int dataBaud,
 
     const LibUsb &u = usb();
     if (!u.ok) {
-        OPENBUS_LOG_ERROR("Candle", "libusb-1.0.dll 不可用（放置于 drivers/candle/vendor 或应用目录）");
+        OPENBUS_LOG_ERROR("Candle",
+            "libusb-1.0.dll missing (place under drivers/candle/vendor or app dir)");
         return false;
     }
     if (channel < 0)
         channel = 0;
 
-    // ---- 1. 按枚举序号定位并打开设备 ----
-    const auto matches = collectWhitelisted();
+    // Same index space as enumerate() (openable DEVICE_CONFIG devices only)
+    auto matches = collectOpenable();
     if (devIndex < 0 || devIndex >= int(matches.size())) {
-        OPENBUS_LOG_ERROR("Candle", "设备序号 {} 超出范围（共 {} 个）", devIndex, int(matches.size()));
+        OPENBUS_LOG_ERROR("Candle", "device index {} out of range ({} openable)",
+                          devIndex, int(matches.size()));
+        releaseMatches(matches);
         return false;
     }
-    const UsbMatch &m = matches[size_t(devIndex)];
+    const UsbMatch chosen = matches[size_t(devIndex)];
+    matches[size_t(devIndex)].dev = nullptr; // ownership moved to chosen
+    releaseMatches(matches);
+
     void *h = nullptr;
-    if (u.open(m.dev, &h) != 0) {
-        OPENBUS_LOG_ERROR("Candle", "打开 {} 失败（设备被占用或驱动异常）", m.model.toStdString());
+    if (u.open(chosen.dev, &h) != 0) {
+        OPENBUS_LOG_ERROR("Candle", "open {} failed (busy or bad driver binding)",
+                          chosen.model.toStdString());
+        u.unref_device(chosen.dev);
         return false;
     }
+    u.unref_device(chosen.dev); // libusb_open holds its own ref
     m_handle = h;
     m_channel = channel;
     if (u.auto_detach)
         u.auto_detach(m_handle, 1);
     if (u.claim_interface(m_handle, 0) != 0) {
-        OPENBUS_LOG_ERROR("Candle", "声明接口 0 失败（设备被占用或未绑定 WinUSB/libusb 驱动）");
+        OPENBUS_LOG_ERROR("Candle",
+            "claim interface 0 failed (busy or not bound to WinUSB/libusb)");
         close();
         return false;
     }
 
-    // ---- 2. HOST_FORMAT：声明小端字节序 ----
     const quint32 magic = kByteOrderMagic;
     if (!ctrlOut(kBreqHostFormat, 0, &magic, 4)) {
-        OPENBUS_LOG_ERROR("Candle", "HOST_FORMAT 握手失败");
+        OPENBUS_LOG_ERROR("Candle", "HOST_FORMAT handshake failed");
         close();
         return false;
     }
 
-    // ---- 3. DEVICE_CONFIG：校验通道号 ----
     quint8 conf[12] = {};
     quint8 channels = 0;
     if (ctrlIn(kBreqDeviceConfig, 0, conf, sizeof(conf)))
         channels = conf[3];
     if (channels < 1 || channel >= channels) {
-        OPENBUS_LOG_ERROR("Candle", "通道号 {} 非法（设备共 {} 通道）", channel, int(channels));
+        OPENBUS_LOG_ERROR("Candle", "channel {} invalid (device has {} channel(s))",
+                          channel, int(channels));
         close();
         return false;
     }
 
-    // ---- 4. BT_CONST：能力探测 + 位时序计算 ----
     BtConstRaw arbConst{}, dataConst{};
     if (!readBtConst(channel, canFd, &arbConst, &dataConst)) {
-        OPENBUS_LOG_ERROR("Candle", "读取 BT_CONST 失败（通道 {}）", channel);
+        OPENBUS_LOG_ERROR("Candle", "BT_CONST read failed (channel {})", channel);
         close();
         return false;
     }
     m_hwTs = (arbConst.feature & kFeatHwTimestamp) != 0;
     const bool fdSupported = (arbConst.feature & kFeatFd) != 0;
     if (canFd && !fdSupported) {
-        OPENBUS_LOG_ERROR("Candle", "{} 不支持 CAN FD（固件特征位未置位）", m.model.toStdString());
+        OPENBUS_LOG_ERROR("Candle", "{} does not support CAN FD",
+                          chosen.model.toStdString());
         close();
         return false;
     }
 
     BtRaw timing{};
     if (!calcBittiming(arbConst, arbBaud, &timing)) {
-        OPENBUS_LOG_ERROR("Candle", "仲裁段波特率 {} 无法由设备时钟 {} Hz 精确分频",
-                          arbBaud, arbConst.fclk);
+        OPENBUS_LOG_ERROR("Candle",
+            "arbitration bitrate {} cannot divide device clock {} Hz exactly",
+            arbBaud, arbConst.fclk);
         close();
         return false;
     }
     if (!ctrlOut(kBreqBittiming, quint16(channel), &timing, sizeof(BtRaw))) {
-        OPENBUS_LOG_ERROR("Candle", "设置仲裁段位时序失败");
+        OPENBUS_LOG_ERROR("Candle", "set arbitration bittiming failed");
         close();
         return false;
     }
@@ -392,23 +422,22 @@ bool CanDeviceCandle::open(int devIndex, int channel, int arbBaud, int dataBaud,
         const int effDataBaud = dataBaud > 0 ? dataBaud : 2000000;
         BtRaw dataTiming{};
         if (!calcBittiming(dataConst, effDataBaud, &dataTiming)) {
-            OPENBUS_LOG_ERROR("Candle", "数据段波特率 {} 无法精确分频", effDataBaud);
+            OPENBUS_LOG_ERROR("Candle", "data bitrate {} cannot divide exactly", effDataBaud);
             close();
             return false;
         }
         if (!ctrlOut(kBreqDataBittiming, quint16(channel), &dataTiming, sizeof(BtRaw))) {
-            OPENBUS_LOG_ERROR("Candle", "设置数据段位时序失败");
+            OPENBUS_LOG_ERROR("Candle", "set data bittiming failed");
             close();
             return false;
         }
     }
 
-    // ---- 5. MODE：先复位再启动（模式特征 = 硬件时间戳 + FD） ----
     quint8 mode[8] = {};
     quint32 le32 = kModeReset;
-    std::memcpy(mode, &le32, 4); // feature = 0
+    std::memcpy(mode, &le32, 4);
     if (!ctrlOut(kBreqMode, quint16(channel), mode, sizeof(mode))) {
-        OPENBUS_LOG_ERROR("Candle", "MODE RESET 失败");
+        OPENBUS_LOG_ERROR("Candle", "MODE RESET failed");
         close();
         return false;
     }
@@ -421,7 +450,7 @@ bool CanDeviceCandle::open(int devIndex, int channel, int arbBaud, int dataBaud,
     std::memcpy(mode, &le32, 4);
     std::memcpy(mode + 4, &feature, 4);
     if (!ctrlOut(kBreqMode, quint16(channel), mode, sizeof(mode))) {
-        OPENBUS_LOG_ERROR("Candle", "MODE START 失败");
+        OPENBUS_LOG_ERROR("Candle", "MODE START failed");
         close();
         return false;
     }
@@ -430,11 +459,11 @@ bool CanDeviceCandle::open(int devIndex, int channel, int arbBaud, int dataBaud,
     m_opened = true;
     m_tsSynced = false;
     m_echoCounter = 0;
-    m_deviceName = QStringLiteral("%1 #%2 ch%3").arg(m.model).arg(devIndex).arg(channel + 1);
-    OPENBUS_LOG_INFO("Candle", "已打开 {}（仲裁 {}{}，{}）",
+    m_deviceName = QStringLiteral("%1 #%2 ch%3").arg(chosen.model).arg(devIndex).arg(channel + 1);
+    OPENBUS_LOG_INFO("Candle", "opened {} (arb {}{} , {})",
                      m_deviceName.toStdString(), arbBaud,
-                     canFd ? QStringLiteral(", 数据 %1").arg(dataBaud).toStdString() : std::string(),
-                     m_hwTs ? "硬件时间戳" : "软件时间戳");
+                     canFd ? QStringLiteral(", data %1").arg(dataBaud).toStdString() : std::string(),
+                     m_hwTs ? "hw timestamp" : "sw timestamp");
     return true;
 }
 
@@ -538,7 +567,7 @@ int CanDeviceCandle::send(const CanFrame &frame)
     int transferred = 0;
     const int size = fd ? kFdTxSize : kClassicTxSize;
     if (usb().bulk(m_handle, kEpOut, buf, size, &transferred, 100) != 0) {
-        OPENBUS_LOG_WARN("Candle", "发送失败（设备忙或已拔出）");
+        OPENBUS_LOG_WARN("Candle", "send failed (busy or unplugged)");
         return 0;
     }
     return 1;
@@ -571,7 +600,7 @@ int CanDeviceCandle::recv(int timeoutMs, std::vector<CanFrame> &outFrames)
             if (echoId != kEchoIdRx)
                 continue; // 发送回环帧：跳过（上层 send 路径已记账）
             if (flg & kFlagOverflow) {
-                OPENBUS_LOG_WARN("Candle", "设备缓冲溢出，可能有帧丢失");
+                OPENBUS_LOG_WARN("Candle", "device buffer overflow — frames may be lost");
                 continue;
             }
 
@@ -600,7 +629,7 @@ int CanDeviceCandle::recv(int timeoutMs, std::vector<CanFrame> &outFrames)
             continue;
         }
         if (rc != 0 && rc != kLibusbErrTimeout) {
-            OPENBUS_LOG_WARN("Candle", "接收失败 (libusb err={})，停止本轮收包", rc);
+            OPENBUS_LOG_WARN("Candle", "recv failed (libusb err={}), stop this poll", rc);
             break;
         }
         // 超时切片：阻塞模式收齐一波即返回；限时模式等满窗口

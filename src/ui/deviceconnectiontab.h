@@ -31,11 +31,11 @@ public:
     void setSimulator(CanSimulator *sim);
     void setDeviceManager(CanDeviceManager *mgr);
 
-    /// 设置要配置的设备（由侧边栏点击触发）
-    /// @param deviceKind 0=模拟器, 1=ZLG, 2=PEAK, 3=Kvaser, 4=CandleLight
-    /// @param devIndex 设备序号
-    /// @param deviceName 设备显示名称
-    /// @param deviceType 厂商设备子类型（如 ZLG DEV_USBCANFD_200U=41）
+    /// Configure target device (from sidebar click)
+    /// @param deviceKind 0=Simulator, 1=ZLG, 2=PEAK, 3=Kvaser, 4=TongXing, 5=SLCAN, 6=Candle
+    /// @param deviceIndex device ordinal (0-based)
+    /// @param deviceName display name
+    /// @param deviceType vendor subtype (e.g. ZLG DEV_USBCANFD_200U=41)
     void setDevice(int deviceKind, int devIndex, const QString &deviceName, int deviceType);
 
     // ---- 工程切换：配置捕获/恢复 ----

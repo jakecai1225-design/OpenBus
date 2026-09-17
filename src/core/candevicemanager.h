@@ -51,7 +51,7 @@ public:
     /// @param arbBaud 仲裁段波特率
     /// @param dataBaud 数据段波特率
     /// @param canFd CAN FD 模式
-    /// @param subType 厂商设备子类型（如 ZLG DEV_USBCANFD_200U=41, PEAK PCAN_USBFD=0x54）
+    /// @param subType vendor subtype (e.g. ZLG DEV_USBCANFD_200U=41, PEAK TPCANHandle 0x51)
     void configure(DeviceKind kind, int devIndex, int channel,
                    int arbBaud, int dataBaud, bool canFd, int subType = 0);
 
@@ -75,11 +75,12 @@ public:
 
     // ---- 发送 ----
 
-    /// 通过当前设备发送一帧（模拟器模式下无效）
-    /// @param frame 待发送帧
-    /// @param echo 可选出参：发送成功时写入带 Tx 标记与时间戳的回环帧
-    ///        （时间基准与接收帧归一化一致：steady_clock - 启动时钟），
-    ///        供调用方推回显示链路（Trace/Graphic 可见 Tx 帧，对齐 CANoe）
+    /// Send one frame on the current device.
+    /// Simulator mode: no physical bus; still succeeds with a local Tx echo
+    /// so plugins / Transceive can feed Trace/Graphic/Flow while measuring.
+    /// @param frame frame to send
+    /// @param echo optional out: on success, Tx-marked echo with timestamp
+    ///        normalized like recvLoop (steady_clock - start clock)
     bool sendFrame(const CanFrame &frame, CanFrame *echo = nullptr);
 
     // ---- 硬件接收滤波器 ----

@@ -1,19 +1,21 @@
 {
     "id": "peak",
-    "name": "PEAK System PCAN 驱动",
+    "name": "PEAK System PCAN driver",
     "version": "1.0.0",
-    "vendor": "PEAK System",
+    "vendor": "PEAK-System Technik GmbH",
     "minAppVersion": "0.1.0",
     "abiVersion": "1.0",
     "busType": "can",
     "devices": [
-        { "type": 81,  "name": "PCAN-USB",         "channels": 1, "canFd": false },
-        { "type": 84,  "name": "PCAN-USB FD",      "channels": 1, "canFd": true  },
-        { "type": 86,  "name": "PCAN-USB Pro FD",  "channels": 2, "canFd": true  }
+        { "type": 81,  "name": "PCAN-USB (USBBUS1)",     "channels": 1, "canFd": false },
+        { "type": 82,  "name": "PCAN-USB (USBBUS2)",     "channels": 1, "canFd": false },
+        { "type": 84,  "name": "PCAN-USB FD (USBBUS4)",  "channels": 1, "canFd": true  },
+        { "type": 86,  "name": "PCAN-USB Pro (USBBUS6)", "channels": 2, "canFd": true  }
     ],
     "vendorSdk": {
-        "dll": "vendor/PCANUSB.dll",
-        "bundled": false,
-        "license": "Proprietary - PEAK System 授权条款；未随包分发时从 PEAK 驱动安装目录或官网获取"
-    }
+        "dll": ["PCANBasic.dll"],
+        "bundled": true,
+        "license": "PEAK PCAN-Basic — redistribute x64/PCANBasic.dll from third_party/PCAN-Basic (same API as PCAN-View)"
+    },
+    "notes": "Requires PEAK KMDF driver (PCAN_USB) installed. Userland API is PCANBasic.dll, not PCANUSB.dll. Enumerate via PCAN_ATTACHED_CHANNELS."
 }

@@ -4,6 +4,8 @@
 #include "core/candevice_zlg.h"
 #include "core/candevice_peak.h"
 #include "core/candevice_kvaser.h"
+#include "core/candevice_slcan.h"
+#include "core/candevice_candle.h"
 #include "core/candevicemanager.h"
 #include "core/logging.h"
 
@@ -305,17 +307,50 @@ void DriverRegistry::upsertEntry(const DriverEntry &entry)
 
 void DriverRegistry::registerBuiltinDrivers()
 {
-    // v2 收敛（方案 §13.3）：主程序原生仅保留 openbus 官方设备（内置模拟器，
-    // 由 DevicePanel 直接呈现，不经 Registry）；ZLG/PEAK/Kvaser 等厂商驱动
-    // 全部改为外置 .odp 经插件市场安装。未来 openbus 自研硬件在此注册内置条目。
+    // Open-source backends are statically linked into openbus_core (candle /
+    // slcan). Vendor SDKs (ZLG/PEAK/Kvaser) ship as external .odp plugins;
+    // their sources remain in-tree for the plugin targets to reuse.
     //
-    // 注：candevice_zlg/peak/kvaser.cpp 仍编入 openbus_core —— 驱动 DLL target
-    // 同源复用这些文件，Brand/DeviceKind 兼容映射同样保留（enumerateDevices
-    // 的内置分支供未来官方硬件使用）。
+    // External plugins with the same driverId still override builtins via
+    // upsertEntry when scanExternalDrivers() runs.
 
-    // 禁用清单作用于内置驱动（重启后同样不参与枚举/创建）
-    for (auto &e : m_entries)
-        e.enabled = !m_disabledIds.contains(e.driverId);
+    auto addBuiltin = [this](const QString &id, const QString &name,
+                             ICanDevice::Brand brand, int kind, bool available,
+                             const QString &reason = {}) {
+        DriverEntry e;
+        e.driverId = id;
+        e.displayName = name;
+        e.version = QStringLiteral("1.0.0");
+        e.builtin = true;
+        e.loaded = true;
+        e.available = available;
+        e.disabledReason = reason;
+        e.enabled = !m_disabledIds.contains(id);
+        e.brand = brand;
+        e.deviceKind = kind;
+        m_entries.append(e);
+    };
+
+    const bool candleOk = CanDeviceCandle::isAvailable();
+    addBuiltin(QStringLiteral("candle"), QStringLiteral("Candle / GS_USB"),
+               ICanDevice::Brand::Candle,
+               static_cast<int>(CanDeviceManager::DeviceKind::Candle),
+               candleOk,
+               candleOk ? QString()
+                        : QStringLiteral("libusb-1.0.dll not found (drivers/candle/vendor)"));
+
+    const bool peakOk = CanDevicePEAK::isAvailable();
+    addBuiltin(QStringLiteral("peak"), QStringLiteral("PEAK PCAN"),
+               ICanDevice::Brand::PEAK,
+               static_cast<int>(CanDeviceManager::DeviceKind::PEAK),
+               peakOk,
+               peakOk ? QString()
+                      : QStringLiteral("PCANBasic.dll not found (drivers/peak/vendor)"));
+
+    addBuiltin(QStringLiteral("slcan"), QStringLiteral("SLCAN"),
+               ICanDevice::Brand::SLCAN,
+               static_cast<int>(CanDeviceManager::DeviceKind::SLCAN),
+               true);
 }
 
 // ---- 聚合枚举与工厂 ----
@@ -355,6 +390,12 @@ std::vector<ICanDevice::DeviceInfo> DriverRegistry::enumerateDevices() const
         case ICanDevice::Brand::Kvaser:
             devs = CanDeviceKvaser::enumerate();
             break;
+        case ICanDevice::Brand::Candle:
+            devs = CanDeviceCandle::enumerate();
+            break;
+        case ICanDevice::Brand::SLCAN:
+            devs = CanDeviceSlcan::enumerate();
+            break;
         default:
             break;
         }
@@ -385,9 +426,13 @@ ICanDevice *DriverRegistry::createDevice(const QString &driverId, int subType) c
     case ICanDevice::Brand::ZLG:
         return new CanDeviceZLG(static_cast<CanDeviceZLG::DeviceType>(subType));
     case ICanDevice::Brand::PEAK:
-        return new CanDevicePEAK(static_cast<CanDevicePEAK::DeviceType>(subType));
+        return new CanDevicePEAK(subType);
     case ICanDevice::Brand::Kvaser:
         return new CanDeviceKvaser(subType);
+    case ICanDevice::Brand::Candle:
+        return new CanDeviceCandle(subType);
+    case ICanDevice::Brand::SLCAN:
+        return new CanDeviceSlcan(subType);
     default:
         return nullptr;
     }

@@ -1,162 +1,296 @@
 #include "candevice_peak.h"
 #include "logging.h"
 
-#include <chrono>
+#include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QFile>
+#include <QLibrary>
+#include <QThread>
+
+#include <algorithm>
 #include <cstring>
 
-// PCAN-Basic 常量
-static constexpr unsigned short PCAN_BAUD_500K  = 0x001C;
-static constexpr unsigned short PCAN_BAUD_1M    = 0x0014;
-static constexpr unsigned short PCAN_BAUD_250K  = 0x011C;
-static constexpr unsigned short PCAN_BAUD_125K  = 0x031C;
-static constexpr unsigned short PCAN_BAUD_100K  = 0x0431;
-static constexpr unsigned short PCAN_BAUD_50K   = 0x4B1C;  // approx
+namespace {
 
-static constexpr unsigned int  PCAN_OK              = 0x00;
-static constexpr unsigned int  PCAN_ERROR_QRCVEMPTY  = 0x20;
-static constexpr unsigned int  PCAN_ERROR_ILLOPER    = 0x01;
+constexpr unsigned int kOk = 0x00000u;
+constexpr unsigned int kQEmpty = 0x00020u;
+constexpr unsigned int kHwInUse = 0x00400u;
 
-// MSGTYPE 标志
-static constexpr unsigned char MSGTYPE_STANDARD = 0x00;
-static constexpr unsigned char MSGTYPE_EXTENDED = 0x02;
-static constexpr unsigned char MSGTYPE_RTR       = 0x01;
-static constexpr unsigned char MSGTYPE_FD        = 0x04;
-static constexpr unsigned char MSGTYPE_BRS       = 0x08;
-static constexpr unsigned char MSGTYPE_ESI       = 0x10;
+constexpr unsigned char kMsgStandard = 0x00;
+constexpr unsigned char kMsgRtr = 0x01;
+constexpr unsigned char kMsgExtended = 0x02;
+constexpr unsigned char kMsgFd = 0x04;
+constexpr unsigned char kMsgBrs = 0x08;
+constexpr unsigned char kMsgEsi = 0x10;
 
-// PCAN_GetValue 参数
-static constexpr unsigned char PCAN_DEVICE_NAME = 0x03;
+constexpr unsigned char kParamHardwareName = 0x0Eu;
+constexpr unsigned char kParamChannelCondition = 0x0Du;
+constexpr unsigned char kParamChannelFeatures = 0x16u;
+constexpr unsigned char kParamBitrateAdapting = 0x17u;
+constexpr unsigned char kParamAttachedCount = 0x2Au;
+constexpr unsigned char kParamAttachedChannels = 0x2Bu;
+
+constexpr unsigned short kNoneBus = 0x00;
+constexpr unsigned int kFeatureFd = 0x01u;
+constexpr unsigned int kChannelAvailable = 0x01u;
+constexpr unsigned int kChannelOccupied = 0x02u;
+constexpr unsigned int kChannelPcanView = kChannelAvailable | kChannelOccupied;
+
+constexpr unsigned short kBaud1M = 0x0014;
+constexpr unsigned short kBaud800K = 0x0016;
+constexpr unsigned short kBaud500K = 0x001C;
+constexpr unsigned short kBaud250K = 0x011C;
+constexpr unsigned short kBaud125K = 0x031C;
+constexpr unsigned short kBaud100K = 0x432F;
+constexpr unsigned short kBaud50K = 0x472F;
+
+} // namespace
 
 // ============================================================
-//  CanDevicePEAK 实现
+//  Shared PCANBasic.dll (never unload — same rule as ZLG / Candle)
 // ============================================================
 
-CanDevicePEAK::CanDevicePEAK(DeviceType devType)
-    : m_devType(devType)
+CanDevicePEAK::Api &CanDevicePEAK::api()
+{
+    static Api a;
+    static bool tried = false;
+    if (tried)
+        return a;
+    tried = true;
+
+    const QString exeDir = QCoreApplication::applicationDirPath();
+    const QStringList candidates = {
+        exeDir + QStringLiteral("/drivers/peak/vendor/PCANBasic.dll"),
+        exeDir + QStringLiteral("/PCANBasic.dll"),
+        QStringLiteral("PCANBasic"),
+        QStringLiteral("PCANBasic.dll"),
+    };
+
+    QLibrary *lib = nullptr;
+    for (const QString &c : candidates) {
+        auto *tryLib = new QLibrary(c);
+        if (tryLib->load()) {
+            lib = tryLib;
+            OPENBUS_LOG_INFO("PEAK", "loaded {}", c.toStdString());
+            break;
+        }
+        delete tryLib;
+    }
+    if (!lib) {
+        OPENBUS_LOG_WARN("PEAK",
+            "PCANBasic.dll not found (place under drivers/peak/vendor or install PEAK drivers)");
+        return a;
+    }
+
+    a.Initialize = reinterpret_cast<decltype(a.Initialize)>(lib->resolve("CAN_Initialize"));
+    a.InitializeFD = reinterpret_cast<decltype(a.InitializeFD)>(lib->resolve("CAN_InitializeFD"));
+    a.Uninitialize = reinterpret_cast<decltype(a.Uninitialize)>(lib->resolve("CAN_Uninitialize"));
+    a.Read = reinterpret_cast<decltype(a.Read)>(lib->resolve("CAN_Read"));
+    a.ReadFD = reinterpret_cast<decltype(a.ReadFD)>(lib->resolve("CAN_ReadFD"));
+    a.Write = reinterpret_cast<decltype(a.Write)>(lib->resolve("CAN_Write"));
+    a.WriteFD = reinterpret_cast<decltype(a.WriteFD)>(lib->resolve("CAN_WriteFD"));
+    a.GetValue = reinterpret_cast<decltype(a.GetValue)>(lib->resolve("CAN_GetValue"));
+    a.SetValue = reinterpret_cast<decltype(a.SetValue)>(lib->resolve("CAN_SetValue"));
+    a.GetStatus = reinterpret_cast<decltype(a.GetStatus)>(lib->resolve("CAN_GetStatus"));
+
+    a.ok = a.Initialize && a.Uninitialize && a.Read && a.Write && a.GetValue;
+    if (!a.ok) {
+        OPENBUS_LOG_ERROR("PEAK", "PCANBasic.dll missing required exports");
+        lib->unload();
+        delete lib;
+    }
+    // On success: intentionally leak QLibrary so DLL stays loaded
+    return a;
+}
+
+CanDevicePEAK::TPCANBaudrate CanDevicePEAK::baudToBtr(int bitrate)
+{
+    switch (bitrate) {
+    case 1000000: return kBaud1M;
+    case 800000:  return kBaud800K;
+    case 500000:  return kBaud500K;
+    case 250000:  return kBaud250K;
+    case 125000:  return kBaud125K;
+    case 100000:  return kBaud100K;
+    case 50000:   return kBaud50K;
+    default:      return kBaud500K;
+    }
+}
+
+QByteArray CanDevicePEAK::buildFdBitrate(int arbBaud, int dataBaud)
+{
+    // 80 MHz clock presets matching PEAK examples (nom ≈ 87.5% sample point)
+    struct Preset { int arb; int data; const char *str; };
+    static const Preset kPresets[] = {
+        { 500000, 2000000,
+          "f_clock=80000000,nom_brp=10,nom_tseg1=12,nom_tseg2=3,nom_sjw=1,"
+          "data_brp=4,data_tseg1=7,data_tseg2=2,data_sjw=1" },
+        { 500000, 4000000,
+          "f_clock=80000000,nom_brp=10,nom_tseg1=12,nom_tseg2=3,nom_sjw=1,"
+          "data_brp=2,data_tseg1=7,data_tseg2=2,data_sjw=1" },
+        { 1000000, 2000000,
+          "f_clock=80000000,nom_brp=5,nom_tseg1=12,nom_tseg2=3,nom_sjw=1,"
+          "data_brp=4,data_tseg1=7,data_tseg2=2,data_sjw=1" },
+        { 1000000, 5000000,
+          "f_clock=80000000,nom_brp=5,nom_tseg1=12,nom_tseg2=3,nom_sjw=1,"
+          "data_brp=2,data_tseg1=5,data_tseg2=2,data_sjw=1" },
+        { 250000, 2000000,
+          "f_clock=80000000,nom_brp=20,nom_tseg1=12,nom_tseg2=3,nom_sjw=1,"
+          "data_brp=4,data_tseg1=7,data_tseg2=2,data_sjw=1" },
+    };
+    const int d = dataBaud > 0 ? dataBaud : 2000000;
+    for (const auto &p : kPresets) {
+        if (p.arb == arbBaud && p.data == d)
+            return QByteArray(p.str);
+    }
+    // Fallback: 500k / 2M
+    return QByteArray(kPresets[0].str);
+}
+
+quint64 CanDevicePEAK::classicTsToNs(const TPCANTimestamp &ts)
+{
+    const quint64 totalUs =
+        quint64(ts.millis) * 1000ull
+        + quint64(ts.micros)
+        + quint64(ts.millis_overflow) * 0x100000000ull * 1000ull;
+    return totalUs * 1000ull;
+}
+
+// ============================================================
+
+CanDevicePEAK::CanDevicePEAK(int channelHandle)
+    : m_preferredHandle(channelHandle)
 {
 }
 
 CanDevicePEAK::~CanDevicePEAK()
 {
     close();
-    unloadDll();
 }
 
-// ---- DLL 加载 ----
-
-bool CanDevicePEAK::loadDll()
+bool CanDevicePEAK::isAvailable()
 {
-    if (m_dll.isLoaded())
-        return true;
+    return api().ok;
+}
 
-    m_dll.setFileName(QStringLiteral("PCANUSB"));
-    if (!m_dll.load()) {
-        // 尝试常见路径
-        m_dll.setFileName(QStringLiteral("PCANUSB.dll"));
-        if (!m_dll.load()) {
-            OPENBUS_LOG_DEBUG("CanDevicePEAK", "PCANUSB.dll not found");
-            return false;
-        }
+std::vector<ICanDevice::DeviceInfo> CanDevicePEAK::enumerate()
+{
+    std::vector<DeviceInfo> out;
+    const Api &a = api();
+    if (!a.ok)
+        return out;
+
+    unsigned int count = 0;
+    if (a.GetValue(kNoneBus, kParamAttachedCount, &count, sizeof(count)) != kOk || count == 0)
+        return out;
+
+    std::vector<TPCANChannelInformation> infos(count);
+    std::memset(infos.data(), 0, infos.size() * sizeof(TPCANChannelInformation));
+    if (a.GetValue(kNoneBus, kParamAttachedChannels, infos.data(),
+                   unsigned(infos.size() * sizeof(TPCANChannelInformation))) != kOk) {
+        OPENBUS_LOG_WARN("PEAK", "PCAN_ATTACHED_CHANNELS failed");
+        return out;
     }
 
-    m_fn_init    = (fn_Initialize)   m_dll.resolve("CAN_Initialize");
-    m_fn_initFD  = (fn_InitializeFD) m_dll.resolve("CAN_InitializeFD");
-    m_fn_read    = (fn_Read)         m_dll.resolve("CAN_Read");
-    m_fn_readFD  = (fn_ReadFD)       m_dll.resolve("CAN_ReadFD");
-    m_fn_write   = (fn_Write)        m_dll.resolve("CAN_Write");
-    m_fn_writeFD = (fn_WriteFD)      m_dll.resolve("CAN_WriteFD");
-    m_fn_uninit  = (fn_Uninitialize) m_dll.resolve("CAN_Uninitialize");
-    m_fn_getVal  = (fn_GetValue)     m_dll.resolve("CAN_GetValue");
-    m_fn_status  = (fn_GetStatus)    m_dll.resolve("CAN_GetStatus");
+    int index = 0;
+    for (const auto &ch : infos) {
+        // Skip unavailable; keep occupied / PCAN-View (can still attach with BITRATE_ADAPTING)
+        if (ch.channel_condition == 0)
+            continue;
 
-    if (!m_fn_init || !m_fn_read || !m_fn_write || !m_fn_uninit) {
-        OPENBUS_LOG_ERROR("CanDevicePEAK", "Failed to resolve core functions");
-        unloadDll();
-        return false;
+        DeviceInfo di;
+        di.brand = Brand::PEAK;
+        di.deviceType = int(ch.channel_handle); // open uses this handle
+        di.deviceIndex = index++;
+        di.channels = 1;
+        di.driverId = QStringLiteral("peak");
+        di.hasHwTimestamp = true;
+        const QString name = QString::fromLatin1(ch.device_name).trimmed();
+        const bool fd = (ch.device_features & kFeatureFd) != 0;
+        di.name = name.isEmpty()
+            ? QStringLiteral("PCAN 0x%1").arg(ch.channel_handle, 0, 16)
+            : name;
+        if (fd)
+            di.name += QStringLiteral(" (FD)");
+        if (ch.channel_condition & kChannelOccupied)
+            di.name += QStringLiteral(" [in use]");
+        out.push_back(di);
     }
-
-    OPENBUS_LOG_INFO("CanDevicePEAK", "PCANUSB.dll loaded successfully");
-    return true;
+    return out;
 }
-
-void CanDevicePEAK::unloadDll()
-{
-    if (m_dll.isLoaded())
-        m_dll.unload();
-
-    m_fn_init = nullptr;
-    m_fn_initFD = nullptr;
-    m_fn_read = nullptr;
-    m_fn_readFD = nullptr;
-    m_fn_write = nullptr;
-    m_fn_writeFD = nullptr;
-    m_fn_uninit = nullptr;
-    m_fn_getVal = nullptr;
-    m_fn_status = nullptr;
-}
-
-// ---- 设备操作 ----
 
 bool CanDevicePEAK::open(int devIndex, int channel, int arbBaud, int dataBaud, bool canFd)
 {
     if (m_opened)
-        return true;
+        close();
 
-    if (!loadDll()) {
-        OPENBUS_LOG_ERROR("CanDevicePEAK", "Cannot open: PCANUSB.dll not available");
+    const Api &a = api();
+    if (!a.ok) {
+        OPENBUS_LOG_ERROR("PEAK", "PCANBasic.dll not available");
         return false;
     }
 
-    m_devIndex = devIndex;
-    m_channel = channel;
-    m_canFd = canFd;
-    m_startClock = std::chrono::steady_clock::now();
+    m_channel = channel < 0 ? 0 : channel;
 
-    // PCAN 通道号 = DeviceType + channel
-    m_pcanHandle = static_cast<TPCANHandle>(m_devType + channel);
-
-    TPCANStatus status;
-
-    if (canFd && m_fn_initFD) {
-        // CAN FD: 使用字符串波特率配置
-        // 格式: "fclk_m=N,nominal_brp=B,nominal_tseg1=T1,nominal_tseg2=T2,nominal_sjw=S,data_brp=.."
-        // 简化: 直接用波特率数值字符串，让 PCAN 驱动自动计算
-        QString fdStr = QStringLiteral("%1").arg(arbBaud);
-        status = m_fn_initFD(m_pcanHandle, fdStr.toUtf8().constData());
+    // Resolve handle: preferred (deviceType) → attached list by index → USBBUS1
+    TPCANHandle handle = 0;
+    if (m_preferredHandle > 0) {
+        handle = static_cast<TPCANHandle>(m_preferredHandle);
     } else {
-        // Classic CAN: BTR0BTR1
-        unsigned short btr;
-        switch (arbBaud) {
-        case 1000000: btr = PCAN_BAUD_1M;   break;
-        case 500000:  btr = PCAN_BAUD_500K; break;
-        case 250000:  btr = PCAN_BAUD_250K; break;
-        case 125000:  btr = PCAN_BAUD_125K; break;
-        case 100000:  btr = PCAN_BAUD_100K; break;
-        case 50000:   btr = PCAN_BAUD_50K;  break;
-        default:      btr = PCAN_BAUD_500K; break;
-        }
-        status = m_fn_init(m_pcanHandle, btr, 0, 0, 0);
+        const auto attached = enumerate();
+        if (devIndex >= 0 && devIndex < int(attached.size()))
+            handle = static_cast<TPCANHandle>(attached[size_t(devIndex)].deviceType);
+        else if (!attached.empty())
+            handle = static_cast<TPCANHandle>(attached.front().deviceType);
+        else
+            handle = PCAN_USBBUS1;
+    }
+    m_handle = handle;
+
+    // Detect FD capability
+    unsigned int features = 0;
+    m_fdCapable = false;
+    if (a.GetValue(m_handle, kParamChannelFeatures, &features, sizeof(features)) == kOk)
+        m_fdCapable = (features & kFeatureFd) != 0;
+
+    // Allow share with PCAN-View when channel is occupied-but-available
+    if (a.SetValue) {
+        unsigned int on = 1;
+        a.SetValue(m_handle, kParamBitrateAdapting, &on, sizeof(on));
     }
 
-    if (status != PCAN_OK) {
-        OPENBUS_LOG_ERROR("CanDevicePEAK", "CAN_Initialize failed: status=0x{:08X}",
-                      status);
+    TPCANStatus st;
+    m_canFd = canFd && m_fdCapable && a.InitializeFD;
+    if (canFd && !m_fdCapable) {
+        OPENBUS_LOG_WARN("PEAK",
+            "channel 0x{:X} is classic-only (PCAN-USB); opening Classic CAN",
+            int(m_handle));
+    }
+
+    if (m_canFd) {
+        const QByteArray br = buildFdBitrate(arbBaud, dataBaud);
+        st = a.InitializeFD(m_handle, br.constData());
+    } else {
+        st = a.Initialize(m_handle, baudToBtr(arbBaud), 0, 0, 0);
+    }
+
+    if (st != kOk) {
+        OPENBUS_LOG_ERROR("PEAK",
+            "CAN_Initialize{} failed: handle=0x{:X} status=0x{:X}{}",
+            m_canFd ? "FD" : "", int(m_handle), st,
+            st == kHwInUse ? " (channel in use — close PCAN-View?)" : "");
         return false;
     }
 
-    // 获取设备名称
-    if (m_fn_getVal) {
-        char nameBuf[256] = {0};
-        status = m_fn_getVal(m_pcanHandle, PCAN_DEVICE_NAME, nameBuf, sizeof(nameBuf));
-        if (status == PCAN_OK)
-            m_deviceName = QString::fromUtf8(nameBuf);
-    }
+    char nameBuf[64] = {};
+    if (a.GetValue(m_handle, kParamHardwareName, nameBuf, sizeof(nameBuf)) == kOk)
+        m_deviceName = QString::fromLatin1(nameBuf).trimmed();
     if (m_deviceName.isEmpty())
-        m_deviceName = QStringLiteral("PCAN-USB FD Ch%1").arg(channel + 1);
+        m_deviceName = QStringLiteral("PCAN 0x%1").arg(m_handle, 0, 16);
 
     m_opened = true;
-    OPENBUS_LOG_INFO("CanDevicePEAK", "Device opened: {}, baud={}, fd={}",
-                 m_deviceName.toStdString(), arbBaud, canFd);
+    OPENBUS_LOG_INFO("PEAK", "opened {} (handle=0x{:X}, arb={}, fd={})",
+                     m_deviceName.toStdString(), int(m_handle), arbBaud, m_canFd);
     return true;
 }
 
@@ -164,199 +298,120 @@ void CanDevicePEAK::close()
 {
     if (!m_opened)
         return;
-
-    if (m_fn_uninit)
-        m_fn_uninit(m_pcanHandle);
-
+    if (api().Uninitialize)
+        api().Uninitialize(m_handle);
     m_opened = false;
-    OPENBUS_LOG_INFO("CanDevicePEAK", "Device closed");
+    m_handle = 0;
+    OPENBUS_LOG_INFO("PEAK", "closed {}", m_deviceName.toStdString());
 }
 
 int CanDevicePEAK::send(const CanFrame &frame)
 {
-    if (!m_opened || !m_fn_write)
+    if (!m_opened)
         return 0;
+    const Api &a = api();
 
-    if (m_canFd && m_fn_writeFD) {
+    if (m_canFd && a.WriteFD) {
         TPCANMsgFD msg;
         std::memset(&msg, 0, sizeof(msg));
         msg.ID = frame.id;
-        msg.MSGTYPE = (frame.extended ? MSGTYPE_EXTENDED : MSGTYPE_STANDARD)
-                     | MSGTYPE_FD
-                     | (frame.bitrateSwitch ? MSGTYPE_BRS : 0)
-                     | (frame.errorState ? MSGTYPE_ESI : 0);
+        msg.MSGTYPE = (frame.extended ? kMsgExtended : kMsgStandard) | kMsgFd
+                    | (frame.bitrateSwitch ? kMsgBrs : 0)
+                    | (frame.errorState ? kMsgEsi : 0);
         msg.DLC = frame.dlc;
-        int len = CanFrame::dlcToLength(frame.dlc);
-        std::memcpy(msg.DATA, frame.data.constData(), std::min(len, 64));
-
-        return (m_fn_writeFD(m_pcanHandle, &msg) == PCAN_OK) ? 1 : 0;
-    } else {
-        TPCANMsg msg;
-        std::memset(&msg, 0, sizeof(msg));
-        msg.ID = frame.id;
-        msg.MSGTYPE = (frame.extended ? MSGTYPE_EXTENDED : MSGTYPE_STANDARD)
-                     | (frame.id & 0x40000000 ? MSGTYPE_RTR : 0);  // CAN_RTR_FLAG
-        int len = static_cast<int>(std::min<qsizetype>(frame.data.size(), 8));
-        msg.LEN = static_cast<unsigned char>(len);
-        std::memcpy(msg.DATA, frame.data.constData(), len);
-
-        return (m_fn_write(m_pcanHandle, &msg) == PCAN_OK) ? 1 : 0;
+        const int len = std::min(64, CanFrame::dlcToLength(frame.dlc));
+        std::memcpy(msg.DATA, frame.data.constData(), size_t(len));
+        return a.WriteFD(m_handle, &msg) == kOk ? 1 : 0;
     }
+
+    if (!a.Write)
+        return 0;
+    TPCANMsg msg;
+    std::memset(&msg, 0, sizeof(msg));
+    msg.ID = frame.id;
+    msg.MSGTYPE = frame.extended ? kMsgExtended : kMsgStandard;
+    const int len = int(std::min<qsizetype>(frame.data.size(), 8));
+    msg.LEN = static_cast<unsigned char>(len);
+    std::memcpy(msg.DATA, frame.data.constData(), size_t(len));
+    return a.Write(m_handle, &msg) == kOk ? 1 : 0;
 }
 
 int CanDevicePEAK::recv(int timeoutMs, std::vector<CanFrame> &outFrames)
 {
     if (!m_opened)
         return 0;
-
+    const Api &a = api();
     outFrames.clear();
-    int totalRead = 0;
 
-    // 循环读取直到队列空或达到上限
-    while (totalRead < 256) {
+    QElapsedTimer timer;
+    timer.start();
+    int got = 0;
+
+    forever {
         CanFrame frame;
-        frame.channel = static_cast<quint8>(m_channel + 1);
+        frame.channel = quint8(m_channel + 1);
         frame.direction = CanFrame::Rx;
 
-        if (m_canFd && m_fn_readFD) {
+        TPCANStatus st;
+        if (m_canFd && a.ReadFD) {
             TPCANMsgFD msg;
-            TPCANTimestamp ts;
+            unsigned long long tsFd = 0;
             std::memset(&msg, 0, sizeof(msg));
-            std::memset(&ts, 0, sizeof(ts));
-
-            TPCANStatus status = m_fn_readFD(m_pcanHandle, &msg, &ts);
-            if (status != PCAN_OK) {
-                if (status != PCAN_ERROR_QRCVEMPTY)
-                    OPENBUS_LOG_DEBUG("CanDevicePEAK", "CAN_ReadFD status=0x{:08X}", status);
-                break;
+            st = a.ReadFD(m_handle, &msg, &tsFd);
+            if (st == kOk) {
+                frame.id = msg.ID & 0x1FFFFFFFu;
+                frame.extended = (msg.MSGTYPE & kMsgExtended) != 0;
+                frame.fd = true;
+                frame.bitrateSwitch = (msg.MSGTYPE & kMsgBrs) != 0;
+                frame.errorState = (msg.MSGTYPE & kMsgEsi) != 0;
+                frame.dlc = msg.DLC;
+                const int len = std::min(64, CanFrame::dlcToLength(msg.DLC));
+                frame.data = QByteArray(reinterpret_cast<const char *>(msg.DATA), len);
+                // PCAN FD timestamp is microseconds since start → ns
+                if (tsFd)
+                    frame.timestampNs = tsFd * 1000ull;
             }
-
-            frame.id = msg.ID & 0x1FFFFFFF;
-            frame.extended = (msg.MSGTYPE & MSGTYPE_EXTENDED) != 0;
-            frame.fd = true;
-            frame.bitrateSwitch = (msg.MSGTYPE & MSGTYPE_BRS) != 0;
-            frame.errorState = (msg.MSGTYPE & MSGTYPE_ESI) != 0;
-            frame.dlc = msg.DLC;
-            int len = CanFrame::dlcToLength(msg.DLC);
-            frame.data = QByteArray(reinterpret_cast<const char*>(msg.DATA), std::min(len, 64));
-            // timestampNs 由 CanDeviceManager 用 steady_clock 统一填充
-        } else if (m_fn_read) {
+        } else if (a.Read) {
             TPCANMsg msg;
             TPCANTimestamp ts;
             std::memset(&msg, 0, sizeof(msg));
             std::memset(&ts, 0, sizeof(ts));
-
-            TPCANStatus status = m_fn_read(m_pcanHandle, &msg, &ts);
-            if (status != PCAN_OK) {
-                if (status != PCAN_ERROR_QRCVEMPTY)
-                    OPENBUS_LOG_DEBUG("CanDevicePEAK", "CAN_Read status=0x{:08X}", status);
-                break;
+            st = a.Read(m_handle, &msg, &ts);
+            if (st == kOk) {
+                frame.id = msg.ID & 0x1FFFFFFFu;
+                frame.extended = (msg.MSGTYPE & kMsgExtended) != 0;
+                frame.fd = false;
+                frame.dlc = msg.LEN;
+                frame.data = QByteArray(reinterpret_cast<const char *>(msg.DATA), msg.LEN);
+                frame.timestampNs = classicTsToNs(ts);
             }
-
-            frame.id = msg.ID & 0x1FFFFFFF;
-            frame.extended = (msg.MSGTYPE & MSGTYPE_EXTENDED) != 0;
-            frame.fd = false;
-            frame.dlc = msg.LEN;
-            frame.data = QByteArray(reinterpret_cast<const char*>(msg.DATA), msg.LEN);
-            // timestampNs 由 CanDeviceManager 用 steady_clock 统一填充
         } else {
             break;
         }
 
-        outFrames.push_back(std::move(frame));
-        ++totalRead;
-    }
+        if (st == kOk) {
+            outFrames.push_back(std::move(frame));
+            ++got;
+            if (got >= 256)
+                break;
+            continue;
+        }
+        if (st != kQEmpty)
+            OPENBUS_LOG_DEBUG("PEAK", "read status=0x{:X}", st);
 
-    // 非阻塞模式：如果没读到数据且需要等待
-    if (totalRead == 0 && timeoutMs > 0) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (timeoutMs <= 0 || timer.elapsed() >= timeoutMs)
+            break;
+        QThread::msleep(1);
     }
-
-    return totalRead;
+    return got;
 }
 
 int CanDevicePEAK::pendingCount() const
 {
-    // PCAN 没有 GetReceiveNum 等价函数，使用 Read 试探
-    // 返回 1 让 recv 尝试读取
     return m_opened ? 1 : 0;
-}
-
-bool CanDevicePEAK::isOpen() const
-{
-    return m_opened;
 }
 
 QString CanDevicePEAK::deviceName() const
 {
     return m_deviceName.isEmpty() ? QStringLiteral("PEAK PCAN") : m_deviceName;
-}
-
-// ---- 静态方法 ----
-
-bool CanDevicePEAK::isAvailable()
-{
-    QLibrary dll(QStringLiteral("PCANUSB"));
-    if (dll.load()) {
-        dll.unload();
-        return true;
-    }
-    return false;
-}
-
-std::vector<ICanDevice::DeviceInfo> CanDevicePEAK::enumerate()
-{
-    std::vector<DeviceInfo> list;
-    if (!isAvailable())
-        return list;
-
-    // PCAN 设备固定通道号范围
-    // 尝试枚举常见的 USB 通道
-    DeviceType types[] = {PCAN_USBFD, PCAN_USB, PCAN_USBPROFD};
-    for (auto t : types) {
-        DeviceInfo info;
-        info.brand = Brand::PEAK;
-        info.deviceType = t;
-        info.deviceIndex = 0;
-        info.channels = 1;
-
-        // 尝试获取设备名称
-        QLibrary dll(QStringLiteral("PCANUSB"));
-        if (dll.load()) {
-            using fn_GetValue = unsigned int (__stdcall *)(unsigned short, unsigned char, void*, int);
-            auto getValue = (fn_GetValue)dll.resolve("CAN_GetValue");
-            using fn_Initialize = unsigned int (__stdcall *)(unsigned short, unsigned short, int, int, int);
-            auto init = (fn_Initialize)dll.resolve("CAN_Initialize");
-            using fn_Uninitialize = unsigned int (__stdcall *)(unsigned short);
-            auto uninit = (fn_Uninitialize)dll.resolve("CAN_Uninitialize");
-
-            if (init && getValue && uninit) {
-                // 尝试初始化以检测设备存在
-                unsigned short baud500k = 0x001C;
-                if (init(t, baud500k, 0, 0, 0) == 0) {  // PCAN_OK
-                    char nameBuf[256] = {0};
-                    if (getValue(t, PCAN_DEVICE_NAME, nameBuf, sizeof(nameBuf)) == 0)
-                        info.name = QString::fromUtf8(nameBuf);
-                    if (info.name.isEmpty())
-                        info.name = QStringLiteral("PCAN Ch%1").arg(t - 0x50);
-                    uninit(t);
-                    list.push_back(info);
-                }
-            }
-            dll.unload();
-        }
-    }
-    return list;
-}
-
-// ---- 时间戳转换 ----
-
-quint64 CanDevicePEAK::pcanTsToNs(const TPCANTimestamp &ts) const
-{
-    // PCAN 时间戳：millis (ms since device boot) + micros (us fraction)
-    // 转为纳秒
-    quint64 totalUs = static_cast<quint64>(ts.millis) * 1000 + ts.micros;
-    // 加上溢出部分
-    totalUs += static_cast<quint64>(ts.millis_overflow) * 0xFFFFFFFFULL * 1000;
-    return totalUs * 1000;  // us → ns
 }

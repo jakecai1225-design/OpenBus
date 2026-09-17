@@ -324,16 +324,27 @@ ShellContext MainWindow::makeShellContext()
                 m_frameCountLabel->setText(
                     QStringLiteral("%1 frames").arg(count));
             }
+        } else if (action == QStringLiteral("ingestTxEcho")) {
+            // Unified Tx loopback (plugin / Transceive) → CaptureLog + SampleStore + Flow.
+            // Same hub as device Rx; measurement gate applies via onFramesReceived.
+            QVector<CanFrame> frames;
+            if (arg.canConvert<QVector<CanFrame>>()) {
+                frames = arg.value<QVector<CanFrame>>();
+            } else if (arg.canConvert(QVariant::List)) {
+                for (const QVariant &v : arg.toList()) {
+                    if (v.canConvert<CanFrame>())
+                        frames.append(v.value<CanFrame>());
+                }
+            }
+            if (!frames.isEmpty())
+                onFramesReceived(frames);
         } else if (action == QStringLiteral("appendFrames")) {
-            // Tx 回环注入（信号发生器/周期发送）→ 转发给 TraceModule
-            // Arg: QVariantList{QWidget* targetTab, QVector<CanFrame> frames}
-            // 注意：不直接引用 TraceTab 类型，直接转发给 traceInvoke 处理
+            // Offline import / local Trace ring only — NOT the live bus path.
+            // Live Tx must use ingestTxEcho (CaptureLog camera SoT).
             if (arg.canConvert(QVariant::List)) {
                 auto l = arg.toList();
                 if (l.size() >= 2) {
-                    // 将完整参数包转发给 TraceModule（由 trace module 内部处理 qobject_cast）
                     traceInvoke(QStringLiteral("appendFrames"), arg);
-                    // 触发自动滚动：arg 第 2 项是帧列表，第 1 项是 QWidget*
                     if (m_autoScroll && l.size() > 1) {
                         auto frameList = l[1].toList();
                         if (!frameList.isEmpty())

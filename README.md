@@ -1288,9 +1288,9 @@ ICanDevice (src/core/candevice.h)
 | `CanDeviceManager` 桥接层 | ✅ 已实现 | `src/core/candevicemanager.cpp`，与 `CanSimulator` 同信号接口 |
 | `DevicePanel` 侧边栏 | ✅ 已实现 | 设备系列树入口，点击跳转标签页 |
 | `DeviceConnectionTab` 标签页 | ✅ 已实现 | `src/ui/deviceconnectiontab.cpp`，含通道/波特率/CAN FD/高级时序参数 |
-| `CanDevicePeak` 后端 | ⬜ 待实现 | 封装 PCAN-Basic 库 |
-| `CanDeviceCandleLight` 后端 | ⬜ 待实现 | libusb + GS_USB 协议 |
-| `CanDeviceSlcan` 后端 | ⬜ 待实现 | 串口文本协议 |
+| `CanDevicePeak` 后端 | ✅ 已实现 | 内置 + 外置 `driver_peak`；**PCANBasic.dll**（与 PCAN-View 同 API）；`scripts/smoke_peak_pcan.py` |
+| `CanDeviceCandle` 后端 | ✅ 已实现 | 外置 `driver_candle` + libusb GS_USB（CANable candle 固件）；`scripts/download_libusb.py` |
+| `CanDeviceSlcan` 后端 | ✅ 已实现 | 外置 `driver_slcan`（CANable SLCAN/CDC 固件走此路径） |
 
 ---
 

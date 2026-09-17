@@ -5,7 +5,7 @@
 #  CANnectivity / CES CANext FD / ABE / Xylanta Saint3).
 #  Same CanDeviceCandle sources; libusb-1.0.dll loaded at runtime
 #  (drivers/candle/vendor -> app dir -> PATH; scripts/download_libusb.py
-#  can place it under driver/). Output matches .odp:
+#  can place it under vendor/). Output matches .odp:
 #  build/bin/drivers/candle/driver_candle.dll
 # ============================================================
 
@@ -33,3 +33,18 @@ set_target_properties(driver_candle PROPERTIES
 )
 
 deploy_driver_manifest(driver_candle)
+
+# Deploy bundled libusb next to the plugin (DriverRegistry layout)
+set(_CANDLE_LIBUSB "${CMAKE_CURRENT_SOURCE_DIR}/vendor/libusb-1.0.dll")
+if(EXISTS "${_CANDLE_LIBUSB}")
+    add_custom_command(TARGET driver_candle POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:driver_candle>/vendor"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_CANDLE_LIBUSB}"
+                "$<TARGET_FILE_DIR:driver_candle>/vendor/libusb-1.0.dll"
+        COMMENT "Deploying libusb-1.0.dll for driver_candle")
+else()
+    message(STATUS
+        "Candle: vendor/libusb-1.0.dll missing — run scripts/download_libusb.py")
+endif()

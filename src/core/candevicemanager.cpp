@@ -60,9 +60,9 @@ void CanDeviceManager::start()
         return;
 
     if (m_kind == DeviceKind::Simulator) {
-        // 模拟器模式由 MainWindow 直接控制 CanSimulator
-        // 此处不重复启动
+        // Simulator is owned/started by MainWindow; mark running for send echo.
         m_running = true;
+        m_startClock = std::chrono::steady_clock::now();
         return;
     }
 
@@ -75,7 +75,7 @@ void CanDeviceManager::start()
     if (subType == 0) {
         switch (m_kind) {
         case DeviceKind::ZLG:  subType = CanDeviceZLG::DEV_USBCANFD_200U; break;
-        case DeviceKind::PEAK: subType = CanDevicePEAK::PCAN_USBFD;       break;
+        case DeviceKind::PEAK: subType = CanDevicePEAK::PCAN_USBBUS1;     break; // classic PCAN-USB
         default: break;
         }
     }
@@ -165,17 +165,9 @@ QString CanDeviceManager::currentDeviceName() const
 
 bool CanDeviceManager::sendFrame(const CanFrame &frame, CanFrame *echo)
 {
-    if (m_kind == DeviceKind::Simulator)
-        return false;  // 模拟器不支持发送
-
-    if (!m_running || !m_device)
-        return false;
-
-    if (m_device->send(frame) <= 0)
-        return false;
-
-    // 发送成功 — 构造 Tx 回环帧（时间基准与 recvLoop 的接收帧归一化一致）
-    if (echo) {
+    auto fillTxEcho = [&]() {
+        if (!echo)
+            return;
         *echo = frame;
         echo->direction = CanFrame::Tx;
         if (echo->timestampNs == 0) {
@@ -184,7 +176,24 @@ bool CanDeviceManager::sendFrame(const CanFrame &frame, CanFrame *echo)
             echo->timestampNs = static_cast<quint64>(nowNs);
         }
         echo->timestamp = static_cast<double>(echo->timestampNs) / 1e9;
+    };
+
+    // Simulator: local Tx loopback only (no physical bus). Lets plugins
+    // (e.g. UDS) and Transceive feed Trace/Graphic/Flow via the shell hub.
+    if (m_kind == DeviceKind::Simulator) {
+        if (!m_running)
+            return false;
+        fillTxEcho();
+        return true;
     }
+
+    if (!m_running || !m_device)
+        return false;
+
+    if (m_device->send(frame) <= 0)
+        return false;
+
+    fillTxEcho();
     return true;
 }
 

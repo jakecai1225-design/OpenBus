@@ -275,28 +275,28 @@ void MainWindow::onPluginSendFrame(const CanFrame &frame)
 {
     if (!m_deviceManager) {
         m_bottomPanel->appendOutput(
-            QStringLiteral("插件发送失败: 设备管理器未初始化"));
+            QStringLiteral("Plugin send failed: device manager not initialized"));
         return;
     }
 
     CanFrame echo;
     if (m_deviceManager->sendFrame(frame, &echo)) {
-        // Tx 回环（对齐 CANoe）：发送帧推回显示链路，Trace/Graphic/Flow
-        // 可见 Tx 帧；测量未运行时随 onFrameReceived 门控（测量窗口语义）
+        // Tx loopback (CANoe-style): push into the same hub as bus Rx so
+        // Trace (CaptureLog) / Graphic (SampleStore) / Flow all see it.
+        // Gated by measurement via onFrameReceived — start measurement first.
         onFrameReceived(echo);
         return;
     }
 
-    // 失败原因细分提示（此前静默失败，用户无从得知发送链路断在何处）
     QString reason;
-    if (!m_deviceManager->isRealDevice())
-        reason = QStringLiteral("模拟器模式不支持发送");
-    else if (!m_deviceManager->isRunning())
-        reason = QStringLiteral("设备未运行，请先连接设备");
+    if (!m_deviceManager->isRunning())
+        reason = QStringLiteral("device not running — connect device / start measurement");
+    else if (!m_deviceManager->isRealDevice())
+        reason = QStringLiteral("simulator not running");
     else
-        reason = QStringLiteral("设备发送失败");
+        reason = QStringLiteral("device send failed");
     m_bottomPanel->appendOutput(
-        QStringLiteral("插件发送失败 (%1): ID=0x%2")
+        QStringLiteral("Plugin send failed (%1): ID=0x%2")
             .arg(reason)
             .arg(frame.id & 0x1FFFFFFF, 0, 16).toUpper());
 }

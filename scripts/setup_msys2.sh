@@ -32,7 +32,12 @@ PACKAGES=(
   "${PKG_PREFIX}-qt6-tools"
   "${PKG_PREFIX}-qt6-translations"
   "${PKG_PREFIX}-python"
+  "${PKG_PREFIX}-python-pyzmq"
   "${PKG_PREFIX}-gdb"
+  # Plugin host (ZMQ) + Candle (libusb)
+  "${PKG_PREFIX}-zeromq"
+  "${PKG_PREFIX}-cppzmq"
+  "${PKG_PREFIX}-libusb"
 )
 
 echo "==> MSYS2 env: ${ENV_NAME}"

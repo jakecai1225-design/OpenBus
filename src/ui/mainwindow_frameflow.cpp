@@ -113,7 +113,8 @@ void MainWindow::onFramesReceived(const QVector<CanFrame> &frames)
     if (frames.isEmpty() || !m_measurementRunning)
         return;
 
-    // Phase B: CaptureLog (Trace) + SampleStore (Graphic) — decode subscribed once
+    // Single display hub for all bus I/O (device Rx, player, plugin Tx echo,
+    // Transceive Tx echo): CaptureLog = Trace SoT, SampleStore = Graphic SoT.
     CaptureLog::instance()->appendBatch(frames);
     SampleStore::instance()->ingestFrames(frames);
 

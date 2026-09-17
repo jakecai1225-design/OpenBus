@@ -314,16 +314,19 @@ void DeviceConnectionTab::onConnect()
     }
 
     if (m_deviceKind == 0) {
-        // 模拟器模式
+        // Built-in simulator: traffic from CanSimulator; Tx echo via CanDeviceManager
+        // (plugins / Transceive need deviceManager->sendFrame to reach Trace).
         if (m_simulator) {
             m_simulator->setChannel(static_cast<quint8>(channel + 1));
             m_simulator->setBaudrate(baudrate);
             m_simulator->start();
         }
+        if (m_deviceMgr) {
+            m_deviceMgr->configureSimulator(channel, 0, baudrate);
+            m_deviceMgr->start();
+        }
     } else {
-        // 所有真实硬件设备（ZLG/PEAK/Kvaser/...）统一走 V2 信号
-        // MainWindow → CanDeviceManager::configure(DeviceKind, ...)
-        // → ICanDevice::create(Brand, subType) 工厂方法分派
+        // Real hardware — V2 signal → CanDeviceManager::configure + start
         emit deviceConnectRequestedV2(m_deviceKind, m_devIndex,
                                        channel, baudrate, dataBaud, canFd, m_devSubType);
     }
@@ -349,8 +352,10 @@ void DeviceConnectionTab::onDisconnect()
     if (m_deviceKind == 0) {
         if (m_simulator)
             m_simulator->stop();
+        if (m_deviceMgr)
+            m_deviceMgr->stop();
     }
-    // 真实设备的停止由 MainWindow 在 deviceDisconnectRequested 信号中处理
+    // Real-device stop is handled by MainWindow on deviceDisconnectRequested
 
     m_connectBtn->setEnabled(kindImplemented(m_deviceKind));
     m_disconnectBtn->setEnabled(false);

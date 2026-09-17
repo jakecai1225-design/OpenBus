@@ -8,22 +8,22 @@
 #include <vector>
 
 /**
- * @brief Candle / GS_USB 开源 USB CAN 设备后端（方案 §14.4 P0-B）
+ * @brief Candle / GS_USB open-source USB CAN backend (plan §14.4 P0-B)
  *
- * 一份驱动覆盖 GS_USB 协议全家：CANable (candle 固件) / candleLight DIY /
- * Cantact / CANnectivity / CES CANext FD / ABE CANDebugger 等。
- * 协议以 Linux 内核 gs_usb.c 与 candleLight_fw gs_usb.h 为权威参照：
- * - 控制传输：bmRequestType 0x41(OUT)/0xC1(IN)，wValue=通道号，wIndex=接口 0
- * - 打开序列：HOST_FORMAT(0x0000beef LE) → DEVICE_CONFIG(通道数) →
- *   BT_CONST(位时序参数) → BITTIMING →(FD: DATA_BITTIMING) → MODE START
- * - 帧：12 字节头 + data[8]/[64] + 可选 timestamp_us；
- *   经典帧 24 字节（ts@20），FD 帧 80 字节（ts@76）；echo_id 0xffffffff=接收帧
- * - libusb-1.0.dll 动态加载（drivers/candle/vendor → 应用目录 → PATH），
- *   进程内共享单例、永不卸载（libusb 全局状态不可安全回收）
+ * One driver for the GS_USB family: CANable (candle firmware) / candleLight /
+ * Cantact / CANnectivity / CES CANext FD / ABE CANDebugger / etc.
+ * Protocol follows Linux gs_usb.c and candleLight_fw gs_usb.h:
+ * - Control: bmRequestType 0x41(OUT)/0xC1(IN), wValue=channel, wIndex=iface 0
+ * - Open: HOST_FORMAT(0x0000beef LE) → DEVICE_CONFIG → BT_CONST → BITTIMING
+ *   → (FD: DATA_BITTIMING) → MODE START
+ * - Frame: 12 B header + data[8|64] + optional timestamp_us;
+ *   classic 24 B (ts@20), FD 80 B (ts@76); echo_id 0xffffffff = Rx
+ * - libusb-1.0.dll loaded dynamically (drivers/candle/vendor → app dir → PATH),
+ *   process-wide singleton, never unloaded
  *
- * 硬件时间戳：设备特征含 HW_TIMESTAMP(bit4) 时启用（1MHz 自由计数器），
- * 首帧与 steady_clock 对齐后换算纳秒并处理 32 位回绕（约 71.6 分钟）。
- * 设备需绑定 WinUSB/libusb-win32 驱动（CANable 等新版固件为 WinUSB WCID）。
+ * HW timestamp when feature bit HW_TIMESTAMP is set (1 MHz free-running).
+ * Device must be bound to WinUSB (CANable WCID firmware usually is).
+ * Stock CANable with SLCAN firmware is CDC serial — use the slcan driver.
  */
 class CanDeviceCandle : public ICanDevice
 {
@@ -99,6 +99,8 @@ private:
         quint8 (*dev_address)(void *) = nullptr;
         int  (*open)(void *, void **) = nullptr;
         void (*close)(void *) = nullptr;
+        void *(*ref_device)(void *) = nullptr;
+        void (*unref_device)(void *) = nullptr;
         int  (*claim_interface)(void *, int) = nullptr;
         int  (*release_interface)(void *, int) = nullptr;
         int  (*auto_detach)(void *, int) = nullptr;
@@ -106,31 +108,33 @@ private:
         int  (*bulk)(void *, quint8, quint8 *, int, int *, unsigned) = nullptr;
     };
 
-    /// 加载 libusb-1.0（drivers/candle/vendor → 应用目录 → 系统搜索路径）
+    /// Load libusb-1.0 (drivers/candle/vendor → app dir → system PATH)
     static LibUsb &usb();
 
-    // ---- USB 传输辅助 ----
-    /// 白名单匹配结果（未打开的 libusb_device 引用，仅设备表遍历期间有效）
+    // ---- USB helpers ----
+    /// Whitelist match; `dev` is ref'd — caller must releaseMatches()
     struct UsbMatch {
         void *dev = nullptr;
         RawDeviceDescriptor desc;
         QString model;
         quint8 bus = 0;
         quint8 addr = 0;
+        quint8 channels = 0;  ///< set when DEVICE_CONFIG probe succeeds
     };
-    /// 遍历 libusb 设备表，返回 VID/PID 白名单匹配项（顺序稳定，枚举与打开共用）
+    /// VID/PID whitelist matches with libusb_ref_device (stable across free_device_list)
     static std::vector<UsbMatch> collectWhitelisted();
+    /// Same index space as enumerate(): whitelist ∩ openable DEVICE_CONFIG
+    static std::vector<UsbMatch> collectOpenable();
+    static void releaseMatches(std::vector<UsbMatch> &matches);
+    /// Probe DEVICE_CONFIG; on success fills m.channels and returns true
+    static bool probeDeviceConfig(const UsbMatch &m, quint8 *channelsOut);
     static bool devCtrlOut(void *handle, quint8 breq, quint16 wValue, const void *data, quint16 len);
     static bool devCtrlIn(void *handle, quint8 breq, quint16 wValue, void *data, quint16 len);
     bool ctrlOut(quint8 breq, quint16 wValue, const void *data, quint16 len);
     bool ctrlIn(quint8 breq, quint16 wValue, void *data, quint16 len);
-    /// 读取通道位时序参数；extended=true 时额外取 FD 数据段参数
     bool readBtConst(int channel, bool extended, BtConstRaw *arb, BtConstRaw *data);
-    /// 由 bt_const 与目标波特率计算位时序（87.5% 采样点，仅接受精确分频）
     static bool calcBittiming(const BtConstRaw &c, int bitrate, BtRaw *out);
-    /// 设备硬件时间戳（µs）→ steady_clock 纳秒（首帧对齐 + 32 位回绕补偿）
     quint64 hwTsToNs(quint32 rawUs);
-    /// VID/PID 白名单显示名（如 "CANable (candle)"），非白名单返回空
     static QString modelForVidPid(quint16 vid, quint16 pid);
 
     void *m_handle = nullptr;      ///< libusb_device_handle

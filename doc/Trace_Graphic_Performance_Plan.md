@@ -209,3 +209,4 @@ Hard rules:
 - **2026-09-15**: B6 complete — hidden Graphic stops pull/value/replot timers (tip once on hide); DataWindow timer + shell fan-out gated on visibility. Phase B closed. Next: manual acceptance; P2 (C1b/C2/C3) only if still heavy.
 - **2026-09-17**: Trace UX track opened (`doc/Trace_UX_Redesign.md`). Performance T0–T5 unchanged. **U1–U5 landed** (action/status strip, filter chips, right Signals pane, sticky columns, To Graphic + status precision). Next: manual acceptance; C1b only if still heavy.
 - **2026-09-17**: **U6 Trace chrome densify** — actions after narrow filter edit; in-tab status strip removed; shell status bar slimmed (`tab | frames | Sel | time`). See `doc/Trace_UX_Redesign.md`.
+- **2026-09-17**: Plugin/Transceive Tx unified into `onFramesReceived` (CaptureLog + SampleStore + Flow); simulator local Tx echo for display; live Tx must not use Trace `appendFrames`. See `doc/插件方案.md` §8.
