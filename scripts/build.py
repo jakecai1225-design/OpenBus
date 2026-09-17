@@ -10,6 +10,7 @@ Commands:
   clean      - Clean build
   rebuild    - Rebuild (clean + configure + build)
   deploy     - Deploy Qt runtime deps
+  package    - Portable Windows zip (Release + deploy + archive)
   all        - Full pipeline (configure + build + deploy + run)
   status     - Show environment status
   open       - Open build dir in Explorer
@@ -21,6 +22,8 @@ Examples:
   python scripts/build.py debug
   python scripts/build.py rebuild
   python scripts/build.py status
+  python scripts/build.py package -j8
+  python scripts/build.py package --build-type Release --version 1.0.0
 
 Dev profile (daily: -O1 -g1; separate dir alongside full Debug):
   python scripts/build.py configure --build-type Dev --build-dir build-dev
@@ -990,6 +993,141 @@ def cmd_deploy(env, args):
     ok("Deploy done")
 
 
+def cmd_package(env, args):
+    """Build a portable Windows zip (no installer): Release + deploy + archive."""
+    import datetime
+    import zipfile
+
+    header("Portable package (Windows x64)")
+
+    build_type = getattr(args, "build_type", "Release") or "Release"
+    if build_type == "Debug":
+        warn("Packaging Debug is possible but large; prefer --build-type Release")
+
+    cache = BUILD_DIR / "CMakeCache.txt"
+    need_configure = not cache.exists()
+    if cache.exists():
+        text = cache.read_text(encoding="utf-8", errors="ignore")
+        if f"CMAKE_BUILD_TYPE:STRING={build_type}" not in text:
+            need_configure = True
+
+    if need_configure or getattr(args, "reconfigure", False):
+        cfg = argparse.Namespace(
+            build_type=build_type,
+            clean=getattr(args, "clean", False),
+            define=getattr(args, "define", []) or [],
+            build_dir=getattr(args, "build_dir", str(BUILD_DIR.name)),
+            jobs=getattr(args, "jobs", None),
+        )
+        cmd_configure(env, cfg)
+
+    bargs = argparse.Namespace(
+        jobs=getattr(args, "jobs", None),
+        target=None,
+        build_type=build_type,
+        build_dir=getattr(args, "build_dir", str(BUILD_DIR.name)),
+    )
+    cmd_build(env, bargs)
+    cmd_deploy(env, bargs)
+
+    if not EXECUTABLE.exists():
+        err(f"Missing executable: {fmt_path(EXECUTABLE)}")
+        sys.exit(1)
+
+    stamp = datetime.datetime.now().strftime("%Y%m%d")
+    version = getattr(args, "version", "") or stamp
+    folder_name = f"openbus-windows-x64-{version}"
+    dist_root = PROJECT_ROOT / "dist"
+    stage = dist_root / folder_name
+    zip_path = dist_root / f"{folder_name}.zip"
+
+    if stage.exists():
+        shutil.rmtree(stage)
+    stage.mkdir(parents=True)
+
+    src_bin = EXECUTABLE.parent
+    skip_suffixes = {".pdb", ".ilk", ".exp", ".lib", ".a", ".obj"}
+    skip_names = {".ninja_deps", ".ninja_log", "CMakeFiles"}
+
+    info(f"Staging from {fmt_path(src_bin)} -> {fmt_path(stage)}")
+    for root, dirs, files in os.walk(src_bin):
+        dirs[:] = [d for d in dirs if d not in skip_names and not d.endswith(".dir")]
+        rel = Path(root).relative_to(src_bin)
+        dest_dir = stage / rel
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        for name in files:
+            if Path(name).suffix.lower() in skip_suffixes:
+                continue
+            if name in skip_names:
+                continue
+            shutil.copy2(Path(root) / name, dest_dir / name)
+
+    (stage / "README.txt").write_text(
+        "\n".join([
+            "openbus — portable package (Windows 10/11 x64)",
+            "================================================",
+            "",
+            "No installer required.",
+            "",
+            "1. Unzip this folder to any path (avoid a path that needs Admin rights).",
+            "2. Double-click openbus.exe to start.",
+            "3. Keep all files next to openbus.exe (DLL / platforms / kerneldlls / …).",
+            "",
+            "Requirements:",
+            "  - Windows 10 or Windows 11, 64-bit",
+            "  - No separate Qt / MSYS2 install needed",
+            "",
+            "Optional hardware drivers:",
+            "  - USB-CAN vendors may still need their own device drivers from the vendor.",
+            "",
+            "Troubleshooting:",
+            "  - If Windows SmartScreen warns, choose More info -> Run anyway",
+            "    (unsigned portable builds are normal for internal builds).",
+            "  - If a DLL is missing, re-download the full zip (do not copy only .exe).",
+            "",
+            f"Build: {build_type}  |  Packaged: {stamp}",
+            "",
+        ]),
+        encoding="utf-8",
+    )
+
+    (stage / "使用说明.txt").write_text(
+        "\n".join([
+            "openbus 绿色免安装包（Windows 10/11 64 位）",
+            "==========================================",
+            "",
+            "1. 解压整个文件夹到任意目录（不要只拷贝 openbus.exe）。",
+            "2. 双击 openbus.exe 即可运行。",
+            "3. platforms、*.dll、kerneldlls 等必须与 exe 同目录保留。",
+            "",
+            "说明：",
+            "  - 无需安装 Qt / MSYS2。",
+            "  - 若使用 USB-CAN 硬件，可能仍需安装厂家设备驱动。",
+            "  - 若 SmartScreen 提示，选“更多信息”→“仍要运行”。",
+            "",
+            f"构建类型: {build_type}  |  打包日期: {stamp}",
+            "",
+        ]),
+        encoding="utf-8",
+    )
+
+    if zip_path.exists():
+        zip_path.unlink()
+
+    info(f"Creating zip: {fmt_path(zip_path)}")
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        for root, dirs, files in os.walk(stage):
+            for name in files:
+                full = Path(root) / name
+                arc = full.relative_to(dist_root)
+                zf.write(full, arc.as_posix())
+
+    size_mb = zip_path.stat().st_size / (1024 * 1024)
+    ok(f"Portable package ready: {fmt_path(zip_path)} ({size_mb:.1f} MB)")
+    ok(f"Unpacked folder:       {fmt_path(stage)}")
+    info("Copy the zip (or the folder) to another PC and run openbus.exe")
+
+
 def cmd_all(env, args):
     """Full pipeline: configure + build + deploy + run"""
     header("Full build pipeline")
@@ -1236,6 +1374,25 @@ Note: no native Windows CMake/Qt; displayed paths use /c/... form
     p = sub.add_parser("deploy", help="Deploy Qt runtime deps")
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_deploy)
+
+    # package — portable zip for other PCs
+    p = sub.add_parser(
+        "package",
+        help="Portable Windows x64 zip (Release build + deploy + archive)",
+    )
+    p.add_argument("-j", "--jobs", type=int, help="Parallel build jobs")
+    p.add_argument("--build-type", choices=BUILD_TYPES, default="Release",
+                   help="Build type for the package (default: Release)")
+    p.add_argument("--version", default="",
+                   help="Version stamp in folder/zip name (default: YYYYMMDD)")
+    p.add_argument("--clean", action="store_true",
+                   help="Wipe package build dir before configure")
+    p.add_argument("--reconfigure", action="store_true",
+                   help="Force CMake reconfigure even if cache matches")
+    p.add_argument("-D", "--define", action="append", default=[], metavar="VAR=VALUE",
+                   help="Extra CMake cache define; repeatable")
+    add_build_dir_opt(p)
+    p.set_defaults(func=cmd_package, build_dir="build-release")
 
     # all
     p = sub.add_parser("all", help="Full pipeline (configure + build + deploy + run)")
