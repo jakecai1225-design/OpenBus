@@ -2,64 +2,76 @@
 #define CANDEVICE_KVASER_H
 
 #include "core/candevice.h"
-#include <QLibrary>
+
 #include <QString>
-#include <atomic>
-#include <memory>
+#include <cstddef>
+#include <vector>
 
 /**
- * @brief Kvaser CAN/CAN FD 设备后端 (P1)
+ * @brief Kvaser CANlib backend (canlib32.dll)
  *
- * 动态加载 canlib32.dll / kvlclib.dll，封装 Kvaser CANLIB API。
- * 支持 Kvaser USBcan、Leaf 等系列设备。
+ * One CANlib channel = one DeviceInfo (same model as PEAK).
+ * deviceType stores the CANlib channel number used by canOpenChannel().
  *
- * 架构：ICanDevice → CanDeviceKvaser → canlib32.dll (运行时加载)
- * DLL 缺失时 isAvailable() 返回 false，不影响其他后端。
+ * Vendor DLL is NOT bundled (Kvaser license). Load order:
+ *   drivers/kvaser/vendor/canlib32.dll → app dir → PATH / system install
+ *
+ * Supports classic CAN and ISO CAN FD via canOPEN_CAN_FD + canSetBusParamsFd.
+ * Mainstream hardware (Leaf Pro HS v2, USBcan Pro, U100, PCIEcan v3, Memorator Pro,
+ * Hybrid Pro, Virtual) all share this single CANlib API.
  */
 class CanDeviceKvaser : public ICanDevice
 {
 public:
-    /// Kvaser 设备子类型
-    enum DeviceType {
-        USBcan2     = 0,   ///< Kvaser USBcan II
-        Leaf        = 1,   ///< Kvaser Leaf
-        LeafLight   = 2,   ///< Kvaser Leaf Light
-        UsbCanHybrid = 3,  ///< Kvaser Hybrid
-    };
-
-    explicit CanDeviceKvaser(int subType = 0);
+    /// @param canlibChannel CANlib channel from enumerate().deviceType, or -1 = resolve on open
+    explicit CanDeviceKvaser(int canlibChannel = -1);
     ~CanDeviceKvaser() override;
 
-    // ---- ICanDevice ----
     Brand brand() const override { return Brand::Kvaser; }
     bool open(int devIndex, int channel, int arbBaud, int dataBaud, bool canFd) override;
     void close() override;
     int send(const CanFrame &frame) override;
     int recv(int timeoutMs, std::vector<CanFrame> &outFrames) override;
     int pendingCount() const override;
-    bool isOpen() const override;
+    bool isOpen() const override { return m_opened; }
     QString deviceName() const override;
 
-    /// 检查 canlib32.dll 是否可加载
     static bool isAvailable();
-
-    /// 枚举 Kvaser 设备
     static std::vector<DeviceInfo> enumerate();
 
 private:
-    bool loadDll();
-    void unloadDll();
+    using CanHandle = int;
+    using CanStatus = int;
 
-    QLibrary m_dll;
-    int m_subType = 0;
-    int m_devIndex = 0;
-    int m_channel = 0;
+    struct Api {
+        bool ok = false;
+        void (__stdcall *InitializeLibrary)() = nullptr;
+        CanStatus (__stdcall *GetNumberOfChannels)(int *) = nullptr;
+        CanStatus (__stdcall *GetChannelData)(int, int, void *, size_t) = nullptr;
+        CanHandle (__stdcall *OpenChannel)(int, int) = nullptr;
+        CanStatus (__stdcall *Close)(CanHandle) = nullptr;
+        CanStatus (__stdcall *BusOn)(CanHandle) = nullptr;
+        CanStatus (__stdcall *BusOff)(CanHandle) = nullptr;
+        CanStatus (__stdcall *SetBusParams)(CanHandle, long, unsigned, unsigned, unsigned, unsigned, unsigned) = nullptr;
+        CanStatus (__stdcall *SetBusParamsFd)(CanHandle, long, unsigned, unsigned, unsigned) = nullptr;
+        CanStatus (__stdcall *Write)(CanHandle, long, void *, unsigned, unsigned) = nullptr;
+        CanStatus (__stdcall *ReadWait)(CanHandle, long *, void *, unsigned *, unsigned *, unsigned long *, unsigned long) = nullptr;
+        CanStatus (__stdcall *Read)(CanHandle, long *, void *, unsigned *, unsigned *, unsigned long *) = nullptr;
+        CanStatus (__stdcall *GetErrorText)(CanStatus, char *, size_t) = nullptr;
+    };
+
+    static Api &api();
+    static long classicBitrate(int baud);
+    static long fdBitrate(int baud);
+    static QString statusText(CanStatus st);
+
+    int m_preferredChannel = -1; ///< CANlib channel from ctor / deviceType
+    CanHandle m_handle = -1;
+    int m_channel = 0;           ///< 0-based logical channel for CanFrame::channel
     bool m_opened = false;
     bool m_canFd = false;
-    int m_canlibHandle = -1;     ///< canlib 通道句柄
+    bool m_fdCapable = false;
     QString m_deviceName;
-
-    std::chrono::steady_clock::time_point m_startClock;
 };
 
 #endif // CANDEVICE_KVASER_H
