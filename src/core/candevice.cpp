@@ -3,6 +3,7 @@
 #include "candevice_peak.h"
 #include "candevice_kvaser.h"
 #include "candevice_busmust.h"
+#include "candevice_vector.h"
 #include "driver/driverregistry.h"
 #include "logging.h"
 
@@ -18,6 +19,10 @@ QString ICanDevice::brandName(Brand b)
     case Brand::SLCAN:    return QStringLiteral("SLCAN");
     case Brand::Candle:   return QStringLiteral("Candle");
     case Brand::Busmust:  return QStringLiteral("BUSMUST");
+    case Brand::Vector:   return QStringLiteral("Vector");
+    case Brand::Ixxat:    return QStringLiteral("IXXAT");
+    case Brand::SocketCan: return QStringLiteral("SocketCAN");
+    case Brand::Intrepid:  return QStringLiteral("Intrepid");
     }
     return QStringLiteral("Unknown");
 }

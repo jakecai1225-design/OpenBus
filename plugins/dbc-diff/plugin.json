@@ -1,8 +1,8 @@
 {
     "name": "dbc-diff",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "DBC 对比工具：双库报文/信号/属性级 diff，差异树视图与报告导出",
+    "description": "DBC diff: messages/signals plus BA_ attributes, VAL_ tables, comments; CSV and HTML side-by-side export",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "dbcDiff.open",
-                "title": "数据库: DBC 对比"
+                "title": "Database: DBC Diff"
             }
         ]
     }

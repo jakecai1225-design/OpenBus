@@ -28,6 +28,16 @@ set(SRC_CORE
     core/candevice_peak.cpp
     core/candevice_kvaser.h
     core/candevice_kvaser.cpp
+    core/candevice_vector.h
+    core/candevice_vector.cpp
+    core/candevice_tongxing.h
+    core/candevice_tongxing.cpp
+    core/candevice_ixxat.h
+    core/candevice_ixxat.cpp
+    core/candevice_socketcan.h
+    core/candevice_socketcan.cpp
+    core/candevice_intrepid.h
+    core/candevice_intrepid.cpp
     core/candevice_slcan.h
     core/candevice_slcan.cpp
     core/candevice_candle.h

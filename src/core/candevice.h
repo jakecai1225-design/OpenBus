@@ -38,6 +38,10 @@ public:
         SLCAN     = 4,   ///< 开源 SLCAN / serial-CAN 固件
         Candle    = 5,   ///< Candle / GS_USB 开源 USB CAN (CANable 等)
         Busmust   = 6,   ///< BUSMUST USB-CAN(FD) via BMAPI (bmcan)
+        Vector    = 7,   ///< Vector XL Driver Library (vxlapi)
+        Ixxat     = 8,   ///< IXXAT VCI4 (vcinpl2)
+        SocketCan = 9,   ///< Linux SocketCAN (can0 / vcan0)
+        Intrepid  = 10,  ///< Intrepid ValueCAN / neoVI (libicsneo / icsneoc)
     };
 
     /// 品牌显示名

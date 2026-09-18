@@ -1,0 +1,20 @@
+{
+    "id": "tongxing",
+    "name": "TOSUN libTSCAN Driver",
+    "version": "1.0.0",
+    "vendor": "TOSUN",
+    "minAppVersion": "0.1.0",
+    "abiVersion": "1.0",
+    "busType": "can",
+    "devices": [
+        { "type": 0, "name": "TOSUN TC1011", "channels": 1, "canFd": true },
+        { "type": 1, "name": "TOSUN TC1013 / TC1014", "channels": 2, "canFd": true },
+        { "type": 2, "name": "TOSUN TC1016 / TC1017", "channels": 4, "canFd": true }
+    ],
+    "notes": "TC series shares libTSCAN. Enumerate returns one entry per device; channel is selected at connect. FD capability is read from tscan_get_can_channel_count.",
+    "vendorSdk": {
+        "dll": "vendor/libTSCAN.dll",
+        "bundled": false,
+        "license": "Proprietary — install TOSUN TSMaster / libTSCAN runtime; copy libTSCAN.dll and libTSH.dll to drivers/tongxing/vendor/"
+    }
+}

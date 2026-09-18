@@ -4,6 +4,11 @@
 #include "core/candevice_zlg.h"
 #include "core/candevice_peak.h"
 #include "core/candevice_kvaser.h"
+#include "core/candevice_vector.h"
+#include "core/candevice_tongxing.h"
+#include "core/candevice_ixxat.h"
+#include "core/candevice_socketcan.h"
+#include "core/candevice_intrepid.h"
 #include "core/candevice_slcan.h"
 #include "core/candevice_candle.h"
 #include "core/candevice_busmust.h"
@@ -370,6 +375,46 @@ void DriverRegistry::registerBuiltinDrivers()
                kvaserOk ? QString()
                         : QStringLiteral("canlib32.dll not found (drivers/kvaser/vendor)"));
 
+    const bool vectorOk = CanDeviceVector::isAvailable();
+    addBuiltin(QStringLiteral("vector"), QStringLiteral("Vector XL"),
+               ICanDevice::Brand::Vector,
+               static_cast<int>(CanDeviceManager::DeviceKind::Vector),
+               vectorOk,
+               vectorOk ? QString()
+                        : QStringLiteral("vxlapi64.dll not found (install Vector Driver Setup or drivers/vector/vendor)"));
+
+    const bool tongxingOk = CanDeviceTongXing::isAvailable();
+    addBuiltin(QStringLiteral("tongxing"), QStringLiteral("TOSUN"),
+               ICanDevice::Brand::TongXing,
+               static_cast<int>(CanDeviceManager::DeviceKind::TongXing),
+               tongxingOk,
+               tongxingOk ? QString()
+                          : QStringLiteral("libTSCAN.dll not found (drivers/tongxing/vendor)"));
+
+    const bool ixxatOk = CanDeviceIxxat::isAvailable();
+    addBuiltin(QStringLiteral("ixxat"), QStringLiteral("IXXAT"),
+               ICanDevice::Brand::Ixxat,
+               static_cast<int>(CanDeviceManager::DeviceKind::Ixxat),
+               ixxatOk,
+               ixxatOk ? QString()
+                       : QStringLiteral("vcinpl2.dll not found (install IXXAT VCI4 or drivers/ixxat/vendor)"));
+
+    const bool socketcanOk = CanDeviceSocketCan::isAvailable();
+    addBuiltin(QStringLiteral("socketcan"), QStringLiteral("SocketCAN"),
+               ICanDevice::Brand::SocketCan,
+               static_cast<int>(CanDeviceManager::DeviceKind::SocketCan),
+               socketcanOk,
+               socketcanOk ? QString()
+                           : QStringLiteral("Linux-only (PF_CAN / can0 / vcan0)"));
+
+    const bool intrepidOk = CanDeviceIntrepid::isAvailable();
+    addBuiltin(QStringLiteral("intrepid"), QStringLiteral("Intrepid"),
+               ICanDevice::Brand::Intrepid,
+               static_cast<int>(CanDeviceManager::DeviceKind::Intrepid),
+               intrepidOk,
+               intrepidOk ? QString()
+                          : QStringLiteral("icsneoc not found (build libicsneo or drivers/intrepid/vendor)"));
+
     const bool candleOk = CanDeviceCandle::isAvailable();
     addBuiltin(QStringLiteral("candle"), QStringLiteral("Candle / GS_USB"),
                ICanDevice::Brand::Candle,
@@ -429,6 +474,21 @@ std::vector<ICanDevice::DeviceInfo> DriverRegistry::enumerateDevices() const
         case ICanDevice::Brand::Kvaser:
             devs = CanDeviceKvaser::enumerate();
             break;
+        case ICanDevice::Brand::Vector:
+            devs = CanDeviceVector::enumerate();
+            break;
+        case ICanDevice::Brand::TongXing:
+            devs = CanDeviceTongXing::enumerate();
+            break;
+        case ICanDevice::Brand::Ixxat:
+            devs = CanDeviceIxxat::enumerate();
+            break;
+        case ICanDevice::Brand::SocketCan:
+            devs = CanDeviceSocketCan::enumerate();
+            break;
+        case ICanDevice::Brand::Intrepid:
+            devs = CanDeviceIntrepid::enumerate();
+            break;
         case ICanDevice::Brand::Candle:
             devs = CanDeviceCandle::enumerate();
             break;
@@ -471,6 +531,16 @@ ICanDevice *DriverRegistry::createDevice(const QString &driverId, int subType) c
         return new CanDevicePEAK(subType);
     case ICanDevice::Brand::Kvaser:
         return new CanDeviceKvaser(subType);
+    case ICanDevice::Brand::Vector:
+        return new CanDeviceVector(subType);
+    case ICanDevice::Brand::TongXing:
+        return new CanDeviceTongXing(subType);
+    case ICanDevice::Brand::Ixxat:
+        return new CanDeviceIxxat(subType);
+    case ICanDevice::Brand::SocketCan:
+        return new CanDeviceSocketCan(subType);
+    case ICanDevice::Brand::Intrepid:
+        return new CanDeviceIntrepid(subType);
     case ICanDevice::Brand::Candle:
         return new CanDeviceCandle(subType);
     case ICanDevice::Brand::Busmust:
@@ -615,6 +685,10 @@ QString DriverRegistry::brandToDriverId(ICanDevice::Brand b)
     case ICanDevice::Brand::SLCAN:    return QStringLiteral("slcan");
     case ICanDevice::Brand::Candle:   return QStringLiteral("candle");
     case ICanDevice::Brand::Busmust:  return QStringLiteral("busmust");
+    case ICanDevice::Brand::Vector:   return QStringLiteral("vector");
+    case ICanDevice::Brand::Ixxat:    return QStringLiteral("ixxat");
+    case ICanDevice::Brand::SocketCan: return QStringLiteral("socketcan");
+    case ICanDevice::Brand::Intrepid: return QStringLiteral("intrepid");
     }
     return QString();
 }
@@ -629,6 +703,10 @@ ICanDevice::Brand DriverRegistry::driverIdToBrand(const QString &id)
     if (key == QLatin1String("slcan"))    return ICanDevice::Brand::SLCAN;
     if (key == QLatin1String("candle"))   return ICanDevice::Brand::Candle;
     if (key == QLatin1String("busmust"))  return ICanDevice::Brand::Busmust;
+    if (key == QLatin1String("vector"))   return ICanDevice::Brand::Vector;
+    if (key == QLatin1String("ixxat"))    return ICanDevice::Brand::Ixxat;
+    if (key == QLatin1String("socketcan")) return ICanDevice::Brand::SocketCan;
+    if (key == QLatin1String("intrepid")) return ICanDevice::Brand::Intrepid;
     return ICanDevice::Brand::SLCAN;   // long-tail: driverId only
 }
 
@@ -642,5 +720,9 @@ int DriverRegistry::driverIdToDeviceKind(const QString &id)
     if (key == QLatin1String("slcan"))    return static_cast<int>(CanDeviceManager::DeviceKind::SLCAN);
     if (key == QLatin1String("candle"))   return static_cast<int>(CanDeviceManager::DeviceKind::Candle);
     if (key == QLatin1String("busmust"))  return static_cast<int>(CanDeviceManager::DeviceKind::Busmust);
+    if (key == QLatin1String("vector"))   return static_cast<int>(CanDeviceManager::DeviceKind::Vector);
+    if (key == QLatin1String("ixxat"))    return static_cast<int>(CanDeviceManager::DeviceKind::Ixxat);
+    if (key == QLatin1String("socketcan")) return static_cast<int>(CanDeviceManager::DeviceKind::SocketCan);
+    if (key == QLatin1String("intrepid")) return static_cast<int>(CanDeviceManager::DeviceKind::Intrepid);
     return -1;
 }

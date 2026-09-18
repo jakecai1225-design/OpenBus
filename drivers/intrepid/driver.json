@@ -1,0 +1,20 @@
+{
+    "id": "intrepid",
+    "name": "Intrepid ValueCAN / neoVI",
+    "version": "1.0.0",
+    "vendor": "Intrepid Control Systems",
+    "minAppVersion": "0.1.0",
+    "abiVersion": "1.0",
+    "busType": "can",
+    "devices": [
+        { "type": 0, "name": "ValueCAN 4-1 / 4-2", "channels": 1, "canFd": true },
+        { "type": 1, "name": "ValueCAN 4-4", "channels": 4, "canFd": true },
+        { "type": 2, "name": "neoVI FIRE 2 / FIRE 3 / RED 2", "channels": 2, "canFd": true }
+    ],
+    "notes": "Uses libicsneo C API (icsneoc). Enumerate returns one entry per box; channel selects the Nth CAN network via getNetworkByNumber. Baud rates applied temporarily (settingsApplyTemporary).",
+    "vendorSdk": {
+        "dll": "vendor/icsneoc.dll",
+        "bundled": false,
+        "license": "libicsneo (GPLv3 / commercial) — build or install icsneoc; do not ship proprietary Vehicle Spy icsneo40.dll as a substitute"
+    }
+}

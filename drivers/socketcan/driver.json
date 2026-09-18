@@ -1,0 +1,20 @@
+{
+    "id": "socketcan",
+    "name": "Linux SocketCAN",
+    "version": "1.0.0",
+    "vendor": "Linux kernel",
+    "minAppVersion": "0.1.0",
+    "abiVersion": "1.0",
+    "busType": "can",
+    "devices": [
+        { "type": 0, "name": "can0 / canN", "channels": 1, "canFd": true },
+        { "type": 1, "name": "vcan0 (virtual)", "channels": 1, "canFd": true },
+        { "type": 2, "name": "slcan0", "channels": 1, "canFd": false }
+    ],
+    "notes": "Linux-only PF_CAN SOCK_RAW. Enumerate scans /sys/class/net for can*/vcan*/slcan*. Bitrate is OS-managed (ip link). FD when iface MTU >= 72.",
+    "vendorSdk": {
+        "dll": "",
+        "bundled": false,
+        "license": "Kernel SocketCAN — no vendor DLL; requires Linux"
+    }
+}

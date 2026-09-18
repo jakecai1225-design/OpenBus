@@ -1,0 +1,20 @@
+{
+    "id": "ixxat",
+    "name": "IXXAT VCI4 Driver",
+    "version": "1.0.0",
+    "vendor": "HMS / IXXAT",
+    "minAppVersion": "0.1.0",
+    "abiVersion": "1.0",
+    "busType": "can",
+    "devices": [
+        { "type": 0, "name": "IXXAT USB-to-CAN V2 / compact", "channels": 1, "canFd": false },
+        { "type": 1, "name": "IXXAT USB-to-CAN FD", "channels": 1, "canFd": true },
+        { "type": 2, "name": "IXXAT USB-to-CAN V2 / FD multi-channel", "channels": 2, "canFd": true }
+    ],
+    "notes": "USB-to-CAN V2 and FD share vcinpl2.dll. Enumerate returns one entry per VCI device; channel is selected at connect. FD capability is read from CAN_FEATURE_EXTDATA / FASTDATA.",
+    "vendorSdk": {
+        "dll": "vendor/vcinpl2.dll",
+        "bundled": false,
+        "license": "Proprietary — install IXXAT VCI V4; optional copy of the x64 vcinpl2.dll to drivers/ixxat/vendor/"
+    }
+}

@@ -1,0 +1,22 @@
+{
+    "id": "vector",
+    "name": "Vector XL Driver Library",
+    "version": "1.0.0",
+    "vendor": "Vector Informatik",
+    "minAppVersion": "0.1.0",
+    "abiVersion": "1.0",
+    "busType": "can",
+    "devices": [
+        { "type": 0, "name": "Vector VN1610 / VN1611", "channels": 2, "canFd": true },
+        { "type": 1, "name": "Vector VN1630 / VN1630A / VN1630 log", "channels": 4, "canFd": true },
+        { "type": 2, "name": "Vector VN1640", "channels": 4, "canFd": true },
+        { "type": 3, "name": "Vector VN56xx / VN5610 / VN5640", "channels": 2, "canFd": true },
+        { "type": 4, "name": "Vector Virtual CAN", "channels": 2, "canFd": true }
+    ],
+    "notes": "All Vector XL interfaces share vxlapi (vxlapi64.dll). Enumerate returns one entry per CAN-capable XL channel; FD capability is read from XL_CHANNEL_FLAG_CANFD_ISO / BOSCH.",
+    "vendorSdk": {
+        "dll": "vendor/vxlapi64.dll",
+        "bundled": false,
+        "license": "Proprietary — install Vector Driver Setup / XL Driver Library from vector.com; optional copy vxlapi64.dll to drivers/vector/vendor/"
+    }
+}

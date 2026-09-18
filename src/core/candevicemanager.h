@@ -38,6 +38,10 @@ public:
         SLCAN,      ///< 开源 SLCAN / serial-CAN
         Candle,     ///< Candle / GS_USB 开源 USB CAN (CANable 等)
         Busmust,    ///< BUSMUST USB-CAN(FD) Family (BMAPI)
+        Vector,     ///< Vector XL Driver Library (vxlapi)
+        Ixxat,      ///< IXXAT VCI4 (vcinpl2)
+        SocketCan,  ///< Linux SocketCAN (can0 / vcan0)
+        Intrepid,   ///< Intrepid ValueCAN / neoVI (icsneoc)
     };
 
     explicit CanDeviceManager(QObject *parent = nullptr);

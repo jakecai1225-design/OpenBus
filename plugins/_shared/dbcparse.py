@@ -31,7 +31,7 @@ _DBC_SG = re.compile(
 class Signal:
     __slots__ = ("name", "start_bit", "bit_length", "little_endian", "is_signed",
                  "factor", "offset", "minimum", "maximum", "unit", "receivers",
-                 "comment", "value_table", "mux_type", "mux_value")
+                 "comment", "value_table", "mux_type", "mux_value", "attributes")
 
     def __init__(self):
         self.name = ""
@@ -49,6 +49,7 @@ class Signal:
         self.value_table = {}
         self.mux_type = ""      # '' / 'multiplexor' / 'multiplexed'
         self.mux_value = None
+        self.attributes = {}    # BA_ SG_ name -> value (str)
 
     def raw_to_phys(self, raw):
         return raw * self.factor + self.offset
@@ -66,7 +67,7 @@ class Signal:
 
 class Message:
     __slots__ = ("can_id", "extended", "name", "dlc", "sender", "signals",
-                 "cycle_time", "comment")
+                 "cycle_time", "comment", "attributes")
 
     def __init__(self):
         self.can_id = 0
@@ -77,6 +78,7 @@ class Message:
         self.signals = []
         self.cycle_time = 0
         self.comment = ""
+        self.attributes = {}    # BA_ BO_ name -> value (str)
 
     def signal(self, name):
         for s in self.signals:
@@ -331,25 +333,37 @@ def parse_file(path):
                     send_type_names = [_unquote(t) for t in
                                        re.findall(r'"(?:[^"\\]|\\.)*"', m.group(2))]
             elif stripped.startswith("BA_ "):
-                m = re.match(
+                m_sg = re.match(
+                    r'^BA_\s+"([^"]+)"\s+SG_\s+(\d+)\s+(\S+)\s+(.+);\s*$', stripped)
+                m_bo = re.match(
                     r'^BA_\s+"([^"]+)"\s+BO_\s+(\d+)\s+(.+);\s*$', stripped)
-                if m:
-                    attr, mid_s, val_s = m.group(1), m.group(2), m.group(3)
+                if m_sg:
+                    attr, mid_s, sig_name, val_s = (
+                        m_sg.group(1), m_sg.group(2), m_sg.group(3), m_sg.group(4).strip())
+                    msg = db.messages.get(int(mid_s) & _ID_MASK)
+                    sig = msg.signal(sig_name) if msg else None
+                    if sig is not None:
+                        sig.attributes[attr] = _unquote(val_s) if val_s.startswith('"') else val_s
+                elif m_bo:
+                    attr, mid_s, val_s = m_bo.group(1), m_bo.group(2), m_bo.group(3).strip()
                     msg = db.messages.get(int(mid_s) & _ID_MASK)
                     if not msg:
                         continue
+                    stored = _unquote(val_s) if val_s.startswith('"') else val_s
+                    if attr == "GenMsgSendType" and send_type_names:
+                        try:
+                            idx = int(val_s)
+                            if 0 <= idx < len(send_type_names):
+                                stored = send_type_names[idx]
+                        except ValueError:
+                            pass
+                    msg.attributes[attr] = stored
                     if attr == "GenMsgCycleTime":
                         try:
                             msg.cycle_time = int(float(val_s))
                         except ValueError:
                             pass
-                    elif attr == "GenMsgSendType" and send_type_names:
-                        try:
-                            idx = int(val_s)
-                            msg.comment = (msg.comment or "")
-                        except ValueError:
-                            pass
-        except Exception as exc:  # 单行容错
+        except Exception as exc:  # per-line tolerance
             db.warnings.append("%d: %s (%s)" % (lineno, stripped[:60], exc))
     return db
 

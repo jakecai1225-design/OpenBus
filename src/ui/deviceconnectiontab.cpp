@@ -16,13 +16,10 @@
 namespace {
 
 /// Device kinds with a working backend (gates Connect button).
-/// TongXing remains stub until hardware sample.
 bool kindImplemented(int kind)
 {
-    if (kind == static_cast<int>(CanDeviceManager::DeviceKind::TongXing))
-        return false;
     return kind >= static_cast<int>(CanDeviceManager::DeviceKind::ZLG)
-        && kind <= static_cast<int>(CanDeviceManager::DeviceKind::Busmust);
+        && kind <= static_cast<int>(CanDeviceManager::DeviceKind::Intrepid);
 }
 
 } // namespace
@@ -250,7 +247,8 @@ void DeviceConnectionTab::setDevice(int deviceKind, int devIndex, const QString 
     const bool slcan = (deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::SLCAN));
     const bool autoTiming = slcan
         || deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::Candle)
-        || deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::Busmust);
+        || deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::Busmust)
+        || deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::SocketCan);
     // SLCAN 各固件 FD 方言互不兼容，仅开放经典 CAN（方案 §14.5.2）
     m_fdCombo->setEnabled(!slcan);
     if (slcan)
@@ -260,10 +258,14 @@ void DeviceConnectionTab::setDevice(int deviceKind, int devIndex, const QString 
     m_arbTimingCombo->setEnabled(!autoTiming);
     m_dataTimingCombo->setEnabled(!autoTiming);
     if (autoTiming) {
-        m_arbTimingDetail->setText(
-            QStringLiteral("Driver auto timing (BMAPI sample pos / GS_USB / SLCAN table)"));
-        m_dataTimingDetail->setText(
-            QStringLiteral("Driver auto data-phase timing"));
+        const bool socketcan =
+            deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::SocketCan);
+        m_arbTimingDetail->setText(socketcan
+            ? QStringLiteral("OS-managed (ip link set … bitrate)")
+            : QStringLiteral("Driver auto timing (BMAPI / GS_USB / SLCAN table)"));
+        m_dataTimingDetail->setText(socketcan
+            ? QStringLiteral("OS-managed (ip link set … dbitrate / fd on)")
+            : QStringLiteral("Driver auto data-phase timing"));
     } else {
         onArbTimingChanged(m_arbTimingCombo->currentIndex());
         onDataTimingChanged(m_dataTimingCombo->currentIndex());

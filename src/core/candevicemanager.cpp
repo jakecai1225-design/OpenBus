@@ -251,6 +251,10 @@ ICanDevice::Brand CanDeviceManager::kindToBrand(DeviceKind k)
     case DeviceKind::SLCAN:    return ICanDevice::Brand::SLCAN;
     case DeviceKind::Candle:   return ICanDevice::Brand::Candle;
     case DeviceKind::Busmust:  return ICanDevice::Brand::Busmust;
+    case DeviceKind::Vector:   return ICanDevice::Brand::Vector;
+    case DeviceKind::Ixxat:    return ICanDevice::Brand::Ixxat;
+    case DeviceKind::SocketCan: return ICanDevice::Brand::SocketCan;
+    case DeviceKind::Intrepid: return ICanDevice::Brand::Intrepid;
     default:                   return ICanDevice::Brand::ZLG;
     }
 }

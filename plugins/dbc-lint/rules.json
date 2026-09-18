@@ -1,0 +1,11 @@
+{
+  "naming": {"enabled": true, "severity": "error", "suppress": []},
+  "reserved": {"enabled": true, "severity": "error", "suppress": []},
+  "overlap": {"enabled": true, "severity": "error", "suppress": []},
+  "bounds": {"enabled": true, "severity": "error", "suppress": []},
+  "minmax_factor": {"enabled": true, "severity": "warning", "suppress": []},
+  "missing_cycle": {"enabled": true, "severity": "info", "suppress": []},
+  "missing_comment": {"enabled": true, "severity": "info", "suppress": []},
+  "missing_valuetable": {"enabled": true, "severity": "info", "suppress": []},
+  "parse_warning": {"enabled": true, "severity": "warning", "suppress": []}
+}

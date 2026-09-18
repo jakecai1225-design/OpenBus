@@ -28,13 +28,13 @@
 |------|-----------------|--------|----------------------|--------|---------------|
 | **1** | **PCAN-USB / USB FD / USB Pro FD / miniPCIe** | PEAK-System | Mid-market leader; cheap; PCAN-Basic; python-can `pcan`; huge industrial+aftermarket | Yes (FD SKUs) | **Done** (`peak`) |
 | **2** | **Leaf / USBcan Pro / U100 / PCIEcan v3 / Virtual** | Kvaser | #2 analyzer-hardware revenue; one CANlib for all SKUs; strong Linux | Yes | **Done** (`kvaser` v1.1) |
-| **3** | **VN16xx / VN56xx / VX / XL Driver Library** | Vector | OEM / Tier1 default; CANoe ecosystem; highest commercial share | Yes | **Missing** (P0) |
+| **3** | **VN16xx / VN56xx / VX / XL Driver Library** | Vector | OEM / Tier1 default; CANoe ecosystem; highest commercial share | Yes | **Done** (`vector` v1.0) |
 | **4** | **USBCAN / USBCANFD (100U/200U/400U/800U…)** | ZLG (致远) | China unit-volume leader; ZCANPRO/ZXDoc; already in openbus DNA | Yes | **Done** (`zlg`) |
 | **5** | **candleLight / CANable / CANtact / clones (gs_usb)** | Open HW + many OEMs | Highest OSS stars among adapters; SocketCAN native; student/hacker volume | Partial (FD on newer HW) | **Done** (`candle`) |
-| **6** | **SocketCAN (+ vcan) / can-utils stack** | Linux kernel | Every Linux box; CI / RPi / IPC; not a “dongle” but #1 Linux capture path | Yes (kernel) | **Partial** (Windows-first; need Linux plugin or SocketCAN backend) |
+| **6** | **SocketCAN (+ vcan) / can-utils stack** | Linux kernel | Every Linux box; CI / RPi / IPC; not a “dongle” but #1 Linux capture path | Yes (kernel) | **Done** (`socketcan` v1.0, Linux; Windows stub) |
 | **7** | **ValueCAN 4 / neoVI FIRE/RED / RAD** | Intrepid | Strong NA automotive; python-can `neovi`; multi-protocol | Yes | **Missing** (P1) |
-| **8** | **USB-to-CAN V2 / compact / FD (IXXAT)** | HMS / IXXAT | EU industrial standard; VCI SDK; python-can `ixxat` | Yes | **Missing** (P1) |
-| **9** | **TC10xx / TC101x Pro (同星 TOSUN)** | TOSUN | Fast-growing China auto tool chain with TSMaster; multi-ch FD | Yes | **Missing** (Brand stub `TongXing` exists — implement) |
+| **8** | **USB-to-CAN V2 / compact / FD (IXXAT)** | HMS / IXXAT | EU industrial standard; VCI SDK; python-can `ixxat` | Yes | **Done** (`ixxat` v1.0) |
+| **9** | **TC10xx / TC101x Pro (同星 TOSUN)** | TOSUN | Fast-growing China auto tool chain with TSMaster; multi-ch FD | Yes | **Done** (`tongxing` v1.0) |
 | **10** | **SLCAN / Lawicel CANUSB / USB2CAN ASCII** | Lawicel + clones | Long-tail; no vendor DLL; python-can `slcan`; DIY / legacy | Mostly classic | **Done** (`slcan`) |
 
 ### Honorable mentions (next wave)
@@ -54,11 +54,11 @@
 
 | Status | Drivers |
 |--------|---------|
-| **Shipped** | PEAK, Kvaser, ZLG, Candle/gs_usb, BUSMUST, SLCAN |
-| **Stub only** | TongXing / TOSUN (`Brand::TongXing`) |
-| **Not started** | Vector XL, Intrepid neoVI, IXXAT VCI, SocketCAN (native Linux), GCAN |
+| **Shipped** | PEAK, Kvaser, ZLG, Candle/gs_usb, BUSMUST, SLCAN, Vector XL, TOSUN, IXXAT, SocketCAN, **Intrepid** |
+| **Stub only** | — |
+| **Not started** | GCAN |
 
-Coverage of the Top 10 by family: **6/10 done**, **1 stub**, **3 missing high-value**.
+Coverage of the Top 10 by family: **10/10 done** (SocketCAN Linux-only; Intrepid via libicsneo / A5).
 
 ---
 
@@ -76,11 +76,11 @@ Coverage of the Top 10 by family: **6/10 done**, **1 stub**, **3 missing high-va
 
 | Priority | Driver id | Target series | SDK | Effort | Milestone |
 |----------|-----------|---------------|-----|--------|-----------|
-| **A1** | `vector` | VN1610/1611/1630/1640, VN56xx via **vxlapi** | Vector XL Driver Library (Windows) | L | Enumerate + open + RX/TX classic/FD; no CAPL |
-| **A2** | `tongxing` | TOSUN TC1011/1013/1014/1016/1017… | TOSUN libTSCAN / TSMaster SDK | M–L | Replace Brand stub; China auto users |
-| **A3** | `ixxat` | USB-to-CAN V2 / FD | IXXAT VCI4 (`vcinpl` / `vcinpl2`) | M | Mirror python-can ixxat path |
-| **A4** | `socketcan` | Linux `can0` / `vcan0` | SocketCAN (Linux only) | M | CI + RPi; Windows builds skip |
-| **A5** | `intrepid` | ValueCAN 4 / neoVI | Intrepid ICS / icsneo | L | After A1–A3 |
+| **A1** | `vector` | VN1610/1611/1630/1640, VN56xx via **vxlapi** | Vector XL Driver Library (Windows) | L | **Done** — enumerate + open + RX/TX classic/FD (`doc/Vector_Driver.md`) |
+| **A2** | `tongxing` | TOSUN TC1011/1013/1014/1016/1017… | TOSUN libTSCAN / TSMaster SDK | M–L | **Done** — enumerate/open/RX/TX classic+FD (`doc/TongXing_Driver.md`) |
+| **A3** | `ixxat` | USB-to-CAN V2 / FD | IXXAT VCI4 (`vcinpl2`) | M | **Done** — enumerate/open/RX/TX classic+FD (`doc/Ixxat_Driver.md`) |
+| **A4** | `socketcan` | Linux `can0` / `vcan0` | SocketCAN (Linux only) | M | **Done** — enumerate/bind/RX/TX classic+FD (`doc/SocketCAN_Driver.md`); Windows stub |
+| **A5** | `intrepid` | ValueCAN 4 / neoVI | Intrepid libicsneo (`icsneoc`) | L | **Done** — enumerate/open/RX/TX classic+FD (`doc/Intrepid_Driver.md`) |
 
 ### Phase B — Harden shipped Top-10 drivers
 
@@ -108,12 +108,12 @@ Coverage of the Top 10 by family: **6/10 done**, **1 stub**, **3 missing high-va
 | Sprint | Deliverable | Exit criteria |
 |--------|-------------|---------------|
 | **S1** | Plan + research doc (this file) | Reviewed |
-| **S2** | `vector` skeleton: load `vxlapi64.dll`, enumerate ports | Device panel lists VN* when XL installed |
-| **S3** | `vector` RX/TX classic + FD | Trace live with VN16xx or Virtual |
-| **S4** | `tongxing` enumerate/open/RX/TX | TC101x works with TOSUN runtime |
-| **S5** | `ixxat` VCI4 classic + FD | USB-to-CAN V2 soak |
-| **S6** | `socketcan` Linux backend | `vcan0` CI test |
-| **S7** | `intrepid` neoVI / ValueCAN | Optional if hardware available |
+| **S2** | `vector` skeleton: load `vxlapi64.dll`, enumerate ports | **Done** |
+| **S3** | `vector` RX/TX classic + FD | **Done** (soak with VN16xx / Virtual when HW available) |
+| **S4** | `tongxing` enumerate/open/RX/TX | **Done** (soak with TC101x when HW available) |
+| **S5** | `ixxat` VCI4 classic + FD | **Done** (soak with USB-to-CAN when HW available) |
+| **S6** | `socketcan` Linux backend | **Done** (soak with `vcan0` / `can0` on Linux) |
+| **S7** | `intrepid` neoVI / ValueCAN | **Done** (soak with ValueCAN 4 when HW + icsneoc available) |
 | **S8** | Market UI badges + `.odp` packs for new drivers | Install via plugin market |
 
 Parallelism: S4 (TOSUN) can run beside S2–S3 if two owners.
@@ -146,9 +146,9 @@ Parallelism: S4 (TOSUN) can run beside S2–S3 if two owners.
 
 ## 8. Decision for openbus product
 
-**Near-term (maximize Top-10 coverage):** implement **Vector → TOSUN → IXXAT → SocketCAN**, then Intrepid.  
+**Near-term:** Top-10 families covered (SocketCAN on Linux; Intrepid via libicsneo). Phase A complete.
 
-That raises Top-10 family coverage from **6/10 → 10/10** (SocketCAN counted as #6; SLCAN already covers #10 Lawicel-class).
+Current Top-10 family coverage: **10/10** (A1–A5 done).
 
 Already-strong China + OSS path (ZLG / PEAK / Kvaser / Candle / BUSMUST / SLCAN) stays in maintenance.
 

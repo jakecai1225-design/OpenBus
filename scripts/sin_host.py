@@ -28,6 +28,11 @@ _host_dir = os.path.dirname(os.path.abspath(__file__))
 if _host_dir not in sys.path:
     sys.path.insert(0, _host_dir)
 
+# Plugins root so `from _shared import …` works for all tool plugins.
+_plugins_root = os.environ.get("SIN_PLUGINS_DIR", "")
+if _plugins_root and _plugins_root not in sys.path:
+    sys.path.insert(0, _plugins_root)
+
 from sin._transport import (  # noqa: E402
     configure as transport_configure,
     deliver_response,
@@ -130,6 +135,12 @@ def load_plugin(plugin_name, plugin_dir, main_script):
     if not os.path.exists(main_path):
         log_error(f"plugin {plugin_name} entry missing: {main_path}")
         return None
+    # Plugin dir first for local modules (uds_client, …); keep plugins root for _shared.
+    if plugin_dir and plugin_dir not in sys.path:
+        sys.path.insert(0, plugin_dir)
+    parent = os.path.dirname(os.path.abspath(plugin_dir)) if plugin_dir else ""
+    if parent and parent not in sys.path:
+        sys.path.insert(0, parent)
     try:
         spec = importlib.util.spec_from_file_location(
             f"_sin_plugin_{plugin_name}", main_path)

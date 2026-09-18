@@ -32,7 +32,7 @@ public:
     void setDeviceManager(CanDeviceManager *mgr);
 
     /// Configure target device (from sidebar click)
-    /// @param deviceKind 0=Simulator, 1=ZLG, 2=PEAK, 3=Kvaser, 4=TongXing, 5=SLCAN, 6=Candle
+    /// @param deviceKind 0=Simulator, 1=ZLG, 2=PEAK, 3=Kvaser, 4=TongXing, 5=SLCAN, 6=Candle, 7=Busmust, 8=Vector
     /// @param deviceIndex device ordinal (0-based)
     /// @param deviceName display name
     /// @param deviceType vendor subtype (e.g. ZLG DEV_USBCANFD_200U=41)

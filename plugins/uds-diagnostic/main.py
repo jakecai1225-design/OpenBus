@@ -25,6 +25,13 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
+# Prefer plugins/_shared when host put plugins root on sys.path.
+try:
+    from _shared import plugin_shell, state_store
+except ImportError:
+    plugin_shell = None
+    state_store = None
+
 from uds_isotp import IsotpLayer
 from uds_client import (UdsClient, SESSIONS, DTC_STATUS_BITS,
                         dtc_to_text, dtc_status_text,
@@ -33,7 +40,12 @@ from uds_client import (UdsClient, SESSIONS, DTC_STATUS_BITS,
                         encode_2e, encode_27, encode_28, encode_2f, encode_31,
                         encode_34, encode_36, encode_37, encode_3e, encode_85,
                         encode_raw)
+from profile_seq import (
+    default_profile, load_profile_file, save_profile_file,
+    load_sequence, parse_pdu_hex,
+)
 
+PLUGIN_ID = "uds-diagnostic"
 DIDS_FILE = os.path.join(_HERE, "dids.json")
 
 BUILTIN_DIDS = {
@@ -152,8 +164,10 @@ def activate(context):
     _isotp = IsotpLayer(on_send_frame)
     _client = UdsClient(_isotp)
 
-    win = sin.ui.create_window("UDS 诊断 (ISO 14229) — G10")
-    win.resize(1020, 700)
+    win = sin.ui.create_window("UDS Diagnostic (ISO 14229)")
+    win.resize(1020, 720)
+    if plugin_shell:
+        plugin_shell.attach_status_bar(win, "Ready")
 
     central = QWidget()
     win.setCentralWidget(central)
@@ -294,10 +308,10 @@ def activate(context):
     tx_spin = _hex_spin(1, 0x7FF, 0x7E0)
     func_spin = _hex_spin(1, 0x7FF, 0x7DF)
     rx_spin = _hex_spin(1, 0x7FF, 0x7E8)
-    func_check = QCheckBox("功能寻址发送")
+    func_check = QCheckBox("Functional addressing")
 
-    for lbl, w in (("物理 ID:", tx_spin), ("功能 ID:", func_spin),
-                   ("响应 ID:", rx_spin), (None, func_check)):
+    for lbl, w in (("Physical ID:", tx_spin), ("Functional ID:", func_spin),
+                   ("Response ID:", rx_spin), (None, func_check)):
         if lbl:
             bar_row.addWidget(QLabel(lbl))
         bar_row.addWidget(w)
@@ -306,28 +320,33 @@ def activate(context):
     sep.setStyleSheet("color:#aaa;")
     bar_row.addWidget(sep)
 
-    session_label = QLabel("会话: 未知")
+    session_label = QLabel("Session: unknown")
     session_label.setStyleSheet("font-weight:bold;")
 
     def _set_session(name):
-        session_label.setText(f"会话: {name}")
+        session_label.setText(f"Session: {name}")
 
     def _go_session(session):
         def cb(ok, resp, note):
             if ok and resp and resp[:1] == b"\x50":
                 _set_session(SESSIONS.get(resp[1], f"0x{resp[1]:02X}"))
-        uds_send(encode_10(session), _wrap_done(cb), tag="会话切换 10")
+        uds_send(encode_10(session), _wrap_done(cb), tag="SessionControl 10")
 
-    for code, label in ((0x01, "默认"), (0x03, "扩展"), (0x02, "编程")):
+    for code, label in ((0x01, "Default"), (0x03, "Extended"), (0x02, "Programming")):
         b = QPushButton(label)
         b.setToolTip(f"DiagnosticSessionControl 0x{code:02X}")
         b.clicked.connect(lambda _c, s=code: _go_session(s))
         bar_row.addWidget(b)
     bar_row.addWidget(session_label)
+
+    profile_load_btn = QPushButton("Load profile…")
+    profile_save_btn = QPushButton("Save profile")
+    bar_row.addWidget(profile_load_btn)
+    bar_row.addWidget(profile_save_btn)
     bar_row.addStretch()
 
-    tp_check = QCheckBox("3E 心跳 2s")
-    tp_check.setToolTip("TesterPresent 3E 80（抑制响应），周期 2s")
+    tp_check = QCheckBox("3E heartbeat 2s")
+    tp_check.setToolTip("TesterPresent 3E 80 (suppress positive), every 2s")
     bar_row.addWidget(tp_check)
 
     root.addWidget(bar)
@@ -611,7 +630,7 @@ def activate(context):
         uds_send(pdu, _wrap_done(cb), expect_response=_svc_expect[0], tag=NAMES.get(pdu[0], ""))
 
     svc_send_btn.clicked.connect(_on_svc_send)
-    tabs.addTab(svc_tab, "诊断服务")
+    tabs.addTab(svc_tab, "Services")
 
     # ================================================================
     #  Tab 2: DID 面板
@@ -823,7 +842,7 @@ def activate(context):
     did_poll_timer.timeout.connect(_did_poll_tick)
     did_poll_timer.start(200)
 
-    tabs.addTab(did_tab, "DID 面板")
+    tabs.addTab(did_tab, "DID")
 
     # ================================================================
     #  Tab 3: DTC 管理
@@ -913,7 +932,7 @@ def activate(context):
     dtc_read_btn.clicked.connect(_on_dtc_read)
     dtc_cnt_btn.clicked.connect(_on_dtc_count)
     dtc_clear_btn.clicked.connect(_on_dtc_clear)
-    tabs.addTab(dtc_tab, "DTC 管理")
+    tabs.addTab(dtc_tab, "DTC")
 
     # ================================================================
     #  Tab 4: 安全访问
@@ -1031,7 +1050,7 @@ def activate(context):
 
     sec_seed_btn.clicked.connect(_on_request_seed)
     sec_key_btn.clicked.connect(_on_send_key)
-    tabs.addTab(sec_tab, "安全访问")
+    tabs.addTab(sec_tab, "Security")
 
     # ================================================================
     #  Tab 5: 刷写助手
@@ -1270,7 +1289,184 @@ def activate(context):
 
     fl_start_btn.clicked.connect(_on_flash_start)
     fl_stop_btn.clicked.connect(_on_flash_stop)
-    tabs.addTab(fl_tab, "刷写助手")
+    tabs.addTab(fl_tab, "Flash")
+
+    # ================================================================
+    #  Tab 6: Sequence runner (CSV/JSON)
+    # ================================================================
+    seq_tab = QWidget()
+    seq_v = QVBoxLayout(seq_tab)
+    seq_v.addWidget(QLabel(
+        "Run ordered UDS PDUs from JSON/CSV (tag,pdu_hex,expect_response). "
+        "Not full OTX — bridges toward uds-batch."))
+    seq_path_edit = QLineEdit()
+    seq_browse = QPushButton("Browse…")
+    seq_run = QPushButton("Run sequence")
+    seq_stop = QPushButton("Stop")
+    seq_stop.setEnabled(False)
+    seq_row = QHBoxLayout()
+    seq_row.addWidget(seq_path_edit, 1)
+    seq_row.addWidget(seq_browse)
+    seq_row.addWidget(seq_run)
+    seq_row.addWidget(seq_stop)
+    seq_v.addLayout(seq_row)
+    seq_table = QTableWidget(0, 4)
+    seq_table.setHorizontalHeaderLabels(["#", "Tag", "PDU", "Status"])
+    seq_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+    seq_v.addWidget(seq_table, 1)
+    tabs.addTab(seq_tab, "Sequence")
+
+    _seq_state = {"steps": [], "i": 0, "running": False}
+
+    def _seq_fill(steps):
+        seq_table.setRowCount(0)
+        for i, step in enumerate(steps):
+            seq_table.insertRow(i)
+            seq_table.setItem(i, 0, QTableWidgetItem(str(i + 1)))
+            seq_table.setItem(i, 1, QTableWidgetItem(str(step.get("tag", ""))))
+            seq_table.setItem(i, 2, QTableWidgetItem(str(step.get("pdu_hex", ""))))
+            seq_table.setItem(i, 3, QTableWidgetItem("pending"))
+
+    def _seq_browse():
+        path, _ = QFileDialog.getOpenFileName(
+            win, "Sequence file", "", "JSON/CSV (*.json *.csv)")
+        if path:
+            seq_path_edit.setText(path)
+            try:
+                steps = load_sequence(path)
+                _seq_fill(steps)
+            except (OSError, ValueError, json.JSONDecodeError, KeyError) as e:
+                QMessageBox.warning(win, "Sequence", str(e))
+
+    def _seq_set_status(i, text):
+        if 0 <= i < seq_table.rowCount():
+            seq_table.setItem(i, 3, QTableWidgetItem(text))
+
+    def _seq_next():
+        if not _seq_state["running"]:
+            return
+        i = _seq_state["i"]
+        steps = _seq_state["steps"]
+        if i >= len(steps):
+            _seq_state["running"] = False
+            seq_run.setEnabled(True)
+            seq_stop.setEnabled(False)
+            _log_row("RX", "-", b"", "Sequence finished")
+            if plugin_shell:
+                plugin_shell.set_status(win, "Sequence done")
+            return
+        step = steps[i]
+        try:
+            pdu = parse_pdu_hex(step.get("pdu_hex", ""))
+        except ValueError as e:
+            _seq_set_status(i, "bad hex")
+            _log_row("ERR", "-", b"", f"Sequence step {i + 1}: {e}")
+            _seq_state["i"] = i + 1
+            QTimer.singleShot(50, _seq_next)
+            return
+        expect = bool(step.get("expect_response", True))
+        tag = step.get("tag") or f"seq[{i + 1}]"
+        _seq_set_status(i, "running")
+
+        def cb(ok, resp, note):
+            _seq_set_status(i, "ok" if ok else ("fail: " + (note or "")))
+            _seq_state["i"] = i + 1
+            QTimer.singleShot(80, _seq_next)
+
+        uds_send(pdu, _wrap_done(cb) if expect else None,
+                 expect_response=expect, tag=tag)
+        if not expect:
+            _seq_set_status(i, "sent")
+            _seq_state["i"] = i + 1
+            QTimer.singleShot(80, _seq_next)
+
+    def _seq_run():
+        path = seq_path_edit.text().strip()
+        if not path:
+            QMessageBox.information(win, "Sequence", "Choose a sequence file")
+            return
+        try:
+            steps = load_sequence(path)
+        except (OSError, ValueError, json.JSONDecodeError, KeyError) as e:
+            QMessageBox.warning(win, "Sequence", str(e))
+            return
+        if not steps:
+            QMessageBox.information(win, "Sequence", "Empty sequence")
+            return
+        _seq_fill(steps)
+        _seq_state.update({"steps": steps, "i": 0, "running": True})
+        seq_run.setEnabled(False)
+        seq_stop.setEnabled(True)
+        _seq_next()
+
+    def _seq_stop():
+        _seq_state["running"] = False
+        seq_run.setEnabled(True)
+        seq_stop.setEnabled(False)
+
+    seq_browse.clicked.connect(_seq_browse)
+    seq_run.clicked.connect(_seq_run)
+    seq_stop.clicked.connect(_seq_stop)
+
+    # ---- ECU profile persist ----
+    def _current_profile():
+        p = default_profile()
+        p["tx_id"] = tx_spin.value()
+        p["func_id"] = func_spin.value()
+        p["rx_id"] = rx_spin.value()
+        p["name"] = "Current"
+        return p
+
+    def _apply_profile(p):
+        if not p:
+            return
+        tx_spin.setValue(int(p.get("tx_id", 0x7E0)))
+        func_spin.setValue(int(p.get("func_id", 0x7DF)))
+        rx_spin.setValue(int(p.get("rx_id", 0x7E8)))
+        sess = int(p.get("default_session", 0x01))
+        if sess in (0x01, 0x02, 0x03):
+            _go_session(sess)
+        if plugin_shell:
+            plugin_shell.set_status(win, "Profile: %s" % p.get("name", ""))
+
+    def _on_profile_save():
+        p = _current_profile()
+        if state_store:
+            path = state_store.save_state(PLUGIN_ID, p, "profile.json")
+        else:
+            path = os.path.join(_HERE, "profile.json")
+            save_profile_file(path, p)
+        also, _ = QFileDialog.getSaveFileName(
+            win, "Export profile JSON", "ecu_profile.json", "JSON (*.json)")
+        if also:
+            save_profile_file(also, p)
+        _log_row("RX", "-", b"", f"Profile saved: {path}")
+
+    def _on_profile_load():
+        path, _ = QFileDialog.getOpenFileName(
+            win, "Load ECU profile", "", "JSON (*.json)")
+        p = None
+        if path:
+            p = load_profile_file(path)
+        elif state_store:
+            p = state_store.load_state(PLUGIN_ID, "profile.json")
+        if not p:
+            QMessageBox.information(win, "Profile", "No profile loaded")
+            return
+        _apply_profile(p)
+
+    profile_save_btn.clicked.connect(_on_profile_save)
+    profile_load_btn.clicked.connect(_on_profile_load)
+    if plugin_shell:
+        plugin_shell.bind_shortcut(win, "Ctrl+S", _on_profile_save)
+
+    if state_store:
+        saved_prof = state_store.load_state(PLUGIN_ID, "profile.json")
+        if saved_prof:
+            tx_spin.setValue(int(saved_prof.get("tx_id", 0x7E0)))
+            func_spin.setValue(int(saved_prof.get("func_id", 0x7DF)))
+            rx_spin.setValue(int(saved_prof.get("rx_id", 0x7E8)))
+
 
     # ================================================================
     #  帧接入 + TesterPresent
@@ -1299,12 +1495,11 @@ def activate(context):
         win.raise_()
         win.activateWindow()
 
-    context.register_command("udsDiagnostic.open", on_open_cmd, "协议: UDS 诊断")
+    context.register_command("udsDiagnostic.open", on_open_cmd, "Protocol: UDS Diagnostic")
 
-    _log_row("RX", "-", b"", "UDS 诊断（G10）就绪 — 物理 0x7E0 / 功能 0x7DF / 响应 0x7E8，"
-             "ISO-TP 完整流控 + P2 超时管理")
+    _log_row("RX", "-", b"", "UDS Diagnostic ready — Physical 0x7E0 / Functional 0x7DF / Response 0x7E8")
     win.show()
-    sin.output.append("UDS 诊断插件已加载（G10 强化版）")
+    sin.output.append("UDS diagnostic plugin loaded (profiles + sequence runner)")
 
 
 def deactivate():
@@ -1312,4 +1507,4 @@ def deactivate():
         _isotp.shutdown()
     if _client:
         _client.shutdown()
-    sin.output.append("UDS 诊断插件已停用")
+    sin.output.append("UDS diagnostic plugin deactivated")

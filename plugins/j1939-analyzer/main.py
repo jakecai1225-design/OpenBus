@@ -1,100 +1,108 @@
 # -*- coding: utf-8 -*-
-"""j1939-analyzer 插件 — SAE J1939 协议分析
-功能：
-- 29 位 ID 拆解：优先级 / PF / PS(DA或PGN扩展) / SA
-- 内置高频 PGN 解码表（EEC1/CCVS/ET1/LFE1/电子引擎小时/DM1/DM2/地址声明等）
-- DM1/DM2 故障码解码（SPN/FMI/OC，Lamp 状态位）
-- 传输协议重组：TP.BAM(0xEC00)/TP.DT(0xEB00) 被动多帧重组（含 RTS/CTS/EOFLA/Abort 识别）
-- 地址声明（0xEE00）解析：SA → NAME（厂商码/功能等）
-- PGN 统计表 + 解码值实时表 + CSV 导出；纯监视不发送
-依赖: pip install PyQt6
+"""j1939-analyzer — SAE J1939 protocol analysis.
+
+PGN / priority / SA / DA decode, built-in SPN tables, external J1939 DBC
+SPN decode, DM1/DM2, Address Claim, TP BAM/RTS-CTS reassembly, RQST send.
 """
 
+from __future__ import annotations
+
+import os
 import time
 
-import sin
+from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTreeWidget,
+    QTreeWidgetItem, QTextEdit, QHeaderView, QTabWidget, QLineEdit,
+    QSpinBox, QGroupBox, QFormLayout, QMessageBox,
+)
 
-# PGN 名称表（常用）
+import sin
+from _shared import dbcparse, dbc_picker, plugin_shell, state_store
+
+PLUGIN_ID = "j1939-analyzer"
+
 PGN_NAMES = {
-    0xEE00: "地址声明 Address Claimed",
-    0xFECA: "DM1 主动故障码",
-    0xFECB: "DM2 历史故障码",
-    0xF004: "EEC1 发动机电控 1",
-    0xFEF1: "CCVS 车速车速",
-    0xFEEE: "ET1 发动机温度",
-    0xFEE9: "LFE1 燃油经济性",
-    0xFEEA: "电子引擎小时",
-    0xF003: "EEC2 发动机电控 2",
+    0xEE00: "Address Claimed",
+    0xFECA: "DM1 Active DTCs",
+    0xFECB: "DM2 Previously Active DTCs",
+    0xF004: "EEC1 Electronic Engine Controller 1",
+    0xFEF1: "CCVS Cruise Control / Vehicle Speed",
+    0xFEEE: "ET1 Engine Temperature 1",
+    0xFEE9: "LFE1 Fuel Economy",
+    0xFEEA: "Engine Hours / Revolutions",
+    0xF003: "EEC2 Electronic Engine Controller 2",
     0xFEF2: "CCVS2",
-    0xFDC1: "EBC1 电控制动 1",
-    0xFEF5: "ET1 扩展温度",
-    0xFEF7: "电子发动机空气温度",
-    0xFED0: "VG1 车速组分",
+    0xFDC1: "EBC1 Electronic Brake Controller 1",
+    0xFEF5: "Ambient Conditions",
+    0xFEF7: "Air Inlet Temperature",
+    0xFED0: "Vehicle Dynamics",
     0xFDA9: "CCVS3",
-    0xEB00: "TP.DT 传输协议数据",
-    0xEC00: "TP.CM 传输协议命令",
-    0xEAFF: "RQST 请求",
-    0xEA00: "RQST 请求(旧)",
-    0xFE6C: "ET1 发动机温度扩展",
-    0xFDC2: "EBC2 电控制动 2",
-    0xFDC5: "EBC1 电控制动配置",
-    0xFEF0: "CCVS1 车速(旧)",
-    0xFDB7: "CCVS1 车速(旧)",
+    0xEB00: "TP.DT Transport Protocol Data",
+    0xEC00: "TP.CM Transport Protocol Command",
+    0xEA00: "RQST Request",
+    0xFE6C: "ET1 Engine Temperature Ext",
+    0xFDC2: "EBC2 Electronic Brake Controller 2",
+    0xFEF0: "CCVS1 Vehicle Speed",
 }
 
 LAMP_BITS = [
-    (0, "保护灯(红)"), (1, "琥珀色灯"), (2, "故障灯(红)"), (3, "故障灯(黄)"),
-    (4, "Malfunction 灯(MIL)"), (5, "停止灯(红)"), (6, "警示灯(黄)"), (7, "保护灯"),
+    (0, "Protect (red)"), (1, "Amber warning"), (2, "Red stop"),
+    (3, "Malfunction (MIL)"),
 ]
 
-# NAME 高频字段（J1939-81）：byte4=功能, byte2&0xE0 + byte3=厂商码, byte0~2低位=身份号
 FUNC_NAMES = {
-    0: "非特定", 3: "变速箱", 4: "仪表组", 5: "仪表#2", 8: "驱动桥缓速器",
-    9: "变速箱缓速器", 11: "发动机缓速器", 16: "电控喷油泵", 27: "发动机#2",
-    30: "发动机#3", 32: "主离合器/传动", 33: "发动机(主)", 35: "制动/ABS",
-    36: "仪表盘#2", 37: "车身控制器", 38: "驾驶室控制器", 39: "挂车制动",
-    40: "车辆中心控制器", 45: "照明控制器", 85: "混合动力系统", 98: "电池管理系统",
-    128: "国四后处理#1", 129: "国四后处理#2", 130: "国四后处理#3",
-    131: "国四后处理#4", 132: "国四后处理#5", 133: "发电机", 134: "电机#1",
-    135: "电机#2", 136: "电机#3", 249: "发动机#4? (特殊)",
+    0: "Non-specific", 3: "Transmission", 4: "Instrument cluster",
+    5: "Instrument #2", 8: "Axle retarder", 9: "Transmission retarder",
+    11: "Engine retarder", 16: "Fuel system", 27: "Engine #2",
+    30: "Engine #3", 32: "Power take-off", 33: "Engine (primary)",
+    35: "Brake / ABS", 36: "Instrument cluster #2", 37: "Body controller",
+    38: "Cab controller", 39: "Trailer brake", 40: "Vehicle management",
+    45: "Lighting", 85: "Hybrid system", 98: "Battery management",
+    128: "Aftertreatment #1", 129: "Aftertreatment #2",
+    133: "Generator", 134: "Motor #1", 135: "Motor #2",
 }
 
-# SPN 解码表：PGN → [(起始字节(1基), 字节数, SPN, 名称, 因子, 偏移, 单位)]
+# PGN -> [(start_byte 1-based, length, SPN, name, factor, offset, unit)]
 SPN_DECODES = {
-    0xF004: [  # EEC1
-        (2, 1, 512, "驾驶员需求扭矩%", 1, -125, "%"),
-        (3, 1, 513, "实际发动机扭矩%", 1, -125, "%"),
-        (4, 2, 190, "发动机转速", 0.125, 0, "rpm"),
+    0xF004: [
+        (2, 1, 512, "Driver demand torque %", 1, -125, "%"),
+        (3, 1, 513, "Actual engine torque %", 1, -125, "%"),
+        (4, 2, 190, "Engine speed", 0.125, 0, "rpm"),
     ],
-    0xFEF1: [  # CCVS
-        (1, 2, 84, "基于车轮的车速", 0.00390625, 0, "km/h"),
+    0xFEF1: [
+        (1, 2, 84, "Wheel-based vehicle speed", 0.00390625, 0, "km/h"),
     ],
-    0xFEEE: [  # ET1
-        (1, 1, 110, "发动机冷却液温度", 1, -40, "°C"),
-        (2, 1, 174, "燃油温度", 1, -40, "°C"),
+    0xFEEE: [
+        (1, 1, 110, "Engine coolant temperature", 1, -40, "C"),
+        (2, 1, 174, "Fuel temperature", 1, -40, "C"),
     ],
-    0xFEE9: [  # LFE1
-        (1, 2, 183, "发动机燃油消耗率", 0.05, 0, "L/h"),
+    0xFEE9: [
+        (1, 2, 183, "Engine fuel rate", 0.05, 0, "L/h"),
     ],
-    0xFEEA: [  # 电子引擎小时
-        (1, 4, 247, "发动机总运行时间", 0.05, 0, "h"),
+    0xFEEA: [
+        (1, 4, 247, "Total engine hours", 0.05, 0, "h"),
     ],
-    0xFDC1: [  # EBC1
-        (8, 2, 520, "相对车速", 0.00390625, 0, "km/h"),
+    0xFDC1: [
+        (8, 2, 520, "Relative speed", 0.00390625, 0, "km/h"),
     ],
     0xFEF7: [
-        (1, 1, 171, "环境温度", 1, -40, "°C"),
-        (3, 1, 172, "进气温度", 1, -40, "°C"),
+        (1, 1, 171, "Ambient air temperature", 1, -40, "C"),
+        (3, 1, 172, "Air inlet temperature", 1, -40, "C"),
     ],
 }
 
-_sessions = {}       # TP 会话: (da, sa) → {"total","npkts","pgn","buf":{},"ts"}
-_pgn_stats = {}      # pgn → {count, name, last_ts, sa}
-_addr_claims = {}    # sa → {"name_hex", "manufacturer", "function", "function_name", "ts"}
-_decoded = []        # 解码值记录 [(ts, pgn, text)]
+_sessions = {}       # (da, sa) -> {total, npkts, pgn, buf, ts, kind}
+_pgn_stats = {}      # pgn -> {count, name, last_ts, sa}
+_addr_claims = {}    # sa -> claim dict
+_decoded = []        # (ts, pgn, text)
+_tp_pdus = []        # (ts, sa, da, pgn, payload, kind)
 _events = []
 _total = 0
 _running = True
+_dbc = None
+_dbc_path = ""
+_dbc_by_pgn = {}     # pgn -> Message
 
 
 def _ev(kind, text):
@@ -108,7 +116,7 @@ def _hex(data):
 
 
 def _le(data, start, length):
-    """1 基起始字节小端取值"""
+    """1-based start byte, little-endian integer."""
     idx = start - 1
     if idx + length > len(data):
         return None
@@ -118,13 +126,48 @@ def _le(data, start, length):
     return v
 
 
-def decode_pgns():
-    return PGN_NAMES
+def _pgn_from_id(cid):
+    pf = (cid >> 16) & 0xFF
+    ps = (cid >> 8) & 0xFF
+    return (pf << 8 | ps) if pf >= 0xF0 else (pf << 8)
 
 
-def _decode_spns(pgn, data):
+def _pgn_name(pgn):
+    if pgn in PGN_NAMES:
+        return PGN_NAMES[pgn]
+    msg = _dbc_by_pgn.get(pgn)
+    if msg is not None:
+        return msg.name
+    return ""
+
+
+def _rebuild_dbc_index():
+    global _dbc_by_pgn
+    _dbc_by_pgn = {}
+    if _dbc is None:
+        return
+    for mid, msg in _dbc.messages.items():
+        pgn = _pgn_from_id(mid)
+        _dbc_by_pgn[pgn] = msg
+        if mid <= 0x3FFFF:
+            _dbc_by_pgn[mid & 0x3FFFF] = msg
+        if mid <= 0xFFFF:
+            _dbc_by_pgn[mid] = msg
+
+
+def _msg_for_pgn(pgn, can_id=None):
+    if _dbc is None:
+        return None
+    if can_id is not None and can_id in _dbc.messages:
+        return _dbc.messages[can_id]
+    if pgn in _dbc.messages:
+        return _dbc.messages[pgn]
+    return _dbc_by_pgn.get(pgn)
+
+
+def _decode_spns_builtin(pgn, data):
     out = []
-    for (start, length, spn, name, factor, offset, unit) in SPN_DECODES.get(pgn, []):
+    for start, length, spn, name, factor, offset, unit in SPN_DECODES.get(pgn, []):
         raw = _le(data, start, length)
         if raw is None:
             continue
@@ -132,20 +175,34 @@ def _decode_spns(pgn, data):
     return out
 
 
+def _decode_spns_dbc(pgn, data, can_id=None):
+    msg = _msg_for_pgn(pgn, can_id)
+    if msg is None:
+        return []
+    out = []
+    decoded = dbcparse.decode_message(msg, data)
+    for sig in msg.signals:
+        if sig.name not in decoded:
+            continue
+        v = decoded[sig.name]
+        unit = sig.unit or ""
+        out.append((None, sig.name, v, unit))
+    return out
+
+
 def _decode_dm1(data):
-    """DM1/DM2 载荷：byte0 灯状态 + 每 4 字节一个 DTC"""
     out = []
     if len(data) >= 1:
         lamp = data[0]
-        lamps = [name for bit, name in LAMP_BITS if lamp & (1 << bit) and bit < 4]
-        out.append((None, "激活灯状态", "、".join(lamps) if lamps else "全部灭", ""))
+        lamps = [name for bit, name in LAMP_BITS if lamp & (1 << bit)]
+        out.append((None, "Lamp status", ", ".join(lamps) if lamps else "All off", ""))
     n = (len(data) - 1) // 4 if len(data) > 1 else 0
     for i in range(n):
-        chunk = data[1 + 4 * i: 5 + 4 * i]
-        spn = (chunk[0] | (chunk[1] << 8) | ((chunk[2] & 0x07) << 16))
+        chunk = data[1 + 4 * i:5 + 4 * i]
+        spn = chunk[0] | (chunk[1] << 8) | ((chunk[2] & 0x07) << 16)
         fmi = (chunk[2] >> 3) & 0x1F
         oc = chunk[3] if chunk[3] < 127 else "N/A"
-        out.append((spn, "故障码", "SPN%d / FMI%d / OC%s" % (spn, fmi, oc), ""))
+        out.append((spn, "DTC", "SPN%d / FMI%d / OC%s" % (spn, fmi, oc), ""))
     return out
 
 
@@ -160,38 +217,45 @@ def _decode_addr_claim(data):
         "ident": ident,
         "manufacturer": manufacturer,
         "function": function,
-        "function_name": FUNC_NAMES.get(function, "功能 %d" % function),
+        "function_name": FUNC_NAMES.get(function, "Function %d" % function),
     }
 
 
 def _feed_tp(sa, da, data):
-    """处理 TP.CM / TP.DT 被动重组"""
     if len(data) < 1:
         return None
     cmd = data[0]
     key = (da, sa)
-    if cmd == 0x20:          # BAM 公告
+    if cmd == 0x20:  # BAM
         if len(data) >= 8:
             total = data[1] | (data[2] << 8)
             npkts = data[3]
             pgn = data[5] | (data[6] << 8) | (data[7] << 16)
-            _sessions[key] = {"total": total, "npkts": npkts, "pgn": pgn,
-                              "buf": {}, "ts": time.time()}
-            _ev("TP", "BAM: SA=%02X DA=%02X PGN=0x%04X %d字节 %d包" % (sa, da, pgn, total, npkts))
-    elif cmd == 0x10:        # RTS
+            _sessions[key] = {
+                "total": total, "npkts": npkts, "pgn": pgn,
+                "buf": {}, "ts": time.time(), "kind": "BAM",
+            }
+            _ev("TP", "BAM: SA=%02X DA=%02X PGN=0x%04X %d bytes %d packets"
+                % (sa, da, pgn, total, npkts))
+    elif cmd == 0x10:  # RTS
         if len(data) >= 8:
             total = data[1] | (data[2] << 8)
             npkts = data[3]
             pgn = data[5] | (data[6] << 8) | (data[7] << 16)
-            _sessions[key] = {"total": total, "npkts": npkts, "pgn": pgn,
-                              "buf": {}, "ts": time.time()}
-            _ev("TP", "RTS: SA=%02X DA=%02X PGN=0x%04X %d字节" % (sa, da, pgn, total))
-    elif cmd == 0x17:        # CTS
+            _sessions[key] = {
+                "total": total, "npkts": npkts, "pgn": pgn,
+                "buf": {}, "ts": time.time(), "kind": "RTS",
+            }
+            _ev("TP", "RTS: SA=%02X DA=%02X PGN=0x%04X %d bytes"
+                % (sa, da, pgn, total))
+    elif cmd == 0x11:  # CTS
         _ev("TP", "CTS: SA=%02X DA=%02X" % (sa, da))
-    elif cmd == 0x13:        # EOFLA/ACK
-        _ev("TP", "EOFLA/ACK: SA=%02X DA=%02X" % (sa, da))
-    elif cmd == 0xFF:        # Abort
-        _ev("TP", "Abort: SA=%02X DA=%02X 原因=%d" % (sa, da, data[1] if len(data) > 1 else -1))
+    elif cmd == 0x13:  # EndOfMsgAck
+        _ev("TP", "EOMA: SA=%02X DA=%02X" % (sa, da))
+    elif cmd == 0xFF:  # Abort
+        reason = data[1] if len(data) > 1 else -1
+        _ev("TP", "Abort: SA=%02X DA=%02X reason=%d" % (sa, da, reason))
+        _sessions.pop(key, None)
     return None
 
 
@@ -209,70 +273,13 @@ def _feed_tp_dt(sa, da, data):
         for i in sorted(st["buf"].keys()):
             payload += st["buf"][i]
         payload = payload[:st["total"]]
+        kind = st.get("kind", "TP")
+        pgn = st["pgn"]
         del _sessions[key]
-        _ev("TP", "重组完成: SA=%02X PGN=0x%04X %d字节" % (sa, st["pgn"], st["total"]))
-        return st["pgn"], payload
+        _ev("TP", "Reassembled: SA=%02X PGN=0x%04X %d bytes (%s)"
+            % (sa, pgn, len(payload), kind))
+        return pgn, payload, kind
     return None
-
-
-def _on_frame(frame):
-    global _total
-    if not _running:
-        return
-    data = frame.data
-    if not data or not frame.extended:
-        return              # J1939 仅 29 位扩展帧
-    _total += 1
-    cid = frame.id
-    prio = (cid >> 26) & 0x07
-    pf = (cid >> 16) & 0xFF
-    ps = (cid >> 8) & 0xFF
-    sa = cid & 0xFF
-    pgn = (pf << 8 | ps) if pf >= 0xF0 else (pf << 8)
-    ts = frame.timestamp
-
-    # ---- 传输协议 ----
-    if pgn == 0xEC00:
-        _feed_tp(sa, ps, data)
-        st = _pgn_stats.setdefault(pgn, {"count": 0, "name": PGN_NAMES.get(pgn, ""),
-                                         "last_ts": ts, "sa": sa})
-        st["count"] += 1
-        st["last_ts"] = ts
-        return
-    if pgn == 0xEB00:
-        result = _feed_tp_dt(sa, ps, data)
-        st = _pgn_stats.setdefault(pgn, {"count": 0, "name": PGN_NAMES.get(pgn, ""),
-                                         "last_ts": ts, "sa": sa})
-        st["count"] += 1
-        st["last_ts"] = ts
-        if result:
-            pgn2, payload = result
-            _record_decoded(ts, pgn2, "TP 重组 %d 字节: %s" % (len(payload), _hex(payload[:24])))
-            for spn, name, value, unit in _decode_spns(pgn2, payload):
-                _record_decoded(ts, pgn2, "SPN%d %s = %g %s" % (spn, name, value, unit))
-        return
-
-    # ---- 地址声明 ----
-    if pgn == 0xEE00:
-        claim = _decode_addr_claim(data)
-        if claim:
-            _addr_claims[sa] = claim
-            claim["ts"] = time.time()
-            _ev("AC", "节点 %02X 声明: 厂商码 %d 功能 %s" % (sa, claim["manufacturer"],
-                                                          claim["function_name"]))
-
-    # ---- 统计 ----
-    st = _pgn_stats.setdefault(pgn, {"count": 0, "name": PGN_NAMES.get(pgn, ""),
-                                     "last_ts": ts, "sa": sa})
-    st["count"] += 1
-    st["last_ts"] = ts
-
-    # ---- 解码 ----
-    if pgn in (0xFECA, 0xFECB):
-        for spn, name, value, unit in _decode_dm1(data):
-            _record_decoded(ts, pgn, "%s: %s" % (name, value))
-    for spn, name, value, unit in _decode_spns(pgn, data):
-        _record_decoded(ts, pgn, "SPN%d %s = %g %s" % (spn, name, value, unit))
 
 
 def _record_decoded(ts, pgn, text):
@@ -281,98 +288,248 @@ def _record_decoded(ts, pgn, text):
         del _decoded[:1000]
 
 
+def _apply_decodes(ts, pgn, data, can_id=None):
+    if pgn in (0xFECA, 0xFECB):
+        for spn, name, value, unit in _decode_dm1(data):
+            _record_decoded(ts, pgn, "%s: %s" % (name, value))
+    for spn, name, value, unit in _decode_spns_builtin(pgn, data):
+        _record_decoded(
+            ts, pgn, "SPN%d %s = %g %s" % (spn, name, value, unit))
+    for spn, name, value, unit in _decode_spns_dbc(pgn, data, can_id):
+        unit_s = (" " + unit) if unit else ""
+        if isinstance(value, float):
+            text = "%s = %g%s" % (name, value, unit_s)
+        else:
+            text = "%s = %s%s" % (name, value, unit_s)
+        _record_decoded(ts, pgn, "DBC " + text)
+
+
+def _on_frame(frame):
+    global _total
+    if not _running:
+        return
+    data = frame.data
+    if not data or not getattr(frame, "extended", False):
+        return
+    _total += 1
+    cid = frame.id
+    pf = (cid >> 16) & 0xFF
+    ps = (cid >> 8) & 0xFF
+    sa = cid & 0xFF
+    pgn = _pgn_from_id(cid)
+    ts = frame.timestamp
+
+    if pgn == 0xEC00:
+        _feed_tp(sa, ps, data)
+        st = _pgn_stats.setdefault(
+            pgn, {"count": 0, "name": _pgn_name(pgn), "last_ts": ts, "sa": sa})
+        st["count"] += 1
+        st["last_ts"] = ts
+        st["name"] = _pgn_name(pgn) or st["name"]
+        return
+
+    if pgn == 0xEB00:
+        result = _feed_tp_dt(sa, ps, data)
+        st = _pgn_stats.setdefault(
+            pgn, {"count": 0, "name": _pgn_name(pgn), "last_ts": ts, "sa": sa})
+        st["count"] += 1
+        st["last_ts"] = ts
+        if result:
+            pgn2, payload, kind = result
+            _tp_pdus.append((ts, sa, ps, pgn2, payload, kind))
+            if len(_tp_pdus) > 500:
+                del _tp_pdus[:200]
+            _record_decoded(
+                ts, pgn2,
+                "TP %s %d bytes: %s" % (kind, len(payload), _hex(payload[:32])))
+            _apply_decodes(ts, pgn2, payload)
+        return
+
+    if pgn == 0xEE00:
+        claim = _decode_addr_claim(data)
+        if claim:
+            claim["ts"] = time.time()
+            _addr_claims[sa] = claim
+            _ev("AC", "Node %02X claimed: mfr=%d function=%s"
+                % (sa, claim["manufacturer"], claim["function_name"]))
+
+    st = _pgn_stats.setdefault(
+        pgn, {"count": 0, "name": _pgn_name(pgn), "last_ts": ts, "sa": sa})
+    st["count"] += 1
+    st["last_ts"] = ts
+    st["sa"] = sa
+    st["name"] = _pgn_name(pgn) or st["name"]
+
+    _apply_decodes(ts, pgn, data, can_id=cid)
+
+
+def _load_dbc_path(path):
+    global _dbc, _dbc_path
+    if not path or not os.path.isfile(path):
+        return False
+    db = dbcparse.parse_file(path)
+    if not db.messages:
+        return False
+    _dbc = db
+    _dbc_path = path
+    _rebuild_dbc_index()
+    state_store.save_state(PLUGIN_ID, {"dbc_path": path}, "settings.json")
+    return True
+
+
 def activate(context):
-    global _running
+    global _running, _dbc, _dbc_path, _total
     _sessions.clear()
     _pgn_stats.clear()
     _addr_claims.clear()
     del _decoded[:]
+    del _tp_pdus[:]
     del _events[:]
-
-    try:
-        from PyQt6.QtWidgets import (
-            QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-            QTreeWidget, QTreeWidgetItem, QTextEdit, QFileDialog,
-            QMessageBox, QHeaderView, QTabWidget
-        )
-        from PyQt6.QtCore import QTimer
-    except ImportError:
-        sin.output.append("J1939 分析插件需要 PyQt6: pip install PyQt6")
-        return
-
+    _total = 0
     _running = True
-    win = sin.ui.create_window("J1939 协议分析")
-    win.resize(980, 640)
+
+    win = sin.ui.create_window("J1939 Analyzer")
+    win.resize(1000, 680)
+    plugin_shell.attach_status_bar(win, "Waiting for extended (29-bit) frames")
 
     central = QWidget()
     win.setCentralWidget(central)
     layout = QVBoxLayout(central)
 
     top = QHBoxLayout()
-    summary = QLabel("等待 J1939 数据（29 位扩展帧）...")
-    summary.setStyleSheet("font-weight: bold;")
+    summary = QLabel("No J1939 traffic yet")
+    summary.setStyleSheet("font-weight:bold;")
     top.addWidget(summary, 1)
-    clear_btn = QPushButton("清零")
-    export_btn = QPushButton("导出 CSV")
+    dbc_label = QLabel("DBC: (none)")
+    dbc_label.setStyleSheet("color:#78909c;")
+    top.addWidget(dbc_label)
+    dbc_btn = QPushButton("Load DBC…")
+    clear_btn = QPushButton("Clear")
+    export_btn = QPushButton("Export CSV")
+    top.addWidget(dbc_btn)
     top.addWidget(clear_btn)
     top.addWidget(export_btn)
     layout.addLayout(top)
 
+    layout.addWidget(plugin_shell.help_label(
+        "Monitors SAE J1939 extended frames. Load a J1939 DBC for SPN/signal "
+        "decode beyond built-in tables. RQST sends PGN 0xEA00 (59904). "
+        "TP tab shows BAM/RTS-CTS reassembled PDUs."))
+
+    rqst_box = QGroupBox("RQST (PGN 59904 / 0xEA00)")
+    rqst_form = QFormLayout(rqst_box)
+    target_sa = QSpinBox()
+    target_sa.setRange(0, 255)
+    target_sa.setDisplayIntegerBase(16)
+    target_sa.setPrefix("0x")
+    target_sa.setValue(0x00)
+    our_sa = QSpinBox()
+    our_sa.setRange(0, 255)
+    our_sa.setDisplayIntegerBase(16)
+    our_sa.setPrefix("0x")
+    our_sa.setValue(0xF9)
+    pgn_edit = QLineEdit("0xF004")
+    pgn_edit.setPlaceholderText("Requested PGN e.g. 0xF004 or 61444")
+    send_rqst_btn = QPushButton("Send RQST")
+    rqst_row = QHBoxLayout()
+    rqst_row.addWidget(QLabel("Target SA"))
+    rqst_row.addWidget(target_sa)
+    rqst_row.addWidget(QLabel("Our SA"))
+    rqst_row.addWidget(our_sa)
+    rqst_row.addWidget(QLabel("PGN"))
+    rqst_row.addWidget(pgn_edit, 1)
+    rqst_row.addWidget(send_rqst_btn)
+    rqst_form.addRow(rqst_row)
+    layout.addWidget(rqst_box)
+
     tabs = QTabWidget()
     layout.addWidget(tabs, 1)
 
-    # Tab1: PGN 统计
+    empty = plugin_shell.empty_state_label(
+        "No frames yet — start capture or wait for J1939 traffic on the bus.")
+
     pgn_tab = QWidget()
     pv = QVBoxLayout(pgn_tab)
     pgn_tree = QTreeWidget()
-    pgn_tree.setHeaderLabels(["PGN", "名称", "帧数", "最后 SA", "最后时间"])
+    pgn_tree.setHeaderLabels(["PGN", "Name", "Count", "Last SA", "Last time"])
     pgn_tree.setRootIsDecorated(False)
     pgn_tree.setAlternatingRowColors(True)
     pgn_tree.setSortingEnabled(True)
-    ph = pgn_tree.header()
-    ph.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    pgn_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    pv.addWidget(empty)
     pv.addWidget(pgn_tree, 1)
+    pgn_tree.hide()
 
-    # Tab2: 解码值
     dec_tab = QWidget()
     dv = QVBoxLayout(dec_tab)
     dec_tree = QTreeWidget()
-    dec_tree.setHeaderLabels(["时间戳(s)", "PGN", "解码"])
+    dec_tree.setHeaderLabels(["Timestamp (s)", "PGN", "Decoded"])
     dec_tree.setRootIsDecorated(False)
     dec_tree.setAlternatingRowColors(True)
-    dh = dec_tree.header()
-    dh.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    dec_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     dv.addWidget(dec_tree, 1)
 
-    # Tab3: 地址声明
+    tp_tab = QWidget()
+    tv = QVBoxLayout(tp_tab)
+    tp_tree = QTreeWidget()
+    tp_tree.setHeaderLabels(
+        ["Timestamp (s)", "Kind", "SA", "DA", "PGN", "Bytes", "Payload (hex)"])
+    tp_tree.setRootIsDecorated(False)
+    tp_tree.setAlternatingRowColors(True)
+    tp_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    tp_empty = plugin_shell.empty_state_label(
+        "No reassembled TP PDUs yet (BAM / RTS-CTS).")
+    tv.addWidget(tp_empty)
+    tv.addWidget(tp_tree, 1)
+    tp_tree.hide()
+
     addr_tab = QWidget()
     av = QVBoxLayout(addr_tab)
     addr_tree = QTreeWidget()
-    addr_tree.setHeaderLabels(["源地址", "NAME (Hex)", "厂商码", "功能码", "功能", "声明时间"])
+    addr_tree.setHeaderLabels(
+        ["Source addr", "NAME (hex)", "Manufacturer", "Function code",
+         "Function", "Claim time"])
     addr_tree.setRootIsDecorated(False)
     addr_tree.setAlternatingRowColors(True)
-    ah = addr_tree.header()
-    ah.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    addr_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     av.addWidget(addr_tree, 1)
 
-    # Tab4: 事件日志
     log_tab = QWidget()
     lv = QVBoxLayout(log_tab)
     log_view = QTextEdit()
     log_view.setReadOnly(True)
     lv.addWidget(log_view, 1)
 
-    tabs.addTab(pgn_tab, "PGN 统计")
-    tabs.addTab(dec_tab, "解码值")
-    tabs.addTab(addr_tab, "地址声明")
-    tabs.addTab(log_tab, "事件日志")
+    tabs.addTab(pgn_tab, "PGN stats")
+    tabs.addTab(dec_tab, "Decoded")
+    tabs.addTab(tp_tab, "TP PDUs")
+    tabs.addTab(addr_tab, "Address claim")
+    tabs.addTab(log_tab, "Event log")
 
     context.on_frame(_on_frame)
 
+    def _set_dbc_label():
+        if _dbc_path:
+            base = os.path.basename(_dbc_path)
+            dbc_label.setText("DBC: %s (%d msgs)" % (base, len(_dbc.messages) if _dbc else 0))
+            dbc_label.setStyleSheet("color:#2e7d32;")
+        else:
+            dbc_label.setText("DBC: (none)")
+            dbc_label.setStyleSheet("color:#78909c;")
+
     def refresh():
-        summary.setText("扩展帧 %d    PGN %d    解码记录 %d    在线节点 %d    TP 会话 %d"
-                        % (_total, len(_pgn_stats), len(_decoded), len(_addr_claims),
-                           len(_sessions)))
+        summary.setText(
+            "Extended frames %d    PGNs %d    Decoded %d    Nodes %d    "
+            "TP sessions %d    TP PDUs %d"
+            % (_total, len(_pgn_stats), len(_decoded), len(_addr_claims),
+               len(_sessions), len(_tp_pdus)))
+
+        if _pgn_stats:
+            empty.hide()
+            pgn_tree.show()
+        else:
+            pgn_tree.hide()
+            empty.show()
 
         pgn_tree.setSortingEnabled(False)
         pgn_tree.clear()
@@ -390,6 +547,19 @@ def activate(context):
         dec_tree.scrollToBottom()
         dec_tree.setSortingEnabled(True)
 
+        if _tp_pdus:
+            tp_empty.hide()
+            tp_tree.show()
+        else:
+            tp_tree.hide()
+            tp_empty.show()
+        tp_tree.clear()
+        for ts, sa, da, pgn, payload, kind in _tp_pdus[-200:]:
+            tp_tree.addTopLevelItem(QTreeWidgetItem([
+                "%.3f" % ts, kind, "%02X" % sa, "%02X" % da,
+                "0x%04X" % pgn, str(len(payload)), _hex(payload[:48])]))
+        tp_tree.scrollToBottom()
+
         addr_tree.clear()
         for sa, c in sorted(_addr_claims.items()):
             addr_tree.addTopLevelItem(QTreeWidgetItem([
@@ -399,59 +569,124 @@ def activate(context):
 
         if _events:
             log_view.setPlainText("\n".join(
-                "[%s] %s %s" % (time.strftime("%H:%M:%S", time.localtime(ts)), k, t)
+                "[%s] %s %s" % (
+                    time.strftime("%H:%M:%S", time.localtime(ts)), k, t)
                 for ts, k, t in _events[-150:]))
             sb = log_view.verticalScrollBar()
             sb.setValue(sb.maximum())
 
-    timer = QTimer()
+        plugin_shell.set_status(
+            win,
+            "Live · %d frames · DBC %s"
+            % (_total, os.path.basename(_dbc_path) if _dbc_path else "none"))
+
+    timer = QTimer(win)
     timer.timeout.connect(refresh)
-    timer.start(600)
+    timer.start(500)
+
+    def on_load_dbc():
+        path = dbc_picker.pick_dbc(win, "Load J1939 DBC")
+        if not path:
+            return
+        if not _load_dbc_path(path):
+            QMessageBox.warning(win, "DBC", "No messages found in file")
+            return
+        _set_dbc_label()
+        plugin_shell.set_status(win, "DBC loaded: %s" % path, 4000)
+        _ev("DBC", "Loaded %s (%d messages)" % (path, len(_dbc.messages)))
 
     def on_clear():
+        global _total
         _sessions.clear()
         _pgn_stats.clear()
         _addr_claims.clear()
         del _decoded[:]
+        del _tp_pdus[:]
         del _events[:]
-        summary.setText("等待 J1939 数据（29 位扩展帧）...")
+        _total = 0
+        empty.show()
+        pgn_tree.hide()
+        tp_empty.show()
+        tp_tree.hide()
+        summary.setText("No J1939 traffic yet")
+        plugin_shell.set_status(win, "Cleared")
 
     def on_export():
-        path, _ = QFileDialog.getSaveFileName(win, "导出 J1939 记录 CSV",
-                                              "j1939_analysis.csv", "CSV 文件 (*.csv)")
-        if not path:
-            return
+        rows = []
+        for pgn, st in sorted(_pgn_stats.items()):
+            rows.append(["PGN", "0x%04X" % pgn, st["name"], st["count"], ""])
+        for sa, c in sorted(_addr_claims.items()):
+            rows.append([
+                "AddressClaim", "%02X" % sa, c["name_hex"],
+                c["manufacturer"], c["function_name"]])
+        for ts, pgn, text in _decoded:
+            rows.append(["Decoded", "%.3f" % ts, "0x%04X" % pgn, text, ""])
+        for ts, sa, da, pgn, payload, kind in _tp_pdus:
+            rows.append([
+                "TP", "%.3f" % ts, kind,
+                "SA=%02X DA=%02X PGN=0x%04X" % (sa, da, pgn),
+                _hex(payload)])
+        path = plugin_shell.export_csv(
+            win,
+            ["Section", "Col1", "Col2", "Col3", "Col4"],
+            rows,
+            "j1939_analysis.csv",
+        )
+        if path:
+            plugin_shell.set_status(win, "Exported %s" % path, 4000)
+
+    def on_send_rqst():
         try:
-            with open(path, "w", encoding="utf-8-sig") as f:
-                f.write("PGN,名称,帧数\n")
-                for pgn, st in _pgn_stats.items():
-                    f.write("0x%04X,%s,%d\n" % (pgn, st["name"], st["count"]))
-                f.write("\n地址声明\n源地址,NAME,厂商码,功能码,功能\n")
-                for sa, c in sorted(_addr_claims.items()):
-                    f.write("%02X,%s,%d,%d,%s\n" % (sa, c["name_hex"], c["manufacturer"],
-                                                    c["function"], c["function_name"]))
-                f.write("\n解码值\n时间戳,PGN,内容\n")
-                for ts, pgn, text in _decoded:
-                    f.write("%.3f,0x%04X,%s\n" % (ts, pgn, text))
-            QMessageBox.information(win, "导出成功", "已导出到:\n%s" % path)
-        except OSError as e:
-            QMessageBox.warning(win, "导出失败", str(e))
+            text = pgn_edit.text().strip()
+            req_pgn = int(text, 0) if text else 0
+        except ValueError:
+            QMessageBox.warning(win, "RQST", "Invalid PGN (use hex 0xF004 or decimal)")
+            return
+        req_pgn &= 0x3FFFF
+        da = target_sa.value() & 0xFF
+        sa = our_sa.value() & 0xFF
+        priority = 6
+        can_id = (priority << 26) | (0xEA << 16) | (da << 8) | sa
+        data = bytes([
+            req_pgn & 0xFF,
+            (req_pgn >> 8) & 0xFF,
+            (req_pgn >> 16) & 0xFF,
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        ])
+        try:
+            sin.frames.send(can_id, data, extended=True)
+        except TypeError:
+            sin.frames.send(can_id, data)
+        _ev("RQST", "Sent to DA=%02X request PGN=0x%05X (ID=0x%08X)"
+            % (da, req_pgn, can_id))
+        plugin_shell.set_status(
+            win, "RQST sent → DA %02X PGN 0x%05X" % (da, req_pgn), 3000)
 
-    def on_open_cmd():
-        win.show()
-        win.raise_()
-        win.activateWindow()
+    context.register_command(
+        "j1939Analyzer.open",
+        plugin_shell.bind_raise(win),
+        "Protocol: J1939 Analyzer",
+    )
 
-    context.register_command("j1939Analyzer.open", on_open_cmd, "协议: J1939 分析")
-
+    dbc_btn.clicked.connect(on_load_dbc)
     clear_btn.clicked.connect(on_clear)
     export_btn.clicked.connect(on_export)
+    send_rqst_btn.clicked.connect(on_send_rqst)
+    plugin_shell.bind_shortcut(win, "Ctrl+E", on_export)
+
+    saved = state_store.load_state(PLUGIN_ID, "settings.json") or {}
+    if saved.get("dbc_path"):
+        if _load_dbc_path(saved["dbc_path"]):
+            _set_dbc_label()
+            plugin_shell.set_status(
+                win, "Restored DBC %s" % os.path.basename(_dbc_path), 3000)
 
     win.show()
-    sin.output.append("J1939 分析插件已加载（订阅实时帧，被动监视 + PGN/SPN 解码）")
+    sin.output.append(
+        "j1939-analyzer ready (DBC SPN decode, RQST, TP PDU tab)")
 
 
 def deactivate():
     global _running
     _running = False
-    sin.output.append("J1939 分析插件已停用")
+    sin.output.append("j1939-analyzer deactivated")
