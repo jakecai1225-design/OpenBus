@@ -3,6 +3,7 @@
 
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QDir>
 #include <QFile>
 #include <QThread>
 #include <algorithm>
@@ -13,33 +14,49 @@
 #endif
 
 // ============================================================
-//  ZLG SDK 结构体定义（与官方 zlgcan.h / canframe.h 内存布局一致）
-//  直接定义，避免依赖厂商头文件
+//  ZLG SDK structs (layout aligned with official zlgcan.h / canframe.h)
 // ============================================================
 
 namespace {
 
-// ZLG SDK 常量（与官方 zlgcan.h 一致）
+/// zlgcan.dll loads USBCANFD.dll from ./kerneldlls relative to process CWD
+/// (not relative to the DLL). Always pin CWD + DLL search dir to the exe folder
+/// before OpenDevice / enumerate — otherwise Explorer / IDE launches fail while
+/// a manual probe that chdir's to build/bin succeeds.
+void ensureZlgRuntimeEnv()
+{
+    const QString appDir = QCoreApplication::applicationDirPath();
+    if (appDir.isEmpty())
+        return;
+    if (QDir::currentPath().compare(appDir, Qt::CaseInsensitive) != 0)
+        QDir::setCurrent(appDir);
+#ifdef Q_OS_WIN
+    static bool dllDirSet = false;
+    if (!dllDirSet) {
+        dllDirSet = true;
+        SetDllDirectoryW(reinterpret_cast<LPCWSTR>(appDir.utf16()));
+    }
+#endif
+}
+
+// ZLG SDK constants (aligned with official zlgcan.h)
 #define TYPE_CAN      0
 #define TYPE_CANFD    1
 #define TYPE_ALL_DATA 2
 #define STATUS_OK     1
 
-// CAN ID 标志位（与官方 canframe.h 一致）
-#define CAN_EFF_FLAG  0x80000000U  // 扩展帧标志
-#define CAN_RTR_FLAG  0x40000000U  // 远程帧标志
-#define CAN_ERR_FLAG  0x20000000U  // 错误帧标志
-#define CAN_ID_FLAG   0x1FFFFFFFU  // ID 掩码
+#define CAN_EFF_FLAG  0x80000000U
+#define CAN_RTR_FLAG  0x40000000U
+#define CAN_ERR_FLAG  0x20000000U
+#define CAN_ID_FLAG   0x1FFFFFFFU
 
-// CAN FD 标志位（与官方 canframe.h 一致）
-#define CANFD_BRS     0x01  // Bit Rate Switch
-#define CANFD_ESI     0x02  // Error State Indicator
+#define CANFD_BRS     0x01
+#define CANFD_ESI     0x02
 
-// 数据长度
 #define CAN_MAX_DLEN   8
 #define CANFD_MAX_DLEN 64
 
-/// Classic CAN 帧（与官方 canframe.h can_frame 一致）
+/// Classic CAN frame (aligned with official canframe.h can_frame)
 struct can_frame {
     unsigned int  can_id;    // 32 bit: ID + EFF/RTR/ERR flags
     unsigned char can_dlc;   // 数据长度码 (0..8)

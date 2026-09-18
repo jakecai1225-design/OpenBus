@@ -31,7 +31,7 @@ QPixmap PluginUi::pluginIconPixmap(const QString &iconPath, const QString &name,
 {
     if (!iconPath.isEmpty()) {
         if (iconPath.endsWith(QStringLiteral(".svg"), Qt::CaseInsensitive)) {
-            // SVG：手动经 QSvgRenderer 渲染（不依赖 imageformats 插件），按 DPR 放大保证清晰
+            // SVG: render via QSvgRenderer (no imageformats plugin), scale by DPR
             QFile f(iconPath);
             if (f.open(QIODevice::ReadOnly)) {
                 QSvgRenderer renderer(f.readAll());
@@ -53,13 +53,33 @@ QPixmap PluginUi::pluginIconPixmap(const QString &iconPath, const QString &name,
         }
     }
 
-    // 按名称哈希取色，绘制圆角首字母头像
+    // Colored rounded badge: 1–3 letter mark (unified driver + plugin look)
     static const QColor palette[] = {
         QColor("#4ec9b0"), QColor("#569cd6"), QColor("#c586c0"), QColor("#dcdcaa"),
         QColor("#ce9178"), QColor("#6a9955"), QColor("#d7ba7d"), QColor("#9cdcfe"),
     };
     const int n = sizeof(palette) / sizeof(palette[0]);
     const QColor color = palette[int(qHash(name) % n)];
+
+    QString label = name.trimmed();
+    if (label.isEmpty()) {
+        label = QStringLiteral("?");
+    } else {
+        // Prefer a short ASCII token already prepared by the caller (e.g. "ZLG",
+        // "DSH"). Otherwise keep a single grapheme for long display titles.
+        bool asciiToken = true;
+        for (const QChar &c : label) {
+            if (!(c.isLetterOrNumber() && c.unicode() < 128)) {
+                asciiToken = false;
+                break;
+            }
+        }
+        if (asciiToken && label.size() <= 4) {
+            label = label.toUpper();
+        } else {
+            label = QString(label.at(0)).toUpper();
+        }
+    }
 
     QPixmap pm(size, size);
     pm.fill(Qt::transparent);
@@ -71,12 +91,12 @@ QPixmap PluginUi::pluginIconPixmap(const QString &iconPath, const QString &name,
 
     QFont f = p.font();
     f.setBold(true);
-    f.setPixelSize(qMax(10, int(size * 0.5)));
+    const int len = label.size();
+    const double ratio = (len >= 3) ? 0.30 : (len == 2) ? 0.40 : 0.50;
+    f.setPixelSize(qMax(9, int(size * ratio)));
     p.setFont(f);
     p.setPen(Qt::white);
-    const QString letter = name.isEmpty() ? QStringLiteral("?")
-                                          : QString(name.at(0)).toUpper();
-    p.drawText(pm.rect(), Qt::AlignCenter, letter);
+    p.drawText(pm.rect(), Qt::AlignCenter, label);
     return pm;
 }
 

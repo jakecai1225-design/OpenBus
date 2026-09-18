@@ -155,7 +155,24 @@ void DriverRegistry::scanExternalDrivers()
         if (loadExternal(dirPath, &entry, &errMsg)) {
             upsertEntry(entry);
         } else {
-            // 登记（或更新）为不可用条目，UI 展示原因，不影响其他驱动
+            // Empty / incomplete drivers/<id>/ (common after partial builds)
+            // must not replace a working builtin of the same id.
+            bool keepBuiltin = false;
+            for (const auto &e : m_entries) {
+                if (e.driverId == id && e.builtin && e.available) {
+                    keepBuiltin = true;
+                    break;
+                }
+            }
+            if (keepBuiltin) {
+                OPENBUS_LOG_WARN("DriverRegistry",
+                                 "driver '{}' external load failed ({}), "
+                                 "keeping builtin",
+                                 id.toStdString(), errMsg.toStdString());
+                continue;
+            }
+
+            // Register (or update) as unavailable so the UI can show the reason
             DriverEntry failed;
             failed.driverId = id;
             failed.builtin = false;
@@ -165,8 +182,6 @@ void DriverRegistry::scanExternalDrivers()
             failed.installDir = dirPath;
             failed.brand = driverIdToBrand(id);
             failed.deviceKind = driverIdToDeviceKind(id);
-            // 保留 driver.json 中的展示信息（若可解析）；无清单时用 id 兜底，
-            // 避免列表出现空白行
             QFile jf(QDir(dirPath).filePath(QStringLiteral("driver.json")));
             if (jf.open(QIODevice::ReadOnly)) {
                 const auto doc = QJsonDocument::fromJson(jf.readAll());
@@ -307,12 +322,11 @@ void DriverRegistry::upsertEntry(const DriverEntry &entry)
 
 void DriverRegistry::registerBuiltinDrivers()
 {
-    // Open-source backends are statically linked into openbus_core (candle /
-    // slcan). Vendor SDKs (ZLG/PEAK/Kvaser) ship as external .odp plugins;
-    // their sources remain in-tree for the plugin targets to reuse.
-    //
-    // External plugins with the same driverId still override builtins via
-    // upsertEntry when scanExternalDrivers() runs.
+    // Open-source backends (candle / slcan) and vendor backends that still
+    // ship linked into openbus_data (ZLG / PEAK / Kvaser) register here.
+    // Matching external .odp under drivers/<id>/ overrides via upsertEntry
+    // when load succeeds; a broken/empty drivers/<id>/ must NOT wipe the
+    // builtin (see scanExternalDrivers).
 
     auto addBuiltin = [this](const QString &id, const QString &name,
                              ICanDevice::Brand brand, int kind, bool available,
@@ -331,13 +345,13 @@ void DriverRegistry::registerBuiltinDrivers()
         m_entries.append(e);
     };
 
-    const bool candleOk = CanDeviceCandle::isAvailable();
-    addBuiltin(QStringLiteral("candle"), QStringLiteral("Candle / GS_USB"),
-               ICanDevice::Brand::Candle,
-               static_cast<int>(CanDeviceManager::DeviceKind::Candle),
-               candleOk,
-               candleOk ? QString()
-                        : QStringLiteral("libusb-1.0.dll not found (drivers/candle/vendor)"));
+    const bool zlgOk = CanDeviceZLG::isAvailable();
+    addBuiltin(QStringLiteral("zlg"), QStringLiteral("ZLG"),
+               ICanDevice::Brand::ZLG,
+               static_cast<int>(CanDeviceManager::DeviceKind::ZLG),
+               zlgOk,
+               zlgOk ? QString()
+                     : QStringLiteral("zlgcan.dll not found (place next to openbus.exe or in drivers/zlg/vendor)"));
 
     const bool peakOk = CanDevicePEAK::isAvailable();
     addBuiltin(QStringLiteral("peak"), QStringLiteral("PEAK PCAN"),
@@ -346,6 +360,22 @@ void DriverRegistry::registerBuiltinDrivers()
                peakOk,
                peakOk ? QString()
                       : QStringLiteral("PCANBasic.dll not found (drivers/peak/vendor)"));
+
+    const bool kvaserOk = CanDeviceKvaser::isAvailable();
+    addBuiltin(QStringLiteral("kvaser"), QStringLiteral("Kvaser"),
+               ICanDevice::Brand::Kvaser,
+               static_cast<int>(CanDeviceManager::DeviceKind::Kvaser),
+               kvaserOk,
+               kvaserOk ? QString()
+                        : QStringLiteral("canlib32.dll not found (drivers/kvaser/vendor)"));
+
+    const bool candleOk = CanDeviceCandle::isAvailable();
+    addBuiltin(QStringLiteral("candle"), QStringLiteral("Candle / GS_USB"),
+               ICanDevice::Brand::Candle,
+               static_cast<int>(CanDeviceManager::DeviceKind::Candle),
+               candleOk,
+               candleOk ? QString()
+                        : QStringLiteral("libusb-1.0.dll not found (drivers/candle/vendor)"));
 
     addBuiltin(QStringLiteral("slcan"), QStringLiteral("SLCAN"),
                ICanDevice::Brand::SLCAN,

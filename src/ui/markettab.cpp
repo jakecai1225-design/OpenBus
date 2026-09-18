@@ -26,6 +26,7 @@
 #include <QJsonParseError>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMap>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -37,6 +38,7 @@
 #include <QProcessEnvironment>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStackedWidget>
@@ -123,14 +125,13 @@ QLabel *makeSectionLabel(const QString &text)
     return label;
 }
 
-QLabel *makeIconPlaceholder(const QString &ch, int size)
+QLabel *makeIconPlaceholder(const QString &badge, int size)
 {
-    // 与 sidebar 迷你市场统一的兑底：PluginUi 彩色首字母头像
-    // （market icon 异步加载完成前/加载失败时作为美观占位）
+    // Unified letter-badge avatar for drivers and plugins (market cards + detail)
     auto *label = new QLabel;
     label->setFixedSize(size, size);
     label->setAlignment(Qt::AlignCenter);
-    label->setPixmap(PluginUi::pluginIconPixmap(QString(), ch, size));
+    label->setPixmap(PluginUi::pluginIconPixmap(QString(), badge, size));
     return label;
 }
 
@@ -177,15 +178,19 @@ struct CardData {
     QStringList searchFields;
 };
 
-/// 市场卡片 — 无 Q_OBJECT（点击回调模式，同 FrameRow；按钮子控件自带点击语义）
+/// Marketplace card — fixed width tuned for ~3 columns in the home grid
 class MarketCard : public QFrame {
 public:
+    static constexpr int kWidth = 300;
+    static constexpr int kHeight = 112;
+    static constexpr int kIcon = 48;
+
     explicit MarketCard(QWidget *parent = nullptr) : QFrame(parent)
     {
         setObjectName(QStringLiteral("marketCard"));
-        setFixedSize(400, 116);
+        setFixedSize(kWidth, kHeight);
         setCursor(Qt::PointingHandCursor);
-        // 主题中性配色：半透明描边/悬停，深浅主题均可用（视觉规范：无黑白块）
+        // Theme-neutral: translucent border/hover works on light and dark
         setStyleSheet(QStringLiteral(
             "QFrame#marketCard { background: transparent;"
             " border: 1px solid rgba(128,128,128,0.35); border-radius: 6px; }"
@@ -255,7 +260,110 @@ QLabel *makeElidedLabel(const QString &text, int widthPx, bool bold = false,
     return label;
 }
 
-/// 市场卡片工厂：onOpen = 整卡点击（进详情）；onInstall = 安装/更新按钮
+/// Short ASCII badge for the unified letter-mark icon (drivers + plugins).
+QString marketBadgeText(const CardData &d)
+{
+    const QString id = d.item.id.toLower();
+    if (d.isDriver || d.item.kind == MarketItem::InstalledDriver
+        || d.item.kind == MarketItem::MarketDriver) {
+        if (id.contains(QLatin1String("zlg")))
+            return QStringLiteral("ZLG");
+        if (id.contains(QLatin1String("peak")) || id.contains(QLatin1String("pcan")))
+            return QStringLiteral("PEAK");
+        if (id.contains(QLatin1String("kvaser")))
+            return QStringLiteral("KV");
+        if (id.contains(QLatin1String("slcan")))
+            return QStringLiteral("SLC");
+        if (id.contains(QLatin1String("candle")) || id.contains(QLatin1String("gs")))
+            return QStringLiteral("GS");
+    }
+
+    // id tokens → initials (dashboard-live → DL, autosar-nm → AN)
+    const QStringList parts =
+        id.split(QRegularExpression(QStringLiteral("[-_.\\s]+")),
+                 Qt::SkipEmptyParts);
+    if (parts.size() >= 2) {
+        QString initials;
+        for (const QString &p : parts) {
+            for (const QChar &c : p) {
+                if (c.isLetter()) {
+                    initials += c.toUpper();
+                    break;
+                }
+            }
+            if (initials.size() >= 3)
+                break;
+        }
+        if (initials.size() >= 2)
+            return initials;
+    }
+
+    QString ascii;
+    for (const QChar &c : id) {
+        if (c.isLetter())
+            ascii += c.toUpper();
+        if (ascii.size() >= 3)
+            break;
+    }
+    if (ascii.size() >= 2)
+        return ascii;
+
+    // Known plugin id shortcuts
+    if (id.contains(QLatin1String("dashboard")) || id.contains(QLatin1String("meter")))
+        return QStringLiteral("DSH");
+    if (id.contains(QLatin1String("uds")))
+        return QStringLiteral("UDS");
+    if (id.contains(QLatin1String("nm")) || id.contains(QLatin1String("network")))
+        return QStringLiteral("NM");
+
+    if (!d.title.isEmpty())
+        return QString(d.title.at(0)).toUpper();
+    return QStringLiteral("?");
+}
+
+/// Functional category for browse-mode sections (English UI labels).
+QString marketCategory(const CardData &d)
+{
+    if (d.isDriver || d.item.kind == MarketItem::InstalledDriver
+        || d.item.kind == MarketItem::MarketDriver)
+        return QStringLiteral("Hardware Drivers");
+
+    const QString blob =
+        (d.item.id + QLatin1Char(' ') + d.title + QLatin1Char(' ') + d.summary
+         + QLatin1Char(' ') + d.searchFields.join(QLatin1Char(' ')))
+            .toLower();
+    auto hasAny = [&blob](const QStringList &keys) {
+        for (const QString &k : keys) {
+            if (blob.contains(k))
+                return true;
+        }
+        return false;
+    };
+
+    if (hasAny({QStringLiteral("uds"), QStringLiteral("diagnostic"),
+                QStringLiteral("iso14229"), QStringLiteral("isotp"),
+                QStringLiteral("doip"), QStringLiteral("obd")}))
+        return QStringLiteral("Diagnostics & Protocol");
+    if (hasAny({QStringLiteral("autosar"), QStringLiteral("someip"),
+                QStringLiteral("network management"),
+                QStringLiteral("ethernet")})
+        || d.item.id.compare(QLatin1String("nm"), Qt::CaseInsensitive) == 0
+        || d.item.id.contains(QLatin1String("-nm"), Qt::CaseInsensitive)
+        || d.item.id.startsWith(QLatin1String("nm-"), Qt::CaseInsensitive))
+        return QStringLiteral("Network & AUTOSAR");
+    if (hasAny({QStringLiteral("dashboard"), QStringLiteral("meter"),
+                QStringLiteral("gauge"), QStringLiteral("plot"),
+                QStringLiteral("graphic"), QStringLiteral("visual"),
+                QStringLiteral("scope")}))
+        return QStringLiteral("Visualization");
+    if (hasAny({QStringLiteral("trace"), QStringLiteral("analysis"),
+                QStringLiteral("decode"), QStringLiteral("filter"),
+                QStringLiteral("statistic")}))
+        return QStringLiteral("Analysis & Trace");
+    return QStringLiteral("Tools & Utilities");
+}
+
+/// Marketplace card factory: onOpen = card click (detail); onInstall = install/update
 MarketCard *makeMarketCard(const CardData &d, const std::function<void()> &onOpen,
                            const std::function<void()> &onInstall)
 {
@@ -266,12 +374,12 @@ MarketCard *makeMarketCard(const CardData &d, const std::function<void()> &onOpe
     lay->setContentsMargins(12, 10, 12, 10);
     lay->setSpacing(10);
 
-    // 左：图标（加载前彩色首字母头像兜底，同列表行/迷你市场）
-    card->iconLabel = makeIconPlaceholder(d.title.left(1).toUpper(), 48);
+    // Left: unified letter badge (never replace with remote screenshots)
+    card->iconLabel = makeIconPlaceholder(marketBadgeText(d), MarketCard::kIcon);
     lay->addWidget(card->iconLabel);
 
-    // 中：名称 / 厂商·版本 / 摘要 / 更新·大小·类别
-    const int textWidth = 400 - 24 /*margins*/ - 48 /*icon*/ - 10 - 74 /*右侧*/ - 10;
+    // Center: name / vendor·version / summary / size·kind
+    const int textWidth = MarketCard::kWidth - 24 - MarketCard::kIcon - 10 - 74 - 10;
     auto *vbox = new QVBoxLayout;
     vbox->setSpacing(1);
     card->nameLabel = makeElidedLabel(d.title, textWidth, true);
@@ -287,10 +395,10 @@ MarketCard *makeMarketCard(const CardData &d, const std::function<void()> &onOpe
     }
     QStringList meta;
     if (!d.updatedAt.isEmpty())
-        meta << QStringLiteral("更新 %1").arg(d.updatedAt);
+        meta << QStringLiteral("Updated %1").arg(d.updatedAt);
     if (d.size > 0)
         meta << formatBytes(d.size);
-    meta << (d.isDriver ? QStringLiteral("驱动") : QStringLiteral("插件"));
+    meta << (d.isDriver ? QStringLiteral("Driver") : QStringLiteral("Plugin"));
     card->metaLabel = makeElidedLabel(meta.join(QStringLiteral(" · ")),
                                       textWidth, false,
                                       QStringLiteral("#9d9d9d"));
@@ -298,32 +406,30 @@ MarketCard *makeMarketCard(const CardData &d, const std::function<void()> &onOpe
     vbox->addStretch(1);
     lay->addLayout(vbox, 1);
 
-    // 右：「免费」徽标 + 安装/更新/已安装（marketplace 卡片免费徽标 + 一键安装）
+    // Right: Free badge + Install / Update / Installed
     auto *right = new QVBoxLayout;
     right->setSpacing(6);
-    auto *badge = new QLabel(QStringLiteral("免费"));
+    auto *badge = new QLabel(QStringLiteral("Free"));
     badge->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
     badge->setStyleSheet(QStringLiteral(
         "color: #9d9d9d; border: 1px solid rgba(128,128,128,0.45);"
         " border-radius: 3px; padding: 1px 8px;"));
     right->addWidget(badge, 0, Qt::AlignRight | Qt::AlignTop);
     right->addStretch(1);
-    // 安装态三形态文字由调用方决定（安装 vN / 更新 / 已安装），onInstall 空则不建按钮
     card->actionBtn = new QPushButton;
     card->actionBtn->setFixedHeight(26);
     card->actionBtn->setMinimumWidth(64);
     if (onInstall) {
-        card->actionBtn->setText(QStringLiteral("安装"));
+        card->actionBtn->setText(QStringLiteral("Install"));
         QObject::connect(card->actionBtn, &QPushButton::clicked,
                          card, onInstall);
     } else {
-        card->actionBtn->setText(QStringLiteral("已安装"));
+        card->actionBtn->setText(QStringLiteral("Installed"));
         card->actionBtn->setEnabled(false);
     }
     right->addWidget(card->actionBtn, 0, Qt::AlignRight | Qt::AlignBottom);
     lay->addLayout(right);
 
-    // 非按钮子控件鼠标事件穿透 → 整卡点击
     card->iconLabel->setAttribute(Qt::WA_TransparentForMouseEvents, true);
     for (QLabel *l : card->findChildren<QLabel *>())
         l->setAttribute(Qt::WA_TransparentForMouseEvents, true);
@@ -332,24 +438,10 @@ MarketCard *makeMarketCard(const CardData &d, const std::function<void()> &onOpe
     return card;
 }
 
-/// 卡片图标异步加载（48px；磁盘缓存 + 网络取数在 MarketModel 共享层）
-void loadCardIcon(QLabel *iconLabel, const QString &relPath)
-{
-    if (relPath.isEmpty() || !iconLabel)
-        return;
-    MarketModel::fetchMarketPixmap(MarketIndex::instance()->resolveUrl(relPath),
-                [iconLabel](const QPixmap &pm) {
-                    QPointer<QLabel> g(iconLabel);
-                    if (g)
-                        g->setPixmap(pm.scaled(48, 48, Qt::KeepAspectRatio,
-                                               Qt::SmoothTransformation));
-                });
-}
-
 } // namespace
 
 // ============================================================
-//  构造 / UI 构建
+//  Constructor / UI
 // ============================================================
 
 MarketTab::MarketTab(QWidget *parent)
@@ -806,7 +898,7 @@ void MarketTab::rebuildList()
                 card->setToolTip(QStringLiteral(
                     "Run / double-click to start; single-click for details"));
             }
-            loadCardIcon(card->iconLabel, d.icon);
+            // Letter badge only — do not overlay remote screenshot icons
             flow->addWidget(card);
         }
         addWidget(flowHost);
@@ -898,7 +990,7 @@ void MarketTab::rebuildList()
         return;
     }
 
-    // ---- Browse mode: Installed (local) first, then marketplace sections ----
+    // ---- Browse mode: Installed, then functional categories ----
     if (sortIdx == 1) {
         std::stable_sort(all.begin(), all.end(), byUpdated);
         addSection(QStringLiteral("All · Recently updated"), all);
@@ -926,18 +1018,27 @@ void MarketTab::rebuildList()
                            installed);
         }
 
-        QVector<CardData> featured;
-        int i = 0, j = 0;
-        while (featured.size() < 6 && (i < drivers.size() || j < plugins.size())) {
-            if (i < drivers.size())
-                featured.append(drivers.at(i++));
-            if (j < plugins.size())
-                featured.append(plugins.at(j++));
-        }
-        addSection(QStringLiteral("Featured"), featured);
+        // Category order for the home grid (~3 cards per row at 300px)
+        const QStringList categoryOrder = {
+            QStringLiteral("Hardware Drivers"),
+            QStringLiteral("Diagnostics & Protocol"),
+            QStringLiteral("Network & AUTOSAR"),
+            QStringLiteral("Visualization"),
+            QStringLiteral("Analysis & Trace"),
+            QStringLiteral("Tools & Utilities"),
+        };
+        QMap<QString, QVector<CardData>> byCat;
+        for (const CardData &d : all)
+            byCat[marketCategory(d)].append(d);
 
-        std::stable_sort(all.begin(), all.end(), byUpdated);
-        addSection(QStringLiteral("Recently updated"), all);
+        for (const QString &cat : categoryOrder) {
+            auto it = byCat.find(cat);
+            if (it == byCat.end() || it->isEmpty())
+                continue;
+            QVector<CardData> entries = it.value();
+            std::stable_sort(entries.begin(), entries.end(), byName);
+            addSection(cat, entries);
+        }
     }
 }
 
@@ -1014,15 +1115,12 @@ void MarketTab::showMarketDriver(const MarketIndex::DriverInfo &drv)
     auto *head = new QWidget;
     auto *hlay = new QHBoxLayout(head);
     hlay->setSpacing(12);
-    auto *icon = makeIconPlaceholder(QStringLiteral("D"), 48);
+    CardData iconData;
+    iconData.item = { MarketItem::MarketDriver, drv.id };
+    iconData.title = drv.name;
+    iconData.isDriver = true;
+    auto *icon = makeIconPlaceholder(marketBadgeText(iconData), 48);
     hlay->addWidget(icon);
-    MarketModel::fetchMarketPixmap(MarketIndex::instance()->resolveUrl(drv.icon),
-                [icon](const QPixmap &pm) {
-                    QPointer<QLabel> g(icon);
-                    if (g)
-                        g->setPixmap(pm.scaled(48, 48, Qt::KeepAspectRatio,
-                                               Qt::SmoothTransformation));
-                });
     auto *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->addWidget(makeTitleLabel(drv.name));
@@ -1147,18 +1245,12 @@ void MarketTab::showInstalledDriver(const QString &driverId)
     auto *head = new QWidget;
     auto *hlay = new QHBoxLayout(head);
     hlay->setSpacing(12);
-    auto *icon = makeIconPlaceholder(QStringLiteral("D"), 48);
+    CardData iconData;
+    iconData.item = { MarketItem::InstalledDriver, driverId };
+    iconData.title = e.displayName;
+    iconData.isDriver = true;
+    auto *icon = makeIconPlaceholder(marketBadgeText(iconData), 48);
     hlay->addWidget(icon);
-    const auto marketDrv = MarketIndex::instance()->driverById(driverId);
-    if (!marketDrv.icon.isEmpty()) {
-        MarketModel::fetchMarketPixmap(MarketIndex::instance()->resolveUrl(marketDrv.icon),
-                    [icon](const QPixmap &pm) {
-                        QPointer<QLabel> g(icon);
-                        if (g)
-                            g->setPixmap(pm.scaled(48, 48, Qt::KeepAspectRatio,
-                                                   Qt::SmoothTransformation));
-                    });
-    }
     auto *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->addWidget(makeTitleLabel(e.displayName));
@@ -1244,15 +1336,12 @@ void MarketTab::showMarketPlugin(const MarketIndex::PluginInfo &plug)
     auto *head = new QWidget;
     auto *hlay = new QHBoxLayout(head);
     hlay->setSpacing(12);
-    auto *icon = makeIconPlaceholder(QStringLiteral("P"), 48);
+    CardData iconData;
+    iconData.item = { MarketItem::MarketPlugin, plug.id };
+    iconData.title = plug.name;
+    iconData.isDriver = false;
+    auto *icon = makeIconPlaceholder(marketBadgeText(iconData), 48);
     hlay->addWidget(icon);
-    MarketModel::fetchMarketPixmap(MarketIndex::instance()->resolveUrl(plug.icon),
-                [icon](const QPixmap &pm) {
-                    QPointer<QLabel> g(icon);
-                    if (g)
-                        g->setPixmap(pm.scaled(48, 48, Qt::KeepAspectRatio,
-                                               Qt::SmoothTransformation));
-                });
     auto *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->addWidget(makeTitleLabel(plug.name));
@@ -1328,13 +1417,18 @@ void MarketTab::showInstalledPlugin(const QString &name)
     auto *head = new QWidget;
     auto *hlay = new QHBoxLayout(head);
     hlay->setSpacing(12);
-    auto *icon = makeIconPlaceholder(QStringLiteral("P"), 48);
+    CardData iconData;
+    iconData.item = { MarketItem::InstalledPlugin, name };
+    iconData.title = name;
+    iconData.isDriver = false;
+    auto *icon = makeIconPlaceholder(marketBadgeText(iconData), 48);
+    // Prefer package SVG when present (same rounded-badge family as letter marks)
     const QString iconFile = p.iconFilePath();
     if (!iconFile.isEmpty()) {
-        QPixmap pm48(iconFile);
-        if (!pm48.isNull())
-            icon->setPixmap(pm48.scaled(48, 48, Qt::KeepAspectRatio,
-                                        Qt::SmoothTransformation));
+        const QPixmap local =
+            PluginUi::pluginIconPixmap(iconFile, marketBadgeText(iconData), 48);
+        if (!local.isNull())
+            icon->setPixmap(local);
     }
     hlay->addWidget(icon);
     auto *vbox = new QVBoxLayout;
@@ -1401,7 +1495,8 @@ void MarketTab::showInstalledPlugin(const QString &name)
 
 // ============================================================
 //  图标 / 图片（磁盘缓存 + 网络异步在 MarketModel 共享层，方案 §13.10；
-//  首页卡片图标 48px 经 loadCardIcon，详情大图经 fetchMarketPixmap）
+    // Home grid: 300px letter-badge cards (~3 columns); detail hero still uses
+    // fetchMarketPixmap for optional product screenshots.
 // ============================================================
 
 // ============================================================
