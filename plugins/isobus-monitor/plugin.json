@@ -1,8 +1,8 @@
 {
     "name": "isobus-monitor",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "ISOBUS (ISO 11783) 监视器：地址声明解析、在线节点表、TC-BAS/TC-GEO/VT 报文监视",
+    "description": "ISOBUS (ISO 11783) monitor: Address Claimed parse, online nodes, VT/TC PGN stats, CSV export",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "isobusMonitor.open",
-                "title": "协议: ISOBUS 监视"
+                "title": "Protocol: ISOBUS Monitor"
             }
         ]
     }

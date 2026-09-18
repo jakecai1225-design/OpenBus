@@ -1,8 +1,8 @@
 {
     "name": "can-ids",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "CAN 入侵检测：ID 白名单（学习模式）、速率异常（μ+3σ）、载荷变化异常、新 ID 告警与事件导出",
+    "description": "CAN IDS: learn-mode ID whitelist, rate/payload anomaly alerts, event CSV export",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "canIds.open",
-                "title": "安全: 入侵检测"
+                "title": "Security: CAN IDS"
             }
         ]
     }

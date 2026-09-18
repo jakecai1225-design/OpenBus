@@ -1,8 +1,8 @@
 {
     "name": "can-stress",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "CAN 压力测试：突发洪泛（目标负载）、畸形帧注入（DLC/FD 边界）、持续/间隔配置与统计",
+    "description": "CAN stress: flood/malformed inject at load target, duration/gap guards, stats CSV",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "canStress.open",
-                "title": "安全: 压力测试"
+                "title": "Security: CAN Stress"
             }
         ]
     }

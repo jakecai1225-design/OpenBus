@@ -1,8 +1,8 @@
 {
     "name": "xcp-monitor",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "XCP (CAN) 监视器：CONNECT/GET_STATUS/DIAG 等 CTO 命令解码、DAQ/STIM 识别、会话视图",
+    "description": "XCP on CAN monitor: CTO command/response decode, DAQ/STIM DTO counting, session stats, CSV export",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "xcpMonitor.open",
-                "title": "标定: XCP 监视"
+                "title": "Protocol: XCP Monitor"
             }
         ]
     }

@@ -1,8 +1,8 @@
 {
     "name": "can-id-scanner",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "CAN ID 扫描与审计：实时 ID 发现与分类、DBC 增量审计（无库 ID/未出现 ID）、CSV 导出",
+    "description": "CAN ID scanner: live ID discovery, DBC incremental audit (undefined / missing IDs), CSV export",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "canIdScanner.open",
-                "title": "工具: ID 扫描审计"
+                "title": "Tools: ID Scanner"
             }
         ]
     }

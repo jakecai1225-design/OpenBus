@@ -328,61 +328,62 @@ void MainWindow::processCommand(const QString &cmd)
 {
     auto *out = m_bottomPanel;
     if (cmd == "help" || cmd == "?") {
-        out->appendTerminal("可用命令:");
-        out->appendTerminal("  help        - 显示帮助");
-        out->appendTerminal("  clear       - 清空 Trace");
-        out->appendTerminal("  sim on      - 启动模拟器");
-        out->appendTerminal("  sim off     - 停止模拟器");
-        out->appendTerminal("  dev on      - 启动硬件设备");
-        out->appendTerminal("  dev off     - 停止硬件设备");
-        out->appendTerminal("  record <file> - 开始录制");
-        out->appendTerminal("  stop        - 停止录制/回放");
-        out->appendTerminal("  play        - 播放");
-        out->appendTerminal("  filter <expr> - 设置过滤器");
-        out->appendTerminal("  stats       - 显示统计");
-        out->appendTerminal("  load <file> - 加载 DBC/录制文件");
+        out->appendTerminal("Available commands:");
+        out->appendTerminal("  help              - show this help");
+        out->appendTerminal("  clear             - clear Trace");
+        out->appendTerminal("  sim on / sim off  - start/stop simulator");
+        out->appendTerminal("  dev on / dev off  - start/stop hardware device");
+        out->appendTerminal("  record <file>     - start recording");
+        out->appendTerminal("  stop              - stop record/playback");
+        out->appendTerminal("  play              - start playback");
+        out->appendTerminal("  filter <expr>     - set Trace filter");
+        out->appendTerminal("  stats             - show frame stats");
+        out->appendTerminal("  load <file>       - load DBC or capture file");
+        out->appendTerminal("  bash / shell      - start MSYS2 bash in this pane");
+        out->appendTerminal("  powershell        - start PowerShell in this pane");
+        out->appendTerminal("  clear-term / cls  - clear terminal screen");
     } else if (cmd == "clear") {
         onClear();
-        out->appendTerminal("已清空");
+        out->appendTerminal("Trace cleared");
     } else if (cmd == "sim on") {
         m_simulator->start();
-        out->appendTerminal("模拟器已启动");
+        out->appendTerminal("Simulator started");
     } else if (cmd == "sim off") {
         m_simulator->stop();
-        out->appendTerminal("模拟器已停止");
+        out->appendTerminal("Simulator stopped");
     } else if (cmd == "dev on") {
         m_deviceManager->start();
-        out->appendTerminal("硬件设备已启动");
+        out->appendTerminal("Hardware device started");
     } else if (cmd == "dev off") {
         m_deviceManager->stop();
-        out->appendTerminal("硬件设备已停止");
+        out->appendTerminal("Hardware device stopped");
     } else if (cmd.startsWith("record ")) {
         QString path = cmd.mid(7).trimmed();
         if (m_recorder->start(path))
-            out->appendTerminal("录制开始: " + path);
+            out->appendTerminal("Recording started: " + path);
         else
-            out->appendTerminal("录制失败: " + path);
+            out->appendTerminal("Recording failed: " + path);
     } else if (cmd == "stop") {
         if (m_recording) m_recorder->stop();
         m_player->stop();
-        out->appendTerminal("已停止");
+        out->appendTerminal("Stopped");
     } else if (cmd == "play") {
         onPlay();
-        out->appendTerminal("开始播放");
+        out->appendTerminal("Playback started");
     } else if (cmd.startsWith("filter ")) {
         QString expr = cmd.mid(7).trimmed();
-        // 终端 filter 命令：作用于当前 Trace 页（经模块接口，模块内同步行编辑框）
+        // Terminal filter: apply to active Trace page via module API
         QWidget *active = m_editorArea->currentWidget();
         if (traceQuery(QStringLiteral("isTrace"), QVariant::fromValue(active)).toBool())
             traceInvoke(QStringLiteral("setFilterExpression"),
                         QVariantList{ QVariant::fromValue(active), expr });
-        out->appendTerminal("过滤: " + expr);
+        out->appendTerminal("Filter: " + expr);
     } else if (cmd == "stats") {
         updateStatistics();
         QWidget *active = m_editorArea->currentWidget();
         int total = traceQuery(QStringLiteral("frameCount"),
                                QVariant::fromValue(active)).toInt();
-        out->appendTerminal(QString("总帧数: %1").arg(total));
+        out->appendTerminal(QString("Total frames: %1").arg(total));
     } else if (cmd.startsWith("load ")) {
         QString path = cmd.mid(5).trimmed();
         QFileInfo fi(path);
@@ -390,19 +391,18 @@ void MainWindow::processCommand(const QString &cmd)
             m_dbcManager->loadDbc(path);
         } else if (CanFileIOFactory::canRead(fi.suffix())) {
             if (m_player->load(path)) {
-                // 清除所有 Trace 数据（原逐标签页 qobject_cast 内联逻辑，
-                // 经模块 clearTraceAll 广播）
+                // Clear all Trace pages via module broadcast
                 traceInvoke(QStringLiteral("clearTraceAll"));
-                out->appendTerminal("已加载报文文件: " + fi.fileName());
+                out->appendTerminal("Loaded capture: " + fi.fileName());
                 updateActions();
             } else {
-                out->appendTerminal("加载失败: " + fi.fileName());
+                out->appendTerminal("Load failed: " + fi.fileName());
             }
         } else {
-            out->appendTerminal("不支持的格式: ." + fi.suffix());
+            out->appendTerminal("Unsupported format: ." + fi.suffix());
         }
     } else {
-        out->appendTerminal("未知命令: " + cmd + " (输入 help 查看帮助)");
+        out->appendTerminal("Unknown command: " + cmd + " (type help)");
     }
 }
 

@@ -1,22 +1,30 @@
 # -*- coding: utf-8 -*-
-"""can-gateway 插件 — CAN 报文网关/转发器
-功能：
-- 规则表：ID 匹配（精确/掩码）→ 动作（ID 重映射/载荷补丁/限频/直通）
-- 规则启停、命中计数、最近转发时间
-- 全局启停（默认停止；仅用户点击「启动转发」才发帧）
-- 规则导入/导出 JSON
-依赖: pip install PyQt6
+"""can-gateway — CAN frame gateway / forwarder.
+
+Rule table: ID match (exact/mask) → remap / payload patch / rate-limit / pass-through.
+Rules persist via state_store; start/stop forwarding; hit counters.
 """
+
+from __future__ import annotations
 
 import json
 import time
 
 from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QTreeWidget, QTreeWidgetItem, QFileDialog, QMessageBox,
+    QHeaderView, QLineEdit, QFormLayout, QGroupBox, QSpinBox,
+)
 
 import sin
+from _shared import plugin_shell, state_store
 
-_rules = []          # {match, mask, new_id, patch(pos,hex), rate_limit_ms, enabled, hits, last_ts}
+PLUGIN_ID = "can-gateway"
+
+_rules = []
 _active = False
+_win = None
 
 
 def _match_rule(frame):
@@ -25,11 +33,10 @@ def _match_rule(frame):
             continue
         mask = r.get("mask", 0x7FF)
         if (frame.id & mask) == (r["match"] & mask):
-            # 限频
             rate = r.get("rate_limit_ms", 0)
             now = time.time() * 1000.0
             if rate and r.get("last_tx") and now - r["last_tx"] < rate:
-                return None, r, True     # 被限频丢弃
+                return None, r, True
             return r, r, False
     return None, None, False
 
@@ -45,11 +52,10 @@ def _on_frame(frame):
     if limited:
         r["dropped"] = r.get("dropped", 0) + 1
         return
-    # 构造转发帧
     new_id = r.get("new_id")
     out_id = new_id if (new_id is not None and new_id >= 0) else frame.id
     data = bytearray(frame.data)
-    patch = r.get("patch")   # {"pos": int, "hex": "AA BB"}
+    patch = r.get("patch")
     if patch:
         try:
             pos = int(patch.get("pos", 0))
@@ -61,93 +67,125 @@ def _on_frame(frame):
     sin.frames.send(out_id, bytes(data), extended=frame.extended, fd=frame.fd)
 
 
+def _rules_for_persist():
+    return [{
+        "match": r["match"],
+        "mask": r.get("mask", 0x7FF),
+        "new_id": r.get("new_id"),
+        "patch": r.get("patch"),
+        "rate_limit_ms": r.get("rate_limit_ms", 0),
+        "enabled": r.get("enabled", True),
+    } for r in _rules]
+
+
+def _load_rule_dicts(data):
+    out = []
+    for d in data:
+        p = d.get("patch")
+        patch_text = "-"
+        if p:
+            patch_text = "pos=%d,hex=%s" % (p.get("pos", 0), p.get("hex", ""))
+        out.append({
+            "match": int(d["match"]),
+            "mask": int(d.get("mask", 0x7FF)),
+            "new_id": d.get("new_id"),
+            "patch": p,
+            "patch_text": patch_text,
+            "rate_limit_ms": int(d.get("rate_limit_ms", 0)),
+            "enabled": bool(d.get("enabled", True)),
+            "hits": 0,
+            "dropped": 0,
+        })
+    return out
+
+
 def activate(context):
-    global _active
+    global _active, _win
     _active = False
 
-    try:
-        from PyQt6.QtWidgets import (
-            QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-            QTreeWidget, QTreeWidgetItem, QTextEdit, QFileDialog,
-            QMessageBox, QHeaderView, QLineEdit, QFormLayout, QGroupBox,
-            QSpinBox
-        )
-    except ImportError:
-        sin.output.append("报文网关插件需要 PyQt6: pip install PyQt6")
-        return
-
-    win = sin.ui.create_window("CAN 报文网关")
-    win.resize(980, 600)
+    win = sin.ui.create_window("CAN Gateway")
+    win.resize(1000, 620)
+    plugin_shell.attach_status_bar(win, "Forwarding stopped")
+    _win = win
 
     central = QWidget()
     win.setCentralWidget(central)
     layout = QVBoxLayout(central)
 
-    cfg = QGroupBox("添加规则")
+    cfg = QGroupBox("Add rule")
     cfg_l = QFormLayout(cfg)
     match_edit = QLineEdit("0x100")
     mask_edit = QLineEdit("0x7FF")
-    newid_edit = QLineEdit("（不变）")
-    patch_edit = QLineEdit("（无）")
-    patch_edit.setPlaceholderText("如 pos=0,hex=AA BB")
+    newid_edit = QLineEdit("")
+    newid_edit.setPlaceholderText("leave empty = keep ID")
+    patch_edit = QLineEdit("")
+    patch_edit.setPlaceholderText("e.g. pos=0,hex=AA BB")
     rate_spin = QSpinBox()
     rate_spin.setRange(0, 10000)
     rate_spin.setValue(0)
     rate_spin.setSuffix(" ms")
-    cfg_l.addRow("匹配 ID:", match_edit)
-    cfg_l.addRow("匹配掩码:", mask_edit)
-    cfg_l.addRow("重映射 ID:", newid_edit)
-    cfg_l.addRow("载荷补丁:", patch_edit)
-    cfg_l.addRow("限频(0=不限):", rate_spin)
+    cfg_l.addRow("Match ID:", match_edit)
+    cfg_l.addRow("Match mask:", mask_edit)
+    cfg_l.addRow("Remap ID:", newid_edit)
+    cfg_l.addRow("Payload patch:", patch_edit)
+    cfg_l.addRow("Rate limit (0=none):", rate_spin)
     layout.addWidget(cfg)
 
     btns = QHBoxLayout()
-    add_btn = QPushButton("添加规则")
-    del_btn = QPushButton("删除选中")
-    start_btn = QPushButton("启动转发")
-    stop_btn = QPushButton("停止转发")
-    save_btn = QPushButton("导出 JSON")
-    load_btn = QPushButton("导入 JSON")
-    clear_btn = QPushButton("清零计数")
-    btns.addWidget(add_btn)
-    btns.addWidget(del_btn)
+    add_btn = QPushButton("Add rule")
+    del_btn = QPushButton("Delete selected")
+    toggle_btn = QPushButton("Toggle enable")
+    start_btn = QPushButton("Start forwarding")
+    stop_btn = QPushButton("Stop forwarding")
+    save_btn = QPushButton("Export JSON…")
+    load_btn = QPushButton("Import JSON…")
+    clear_btn = QPushButton("Clear counters")
+    for w in (add_btn, del_btn, toggle_btn):
+        btns.addWidget(w)
     btns.addStretch(1)
-    btns.addWidget(start_btn)
-    btns.addWidget(stop_btn)
-    btns.addWidget(clear_btn)
-    btns.addWidget(load_btn)
-    btns.addWidget(save_btn)
+    for w in (start_btn, stop_btn, clear_btn, load_btn, save_btn):
+        btns.addWidget(w)
     layout.addLayout(btns)
 
+    layout.addWidget(plugin_shell.help_label(
+        "Rules persist across sessions. Forwarding is off until you Start. "
+        "Match (ID & mask) == (frame.id & mask); optional remap, patch, rate limit."))
+
     tree = QTreeWidget()
-    tree.setHeaderLabels(["启用", "匹配 ID", "掩码", "重映射", "补丁", "限频ms",
-                          "命中", "丢弃", "最后命中"])
+    tree.setHeaderLabels([
+        "On", "Match ID", "Mask", "Remap", "Patch", "Rate ms",
+        "Hits", "Dropped", "Last hit"])
     tree.setRootIsDecorated(False)
     tree.setAlternatingRowColors(True)
-    header = tree.header()
-    header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     layout.addWidget(tree, 1)
 
-    status = QLabel("转发未启动（点击「启动转发」后按规则表转发命中帧）")
-    status.setStyleSheet("font-weight:bold;")
-    layout.addWidget(status)
+    run_label = QLabel("Forwarding stopped — click Start after adding rules")
+    run_label.setStyleSheet("font-weight:bold;")
+    layout.addWidget(run_label)
+
+    def _persist():
+        state_store.save_state(PLUGIN_ID, {"rules": _rules_for_persist()})
 
     def _refresh():
         tree.clear()
         for r in _rules:
             tree.addTopLevelItem(QTreeWidgetItem([
-                "√" if r.get("enabled", True) else "×",
-                "0x%X" % r["match"], "0x%X" % r.get("mask", 0x7FF),
+                "Y" if r.get("enabled", True) else "N",
+                "0x%X" % r["match"],
+                "0x%X" % r.get("mask", 0x7FF),
                 ("0x%X" % r["new_id"]) if r.get("new_id") is not None else "-",
                 r.get("patch_text", "-"),
-                str(r.get("rate_limit_ms", 0)), str(r.get("hits", 0)),
+                str(r.get("rate_limit_ms", 0)),
+                str(r.get("hits", 0)),
                 str(r.get("dropped", 0)),
                 time.strftime("%H:%M:%S", time.localtime(r["last_ts"]))
-                if r.get("last_ts") else "-"]))
+                if r.get("last_ts") else "-",
+            ]))
 
     def _parse_id(text, default=None):
-        text = text.strip()
-        if not text or text.startswith("（"):
+        text = (text or "").strip()
+        if not text:
             return default
         try:
             return int(text, 0)
@@ -157,13 +195,13 @@ def activate(context):
     def _on_add():
         match = _parse_id(match_edit.text())
         if match is None:
-            QMessageBox.warning(win, "格式错误", "匹配 ID 需为十六进制")
+            QMessageBox.warning(win, "Format", "Match ID must be hex/decimal")
             return
         mask = _parse_id(mask_edit.text(), 0x7FF) or 0x7FF
         new_id = _parse_id(newid_edit.text(), None)
         patch_text = patch_edit.text().strip()
         patch = None
-        if patch_text and not patch_text.startswith("（"):
+        if patch_text:
             try:
                 pos_s, hex_s = patch_text.split(",", 1)
                 pos = int(pos_s.strip().replace("pos=", ""))
@@ -171,13 +209,17 @@ def activate(context):
                 bytes.fromhex(hex_s)
                 patch = {"pos": pos, "hex": hex_s}
             except (ValueError, IndexError):
-                QMessageBox.warning(win, "格式错误", "补丁格式: pos=0,hex=AABB")
+                QMessageBox.warning(win, "Format", "Patch format: pos=0,hex=AABB")
                 return
-        _rules.append({"match": match, "mask": mask, "new_id": new_id,
-                       "patch": patch, "patch_text": patch_text if patch else "-",
-                       "rate_limit_ms": rate_spin.value(), "enabled": True,
-                       "hits": 0, "dropped": 0})
+        _rules.append({
+            "match": match, "mask": mask, "new_id": new_id,
+            "patch": patch, "patch_text": patch_text if patch else "-",
+            "rate_limit_ms": rate_spin.value(), "enabled": True,
+            "hits": 0, "dropped": 0,
+        })
         _refresh()
+        _persist()
+        plugin_shell.set_status(win, "Rule added (%d total)" % len(_rules), 2500)
 
     def _on_del():
         sel = tree.selectedItems()
@@ -187,25 +229,38 @@ def activate(context):
         if 0 <= idx < len(_rules):
             _rules.pop(idx)
             _refresh()
+            _persist()
+
+    def _on_toggle():
+        sel = tree.selectedItems()
+        if not sel:
+            return
+        idx = tree.indexOfTopLevelItem(sel[0])
+        if 0 <= idx < len(_rules):
+            _rules[idx]["enabled"] = not _rules[idx].get("enabled", True)
+            _refresh()
+            _persist()
 
     def _on_start():
         global _active
         if not _rules:
-            QMessageBox.information(win, "提示", "请先添加规则")
+            QMessageBox.information(win, "Gateway", "Add at least one rule first")
             return
         _active = True
         start_btn.setEnabled(False)
         stop_btn.setEnabled(True)
-        status.setText("转发运行中（%d 条规则）" % len(_rules))
-        status.setStyleSheet("font-weight:bold;color:#c62828;")
+        run_label.setText("Forwarding ON (%d rules)" % len(_rules))
+        run_label.setStyleSheet("font-weight:bold;color:#c62828;")
+        plugin_shell.set_status(win, "Forwarding started")
 
     def _on_stop():
         global _active
         _active = False
         start_btn.setEnabled(True)
         stop_btn.setEnabled(False)
-        status.setText("转发已停止")
-        status.setStyleSheet("font-weight:bold;")
+        run_label.setText("Forwarding stopped")
+        run_label.setStyleSheet("font-weight:bold;")
+        plugin_shell.set_status(win, "Forwarding stopped")
 
     def _on_clear():
         for r in _rules:
@@ -215,51 +270,36 @@ def activate(context):
         _refresh()
 
     def _on_save():
-        path, _ = QFileDialog.getSaveFileName(win, "导出规则", "gateway_rules.json",
-                                              "JSON (*.json)")
+        path, _ = QFileDialog.getSaveFileName(
+            win, "Export rules", "gateway_rules.json", "JSON (*.json)")
         if not path:
             return
         try:
-            data = [{"match": r["match"], "mask": r.get("mask", 0x7FF),
-                     "new_id": r.get("new_id"), "patch": r.get("patch"),
-                     "rate_limit_ms": r.get("rate_limit_ms", 0),
-                     "enabled": r.get("enabled", True)} for r in _rules]
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            QMessageBox.information(win, "导出成功", "已导出 %d 条规则" % len(data))
+                json.dump(_rules_for_persist(), f, ensure_ascii=False, indent=2)
+            plugin_shell.set_status(win, "Exported %d rules" % len(_rules), 4000)
         except OSError as e:
-            QMessageBox.warning(win, "导出失败", str(e))
+            QMessageBox.warning(win, "Export failed", str(e))
 
     def _on_load():
-        path, _ = QFileDialog.getOpenFileName(win, "导入规则", "", "JSON (*.json)")
+        path, _ = QFileDialog.getOpenFileName(
+            win, "Import rules", "", "JSON (*.json)")
         if not path:
             return
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             _rules.clear()
-            for d in data:
-                p = d.get("patch")
-                _rules.append({"match": int(d["match"]), "mask": int(d.get("mask", 0x7FF)),
-                               "new_id": d.get("new_id"), "patch": p,
-                               "patch_text": ("pos=%d,hex=%s" % (p["pos"], p["hex"])) if p else "-",
-                               "rate_limit_ms": int(d.get("rate_limit_ms", 0)),
-                               "enabled": bool(d.get("enabled", True)),
-                               "hits": 0, "dropped": 0})
+            _rules.extend(_load_rule_dicts(data))
             _refresh()
-        except (OSError, ValueError, KeyError) as e:
-            QMessageBox.warning(win, "导入失败", str(e))
-
-    def _on_open_cmd():
-        win.show()
-        win.raise_()
-        win.activateWindow()
-
-    context.on_frame(_on_frame)
-    context.register_command("canGateway.open", _on_open_cmd, "网关: 报文转发")
+            _persist()
+            plugin_shell.set_status(win, "Imported %d rules" % len(_rules), 3000)
+        except (OSError, ValueError, KeyError, TypeError) as e:
+            QMessageBox.warning(win, "Import failed", str(e))
 
     add_btn.clicked.connect(_on_add)
     del_btn.clicked.connect(_on_del)
+    toggle_btn.clicked.connect(_on_toggle)
     start_btn.clicked.connect(_on_start)
     stop_btn.clicked.connect(_on_stop)
     clear_btn.clicked.connect(_on_clear)
@@ -267,21 +307,35 @@ def activate(context):
     load_btn.clicked.connect(_on_load)
     stop_btn.setEnabled(False)
 
-    # 示例规则（禁用状态）
-    _rules.append({"match": 0x100, "mask": 0x700, "new_id": None, "patch": None,
-                   "patch_text": "-", "rate_limit_ms": 0, "enabled": False,
-                   "hits": 0, "dropped": 0})
+    context.on_frame(_on_frame)
+    context.register_command(
+        "canGateway.open", plugin_shell.bind_raise(win), "Tools: Gateway")
+
+    saved = state_store.load_state(PLUGIN_ID, default={}) or {}
+    _rules.clear()
+    if isinstance(saved.get("rules"), list) and saved["rules"]:
+        _rules.extend(_load_rule_dicts(saved["rules"]))
+    else:
+        _rules.append({
+            "match": 0x100, "mask": 0x700, "new_id": None, "patch": None,
+            "patch_text": "-", "rate_limit_ms": 0, "enabled": False,
+            "hits": 0, "dropped": 0,
+        })
     _refresh()
 
-    refresh_timer = QTimer()
+    refresh_timer = QTimer(win)
     refresh_timer.timeout.connect(_refresh)
     refresh_timer.start(500)
 
     win.show()
-    sin.output.append("报文网关插件已加载（规则转发，激活期间零发送）")
+    sin.output.append("can-gateway loaded (rules persist; forwarding off until Start)")
 
 
 def deactivate():
-    global _active
+    global _active, _win
     _active = False
-    sin.output.append("报文网关插件已停用")
+    _win = None
+    try:
+        sin.output.append("can-gateway deactivated")
+    except Exception:
+        pass

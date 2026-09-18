@@ -1,8 +1,8 @@
 {
     "name": "uds-security-audit",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "UDS 安全审计：SecurityAccess 种子采集与弱随机检测、会话时序审计、负响应统计与安全报告",
+    "description": "Deprecated: use UDS Suite. Former observational SecurityAccess audit; opens UDS Suite Security workspace.",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "udsSecurityAudit.open",
-                "title": "诊断: UDS 安全审计"
+                "title": "Diagnostic: UDS Security Audit"
             }
         ]
     }

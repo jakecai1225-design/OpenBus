@@ -1,186 +1,321 @@
 # -*- coding: utf-8 -*-
-"""dbc-merge 插件 — DBC 合并（canmatrix merge 风格）
-功能：
-- 多 DBC 依次合并（追加模式）
-- ID 冲突策略：跳过 / 重命名（前缀_原ID）/ 覆盖
-- 节点自动合并、冲突报告（哪些 ID 冲突、采用哪个）
-- 另存新 DBC（dbcparse 序列化，保留周期/注释/值表）
-- 纯离线工具
-依赖: pip install PyQt6
+"""dbc-merge — merge multiple DBC files with ID conflict policy.
+
+Policies: skip (keep first), rename (later name + keep later), prefer-A (keep first).
 """
 
-import time
+from __future__ import annotations
 
-import sin
-import dbcparse
+import copy
+import os
+import sys
+
+_PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
+_PLUGINS_ROOT = os.path.dirname(_PLUGIN_DIR)
+if _PLUGINS_ROOT not in sys.path:
+    sys.path.insert(0, _PLUGINS_ROOT)
+
+from _shared import dbcparse, dbc_picker, plugin_shell, state_store
+
+PLUGIN_ID = "dbc-merge"
+
+# Conflict policies (combo indices)
+POLICY_SKIP = 0
+POLICY_RENAME = 1
+POLICY_PREFER_A = 2
+
+_win = None
+
+
+def _clone_message(m):
+    return copy.deepcopy(m)
+
+
+def merge_dbc(
+    base: "dbcparse.DbcFile",
+    incoming: "dbcparse.DbcFile",
+    source_name: str,
+    policy: int,
+    conflicts: list,
+) -> None:
+    """Merge incoming into base; append conflict tuples (cid, kept, other, source, action)."""
+    for cid, m in incoming.messages.items():
+        msg = _clone_message(m)
+        if cid not in base.messages:
+            base.messages[cid] = msg
+            continue
+        existing = base.messages[cid]
+        if policy == POLICY_SKIP or policy == POLICY_PREFER_A:
+            action = "skip" if policy == POLICY_SKIP else "prefer-A"
+            conflicts.append((cid, existing.name, msg.name, source_name, action))
+            continue
+        # rename: keep later content, rename message with ID suffix
+        new_name = "%s_%X" % (msg.name[:40], cid)
+        conflicts.append((cid, new_name, existing.name, source_name, "rename"))
+        msg.name = new_name
+        base.messages[cid] = msg
+
+    for n in incoming.nodes:
+        if n not in base.nodes:
+            base.nodes.append(n)
 
 
 def activate(context):
+    global _win
+    import sin
+
     try:
         from PyQt6.QtWidgets import (
             QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
             QTreeWidget, QTreeWidgetItem, QFileDialog, QMessageBox,
-            QHeaderView, QComboBox
+            QHeaderView, QComboBox, QTextEdit, QListWidget,
         )
-        from PyQt6.QtGui import QColor
     except ImportError:
-        sin.output.append("DBC 合并插件需要 PyQt6: pip install PyQt6")
+        sin.output.append("dbc-merge requires PyQt6: pip install PyQt6")
         return
 
-    merged = dbcparse.DbcFile()
-    merged.version = "merged-by-sin"
-    conflicts = []       # (cid, kept, skipped_from)
-    loaded_files = []
+    win = sin.ui.create_window("DBC Merge")
+    win.resize(980, 660)
+    plugin_shell.attach_status_bar(win, "Ready — add DBC files to merge")
+    _win = win
 
-    win = sin.ui.create_window("DBC 合并工具")
-    win.resize(960, 620)
+    merged = dbcparse.DbcFile()
+    merged.version = "merged-by-openbus"
+    conflicts: list = []
+    loaded_files: list[str] = []
 
     central = QWidget()
     win.setCentralWidget(central)
     layout = QVBoxLayout(central)
 
     top = QHBoxLayout()
-    add_btn = QPushButton("添加 DBC…")
-    strategy_label = QLabel("冲突策略:")
+    add_btn = QPushButton("Add DBC…")
+    strategy_label = QLabel("Conflict policy:")
     strategy = QComboBox()
-    strategy.addItems(["跳过（保留先入）", "重命名（前缀 ID）", "覆盖（后来居上）"])
-    merge_state_label = QLabel("已合并: 0 个文件, 0 报文")
+    strategy.addItems([
+        "Skip (keep first)",
+        "Rename (suffix ID, keep later)",
+        "Prefer A (keep first)",
+    ])
+    state_label = QLabel("Merged: 0 files, 0 messages")
     top.addWidget(add_btn)
     top.addWidget(strategy_label)
     top.addWidget(strategy)
     top.addStretch(1)
-    top.addWidget(merge_state_label)
+    top.addWidget(state_label)
     layout.addLayout(top)
 
+    layout.addWidget(plugin_shell.help_label(
+        "Add DBC files in order (first file is A). On ID conflict: Skip / Prefer A "
+        "keep the first message; Rename keeps the later message under a name_ID. "
+        "Export a conflict CSV or save the merged DBC."))
+
+    mid = QHBoxLayout()
+    file_list = QListWidget()
+    file_list.setMaximumHeight(90)
+    mid.addWidget(file_list, 1)
+    layout.addLayout(mid)
+
     btns = QHBoxLayout()
-    save_btn = QPushButton("另存合并 DBC…")
-    export_conf_btn = QPushButton("导出冲突报告")
-    clear_btn = QPushButton("清零")
+    save_btn = QPushButton("Save merged DBC…")
+    export_conf_btn = QPushButton("Export conflict CSV")
+    clear_btn = QPushButton("Clear")
     btns.addStretch(1)
     btns.addWidget(save_btn)
     btns.addWidget(export_conf_btn)
     btns.addWidget(clear_btn)
     layout.addLayout(btns)
 
+    empty = plugin_shell.empty_state_label(
+        "No files merged yet.\nAdd one or more DBC files from the workspace or disk.")
+    layout.addWidget(empty)
+
     tree = QTreeWidget()
-    tree.setHeaderLabels(["ID", "名称", "DLC", "信号数", "周期", "来源"])
+    tree.setHeaderLabels(["ID", "Name", "DLC", "Signals", "Cycle", "Sender"])
     tree.setRootIsDecorated(False)
     tree.setAlternatingRowColors(True)
-    th = tree.header()
-    th.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    tree.hide()
     layout.addWidget(tree, 1)
 
-    conf_view = __import__("PyQt6.QtWidgets", fromlist=["QTextEdit"]).QTextEdit()
+    conf_view = QTextEdit()
     conf_view.setReadOnly(True)
-    layout.addWidget(conf_view, 1)
+    conf_view.setPlaceholderText("Conflict log")
+    conf_view.setMaximumHeight(140)
+    layout.addWidget(conf_view)
 
-    def _refresh():
-        tree.clear()
-        for cid, m in merged.messages.items():
-            tree.addTopLevelItem(QTreeWidgetItem([
-                "0x%X" % cid, m.name, str(m.dlc), str(len(m.signals)),
-                str(m.cycle_time), m.comment or ""]))
-        merge_state_label.setText("已合并: %d 个文件, %d 报文, %d 冲突"
-                                  % (len(loaded_files), len(merged.messages), len(conflicts)))
-
-    def _on_add():
-        path, _ = QFileDialog.getOpenFileName(win, "添加 DBC", "",
-                                              "DBC 文件 (*.dbc);;所有文件 (*)")
-        if not path:
-            return
-        db = dbcparse.parse_file(path)
-        if not db.messages:
-            QMessageBox.warning(win, "加载失败", "无报文定义: %s" % path)
-            return
-        loaded_files.append(path)
-        fname = path.split("\\")[-1]
-        mode = strategy.currentIndex()
-        for cid, m in db.messages.items():
-            if cid in merged.messages:
-                existing = merged.messages[cid]
-                if mode == 0:      # 跳过
-                    conflicts.append((cid, existing.name, m.name, fname))
-                    continue
-                elif mode == 1:    # 重命名：改名但保留（ID 相同会覆盖——用名称区分）
-                    m.name = "%s_%X" % (m.name[:20], cid)
-                    conflicts.append((cid, existing.name + " + " + m.name, "合并重命名", fname))
-                else:              # 覆盖
-                    conflicts.append((cid, m.name, existing.name, fname))
-            merged.messages[cid] = m
-        # 节点合并
-        for n in db.nodes:
-            if n not in merged.nodes:
-                merged.nodes.append(n)
-        _refresh()
-        _refresh_conf()
+    def _persist():
+        return state_store.save_state(PLUGIN_ID, {
+            "inputs": list(loaded_files),
+            "policy_index": strategy.currentIndex(),
+        })
 
     def _refresh_conf():
         if not conflicts:
-            conf_view.setPlainText("无冲突")
+            conf_view.setPlainText("No conflicts")
             return
         lines = []
-        for cid, kept, skipped, src in conflicts:
-            lines.append("ID 0x%X: 保留 %s（跳过 %s，来自 %s）" % (cid, kept, skipped, src))
+        for cid, kept, other, src, action in conflicts:
+            lines.append(
+                "ID 0x%X [%s]: kept %s | other %s | from %s"
+                % (cid, action, kept, other, src))
         conf_view.setPlainText("\n".join(lines))
+
+    def _refresh():
+        tree.clear()
+        file_list.clear()
+        for p in loaded_files:
+            file_list.addItem(p)
+        for cid, m in merged.messages.items():
+            tree.addTopLevelItem(QTreeWidgetItem([
+                "0x%X" % cid, m.name, str(m.dlc), str(len(m.signals)),
+                str(m.cycle_time), m.sender or ""]))
+        state_label.setText(
+            "Merged: %d files, %d messages, %d conflicts"
+            % (len(loaded_files), len(merged.messages), len(conflicts)))
+        if merged.messages:
+            empty.hide()
+            tree.show()
+        else:
+            tree.hide()
+            empty.show()
+        _refresh_conf()
+
+    def _reset_merge():
+        merged.messages.clear()
+        merged.nodes.clear()
+        conflicts.clear()
+
+    def _rebuild_from_files():
+        """Re-merge all loaded files with current policy (for restore)."""
+        _reset_merge()
+        policy = strategy.currentIndex()
+        for path in list(loaded_files):
+            try:
+                db = dbcparse.parse_file(path)
+            except OSError:
+                continue
+            if not db.messages:
+                continue
+            merge_dbc(merged, db, os.path.basename(path), policy, conflicts)
+
+    def _on_add():
+        path = dbc_picker.pick_dbc(win, "Add DBC to merge")
+        if not path:
+            return
+        if path in loaded_files:
+            QMessageBox.information(win, "DBC Merge", "Already in the list")
+            return
+        try:
+            db = dbcparse.parse_file(path)
+        except OSError as e:
+            QMessageBox.warning(win, "DBC Merge", str(e))
+            return
+        if not db.messages:
+            QMessageBox.warning(win, "DBC Merge", "No messages: %s" % path)
+            return
+        loaded_files.append(path)
+        merge_dbc(
+            merged, db, os.path.basename(path),
+            strategy.currentIndex(), conflicts)
+        _refresh()
+        _persist()
+        plugin_shell.set_status(
+            win, "Added %s (%d messages)" % (os.path.basename(path), len(db.messages)),
+            4000)
 
     def _on_save():
         if not merged.messages:
-            QMessageBox.information(win, "提示", "无合并内容")
+            QMessageBox.information(win, "DBC Merge", "Nothing to save")
             return
-        path, _ = QFileDialog.getSaveFileName(win, "另存合并 DBC", "merged.dbc",
-                                              "DBC 文件 (*.dbc)")
+        path, _ = QFileDialog.getSaveFileName(
+            win, "Save merged DBC", "merged.dbc", "DBC (*.dbc)")
         if not path:
             return
         try:
             text = dbcparse.serialize(merged)
             with open(path, "w", encoding="utf-8") as f:
                 f.write(text)
-            QMessageBox.information(win, "保存成功",
-                                    "已保存 %d 报文到:\n%s" % (len(merged.messages), path))
+            plugin_shell.set_status(
+                win, "Saved %d messages to %s" % (len(merged.messages), path), 5000)
         except OSError as e:
-            QMessageBox.warning(win, "保存失败", str(e))
+            QMessageBox.warning(win, "DBC Merge", str(e))
 
     def _on_export_conf():
         if not conflicts:
-            QMessageBox.information(win, "提示", "无冲突")
+            QMessageBox.information(win, "DBC Merge", "No conflicts to export")
             return
-        path, _ = QFileDialog.getSaveFileName(win, "导出冲突报告", "merge_conflicts.csv",
-                                              "CSV (*.csv)")
-        if not path:
-            return
-        try:
-            with open(path, "w", encoding="utf-8-sig") as f:
-                f.write("ID,保留,跳过,来源文件\n")
-                for cid, kept, skipped, src in conflicts:
-                    f.write("0x%X,%s,%s,%s\n" % (cid, kept, skipped, src))
-            QMessageBox.information(win, "导出成功", "已导出 %d 条冲突" % len(conflicts))
-        except OSError as e:
-            QMessageBox.warning(win, "导出失败", str(e))
+        path = plugin_shell.export_csv(
+            win,
+            ["id", "kept", "other", "source", "action"],
+            [
+                ["0x%X" % cid, kept, other, src, action]
+                for cid, kept, other, src, action in conflicts
+            ],
+            "merge_conflicts.csv",
+        )
+        if path:
+            plugin_shell.set_status(win, "Exported %s" % path, 4000)
 
     def _on_clear():
-        merged.messages.clear()
-        merged.nodes.clear()
-        del conflicts[:]
-        del loaded_files[:]
-        tree.clear()
-        conf_view.clear()
+        loaded_files.clear()
+        _reset_merge()
         _refresh()
+        _persist()
+        plugin_shell.set_status(win, "Cleared", 2000)
 
-    def _on_open_cmd():
-        win.show()
-        win.raise_()
-        win.activateWindow()
-
-    context.register_command("dbcMerge.open", _on_open_cmd, "数据库: DBC 合并")
+    def _on_policy_changed(_i: int):
+        if not loaded_files:
+            _persist()
+            return
+        _rebuild_from_files()
+        _refresh()
+        _persist()
+        plugin_shell.set_status(win, "Re-merged with new policy", 3000)
 
     add_btn.clicked.connect(_on_add)
     save_btn.clicked.connect(_on_save)
     export_conf_btn.clicked.connect(_on_export_conf)
     clear_btn.clicked.connect(_on_clear)
+    strategy.currentIndexChanged.connect(_on_policy_changed)
+    plugin_shell.bind_shortcut(win, "Ctrl+O", _on_add)
+    plugin_shell.bind_shortcut(win, "Ctrl+S", _on_save)
+
+    context.register_command(
+        "dbcMerge.open", plugin_shell.bind_raise(win), "Database: DBC Merge")
+
+    saved = state_store.load_state(PLUGIN_ID, default={}) or {}
+    if isinstance(saved.get("policy_index"), int):
+        strategy.blockSignals(True)
+        strategy.setCurrentIndex(max(0, min(2, saved["policy_index"])))
+        strategy.blockSignals(False)
+    inputs = saved.get("inputs") or []
+    if isinstance(inputs, list):
+        for p in inputs:
+            if not p or not os.path.isfile(p) or p in loaded_files:
+                continue
+            try:
+                db = dbcparse.parse_file(p)
+            except OSError:
+                continue
+            if not db.messages:
+                continue
+            loaded_files.append(p)
+            merge_dbc(
+                merged, db, os.path.basename(p),
+                strategy.currentIndex(), conflicts)
+        if loaded_files:
+            _refresh()
 
     win.show()
-    sin.output.append("DBC 合并插件已加载（多库合并 + 冲突策略，离线工具）")
+    sin.output.append("dbc-merge loaded (multi-DBC + conflict policy + CSV)")
 
 
 def deactivate():
-    sin.output.append("DBC 合并插件已停用")
+    global _win
+    _win = None
+    try:
+        import sin
+        sin.output.append("dbc-merge deactivated")
+    except Exception:
+        pass

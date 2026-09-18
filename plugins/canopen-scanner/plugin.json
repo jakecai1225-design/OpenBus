@@ -1,8 +1,8 @@
 {
     "name": "canopen-scanner",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "CANopen 节点扫描器：1-127 节点 Identity 探测（SDO 0x1018）、心跳发现、节点清单导出",
+    "description": "CANopen node scanner: Identity probe via SDO 0x1018, heartbeat discovery, node list CSV export",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "canopenScanner.open",
-                "title": "协议: CANopen 扫描"
+                "title": "Protocol: CANopen Scan"
             }
         ]
     }

@@ -190,6 +190,10 @@ set(SRC_UI
     ui/activitybar.cpp
     ui/bottompanel.h
     ui/bottompanel.cpp
+    ui/terminal/terminalsession.h
+    ui/terminal/terminalsession.cpp
+    ui/terminal/terminalworkspace.h
+    ui/terminal/terminalworkspace.cpp
     ui/rightpanel.h
     ui/rightpanel.cpp
     ui/panels/sidebarpanels.h

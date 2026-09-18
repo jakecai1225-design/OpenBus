@@ -1,8 +1,8 @@
 {
     "name": "can-quality-report",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "CAN 总线体检报告：负载曲线、Top Talker、周期稳定性、DBC 覆盖率、空闲率，一键 HTML/CSV 报告",
+    "description": "CAN bus quality report: load curve, Top Talker, period stability, DBC coverage, idle rate; HTML/CSV export",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "canQualityReport.open",
-                "title": "分析: 总线体检"
+                "title": "Tools: Quality Report"
             }
         ]
     }

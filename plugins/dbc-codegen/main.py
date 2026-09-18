@@ -1,289 +1,464 @@
 # -*- coding: utf-8 -*-
-"""dbc-codegen 插件 — DBC → C 代码生成（cantools generate 风格）
-功能：
-- DBC → C 头文件 + 源文件
-- 每报文生成 pack_<msg>() / unpack_<msg>() 函数
-- Intel / Motorola 双字节序、signed / factor / offset 处理
-- 值表宏（#define <MSG>_<SIG>_<VAL>）
-- 命名风格选项（snake_case 保持原名 / 全大写）
-- 纯离线工具
-依赖: pip install PyQt6
+"""dbc-codegen — DBC → C pack/unpack (cantools-style).
+
+Offline tool: Intel/Motorola, signed, factor/offset, value-table macros.
 """
 
+from __future__ import annotations
+
+import os
 import re
+import sys
 import time
 
-import sin
-import dbcparse
+_PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
+_PLUGINS_ROOT = os.path.dirname(_PLUGIN_DIR)
+if _PLUGINS_ROOT not in sys.path:
+    sys.path.insert(0, _PLUGINS_ROOT)
+
+from _shared import dbcparse, dbc_picker, plugin_shell, state_store
+
+PLUGIN_ID = "dbc-codegen"
+
+_win = None
 
 
-def _safe_name(name, style):
+def _safe_name(name: str, style: str) -> str:
     s = re.sub(r"[^0-9a-zA-Z_]", "_", name)
+    if s and s[0].isdigit():
+        s = "_" + s
     if style == "upper":
         return s.upper()
     return s
 
 
-def _extract_fn(sig, body_var):
-    """生成 raw 提取表达式（简化：按字节拼接）"""
-    if sig.little_endian:
-        # Intel：start_bit 是 LSB 的 DBC 位号
-        lines = []
-        n_bytes = (sig.bit_length + 7) // 8
-        start_byte = sig.start_bit // 8
-        start_off = sig.start_bit % 8
-        expr_parts = []
-        for i in range(n_bytes):
-            byte_i = start_byte + i
-            if i == 0 and start_off:
-                expr_parts.append("((uint64_t)(%s[%d] >> %d) & 0x%02XULL)"
-                                  % (body_var, byte_i, start_off,
-                                     min(0xFF, (0xFF >> start_off)) if sig.bit_length - i * 8 >= 8 - start_off else ((1 << min(8, sig.bit_length)) - 1) & 0xFF))
-            else:
-                expr_parts.append("((uint64_t)%s[%d] << %d)" % (body_var, byte_i, i * 8 - (start_off if i else 0)))
-        return " | ".join(expr_parts) if expr_parts else "0"
+def _c_int_type(bit_length: int, is_signed: bool) -> str:
+    if bit_length <= 8:
+        width = 8
+    elif bit_length <= 16:
+        width = 16
+    elif bit_length <= 32:
+        width = 32
     else:
-        # Motorola：start_bit 是 MSB 的位号
-        return "/* motorola */ 0"
+        width = 64
+    return ("int%d_t" if is_signed else "uint%d_t") % width
 
 
-def generate_c(db, style="keep"):
-    """生成 (header_text, source_text)"""
+def _field_type(sig) -> str:
+    if sig.factor != 1.0 or sig.offset != 0.0:
+        return "double"
+    return _c_int_type(min(sig.bit_length, 64), sig.is_signed)
+
+
+def _emit_extract_raw(lines: list[str], sig, indent: str = "    ") -> None:
+    """Append C that loads uint64_t raw from buf (mirrors dbcparse extract_*)."""
+    lines.append("%suint64_t raw = 0;" % indent)
+    if sig.little_endian:
+        lines.append("%s{" % indent)
+        lines.append("%s    unsigned i;" % indent)
+        lines.append("%s    for (i = 0; i < %du; ++i) {" % (indent, sig.bit_length))
+        lines.append("%s        unsigned bit = %du + i;" % (indent, sig.start_bit))
+        lines.append("%s        if ((buf[bit >> 3] >> (7 - (bit & 7))) & 1u)" % indent)
+        lines.append("%s            raw |= (uint64_t)1 << i;" % indent)
+        lines.append("%s    }" % indent)
+        lines.append("%s}" % indent)
+    else:
+        lines.append("%s{" % indent)
+        lines.append("%s    unsigned byte = %du;" % (indent, sig.start_bit >> 3))
+        lines.append("%s    unsigned bit = %du;" % (indent, sig.start_bit & 7))
+        lines.append("%s    unsigned i;" % indent)
+        lines.append("%s    for (i = 0; i < %du; ++i) {" % (indent, sig.bit_length))
+        lines.append("%s        raw <<= 1;" % indent)
+        lines.append("%s        if ((buf[byte] >> (7 - bit)) & 1u) raw |= 1u;" % indent)
+        lines.append("%s        if (++bit == 8u) { bit = 0; ++byte; }" % indent)
+        lines.append("%s    }" % indent)
+        lines.append("%s}" % indent)
+    if sig.is_signed and 0 < sig.bit_length < 64:
+        lines.append(
+            "%sif (raw & (1ULL << %d)) raw |= ~((1ULL << %d) - 1ULL);"
+            % (indent, sig.bit_length - 1, sig.bit_length)
+        )
+
+
+def _emit_insert_raw(lines: list[str], sig, raw_expr: str, indent: str = "    ") -> None:
+    """Append C that writes raw_expr into buf (mirrors dbcparse insert_*)."""
+    if sig.little_endian:
+        lines.append("%s{" % indent)
+        lines.append("%s    unsigned i;" % indent)
+        lines.append("%s    for (i = 0; i < %du; ++i) {" % (indent, sig.bit_length))
+        lines.append("%s        if ((%s >> i) & 1u) {" % (indent, raw_expr))
+        lines.append("%s            unsigned bit = %du + i;" % (indent, sig.start_bit))
+        lines.append(
+            "%s            buf[bit >> 3] |= (uint8_t)(1u << (7 - (bit & 7)));" % indent
+        )
+        lines.append("%s        }" % indent)
+        lines.append("%s    }" % indent)
+        lines.append("%s}" % indent)
+    else:
+        lines.append("%s{" % indent)
+        lines.append("%s    unsigned byte = %du;" % (indent, sig.start_bit >> 3))
+        lines.append("%s    unsigned bit = %du;" % (indent, sig.start_bit & 7))
+        lines.append("%s    int i;" % indent)
+        lines.append(
+            "%s    for (i = %d; i >= 0; --i) {" % (indent, sig.bit_length - 1)
+        )
+        lines.append("%s        if ((%s >> i) & 1u)" % (indent, raw_expr))
+        lines.append(
+            "%s            buf[byte] |= (uint8_t)(1u << (7 - bit));" % indent
+        )
+        lines.append("%s        if (++bit == 8u) { bit = 0; ++byte; }" % indent)
+        lines.append("%s    }" % indent)
+        lines.append("%s}" % indent)
+
+
+def generate_c(db, style: str = "keep") -> tuple[str, str]:
+    """Return (header_text, source_text)."""
     guard = "DBC_GEN_H"
-    h = ["/* Auto-generated by sin dbc-codegen from DBC: %s */" % (db.path or ""),
-         "/* Time: %s */" % time.strftime("%Y-%m-%d %H:%M:%S"),
-         "#ifndef %s" % guard, "#define %s" % guard, "",
-         "#include <stdint.h>", "#include <stddef.h>", ""]
-    c = ["/* Auto-generated by sin dbc-codegen */",
-         '#include "dbc_gen.h"', ""]
+    src_name = os.path.basename(db.path or "dbc")
+    h = [
+        "/* Auto-generated by openbus dbc-codegen from: %s */" % src_name,
+        "/* Time: %s */" % time.strftime("%Y-%m-%d %H:%M:%S"),
+        "#ifndef %s" % guard,
+        "#define %s" % guard,
+        "",
+        "#include <stddef.h>",
+        "#include <stdint.h>",
+        "",
+    ]
+    c = [
+        "/* Auto-generated by openbus dbc-codegen */",
+        '#include "dbc_gen.h"',
+        "#include <string.h>",
+        "",
+    ]
 
     msg_defs = []
     for cid, m in db.messages.items():
         msg_name = _safe_name(m.name, style)
         struct_name = "%s_t" % msg_name
-        # 结构体
-        h.append("/* %s (0x%X, DLC %d, sender %s, cycle %dms) */" % (
-            m.name, cid, m.dlc, m.sender, m.cycle_time))
+        h.append(
+            "/* %s (0x%X, DLC %d, sender %s, cycle %dms) */"
+            % (m.name, cid, m.dlc, m.sender, m.cycle_time)
+        )
         if m.comment:
-            h.append("/* %s */" % m.comment)
+            h.append("/* %s */" % m.comment.replace("*/", "* /"))
         h.append("typedef struct {")
         for s in m.signals:
-            t = ("int%d_t" % s.bit_length) if s.is_signed else ("uint%d_t" % s.bit_length)
-            if s.bit_length > 64:
-                t = "uint64_t"
-            comment = " /* %s, %g+%g, %s */" % (s.name, s.factor, s.offset, s.unit) if s.unit or s.factor != 1 else ""
-            h.append("    %s %s;%s" % (t, _safe_name(s.name, style), comment))
+            ft = _field_type(s)
+            comment = " /* %s %g+%g %s %s */" % (
+                s.name,
+                s.factor,
+                s.offset,
+                s.unit or "",
+                "intel" if s.little_endian else "motorola",
+            )
+            h.append("    %s %s;%s" % (ft, _safe_name(s.name, style), comment))
         h.append("} %s;" % struct_name)
+        h.append("")
+
+        for s in m.signals:
+            if not s.value_table:
+                continue
+            for val, desc in sorted(s.value_table.items()):
+                h.append(
+                    "#define %s_%s_%d %d  /* %s */"
+                    % (
+                        msg_name.upper(),
+                        _safe_name(s.name, "upper"),
+                        val,
+                        val,
+                        str(desc).replace("*/", "* /"),
+                    )
+                )
         h.append("")
         msg_defs.append((m, msg_name, struct_name, cid))
 
-        # 值表宏
-        for s in m.signals:
-            if s.value_table:
-                for val, desc in sorted(s.value_table.items()):
-                    h.append("#define %s_%s_%d %d  /* %s */" % (
-                        msg_name.upper(), _safe_name(s.name, "upper"), val, val, desc))
+    for m, msg_name, struct_name, cid in msg_defs:
+        dlc = max(int(m.dlc), 1)
+        h.append(
+            "size_t pack_%s(const %s *s, uint8_t *buf, size_t len);"
+            % (msg_name, struct_name)
+        )
+        h.append(
+            "int unpack_%s(const uint8_t *buf, size_t len, %s *s);"
+            % (msg_name, struct_name)
+        )
         h.append("")
 
-    # pack/unpack 原型与实现
-    for m, msg_name, struct_name, cid in msg_defs:
-        h.append("size_t pack_%s(const %s *s, uint8_t *buf, size_t len);" % (msg_name, struct_name))
-        h.append("int unpack_%s(const uint8_t *buf, size_t len, %s *s);" % (msg_name, struct_name))
-
-        # pack 实现
-        c.append("size_t pack_%s(const %s *s, uint8_t *buf, size_t len)" % (msg_name, struct_name))
+        c.append(
+            "size_t pack_%s(const %s *s, uint8_t *buf, size_t len)"
+            % (msg_name, struct_name)
+        )
         c.append("{")
-        c.append("    if (len < %d) return 0;" % max(m.dlc, 8))
-        c.append("    memset(buf, 0, %d);" % max(m.dlc, 8))
+        c.append("    if (!s || !buf || len < %du) return 0;" % dlc)
+        c.append("    memset(buf, 0, %du);" % dlc)
         for s in m.signals:
             sn = _safe_name(s.name, style)
-            raw_field = "s->%s" % sn
-            # factor/offset 逆转：raw = (phys - offset) / factor
+            c.append(
+                "    /* %s: start %d len %d %s */"
+                % (
+                    s.name,
+                    s.start_bit,
+                    s.bit_length,
+                    "intel" if s.little_endian else "motorola",
+                )
+            )
             if s.factor != 1.0 or s.offset != 0.0:
-                c.append("    { int64_t raw = (int64_t)((%s - (%g)) / %g);"
-                         % (raw_field, s.offset, s.factor))
-                raw_field = "raw"
-            c.append("    /* %s: start %d, len %d, %s */" % (
-                s.name, s.start_bit, s.bit_length,
-                "intel" if s.little_endian else "motorola"))
-            if s.little_endian:
-                for bi in range((s.bit_length + 7) // 8):
-                    shift = bi * 8
-                    mask = 0xFF if s.bit_length - shift >= 8 else ((1 << (s.bit_length - shift)) - 1)
-                    byte_index = (s.start_bit + shift) // 8
-                    c.append("    buf[%d] |= (uint8_t)((%s >> %d) & 0x%02X);"
-                             % (byte_index, raw_field, shift, mask))
-            else:
-                # Motorola（简化线性填充）
-                byte = s.start_bit // 8
-                bit = s.start_bit % 8
-                for i in range(s.bit_length - 1, -1, -1):
-                    if (raw_field, i) == (raw_field, 0) and s.bit_length == 1:
-                        c.append("    if (%s) buf[%d] |= 0x%02X;" % (raw_field, byte, 1 << (7 - bit)))
-                    else:
-                        c.append("    if ((%s >> %d) & 1) buf[%d] |= 0x%02X;"
-                                 % (raw_field, i, byte, 1 << (7 - bit)))
-                    bit += 1
-                    if bit == 8:
-                        bit = 0
-                        byte += 1
-            if s.factor != 1.0 or s.offset != 0.0:
+                c.append("    {")
+                c.append(
+                    "        int64_t raw = (int64_t)((s->%s - (%g)) / (%g));"
+                    % (sn, s.offset, s.factor if s.factor else 1.0)
+                )
+                _emit_insert_raw(c, s, "raw", "        ")
                 c.append("    }")
-        c.append("    return %d;" % max(m.dlc, 8))
+            else:
+                c.append("    {")
+                c.append("        uint64_t raw = (uint64_t)s->%s;" % sn)
+                _emit_insert_raw(c, s, "raw", "        ")
+                c.append("    }")
+        c.append("    return %du;" % dlc)
         c.append("}")
         c.append("")
 
-        # unpack 实现
-        c.append("int unpack_%s(const uint8_t *buf, size_t len, %s *s)" % (msg_name, struct_name))
+        c.append(
+            "int unpack_%s(const uint8_t *buf, size_t len, %s *s)"
+            % (msg_name, struct_name)
+        )
         c.append("{")
-        c.append("    if (len < %d) return -1;" % max(m.dlc, 8))
+        c.append("    if (!s || !buf || len < %du) return -1;" % dlc)
         for s in m.signals:
             sn = _safe_name(s.name, style)
-            c.append("    { uint64_t raw = 0;")
-            if s.little_endian:
-                for bi in range((s.bit_length + 7) // 8):
-                    byte_index = (s.start_bit + bi * 8) // 8
-                    c.append("    raw |= ((uint64_t)buf[%d]) << %d;" % (byte_index, bi * 8))
-            else:
-                byte = s.start_bit // 8
-                bit = s.start_bit % 8
-                c.append("    /* motorola */")
-                for i in range(s.bit_length):
-                    c.append("    raw = (raw << 1) | ((buf[%d] >> %d) & 1);" % (byte, 7 - bit))
-                    bit += 1
-                    if bit == 8:
-                        bit = 0
-                        byte += 1
-            # 符号扩展
-            if s.is_signed and s.bit_length < 64:
-                c.append("    if (raw & (1ULL << %d)) raw |= ~((1ULL << %d) - 1);"
-                         % (s.bit_length - 1, s.bit_length))
+            ft = _field_type(s)
+            c.append("    {")
+            _emit_extract_raw(c, s, "        ")
             if s.factor != 1.0 or s.offset != 0.0:
-                c.append("    s->%s = (%s)((double)raw * %g + %g);" % (sn, "int64_t" if s.is_signed else "uint64_t", s.factor, s.offset))
+                c.append(
+                    "        s->%s = (%s)((double)(int64_t)raw * %g + %g);"
+                    % (sn, ft, s.factor, s.offset)
+                )
             else:
-                c.append("    s->%s = (%s)raw;" % (sn, "int64_t" if s.is_signed else "uint64_t"))
+                c.append("        s->%s = (%s)raw;" % (sn, ft))
             c.append("    }")
         c.append("    return 0;")
         c.append("}")
         c.append("")
 
-    h.append("")
     h.append("#endif /* %s */" % guard)
-    return "\n".join(h), "\n".join(c)
+    return "\n".join(h) + "\n", "\n".join(c) + "\n"
 
 
 def activate(context):
+    global _win
+    import sin
+
     try:
         from PyQt6.QtWidgets import (
             QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
             QTreeWidget, QTreeWidgetItem, QFileDialog, QMessageBox,
-            QHeaderView, QComboBox
+            QHeaderView, QComboBox, QLineEdit, QTextEdit,
         )
     except ImportError:
-        sin.output.append("DBC 代码生成插件需要 PyQt6: pip install PyQt6")
+        sin.output.append("dbc-codegen requires PyQt6: pip install PyQt6")
         return
 
-    db = {"file": None}
-    generated = {"h": "", "c": ""}
+    win = sin.ui.create_window("DBC C Codegen")
+    win.resize(960, 640)
+    plugin_shell.attach_status_bar(win, "Ready — pick a DBC")
+    _win = win
 
-    win = sin.ui.create_window("DBC C 代码生成器")
-    win.resize(940, 600)
+    store = {
+        "db": None,
+        "path": "",
+        "out_dir": "",
+        "h": "",
+        "c": "",
+    }
 
     central = QWidget()
     win.setCentralWidget(central)
     layout = QVBoxLayout(central)
 
     top = QHBoxLayout()
-    load_btn = QPushButton("加载 DBC…")
-    style_label = QLabel("命名风格:")
+    load_btn = QPushButton("Load DBC…")
+    style_label = QLabel("Naming:")
     style_combo = QComboBox()
-    style_combo.addItems(["保持原名 (snake_case)", "全大写 (UPPER_CASE)"])
-    gen_btn = QPushButton("生成代码")
-    save_btn = QPushButton("保存 .h/.c…")
-    top.addWidget(load_btn)
-    top.addWidget(style_label)
-    top.addWidget(style_combo)
-    top.addWidget(gen_btn)
+    style_combo.addItems(["Keep (snake_case)", "UPPER_CASE"])
+    gen_btn = QPushButton("Generate")
+    save_btn = QPushButton("Write .h/.c…")
+    for w in (load_btn, style_label, style_combo, gen_btn):
+        top.addWidget(w)
     top.addStretch(1)
     top.addWidget(save_btn)
     layout.addLayout(top)
 
-    label = QLabel("未加载")
-    label.setStyleSheet("color:#888;")
+    out_row = QHBoxLayout()
+    out_row.addWidget(QLabel("Output dir:"))
+    out_edit = QLineEdit()
+    out_edit.setPlaceholderText("Directory for dbc_gen.h / dbc_gen.c")
+    browse_btn = QPushButton("Browse…")
+    out_row.addWidget(out_edit, 1)
+    out_row.addWidget(browse_btn)
+    layout.addLayout(out_row)
+
+    layout.addWidget(plugin_shell.help_label(
+        "Generates pack_<msg> / unpack_<msg> with Intel/Motorola bit layout, "
+        "signed extension, factor/offset, and VAL_ macros. "
+        "Ctrl+S saves settings (DBC path, style, output dir)."))
+
+    label = QLabel("No DBC loaded")
+    label.setStyleSheet("color:#78909c;")
     layout.addWidget(label)
 
+    empty = plugin_shell.empty_state_label(
+        "Load a workspace or local DBC, then Generate.\n"
+        "Preview shows the header; Write saves dbc_gen.h and dbc_gen.c.")
+    layout.addWidget(empty)
+
     tree = QTreeWidget()
-    tree.setHeaderLabels(["报文", "ID", "信号数", "将生成函数"])
+    tree.setHeaderLabels(["Message", "ID", "Signals", "Functions"])
     tree.setAlternatingRowColors(True)
-    th = tree.header()
-    th.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    tree.hide()
     layout.addWidget(tree, 1)
 
-    preview = __import__("PyQt6.QtWidgets", fromlist=["QTextEdit"]).QTextEdit()
+    preview = QTextEdit()
     preview.setReadOnly(True)
+    preview.hide()
     layout.addWidget(preview, 1)
 
-    def _on_load():
-        path, _ = QFileDialog.getOpenFileName(win, "加载 DBC", "", "DBC 文件 (*.dbc)")
-        if not path:
-            return
-        d = dbcparse.parse_file(path)
-        if not d.messages:
-            QMessageBox.warning(win, "加载失败", "无报文定义")
-            return
-        db["file"] = d
-        label.setText("已加载 %s（%d 报文）" % (path.split("\\")[-1], len(d.messages)))
-        label.setStyleSheet("color:#2e7d32;")
+    def _persist():
+        return state_store.save_state(PLUGIN_ID, {
+            "path": store["path"],
+            "out_dir": out_edit.text().strip(),
+            "style_index": style_combo.currentIndex(),
+        })
+
+    def _on_save_settings():
+        store["out_dir"] = out_edit.text().strip()
+        path = _persist()
+        plugin_shell.set_status(win, "Settings saved (%s)" % path, 4000)
+
+    def _on_browse_out():
+        d = QFileDialog.getExistingDirectory(
+            win, "Output directory", out_edit.text().strip() or "")
+        if d:
+            out_edit.setText(d)
+            store["out_dir"] = d
+            _persist()
+
+    def _fill_tree(db):
         tree.clear()
-        for cid, m in d.messages.items():
+        for cid, m in db.messages.items():
+            sn = _safe_name(m.name, "keep")
             tree.addTopLevelItem(QTreeWidgetItem([
                 m.name, "0x%X" % cid, str(len(m.signals)),
-                "pack_%s / unpack_%s" % (m.name, m.name)]))
+                "pack_%s / unpack_%s" % (sn, sn)]))
 
-    def _on_gen():
-        if not db["file"]:
-            QMessageBox.information(win, "提示", "请先加载 DBC")
-            return
-        style = "upper" if style_combo.currentIndex() == 1 else "keep"
-        h, c = generate_c(db["file"], style)
-        generated["h"], generated["c"] = h, c
-        preview.setPlainText(h[:4000] + ("\n... (见保存文件)" if len(h) > 4000 else ""))
-        QMessageBox.information(win, "生成完成",
-                                "已生成 %d 字节头文件 + %d 字节源文件"
-                                % (len(h), len(c)))
-
-    def _on_save():
-        if not generated["h"]:
-            QMessageBox.information(win, "提示", "请先生成代码")
-            return
-        path, _ = QFileDialog.getSaveFileName(win, "保存头文件", "dbc_gen.h",
-                                              "C 头文件 (*.h)")
+    def _on_load():
+        path = dbc_picker.pick_dbc(win, "Select DBC for codegen")
         if not path:
             return
+        db = dbcparse.parse_file(path)
+        if not db.messages:
+            QMessageBox.warning(win, "DBC Codegen", "No messages in file")
+            return
+        store["db"] = db
+        store["path"] = path
+        store["h"] = store["c"] = ""
+        preview.clear()
+        preview.hide()
+        label.setText("%s (%d messages)" % (os.path.basename(path), len(db.messages)))
+        label.setStyleSheet("color:#2e7d32;")
+        empty.hide()
+        tree.show()
+        _fill_tree(db)
+        _persist()
+        plugin_shell.set_status(win, "Loaded %s" % os.path.basename(path), 3000)
+
+    def _on_gen():
+        if not store["db"]:
+            QMessageBox.information(win, "DBC Codegen", "Load a DBC first")
+            return
+        style = "upper" if style_combo.currentIndex() == 1 else "keep"
+        h, c = generate_c(store["db"], style)
+        store["h"], store["c"] = h, c
+        preview.setPlainText(h if len(h) < 12000 else h[:12000] + "\n…")
+        preview.show()
+        plugin_shell.set_status(
+            win, "Generated %d + %d bytes (header + source)" % (len(h), len(c)), 5000)
+
+    def _on_write():
+        if not store["h"]:
+            QMessageBox.information(win, "DBC Codegen", "Generate first")
+            return
+        out_dir = out_edit.text().strip()
+        if out_dir and os.path.isdir(out_dir):
+            h_path = os.path.join(out_dir, "dbc_gen.h")
+            c_path = os.path.join(out_dir, "dbc_gen.c")
+        else:
+            h_path, _ = QFileDialog.getSaveFileName(
+                win, "Save header",
+                os.path.join(out_dir or "", "dbc_gen.h"),
+                "C header (*.h)")
+            if not h_path:
+                return
+            c_path = os.path.splitext(h_path)[0] + ".c"
+            out_edit.setText(os.path.dirname(h_path))
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(generated["h"])
-            c_path = path.rsplit(".", 1)[0] + ".c"
+            with open(h_path, "w", encoding="utf-8") as f:
+                f.write(store["h"])
             with open(c_path, "w", encoding="utf-8") as f:
-                f.write(generated["c"])
-            QMessageBox.information(win, "保存成功", "已保存:\n%s\n%s" % (path, c_path))
+                f.write(store["c"])
+            store["out_dir"] = os.path.dirname(h_path)
+            _persist()
+            plugin_shell.set_status(win, "Wrote %s and %s" % (h_path, c_path), 5000)
+            QMessageBox.information(
+                win, "DBC Codegen", "Saved:\n%s\n%s" % (h_path, c_path))
         except OSError as e:
-            QMessageBox.warning(win, "保存失败", str(e))
-
-    def _on_open_cmd():
-        win.show()
-        win.raise_()
-        win.activateWindow()
-
-    context.register_command("dbcCodegen.open", _on_open_cmd, "数据库: DBC 代码生成")
+            QMessageBox.warning(win, "DBC Codegen", str(e))
 
     load_btn.clicked.connect(_on_load)
     gen_btn.clicked.connect(_on_gen)
-    save_btn.clicked.connect(_on_save)
+    save_btn.clicked.connect(_on_write)
+    browse_btn.clicked.connect(_on_browse_out)
+    plugin_shell.bind_shortcut(win, "Ctrl+O", _on_load)
+    plugin_shell.bind_shortcut(win, "Ctrl+S", _on_save_settings)
+    plugin_shell.bind_shortcut(win, "Ctrl+Return", _on_gen)
+
+    context.register_command(
+        "dbcCodegen.open", plugin_shell.bind_raise(win), "Database: Codegen")
+
+    saved = state_store.load_state(PLUGIN_ID, default={}) or {}
+    if isinstance(saved.get("style_index"), int):
+        style_combo.setCurrentIndex(max(0, min(1, saved["style_index"])))
+    out_dir = saved.get("out_dir") or ""
+    if out_dir:
+        out_edit.setText(out_dir)
+        store["out_dir"] = out_dir
+    p = saved.get("path") or ""
+    if p and os.path.isfile(p):
+        try:
+            db = dbcparse.parse_file(p)
+        except OSError:
+            db = None
+        if db and db.messages:
+            store["db"] = db
+            store["path"] = p
+            label.setText("%s (%d messages)" % (os.path.basename(p), len(db.messages)))
+            label.setStyleSheet("color:#2e7d32;")
+            empty.hide()
+            tree.show()
+            _fill_tree(db)
 
     win.show()
-    sin.output.append("DBC 代码生成插件已加载（pack/unpack C 代码，离线工具）")
+    sin.output.append("dbc-codegen loaded (C pack/unpack + workspace DBC)")
 
 
 def deactivate():
-    sin.output.append("DBC 代码生成插件已停用")
+    global _win
+    _win = None
+    try:
+        import sin
+        sin.output.append("dbc-codegen deactivated")
+    except Exception:
+        pass

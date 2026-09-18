@@ -1,8 +1,8 @@
 {
     "name": "log-toolkit",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "CAN 日志工具箱：ASC/CSV 日志裁剪、ID 过滤、多文件合并、按帧数/时长拆分、脱敏掩码",
+    "description": "CAN log toolkit: ASC/CSV trim, ID filter, merge, split by count/duration, redact; offline",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "logToolkit.open",
-                "title": "工具: 日志工具箱"
+                "title": "Tools: Log Toolkit"
             }
         ]
     }

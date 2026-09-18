@@ -1,26 +1,35 @@
 # -*- coding: utf-8 -*-
-"""log-toolkit 插件 — CAN 日志工具箱（TSMaster 日志工具风格）
-功能：
-- ASC / CSV 日志读取（自动识别格式）
-- 按时间裁剪（起止秒）、按 ID 过滤（白名单/黑名单）
-- 多文件合并（时间轴重排）、大文件拆分（按帧数/时长）
-- 脱敏（ID 掩码 / 载荷字节置零）
-- 处理进度条 + 结果统计；ASC/CSV 双格式输出
-- 纯离线工具
-依赖: pip install PyQt6
+"""log-toolkit — ASC/CSV log trim, filter, merge, split, redact.
+
+Offline tool. ASC/CSV readers kept local (host canfileio is C++; no Python
+binding). Last paths and options persist via state_store.
 """
 
+from __future__ import annotations
+
 import csv
+import os
 import re
 import time
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QLineEdit, QFileDialog, QMessageBox, QFormLayout,
+    QCheckBox, QSpinBox, QTabWidget, QComboBox, QProgressBar,
+)
 
 import sin
+from _shared import plugin_shell, state_store
 
-# ASC 行: 0.123456 1  123 Rx   d 8 01 02 ...
+PLUGIN_ID = "log-toolkit"
+
+# Vector-ish ASC: 0.123456 1  123 Rx   d 8 01 02 ...
 _ASC_RE = re.compile(
-    r'^\s*([\d.]+)\s+(\d+)\s+([0-9A-Fa-f]+)\s+(Rx|Tx)\s+d\s+(\d+)\s*(.*)$')
+    r"^\s*([\d.]+)\s+(\d+)\s+([0-9A-Fa-fxX]+)\s+(Rx|Tx)\s+d\s+(\d+)\s*(.*)$",
+    re.IGNORECASE,
+)
+
+_win = None
 
 
 def read_asc(path):
@@ -33,23 +42,33 @@ def read_asc(path):
                 if m:
                     ts = float(m.group(1))
                     ch = int(m.group(2))
-                    cid = int(m.group(3), 16)
-                    direction = m.group(4)
+                    id_s = m.group(3).rstrip("xX")
+                    cid = int(id_s, 16)
+                    direction = m.group(4).upper()
                     dlc = int(m.group(5))
                     data_hex = m.group(6).strip()
-                    data = bytes.fromhex(data_hex[:dlc * 3].replace(" ", "")) if data_hex else b""
+                    data = b""
+                    if data_hex:
+                        try:
+                            data = bytes.fromhex(
+                                data_hex.replace(" ", "")[: dlc * 2])
+                        except ValueError:
+                            warnings += 1
+                            continue
                     frames.append((ts, ch, cid, direction, dlc, data))
-                elif line.strip() and not line.startswith(("date", "base", "no", "//")):
+                elif line.strip() and not line.lower().startswith(
+                        ("date", "base", "no", "//", ";")):
                     warnings += 1
-    except OSError:
-        return None, "无法读取文件"
+    except OSError as e:
+        return None, str(e)
     return frames, warnings
 
 
 def read_csv_log(path):
     frames = []
     try:
-        with open(path, "r", encoding="utf-8-sig", errors="replace", newline="") as f:
+        with open(path, "r", encoding="utf-8-sig", errors="replace",
+                  newline="") as f:
             reader = csv.reader(f)
             header = next(reader, None)
             for row in reader:
@@ -57,26 +76,27 @@ def read_csv_log(path):
                     continue
                 try:
                     ts = float(row[0])
-                    cid = int(row[1], 0) if not row[1].isdigit() else int(row[1])
+                    cid = int(row[1], 0)
                     direction = row[2] if row[2] in ("Rx", "Tx") else "Rx"
                     data_hex = row[3].replace(" ", "")
                     data = bytes.fromhex(data_hex) if data_hex else b""
                     frames.append((ts, 1, cid, direction, len(data), data))
                 except (ValueError, IndexError):
                     continue
-    except OSError:
-        return None, "无法读取文件"
+    except OSError as e:
+        return None, str(e)
     return frames, 0
 
 
 def write_asc(path, frames):
-    with open(path, "w", encoding="utf-8") as f:
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write("date %s\n" % time.strftime("%a %b %d %H:%M:%S %Y"))
-        f.write("base hex timestamps absolute\n")
+        f.write("base hex  timestamps absolute\n")
         f.write("no internal events logged\n")
         for ts, ch, cid, direction, dlc, data in frames:
             hexs = " ".join("%02X" % b for b in data)
-            f.write("%.6f %d  %X %s d %d %s\n" % (ts, ch, cid, direction, dlc, hexs))
+            f.write("%.6f %d  %X %s d %d %s\n"
+                    % (ts, ch, cid, direction, dlc, hexs))
 
 
 def write_csv_log(path, frames):
@@ -87,135 +107,193 @@ def write_csv_log(path, frames):
             w.writerow(["%.6f" % ts, "0x%X" % cid, direction, data.hex()])
 
 
+def _load_any(path):
+    lower = path.lower()
+    if lower.endswith(".csv"):
+        frames, err = read_csv_log(path)
+        if frames is not None:
+            return frames, err
+        return read_asc(path)
+    frames, err = read_asc(path)
+    if frames is not None and frames:
+        return frames, err
+    if frames is not None and not frames and lower.endswith((".log", ".txt")):
+        return read_csv_log(path)
+    if frames is None:
+        return read_csv_log(path)
+    return frames, err
+
+
 def activate(context):
-    try:
-        from PyQt6.QtWidgets import (
-            QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-            QLineEdit, QFileDialog, QMessageBox, QGroupBox, QFormLayout,
-            QRadioButton, QCheckBox, QSpinBox, QProgressBar, QTabWidget,
-            QTextEdit, QComboBox
-        )
-    except ImportError:
-        sin.output.append("日志工具箱插件需要 PyQt6: pip install PyQt6")
-        return
+    global _win
 
-    loaded = {"frames": [], "names": []}
+    loaded = {"frames": [], "names": [], "paths": []}
 
-    win = sin.ui.create_window("CAN 日志工具箱")
-    win.resize(900, 580)
+    win = sin.ui.create_window("CAN Log Toolkit")
+    win.resize(920, 600)
+    plugin_shell.attach_status_bar(win, "Load ASC/CSV logs to begin")
+    _win = win
 
     central = QWidget()
     win.setCentralWidget(central)
     layout = QVBoxLayout(central)
 
     top = QHBoxLayout()
-    load_btn = QPushButton("加载日志…（可多选）")
-    info_label = QLabel("未加载")
-    info_label.setStyleSheet("color:#888;")
+    load_btn = QPushButton("Load logs…")
+    clear_btn = QPushButton("Clear loaded")
+    info_label = QLabel("No files loaded")
+    info_label.setStyleSheet("color:#78909c;")
     top.addWidget(load_btn)
+    top.addWidget(clear_btn)
     top.addWidget(info_label, 1)
     layout.addLayout(top)
+
+    layout.addWidget(plugin_shell.help_label(
+        "Offline ASC/CSV toolbox: trim by time, filter by ID, merge, split, "
+        "and redact. Multi-select load; output ASC or CSV."))
+
+    progress = QProgressBar()
+    progress.setRange(0, 100)
+    progress.setValue(0)
+    progress.setVisible(False)
+    layout.addWidget(progress)
 
     tabs = QTabWidget()
     layout.addWidget(tabs, 1)
 
-    # Tab 1: 裁剪+过滤
     trim_tab = QWidget()
     tv = QFormLayout(trim_tab)
     t_start = QLineEdit("0")
     t_end = QLineEdit("999999")
-    id_filter = QLineEdit("（留空=不过滤，如 123,0x456）")
+    id_filter = QLineEdit("")
+    id_filter.setPlaceholderText("empty = no filter; e.g. 0x100,0x200")
     id_mode = QComboBox()
-    id_mode.addItems(["白名单（仅保留）", "黑名单（排除）"])
+    id_mode.addItems(["Whitelist (keep)", "Blacklist (drop)"])
     out_fmt_trim = QComboBox()
     out_fmt_trim.addItems(["ASC", "CSV"])
-    tv.addRow("起始时间(s):", t_start)
-    tv.addRow("结束时间(s):", t_end)
-    tv.addRow("ID 列表:", id_filter)
-    tv.addRow("ID 模式:", id_mode)
-    tv.addRow("输出格式:", out_fmt_trim)
-    trim_btn = QPushButton("执行 裁剪+过滤 并另存…")
+    tv.addRow("Start time (s):", t_start)
+    tv.addRow("End time (s):", t_end)
+    tv.addRow("ID list:", id_filter)
+    tv.addRow("ID mode:", id_mode)
+    tv.addRow("Output format:", out_fmt_trim)
+    trim_btn = QPushButton("Trim + filter and save…")
     tv.addRow(trim_btn)
-    tabs.addTab(trim_tab, "裁剪 / 过滤")
+    tabs.addTab(trim_tab, "Trim / Filter")
 
-    # Tab 2: 合并
     merge_tab = QWidget()
     mv = QFormLayout(merge_tab)
     out_fmt_merge = QComboBox()
     out_fmt_merge.addItems(["ASC", "CSV"])
-    mv.addRow("输出格式:", out_fmt_merge)
-    merge_btn = QPushButton("合并全部已加载日志（按时间排序）并另存…")
+    mv.addRow("Output format:", out_fmt_merge)
+    merge_btn = QPushButton("Merge all loaded (time-sorted) and save…")
     mv.addRow(merge_btn)
-    tabs.addTab(merge_tab, "合并")
+    tabs.addTab(merge_tab, "Merge")
 
-    # Tab 3: 拆分
     split_tab = QWidget()
     sv = QFormLayout(split_tab)
     split_mode = QComboBox()
-    split_mode.addItems(["按帧数", "按时长(秒)"])
+    split_mode.addItems(["By frame count", "By duration (s)"])
     split_size = QSpinBox()
     split_size.setRange(100, 10000000)
     split_size.setValue(100000)
     out_fmt_split = QComboBox()
     out_fmt_split.addItems(["ASC", "CSV"])
-    sv.addRow("拆分方式:", split_mode)
-    sv.addRow("每片大小:", split_size)
-    sv.addRow("输出格式:", out_fmt_split)
-    split_btn = QPushButton("执行拆分并另存…")
+    sv.addRow("Split by:", split_mode)
+    sv.addRow("Chunk size:", split_size)
+    sv.addRow("Output format:", out_fmt_split)
+    split_btn = QPushButton("Split and save…")
     sv.addRow(split_btn)
-    tabs.addTab(split_tab, "拆分")
+    tabs.addTab(split_tab, "Split")
 
-    # Tab 4: 脱敏
     mask_tab = QWidget()
     kv = QFormLayout(mask_tab)
-    mask_id_chk = QCheckBox("ID 掩码（低位字节替换 0xFF）")
-    mask_payload_chk = QCheckBox("载荷字节 4-7 置零")
+    mask_id_chk = QCheckBox("Mask ID low byte to 0xFF")
+    mask_payload_chk = QCheckBox("Zero payload bytes 3…end")
     out_fmt_mask = QComboBox()
     out_fmt_mask.addItems(["ASC", "CSV"])
     kv.addRow(mask_id_chk)
     kv.addRow(mask_payload_chk)
-    kv.addRow("输出格式:", out_fmt_mask)
-    mask_btn = QPushButton("执行脱敏并另存…")
+    kv.addRow("Output format:", out_fmt_mask)
+    mask_btn = QPushButton("Redact and save…")
     kv.addRow(mask_btn)
-    tabs.addTab(mask_tab, "脱敏")
+    tabs.addTab(mask_tab, "Redact")
 
-    status = QLabel("就绪")
-    status.setStyleSheet("font-weight:bold;")
-    layout.addWidget(status)
+    def _persist(**extra):
+        data = {
+            "last_dir": loaded["paths"][-1] if loaded["paths"] else "",
+            "t_start": t_start.text(),
+            "t_end": t_end.text(),
+            "id_filter": id_filter.text(),
+            "id_mode": id_mode.currentIndex(),
+            "out_fmt_trim": out_fmt_trim.currentIndex(),
+            "split_mode": split_mode.currentIndex(),
+            "split_size": split_size.value(),
+        }
+        data.update(extra)
+        state_store.save_state(PLUGIN_ID, data)
 
-    def _on_load():
-        paths, _ = QFileDialog.getOpenFileNames(win, "加载日志", "",
-                                                "日志文件 (*.asc *.csv *.log *.txt);;所有文件 (*)")
-        if not paths:
-            return
-        total = 0
-        for path in paths:
-            frames, err = read_asc(path)
-            if frames is None and path.lower().endswith(".csv"):
-                frames, err = read_csv_log(path)
-            if frames is None:
-                QMessageBox.warning(win, "加载失败", "%s: %s" % (path, err))
-                continue
-            loaded["frames"].extend(frames)
-            loaded["names"].append(path.split("\\")[-1])
-            total += len(frames)
+    def _update_info():
         if not loaded["frames"]:
-            QMessageBox.warning(win, "加载失败", "未解析到任何帧")
+            info_label.setText("No files loaded")
+            info_label.setStyleSheet("color:#78909c;")
             return
-        loaded["frames"].sort(key=lambda fr: fr[0])
         t0 = loaded["frames"][0][0]
         t1 = loaded["frames"][-1][0]
-        ids = len(set(fr[2] for fr in loaded["frames"]))
-        info_label.setText("已加载 %d 文件 · %d 帧 · %d ID · 时间 %.1fs-%.1fs"
-                           % (len(loaded["names"]), total, ids, t0, t1))
+        ids = len({fr[2] for fr in loaded["frames"]})
+        info_label.setText(
+            "%d file(s) · %d frames · %d IDs · t=%.3f…%.3f s"
+            % (len(loaded["names"]), len(loaded["frames"]), ids, t0, t1))
         info_label.setStyleSheet("color:#2e7d32;")
-        status.setText("加载完成")
+
+    def _on_load():
+        start_dir = ""
+        saved = state_store.load_state(PLUGIN_ID, default={}) or {}
+        last = saved.get("last_dir") or ""
+        if last and os.path.isdir(os.path.dirname(last)):
+            start_dir = os.path.dirname(last)
+        elif last and os.path.isfile(last):
+            start_dir = os.path.dirname(last)
+        paths, _ = QFileDialog.getOpenFileNames(
+            win, "Load CAN logs", start_dir,
+            "Logs (*.asc *.csv *.log *.txt);;All files (*)")
+        if not paths:
+            return
+        progress.setVisible(True)
+        progress.setValue(0)
+        total = 0
+        for i, path in enumerate(paths):
+            frames, err = _load_any(path)
+            if frames is None:
+                QMessageBox.warning(
+                    win, "Load failed", "%s: %s" % (path, err))
+                continue
+            loaded["frames"].extend(frames)
+            loaded["names"].append(os.path.basename(path))
+            loaded["paths"].append(path)
+            total += len(frames)
+            progress.setValue(int(100 * (i + 1) / len(paths)))
+        progress.setVisible(False)
+        if not loaded["frames"]:
+            QMessageBox.warning(win, "Load", "No frames parsed")
+            return
+        loaded["frames"].sort(key=lambda fr: fr[0])
+        _update_info()
+        _persist()
+        plugin_shell.set_status(
+            win, "Loaded %d frames from %d file(s)" % (total, len(paths)), 4000)
+
+    def _on_clear():
+        loaded["frames"].clear()
+        loaded["names"].clear()
+        loaded["paths"].clear()
+        _update_info()
+        plugin_shell.set_status(win, "Cleared", 2000)
 
     def _parse_ids(text):
         ids = set()
         for tok in text.replace("，", ",").split(","):
             tok = tok.strip()
-            if not tok or tok.startswith("（"):
+            if not tok:
                 continue
             try:
                 ids.add(int(tok, 0))
@@ -223,31 +301,46 @@ def activate(context):
                 pass
         return ids
 
-    def _save(frames, fmt):
-        ext = "asc" if fmt == 0 else "csv"
-        path, _ = QFileDialog.getSaveFileName(win, "另存日志", "processed.%s" % ext,
-                                              "日志 (*.%s)" % ext)
+    def _save(frames, fmt_index):
+        if not frames:
+            QMessageBox.information(win, "Save", "No frames to save")
+            return
+        ext = "asc" if fmt_index == 0 else "csv"
+        path, _ = QFileDialog.getSaveFileName(
+            win, "Save log", "processed.%s" % ext,
+            "Log (*.%s)" % ext)
         if not path:
             return
         try:
-            if fmt == 0:
+            progress.setVisible(True)
+            progress.setValue(50)
+            if fmt_index == 0:
                 write_asc(path, frames)
             else:
                 write_csv_log(path, frames)
-            QMessageBox.information(win, "保存成功", "已保存 %d 帧:\n%s" % (len(frames), path))
-            status.setText("保存 %d 帧 → %s" % (len(frames), path))
+            progress.setValue(100)
+            progress.setVisible(False)
+            _persist(last_export=path)
+            plugin_shell.set_status(
+                win, "Saved %d frames → %s" % (len(frames), path), 5000)
         except OSError as e:
-            QMessageBox.warning(win, "保存失败", str(e))
+            progress.setVisible(False)
+            QMessageBox.warning(win, "Save failed", str(e))
+
+    def _need_data():
+        if not loaded["frames"]:
+            QMessageBox.information(win, "Log Toolkit", "Load logs first")
+            return False
+        return True
 
     def _on_trim():
-        if not loaded["frames"]:
-            QMessageBox.information(win, "提示", "请先加载日志")
+        if not _need_data():
             return
         try:
             t0 = float(t_start.text() or 0)
             t1 = float(t_end.text() or 1e9)
         except ValueError:
-            QMessageBox.warning(win, "格式错误", "时间需为数字")
+            QMessageBox.warning(win, "Format", "Times must be numbers")
             return
         ids = _parse_ids(id_filter.text())
         whitelist = id_mode.currentIndex() == 0
@@ -260,24 +353,27 @@ def activate(context):
                 if not keep:
                     continue
             out.append(fr)
-        status.setText("裁剪+过滤: %d → %d 帧" % (len(loaded["frames"]), len(out)))
+        plugin_shell.set_status(
+            win, "Trim/filter: %d → %d frames"
+            % (len(loaded["frames"]), len(out)), 3000)
+        _persist()
         _save(out, out_fmt_trim.currentIndex())
 
     def _on_merge():
-        if not loaded["frames"]:
-            QMessageBox.information(win, "提示", "请先加载日志")
+        if not _need_data():
             return
         frames = sorted(loaded["frames"], key=lambda fr: fr[0])
-        status.setText("合并 %d 文件 → %d 帧（已按时间排序）"
-                       % (len(loaded["names"]), len(frames)))
+        plugin_shell.set_status(
+            win, "Merge %d files → %d frames"
+            % (len(loaded["names"]), len(frames)), 3000)
         _save(frames, out_fmt_merge.currentIndex())
 
     def _on_split():
-        if not loaded["frames"]:
-            QMessageBox.information(win, "提示", "请先加载日志")
+        if not _need_data():
             return
-        path, _ = QFileDialog.getSaveFileName(win, "拆分输出前缀", "split_part",
-                                              "日志 (*.asc)")
+        path, _ = QFileDialog.getSaveFileName(
+            win, "Split output prefix", "split_part.asc",
+            "ASC (*.asc);;CSV (*.csv)")
         if not path:
             return
         base = path.rsplit(".", 1)[0]
@@ -290,62 +386,93 @@ def activate(context):
             for i in range(0, len(frames), size):
                 parts.append(frames[i:i + size])
         else:
-            t_start = frames[0][0]
+            t0 = frames[0][0]
             cur = []
             for fr in frames:
-                if fr[0] - t_start > size and cur:
+                if fr[0] - t0 > size and cur:
                     parts.append(cur)
                     cur = []
-                    t_start = fr[0]
+                    t0 = fr[0]
                 cur.append(fr)
             if cur:
                 parts.append(cur)
         try:
+            progress.setVisible(True)
             for i, part in enumerate(parts):
-                out_path = "%s_%03d.%s" % (base, i + 1, "asc" if fmt == 0 else "csv")
+                out_path = "%s_%03d.%s" % (
+                    base, i + 1, "asc" if fmt == 0 else "csv")
                 if fmt == 0:
                     write_asc(out_path, part)
                 else:
                     write_csv_log(out_path, part)
-            QMessageBox.information(win, "拆分完成", "共 %d 片 → %s_001..%03d"
-                                    % (len(parts), base, len(parts)))
-            status.setText("拆分: %d 帧 → %d 片" % (len(frames), len(parts)))
+                progress.setValue(int(100 * (i + 1) / max(1, len(parts))))
+            progress.setVisible(False)
+            _persist()
+            plugin_shell.set_status(
+                win, "Split into %d parts" % len(parts), 4000)
+            QMessageBox.information(
+                win, "Split done",
+                "%d parts → %s_001…" % (len(parts), base))
         except OSError as e:
-            QMessageBox.warning(win, "拆分失败", str(e))
+            progress.setVisible(False)
+            QMessageBox.warning(win, "Split failed", str(e))
 
     def _on_mask():
-        if not loaded["frames"]:
-            QMessageBox.information(win, "提示", "请先加载日志")
+        if not _need_data():
             return
         if not (mask_id_chk.isChecked() or mask_payload_chk.isChecked()):
-            QMessageBox.information(win, "提示", "请至少选择一种脱敏方式")
+            QMessageBox.information(
+                win, "Redact", "Select at least one redact option")
             return
         out = []
         for ts, ch, cid, direction, dlc, data in loaded["frames"]:
             if mask_id_chk.isChecked():
-                cid = (cid & 0x700) | 0x0FF if cid <= 0x7FF else (cid & 0x1F00) | 0xFF
+                if cid <= 0x7FF:
+                    cid = (cid & 0x700) | 0x0FF
+                else:
+                    cid = (cid & ~0xFF) | 0xFF
             if mask_payload_chk.isChecked() and len(data) > 3:
                 data = data[:3] + b"\x00" * (len(data) - 3)
             out.append((ts, ch, cid, direction, dlc, data))
-        status.setText("脱敏: %d 帧" % len(out))
+        plugin_shell.set_status(win, "Redacted %d frames" % len(out), 3000)
         _save(out, out_fmt_mask.currentIndex())
 
-    def _on_open_cmd():
-        win.show()
-        win.raise_()
-        win.activateWindow()
-
-    context.register_command("logToolkit.open", _on_open_cmd, "日志: 日志工具箱")
-
     load_btn.clicked.connect(_on_load)
+    clear_btn.clicked.connect(_on_clear)
     trim_btn.clicked.connect(_on_trim)
     merge_btn.clicked.connect(_on_merge)
     split_btn.clicked.connect(_on_split)
     mask_btn.clicked.connect(_on_mask)
+    plugin_shell.bind_shortcut(win, "Ctrl+O", _on_load)
+
+    context.register_command(
+        "logToolkit.open", plugin_shell.bind_raise(win), "Tools: Log Toolkit")
+
+    saved = state_store.load_state(PLUGIN_ID, default={}) or {}
+    if saved.get("t_start") is not None:
+        t_start.setText(str(saved["t_start"]))
+    if saved.get("t_end") is not None:
+        t_end.setText(str(saved["t_end"]))
+    if saved.get("id_filter") is not None:
+        id_filter.setText(str(saved["id_filter"]))
+    if isinstance(saved.get("id_mode"), int):
+        id_mode.setCurrentIndex(saved["id_mode"])
+    if isinstance(saved.get("out_fmt_trim"), int):
+        out_fmt_trim.setCurrentIndex(saved["out_fmt_trim"])
+    if isinstance(saved.get("split_mode"), int):
+        split_mode.setCurrentIndex(saved["split_mode"])
+    if saved.get("split_size"):
+        split_size.setValue(int(saved["split_size"]))
 
     win.show()
-    sin.output.append("日志工具箱插件已加载（裁剪/过滤/合并/拆分/脱敏，离线工具）")
+    sin.output.append(
+        "log-toolkit loaded (ASC/CSV trim/filter/merge/split/redact)")
 
 
 def deactivate():
-    sin.output.append("日志工具箱插件已停用")
+    global _win
+    _win = None
+    try:
+        sin.output.append("log-toolkit deactivated")
+    except Exception:
+        pass

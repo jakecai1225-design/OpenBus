@@ -1,8 +1,8 @@
 {
     "name": "can-fuzzer",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "CAN 模糊测试：ID 范围随机/结构化变异、限速发送、突变统计、一键停止",
+    "description": "CAN fuzzer: ID-range mutation modes, rate limit, send cap, per-ID stats CSV",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "canFuzzer.open",
-                "title": "安全: 模糊测试"
+                "title": "Security: CAN Fuzzer"
             }
         ]
     }

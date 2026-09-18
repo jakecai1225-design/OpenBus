@@ -5,13 +5,15 @@
 
 class QPlainTextEdit;
 class QTableWidget;
-class QLineEdit;
 class QLabel;
+class QToolButton;
+class TerminalWorkspace;
 
 /**
- * @brief 底部面板 — 终端 / 输出 / 问题
+ * @brief Bottom panel — Terminal / Output / Problems / Extensions
  *
- * 终端标签页集成命令行输入，支持 help/clear/sim/record/play/filter 等命令
+ * Terminal tab: VS Code-style inline input (no separate line edit),
+ * split panes, openbus REPL + optional host bash/PowerShell.
  */
 class BottomPanel : public QTabWidget
 {
@@ -40,17 +42,16 @@ signals:
     void closeRequested();   // Corner "x" — hide bottom panel (VS Code)
 
 private slots:
-    void onCommandReturnPressed();
     void refreshCornerIcons();
 
 private:
-    QPlainTextEdit *m_terminal;
-    QPlainTextEdit *m_output;
-    QPlainTextEdit *m_pluginOutput;  ///< Plugin output
-    QTableWidget *m_problemsTable;
-    QLineEdit *m_cmdInput;
-    QLabel *m_problemCount;
+    TerminalWorkspace *m_termWorkspace = nullptr;
+    QPlainTextEdit *m_output = nullptr;
+    QPlainTextEdit *m_pluginOutput = nullptr;
+    QTableWidget *m_problemsTable = nullptr;
+    QLabel *m_problemCount = nullptr;
     QToolButton *m_clearBtn = nullptr;
+    QToolButton *m_splitBtn = nullptr;
     QToolButton *m_moreBtn = nullptr;
     QToolButton *m_closePanelBtn = nullptr;
 };

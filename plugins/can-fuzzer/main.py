@@ -1,35 +1,43 @@
 # -*- coding: utf-8 -*-
-"""can-fuzzer 插件 — CAN 模糊测试（SavvyCAN fuzzer 风格）
-功能：
-- ID 范围选择（最小/最大 ID，标准/扩展帧，经典/FD）
-- 变异模式：全随机载荷 / 单字节翻位 / 结构化模板（掩码 0 位保留原值、1 位随机）
-- 限速发送（帧间隔 ms）与发送计数上限（0=不限）
-- 突变统计：发送数 / 变异字节数 / 按 ID 分布
-- ⚠ 会向总线发送报文：仅用于试验台架/离线环境
-依赖: pip install PyQt6
+"""can-fuzzer — CAN fuzzing (SavvyCAN-style).
+
+ID range, mutation modes (random / single-byte / structured mask),
+rate-limited send, send cap, per-ID stats + CSV export.
+WARNING: transmits on the bus — bench / isolated networks only.
 """
+
+from __future__ import annotations
 
 import random
 
 from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QTreeWidget, QTreeWidgetItem, QHeaderView, QGroupBox,
+    QFormLayout, QLineEdit, QComboBox, QSpinBox, QCheckBox,
+    QMessageBox,
+)
 
 import sin
+from _shared import plugin_shell, state_store
+
+PLUGIN_ID = "can-fuzzer"
 
 _state = {"running": False, "sent": 0, "mutated_bytes": 0, "limit": 0}
-_dist = {}            # id -> 发送计数
+_dist = {}  # id -> send count; "_last" -> last payload hex
 _timer = None
 
 
 def _make_payload(mode, dlc, mask):
-    if mode == 0:                      # 全随机
+    if mode == 0:  # full random
         return bytes(random.getrandbits(8) for _ in range(dlc))
-    if mode == 1:                      # 基于种子单字节翻位（种子=全 0）
+    if mode == 1:  # single-byte flip from zeros
         buf = bytearray(dlc)
         pos = random.randrange(dlc)
         buf[pos] = random.getrandbits(8)
         _state["mutated_bytes"] += 1
         return bytes(buf)
-    # 结构化模板：mask 中 0 的字节保留 0x00，1 的字节随机
+    # structured mask: 0 bits kept 0x00, 1 bits randomized
     buf = bytearray(dlc)
     for i in range(dlc):
         m = mask[i] if i < len(mask) else 0xFF
@@ -39,84 +47,143 @@ def _make_payload(mode, dlc, mask):
     return bytes(buf)
 
 
+def _range_row(id_min, id_max):
+    box = QWidget()
+    lay = QHBoxLayout(box)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.addWidget(id_min)
+    lay.addWidget(QLabel("~"))
+    lay.addWidget(id_max)
+    return box
+
+
+def _h(*widgets):
+    box = QWidget()
+    lay = QHBoxLayout(box)
+    lay.setContentsMargins(0, 0, 0, 0)
+    for w in widgets:
+        lay.addWidget(w)
+    lay.addStretch(1)
+    return box
+
+
 def activate(context):
     global _timer
     _state.update({"running": False, "sent": 0, "mutated_bytes": 0, "limit": 0})
     _dist.clear()
 
-    try:
-        from PyQt6.QtWidgets import (
-            QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-            QTreeWidget, QTreeWidgetItem, QHeaderView, QGroupBox,
-            QFormLayout, QLineEdit, QComboBox, QSpinBox, QCheckBox,
-            QMessageBox
-        )
-    except ImportError:
-        sin.output.append("模糊测试插件需要 PyQt6: pip install PyQt6")
-        return
-
-    win = sin.ui.create_window("CAN 模糊测试")
+    win = sin.ui.create_window("CAN Fuzzer")
     win.resize(940, 600)
+    plugin_shell.attach_status_bar(
+        win, "Idle — will not transmit until Start")
 
     central = QWidget()
     win.setCentralWidget(central)
     layout = QVBoxLayout(central)
 
-    warn = QLabel("⚠ 模糊测试会向总线发送随机报文 — 请仅在试验台架 / 隔离环境使用！")
-    warn.setStyleSheet("color:#c62828; font-weight:bold;")
+    warn = QLabel(
+        "WARNING: Fuzzing transmits random frames on the bus. "
+        "Use only on a test bench or isolated network. Unauthorized "
+        "fuzzing may damage ECUs or violate policy.")
+    warn.setWordWrap(True)
+    warn.setStyleSheet(
+        "background:#ffebee;color:#c62828;border:1px solid #c62828;"
+        "padding:8px;font-weight:bold;")
     layout.addWidget(warn)
 
-    cfg = QGroupBox("模糊配置")
+    cfg = QGroupBox("Fuzz settings")
     cfg_l = QFormLayout(cfg)
     id_min = QLineEdit("0x100")
     id_max = QLineEdit("0x1FF")
-    cfg_l.addRow("ID 范围:", _range_row(id_min, id_max))
-    ext_chk = QCheckBox("扩展帧（29bit）")
+    cfg_l.addRow("ID range:", _range_row(id_min, id_max))
+    ext_chk = QCheckBox("Extended (29-bit)")
     fd_chk = QCheckBox("CAN FD")
-    cfg_l.addRow("帧属性:", _h(ext_chk, fd_chk))
+    cfg_l.addRow("Frame flags:", _h(ext_chk, fd_chk))
     dlc_spin = QSpinBox()
     dlc_spin.setRange(1, 64)
     dlc_spin.setValue(8)
-    cfg_l.addRow("数据长度:", dlc_spin)
+    cfg_l.addRow("Data length:", dlc_spin)
     mode_combo = QComboBox()
-    mode_combo.addItems(["全随机载荷", "单字节翻位", "结构化模板（掩码）"])
-    cfg_l.addRow("变异模式:", mode_combo)
+    mode_combo.addItems([
+        "Full random payload",
+        "Single-byte flip",
+        "Structured template (mask)",
+    ])
+    cfg_l.addRow("Mutation mode:", mode_combo)
     mask_edit = QLineEdit("FF FF FF FF 00 00 00 00")
-    mask_edit.setPlaceholderText("掩码：0=字节保留，1=字节随机，如 FF FF FF FF 00 00 00 00")
-    cfg_l.addRow("结构化掩码:", mask_edit)
+    mask_edit.setPlaceholderText(
+        "Mask: 0=keep byte 0, 1=randomize (e.g. FF FF FF FF 00 00 00 00)")
+    cfg_l.addRow("Structured mask:", mask_edit)
     interval_spin = QSpinBox()
     interval_spin.setRange(1, 10000)
     interval_spin.setValue(50)
     interval_spin.setSuffix(" ms")
-    cfg_l.addRow("发送间隔:", interval_spin)
+    cfg_l.addRow("Send interval:", interval_spin)
     limit_spin = QSpinBox()
     limit_spin.setRange(0, 1000000)
     limit_spin.setValue(500)
-    limit_spin.setSpecialValueText("不限")
-    cfg_l.addRow("发送上限:", limit_spin)
+    limit_spin.setSpecialValueText("unlimited")
+    cfg_l.addRow("Send limit:", limit_spin)
     layout.addWidget(cfg)
 
+    layout.addWidget(plugin_shell.help_label(
+        "Rate limit = send interval. Stop anytime. Stats export is CSV "
+        "per-ID distribution. Default interval 50 ms / limit 500 frames."))
+
     btns = QHBoxLayout()
-    start_btn = QPushButton("▶ 开始模糊测试")
-    stop_btn = QPushButton("■ 停止")
-    export_btn = QPushButton("导出统计 CSV…")
+    start_btn = QPushButton("Start fuzzing")
+    stop_btn = QPushButton("Stop")
+    export_btn = QPushButton("Export stats CSV…")
+    clear_btn = QPushButton("Clear stats")
     btns.addWidget(start_btn)
     btns.addWidget(stop_btn)
     btns.addStretch(1)
     btns.addWidget(export_btn)
+    btns.addWidget(clear_btn)
     layout.addLayout(btns)
+    stop_btn.setEnabled(False)
 
-    stats = QLabel("就绪（未发送任何帧）")
+    stats = QLabel("Ready (no frames sent)")
     stats.setStyleSheet("font-weight:bold;")
     layout.addWidget(stats)
 
     tree = QTreeWidget()
-    tree.setHeaderLabels(["ID", "发送数", "占比%", "最近载荷"])
+    tree.setHeaderLabels(["ID", "Sent", "Share %", "Last payload"])
     tree.setRootIsDecorated(False)
     tree.setAlternatingRowColors(True)
-    th = tree.header()
-    th.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     layout.addWidget(tree, 1)
+
+    saved = state_store.load_state(PLUGIN_ID, "settings.json", default={}) or {}
+    if saved.get("id_min"):
+        id_min.setText(str(saved["id_min"]))
+    if saved.get("id_max"):
+        id_max.setText(str(saved["id_max"]))
+    if "interval_ms" in saved:
+        interval_spin.setValue(int(saved["interval_ms"]))
+    if "limit" in saved:
+        limit_spin.setValue(int(saved["limit"]))
+    if "mode" in saved:
+        mode_combo.setCurrentIndex(int(saved["mode"]))
+    if saved.get("mask"):
+        mask_edit.setText(str(saved["mask"]))
+    if "dlc" in saved:
+        dlc_spin.setValue(int(saved["dlc"]))
+    ext_chk.setChecked(bool(saved.get("extended", False)))
+    fd_chk.setChecked(bool(saved.get("fd", False)))
+
+    def _persist():
+        state_store.save_state(PLUGIN_ID, {
+            "id_min": id_min.text().strip(),
+            "id_max": id_max.text().strip(),
+            "interval_ms": interval_spin.value(),
+            "limit": limit_spin.value(),
+            "mode": mode_combo.currentIndex(),
+            "mask": mask_edit.text().strip(),
+            "dlc": dlc_spin.value(),
+            "extended": ext_chk.isChecked(),
+            "fd": fd_chk.isChecked(),
+        }, "settings.json")
 
     def _parse_id(text):
         try:
@@ -138,108 +205,133 @@ def activate(context):
         except ValueError:
             return b""
 
+    def _set_running(running):
+        _state["running"] = running
+        start_btn.setEnabled(not running)
+        stop_btn.setEnabled(running)
+        for w in (id_min, id_max, mode_combo, dlc_spin, ext_chk, fd_chk,
+                  limit_spin, mask_edit):
+            w.setEnabled(not running)
+
     def _tick():
         if not _state["running"]:
             return
         id_lo = _parse_id(id_min.text())
         id_hi = _parse_id(id_max.text())
         if id_lo is None or id_hi is None or id_lo > id_hi:
-            _state["running"] = False
+            _on_stop()
+            plugin_shell.set_status(win, "Stopped: bad ID range")
             return
         dlc = dlc_spin.value()
         if fd_chk.isChecked():
-            dlc = min(64, max(8, dlc))
+            dlc = min(64, max(0, dlc))
         mask = _parse_mask() if mode_combo.currentIndex() == 2 else None
         if mask == b"":
-            _state["running"] = False
-            stats.setText("掩码格式错误，已停止")
+            _on_stop()
+            stats.setText("Mask parse error — stopped")
             return
         cid = random.randint(id_lo, id_hi)
         payload = _make_payload(mode_combo.currentIndex(), dlc, mask)
         try:
             sin.frames.send(cid, payload, ext_chk.isChecked(), fd_chk.isChecked())
-        except Exception as e:      # 发送链路异常不中断统计
-            stats.setText("发送异常: %s" % e)
+        except Exception as e:
+            stats.setText("Send error: %s" % e)
+            plugin_shell.set_status(win, "Send error")
             return
         _state["sent"] += 1
         _dist[cid] = _dist.get(cid, 0) + 1
         _dist["_last"] = payload.hex().upper()
         if _state["limit"] and _state["sent"] >= _state["limit"]:
-            _state["running"] = False
-            start_btn.setEnabled(True)
-            stats.setText("已达发送上限 %d 帧，已停止" % _state["limit"])
+            _on_stop()
+            stats.setText("Send limit %d reached — stopped" % _state["limit"])
+            plugin_shell.set_status(win, "Limit reached", 5000)
 
     def _on_start():
         id_lo = _parse_id(id_min.text())
         id_hi = _parse_id(id_max.text())
         if id_lo is None or id_hi is None or id_lo > id_hi:
-            QMessageBox.warning(win, "格式错误", "ID 范围需为十六进制且 最小 ≤ 最大")
+            QMessageBox.warning(
+                win, "Invalid range",
+                "ID range must be hex with min <= max")
             return
         if mode_combo.currentIndex() == 2:
             mask = _parse_mask()
             if mask == b"":
-                QMessageBox.warning(win, "格式错误", "结构化掩码需为十六进制字节串")
+                QMessageBox.warning(
+                    win, "Invalid mask",
+                    "Structured mask must be a hex byte string")
                 return
+        reply = QMessageBox.warning(
+            win, "Confirm fuzzing",
+            "This will transmit mutated frames on the connected bus.\n"
+            "Continue only on a safe test bench.",
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel)
+        if reply != QMessageBox.StandardButton.Ok:
+            return
+        _persist()
         _state["limit"] = limit_spin.value()
-        _state["running"] = True
+        _set_running(True)
         _timer.start(interval_spin.value())
-        start_btn.setEnabled(False)
-        stats.setText("模糊测试进行中…")
+        stats.setText("Fuzzing…")
+        plugin_shell.set_status(
+            win, "Fuzzing at %d ms interval" % interval_spin.value())
 
     def _on_stop():
         _state["running"] = False
-        _timer.stop()
-        start_btn.setEnabled(True)
-        stats.setText("已停止 · 共发送 %d 帧" % _state["sent"])
+        if _timer is not None:
+            _timer.stop()
+        _set_running(False)
+        stats.setText("Stopped · sent %d frames" % _state["sent"])
+        plugin_shell.set_status(win, "Stopped")
 
     def _on_export():
-        if not _dist:
-            QMessageBox.information(win, "提示", "无统计数据")
+        rows_src = [(k, v) for k, v in _dist.items() if k != "_last"]
+        if not rows_src:
+            QMessageBox.information(win, "No data", "No stats to export")
             return
-        from PyQt6.QtWidgets import QFileDialog
-        path, _ = QFileDialog.getSaveFileName(win, "导出统计", "fuzz_stats.csv",
-                                              "CSV (*.csv)")
-        if not path:
-            return
-        try:
-            import csv as _csv
-            with open(path, "w", encoding="utf-8-sig", newline="") as f:
-                w = _csv.writer(f)
-                w.writerow(["ID", "发送数", "占比%"])
-                rows = [(k, v) for k, v in _dist.items() if k != "_last"]
-                for cid, n in sorted(rows, key=lambda kv: -kv[1]):
-                    w.writerow(["0x%X" % cid, n,
-                                "%.2f" % (100.0 * n / max(1, _state["sent"]))])
-            QMessageBox.information(win, "导出成功", path)
-        except OSError as e:
-            QMessageBox.warning(win, "导出失败", str(e))
+        rows = []
+        for cid, n in sorted(rows_src, key=lambda kv: -kv[1]):
+            rows.append([
+                "0x%X" % cid, n,
+                "%.2f" % (100.0 * n / max(1, _state["sent"])),
+            ])
+        path = plugin_shell.export_csv(
+            win, ["ID", "Sent", "Share%"], rows, "fuzz_stats.csv")
+        if path:
+            plugin_shell.set_status(win, "Exported %s" % path, 5000)
+
+    def _on_clear():
+        _dist.clear()
+        _state["sent"] = 0
+        _state["mutated_bytes"] = 0
+        tree.clear()
+        stats.setText("Ready (stats cleared)")
 
     def _refresh():
         if _state["running"]:
-            stats.setText("发送中 · 已发 %d 帧 · 变异字节 %d · 间隔 %dms"
-                          % (_state["sent"], _state["mutated_bytes"],
-                             interval_spin.value()))
+            stats.setText(
+                "Sending · %d frames · %d mutated bytes · interval %d ms"
+                % (_state["sent"], _state["mutated_bytes"],
+                   interval_spin.value()))
         tree.clear()
+        last = _dist.get("_last", "")
         rows = [(k, v) for k, v in _dist.items() if k != "_last"]
         for cid, n in sorted(rows, key=lambda kv: -kv[1])[:100]:
             tree.addTopLevelItem(QTreeWidgetItem([
                 "0x%X" % cid, str(n),
-                "%.2f" % (100.0 * n / max(1, _state["sent"])), ""]))
+                "%.2f" % (100.0 * n / max(1, _state["sent"])),
+                last if cid == max(rows, key=lambda kv: kv[1])[0] else "",
+            ]))
 
     def _on_interval(v):
-        if _state["running"]:
+        if _state["running"] and _timer is not None:
             _timer.start(v)
-
-    def _on_open_cmd():
-        win.show()
-        win.raise_()
-        win.activateWindow()
-
-    context.register_command("canFuzzer.open", _on_open_cmd, "安全: 模糊测试")
 
     start_btn.clicked.connect(_on_start)
     stop_btn.clicked.connect(_on_stop)
     export_btn.clicked.connect(_on_export)
+    clear_btn.clicked.connect(_on_clear)
     interval_spin.valueChanged.connect(_on_interval)
 
     _timer = QTimer()
@@ -249,31 +341,12 @@ def activate(context):
     refresher.timeout.connect(_refresh)
     refresher.start(500)
 
-    stop_btn.setEnabled(True)
+    context.register_command(
+        "canFuzzer.open", plugin_shell.bind_raise(win), "Security: CAN Fuzzer")
+
     win.show()
-    sin.output.append("模糊测试插件已加载（默认不发送，点击开始后才发送）")
-
-
-def _range_row(id_min, id_max):
-    from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel
-    box = QWidget()
-    lay = QHBoxLayout(box)
-    lay.setContentsMargins(0, 0, 0, 0)
-    lay.addWidget(id_min)
-    lay.addWidget(QLabel("~"))
-    lay.addWidget(id_max)
-    return box
-
-
-def _h(*widgets):
-    from PyQt6.QtWidgets import QWidget, QHBoxLayout
-    box = QWidget()
-    lay = QHBoxLayout(box)
-    lay.setContentsMargins(0, 0, 0, 0)
-    for w in widgets:
-        lay.addWidget(w)
-    lay.addStretch(1)
-    return box
+    sin.output.append(
+        "CAN Fuzzer loaded (no TX until Start; rate-limited)")
 
 
 def deactivate():
@@ -281,4 +354,4 @@ def deactivate():
     _state["running"] = False
     if _timer is not None:
         _timer.stop()
-    sin.output.append("模糊测试插件已停用")
+    sin.output.append("CAN Fuzzer deactivated")

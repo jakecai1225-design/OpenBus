@@ -1,23 +1,31 @@
 # -*- coding: utf-8 -*-
-"""can-id-scanner 插件 — CAN ID 发现与 DBC 增量审计
-功能：
-- 实时 ID 发现（标准/扩展分类、帧数、频率、DLC、首见/末见时间）
-- Top Talker 排名（帧数/占比）
-- DBC 增量审计：总线上有而库中没有的 ID（未定义）、库中有而总线上没有的 ID（未出现）
-- CSV 导出；纯订阅只读（激活即订阅，安全）
-依赖: pip install PyQt6
+"""can-id-scanner — Live CAN ID discovery + optional DBC audit.
+
+Real-time ID map (std/ext, count, Hz, DLC), DBC undefined/missing audit, CSV export.
+Subscribe-only (read-safe).
 """
+
+from __future__ import annotations
 
 import time
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QTreeWidget, QTreeWidgetItem, QMessageBox, QHeaderView, QTabWidget,
+)
 
 import sin
-import dbcparse
+from _shared import dbcparse, dbc_picker, plugin_shell, state_store
 
-_ids = {}            # id -> {count, extended, dlc, first, last}
+PLUGIN_ID = "can-id-scanner"
+
+_ids = {}
 _dbc = None
+_dbc_path = ""
 _total = 0
+_win = None
 
 
 def _on_frame(frame):
@@ -26,8 +34,10 @@ def _on_frame(frame):
     st = _ids.get(frame.id)
     now = time.time()
     if st is None:
-        _ids[frame.id] = {"count": 1, "extended": frame.extended,
-                          "dlc": frame.dlc, "first": now, "last": now}
+        _ids[frame.id] = {
+            "count": 1, "extended": frame.extended,
+            "dlc": frame.dlc, "first": now, "last": now,
+        }
     else:
         st["count"] += 1
         st["last"] = now
@@ -36,35 +46,26 @@ def _on_frame(frame):
 
 
 def activate(context):
-    global _dbc
+    global _dbc, _dbc_path, _win, _total
     _dbc = None
-
-    try:
-        from PyQt6.QtWidgets import (
-            QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-            QTreeWidget, QTreeWidgetItem, QFileDialog, QMessageBox,
-            QHeaderView, QTabWidget
-        )
-        from PyQt6.QtGui import QColor
-    except ImportError:
-        sin.output.append("ID 扫描插件需要 PyQt6: pip install PyQt6")
-        return
-
+    _dbc_path = ""
     _ids.clear()
-    globals()["_total"] = 0
+    _total = 0
 
-    win = sin.ui.create_window("CAN ID 扫描与审计")
-    win.resize(960, 620)
+    win = sin.ui.create_window("CAN ID Scanner")
+    win.resize(980, 640)
+    plugin_shell.attach_status_bar(win, "Listening…")
+    _win = win
 
     central = QWidget()
     win.setCentralWidget(central)
     layout = QVBoxLayout(central)
 
     top = QHBoxLayout()
-    dbc_btn = QPushButton("加载 DBC 审计…")
-    audit_btn = QPushButton("执行审计")
-    export_btn = QPushButton("导出 CSV")
-    clear_btn = QPushButton("清零")
+    dbc_btn = QPushButton("Load DBC…")
+    audit_btn = QPushButton("Run audit")
+    export_btn = QPushButton("Export CSV")
+    clear_btn = QPushButton("Clear")
     top.addWidget(dbc_btn)
     top.addWidget(audit_btn)
     top.addStretch(1)
@@ -72,7 +73,11 @@ def activate(context):
     top.addWidget(clear_btn)
     layout.addLayout(top)
 
-    summary = QLabel("等待报文（订阅实时帧，只读）...")
+    layout.addWidget(plugin_shell.help_label(
+        "Live ID map from the bus (subscribe-only). Optional DBC audit finds IDs "
+        "on the bus but not in the database, and vice versa."))
+
+    summary = QLabel("Waiting for frames…")
     summary.setStyleSheet("font-weight:bold;")
     layout.addWidget(summary)
 
@@ -82,130 +87,165 @@ def activate(context):
     id_tab = QWidget()
     iv = QVBoxLayout(id_tab)
     tree = QTreeWidget()
-    tree.setHeaderLabels(["ID", "类型", "帧数", "频率Hz", "DLC", "DB C 报文", "首见", "末见"])
+    tree.setHeaderLabels([
+        "ID", "Type", "Frames", "Hz", "DLC", "DBC message", "First", "Last"])
     tree.setRootIsDecorated(False)
     tree.setAlternatingRowColors(True)
-    th = tree.header()
-    th.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     iv.addWidget(tree, 1)
-    tabs.addTab(id_tab, "ID 发现")
+    tabs.addTab(id_tab, "ID map")
 
     audit_tab = QWidget()
     av = QVBoxLayout(audit_tab)
     audit_tree = QTreeWidget()
-    audit_tree.setHeaderLabels(["类别", "ID", "DBC 名称", "周期(库)", "说明"])
+    audit_tree.setHeaderLabels(["Category", "ID", "DBC name", "Cycle (db)", "Note"])
     audit_tree.setRootIsDecorated(False)
-    ah = audit_tree.header()
-    ah.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    audit_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     av.addWidget(audit_tree, 1)
-    tabs.addTab(audit_tab, "DBC 增量审计")
+    tabs.addTab(audit_tab, "DBC audit")
+
+    def _persist():
+        state_store.save_state(PLUGIN_ID, {"dbc_path": _dbc_path})
 
     def _refresh():
         now = time.time()
-        elapsed = max(0.001, now - min((st["first"] for st in _ids.values()), default=now))
+        if not _ids:
+            summary.setText("Waiting for frames…")
+            tree.clear()
+            return
+        elapsed = max(0.001, now - min(st["first"] for st in _ids.values()))
         std = sum(1 for st in _ids.values() if not st["extended"])
         ext = len(_ids) - std
-        summary.setText("总帧数 %d · ID %d 个（标准 %d / 扩展 %d）· 观察 %.0fs"
-                        % (_total, len(_ids), std, ext, elapsed))
+        summary.setText(
+            "Frames %d · IDs %d (std %d / ext %d) · observed %.0fs"
+            % (_total, len(_ids), std, ext, elapsed))
         tree.clear()
-        rows = sorted(_ids.items(), key=lambda kv: -kv[1]["count"])
-        for cid, st in rows:
+        for cid, st in sorted(_ids.items(), key=lambda kv: -kv[1]["count"]):
             freq = st["count"] / max(0.001, now - st["first"])
             dbc_name = "-"
             if _dbc and cid in _dbc.messages:
                 dbc_name = _dbc.messages[cid].name
             item = QTreeWidgetItem([
-                "0x%X" % cid, "扩展" if st["extended"] else "标准",
+                "0x%X" % cid,
+                "ext" if st["extended"] else "std",
                 str(st["count"]), "%.1f" % freq, str(st["dlc"]), dbc_name,
                 time.strftime("%H:%M:%S", time.localtime(st["first"])),
-                time.strftime("%H:%M:%S", time.localtime(st["last"]))])
+                time.strftime("%H:%M:%S", time.localtime(st["last"])),
+            ])
             if _dbc is not None and cid not in _dbc.messages:
-                item.setBackground(5, QColor("#ef6c00"))   # 库中无
+                item.setBackground(5, QColor("#ef6c00"))
             tree.addTopLevelItem(item)
 
     def _on_load_dbc():
-        global _dbc
-        path, _ = QFileDialog.getOpenFileName(win, "加载 DBC", "", "DBC 文件 (*.dbc)")
+        global _dbc, _dbc_path
+        path = dbc_picker.pick_dbc(win, "Select DBC for audit")
         if not path:
             return
         _dbc = dbcparse.parse_file(path)
-        QMessageBox.information(win, "加载成功",
-                                "已加载 %d 报文定义" % len(_dbc.messages))
+        _dbc_path = path
+        _persist()
+        plugin_shell.set_status(
+            win, "DBC loaded (%d messages)" % len(_dbc.messages), 3000)
         _refresh()
 
     def _on_audit():
         if _dbc is None:
-            QMessageBox.information(win, "提示", "请先加载 DBC")
+            QMessageBox.information(win, "Audit", "Load a DBC first")
             return
         audit_tree.clear()
         bus_ids = set(_ids.keys())
         dbc_ids = set(_dbc.messages.keys())
         undefined = sorted(bus_ids - dbc_ids)
         missing = sorted(dbc_ids - bus_ids)
-        n = 0
         for cid in undefined:
             st = _ids[cid]
             audit_tree.addTopLevelItem(QTreeWidgetItem([
-                "总线上有·库中无", "0x%X" % cid, "-", "-",
-                "出现 %d 次，%.1f Hz" % (st["count"],
-                                         st["count"] / max(0.001, time.time() - st["first"]))]))
-            n += 1
+                "On bus / not in DBC", "0x%X" % cid, "-", "-",
+                "%d frames, %.1f Hz" % (
+                    st["count"],
+                    st["count"] / max(0.001, time.time() - st["first"]))]))
         for cid in missing:
             m = _dbc.messages[cid]
             audit_tree.addTopLevelItem(QTreeWidgetItem([
-                "库中有·总线上无", "0x%X" % cid, m.name,
-                str(m.cycle_time), "预期周期 %dms 未观察到" % m.cycle_time]))
-            n += 1
-        audit_tree.sortByColumn(0, __import__("PyQt6.QtCore", fromlist=["Qt"]).Qt.SortOrder.AscendingOrder)
-        QMessageBox.information(win, "审计完成",
-                                "未定义 ID: %d 个\n未出现 ID: %d 个" % (len(undefined), len(missing)))
+                "In DBC / not on bus", "0x%X" % cid, m.name,
+                str(m.cycle_time),
+                "Expected cycle %d ms not observed" % m.cycle_time]))
+        audit_tree.sortByColumn(0, Qt.SortOrder.AscendingOrder)
+        tabs.setCurrentIndex(1)
+        plugin_shell.set_status(
+            win,
+            "Audit: %d undefined, %d missing" % (len(undefined), len(missing)),
+            4000)
 
     def _on_export():
-        path, _ = QFileDialog.getSaveFileName(win, "导出 ID 清单", "id_scan.csv",
-                                              "CSV (*.csv)")
-        if not path:
+        if not _ids:
+            QMessageBox.information(win, "Export", "No IDs yet")
             return
-        try:
-            now = time.time()
-            with open(path, "w", encoding="utf-8-sig") as f:
-                f.write("ID,类型,帧数,频率Hz,DLC,DBC报文,首见,末见\n")
-                for cid, st in sorted(_ids.items(), key=lambda kv: -kv[1]["count"]):
-                    dbc_name = _dbc.messages[cid].name if (_dbc and cid in _dbc.messages) else ""
-                    f.write("0x%X,%s,%d,%.1f,%d,%s,%s,%s\n" % (
-                        cid, "扩展" if st["extended"] else "标准", st["count"],
-                        st["count"] / max(0.001, now - st["first"]), st["dlc"],
-                        dbc_name,
-                        time.strftime("%H:%M:%S", time.localtime(st["first"])),
-                        time.strftime("%H:%M:%S", time.localtime(st["last"]))))
-            QMessageBox.information(win, "导出成功", "已导出 %d 条" % len(_ids))
-        except OSError as e:
-            QMessageBox.warning(win, "导出失败", str(e))
+        now = time.time()
+        rows = []
+        for cid, st in sorted(_ids.items(), key=lambda kv: -kv[1]["count"]):
+            dbc_name = (
+                _dbc.messages[cid].name if (_dbc and cid in _dbc.messages) else "")
+            rows.append([
+                "0x%X" % cid,
+                "ext" if st["extended"] else "std",
+                st["count"],
+                "%.1f" % (st["count"] / max(0.001, now - st["first"])),
+                st["dlc"], dbc_name,
+                time.strftime("%H:%M:%S", time.localtime(st["first"])),
+                time.strftime("%H:%M:%S", time.localtime(st["last"])),
+            ])
+        path = plugin_shell.export_csv(
+            win,
+            ["ID", "Type", "Frames", "Hz", "DLC", "DBC", "First", "Last"],
+            rows,
+            "id_scan.csv",
+        )
+        if path:
+            plugin_shell.set_status(win, "Exported %s" % path, 4000)
 
     def _on_clear():
+        global _total
         _ids.clear()
-        globals()["_total"] = 0
-        _refresh()
-
-    def _on_open_cmd():
-        win.show()
-        win.raise_()
-        win.activateWindow()
-
-    context.on_frame(_on_frame)
-    context.register_command("canIdScanner.open", _on_open_cmd, "分析: ID 扫描审计")
+        _total = 0
+        tree.clear()
+        audit_tree.clear()
+        summary.setText("Waiting for frames…")
+        plugin_shell.set_status(win, "Cleared", 2000)
 
     dbc_btn.clicked.connect(_on_load_dbc)
     audit_btn.clicked.connect(_on_audit)
     export_btn.clicked.connect(_on_export)
     clear_btn.clicked.connect(_on_clear)
+    plugin_shell.bind_shortcut(win, "Ctrl+E", _on_export)
 
-    timer = QTimer()
+    context.on_frame(_on_frame)
+    context.register_command(
+        "canIdScanner.open", plugin_shell.bind_raise(win), "Tools: ID Scanner")
+
+    saved = state_store.load_state(PLUGIN_ID, default={}) or {}
+    p = saved.get("dbc_path") or ""
+    if p:
+        try:
+            import os
+            if os.path.isfile(p):
+                _dbc = dbcparse.parse_file(p)
+                _dbc_path = p
+        except OSError:
+            pass
+
+    timer = QTimer(win)
     timer.timeout.connect(_refresh)
     timer.start(500)
 
     win.show()
-    sin.output.append("ID 扫描插件已加载（订阅实时帧 + DBC 增量审计，只读安全）")
+    sin.output.append("can-id-scanner loaded (live ID map + optional DBC audit)")
 
 
 def deactivate():
-    sin.output.append("ID 扫描插件已停用")
+    global _win
+    _win = None
+    try:
+        sin.output.append("can-id-scanner deactivated")
+    except Exception:
+        pass

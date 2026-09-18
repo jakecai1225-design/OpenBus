@@ -1,8 +1,8 @@
 {
     "name": "can-gateway",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "CAN 报文网关：规则化转发（ID 精确/掩码匹配、ID 重映射、载荷补丁、限频），转发计数统计",
+    "description": "CAN gateway: rule-based forward (exact/mask match, ID remap, payload patch, rate limit) with persisted rules and hit stats",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "canGateway.open",
-                "title": "工具: 报文网关"
+                "title": "Tools: Gateway"
             }
         ]
     }

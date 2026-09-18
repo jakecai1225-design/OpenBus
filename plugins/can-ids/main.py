@@ -1,29 +1,35 @@
 # -*- coding: utf-8 -*-
-"""can-ids 插件 — CAN 入侵检测（CAN IDS 研究工具风格）
-功能：
-- 学习模式：采集 N 秒正常流量，建立 ID 白名单 + 基线（周期 μ/σ、载荷特征）
-- 监控模式：
-  * 新 ID 告警（白名单外）
-  * 速率异常（间隔超出 μ±3σ）
-  * 载荷异常（学习期恒定载荷被改变 / 载荷突变频率激增）
-- 事件时间线 + CSV 导出；纯订阅只读（不发送任何帧）
-依赖: pip install PyQt6
+"""can-ids — CAN intrusion detection (research / IDS style).
+
+Learn-mode whitelist (period mu/sigma, static payload), monitor-mode
+anomaly alerts (new ID / rate / payload), event timeline + CSV export.
+Read-only: never transmits.
 """
 
-import csv
+from __future__ import annotations
+
 import time
 
 from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QTreeWidget, QTreeWidgetItem, QMessageBox, QHeaderView,
+    QSpinBox, QGroupBox, QFormLayout,
+)
 
 import sin
+from _shared import plugin_shell, state_store
 
-_whitelist = {}      # id -> {"mu": ms, "sigma": ms, "static_payload": bytes|None, "chg": n, "count": n}
+PLUGIN_ID = "can-ids"
+
+_whitelist = {}
 _learn_cfg = {"learning": False, "deadline": 0.0, "secs": 30}
 _monitor = False
-_events = []         # [(ts, level, kind, detail)]
-_alert_ts = {}       # (id, kind) -> last alert ts（节流：同 ID 同类 10s 一条）
-_runtime = {}        # id -> {"count", "chg", "last": t, "periods": [ms], "data": bytes}
-_learn_stats = {}    # 学习期临时：id -> {"count", "chg", "last": t, "periods": [ms], "data": bytes}
+_events = []  # [(ts, level, kind, detail)]
+_alert_ts = {}
+_runtime = {}
+_learn_stats = {}
 _summary = {"learned_ids": 0, "learn_frames": 0, "alerts": 0, "checked": 0}
 _running = True
 
@@ -32,8 +38,10 @@ def _feed(stats, frame):
     now = time.time()
     st = stats.get(frame.id)
     if st is None:
-        stats[frame.id] = {"count": 1, "chg": 0, "last": now,
-                           "periods": [], "data": frame.data, "ext": frame.extended}
+        stats[frame.id] = {
+            "count": 1, "chg": 0, "last": now,
+            "periods": [], "data": frame.data, "ext": frame.extended,
+        }
     else:
         dt = (now - st["last"]) * 1000.0
         if 0 < dt < 60000:
@@ -53,8 +61,7 @@ def _alert(cid, level, kind, detail):
     if now - _alert_ts.get(key, 0) < 10.0:
         return
     _alert_ts[key] = now
-    _events.append((now, level, kind,
-                    "ID 0x%X %s" % (cid, detail)))
+    _events.append((now, level, kind, "ID 0x%X %s" % (cid, detail)))
     _summary["alerts"] += 1
 
 
@@ -73,11 +80,14 @@ def _finish_learn():
         _whitelist[cid] = {
             "mu": mu, "sigma": sigma,
             "static_payload": st["data"] if chg_prob < 0.02 else None,
-            "chg_prob": chg_prob, "count": st["count"], "ext": st.get("ext", False)}
+            "chg_prob": chg_prob, "count": st["count"],
+            "ext": st.get("ext", False),
+        }
     _summary["learned_ids"] = len(_whitelist)
     _summary["learn_frames"] = total_frames
-    _events.append((time.time(), "INFO", "学习完成",
-                    "白名单 %d 个 ID / %d 帧" % (len(_whitelist), total_frames)))
+    _events.append((
+        time.time(), "INFO", "learn_done",
+        "whitelist %d IDs / %d frames" % (len(_whitelist), total_frames)))
 
 
 def _on_frame(frame):
@@ -91,199 +101,270 @@ def _on_frame(frame):
     _summary["checked"] += 1
     base = _whitelist.get(frame.id)
     if base is None:
-        _alert(frame.id, "高", "新 ID", "不在学习白名单内")
+        _alert(frame.id, "HIGH", "new_id", "not in learned whitelist")
         _feed(_runtime, frame)
         return
     now = time.time()
     st = _runtime.get(frame.id)
     if st is None:
-        _runtime[frame.id] = {"count": 1, "chg": 0, "last": now,
-                              "periods": [], "data": frame.data}
+        _runtime[frame.id] = {
+            "count": 1, "chg": 0, "last": now,
+            "periods": [], "data": frame.data,
+        }
         return
     dt = (now - st["last"]) * 1000.0
     st["last"] = now
     st["count"] += 1
-    # 速率异常：μ±3σ（σ 过小则放宽到 μ±10%）
     if base["mu"] > 0 and 0 < dt < 60000:
         tol = max(3.0 * base["sigma"], 0.10 * base["mu"], 1.0)
         if abs(dt - base["mu"]) > tol:
-            _alert(frame.id, "中", "速率异常",
-                   "间隔 %.1fms（基线 %.1f±%.1fms）" % (dt, base["mu"], tol))
-    # 载荷异常：学习期恒定载荷被改变
+            _alert(
+                frame.id, "MED", "rate_anomaly",
+                "interval %.1fms (baseline %.1f±%.1fms)" % (
+                    dt, base["mu"], tol))
     if base["static_payload"] is not None and frame.data != base["static_payload"]:
         if frame.data != st["data"]:
-            _alert(frame.id, "高", "载荷异常",
-                   "学习期恒定载荷被改变")
+            _alert(
+                frame.id, "HIGH", "payload_anomaly",
+                "static learned payload changed")
     if frame.data != st["data"]:
         st["chg"] += 1
     st["data"] = frame.data
 
 
 def activate(context):
-    global _monitor
+    global _monitor, _running
+    _running = True
     _monitor = False
     _learn_cfg["learning"] = False
     del _events[:]
     _runtime.clear()
     _learn_stats.clear()
     _whitelist.clear()
-    _summary.update({"learned_ids": 0, "learn_frames": 0, "alerts": 0, "checked": 0})
+    _alert_ts.clear()
+    _summary.update({
+        "learned_ids": 0, "learn_frames": 0, "alerts": 0, "checked": 0,
+    })
 
-    try:
-        from PyQt6.QtWidgets import (
-            QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-            QTreeWidget, QTreeWidgetItem, QFileDialog, QMessageBox,
-            QHeaderView, QSpinBox, QGroupBox, QFormLayout
-        )
-        from PyQt6.QtGui import QColor
-    except ImportError:
-        sin.output.append("入侵检测插件需要 PyQt6: pip install PyQt6")
-        return
-
-    win = sin.ui.create_window("CAN 入侵检测")
+    win = sin.ui.create_window("CAN IDS")
     win.resize(960, 620)
+    plugin_shell.attach_status_bar(
+        win, "Learn baseline first — read-only, no TX")
 
     central = QWidget()
     win.setCentralWidget(central)
     layout = QVBoxLayout(central)
 
-    cfg = QGroupBox("基线学习")
+    layout.addWidget(plugin_shell.help_label(
+        "Learn captures normal traffic into an ID whitelist with period "
+        "mu/sigma and optional static payload. Monitor flags new IDs, "
+        "rate outliers (mu±3σ), and static-payload changes. Alerts are "
+        "throttled to 1 per ID/kind every 10 s."))
+
+    cfg = QGroupBox("Baseline learn")
     cfg_l = QFormLayout(cfg)
     secs_spin = QSpinBox()
     secs_spin.setRange(5, 600)
     secs_spin.setValue(30)
-    secs_spin.setSuffix(" 秒")
-    cfg_l.addRow("学习时长:", secs_spin)
+    secs_spin.setSuffix(" s")
+    cfg_l.addRow("Learn duration:", secs_spin)
     layout.addWidget(cfg)
 
+    saved = state_store.load_state(PLUGIN_ID, "settings.json", default={}) or {}
+    if "learn_secs" in saved:
+        secs_spin.setValue(int(saved["learn_secs"]))
+
     btns = QHBoxLayout()
-    learn_btn = QPushButton("开始学习（采集正常流量）")
-    monitor_btn = QPushButton("开始监控")
-    stop_btn = QPushButton("停止监控")
-    export_btn = QPushButton("导出事件 CSV")
-    clear_btn = QPushButton("清空事件")
-    btns.addWidget(learn_btn)
-    btns.addWidget(monitor_btn)
-    btns.addWidget(stop_btn)
+    learn_btn = QPushButton("Start learn")
+    stop_learn_btn = QPushButton("Stop learn")
+    monitor_btn = QPushButton("Start monitor")
+    stop_btn = QPushButton("Stop monitor")
+    export_btn = QPushButton("Export anomalies CSV…")
+    export_wl_btn = QPushButton("Export whitelist CSV…")
+    clear_btn = QPushButton("Clear events")
+    for w in (learn_btn, stop_learn_btn, monitor_btn, stop_btn):
+        btns.addWidget(w)
     btns.addStretch(1)
     btns.addWidget(export_btn)
+    btns.addWidget(export_wl_btn)
     btns.addWidget(clear_btn)
     layout.addLayout(btns)
+    stop_learn_btn.setEnabled(False)
+    monitor_btn.setEnabled(False)
+    stop_btn.setEnabled(False)
 
-    status = QLabel("先学习基线，再开始监控（只读，不发送）")
+    status = QLabel("Learn a baseline, then start monitoring (read-only)")
     status.setStyleSheet("font-weight:bold;")
     layout.addWidget(status)
 
     tree = QTreeWidget()
-    tree.setHeaderLabels(["时间", "级别", "类型", "详情"])
+    tree.setHeaderLabels(["Time", "Level", "Kind", "Detail"])
     tree.setRootIsDecorated(False)
     tree.setAlternatingRowColors(True)
-    th = tree.header()
-    th.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     layout.addWidget(tree, 1)
+
+    def _persist():
+        state_store.save_state(PLUGIN_ID, {
+            "learn_secs": secs_spin.value(),
+        }, "settings.json")
 
     def _on_learn():
         global _monitor
         _monitor = False
+        _persist()
         _learn_cfg["secs"] = secs_spin.value()
         _learn_cfg["learning"] = True
         _learn_cfg["deadline"] = time.time() + secs_spin.value()
         _learn_stats.clear()
         learn_btn.setEnabled(False)
+        stop_learn_btn.setEnabled(True)
         monitor_btn.setEnabled(False)
-        status.setText("学习模式：正在采集 %d 秒正常流量…" % secs_spin.value())
-        _events.append((time.time(), "INFO", "学习开始", "时长 %d 秒" % secs_spin.value()))
+        stop_btn.setEnabled(False)
+        status.setText(
+            "Learning: capturing %d s of normal traffic…" % secs_spin.value())
+        plugin_shell.set_status(win, "Learning baseline")
+        _events.append((
+            time.time(), "INFO", "learn_start",
+            "duration %d s" % secs_spin.value()))
+
+    def _on_stop_learn():
+        if not _learn_cfg["learning"]:
+            return
+        _finish_learn()
+        learn_btn.setEnabled(True)
+        stop_learn_btn.setEnabled(False)
+        monitor_btn.setEnabled(bool(_whitelist))
+        status.setText(
+            "Learn finished early: whitelist %d IDs / %d frames"
+            % (_summary["learned_ids"], _summary["learn_frames"]))
+        plugin_shell.set_status(win, "Learn done", 5000)
 
     def _on_monitor():
         global _monitor
         if not _whitelist:
-            QMessageBox.information(win, "提示", "请先执行基线学习")
+            QMessageBox.information(win, "Need baseline", "Run learn first")
             return
         if _learn_cfg["learning"]:
-            QMessageBox.information(win, "提示", "学习尚未结束")
+            QMessageBox.information(win, "Busy", "Learn still running")
             return
         _monitor = True
         _runtime.clear()
-        status.setText("监控中 · 白名单 %d ID · 告警阈值 μ±3σ" % len(_whitelist))
-        _events.append((time.time(), "INFO", "监控开始", ""))
+        monitor_btn.setEnabled(False)
+        stop_btn.setEnabled(True)
+        learn_btn.setEnabled(False)
+        status.setText(
+            "Monitoring · whitelist %d IDs · threshold mu±3σ"
+            % len(_whitelist))
+        plugin_shell.set_status(win, "Monitoring")
+        _events.append((time.time(), "INFO", "monitor_start", ""))
 
     def _on_stop():
         global _monitor
         _monitor = False
-        status.setText("监控已停止")
+        stop_btn.setEnabled(False)
+        monitor_btn.setEnabled(bool(_whitelist))
+        learn_btn.setEnabled(True)
+        status.setText("Monitor stopped")
+        plugin_shell.set_status(win, "Monitor stopped")
 
     def _on_export():
         if not _events:
-            QMessageBox.information(win, "提示", "无事件")
+            QMessageBox.information(win, "No data", "No events to export")
             return
-        path, _ = QFileDialog.getSaveFileName(win, "导出事件", "ids_events.csv",
-                                              "CSV (*.csv)")
-        if not path:
+        rows = []
+        for ts, level, kind, detail in _events:
+            rows.append([
+                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)),
+                level, kind, detail,
+            ])
+        path = plugin_shell.export_csv(
+            win, ["Time", "Level", "Kind", "Detail"], rows, "ids_events.csv")
+        if path:
+            plugin_shell.set_status(
+                win, "Exported %d events" % len(_events), 5000)
+
+    def _on_export_wl():
+        if not _whitelist:
+            QMessageBox.information(win, "No data", "No whitelist yet")
             return
-        try:
-            with open(path, "w", encoding="utf-8-sig", newline="") as f:
-                w = csv.writer(f)
-                w.writerow(["时间", "级别", "类型", "详情"])
-                for ts, level, kind, detail in _events:
-                    w.writerow([time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)),
-                                level, kind, detail])
-            QMessageBox.information(win, "导出成功", "已导出 %d 条事件" % len(_events))
-        except OSError as e:
-            QMessageBox.warning(win, "导出失败", str(e))
+        rows = []
+        for cid, r in sorted(_whitelist.items()):
+            rows.append([
+                "0x%X" % cid,
+                "%.2f" % r["mu"],
+                "%.2f" % r["sigma"],
+                "%.4f" % r["chg_prob"],
+                r["count"],
+                "static" if r["static_payload"] is not None else "variable",
+            ])
+        path = plugin_shell.export_csv(
+            win,
+            ["ID", "mu_ms", "sigma_ms", "chg_prob", "count", "payload"],
+            rows, "ids_whitelist.csv")
+        if path:
+            plugin_shell.set_status(win, "Whitelist exported", 5000)
 
     def _on_clear():
         del _events[:]
         tree.clear()
+        _summary["alerts"] = 0
 
     def _refresh():
         if _learn_cfg["learning"]:
             remain = max(0, int(_learn_cfg["deadline"] - time.time()))
             n_frames = sum(st["count"] for st in _learn_stats.values())
-            status.setText("学习模式：剩余 %d 秒 · 已采集 %d 帧 / %d ID"
-                           % (remain, n_frames, len(_learn_stats)))
+            status.setText(
+                "Learning: %d s left · %d frames / %d IDs"
+                % (remain, n_frames, len(_learn_stats)))
             if remain <= 0:
                 _finish_learn()
                 learn_btn.setEnabled(True)
+                stop_learn_btn.setEnabled(False)
                 monitor_btn.setEnabled(True)
-                status.setText("学习完成：白名单 %d ID / %d 帧，可开始监控"
-                               % (_summary["learned_ids"], _summary["learn_frames"]))
+                status.setText(
+                    "Learn done: whitelist %d IDs / %d frames — start monitor"
+                    % (_summary["learned_ids"], _summary["learn_frames"]))
+                plugin_shell.set_status(win, "Learn done", 5000)
         elif _monitor:
-            status.setText("监控中 · 已检查 %d 帧 · 告警 %d 次 · 白名单 %d ID"
-                           % (_summary["checked"], _summary["alerts"], len(_whitelist)))
+            status.setText(
+                "Monitoring · checked %d · alerts %d · whitelist %d"
+                % (_summary["checked"], _summary["alerts"], len(_whitelist)))
         if _events:
             tree.clear()
-            colors = {"高": QColor("#c62828"), "中": QColor("#ef6c00"),
-                      "INFO": QColor("#1565c0")}
+            colors = {
+                "HIGH": QColor("#c62828"),
+                "MED": QColor("#ef6c00"),
+                "INFO": QColor("#1565c0"),
+            }
             for ts, level, kind, detail in _events[-300:]:
                 item = QTreeWidgetItem([
-                    time.strftime("%H:%M:%S", time.localtime(ts)), level, kind, detail])
-                item.setForeground(1, colors.get(level))
+                    time.strftime("%H:%M:%S", time.localtime(ts)),
+                    level, kind, detail,
+                ])
+                item.setForeground(1, colors.get(level, QColor("#333")))
                 tree.addTopLevelItem(item)
             sb = tree.verticalScrollBar()
             sb.setValue(sb.maximum())
 
-    def _on_open_cmd():
-        win.show()
-        win.raise_()
-        win.activateWindow()
-
-    context.on_frame(_on_frame)
-    context.register_command("canIds.open", _on_open_cmd, "安全: 入侵检测")
-
     learn_btn.clicked.connect(_on_learn)
+    stop_learn_btn.clicked.connect(_on_stop_learn)
     monitor_btn.clicked.connect(_on_monitor)
     stop_btn.clicked.connect(_on_stop)
     export_btn.clicked.connect(_on_export)
+    export_wl_btn.clicked.connect(_on_export_wl)
     clear_btn.clicked.connect(_on_clear)
-
-    monitor_btn.setEnabled(False)
 
     timer = QTimer()
     timer.timeout.connect(_refresh)
     timer.start(500)
 
+    context.on_frame(_on_frame)
+    context.register_command(
+        "canIds.open", plugin_shell.bind_raise(win), "Security: CAN IDS")
+
     win.show()
-    sin.output.append("入侵检测插件已加载（学习+监控，只读安全）")
+    sin.output.append("CAN IDS loaded (learn + monitor, read-only)")
 
 
 def deactivate():
@@ -291,4 +372,4 @@ def deactivate():
     _running = False
     _monitor = False
     _learn_cfg["learning"] = False
-    sin.output.append("入侵检测插件已停用")
+    sin.output.append("CAN IDS deactivated")

@@ -1,8 +1,8 @@
 {
     "name": "frame-compare",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "CAN 双源报文比对：实时/缓冲/CSV 三种来源两两比对，缺帧/多帧/载荷差/周期差统计与导出",
+    "description": "Dual-source CAN frame compare: live capture or CSV, missing/payload/period diffs with CSV export",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "frameCompare.open",
-                "title": "工具: 报文比对"
+                "title": "Tools: Frame Compare"
             }
         ]
     }

@@ -1,23 +1,29 @@
 # -*- coding: utf-8 -*-
-"""iso-tp-monitor 插件 — ISO-TP（ISO 15765-2）会话被动监视
-功能：
-- 被动解码总线上所有 ISO-TP 会话：SF / FF / CF / FC PCI 全识别
-- 多帧重组：按 CAN ID 跟踪会话（期望长度、已收字节、序号校验、超时检测）
-- FC 流控帧解码（FS=CTS/WAIT/OVFLW，BS、STmin）
-- 完整 PDU 清单（时间戳、ID、长度、Hex）+ 事件日志 + CSV 导出
-- 纯监视，不发送任何帧
-数据源：context.on_frame 订阅（约 100ms 批量推送）
-依赖: pip install PyQt6
+"""iso-tp-monitor — ISO-TP (ISO 15765-2) passive session monitor.
+
+SF / FF / CF / FC decode, multi-frame reassembly by CAN ID, sequence checks,
+session timeout, PDU list + event log + CSV. Passive only — no TX.
 """
+
+from __future__ import annotations
 
 import time
 
-import sin
+from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QTreeWidget, QTreeWidgetItem, QTextEdit, QHeaderView, QSpinBox,
+    QTabWidget, QMessageBox,
+)
 
-# 会话状态：can_id → dict
+import sin
+from _shared import plugin_shell, state_store
+
+PLUGIN_ID = "iso-tp-monitor"
+
 _sessions = {}
-_pdus = []          # 完整 PDU 记录 [(ts, can_id, pdu_hex)]
-_events = []        # 事件日志 [(ts, kind, text)]
+_pdus = []
+_events = []
 _total_frames = 0
 _fc_frames = 0
 _timeout_ms = 1000.0
@@ -39,10 +45,10 @@ def _hex(data):
 
 def _stmin_text(raw):
     if raw <= 0x7F:
-        return "%dms" % raw
+        return "%d ms" % raw
     if 0xF1 <= raw <= 0xF9:
-        return "%d×100µs" % (raw - 0xF0)
-    return "保留(%02X)" % raw
+        return "%d×100 µs" % (raw - 0xF0)
+    return "reserved (%02X)" % raw
 
 
 def _on_frame(frame):
@@ -58,7 +64,7 @@ def _on_frame(frame):
     pci = data[0]
     kind = pci & 0xF0
 
-    if kind == 0x00:                       # SF
+    if kind == 0x00:
         length = pci & 0x0F
         if length == 0:
             return
@@ -67,63 +73,71 @@ def _on_frame(frame):
             _pdus.append((ts, fid, _hex(pdu)))
             if len(_pdus) > 5000:
                 del _pdus[:1000]
-            _ev("PDU", "SF 0x%X 完成 %d 字节: %s" % (fid, length, _hex(pdu[:24])))
-    elif kind == 0x10:                     # FF → 新会话
+            _ev("PDU", "SF 0x%X done %d B: %s" % (fid, length, _hex(pdu[:24])))
+    elif kind == 0x10:
         expected = ((pci & 0x0F) << 8) | (data[1] if len(data) > 1 else 0)
         got = max(0, len(data) - 2)
         _sessions[fid] = {
             "expected": expected, "got": got, "last_sn": 0,
-            "last_ts": ts, "done": 0, "state": "接收中",
+            "last_ts": ts, "done": 0, "state": "Receiving",
+            "buf": bytearray(data[2:]),
         }
-        _ev("FF", "0x%X FF 期望 %d 字节（首帧携带 %d）" % (fid, expected, got))
-    elif kind == 0x20:                     # CF
+        _ev("FF", "0x%X FF expect %d B (first %d)" % (fid, expected, got))
+    elif kind == 0x20:
         sn = pci & 0x0F
         st = _sessions.get(fid)
         if st is None:
             return
         st["last_ts"] = ts
-        st["got"] += max(0, len(data) - 1)
+        chunk = bytes(data[1:])
+        st["got"] += len(chunk)
+        if "buf" in st:
+            st["buf"].extend(chunk)
         if sn == ((st["last_sn"] + 1) & 0x0F):
             st["last_sn"] = sn
         else:
-            _ev("SN", "0x%X CF 序号异常: 期望 %d 收到 %d" % (fid, (st["last_sn"] + 1) & 0x0F, sn))
+            _ev("SN", "0x%X CF SN error: expect %d got %d" % (
+                fid, (st["last_sn"] + 1) & 0x0F, sn))
             st["last_sn"] = sn
         if st["got"] >= st["expected"]:
             st["done"] += 1
-            st["state"] = "完成"
-            _pdus.append((ts, fid, "<多帧 %d 字节>" % st["expected"]))
-            _ev("PDU", "0x%X 多帧重组完成 %d 字节（第 %d 次）" % (fid, st["expected"], st["done"]))
-    elif kind == 0x30:                     # FC（被动观察）
+            st["state"] = "Complete"
+            payload = bytes(st.get("buf", b""))[:st["expected"]]
+            hx = _hex(payload) if payload else "<multi-frame %d B>" % st["expected"]
+            _pdus.append((ts, fid, hx))
+            if len(_pdus) > 5000:
+                del _pdus[:1000]
+            _ev("PDU", "0x%X multi-frame done %d B (#%d)" % (
+                fid, st["expected"], st["done"]))
+    elif kind == 0x30:
         _fc_frames += 1
         fs = pci & 0x0F
         bs = data[1] if len(data) > 1 else 0
         stmin = data[2] if len(data) > 2 else 0
-        _ev("FC", "0x%X FC: FS=%s BS=%d STmin=%s"
-            % (fid, FS_NAMES.get(fs, "%d" % fs), bs, _stmin_text(stmin)))
+        _ev("FC", "0x%X FC: FS=%s BS=%d STmin=%s" % (
+            fid, FS_NAMES.get(fs, "%d" % fs), bs, _stmin_text(stmin)))
 
 
 def activate(context):
-    global _running, _enabled, _timeout_ms
+    global _running, _enabled, _timeout_ms, _total_frames, _fc_frames
     _sessions.clear()
     del _pdus[:]
     del _events[:]
+    _total_frames = 0
+    _fc_frames = 0
 
+    saved = state_store.load_state(PLUGIN_ID, "settings.json", default={}) or {}
     try:
-        from PyQt6.QtWidgets import (
-            QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-            QTreeWidget, QTreeWidgetItem, QTextEdit, QFileDialog,
-            QMessageBox, QHeaderView, QSpinBox, QTabWidget
-        )
-        from PyQt6.QtCore import QTimer
-    except ImportError:
-        sin.output.append("ISO-TP 监视插件需要 PyQt6: pip install PyQt6")
-        return
+        _timeout_ms = float(saved.get("timeout_ms", 1000))
+    except (TypeError, ValueError):
+        _timeout_ms = 1000.0
 
     _running = True
     _enabled = True
 
-    win = sin.ui.create_window("ISO-TP 会话监视 (ISO 15765-2)")
+    win = sin.ui.create_window("ISO-TP Session Monitor (ISO 15765-2)")
     win.resize(940, 620)
+    plugin_shell.attach_status_bar(win, "Waiting for ISO-TP traffic…")
 
     central = QWidget()
     win.setCentralWidget(central)
@@ -132,79 +146,89 @@ def activate(context):
     tabs = QTabWidget()
     layout.addWidget(tabs, 1)
 
-    # ---------- Tab 1: 会话 ----------
     sess_tab = QWidget()
     sv = QVBoxLayout(sess_tab)
 
     top = QHBoxLayout()
-    summary = QLabel("等待数据...")
+    summary = QLabel("Waiting…")
     summary.setStyleSheet("font-weight: bold;")
     top.addWidget(summary, 1)
-    top.addWidget(QLabel("会话超时(ms)"))
+    top.addWidget(QLabel("Session timeout (ms)"))
     timeout_spin = QSpinBox()
     timeout_spin.setRange(200, 10000)
     timeout_spin.setSingleStep(100)
     timeout_spin.setValue(int(_timeout_ms))
     top.addWidget(timeout_spin)
-    pause_btn = QPushButton("暂停")
-    clear_btn = QPushButton("清零")
-    export_btn = QPushButton("导出 CSV")
+    pause_btn = QPushButton("Pause")
+    clear_btn = QPushButton("Clear")
+    export_btn = QPushButton("Export CSV")
     top.addWidget(pause_btn)
     top.addWidget(clear_btn)
     top.addWidget(export_btn)
     sv.addLayout(top)
 
+    sv.addWidget(plugin_shell.help_label(
+        "Passive: SF/FF/CF/FC decode, multi-frame reassembly by CAN ID, "
+        "SN checks and session timeout. No frames are sent."))
+
+    empty = plugin_shell.empty_state_label(
+        "No ISO-TP sessions yet — wait for First Frame or Single Frame.")
     sess_tree = QTreeWidget()
-    sess_tree.setHeaderLabels(["CAN ID", "状态", "期望字节", "已收字节", "完成次数",
-                               "最后序号", "最后活动(s)"])
+    sess_tree.setHeaderLabels([
+        "CAN ID", "State", "Expected B", "Received B", "Completions",
+        "Last SN", "Last activity (s)",
+    ])
     sess_tree.setRootIsDecorated(False)
     sess_tree.setAlternatingRowColors(True)
-    header = sess_tree.header()
-    header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    sess_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    sv.addWidget(empty)
     sv.addWidget(sess_tree, 2)
+    sess_tree.hide()
 
-    hint = QLabel("被动监视：识别 SF/FF/CF/FC，按 CAN ID 跟踪多帧会话重组进度；不发送任何帧")
-    hint.setStyleSheet("color: #888; font-size: 11px;")
-    sv.addWidget(hint)
-
-    # ---------- Tab 2: PDU 清单 ----------
     pdu_tab = QWidget()
     pv = QVBoxLayout(pdu_tab)
     pdu_tree = QTreeWidget()
-    pdu_tree.setHeaderLabels(["时间戳(s)", "CAN ID", "PDU Hex"])
+    pdu_tree.setHeaderLabels(["Timestamp (s)", "CAN ID", "PDU hex"])
     pdu_tree.setRootIsDecorated(False)
     pdu_tree.setAlternatingRowColors(True)
-    ph = pdu_tree.header()
-    ph.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    pdu_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     pv.addWidget(pdu_tree, 1)
 
-    # ---------- Tab 3: 事件日志 ----------
     log_tab = QWidget()
     lv = QVBoxLayout(log_tab)
     log_view = QTextEdit()
     log_view.setReadOnly(True)
     lv.addWidget(log_view, 1)
 
-    tabs.addTab(sess_tab, "会话")
-    tabs.addTab(pdu_tab, "PDU 清单")
-    tabs.addTab(log_tab, "事件日志")
+    tabs.addTab(sess_tab, "Sessions")
+    tabs.addTab(pdu_tab, "PDU list")
+    tabs.addTab(log_tab, "Event log")
 
     context.on_frame(_on_frame)
 
+    def _persist():
+        state_store.save_state(PLUGIN_ID, {
+            "timeout_ms": int(timeout_spin.value()),
+        }, "settings.json")
+
     def refresh():
         now = time.time()
-        if _sessions:
-            summary.setText("总帧数 %d    ISO-TP 会话 %d    完整 PDU %d    FC 帧 %d"
-                            % (_total_frames, len(_sessions), len(_pdus), _fc_frames))
-        else:
-            summary.setText("总帧数 %d    ISO-TP 会话 0    完整 PDU %d    FC 帧 %d"
-                            % (_total_frames, len(_pdus), _fc_frames))
+        summary.setText(
+            "Frames %d    Sessions %d    PDUs %d    FC %d"
+            % (_total_frames, len(_sessions), len(_pdus), _fc_frames))
 
-        # 超时检测
         for fid, st in _sessions.items():
-            if st["state"] == "接收中" and now - st["last_ts"] > _timeout_ms / 1000.0:
-                st["state"] = "超时"
-                _ev("TO", "0x%X 会话超时（%d/%d 字节）" % (fid, st["got"], st["expected"]))
+            if st["state"] == "Receiving" and now - st["last_ts"] > _timeout_ms / 1000.0:
+                st["state"] = "Timeout"
+                _ev("TO", "0x%X session timeout (%d/%d B)" % (
+                    fid, st["got"], st["expected"]))
+
+        if _sessions:
+            empty.hide()
+            sess_tree.show()
+        else:
+            sess_tree.hide()
+            empty.show()
 
         sess_tree.setSortingEnabled(False)
         sess_tree.clear()
@@ -218,64 +242,75 @@ def activate(context):
         pdu_tree.setSortingEnabled(False)
         pdu_tree.clear()
         for ts, fid, hx in _pdus[-300:]:
-            pdu_tree.addTopLevelItem(QTreeWidgetItem(["%.6f" % ts, "0x%X" % fid, hx]))
+            pdu_tree.addTopLevelItem(QTreeWidgetItem([
+                "%.6f" % ts, "0x%X" % fid, hx]))
         pdu_tree.scrollToBottom()
         pdu_tree.setSortingEnabled(True)
 
         if _events:
-            lines = []
-            for ts, kind, text in _events[-200:]:
-                lines.append("[%s] %s %s" % (time.strftime("%H:%M:%S"), kind, text))
+            lines = [
+                "[%s] %s %s" % (time.strftime("%H:%M:%S", time.localtime(ts)), kind, text)
+                for ts, kind, text in _events[-200:]
+            ]
             log_view.setPlainText("\n".join(lines))
             sb = log_view.verticalScrollBar()
             sb.setValue(sb.maximum())
 
-    timer = QTimer()
+        plugin_shell.set_status(
+            win, "%s · %d frames · %d PDUs · timeout %d ms"
+            % ("Paused" if not _enabled else "Live",
+               _total_frames, len(_pdus), int(_timeout_ms)))
+
+    timer = QTimer(win)
     timer.timeout.connect(refresh)
     timer.start(500)
 
     def on_pause():
         global _enabled
         _enabled = not _enabled
-        pause_btn.setText("继续" if not _enabled else "暂停")
+        pause_btn.setText("Resume" if not _enabled else "Pause")
+        plugin_shell.set_status(
+            win, "Paused" if not _enabled else "Live", 3000)
 
     def on_clear():
+        global _total_frames, _fc_frames
         _sessions.clear()
         del _pdus[:]
         del _events[:]
+        _total_frames = 0
+        _fc_frames = 0
         sess_tree.clear()
         pdu_tree.clear()
         log_view.clear()
-        summary.setText("等待数据...")
+        refresh()
+        plugin_shell.set_status(win, "Cleared", 3000)
 
     def on_export():
-        path, _ = QFileDialog.getSaveFileName(win, "导出 ISO-TP 记录 CSV",
-                                              "isotp_monitor.csv", "CSV 文件 (*.csv)")
-        if not path:
-            return
-        try:
-            with open(path, "w", encoding="utf-8-sig") as f:
-                f.write("时间戳s,CAN ID,PDU/说明\n")
-                for ts, fid, hx in _pdus:
-                    f.write("%.6f,0x%X,%s\n" % (ts, fid, hx))
-                f.write("\n事件日志\n时间,类型,内容\n")
-                for ts, kind, text in _events:
-                    f.write("%s,%s,%s\n" % (time.strftime("%H:%M:%S", time.localtime(ts)),
-                                            kind, text))
-            QMessageBox.information(win, "导出成功", "已导出到:\n%s" % path)
-        except OSError as e:
-            QMessageBox.warning(win, "导出失败", str(e))
+        rows = []
+        for ts, fid, hx in _pdus:
+            rows.append(["%.6f" % ts, "0x%X" % fid, hx, "", ""])
+        for ts, kind, text in _events:
+            rows.append([
+                time.strftime("%H:%M:%S", time.localtime(ts)), kind, text, "", "",
+            ])
+        path = plugin_shell.export_csv(
+            win,
+            ["Timestamp / time", "CAN ID / kind", "PDU / text", "", ""],
+            rows,
+            "isotp_monitor.csv",
+        )
+        if path:
+            plugin_shell.set_status(win, "Exported: %s" % path, 5000)
+            QMessageBox.information(win, "Export", "Saved:\n%s" % path)
 
     def on_timeout_changed(v):
         global _timeout_ms
         _timeout_ms = float(v)
+        _persist()
 
-    def on_open_cmd():
-        win.show()
-        win.raise_()
-        win.activateWindow()
-
-    context.register_command("isoTpMonitor.open", on_open_cmd, "协议: ISO-TP 监视")
+    raise_fn = plugin_shell.bind_raise(win)
+    context.register_command(
+        "isoTpMonitor.open", raise_fn, "Protocol: ISO-TP Monitor")
 
     pause_btn.clicked.connect(on_pause)
     clear_btn.clicked.connect(on_clear)
@@ -283,10 +318,10 @@ def activate(context):
     timeout_spin.valueChanged.connect(on_timeout_changed)
 
     win.show()
-    sin.output.append("ISO-TP 监视插件已加载（订阅实时帧，被动监视）")
+    sin.output.append("ISO-TP monitor loaded (passive SF/FF/CF/FC)")
 
 
 def deactivate():
     global _running
     _running = False
-    sin.output.append("ISO-TP 监视插件已停用")
+    sin.output.append("ISO-TP monitor deactivated")

@@ -1,8 +1,8 @@
 {
     "name": "nmea2000-decoder",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "NMEA 2000 解码器：Fast Packet 重组、常用 PGN 解码（航向/航速/位置/水深/风速/温度）",
+    "description": "NMEA 2000 decoder: Fast Packet reassembly, common PGN field decode (heading/speed/position/depth/wind), CSV export",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "nmea2000Decoder.open",
-                "title": "协议: NMEA 2000"
+                "title": "Protocol: NMEA 2000"
             }
         ]
     }

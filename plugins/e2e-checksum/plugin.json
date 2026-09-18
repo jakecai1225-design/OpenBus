@@ -1,8 +1,8 @@
 {
     "name": "e2e-checksum",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "CAN E2E 校验工具：CRC8/8H2F/16/32/XOR/J1850 实时校验、alive counter 检查、错误清单",
+    "description": "AUTOSAR E2E live CRC/alive check with DBC layout import and fail-log CSV",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "e2eChecksum.open",
-                "title": "安全: E2E 校验"
+                "title": "Security: E2E Checksum"
             }
         ]
     }

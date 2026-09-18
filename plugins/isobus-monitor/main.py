@@ -1,56 +1,67 @@
 # -*- coding: utf-8 -*-
-"""isobus-monitor 插件 — ISOBUS (ISO 11783) 农机总线监视
-功能：
-- 29 位 ID 拆解（优先级/PF/PS/SA/DA），PDU1/PDU2 识别
-- 地址声明（PGN 0xEE00）解析：NAME 字段（功能/设备类/厂商码/身份号）→ 在线节点表
-- 传输协议（TP.CM 0xEC00 / TP.DT 0xEB00）被动重组，识别 RTS/CTS/BAM/EOFLA/Abort
-- 常用 PGN 命名（VT 0xE600/0xE700、TC 0xCB00/0xCC00、时间/诊断等）与消息统计
-- 事件日志 + CSV 导出；纯监视不发送
-依赖: pip install PyQt6
+"""isobus-monitor — ISOBUS (ISO 11783) agricultural bus monitor.
+
+29-bit ID decode, Address Claimed (PGN 0xEE00) NAME parse → online nodes,
+TP.CM / TP.DT passive reassembly, common PGN names, stats + CSV.
+Passive monitor only.
 """
+
+from __future__ import annotations
 
 import time
 
+from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QTreeWidget, QTreeWidgetItem, QTextEdit, QHeaderView, QTabWidget,
+    QMessageBox,
+)
+
 import sin
+from _shared import plugin_shell, state_store
+
+PLUGIN_ID = "isobus-monitor"
 
 PGN_NAMES = {
-    0xEE00: "地址声明 Address Claimed",
-    0xFE08: "地址声明无法响应",
-    0xEC00: "TP.CM 传输协议命令",
-    0xEB00: "TP.DT 传输协议数据",
-    0xE700: "ECU→VT 报文",
-    0xE600: "VT→ECU 报文",
-    0xCB00: "TC 服务器→客户端",
-    0xCC00: "TC 客户端→服务器",
-    0xFE0C: "ECU→TC 报文",
-    0xFDDF: "诊断协议标识符",
-    0xFDE6: "ECU→诊断报文",
-    0xFDE5: "诊断→ECU 报文",
-    0xFEE6: "时间/日期",
-    0xFE0D: "工作集主机",
-    0xC700: "VT 状态",
-    0xDA00: "ISO 保留",
-    0xE500: "语言/单位",
-    0xFEEB: "软件标识(长)",
+    0xEE00: "Address Claimed",
+    0xFE08: "Cannot Claim Address",
+    0xEC00: "TP.CM Transport Protocol Command",
+    0xEB00: "TP.DT Transport Protocol Data",
+    0xE700: "ECU → VT",
+    0xE600: "VT → ECU",
+    0xCB00: "TC server → client",
+    0xCC00: "TC client → server",
+    0xFE0C: "ECU → TC",
+    0xFDDF: "Diagnostic Protocol ID",
+    0xFDE6: "ECU → Diagnostic",
+    0xFDE5: "Diagnostic → ECU",
+    0xFEE6: "Time / Date",
+    0xFE0D: "Working Set Master",
+    0xC700: "VT Status",
+    0xDA00: "ISO reserved",
+    0xE500: "Language / Units",
+    0xFEEB: "Software Identification (long)",
 }
 
-# ISO 11783-5 NAME 字段（与 J1939 不同）：字节 5=功能，字节 6 低 6 位=设备类
 DEVICE_CLASSES = {
-    0: "非特定", 1: "非特定农具", 2: "拖拉机", 3: "收割机", 4: "挂车",
-    5: "农具挂车? ", 6: "自走式喷药机", 7: "拖拉机挂农具", 8: "非车辆单元",
-    9: "传感器", 10: "导航", 11: "非特定移动单元", 12: "发动机",
-    13: "动力输出单元", 14: "农具前端", 15: "非特定车辆", 16: "通用控制器",
-    25: "虚拟终端(VT)", 126: "任务控制器(TC)", 128: "TC-BAS", 129: "TC-GEO",
-    130: "TC-SC", 131: "TC-PRO", 132: "TC-TC",
+    0: "Non-specific", 1: "Non-specific implement", 2: "Tractor",
+    3: "Harvester", 4: "Trailer", 5: "Implement trailer",
+    6: "Self-propelled sprayer", 7: "Tractor + implement",
+    8: "Non-vehicle unit", 9: "Sensor", 10: "Navigation",
+    11: "Non-specific mobile", 12: "Engine", 13: "Power take-off",
+    14: "Implement front", 15: "Non-specific vehicle", 16: "Generic controller",
+    25: "Virtual Terminal (VT)", 126: "Task Controller (TC)",
+    128: "TC-BAS", 129: "TC-GEO", 130: "TC-SC", 131: "TC-PRO", 132: "TC-TC",
 }
 
 FUNC_NAMES = {
-    0: "非特定", 25: "虚拟终端", 126: "任务控制器", 128: "TC 基本服务器",
-    129: "TC 地理服务器", 130: "TC 育种服务器", 132: "TC 任务数据服务器",
+    0: "Non-specific", 25: "Virtual Terminal", 126: "Task Controller",
+    128: "TC basic server", 129: "TC geo server",
+    130: "TC section control", 132: "TC task data server",
 }
 
-_sessions = {}       # (da, sa) → TP 会话
-_nodes = {}          # SA → 地址声明信息
+_sessions = {}
+_nodes = {}
 _pgn_stats = {}
 _events = []
 _decoded = []
@@ -69,7 +80,6 @@ def _hex(data):
 
 
 def _decode_name(data):
-    """ISOBUS NAME 8 字节（ISO 11783-5 布局）"""
     if len(data) < 8:
         return None
     ident = data[0] | (data[1] << 8) | ((data[2] & 0x1F) << 16)
@@ -80,7 +90,6 @@ def _decode_name(data):
     device_class = data[6] & 0x3F
     device_class_instance = (data[6] >> 6) & 0x03
     industry_group = (data[7] & 0x07)
-    aac = bool(data[7] & 0x40)
     sca = bool(data[7] & 0x80)
     return {
         "name_hex": _hex(data),
@@ -88,10 +97,11 @@ def _decode_name(data):
         "manufacturer": manufacturer,
         "ecu_instance": ecu_instance,
         "function": function,
-        "function_name": FUNC_NAMES.get(function, "功能 %d" % function),
+        "function_name": FUNC_NAMES.get(function, "Function %d" % function),
         "function_instance": function_instance,
         "device_class": device_class,
-        "device_class_name": DEVICE_CLASSES.get(device_class, "设备类 %d" % device_class),
+        "device_class_name": DEVICE_CLASSES.get(
+            device_class, "Device class %d" % device_class),
         "device_class_instance": device_class_instance,
         "industry_group": industry_group,
         "self_configurable": sca,
@@ -103,28 +113,29 @@ def _feed_tp(sa, da, data):
         return None
     key = (da, sa)
     cmd = data[0]
-    if cmd == 0x20 and len(data) >= 8:          # BAM
+    if cmd == 0x20 and len(data) >= 8:
         total = data[1] | (data[2] << 8)
         npkts = data[3]
         pgn = data[5] | (data[6] << 8) | (data[7] << 16)
         _sessions[key] = {"total": total, "npkts": npkts, "pgn": pgn, "buf": {}}
-        _ev("TP", "BAM: SA=%02X PGN=0x%04X %d字节" % (sa, pgn, total))
+        _ev("TP", "BAM: SA=%02X PGN=0x%04X %d B" % (sa, pgn, total))
         return None
-    if cmd == 0x10 and len(data) >= 8:          # RTS
+    if cmd == 0x10 and len(data) >= 8:
         total = data[1] | (data[2] << 8)
         npkts = data[3]
         pgn = data[5] | (data[6] << 8) | (data[7] << 16)
         _sessions[key] = {"total": total, "npkts": npkts, "pgn": pgn, "buf": {}}
-        _ev("TP", "RTS: SA=%02X DA=%02X PGN=0x%04X %d字节" % (sa, da, pgn, total))
+        _ev("TP", "RTS: SA=%02X DA=%02X PGN=0x%04X %d B" % (sa, da, pgn, total))
         return None
     if cmd == 0x17:
         _ev("TP", "CTS: SA=%02X DA=%02X" % (sa, da))
         return None
     if cmd == 0x13:
-        _ev("TP", "EOFLA: SA=%02X DA=%02X" % (sa, da))
+        _ev("TP", "EOMA: SA=%02X DA=%02X" % (sa, da))
         return None
     if cmd == 0xFF:
-        _ev("TP", "Abort: SA=%02X 原因=%d" % (sa, data[1] if len(data) > 1 else -1))
+        _ev("TP", "Abort: SA=%02X reason=%d" % (
+            sa, data[1] if len(data) > 1 else -1))
         return None
     return None
 
@@ -162,8 +173,10 @@ def _on_frame(frame):
     da = None if pf >= 0xF0 else ps
     ts = frame.timestamp
 
-    st = _pgn_stats.setdefault(pgn, {"count": 0, "name": PGN_NAMES.get(pgn, ""),
-                                     "last_ts": ts, "sa": sa, "da": da})
+    st = _pgn_stats.setdefault(pgn, {
+        "count": 0, "name": PGN_NAMES.get(pgn, ""),
+        "last_ts": ts, "sa": sa, "da": da,
+    })
     st["count"] += 1
     st["last_ts"] = ts
 
@@ -174,8 +187,8 @@ def _on_frame(frame):
         result = _feed_tp_dt(sa, ps, data)
         if result:
             pgn2, payload = result
-            _ev("TP", "重组完成 SA=%02X PGN=0x%04X %d字节: %s"
-                % (sa, pgn2, len(payload), _hex(payload[:24])))
+            _ev("TP", "Reassembled SA=%02X PGN=0x%04X %d B: %s" % (
+                sa, pgn2, len(payload), _hex(payload[:24])))
         return
 
     if pgn == 0xEE00:
@@ -183,12 +196,14 @@ def _on_frame(frame):
         if info:
             info["ts"] = time.time()
             _nodes[sa] = info
-            _ev("AC", "节点 %02X 上线: %s / %s（厂商 %d）"
-                % (sa, info["device_class_name"], info["function_name"],
-                   info["manufacturer"]))
-            _decoded.append((ts, "地址声明", "SA=%02X %s/%s 厂商%d"
-                             % (sa, info["device_class_name"], info["function_name"],
-                                info["manufacturer"])))
+            _ev("AC", "Node %02X claimed: %s / %s (mfr %d)" % (
+                sa, info["device_class_name"], info["function_name"],
+                info["manufacturer"]))
+            _decoded.append((
+                ts, "Address Claimed",
+                "SA=%02X %s/%s mfr%d" % (
+                    sa, info["device_class_name"], info["function_name"],
+                    info["manufacturer"])))
     elif pgn in PGN_NAMES:
         _decoded.append((ts, PGN_NAMES[pgn], "SA=%02X %s" % (sa, _hex(data[:16]))))
     if len(_decoded) > 1500:
@@ -196,65 +211,67 @@ def _on_frame(frame):
 
 
 def activate(context):
-    global _running
+    global _running, _total
     _sessions.clear()
     _nodes.clear()
     _pgn_stats.clear()
     del _events[:]
     del _decoded[:]
+    _total = 0
 
-    try:
-        from PyQt6.QtWidgets import (
-            QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-            QTreeWidget, QTreeWidgetItem, QTextEdit, QFileDialog,
-            QMessageBox, QHeaderView, QTabWidget
-        )
-        from PyQt6.QtCore import QTimer
-    except ImportError:
-        sin.output.append("ISOBUS 监视插件需要 PyQt6: pip install PyQt6")
-        return
+    saved = state_store.load_state(PLUGIN_ID, "settings.json", default={}) or {}
+    last_tab = int(saved.get("last_tab", 0) or 0)
 
     _running = True
-    win = sin.ui.create_window("ISOBUS (ISO 11783) 监视")
+    win = sin.ui.create_window("ISOBUS (ISO 11783) Monitor")
     win.resize(960, 630)
+    plugin_shell.attach_status_bar(win, "Waiting for ISOBUS extended frames…")
 
     central = QWidget()
     win.setCentralWidget(central)
     layout = QVBoxLayout(central)
 
     top = QHBoxLayout()
-    summary = QLabel("等待 ISOBUS 数据（29 位扩展帧）...")
+    summary = QLabel("Waiting for ISOBUS (29-bit extended)…")
     summary.setStyleSheet("font-weight: bold;")
     top.addWidget(summary, 1)
-    clear_btn = QPushButton("清零")
-    export_btn = QPushButton("导出 CSV")
+    clear_btn = QPushButton("Clear")
+    export_btn = QPushButton("Export CSV")
     top.addWidget(clear_btn)
     top.addWidget(export_btn)
     layout.addLayout(top)
+
+    layout.addWidget(plugin_shell.help_label(
+        "Passive ISO 11783: Address Claimed NAME → online nodes, "
+        "TP.CM/TP.DT reassembly, common VT/TC PGN stats. No TX."))
 
     tabs = QTabWidget()
     layout.addWidget(tabs, 1)
 
     node_tab = QWidget()
     nv = QVBoxLayout(node_tab)
+    empty = plugin_shell.empty_state_label(
+        "No address claims yet — wait for PGN 0xEE00.")
     node_tree = QTreeWidget()
-    node_tree.setHeaderLabels(["源地址", "NAME Hex", "设备类", "功能", "厂商码",
-                               "身份号", "声明时间"])
+    node_tree.setHeaderLabels([
+        "Source addr", "NAME hex", "Device class", "Function",
+        "Manufacturer", "Identity", "Claim time",
+    ])
     node_tree.setRootIsDecorated(False)
     node_tree.setAlternatingRowColors(True)
-    nh = node_tree.header()
-    nh.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    node_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    nv.addWidget(empty)
     nv.addWidget(node_tree, 1)
+    node_tree.hide()
 
     pgn_tab = QWidget()
     pv = QVBoxLayout(pgn_tab)
     pgn_tree = QTreeWidget()
-    pgn_tree.setHeaderLabels(["PGN", "名称", "帧数", "最后 SA", "最后时间"])
+    pgn_tree.setHeaderLabels(["PGN", "Name", "Frames", "Last SA", "Last time"])
     pgn_tree.setRootIsDecorated(False)
     pgn_tree.setAlternatingRowColors(True)
     pgn_tree.setSortingEnabled(True)
-    ph = pgn_tree.header()
-    ph.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    pgn_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     pv.addWidget(pgn_tree, 1)
 
     log_tab = QWidget()
@@ -263,21 +280,36 @@ def activate(context):
     log_view.setReadOnly(True)
     lv.addWidget(log_view, 1)
 
-    tabs.addTab(node_tab, "在线节点")
-    tabs.addTab(pgn_tab, "PGN 统计")
-    tabs.addTab(log_tab, "事件日志")
+    tabs.addTab(node_tab, "Online nodes")
+    tabs.addTab(pgn_tab, "PGN stats")
+    tabs.addTab(log_tab, "Event log")
+    if 0 <= last_tab < tabs.count():
+        tabs.setCurrentIndex(last_tab)
 
     context.on_frame(_on_frame)
 
+    def _persist():
+        state_store.save_state(PLUGIN_ID, {
+            "last_tab": tabs.currentIndex(),
+        }, "settings.json")
+
     def refresh():
-        summary.setText("扩展帧 %d    在线节点 %d    PGN %d    TP 会话 %d"
-                        % (_total, len(_nodes), len(_pgn_stats), len(_sessions)))
+        summary.setText(
+            "Extended frames %d    Nodes %d    PGNs %d    TP sessions %d"
+            % (_total, len(_nodes), len(_pgn_stats), len(_sessions)))
+
+        if _nodes:
+            empty.hide()
+            node_tree.show()
+        else:
+            node_tree.hide()
+            empty.show()
 
         node_tree.clear()
         for sa, n in sorted(_nodes.items()):
             node_tree.addTopLevelItem(QTreeWidgetItem([
-                "%02X" % sa, n["name_hex"], n["device_class_name"], n["function_name"],
-                str(n["manufacturer"]), str(n["ident"]),
+                "%02X" % sa, n["name_hex"], n["device_class_name"],
+                n["function_name"], str(n["manufacturer"]), str(n["ident"]),
                 time.strftime("%H:%M:%S", time.localtime(n["ts"]))]))
 
         pgn_tree.setSortingEnabled(False)
@@ -290,59 +322,66 @@ def activate(context):
 
         if _events:
             log_view.setPlainText("\n".join(
-                "[%s] %s %s" % (time.strftime("%H:%M:%S", time.localtime(ts)), k, t)
+                "[%s] %s %s" % (
+                    time.strftime("%H:%M:%S", time.localtime(ts)), k, t)
                 for ts, k, t in _events[-150:]))
             sb = log_view.verticalScrollBar()
             sb.setValue(sb.maximum())
 
-    timer = QTimer()
+        plugin_shell.set_status(
+            win, "Live · %d frames · %d nodes · %d PGNs"
+            % (_total, len(_nodes), len(_pgn_stats)))
+
+    timer = QTimer(win)
     timer.timeout.connect(refresh)
     timer.start(600)
 
     def on_clear():
+        global _total
         _sessions.clear()
         _nodes.clear()
         _pgn_stats.clear()
         del _events[:]
         del _decoded[:]
+        _total = 0
+        refresh()
+        plugin_shell.set_status(win, "Cleared", 3000)
 
     def on_export():
-        path, _ = QFileDialog.getSaveFileName(win, "导出 ISOBUS 记录 CSV",
-                                              "isobus_monitor.csv", "CSV 文件 (*.csv)")
-        if not path:
-            return
-        try:
-            with open(path, "w", encoding="utf-8-sig") as f:
-                f.write("源地址,NAME,设备类,功能,厂商码,身份号\n")
-                for sa, n in sorted(_nodes.items()):
-                    f.write("%02X,%s,%s,%s,%d,%d\n"
-                            % (sa, n["name_hex"], n["device_class_name"],
-                               n["function_name"], n["manufacturer"], n["ident"]))
-                f.write("\nPGN统计\nPGN,名称,帧数\n")
-                for pgn, st in _pgn_stats.items():
-                    f.write("0x%04X,%s,%d\n" % (pgn, st["name"], st["count"]))
-                f.write("\n事件日志\n时间,类型,内容\n")
-                for ts, k, t in _events:
-                    f.write("%s,%s,%s\n" % (time.strftime("%H:%M:%S", time.localtime(ts)), k, t))
-            QMessageBox.information(win, "导出成功", "已导出到:\n%s" % path)
-        except OSError as e:
-            QMessageBox.warning(win, "导出失败", str(e))
+        rows = []
+        for sa, n in sorted(_nodes.items()):
+            rows.append([
+                "%02X" % sa, n["name_hex"], n["device_class_name"],
+                n["function_name"], n["manufacturer"], n["ident"],
+            ])
+        for pgn, st in _pgn_stats.items():
+            rows.append(["0x%04X" % pgn, st["name"], st["count"], "", "", ""])
+        path = plugin_shell.export_csv(
+            win,
+            ["SA / PGN", "NAME / name", "Device class / frames",
+             "Function", "Manufacturer", "Identity"],
+            rows,
+            "isobus_monitor.csv",
+        )
+        if path:
+            _persist()
+            plugin_shell.set_status(win, "Exported: %s" % path, 5000)
+            QMessageBox.information(win, "Export", "Saved:\n%s" % path)
 
-    def on_open_cmd():
-        win.show()
-        win.raise_()
-        win.activateWindow()
+    raise_fn = plugin_shell.bind_raise(win)
+    context.register_command(
+        "isobusMonitor.open", raise_fn, "Protocol: ISOBUS Monitor")
 
-    context.register_command("isobusMonitor.open", on_open_cmd, "协议: ISOBUS 监视")
-
+    tabs.currentChanged.connect(lambda _=None: _persist())
     clear_btn.clicked.connect(on_clear)
     export_btn.clicked.connect(on_export)
 
     win.show()
-    sin.output.append("ISOBUS 监视插件已加载（订阅实时帧，地址声明 + TP 重组被动监视）")
+    sin.output.append(
+        "ISOBUS monitor loaded (address claim + TP reassembly)")
 
 
 def deactivate():
     global _running
     _running = False
-    sin.output.append("ISOBUS 监视插件已停用")
+    sin.output.append("ISOBUS monitor deactivated")

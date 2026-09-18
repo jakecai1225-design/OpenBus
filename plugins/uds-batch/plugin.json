@@ -1,8 +1,8 @@
 {
     "name": "uds-batch",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "UDS 批量测试工具：CSV 请求表导入、顺序执行、结果统计（ISO 14229）",
+    "description": "Deprecated: use UDS Suite. Former UDS batch runner; opens UDS Suite Batch workspace.",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "udsBatch.open",
-                "title": "诊断：UDS 批量测试"
+                "title": "Diagnostic: UDS Batch"
             }
         ]
     }

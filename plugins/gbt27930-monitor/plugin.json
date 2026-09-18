@@ -1,8 +1,8 @@
 {
     "name": "gbt27930-monitor",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "sin",
-    "description": "GB/T 27930 国标充电监视：BMS/充电机报文全解码（CHM→CST）、充电阶段状态机与异常告警",
+    "description": "GB/T 27930 EV charge monitor: BMS/charger message decode, charge-stage FSM, TP reassembly, CSV export",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
@@ -12,7 +12,7 @@
         "commands": [
             {
                 "id": "gbt27930Monitor.open",
-                "title": "协议: 国标充电监视"
+                "title": "Protocol: GB/T 27930 Charge"
             }
         ]
     }
