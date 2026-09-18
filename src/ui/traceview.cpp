@@ -137,12 +137,14 @@ void TraceView::setupAppearance()
     setColumnWidth(CanTraceModel::ColData, 400);
     setColumnWidth(CanTraceModel::ColFlags, 90);
     setColumnWidth(CanTraceModel::ColFrameCount, 80);
+    setColumnWidth(CanTraceModel::ColInterval, 100);
 
-    // 默认隐藏低频分析列（对齐 Wireshark 精简首屏；列头右键可重新显示）。
-    // 可见性会随列布局持久化（TraceLayout/layout_version ≥ 3）保存
+    // Default-hide low-frequency analysis columns (header context menu can re-show).
+    // Visibility persists with TraceLayout/layout_version >= 3.
     setColumnHidden(CanTraceModel::ColDelta, true);
     setColumnHidden(CanTraceModel::ColFlags, true);
     setColumnHidden(CanTraceModel::ColFrameCount, true);
+    setColumnHidden(CanTraceModel::ColInterval, true);
     setColumnHidden(CanTraceModel::ColSignal, true);
 
     // Default: capture order (append-only). ColNo is the same order — sorting
@@ -189,8 +191,8 @@ void TraceView::saveColumnLayout()
 
     QSettings settings;
     settings.beginGroup(QStringLiteral("TraceLayout"));
-    // G17: version 5 — sticky Ch/Id/Data + alignment
-    settings.setValue(QStringLiteral("layout_version"), 5);
+    // G17: version 6 — ColInterval + overwrite toolbar columns
+    settings.setValue(QStringLiteral("layout_version"), 6);
     int colCount = model()->columnCount();
     for (int c = 0; c < colCount; ++c) {
         QString prefix = QStringLiteral("col_%1").arg(c);
@@ -252,11 +254,12 @@ void TraceView::restoreColumnLayout()
             hdr->setSectionHidden(c, hidden);
         }
     }
-    // Fresh install / upgrade to v5: ensure analysis columns stay hidden by default
-    if (ver < 5) {
+    // Fresh install / upgrade to v6: ensure analysis columns stay hidden by default
+    if (ver < 6) {
         hdr->setSectionHidden(CanTraceModel::ColDelta, true);
         hdr->setSectionHidden(CanTraceModel::ColFlags, true);
         hdr->setSectionHidden(CanTraceModel::ColFrameCount, true);
+        hdr->setSectionHidden(CanTraceModel::ColInterval, true);
         hdr->setSectionHidden(CanTraceModel::ColSignal, true);
         for (int c : {CanTraceModel::ColNo, CanTraceModel::ColChannel,
                       CanTraceModel::ColId, CanTraceModel::ColData})
@@ -471,7 +474,9 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
             // 根据列类型提供不同的过滤操作
             bool isNumeric = (col == CanTraceModel::ColNo || col == CanTraceModel::ColTime ||
                               col == CanTraceModel::ColDelta || col == CanTraceModel::ColId ||
-                              col == CanTraceModel::ColDlc || col == CanTraceModel::ColFrameCount);
+                              col == CanTraceModel::ColDlc
+                              || col == CanTraceModel::ColFrameCount
+                              || col == CanTraceModel::ColInterval);
 
             // == (等于 / 包含)
             auto *actEq = applyMenu->addAction(QStringLiteral("==  (等于)"));
@@ -873,8 +878,9 @@ QString TraceView::columnFilterHint(int column) const
     case CanTraceModel::ColDlc:       return QStringLiteral("例如: 8  或  >4");
     case CanTraceModel::ColData:      return QStringLiteral("例如: 01 02  或  FF");
     case CanTraceModel::ColFlags:     return QStringLiteral("例如: FD  或  BRS");
-    case CanTraceModel::ColFrameCount: return QStringLiteral("例如: >10  或  50");
-    case CanTraceModel::ColSignal:    return QStringLiteral("信号名或值，如: EngineSpeed");
+    case CanTraceModel::ColFrameCount: return QStringLiteral("e.g. >10  or  50");
+    case CanTraceModel::ColInterval:   return QStringLiteral("Cycle time filter (display text)");
+    case CanTraceModel::ColSignal:    return QStringLiteral("Signal name or value, e.g. EngineSpeed");
     }
     return {};
 }
@@ -2041,6 +2047,14 @@ TraceTab::TraceTab(QWidget *parent)
     m_followBtn->setChecked(true);
     actionLay->addWidget(m_followBtn);
 
+    // Overwrite / fixed-ID row (CANoe-style)
+    m_overwriteBtn = makeIconBtn(QStringLiteral(":/icons/overwrite.svg"),
+                                 QStringLiteral("Overwrite mode — one row per CAN ID+channel "
+                                                "(Count/Interval columns)"));
+    m_overwriteBtn->setCheckable(true);
+    m_overwriteBtn->setChecked(false);
+    actionLay->addWidget(m_overwriteBtn);
+
     addSep();
 
     // Same-ID navigation
@@ -2147,21 +2161,34 @@ TraceTab::TraceTab(QWidget *parent)
     addRefresh(QStringLiteral("低 (200ms)"), 200);
     addRefresh(QStringLiteral("暂停刷新"), 0);
 
-    // ---- 覆盖模式 ----
+    // ---- Overwrite mode ----
     settingsMenu->addSeparator();
-    auto *owAct = settingsMenu->addAction(QStringLiteral("覆盖模式"));
-    owAct->setCheckable(true);
-    owAct->setChecked(false);  // 默认不开启
-    owAct->setToolTip(QStringLiteral("开启后每个 CAN ID 固定一行，新帧刷新行数据和帧数\n关闭后为滚动模式，每帧新增一行"));
-    connect(owAct, &QAction::toggled, this, [this](bool on) {
+    m_overwriteAct = settingsMenu->addAction(QStringLiteral("Overwrite mode"));
+    m_overwriteAct->setCheckable(true);
+    m_overwriteAct->setChecked(false);
+    m_overwriteAct->setToolTip(
+        QStringLiteral("One fixed row per CAN ID+channel; Count/Interval columns update in place.\n"
+                       "Off = scrolling mode (one new row per frame)."));
+
+    auto applyOverwrite = [this](bool on) {
+        if (m_overwriteBtn && m_overwriteBtn->isChecked() != on) {
+            QSignalBlocker b(m_overwriteBtn);
+            m_overwriteBtn->setChecked(on);
+        }
+        if (m_overwriteAct && m_overwriteAct->isChecked() != on) {
+            QSignalBlocker b(m_overwriteAct);
+            m_overwriteAct->setChecked(on);
+        }
+        applyOverwriteModeUi(on);
         m_traceModel->setOverwriteMode(on);
         if (!on && m_running) {
-            // Back to shared CaptureLog camera
             m_captureSeq = 0;
             m_traceModel->setCaptureLogCamera(true);
             pullFromCaptureLog();
         }
-    });
+    };
+    connect(m_overwriteAct, &QAction::toggled, this, applyOverwrite);
+    connect(m_overwriteBtn, &QToolButton::toggled, this, applyOverwrite);
 
     // ---- 错误帧高亮 ----
     settingsMenu->addSeparator();
@@ -2566,6 +2593,28 @@ void TraceTab::setRunning(bool running)
 bool TraceTab::isOverwriteMode() const
 {
     return m_traceModel->isOverwriteMode();
+}
+
+void TraceTab::applyOverwriteModeUi(bool on)
+{
+    if (!m_traceView)
+        return;
+    if (on) {
+        m_owSavedCountHidden = m_traceView->isColumnHidden(CanTraceModel::ColFrameCount);
+        m_owSavedIntervalHidden = m_traceView->isColumnHidden(CanTraceModel::ColInterval);
+        m_traceView->setColumnHidden(CanTraceModel::ColFrameCount, false);
+        m_traceView->setColumnHidden(CanTraceModel::ColInterval, false);
+        if (m_overwriteBtn)
+            m_overwriteBtn->setToolTip(
+                QStringLiteral("Overwrite mode — On (click to return to scroll mode)"));
+    } else {
+        m_traceView->setColumnHidden(CanTraceModel::ColFrameCount, m_owSavedCountHidden);
+        m_traceView->setColumnHidden(CanTraceModel::ColInterval, m_owSavedIntervalHidden);
+        if (m_overwriteBtn)
+            m_overwriteBtn->setToolTip(
+                QStringLiteral("Overwrite mode — one row per CAN ID+channel "
+                               "(Count/Interval columns)"));
+    }
 }
 
 void TraceTab::appendFrame(const CanFrame &frame)

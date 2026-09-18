@@ -1,0 +1,17 @@
+{
+    "id": "busmust",
+    "name": "BUSMUST USB-CAN(FD)",
+    "version": "1.0.0",
+    "vendor": "BUSMUST",
+    "minAppVersion": "0.1.0",
+    "abiVersion": "1.0",
+    "busType": "can",
+    "devices": [
+        { "type": 0, "name": "BUSMUST USB-CAN(FD) Family", "channels": 1, "canFd": true }
+    ],
+    "vendorSdk": {
+        "dll": "vendor/BMAPI64.dll",
+        "bundled": true,
+        "license": "Proprietary - BUSMUST BMAPI SDK; for use with BUSMUST hardware only"
+    }
+}

@@ -18,6 +18,7 @@ class BookmarkManager;
 class QSplitter;
 class QLabel;
 class QActionGroup;
+class QAction;
 class DbcManager;
 class QTimer;
 class QTabWidget;
@@ -378,6 +379,8 @@ private:
     /// U1: sync Follow button + status text with auto-scroll state
     void syncFollowUi();
     void setFollowLatest(bool on);
+    /// Show/hide Count+Interval columns with overwrite mode; restore prior hide flags.
+    void applyOverwriteModeUi(bool on);
     /// U2: rebuild active-filter chip strip from proxy state
     void refreshFilterChips();
     void onFilterChipDismissed(const QString &id);
@@ -393,6 +396,10 @@ private:
     FilterBar *m_filterBar = nullptr;
     FilterChipBar *m_chipBar = nullptr;
     QToolButton *m_followBtn = nullptr;
+    QToolButton *m_overwriteBtn = nullptr;
+    QAction *m_overwriteAct = nullptr;
+    bool m_owSavedCountHidden = true;
+    bool m_owSavedIntervalHidden = true;
     QToolButton *m_signalsPaneBtn = nullptr;
     QToolButton *m_toGraphicBtn = nullptr;
     TraceView *m_traceView = nullptr;

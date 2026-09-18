@@ -15,14 +15,14 @@
 
 namespace {
 
-/// 该设备类型是否已实现后端（连接按钮门控）
-/// ZLG(1)/PEAK(2)/Kvaser(3) 先期实现；v2.2（方案 §14）新增 SLCAN(5)/Candle(6)；
-/// TongXing(4) 待硬件样机（方案 §14.4 批次 2）
+/// Device kinds with a working backend (gates Connect button).
+/// TongXing remains stub until hardware sample.
 bool kindImplemented(int kind)
 {
+    if (kind == static_cast<int>(CanDeviceManager::DeviceKind::TongXing))
+        return false;
     return kind >= static_cast<int>(CanDeviceManager::DeviceKind::ZLG)
-        && kind <= static_cast<int>(CanDeviceManager::DeviceKind::Candle)
-        && kind != static_cast<int>(CanDeviceManager::DeviceKind::TongXing);
+        && kind <= static_cast<int>(CanDeviceManager::DeviceKind::Busmust);
 }
 
 } // namespace
@@ -249,7 +249,8 @@ void DeviceConnectionTab::setDevice(int deviceKind, int devIndex, const QString 
     // ---- v2.2（方案 §14）驱动能力适配 ----
     const bool slcan = (deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::SLCAN));
     const bool autoTiming = slcan
-        || deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::Candle);
+        || deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::Candle)
+        || deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::Busmust);
     // SLCAN 各固件 FD 方言互不兼容，仅开放经典 CAN（方案 §14.5.2）
     m_fdCombo->setEnabled(!slcan);
     if (slcan)
@@ -259,8 +260,10 @@ void DeviceConnectionTab::setDevice(int deviceKind, int devIndex, const QString 
     m_arbTimingCombo->setEnabled(!autoTiming);
     m_dataTimingCombo->setEnabled(!autoTiming);
     if (autoTiming) {
-        m_arbTimingDetail->setText(QStringLiteral("驱动自动计算位时序（GS_USB 87.5% 采样点 / SLCAN 标准表）"));
-        m_dataTimingDetail->setText(QStringLiteral("驱动自动计算位时序（GS_USB 87.5% 采样点）"));
+        m_arbTimingDetail->setText(
+            QStringLiteral("Driver auto timing (BMAPI sample pos / GS_USB / SLCAN table)"));
+        m_dataTimingDetail->setText(
+            QStringLiteral("Driver auto data-phase timing"));
     } else {
         onArbTimingChanged(m_arbTimingCombo->currentIndex());
         onDataTimingChanged(m_dataTimingCombo->currentIndex());
@@ -329,6 +332,14 @@ void DeviceConnectionTab::onConnect()
         // Real hardware — V2 signal → CanDeviceManager::configure + start
         emit deviceConnectRequestedV2(m_deviceKind, m_devIndex,
                                        channel, baudrate, dataBaud, canFd, m_devSubType);
+        if (m_deviceMgr && !m_deviceMgr->isRunning()) {
+            m_statusLabel->setText(QStringLiteral("Connect failed (see output / log)"));
+            m_statusLabel->setObjectName("StatusWarn");
+            m_connectBtn->setEnabled(true);
+            m_disconnectBtn->setEnabled(false);
+            emit deviceConnectRequested(m_deviceName, baudrate);
+            return;
+        }
     }
 
     m_connectBtn->setEnabled(false);

@@ -13,6 +13,8 @@
 #include <QSplitter>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
+#include <QAbstractItemModel>
+#include <QSignalBlocker>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QToolBar>
@@ -513,6 +515,11 @@ void GraphicView::setupUi()
     m_signalTree->setAlternatingRowColors(true);
     m_signalTree->setMinimumWidth(320);
     m_signalTree->setSelectionMode(QAbstractItemView::ExtendedSelection);   // G13：Ctrl/Shift 多选
+    m_signalTree->setDragEnabled(true);
+    m_signalTree->setAcceptDrops(true);
+    m_signalTree->setDropIndicatorShown(true);
+    m_signalTree->setDragDropMode(QAbstractItemView::InternalMove);
+    m_signalTree->setDefaultDropAction(Qt::MoveAction);
     m_signalTree->setStyleSheet(treeQss());
     m_signalTree->header()->setSectionResizeMode(0, QHeaderView::Fixed);
     m_signalTree->header()->resizeSection(0, 22);
@@ -740,6 +747,56 @@ void GraphicView::setupUi()
     connect(m_signalTree, &QTreeWidget::currentItemChanged, this,
             [this](QTreeWidgetItem *cur, QTreeWidgetItem *) {
         setSelectedSignal(cur ? m_signalTree->indexOfTopLevelItem(cur) : -1);
+    });
+
+    // Drag-reorder: after InternalMove, sync m_signals order to the tree
+    connect(m_signalTree->model(), &QAbstractItemModel::rowsMoved, this,
+            [this](const QModelIndex &, int /*start*/, int /*end*/,
+                   const QModelIndex &, int /*dest*/) {
+        if (m_signalTree->topLevelItemCount() != m_signals.size())
+            return;
+        QVector<int> order;
+        order.reserve(m_signals.size());
+        for (int i = 0; i < m_signalTree->topLevelItemCount(); ++i) {
+            const int oldIdx =
+                m_signalTree->topLevelItem(i)->data(0, Qt::UserRole).toInt();
+            if (oldIdx < 0 || oldIdx >= m_signals.size())
+                return;
+            order.append(oldIdx);
+        }
+        // Identity permutation — nothing to do
+        bool changed = false;
+        for (int i = 0; i < order.size(); ++i) {
+            if (order[i] != i) {
+                changed = true;
+                break;
+            }
+        }
+        if (!changed)
+            return;
+
+        QVector<SignalData> reordered;
+        reordered.reserve(m_signals.size());
+        int newSel = -1;
+        for (int i = 0; i < order.size(); ++i) {
+            if (order[i] == m_selectedSignal)
+                newSel = i;
+            reordered.append(std::move(m_signals[order[i]]));
+        }
+        m_signals = std::move(reordered);
+        m_selectedSignal = newSel;
+        for (int i = 0; i < m_signalTree->topLevelItemCount(); ++i)
+            m_signalTree->topLevelItem(i)->setData(0, Qt::UserRole, i);
+        rebuildIdIndex();
+        m_zoomStack.clear();
+        updateZoomUi();
+        if (m_yAxisMode != YAxisMode::Separate)
+            applyYAxisMode();
+        else
+            layoutAxisRects();
+        applyFocus();
+        syncTreeSelectionToSelected();
+        m_plot->replot();
     });
 
     // ---- Sample markers (rebuild display so zoom-in uses true samples) ----
@@ -1196,6 +1253,13 @@ void GraphicView::setupUi()
             placeOrMoveCursorAt(pos);
             event->accept();
             return;
+        }
+
+        // Waveform click → select matching signal in the list (bidirectional link)
+        if (!m_panMode) {
+            const int hit = pickSignalAt(pos);
+            if (hit >= 0)
+                setSelectedSignal(hit);
         }
 
         // Rubber-band zoom (disabled while ruler placement mode is active)
@@ -2238,8 +2302,9 @@ void GraphicView::applyFocus()
             break;
         }
         sd.graph->setVisible(visible);
-        sd.graph->setPen(QPen(color, 1));
-        // 分栏模式：未显示信号的轨道收起
+        // Selected waveform: thicker pen for list↔plot linkage
+        sd.graph->setPen(QPen(color, selected ? 2.5 : 1.0));
+        // Separate mode: collapse tracks for hidden signals
         if (m_yAxisMode == YAxisMode::Separate && sd.axisRect)
             sd.axisRect->setVisible(visible);
     }
@@ -2253,14 +2318,85 @@ void GraphicView::setSelectedSignal(int index)
 {
     if (index >= m_signals.size())
         index = m_signals.isEmpty() ? -1 : m_signals.size() - 1;
-    if (m_selectedSignal == index)
+    if (m_selectedSignal == index) {
+        syncTreeSelectionToSelected();
         return;
+    }
     m_selectedSignal = index;
-    applyOverlayAxisVisibility();   // 叠加·选中轴：刻度切换
+    syncTreeSelectionToSelected();
+    applyOverlayAxisVisibility();   // OverlaySelected: tick switch
     applyFocus();
-    m_yUpBtn->setEnabled(index >= 0);   // ▲▼ 需选中信号（§十）
+    m_yUpBtn->setEnabled(index >= 0);
     m_yDownBtn->setEnabled(index >= 0);
     m_plot->replot();
+}
+
+void GraphicView::syncTreeSelectionToSelected()
+{
+    if (!m_signalTree)
+        return;
+    const QSignalBlocker blocker(m_signalTree);
+    if (m_selectedSignal < 0 || m_selectedSignal >= m_signalTree->topLevelItemCount()) {
+        m_signalTree->setCurrentItem(nullptr);
+        m_signalTree->clearSelection();
+        return;
+    }
+    QTreeWidgetItem *item = m_signalTree->topLevelItem(m_selectedSignal);
+    m_signalTree->clearSelection();
+    item->setSelected(true);
+    m_signalTree->setCurrentItem(item);
+}
+
+void GraphicView::moveSignal(int from, int to)
+{
+    if (from < 0 || from >= m_signals.size() || to < 0 || to >= m_signals.size()
+        || from == to)
+        return;
+    m_signals.move(from, to);
+    if (m_selectedSignal == from)
+        m_selectedSignal = to;
+    else if (from < m_selectedSignal && to >= m_selectedSignal)
+        --m_selectedSignal;
+    else if (from > m_selectedSignal && to <= m_selectedSignal)
+        ++m_selectedSignal;
+    rebuildIdIndex();
+    m_zoomStack.clear();
+    updateZoomUi();
+    if (m_yAxisMode != YAxisMode::Separate)
+        applyYAxisMode();
+    else
+        layoutAxisRects();
+    applyFocus();
+    updateSignalList();
+    syncTreeSelectionToSelected();
+    m_plot->replot();
+}
+
+int GraphicView::pickSignalAt(const QPoint &pos) const
+{
+    if (m_yAxisMode == YAxisMode::Separate) {
+        const int idx = signalIndexAtPos(pos);
+        if (idx >= 0 && idx < m_signals.size()) {
+            const auto &sd = m_signals[idx];
+            if (sd.graph && sd.graph->visible() && !sd.userHidden)
+                return idx;
+        }
+        return -1;
+    }
+    // Overlay: nearest graph by pixel distance
+    double bestDist = 8.0;
+    int best = -1;
+    for (int i = 0; i < m_signals.size(); ++i) {
+        const auto &sd = m_signals[i];
+        if (!sd.graph || !sd.graph->visible() || sd.userHidden)
+            continue;
+        const double dist = sd.graph->selectTest(pos, false);
+        if (dist >= 0.0 && dist < bestDist) {
+            bestDist = dist;
+            best = i;
+        }
+    }
+    return best;
 }
 
 void GraphicView::refreshNameLabels()

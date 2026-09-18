@@ -380,10 +380,19 @@ private:
     /// 叠加模式 Y 轴可见性/并排偏移（OverlayAll 并排 · OverlaySelected 仅选中轴）
     void applyOverlayAxisVisibility();
 
-    /// 刷新信号列表（结构）
+    /// Refresh signal list structure
     void updateSignalList();
 
-    /// 反选信号列表（G13 多选操作）
+    /// Reorder m_signals (list drag / InternalMove); relayout plot Y strips
+    void moveSignal(int from, int to);
+
+    /// Nearest visible graph under plot pixel (Separate strip or Overlay selectTest)
+    int pickSignalAt(const QPoint &pos) const;
+
+    /// Keep tree current/selection aligned with m_selectedSignal
+    void syncTreeSelectionToSelected();
+
+    /// Invert signal-list selection (G13 multi-select)
     void invertSignalSelection();
 
     /// 更新信号列表中的实时值

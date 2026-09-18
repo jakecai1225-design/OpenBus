@@ -141,6 +141,7 @@ QVariant CanTraceModel::headerData(int section, Qt::Orientation orientation,
     case ColData:       return QStringLiteral("Data");
     case ColFlags:      return QStringLiteral("Flags");
     case ColFrameCount: return QStringLiteral("Count");
+    case ColInterval:   return QStringLiteral("Interval");
     case ColSignal:     return QStringLiteral("Signals");
     }
     return {};
@@ -203,8 +204,17 @@ void CanTraceModel::formatCellMeta(int row, int col, const CaptureFrameMeta &m, 
         out = CanUtils::formatFlags(m.toFrameSkeleton());
         return;
     case ColFrameCount:
-        out = QString::number(m_idCount.value(m.id, 0));
+        out = QString::number(m_keyCount.value(overwriteKey(m.id, m.channel), 0));
         return;
+    case ColInterval: {
+        const quint64 key = overwriteKey(m.id, m.channel);
+        auto it = m_intervalByKey.constFind(key);
+        if (it == m_intervalByKey.constEnd())
+            out = QStringLiteral("—");
+        else
+            out = CanUtils::formatTime(*it);
+        return;
+    }
     default:
         out = QStringLiteral("");
         return;
@@ -444,8 +454,11 @@ void CanTraceModel::setCaptureLogCamera(bool enabled)
     m_viewRows = 0;
     m_seqCounter = 0;
     m_captureStartDateTime = QDateTime();
-    m_idToRow.clear();
+    m_keyToRow.clear();
+    m_keyCount.clear();
     m_idCount.clear();
+    m_lastTsByKey.clear();
+    m_intervalByKey.clear();
     m_markedRows.clear();
     m_rowColors.clear();
     m_rowLabels.clear();
@@ -467,8 +480,11 @@ void CanTraceModel::leaveCaptureCameraForLocal()
     m_ringBuffer.clear();
     m_ringBuffer.reserve(m_maxFrames);
     m_pendingFrames.clear();
-    m_idToRow.clear();
+    m_keyToRow.clear();
+    m_keyCount.clear();
     m_idCount.clear();
+    m_lastTsByKey.clear();
+    m_intervalByKey.clear();
     m_markedRows.clear();
     m_rowColors.clear();
     m_rowLabels.clear();
@@ -489,7 +505,10 @@ int CanTraceModel::syncFromCaptureLog(quint64 *cursorSeq, int maxRows)
     const int cap = maxRows > 0 ? maxRows : 256;
     const int visited = CaptureLog::instance()->visitAfterSeq(
         *cursorSeq,
-        [this](const CanFrame &f) { m_idCount[f.id]++; },
+        [this](const CanFrame &f) {
+            m_idCount[f.id]++;
+            m_keyCount[overwriteKey(f.id, f.channel)]++;
+        },
         &newSeq,
         cap);
 
@@ -522,6 +541,10 @@ int CanTraceModel::syncFromCaptureLog(quint64 *cursorSeq, int maxRows)
         m_seqCounter = seq;
         if (size == 0) {
             m_idCount.clear();
+            m_keyCount.clear();
+            m_keyToRow.clear();
+            m_lastTsByKey.clear();
+            m_intervalByKey.clear();
             m_markedRows.clear();
             m_rowColors.clear();
             m_rowLabels.clear();
@@ -576,6 +599,10 @@ void CanTraceModel::adoptCaptureLogSnapshot(int size, quint64 seq)
     m_seqCounter = seq;
     if (size == 0) {
         m_idCount.clear();
+        m_keyCount.clear();
+        m_keyToRow.clear();
+        m_lastTsByKey.clear();
+        m_intervalByKey.clear();
         m_markedRows.clear();
         m_rowColors.clear();
         m_rowLabels.clear();
@@ -636,9 +663,11 @@ void CanTraceModel::commitBatch(const QVector<CanFrame> &frames)
     int oldSize = m_ringBuffer.size();
     int batchSize = frames.size();
 
-    // 累计 ID 计数（一次性）
-    for (const auto &f : frames)
+    // Accumulate counts (id-only + overwrite key)
+    for (const auto &f : frames) {
         m_idCount[f.id]++;
+        m_keyCount[overwriteKey(f.id, f.channel)]++;
+    }
 
     if (!m_ringBuffer.full()) {
         // 缓冲区未满：逐帧 push，批量通知插入
@@ -680,39 +709,47 @@ void CanTraceModel::commitBatch(const QVector<CanFrame> &frames)
 
 void CanTraceModel::commitFrame(const CanFrame &frame)
 {
-    // 首帧提交时记录 wall-clock 捕获起始时间
+    // First commit records wall-clock capture start
     if (m_seqCounter == 0)
         m_captureStartDateTime = QDateTime::currentDateTime();
 
+    const quint64 key = overwriteKey(frame.id, frame.channel);
     m_idCount[frame.id]++;
+    m_keyCount[key]++;
+
+    // O(1) cycle interval for overwrite-key (and Count/Interval columns)
+    auto lastIt = m_lastTsByKey.find(key);
+    if (lastIt != m_lastTsByKey.end())
+        m_intervalByKey[key] = frame.timestamp - lastIt.value();
+    m_lastTsByKey[key] = frame.timestamp;
 
     if (m_overwriteMode) {
-        auto it = m_idToRow.find(frame.id);
-        if (it != m_idToRow.end()) {
+        auto it = m_keyToRow.find(key);
+        if (it != m_keyToRow.end()) {
             int row = it.value();
             m_ringBuffer.at(row) = frame;
             emit dataChanged(index(row, 0), index(row, ColCount - 1));
             return;
         }
-        // 新 CAN ID：追加
+        // New id+channel: append fixed row
         int row = m_ringBuffer.size();
         if (!m_ringBuffer.full()) {
             beginInsertRows({}, row, row);
             m_ringBuffer.push(frame);
             m_seqCounter++;
-            m_idToRow[frame.id] = row;
+            m_keyToRow[key] = row;
             endInsertRows();
         } else {
-            // 满了，覆盖最旧帧
+            // Ring full: overwrite oldest slot
             m_ringBuffer.push(frame);
             m_seqCounter++;
-            m_idToRow[frame.id] = m_ringBuffer.size() - 1;
+            m_keyToRow[key] = m_ringBuffer.size() - 1;
             emit dataChanged(index(0, 0), index(m_ringBuffer.size() - 1, ColCount - 1));
         }
         return;
     }
 
-    // 滚动模式
+    // Scroll mode
     if (!m_ringBuffer.full()) {
         int row = m_ringBuffer.size();
         beginInsertRows({}, row, row);
@@ -720,11 +757,8 @@ void CanTraceModel::commitFrame(const CanFrame &frame)
         m_seqCounter++;
         endInsertRows();
     } else {
-        // 缓冲区满：覆盖最旧帧，O(1)
         m_ringBuffer.push(frame);
         m_seqCounter++;
-        // 所有逻辑行数据已移动，通知视图刷新可见行
-        // 清除行缓存（数据位置已变化）
         invalidateRowCache();
         emit ringWrapped(1);
     }
@@ -737,8 +771,11 @@ void CanTraceModel::clear()
     m_viewRows = 0;
     m_seqCounter = 0;
     m_captureStartDateTime = QDateTime();
-    m_idToRow.clear();
+    m_keyToRow.clear();
+    m_keyCount.clear();
     m_idCount.clear();
+    m_lastTsByKey.clear();
+    m_intervalByKey.clear();
     m_markedRows.clear();
     m_rowColors.clear();
     m_rowLabels.clear();
@@ -761,8 +798,11 @@ void CanTraceModel::setMaxFrames(int max)
     m_viewRows = 0;
     m_seqCounter = 0;
     m_captureStartDateTime = QDateTime();
-    m_idToRow.clear();
+    m_keyToRow.clear();
+    m_keyCount.clear();
     m_idCount.clear();
+    m_lastTsByKey.clear();
+    m_intervalByKey.clear();
     m_markedRows.clear();
     m_rowColors.clear();
     m_rowLabels.clear();
@@ -1144,11 +1184,13 @@ void CanTraceModel::setOverwriteMode(bool mode)
         leaveCaptureCameraForLocal();
     m_overwriteMode = mode;
     if (mode) {
-        m_idToRow.clear();
-        for (int i = 0; i < displaySize(); ++i)
-            m_idToRow[frameAt(i).id] = i;
+        m_keyToRow.clear();
+        for (int i = 0; i < displaySize(); ++i) {
+            const CanFrame f = frameAt(i);
+            m_keyToRow[overwriteKey(f.id, f.channel)] = i;
+        }
     } else {
-        m_idToRow.clear();
+        m_keyToRow.clear();
     }
 }
 
@@ -1183,6 +1225,7 @@ static const QHash<int, Qt::Alignment> &getDefaultAlignments()
         h[CanTraceModel::ColId]       = Qt::AlignRight | Qt::AlignVCenter;
         h[CanTraceModel::ColDlc]    = Qt::AlignRight | Qt::AlignVCenter;
         h[CanTraceModel::ColFrameCount] = Qt::AlignRight | Qt::AlignVCenter;
+        h[CanTraceModel::ColInterval]   = Qt::AlignRight | Qt::AlignVCenter;
         // 文本列：左对齐 + 垂直居中
         h[CanTraceModel::ColName]   = Qt::AlignLeft | Qt::AlignVCenter;
         h[CanTraceModel::ColData]   = Qt::AlignLeft | Qt::AlignVCenter;

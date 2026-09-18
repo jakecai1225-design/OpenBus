@@ -52,6 +52,7 @@
         <file>icons/apply.svg</file>
         <file>icons/goto.svg</file>
         <file>icons/follow.svg</file>
+        <file>icons/overwrite.svg</file>
         <file>icons/id-prev.svg</file>
         <file>icons/id-next.svg</file>
         <file>icons/mark-prev.svg</file>

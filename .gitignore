@@ -41,6 +41,17 @@ CMakeSettings.json
 *.so
 *.pdb
 
+# Keep vendored USB-CAN runtime DLLs that the build copies into drivers/*/vendor
+!third_party/PCAN-Basic/**/*.dll
+!third_party/bmapi-sdk/bin/win64/BMAPI64.dll
+!drivers/*/vendor/*.dll
+
+# ---- BUSMUST SDK bulky extract (headers+DLL are kept; full zip is not) ----
+third_party/bmapi-sdk/_extract/
+third_party/bmapi-sdk/*.zip
+third_party/bmapi-sdk/tree.json
+third_party/bmapi-sdk/release.json
+
 # ---- 操作系统 ----
 Thumbs.db
 .DS_Store

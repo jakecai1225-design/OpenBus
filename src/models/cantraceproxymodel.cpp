@@ -336,13 +336,15 @@ bool CanTraceProxyModel::matchColumnFilter(int sourceRow, int column) const
     case CanTraceModel::ColFlags:
         return CanUtils::formatFlags(frame).toLower().contains(filter);
     case CanTraceModel::ColFrameCount: {
-        int count = model->frameCountForId(frame.id);
+        int count = model->frameCountForKey(frame.id, frame.channel);
         if (filter.startsWith(">"))
             return count > filter.mid(1).trimmed().toInt();
         if (filter.startsWith("<"))
             return count < filter.mid(1).trimmed().toInt();
         return QString::number(count).contains(filter);
     }
+    case CanTraceModel::ColInterval:
+        return true;  // numeric interval — value-set / display filter via formatted cell
     }
     return true;
 }
@@ -547,7 +549,11 @@ bool CanTraceProxyModel::lessThan(int sourceLeft, int sourceRight) const
     case CanTraceModel::ColFlags:
         return CanUtils::formatFlags(fl) < CanUtils::formatFlags(fr);
     case CanTraceModel::ColFrameCount:
-        return model->frameCountForId(fl.id) < model->frameCountForId(fr.id);
+        return model->frameCountForKey(fl.id, fl.channel)
+               < model->frameCountForKey(fr.id, fr.channel);
+    case CanTraceModel::ColInterval:
+        return columnDisplayText(sourceLeft, CanTraceModel::ColInterval)
+               < columnDisplayText(sourceRight, CanTraceModel::ColInterval);
     }
 
     return sourceLeft < sourceRight;

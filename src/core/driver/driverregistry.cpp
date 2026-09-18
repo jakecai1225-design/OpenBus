@@ -6,6 +6,7 @@
 #include "core/candevice_kvaser.h"
 #include "core/candevice_slcan.h"
 #include "core/candevice_candle.h"
+#include "core/candevice_busmust.h"
 #include "core/candevicemanager.h"
 #include "core/logging.h"
 
@@ -377,6 +378,14 @@ void DriverRegistry::registerBuiltinDrivers()
                candleOk ? QString()
                         : QStringLiteral("libusb-1.0.dll not found (drivers/candle/vendor)"));
 
+    const bool busmustOk = CanDeviceBusmust::isAvailable();
+    addBuiltin(QStringLiteral("busmust"), QStringLiteral("BUSMUST USB-CAN(FD)"),
+               ICanDevice::Brand::Busmust,
+               static_cast<int>(CanDeviceManager::DeviceKind::Busmust),
+               busmustOk,
+               busmustOk ? QString()
+                         : QStringLiteral("BMAPI64.dll not found (drivers/busmust/vendor)"));
+
     addBuiltin(QStringLiteral("slcan"), QStringLiteral("SLCAN"),
                ICanDevice::Brand::SLCAN,
                static_cast<int>(CanDeviceManager::DeviceKind::SLCAN),
@@ -423,6 +432,9 @@ std::vector<ICanDevice::DeviceInfo> DriverRegistry::enumerateDevices() const
         case ICanDevice::Brand::Candle:
             devs = CanDeviceCandle::enumerate();
             break;
+        case ICanDevice::Brand::Busmust:
+            devs = CanDeviceBusmust::enumerate();
+            break;
         case ICanDevice::Brand::SLCAN:
             devs = CanDeviceSlcan::enumerate();
             break;
@@ -461,6 +473,8 @@ ICanDevice *DriverRegistry::createDevice(const QString &driverId, int subType) c
         return new CanDeviceKvaser(subType);
     case ICanDevice::Brand::Candle:
         return new CanDeviceCandle(subType);
+    case ICanDevice::Brand::Busmust:
+        return new CanDeviceBusmust(subType);
     case ICanDevice::Brand::SLCAN:
         return new CanDeviceSlcan(subType);
     default:
@@ -600,6 +614,7 @@ QString DriverRegistry::brandToDriverId(ICanDevice::Brand b)
     case ICanDevice::Brand::TongXing: return QStringLiteral("tongxing");
     case ICanDevice::Brand::SLCAN:    return QStringLiteral("slcan");
     case ICanDevice::Brand::Candle:   return QStringLiteral("candle");
+    case ICanDevice::Brand::Busmust:  return QStringLiteral("busmust");
     }
     return QString();
 }
@@ -613,7 +628,8 @@ ICanDevice::Brand DriverRegistry::driverIdToBrand(const QString &id)
     if (key == QLatin1String("tongxing")) return ICanDevice::Brand::TongXing;
     if (key == QLatin1String("slcan"))    return ICanDevice::Brand::SLCAN;
     if (key == QLatin1String("candle"))   return ICanDevice::Brand::Candle;
-    return ICanDevice::Brand::SLCAN;   // 长尾驱动：无 Brand 枚举，仅 driverId 标识
+    if (key == QLatin1String("busmust"))  return ICanDevice::Brand::Busmust;
+    return ICanDevice::Brand::SLCAN;   // long-tail: driverId only
 }
 
 int DriverRegistry::driverIdToDeviceKind(const QString &id)
@@ -625,5 +641,6 @@ int DriverRegistry::driverIdToDeviceKind(const QString &id)
     if (key == QLatin1String("tongxing")) return static_cast<int>(CanDeviceManager::DeviceKind::TongXing);
     if (key == QLatin1String("slcan"))    return static_cast<int>(CanDeviceManager::DeviceKind::SLCAN);
     if (key == QLatin1String("candle"))   return static_cast<int>(CanDeviceManager::DeviceKind::Candle);
-    return -1;   // 长尾驱动：DeviceConnectionTab 需声明式参数 schema（阶段 5）
+    if (key == QLatin1String("busmust"))  return static_cast<int>(CanDeviceManager::DeviceKind::Busmust);
+    return -1;
 }

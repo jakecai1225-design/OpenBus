@@ -32,6 +32,8 @@ set(SRC_CORE
     core/candevice_slcan.cpp
     core/candevice_candle.h
     core/candevice_candle.cpp
+    core/candevice_busmust.h
+    core/candevice_busmust.cpp
     core/candevicemanager.h
     core/candevicemanager.cpp
     core/driver/candriverplugin.h
@@ -239,6 +241,12 @@ endif()
 # pugixml include path (for arxml_importer.h which includes "pugixml.hpp")
 if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/pugixml/pugixml.hpp")
     target_include_directories(openbus_data PUBLIC ${CMAKE_SOURCE_DIR}/third_party/pugixml)
+endif()
+
+# BUSMUST BMAPI types (bm_usb_def.h) for CanDeviceBusmust
+if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/bmapi-sdk/include/bm_usb_def.h")
+    target_include_directories(openbus_data PRIVATE
+        ${CMAKE_SOURCE_DIR}/third_party/bmapi-sdk/include)
 endif()
 
 target_link_libraries(openbus_data PUBLIC Qt6::Widgets)

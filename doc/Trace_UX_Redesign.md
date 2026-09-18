@@ -41,7 +41,7 @@ Performance (T0–T5) is **done**. This document redesigns **layout and discover
 | Measurement camera over bus history | CaptureLog SoT (done) |
 | Follow / scroll lock while live | **Follow** toggle in FilterBar actions |
 | Overview strip beside list | Keep `ViewportOverview` |
-| Overwrite / fixed-ID row | Settings → overwrite mode (keep) |
+| Overwrite / fixed-ID row | Toolbar overwrite icon + Settings menu; one row per CAN ID+channel; auto-shows Count + Interval columns |
 | Bus columns: Ch, Dir, Name, Data | **U4 sticky No/Ch/Id/Data** |
 | Color / mark for analysis | Context menu + color rules (keep) |
 

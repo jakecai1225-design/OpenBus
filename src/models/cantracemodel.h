@@ -40,8 +40,9 @@ public:
         ColDlc,
         ColData,
         ColFlags,
-        ColFrameCount,   ///< 每个 CAN ID 的帧计数
-        ColSignal,       ///< 内联信号值列
+        ColFrameCount,   ///< Per overwrite-key (id+channel) frame count
+        ColInterval,     ///< Cycle time between consecutive frames of same key
+        ColSignal,       ///< Inline decoded signal values
         ColCount
     };
 
@@ -182,7 +183,18 @@ public:
     /// 时间参考点的时间戳
     double timeReferenceTimestamp() const { return m_timeRefTimestamp; }
 
+    /// ID-only count (same-ID navigation / scroll-mode stats).
     int frameCountForId(quint32 id) const { return m_idCount.value(id, 0); }
+    /// Overwrite-key count (id + channel) — used by Count column.
+    int frameCountForKey(quint32 id, quint8 channel) const
+    {
+        return static_cast<int>(m_keyCount.value(overwriteKey(id, channel), 0));
+    }
+    /// Pack CAN id + channel into a stable overwrite map key.
+    static quint64 overwriteKey(quint32 id, quint8 channel)
+    {
+        return (static_cast<quint64>(id) << 8) | static_cast<quint64>(channel);
+    }
 
     /// 帧序列号计数（永不回退；No. = seqCounter - rowCount + row + 1）
     quint64 seqCounter() const { return m_seqCounter; }
@@ -229,8 +241,11 @@ private:
     quint64 m_timeRefSeq = 0;         ///< 参考帧的序列号
     double m_timeRefTimestamp = 0.0;  ///< 参考帧的时间戳
 
-    QHash<quint32, int> m_idToRow;   ///< CAN ID → 逻辑行号（覆盖模式）
-    QHash<quint32, quint64> m_idCount;  ///< CAN ID → 累计帧数
+    QHash<quint64, int> m_keyToRow;       ///< overwrite key → logical row
+    QHash<quint64, quint64> m_keyCount;   ///< overwrite key → frame count (Count col)
+    QHash<quint32, quint64> m_idCount;    ///< CAN ID → count (same-ID nav)
+    QHash<quint64, double> m_lastTsByKey; ///< last timestamp (s) per key
+    QHash<quint64, double> m_intervalByKey; ///< last interval (s) per key
 
     // 行标记/着色 key 改用 seqCounter（Phase 4）
     QSet<quint64> m_markedRows;

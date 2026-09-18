@@ -37,6 +37,7 @@ public:
         TongXing  = 3,   ///< 同星科技 (TSMCAN)
         SLCAN     = 4,   ///< 开源 SLCAN / serial-CAN 固件
         Candle    = 5,   ///< Candle / GS_USB 开源 USB CAN (CANable 等)
+        Busmust   = 6,   ///< BUSMUST USB-CAN(FD) via BMAPI (bmcan)
     };
 
     /// 品牌显示名
