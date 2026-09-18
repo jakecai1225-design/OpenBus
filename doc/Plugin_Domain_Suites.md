@@ -275,3 +275,4 @@
 - 2026-09-18：**OBD Suite v2.0.0** 落地于 `plugins/obd-suite/`（Scanner / Log）；`obd2-scanner` 改为 stub → Scanner。
 - 2026-09-18：**S4 收口**：领域套件地图内除 AI Agent 外的全部套件均有可打开壳 + 旧插件 stub；S5 仅剩目录清理与市场打包策略。
 - 2026-09-18：**S5**：删除已吸收的细插件目录（UDS×4、DBC×5、CANopen scanner、TX×3、Bus Security×4、Protocol Hub×6、Log×6、Bus Utilities×2、J1939 analyzer、OBD scanner）。协议自测迁到 `plugins/uds-suite/tests/test_proto.py`。市场打包命令为 `python scripts/plugin_tool.py pack-suites`（只打 10 个套件 `.opk`）。`pack <dir>` 仍可用于自定义插件。AI Agent 仍见 aiagent.md，未纳入本批。
+- 2026-09-18：**本地市场索引**：`python scripts/make_market.py` 生成 `build/bin/market/market.json`（drivers 仍引用远程包 URL；plugins 仅领域套件 + AI Agent）。应用 `market.url` 置空后自动加载 exe 旁本地索引，不再展示 sin.org.cn 上的 37 个旧细插件。
