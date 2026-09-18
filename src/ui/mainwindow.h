@@ -30,6 +30,7 @@ class WatcherView;   // Watcher 观测页（壳侧单实例标签页，doc/Watch
 class PluginManager;
 class SettingsPage;    // 设置页（标签页形态，原 SettingsDialog 弹窗改造）
 class ShortcutsPage;   // 快捷键参考页（标签页形态）
+class WelcomePage;     // VS Code-style welcome / start page
 struct DbcFile;
 struct DbcSignal;
 class QAction;
@@ -119,6 +120,7 @@ private slots:
     void onOpenMeasurementSetup();
     void onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName, int deviceType);
     void onOpenMarketTab();   // 插件市场标签页（＋新增设备跳转入口，方案 §13.6）
+    void onOpenWelcomeTab();  // VS Code-style Welcome start page
     void onSettingsRequested(const QString &section);
 
     // P0/P1 新增
@@ -277,6 +279,7 @@ private:
     QWidget *m_marketWidget = nullptr;   // 统一插件市场（经 ModuleRegistry "market" 模块创建，方案 §13 / 拆分方案 B0）
     SettingsPage *m_settingsPage = nullptr;    // 设置标签页（单实例；侧栏设置条目不再弹窗）
     ShortcutsPage *m_shortcutsPage = nullptr;  // 快捷键参考标签页（单实例）
+    WelcomePage *m_welcomePage = nullptr;      // Welcome start page (single instance)
 
     // ---- 核心引擎 ----
     Recorder *m_recorder = nullptr;

@@ -25,23 +25,12 @@ QMenu::separator { height: 1px; background-color: @borderDim; margin: 4px 8px; }
 /* ---- DockWidget ---- */
 QDockWidget { titlebar-close-icon: none; titlebar-normal-icon: none; background-color: @sidebarBg; }
 QDockWidget::title { background-color: @panelBg; padding: 0; border: none; border-bottom: 1px solid @border; }
-/* Pane edges use QMainWindow::separator / QSplitter — avoid double lines on dock widgets */
-#LeftContainer { background-color: @sidebarBg; border: none; }
+#LeftContainer { background-color: @sidebarBg; border-right: 1px solid @border; }
 #LeftDock { background-color: @sidebarBg; border: none; }
 #BottomDock { background-color: @sidebarBg; border: none; }
 #RightDock { background-color: @sidebarBg; border: none; }
 #SideBar { background-color: @sidebarBg; border: none; }
 SidePanel { background-color: @sidebarBg; }
-
-/* Dock ↔ editor separators — always-visible 1px gray (VS Code workbench) */
-QMainWindow::separator {
-    background: @border;
-    width: 1px;
-    height: 1px;
-}
-QMainWindow::separator:hover {
-    background: @accent;
-}
 
 /* ---- 面板标题 (统一: 30px 高) ---- */
 #CollapsibleTitle, #DockPanelTitle, #SidePanelTitle, #DbcDetailTitle {
@@ -53,14 +42,6 @@ QMainWindow::separator:hover {
 /* ---- 侧边栏通用控件 ---- */
 #SidePanelSubTitle { font-weight: 600; padding: 6px 12px; color: @textDim; font-size: 12px; }
 #SidePanelButton { text-align: left; padding: 8px 12px; font-size: 13px; }
-
-#ExplorerSectionHeader {
-    background-color: transparent; color: @textDim;
-    border: none; border-radius: 0;
-    padding: 4px 8px; font-size: 11px; font-weight: 700; text-align: left;
-}
-#ExplorerSectionHeader:hover { background-color: @hoverBg; color: @text; }
-#ExplorerRecentList { border: none; background: transparent; outline: none; }
 
 /* 侧栏底部动作按钮（VS Code 风格：扁平无框，悬停高亮；如设备面板「扫描设备」） */
 #SidePanelFooterButton {
@@ -123,8 +104,6 @@ QTreeWidget::item:alternate, QTreeView::item:alternate { background-color: @altR
     background-color: @hoverBg;
 }
 #ExplorerTree::item:selected, #ContentTree::item:selected, #ProjectTree::item:selected {
-    /* Soft row highlight only — no accent left bar (that painted thick blue
-       guides into the branch column with show-decoration-selected). */
     background-color: @selectionBg; color: @text;
     border: none;
 }
@@ -132,33 +111,8 @@ QTreeWidget::item:alternate, QTreeView::item:alternate { background-color: @altR
     background-color: transparent;
 }
 
-/* Branch: thin gray indent guides (VS Code); chevrons override on expanders */
-QTreeWidget::branch, QTreeView::branch {
-    background: transparent;
-    border: none;
-}
-QTreeWidget::branch:selected, QTreeView::branch:selected,
-QTreeWidget::branch:hover, QTreeView::branch:hover {
-    background: transparent;
-    border: none;
-}
-QTreeWidget::branch:has-siblings, QTreeView::branch:has-siblings {
-    image: url("@treeGuide");
-    border: none;
-}
-QTreeWidget::branch:has-siblings:adjoins-item, QTreeView::branch:has-siblings:adjoins-item {
-    image: url("@treeGuide");
-}
-QTreeWidget::branch:!has-children:!has-siblings:adjoins-item,
-QTreeView::branch:!has-children:!has-siblings:adjoins-item {
-    image: url("@treeGuide");
-}
-QTreeWidget::branch:has-children:closed, QTreeView::branch:has-children:closed {
-    image: url("@treeChevronRight");
-}
-QTreeWidget::branch:has-children:open, QTreeView::branch:has-children:open {
-    image: url("@treeChevronDown");
-}
+/* No QTreeView::branch rules — any branch QSS steals PE_IndicatorBranch from
+ * GrayBranchStyle and Windows redraws thick blue selected bars. */
 
 QListWidget { background-color: @sidebarBg; border: none; outline: none; font-size: 13px; }
 QListWidget::item { padding: 4px 12px; min-height: 24px; border: none; border-radius: 4px; }
@@ -215,9 +169,9 @@ QTabBar QToolButton { background: transparent; border: none; border-radius: 3px;
 QTabBar QToolButton:hover { background-color: @hoverBg; }
 
 /* ---- Bottom panel tabs (VS Code panel: top divider + underline active tab) ---- */
-#BottomPanel { background-color: @sidebarBg; border: none; }
+#BottomPanel { background-color: @sidebarBg; }
 #BottomPanel::pane {
-    border: none;
+    border: none; border-top: 1px solid @border;
     background-color: @sidebarBg;
 }
 #BottomPanel QTabBar::tab {
@@ -242,7 +196,7 @@ QTabBar QToolButton:hover { background-color: @hoverBg; }
 
 /* ---- Right panel tabs ---- */
 #RightPanel::pane {
-    border: none; background-color: @sidebarBg;
+    border: none; border-left: 1px solid @border; background-color: @sidebarBg;
 }
 #RightPanel QTabBar::tab {
     padding: 5px 12px; min-height: 22px; font-size: 12px;
@@ -252,22 +206,7 @@ QTabBar QToolButton:hover { background-color: @hoverBg; }
 #RightPanel QTabBar::tab:selected { color: @text; border-bottom: 1px solid @accent; }
 #RightPanel QTabBar::tab:hover:!selected { color: @text; }
 
-/* Trace bottom explorer (Detail / Stats / …) — flat pane; splitter draws top edge */
-#TraceExplorer::pane {
-    border: none;
-    background-color: @contentBg;
-}
-#TraceExplorer QTabBar::tab {
-    padding: 5px 12px; min-height: 22px; font-size: 12px;
-    background: transparent; color: @textDim;
-    border: none; border-bottom: 1px solid transparent; margin: 0 2px;
-}
-#TraceExplorer QTabBar::tab:selected {
-    color: @text; border-bottom: 1px solid @accent;
-}
-#TraceExplorer QTabBar::tab:hover:!selected { color: @text; }
-
-/* ---- Inputs ---- */
+/* ---- 输入框 ---- */
 QLineEdit {
     border: 1px solid @borderDim; border-radius: 3px; padding: 5px 8px;
     background-color: @contentBg; font-size: 13px; min-height: 20px;
@@ -322,15 +261,13 @@ QHeaderView::section:hover { background-color: @headerHover; color: @text; }
 QHeaderView::up-arrow { image: url(@spinUp); width: 10px; height: 10px; }
 QHeaderView::down-arrow { image: url(@spinDown); width: 10px; height: 10px; }
 
-/* ---- Splitters: always-visible 1px gray (VS Code editor group border); accent on hover ---- */
-QSplitter::handle {
-    background-color: @border;
-}
-QSplitter::handle:horizontal { width: 1px; }
+/* ---- 分割器 (1px, 透明→悬停 accent) ---- */
+QSplitter::handle { background-color: transparent; }
 QSplitter::handle:vertical { height: 1px; }
+QSplitter::handle:horizontal { width: 1px; }
 QSplitter::handle:hover { background-color: @accent; }
 
-/* ---- Sliders ---- */
+/* ---- 滑块 ---- */
 QSlider::groove:horizontal { border: none; height: 4px; background: @borderDim; border-radius: 2px; }
 QSlider::sub-page:horizontal { background: @accent; border-radius: 2px; }
 QSlider::add-page:horizontal { background: @borderDim; border-radius: 2px; }
@@ -360,27 +297,12 @@ QComboBox QAbstractItemView {
 }
 QComboBox QAbstractItemView::item { padding: 4px 8px; min-height: 22px; }
 
-/* ---- Status bar (24px) — top divider separates from editor/panel ---- */
-QStatusBar {
-    background-color: @statusBg; color: @statusFg; border: none;
-    border-top: 1px solid @border; font-size: 12px; max-height: 24px;
-}
+/* ---- 状态栏 (24px) ---- */
+QStatusBar { background-color: @statusBg; color: @statusFg; border: none; font-size: 12px; max-height: 24px; }
 QStatusBar::item { border: none; }
 QStatusBar QLabel { color: @statusFg; padding: 0 8px; }
 
-/* ---- Filter / Trace chrome bands ---- */
-#FilterBar {
-    background-color: @contentBg;
-    border: none;
-    border-bottom: 1px solid @border;
-}
-#FilterChipBar {
-    background-color: @contentBg;
-    border: none;
-    border-bottom: 1px solid @borderDim;
-}
-
-/* ---- Checkboxes ---- */
+/* ---- 复选框 ---- */
 QCheckBox { color: @text; font-size: 13px; spacing: 8px; }
 QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid @border; border-radius: 3px; background: @contentBg; }
 QCheckBox::indicator:checked { background: @accent; border: 1px solid @accent; image: url(:/icons/check.svg); }

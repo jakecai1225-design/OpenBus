@@ -652,10 +652,57 @@ void CanTraceModel::appendFrames(const QVector<CanFrame> &frames)
 void CanTraceModel::commitBatch(const QVector<CanFrame> &frames)
 {
     if (m_overwriteMode) {
-        // 覆盖模式：逐帧处理
-        for (const auto &f : frames)
-            commitFrame(f);
+        // Collapse chronologically: count every frame, keep only the latest
+        // payload per id+channel, then one dataChanged for touched rows.
+        // Avoids per-frame dataChanged (was starving the UI under high load).
+        int lo = -1;
+        int hi = -1;
+        auto noteRow = [&](int row) {
+            if (lo < 0) {
+                lo = hi = row;
+            } else {
+                lo = qMin(lo, row);
+                hi = qMax(hi, row);
+            }
+        };
+
+        for (const auto &f : frames) {
+            const quint64 key = overwriteKey(f.id, f.channel);
+            m_idCount[f.id]++;
+            m_keyCount[key]++;
+
+            auto lastIt = m_lastTsByKey.find(key);
+            if (lastIt != m_lastTsByKey.end())
+                m_intervalByKey[key] = f.timestamp - lastIt.value();
+            m_lastTsByKey[key] = f.timestamp;
+
+            auto it = m_keyToRow.find(key);
+            if (it != m_keyToRow.end()) {
+                const int row = it.value();
+                m_ringBuffer.at(row) = f;
+                noteRow(row);
+                continue;
+            }
+            if (!m_ringBuffer.full()) {
+                const int row = m_ringBuffer.size();
+                beginInsertRows({}, row, row);
+                m_ringBuffer.push(f);
+                m_seqCounter++;
+                m_keyToRow.insert(key, row);
+                endInsertRows();
+                noteRow(row);
+            } else {
+                m_ringBuffer.push(f);
+                m_seqCounter++;
+                const int row = m_ringBuffer.size() - 1;
+                m_keyToRow[key] = row;
+                noteRow(row);
+            }
+        }
+
         invalidateRowCache();
+        if (lo >= 0)
+            emit dataChanged(index(lo, 0), index(hi, ColCount - 1));
         return;
     }
 
@@ -1172,26 +1219,73 @@ void CanTraceModel::setDbcManager(DbcManager *mgr)
 }
 
 // ============================================================
-//  覆盖模式
+//  Overwrite mode
 // ============================================================
 
 void CanTraceModel::setOverwriteMode(bool mode)
 {
     if (m_overwriteMode == mode)
         return;
-    // Overwrite needs a mutable local ring — leave CaptureLog camera.
-    if (mode && m_captureCamera)
-        leaveCaptureCameraForLocal();
-    m_overwriteMode = mode;
-    if (mode) {
+
+    if (!mode) {
+        m_overwriteMode = false;
         m_keyToRow.clear();
-        for (int i = 0; i < displaySize(); ++i) {
-            const CanFrame f = frameAt(i);
-            m_keyToRow[overwriteKey(f.id, f.channel)] = i;
-        }
-    } else {
-        m_keyToRow.clear();
+        return;
     }
+
+    // Snapshot current view first (camera frameAt still works). Leaving the
+    // camera used to clear the ring and leave a blank Trace until new frames
+    // arrived — seed unique id+channel rows from what the user already sees.
+    const int n = displaySize();
+    QVector<CanFrame> all;
+    all.reserve(n);
+    for (int i = 0; i < n; ++i)
+        all.append(frameAt(i));
+
+    beginResetModel();
+    m_captureCamera = false;
+    m_overwriteMode = true;
+    m_pendingFrames.clear();
+    m_ringBuffer.clear();
+    m_ringBuffer.reserve(m_maxFrames);
+    m_viewRows = 0;
+    m_seqCounter = 0;
+    m_keyToRow.clear();
+    m_keyCount.clear();
+    m_idCount.clear();
+    m_lastTsByKey.clear();
+    m_intervalByKey.clear();
+    m_markedRows.clear();
+    m_rowColors.clear();
+    m_rowLabels.clear();
+    m_hasTimeRef = false;
+    m_timeRefSeq = 0;
+    m_timeRefTimestamp = 0.0;
+    if (!m_captureStartDateTime.isValid() && !all.isEmpty())
+        m_captureStartDateTime = QDateTime::currentDateTime();
+
+    for (const CanFrame &f : all) {
+        const quint64 key = overwriteKey(f.id, f.channel);
+        m_idCount[f.id]++;
+        m_keyCount[key]++;
+        auto lit = m_lastTsByKey.find(key);
+        if (lit != m_lastTsByKey.end())
+            m_intervalByKey[key] = f.timestamp - lit.value();
+        m_lastTsByKey[key] = f.timestamp;
+
+        auto it = m_keyToRow.find(key);
+        if (it != m_keyToRow.end()) {
+            m_ringBuffer.at(it.value()) = f;
+        } else if (!m_ringBuffer.full()) {
+            m_keyToRow.insert(key, m_ringBuffer.size());
+            m_ringBuffer.push(f);
+            m_seqCounter++;
+        }
+    }
+
+    invalidateRowCache();
+    endResetModel();
+    emit framesCommitted(displaySize());
 }
 
 // ============================================================

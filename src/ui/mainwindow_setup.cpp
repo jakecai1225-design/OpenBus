@@ -486,11 +486,14 @@ void MainWindow::connectProjectPanel()
         }
     }
 
-    // 兜底：如果未加载工程（首次启动 / lastPath 为空），applyProjectState 未被调用，
-    // 需确保 Trace1/Graphic1 默认标签页和 Flow 实例块存在，否则硬件连接后数据无处可去。
+    // Fallback: ensure Trace1/Graphic1 exist for the live data path.
+    // Cold start (no last project): also open Welcome as the active tab.
     if (m_traceInstances.isEmpty())
         createTraceInstance(QStringLiteral("trace1"));
     if (m_graphicInstances.isEmpty())
         createGraphicInstance(QStringLiteral("graphic1"));
     flowInvoke(QStringLiteral("rebuildScene"), {});
+
+    if (ProjectManager::instance()->currentFilePath().isEmpty())
+        onOpenWelcomeTab();
 }

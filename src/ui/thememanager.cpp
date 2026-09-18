@@ -1,5 +1,6 @@
 #include "thememanager.h"
 #include "utils/svg_icon.h"
+#include "utils/gray_branch_style.h"
 #include <QApplication>
 #include <QFile>
 #include <QHash>
@@ -100,10 +101,14 @@ void ThemeManager::applyTheme(const QString &name)
     m_currentName = m_themes.first().first;
     const Theme &t = m_themes.first().second;
 
+    // Install before stylesheet so QStyleSheetStyle wraps GrayBranchStyle.
+    GrayBranchStyle::installOnApp();
+
     qApp->setStyleSheet(generateQss(t));
 
-    // 同步 QPalette — QSS 未覆盖的原生绘制部件（输入框清除按钮回退、
-    // 消息框、原生弹窗等）也能跟随主题，避免配色残留
+    // Sync QPalette — native fallbacks follow theme. Highlight must be the soft
+    // selection color (not accent): Windows PE_IndicatorBranch uses Highlight
+    // for selected-row branch lines and would otherwise paint thick blue bars.
     QPalette pal;
     pal.setColor(QPalette::Window, QColor(t.windowBg));
     pal.setColor(QPalette::WindowText, QColor(t.text));
@@ -115,9 +120,14 @@ void ThemeManager::applyTheme(const QString &name)
     pal.setColor(QPalette::Button, QColor(t.buttonBg));
     pal.setColor(QPalette::ButtonText, QColor(t.text));
     pal.setColor(QPalette::BrightText, QColor("#ffffff"));
-    pal.setColor(QPalette::Highlight, QColor(t.accent));
-    pal.setColor(QPalette::HighlightedText, QColor("#ffffff"));
+    pal.setColor(QPalette::Highlight, QColor(t.selectionBg));
+    pal.setColor(QPalette::HighlightedText, QColor(t.text));
     pal.setColor(QPalette::Link, QColor(t.accentHover));
+    pal.setColor(QPalette::Mid, QColor(t.textDim));
+    pal.setColor(QPalette::Dark, QColor(QStringLiteral("#b0b0b0")));
+    pal.setColor(QPalette::Light, QColor(t.panelBg));
+    pal.setColor(QPalette::Midlight, QColor(t.hoverBg));
+    pal.setColor(QPalette::Shadow, QColor(t.border));
     pal.setColor(QPalette::PlaceholderText, QColor(t.textDim));
     const QColor dimText(t.buttonDisabledText);
     pal.setColor(QPalette::Disabled, QPalette::Text, dimText);
@@ -166,10 +176,10 @@ static QString writeTreeIcons(const Theme &t)
         "<svg width='12' height='22' xmlns='http://www.w3.org/2000/svg'>"
         "<path d='M3.5 9 L6 12.5 L8.5 9' fill='none' stroke='%1' stroke-width='1.3' "
         "stroke-linecap='round' stroke-linejoin='round'/></svg>").arg(t.textDim);
-    // Thin gray indent guide (VS Code explorer) — 1px centered, muted
+    // Thin gray indent guide (VS Code explorer) — 1px centered, very muted
     const QString indentGuide = QStringLiteral(
         "<svg width='12' height='22' xmlns='http://www.w3.org/2000/svg'>"
-        "<rect x='5.5' y='0' width='1' height='22' fill='%1' fill-opacity='0.45'/>"
+        "<rect x='5.5' y='0' width='1' height='22' fill='%1' fill-opacity='0.28'/>"
         "</svg>").arg(t.textDim);
     const auto smallChevron = [](const char *d, const QString &color) {
         return QStringLiteral(

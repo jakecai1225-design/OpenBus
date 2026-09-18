@@ -174,6 +174,8 @@ set(SRC_UI
     ui/settingspage.cpp
     ui/shortcutspage.h
     ui/shortcutspage.cpp
+    ui/welcomepage.h
+    ui/welcomepage.cpp
     ui/activitybar.h
     ui/activitybar.cpp
     ui/bottompanel.h

@@ -2180,10 +2180,22 @@ TraceTab::TraceTab(QWidget *parent)
             m_overwriteAct->setChecked(on);
         }
         applyOverwriteModeUi(on);
+        // Adopt full CaptureLog window before convert so overwrite seed is not
+        // empty when the camera cursor was advanced in the background (T5).
+        if (on && m_traceModel->isCaptureLogCamera()) {
+            int logSize = 0;
+            quint64 logSeq = 0;
+            CaptureLog::instance()->snapshot(&logSize, &logSeq, nullptr);
+            m_captureSeq = logSeq;
+            m_traceModel->adoptCaptureLogSnapshot(logSize, logSeq);
+        }
         m_traceModel->setOverwriteMode(on);
         if (!on && m_running) {
             m_captureSeq = 0;
             m_traceModel->setCaptureLogCamera(true);
+            pullFromCaptureLog();
+        } else if (on && m_running) {
+            // Keep cursor at tip; further frames arrive via local-ring pull.
             pullFromCaptureLog();
         }
     };
@@ -2651,6 +2663,35 @@ void TraceTab::pullFromCaptureLog()
             m_packetCountDirty = true;
         return;
     }
+
+    // Overwrite mode: always chase the tip and commit immediately. A 256-frame
+    // FIFO + 50ms pending flush left rows many generations behind under load.
+    if (m_traceModel->isOverwriteMode()) {
+        int logSize = 0;
+        quint64 tip = 0;
+        CaptureLog::instance()->snapshot(&logSize, &tip, nullptr);
+        if (m_captureSeq >= tip)
+            return;
+
+        constexpr int kMaxApply = 8192;
+        const quint64 unread = tip - m_captureSeq;
+        if (unread > static_cast<quint64>(kMaxApply)) {
+            // Skip oldest backlog; prefer freshest frames for fixed-ID rows.
+            m_captureSeq = tip - static_cast<quint64>(kMaxApply);
+        }
+
+        QVector<CanFrame> batch;
+        quint64 newSeq = m_captureSeq;
+        const int n = CaptureLog::instance()->copyAfterSeq(
+            m_captureSeq, &batch, &newSeq, kMaxApply);
+        m_captureSeq = newSeq;
+        if (n <= 0)
+            return;
+        m_traceModel->appendFrames(batch); // immediate commit (no pending timer)
+        m_packetCountDirty = true;
+        return;
+    }
+
     QVector<CanFrame> batch;
     quint64 newSeq = m_captureSeq;
     const int n = CaptureLog::instance()->copyAfterSeq(m_captureSeq, &batch, &newSeq, 256);

@@ -150,6 +150,7 @@ void MainWindow::createMenuBar()
     connect(toggleRight, &QAction::triggered, this, &MainWindow::toggleRightDock);
 
     viewMenu->addSeparator();
+    viewMenu->addAction(QStringLiteral("Welcome"), this, &MainWindow::onOpenWelcomeTab);
     viewMenu->addAction("重置布局", this, &MainWindow::resetLayout);
 
     // ---- 工具 ----
@@ -208,6 +209,8 @@ void MainWindow::createMenuBar()
     // ---- 帮助 ----
     auto *helpMenu = menuBar()->addMenu("帮助(&H)");
 
+    helpMenu->addAction(QStringLiteral("Welcome"), this, &MainWindow::onOpenWelcomeTab);
+    helpMenu->addSeparator();
     helpMenu->addAction("关于 openbus", this, &MainWindow::showAboutDialog);
     helpMenu->addSeparator();
     helpMenu->addAction("文档", this, []() {

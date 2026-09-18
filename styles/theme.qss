@@ -99,28 +99,20 @@ QTreeWidget::item:alternate, QTreeView::item:alternate { background-color: @altR
 
 #ExplorerTree::item, #ContentTree::item, #ProjectTree::item {
     padding: 1px 6px 1px 4px; min-height: 22px; border: none; border-radius: 0;
-    border-left: 2px solid transparent;
 }
 #ExplorerTree::item:hover, #ContentTree::item:hover, #ProjectTree::item:hover {
     background-color: @hoverBg;
 }
 #ExplorerTree::item:selected, #ContentTree::item:selected, #ProjectTree::item:selected {
     background-color: @selectionBg; color: @text;
-    border-left: 2px solid @accent;
+    border: none;
 }
 #ExplorerTree::item:alternate, #ContentTree::item:alternate, #ProjectTree::item:alternate {
     background-color: transparent;
 }
 
-/* Branch: indent guides first, chevrons override (ThemeManager injects URLs) */
-QTreeWidget::branch, QTreeView::branch { background: transparent; }
-QTreeWidget::branch:has-siblings, QTreeView::branch:has-siblings { image: url("@treeGuide"); }
-QTreeWidget::branch:has-children:closed, QTreeView::branch:has-children:closed {
-    image: url("@treeChevronRight");
-}
-QTreeWidget::branch:has-children:open, QTreeView::branch:has-children:open {
-    image: url("@treeChevronDown");
-}
+/* No QTreeView::branch rules — any branch QSS steals PE_IndicatorBranch from
+ * GrayBranchStyle and Windows redraws thick blue selected bars. */
 
 QListWidget { background-color: @sidebarBg; border: none; outline: none; font-size: 13px; }
 QListWidget::item { padding: 4px 12px; min-height: 24px; border: none; border-radius: 4px; }

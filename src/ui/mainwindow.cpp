@@ -44,6 +44,7 @@
 #include "utils/svg_icon.h"
 #include "ui/settingspage.h"
 #include "ui/shortcutspage.h"
+#include "ui/welcomepage.h"
 #include "core/file_import/file_importer.h"
 #include "core/plugin/pluginmanager.h"
 #include "core/plugin/plugininfo.h"
@@ -139,6 +140,8 @@ MainWindow::~MainWindow()
         disconnect(m_settingsPage, &QObject::destroyed, this, nullptr);
     if (m_shortcutsPage)
         disconnect(m_shortcutsPage, &QObject::destroyed, this, nullptr);
+    if (m_welcomePage)
+        disconnect(m_welcomePage, &QObject::destroyed, this, nullptr);
     for (QWidget *w : m_traceInstances.values())
         disconnect(w, &QObject::destroyed, this, nullptr);
     for (QWidget *w : m_graphicInstances.values())

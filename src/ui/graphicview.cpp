@@ -515,11 +515,15 @@ void GraphicView::setupUi()
     m_signalTree->setAlternatingRowColors(true);
     m_signalTree->setMinimumWidth(320);
     m_signalTree->setSelectionMode(QAbstractItemView::ExtendedSelection);   // G13：Ctrl/Shift 多选
+    // Sibling-only reorder: items must NOT be drop targets (otherwise InternalMove
+    // nests the dragged row as a child and it "vanishes" from the flat list).
     m_signalTree->setDragEnabled(true);
     m_signalTree->setAcceptDrops(true);
     m_signalTree->setDropIndicatorShown(true);
     m_signalTree->setDragDropMode(QAbstractItemView::InternalMove);
     m_signalTree->setDefaultDropAction(Qt::MoveAction);
+    m_signalTree->invisibleRootItem()->setFlags(
+        m_signalTree->invisibleRootItem()->flags() | Qt::ItemIsDropEnabled);
     m_signalTree->setStyleSheet(treeQss());
     m_signalTree->header()->setSectionResizeMode(0, QHeaderView::Fixed);
     m_signalTree->header()->resizeSection(0, 22);
@@ -749,54 +753,25 @@ void GraphicView::setupUi()
         setSelectedSignal(cur ? m_signalTree->indexOfTopLevelItem(cur) : -1);
     });
 
-    // Drag-reorder: after InternalMove, sync m_signals order to the tree
+    // Drag-reorder: defer sync so we don't mutate the tree inside rowsMoved/Inserted
+    auto queueReorderSync = [this]() {
+        if (m_signalReorderQueued)
+            return;
+        m_signalReorderQueued = true;
+        QMetaObject::invokeMethod(this, [this]() {
+            m_signalReorderQueued = false;
+            applySignalTreeOrderFromUi();
+        }, Qt::QueuedConnection);
+    };
     connect(m_signalTree->model(), &QAbstractItemModel::rowsMoved, this,
-            [this](const QModelIndex &, int /*start*/, int /*end*/,
-                   const QModelIndex &, int /*dest*/) {
-        if (m_signalTree->topLevelItemCount() != m_signals.size())
-            return;
-        QVector<int> order;
-        order.reserve(m_signals.size());
-        for (int i = 0; i < m_signalTree->topLevelItemCount(); ++i) {
-            const int oldIdx =
-                m_signalTree->topLevelItem(i)->data(0, Qt::UserRole).toInt();
-            if (oldIdx < 0 || oldIdx >= m_signals.size())
-                return;
-            order.append(oldIdx);
-        }
-        // Identity permutation — nothing to do
-        bool changed = false;
-        for (int i = 0; i < order.size(); ++i) {
-            if (order[i] != i) {
-                changed = true;
-                break;
-            }
-        }
-        if (!changed)
-            return;
-
-        QVector<SignalData> reordered;
-        reordered.reserve(m_signals.size());
-        int newSel = -1;
-        for (int i = 0; i < order.size(); ++i) {
-            if (order[i] == m_selectedSignal)
-                newSel = i;
-            reordered.append(std::move(m_signals[order[i]]));
-        }
-        m_signals = std::move(reordered);
-        m_selectedSignal = newSel;
-        for (int i = 0; i < m_signalTree->topLevelItemCount(); ++i)
-            m_signalTree->topLevelItem(i)->setData(0, Qt::UserRole, i);
-        rebuildIdIndex();
-        m_zoomStack.clear();
-        updateZoomUi();
-        if (m_yAxisMode != YAxisMode::Separate)
-            applyYAxisMode();
-        else
-            layoutAxisRects();
-        applyFocus();
-        syncTreeSelectionToSelected();
-        m_plot->replot();
+            [queueReorderSync](const QModelIndex &, int, int, const QModelIndex &, int) {
+        queueReorderSync();
+    });
+    // Nested drop (child under another row) emits rowsInserted with a valid parent
+    connect(m_signalTree->model(), &QAbstractItemModel::rowsInserted, this,
+            [queueReorderSync](const QModelIndex &parent, int, int) {
+        if (parent.isValid())
+            queueReorderSync();
     });
 
     // ---- Sample markers (rebuild display so zoom-in uses true samples) ----
@@ -2372,6 +2347,86 @@ void GraphicView::moveSignal(int from, int to)
     m_plot->replot();
 }
 
+void GraphicView::applySignalTreeOrderFromUi()
+{
+    if (!m_signalTree || m_signals.isEmpty())
+        return;
+
+    // Depth-first walk so a nested drop (child under another row) is still collected
+    QVector<int> order;
+    order.reserve(m_signals.size());
+    std::function<void(QTreeWidgetItem *)> walk = [&](QTreeWidgetItem *parent) {
+        const int n = parent ? parent->childCount()
+                             : m_signalTree->topLevelItemCount();
+        for (int i = 0; i < n; ++i) {
+            QTreeWidgetItem *it =
+                parent ? parent->child(i) : m_signalTree->topLevelItem(i);
+            if (!it)
+                continue;
+            order.append(it->data(0, Qt::UserRole).toInt());
+            if (it->childCount() > 0)
+                walk(it);
+        }
+    };
+    walk(nullptr);
+
+    if (order.size() != m_signals.size()) {
+        // Partial / failed drop — restore flat list from m_signals
+        updateSignalList();
+        syncTreeSelectionToSelected();
+        return;
+    }
+
+    QVector<bool> seen(m_signals.size(), false);
+    for (int idx : order) {
+        if (idx < 0 || idx >= m_signals.size() || seen[idx]) {
+            // Corrupt drag state — rebuild list from current m_signals
+            updateSignalList();
+            syncTreeSelectionToSelected();
+            return;
+        }
+        seen[idx] = true;
+    }
+
+    bool changed = false;
+    for (int i = 0; i < order.size(); ++i) {
+        if (order[i] != i) {
+            changed = true;
+            break;
+        }
+    }
+    // Even if order is identity, nested children must be flattened via rebuild
+    const bool nested = m_signalTree->topLevelItemCount() != m_signals.size();
+    if (!changed && !nested)
+        return;
+
+    if (changed) {
+        QVector<SignalData> reordered;
+        reordered.reserve(m_signals.size());
+        int newSel = -1;
+        for (int i = 0; i < order.size(); ++i) {
+            if (order[i] == m_selectedSignal)
+                newSel = i;
+            reordered.append(std::move(m_signals[order[i]]));
+        }
+        m_signals = std::move(reordered);
+        m_selectedSignal = newSel;
+        rebuildIdIndex();
+        m_zoomStack.clear();
+        updateZoomUi();
+        if (m_yAxisMode != YAxisMode::Separate)
+            applyYAxisMode();
+        else
+            layoutAxisRects();
+        applyFocus();
+    }
+
+    // Always rebuild the flat tree (clears accidental nesting)
+    updateSignalList();
+    syncTreeSelectionToSelected();
+    m_plot->replot();
+}
+
 int GraphicView::pickSignalAt(const QPoint &pos) const
 {
     if (m_yAxisMode == YAxisMode::Separate) {
@@ -3255,6 +3310,10 @@ void GraphicView::updateSignalList()
                 ? SampleStore::instance()->sampleCount(sd.storeKey)
                 : sd.rawData.size()));
         item->setData(0, Qt::UserRole, i);
+        // Drag yes, drop-as-parent no — keeps InternalMove as sibling reorder only
+        item->setFlags((Qt::ItemIsEnabled | Qt::ItemIsSelectable
+                        | Qt::ItemIsDragEnabled | Qt::ItemIsUserCheckable)
+                       & ~Qt::ItemIsDropEnabled);
         m_signalTree->addTopLevelItem(item);
     }
     m_signalTree->blockSignals(false);

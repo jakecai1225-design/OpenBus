@@ -272,6 +272,7 @@ private:
     ZoomAxisMode m_zoomAxis = ZoomAxisMode::XY;
     FocusMode m_focusMode = FocusMode::AllColor;
     int m_selectedSignal = -1;                       ///< 信号列表当前选中行
+    bool m_signalReorderQueued = false;              ///< coalesce drag-reorder sync
 
     // --- G7 叠加模式 ---
     QCPAxisRect *m_overlayRect = nullptr;
@@ -385,6 +386,9 @@ private:
 
     /// Reorder m_signals (list drag / InternalMove); relayout plot Y strips
     void moveSignal(int from, int to);
+
+    /// Read tree visual order (flatten nested drops) → reorder m_signals + refresh UI
+    void applySignalTreeOrderFromUi();
 
     /// Nearest visible graph under plot pixel (Separate strip or Overlay selectTest)
     int pickSignalAt(const QPoint &pos) const;

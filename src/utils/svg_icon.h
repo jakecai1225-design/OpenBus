@@ -54,8 +54,8 @@ inline void applyExplorerSearch(QLineEdit *edit, const QString &iconColor, const
                     QLineEdit::LeadingPosition);
 }
 
-/// VS Code Explorer tree: compact rows, indent guides + chevrons (via QSS),
-/// full-row selection including the branch column.
+/// VS Code Explorer tree: compact rows, indent guides on hover/select (via
+/// GrayBranchStyle), full-row selection.
 inline void applyExplorerTree(QTreeWidget *tree,
                               const QString &objectName = QStringLiteral("ExplorerTree"))
 {
@@ -75,6 +75,14 @@ inline void applyExplorerTree(QTreeWidget *tree,
     tree->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
     tree->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     tree->setFocusPolicy(Qt::StrongFocus);
+    tree->setMouseTracking(true);
+    if (tree->viewport())
+        tree->viewport()->setMouseTracking(true);
+    QPalette pal = tree->palette();
+    const QColor guide(0xA0, 0xA0, 0xA0);
+    pal.setColor(QPalette::Mid, guide);
+    pal.setColor(QPalette::Dark, guide);
+    tree->setPalette(pal);
 }
 
 #endif // OPENBUS_SVG_ICON_H

@@ -45,9 +45,11 @@
 #include "utils/svg_icon.h"
 #include "ui/settingspage.h"
 #include "ui/shortcutspage.h"
+#include "ui/welcomepage.h"
 #include "core/file_import/file_importer.h"
 #include "core/plugin/pluginmanager.h"
 #include "core/plugin/plugininfo.h"
+#include "core/sessionmanager.h"
 #include "models/viewportproxy.h"
 
 #include <QMenuBar>
@@ -76,6 +78,7 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QLineEdit>
+#include <QInputDialog>
 #include <QSlider>
 #include <QComboBox>
 #include <QProgressDialog>
@@ -104,6 +107,78 @@ void MainWindow::onOpenMarketTab()
     marketInvoke(QStringLiteral("refreshInstalled"));
     // ＋新增设备跳转后直接聚焦搜索（方案 §13.6）
     marketInvoke(QStringLiteral("focusSearch"));
+}
+
+void MainWindow::onOpenWelcomeTab()
+{
+    if (!m_welcomePage) {
+        m_welcomePage = new WelcomePage(this);
+        connect(m_welcomePage, &QObject::destroyed, this, [this]() {
+            m_welcomePage = nullptr;
+        });
+        connect(m_welcomePage, &WelcomePage::newProjectRequested, this, [this]() {
+            bool ok = false;
+            const QString name = QInputDialog::getText(
+                this, QStringLiteral("New Project"),
+                QStringLiteral("Project name:"), QLineEdit::Normal,
+                QStringLiteral("Untitled"), &ok);
+            if (ok && !name.trimmed().isEmpty())
+                onProjectCreated(name.trimmed());
+        });
+        connect(m_welcomePage, &WelcomePage::openProjectRequested,
+                this, &MainWindow::onOpenProject);
+        connect(m_welcomePage, &WelcomePage::openRecentRequested, this,
+                [this](const QString &path) {
+            if (path.isEmpty() || !QFile::exists(path)) {
+                m_bottomPanel->appendOutput(
+                    QStringLiteral("Recent project not found: ") + path);
+                if (m_welcomePage)
+                    m_welcomePage->refreshRecent();
+                return;
+            }
+            if (ProjectManager::instance()->loadProject(path)) {
+                applyProjectState();
+                const QString loadedName =
+                    ProjectManager::instance()->currentProjectName();
+                m_sideBar->projectPanel()->activateProject(path, loadedName);
+                m_bottomPanel->appendOutput(
+                    QStringLiteral("Project loaded: ") + loadedName);
+            }
+        });
+        connect(m_welcomePage, &WelcomePage::openDeviceRequested,
+                this, &MainWindow::openDevicePage);
+        connect(m_welcomePage, &WelcomePage::openFlowRequested,
+                this, &MainWindow::onOpenMeasurementSetup);
+        connect(m_welcomePage, &WelcomePage::openMarketRequested,
+                this, &MainWindow::onOpenMarketTab);
+        connect(m_welcomePage, &WelcomePage::openTraceRequested,
+                this, &MainWindow::onOpenTraceTab);
+        connect(m_welcomePage, &WelcomePage::openGraphicRequested,
+                this, &MainWindow::onNewGraphicRequested);
+        connect(m_welcomePage, &WelcomePage::openDbcPanelRequested, this, [this]() {
+            m_activityBar->setCurrentActivity(ActivityBar::Dbc);
+            m_sideBar->showPanel(static_cast<int>(ActivityBar::Dbc));
+        });
+        connect(m_welcomePage, &WelcomePage::openShortcutsRequested, this, [this]() {
+            onSettingsRequested(QStringLiteral("快捷键"));
+        });
+        connect(m_welcomePage, &WelcomePage::openAboutRequested,
+                this, &MainWindow::showAboutDialog);
+        connect(m_welcomePage, &WelcomePage::openReleaseNotesRequested,
+                this, &MainWindow::showReleaseNotes);
+        connect(m_welcomePage, &WelcomePage::openDocsRequested, this, []() {
+            QDesktopServices::openUrl(
+                QUrl(QStringLiteral("https://gitee.com/openbus/openbus")));
+        });
+        connect(m_welcomePage, &WelcomePage::clearRecentRequested, this, [this]() {
+            SessionManager::instance()->clearRecent();
+            if (m_welcomePage)
+                m_welcomePage->refreshRecent();
+        });
+    } else {
+        m_welcomePage->refreshRecent();
+    }
+    openTab(m_welcomePage, QStringLiteral("Welcome"));
 }
 
 void MainWindow::onOpenTraceTab()
