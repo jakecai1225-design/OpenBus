@@ -44,9 +44,12 @@
 #include "utils/svg_icon.h"
 #include "ui/settingspage.h"
 #include "ui/shortcutspage.h"
+#include "ui/commandcenter.h"
+#include "ui/commandpalette.h"
 #include "core/file_import/file_importer.h"
 #include "core/plugin/pluginmanager.h"
 #include "core/plugin/plugininfo.h"
+#include "core/sessionmanager.h"
 #include "models/viewportproxy.h"
 
 #include <QMenuBar>
@@ -78,6 +81,9 @@
 #include <QSlider>
 #include <QComboBox>
 #include <QProgressDialog>
+#include <QPointer>
+#include <QRegularExpression>
+#include <functional>
 #include <QRegularExpression>
 #include <algorithm>
 
@@ -241,6 +247,19 @@ void MainWindow::createMenuBar()
 
 void MainWindow::createWindowButtons()
 {
+    auto *brand = new QWidget(this);
+    brand->setObjectName(QStringLiteral("BrandMark"));
+    auto *brandLay = new QHBoxLayout(brand);
+    brandLay->setContentsMargins(10, 0, 4, 0);
+    brandLay->setSpacing(0);
+    brand->setFixedHeight(32);
+    m_brandMark = new QLabel(brand);
+    m_brandMark->setFixedSize(20, 20);
+    m_brandMark->setAlignment(Qt::AlignCenter);
+    m_brandMark->setToolTip(QStringLiteral("openbus"));
+    brandLay->addWidget(m_brandMark, 0, Qt::AlignVCenter);
+    menuBar()->setCornerWidget(brand, Qt::TopLeftCorner);
+
     auto *container = new QWidget(this);
     container->setObjectName("WindowButtons");
     container->setFixedHeight(30);
@@ -315,9 +334,284 @@ void MainWindow::createWindowButtons()
             this, SLOT(refreshWindowButtonIcons()));
 }
 
+// ============================================================
+//  VS Code Command Center (menu-bar search pill)
+// ============================================================
+
+void MainWindow::createCommandCenter()
+{
+    m_commandCenter = new CommandCenter(menuBar());
+    m_commandCenter->setPlaceholder(QStringLiteral("Search openbus"));
+    m_commandCenter->show();
+
+    m_commandPalette = new CommandPalette(this);
+
+    connect(m_commandCenter, &CommandCenter::activated, this, [this]() {
+        showCommandPalette();
+    });
+    connect(m_commandCenter, &CommandCenter::navigateBack, this, [this]() {
+        if (!m_editorArea) return;
+        if (QTabWidget *tw = m_editorArea->activeTabWidget()) {
+            const int n = tw->count();
+            if (n <= 0) return;
+            int i = tw->currentIndex();
+            tw->setCurrentIndex(i > 0 ? i - 1 : n - 1);
+        }
+    });
+    connect(m_commandCenter, &CommandCenter::navigateForward, this, [this]() {
+        if (!m_editorArea) return;
+        if (QTabWidget *tw = m_editorArea->activeTabWidget()) {
+            const int n = tw->count();
+            if (n <= 0) return;
+            int i = tw->currentIndex();
+            tw->setCurrentIndex(i + 1 < n ? i + 1 : 0);
+        }
+    });
+
+    auto *actQuick = new QAction(QStringLiteral("Command Center"), this);
+    actQuick->setShortcut(QKeySequence(QStringLiteral("Ctrl+P")));
+    addAction(actQuick);
+    connect(actQuick, &QAction::triggered, this, [this]() { showCommandPalette(); });
+
+    auto *actCmd = new QAction(QStringLiteral("Command Palette"), this);
+    actCmd->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+P")));
+    addAction(actCmd);
+    connect(actCmd, &QAction::triggered, this, [this]() {
+        showCommandPalette(QStringLiteral("> "));
+    });
+
+    for (QAction *a : menuBar()->actions()) {
+        if (a->menu() && a->text().contains(QStringLiteral("视图"))) {
+            a->menu()->addSeparator();
+            a->menu()->addAction(actQuick);
+            a->menu()->addAction(actCmd);
+            break;
+        }
+    }
+
+    QTimer::singleShot(0, this, &MainWindow::repositionCommandCenter);
+}
+
+void MainWindow::repositionCommandCenter()
+{
+    if (!m_commandCenter || !menuBar())
+        return;
+
+    QMenuBar *mb = menuBar();
+    int menusRight = 8;
+    for (QAction *a : mb->actions()) {
+        const QRect r = mb->actionGeometry(a);
+        if (r.isValid())
+            menusRight = qMax(menusRight, r.right());
+    }
+
+    const int rightReserve = 200;
+    const int avail = mb->width() - menusRight - rightReserve - 24;
+    int w = qBound(240, 420, avail);
+    if (w < 200) {
+        m_commandCenter->hide();
+        return;
+    }
+    m_commandCenter->show();
+    m_commandCenter->setFixedWidth(w);
+
+    int x = menusRight + 16;
+    const int ideal = (mb->width() - w) / 2;
+    if (ideal > menusRight + 12 && ideal + w < mb->width() - rightReserve)
+        x = ideal;
+
+    const int y = qMax(2, (mb->height() - m_commandCenter->height()) / 2);
+    m_commandCenter->move(x, y);
+    m_commandCenter->raise();
+}
+
+void MainWindow::showCommandPalette(const QString &initialQuery)
+{
+    if (!m_commandPalette)
+        m_commandPalette = new CommandPalette(this);
+
+    using Item = CommandPalette::Item;
+    using Kind = CommandPalette::Kind;
+    QVector<Item> items;
+
+    auto addView = [&](const QString &label, const QString &detail,
+                       const std::function<void()> &fn) {
+        Item it;
+        it.kind = Kind::View;
+        it.label = label;
+        it.detail = detail;
+        it.run = fn;
+        items.push_back(it);
+    };
+    auto addCmd = [&](const QString &label, const QString &detail,
+                      const std::function<void()> &fn) {
+        Item it;
+        it.kind = Kind::Command;
+        it.label = label;
+        it.detail = detail;
+        it.run = fn;
+        items.push_back(it);
+    };
+
+    std::function<void(QMenu *, const QString &)> walkMenu;
+    walkMenu = [&](QMenu *menu, const QString &prefix) {
+        if (!menu) return;
+        for (QAction *act : menu->actions()) {
+            if (act->isSeparator()) continue;
+            if (act->menu()) {
+                const QString next = prefix.isEmpty()
+                    ? act->text()
+                    : prefix + QStringLiteral(" / ") + act->text();
+                walkMenu(act->menu(), next);
+                continue;
+            }
+            if (act->text().isEmpty()) continue;
+            QString label = act->text();
+            label.remove(QLatin1Char('&'));
+            Item it;
+            it.kind = Kind::Command;
+            it.label = label;
+            it.detail = prefix;
+            if (!act->shortcut().isEmpty()) {
+                const QString sc = act->shortcut().toString(QKeySequence::NativeText);
+                it.detail = it.detail.isEmpty() ? sc
+                                                : (it.detail + QStringLiteral(" · ") + sc);
+            }
+            QPointer<QAction> guard(act);
+            it.run = [guard]() {
+                if (guard) guard->trigger();
+            };
+            items.push_back(it);
+        }
+    };
+    for (QAction *top : menuBar()->actions()) {
+        if (top->menu())
+            walkMenu(top->menu(), QString());
+    }
+
+    addView(QStringLiteral("Toggle Primary Side Bar"), QStringLiteral("View"),
+            [this]() { toggleLeftDock(); });
+    addView(QStringLiteral("Toggle Panel"), QStringLiteral("View"),
+            [this]() { toggleBottomDock(); });
+    addView(QStringLiteral("Toggle Secondary Side Bar"), QStringLiteral("View"),
+            [this]() { toggleRightDock(); });
+    addView(QStringLiteral("Welcome"), QStringLiteral("Start page"),
+            [this]() { onOpenWelcomeTab(); });
+    addView(QStringLiteral("Extensions Marketplace"), QStringLiteral("Plugins"),
+            [this]() { onOpenMarketTab(); });
+    addView(QStringLiteral("Open Settings"), QStringLiteral("Preferences"),
+            [this]() { onSettingsRequested(QStringLiteral("General")); });
+    addView(QStringLiteral("Keyboard Shortcuts"), QStringLiteral("Help"),
+            [this]() { showShortcuts(); });
+
+    addCmd(QStringLiteral("Open File…"), QStringLiteral("Ctrl+O"),
+           [this]() { onOpenFile(); });
+    addCmd(QStringLiteral("Open Project…"), QStringLiteral("Ctrl+Shift+O"),
+           [this]() { onOpenProject(); });
+    addCmd(QStringLiteral("Save Project"), QStringLiteral("Ctrl+Shift+S"),
+           [this]() { onSaveProject(); });
+
+    for (const QString &path : SessionManager::instance()->recentPaths()) {
+        Item it;
+        it.kind = Kind::File;
+        it.label = QFileInfo(path).fileName();
+        it.detail = path;
+        it.filterText = (it.label + QLatin1Char(' ') + path).toLower();
+        it.run = [this, path]() {
+            QFileInfo fi(path);
+            if (fi.suffix().compare(QStringLiteral("dbc"), Qt::CaseInsensitive) == 0) {
+                if (m_dbcManager)
+                    m_dbcManager->loadDbc(path);
+            } else {
+                m_bottomPanel->appendOutput(
+                    QStringLiteral("Open from Command Center: %1").arg(path));
+            }
+        };
+        items.push_back(it);
+    }
+
+    if (m_dbcManager) {
+        for (const DbcFile &db : m_dbcManager->files()) {
+            Item it;
+            it.kind = Kind::File;
+            it.label = db.fileName.isEmpty() ? QStringLiteral("(dbc)") : db.fileName;
+            it.detail = QStringLiteral("Loaded DBC · %1 messages").arg(db.messages.size());
+            it.filterText = (QStringLiteral("dbc ") + it.label).toLower();
+            items.push_back(it);
+        }
+    }
+
+    if (m_pluginManager) {
+        for (const PluginInfo &pi : m_pluginManager->discoveredPlugins()) {
+            Item it;
+            it.kind = Kind::Plugin;
+            it.label = pi.name;
+            it.detail = pi.description;
+            it.filterText = (QStringLiteral("plugin ") + pi.name + QLatin1Char(' ')
+                             + pi.description).toLower();
+            const QString name = pi.name;
+            it.run = [this, name]() {
+                if (m_pluginManager)
+                    m_pluginManager->reactivatePlugin(name);
+            };
+            items.push_back(it);
+        }
+    }
+
+    struct SettingHit { const char *key; const char *label; const char *cat; };
+    static const SettingHit kSettings[] = {
+        {"font.family", "Font family", "General"},
+        {"font.size", "Font size", "General"},
+        {"window.rememberGeometry", "Remember window size", "General"},
+        {"trace.maxFrames", "Max frames (local ring)", "Trace"},
+        {"trace.overwriteMode", "Overwrite mode", "Trace"},
+        {"trace.autoScroll", "Auto-scroll", "Trace"},
+        {"graphic.timeWindow", "Time window (s)", "Graphic"},
+        {"graphic.fps", "Refresh rate (FPS)", "Graphic"},
+        {"graphic.maxSamples", "Max samples per signal", "Graphic"},
+    };
+    for (const SettingHit &s : kSettings) {
+        Item it;
+        it.kind = Kind::Setting;
+        it.label = QString::fromUtf8(s.label);
+        it.detail = QStringLiteral("%1 · %2")
+                        .arg(QString::fromUtf8(s.cat), QString::fromUtf8(s.key));
+        it.filterText = (it.label + QLatin1Char(' ') + it.detail).toLower();
+        const QString cat = QString::fromUtf8(s.cat);
+        it.run = [this, cat]() { onSettingsRequested(cat); };
+        items.push_back(it);
+    }
+
+    m_commandPalette->setItems(items);
+
+    if (m_commandCenter && m_commandCenter->isVisible()) {
+        m_commandPalette->openBelow(
+            QRect(m_commandCenter->mapToGlobal(QPoint(0, 0)), m_commandCenter->size()));
+    } else {
+        m_commandPalette->openCentered(this);
+    }
+
+    if (!initialQuery.isEmpty()) {
+        if (auto *edit = m_commandPalette->findChild<QLineEdit *>(
+                QStringLiteral("CommandPaletteInput"))) {
+            edit->setText(initialQuery);
+            edit->setCursorPosition(initialQuery.size());
+        }
+    }
+}
+
 void MainWindow::refreshWindowButtonIcons()
 {
     const QString c = ThemeManager::instance()->currentTheme().barFg;
+    const QPixmap mark = renderSvgPixmap(QStringLiteral(":/icons/spider-logo.svg"), c, 20);
+    if (m_brandMark)
+        m_brandMark->setPixmap(mark);
+    QIcon brand;
+    brand.addPixmap(renderSvgPixmap(QStringLiteral(":/icons/spider-logo.svg"), c, 16));
+    brand.addPixmap(renderSvgPixmap(QStringLiteral(":/icons/spider-logo.svg"), c, 32));
+    brand.addPixmap(renderSvgPixmap(QStringLiteral(":/icons/spider-logo.svg"), c, 64));
+    setWindowIcon(brand);
+    qApp->setWindowIcon(brand);
     if (m_layoutLeftBtn)
         m_layoutLeftBtn->setIcon(svgIcon(":/icons/layout-sidebar-left.svg", c, 16));
     if (m_layoutBottomBtn)
@@ -644,9 +938,15 @@ void MainWindow::resetLayout()
 bool MainWindow::eventFilter(QObject *obj, QEvent *event)
 {
     if (obj == menuBar()) {
-        if (event->type() == QEvent::MouseButtonPress) {
+        if (event->type() == QEvent::Resize) {
+            repositionCommandCenter();
+        } else if (event->type() == QEvent::MouseButtonPress) {
             auto *me = static_cast<QMouseEvent *>(event);
             if (me->button() == Qt::LeftButton) {
+                if (m_commandCenter && m_commandCenter->isVisible()
+                    && m_commandCenter->geometry().contains(me->pos())) {
+                    return false; // let CommandCenter handle click
+                }
                 QAction *act = menuBar()->actionAt(me->pos());
                 if (!act) {
                     if (windowHandle())
@@ -655,6 +955,10 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
             }
         } else if (event->type() == QEvent::MouseButtonDblClick) {
             auto *me = static_cast<QMouseEvent *>(event);
+            if (m_commandCenter && m_commandCenter->isVisible()
+                && m_commandCenter->geometry().contains(me->pos())) {
+                return true;
+            }
             QAction *act = menuBar()->actionAt(me->pos());
             if (!act) {
                 if (isMaximized())

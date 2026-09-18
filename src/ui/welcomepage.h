@@ -1,9 +1,11 @@
 #ifndef WELCOMEPAGE_H
 #define WELCOMEPAGE_H
 
+#include <QPixmap>
 #include <QWidget>
 
 class QLabel;
+class QPaintEvent;
 class QVBoxLayout;
 class QFrame;
 class QPushButton;
@@ -51,6 +53,12 @@ private:
     QLabel *m_heroTitle = nullptr;
     QLabel *m_heroSub = nullptr;
     QLabel *m_versionLabel = nullptr;
+    QPixmap m_watermark;
+
+    void rebuildWatermark();
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
 };
 
 #endif // WELCOMEPAGE_H

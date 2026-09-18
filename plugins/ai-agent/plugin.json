@@ -1,0 +1,19 @@
+{
+    "name": "ai-agent",
+    "version": "0.1.0",
+    "author": "sin",
+    "description": "AI Agent: read-only tool loop over recent frames, DBC decode, and workspace context. OpenAI-compatible providers including local Ollama.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:aiAgent.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "aiAgent.open",
+                "title": "AI Agent"
+            }
+        ]
+    }
+}

@@ -1,0 +1,19 @@
+{
+    "name": "bus-utilities",
+    "version": "2.0.0",
+    "author": "sin",
+    "description": "Bus Utilities: Classic/FD bit-timing calculator and CAN gateway rules with shared activity log. Replaces can-bit-timing and can-gateway.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:busUtilities.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "busUtilities.open",
+                "title": "Bus Utilities"
+            }
+        ]
+    }
+}

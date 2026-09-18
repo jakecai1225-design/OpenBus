@@ -1,0 +1,19 @@
+{
+    "name": "protocol-hub",
+    "version": "2.0.0",
+    "author": "sin",
+    "description": "Protocol Hub: AUTOSAR NM, ISO-TP, ISOBUS, NMEA 2000, GB/T 27930 and XCP monitors with shared activity log. Replaces separate protocol monitor tools.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:protocolHub.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "protocolHub.open",
+                "title": "Protocol Hub"
+            }
+        ]
+    }
+}

@@ -2,6 +2,7 @@
 
 #include "core/sessionmanager.h"
 #include "thememanager.h"
+#include "utils/svg_icon.h"
 
 #include <QScrollArea>
 #include <QVBoxLayout>
@@ -12,6 +13,8 @@
 #include <QFrame>
 #include <QVariantMap>
 #include <QFileInfo>
+#include <QPainter>
+#include <QPaintEvent>
 
 namespace {
 
@@ -50,12 +53,20 @@ void WelcomePage::setupUi()
     root->setSpacing(0);
 
     auto *scroll = new QScrollArea(this);
+    scroll->setObjectName(QStringLiteral("WelcomeScroll"));
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setAttribute(Qt::WA_TranslucentBackground);
+    scroll->viewport()->setObjectName(QStringLiteral("WelcomeViewport"));
+    scroll->viewport()->setAutoFillBackground(false);
+    scroll->viewport()->setAttribute(Qt::WA_TranslucentBackground);
+    scroll->viewport()->setStyleSheet(QStringLiteral("background: transparent;"));
 
     auto *content = new QWidget(scroll);
     content->setObjectName(QStringLiteral("WelcomeContent"));
+    content->setAttribute(Qt::WA_TranslucentBackground);
+    content->setAutoFillBackground(false);
     auto *lay = new QVBoxLayout(content);
     lay->setContentsMargins(48, 36, 48, 48);
     lay->setSpacing(28);
@@ -294,12 +305,14 @@ void WelcomePage::applyTheme()
 {
     const Theme &t = ThemeManager::instance()->currentTheme();
     setStyleSheet(QStringLiteral(
-                      "#WelcomePage, #WelcomeContent { background-color: %1; }"
-                      "QLabel { color: %2; }"
-                      "QLabel#WelcomeTipBody { color: %3; }"
-                      "QPushButton { color: %4; background: transparent; }"
-                      "QPushButton:hover { color: %5; }")
-                      .arg(t.contentBg, t.text, t.textDim, t.accent, t.accentHover));
+                      "#WelcomePage, #WelcomeContent, #WelcomeScroll, #WelcomeViewport {"
+                      "  background: transparent;"
+                      "}"
+                      "QLabel { color: %1; }"
+                      "QLabel#WelcomeTipBody { color: %2; }"
+                      "QPushButton { color: %3; background: transparent; }"
+                      "QPushButton:hover { color: %4; }")
+                      .arg(t.text, t.textDim, t.accent, t.accentHover));
 
     const QList<QFrame *> tips = findChildren<QFrame *>(QStringLiteral("WelcomeTip"));
     const QString cardQss = tipCardQss(t.border, t.panelBg);
@@ -310,4 +323,31 @@ void WelcomePage::applyTheme()
         m_versionLabel->setStyleSheet(QStringLiteral("color: %1;").arg(t.textDim));
     if (m_heroSub)
         m_heroSub->setStyleSheet(QStringLiteral("color: %1;").arg(t.textDim));
+    rebuildWatermark();
+}
+
+void WelcomePage::rebuildWatermark()
+{
+    m_watermark = renderSvgPixmap(QStringLiteral(":/icons/spider-watermark.svg"),
+                                  QStringLiteral("#4A5968"), 720);
+    update();
+}
+
+void WelcomePage::paintEvent(QPaintEvent *event)
+{
+    Q_UNUSED(event);
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setRenderHint(QPainter::SmoothPixmapTransform);
+    const Theme &t = ThemeManager::instance()->currentTheme();
+    p.fillRect(rect(), QColor(t.contentBg));
+
+    if (m_watermark.isNull() || width() < 200 || height() < 200)
+        return;
+
+    const int side = qBound(360, qMin(width(), height()), 820);
+    const int x = width() - int(side * 0.70);
+    const int y = (height() - side) / 2;
+    p.setOpacity(0.34);
+    p.drawPixmap(QRect(x, y, side, side), m_watermark);
 }

@@ -228,9 +228,57 @@ QPlainTextEdit {
 
 /* ---- 滚动区: 跟随父容器背景 (未设置时视口用系统浅色调色板, 深色主题下会出现浅色底) ---- */
 QScrollArea { border: none; background: transparent; }
+#WelcomeScroll, #WelcomeViewport, #WelcomeContent, #BrandMark {
+    background: transparent; border: none;
+}
 #TerminalOutput { background-color: @terminalBg; color: @terminalFg; border: none; }
 #TerminalPrompt { font-family: Consolas, monospace; font-weight: bold; color: @accent; }
 #TerminalSplitter::handle { background-color: @border; width: 3px; height: 3px; }
+
+/* VS Code Command Center (title-bar search pill) */
+#CommandCenter {
+    background-color: @contentBg;
+    border: 1px solid @border;
+    border-radius: 6px;
+}
+#CommandCenter:hover { border-color: @accent; }
+#CommandCenterLabel {
+    color: @textDim;
+    font-size: 12px;
+}
+#CommandCenterNav { border: none; background: transparent; padding: 0; }
+
+#CommandPalette {
+    background-color: @sidebarBg;
+    border: 1px solid @border;
+    border-radius: 8px;
+}
+#CommandPaletteInput {
+    background-color: @contentBg;
+    border: 1px solid @border;
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: @text;
+}
+#CommandPaletteList {
+    background-color: @sidebarBg;
+    border: none;
+    outline: none;
+    color: @text;
+}
+#CommandPaletteList::item {
+    padding: 6px 10px;
+    border-radius: 4px;
+}
+#CommandPaletteList::item:selected {
+    background-color: @selectionBg;
+}
+#CommandPaletteHint {
+    color: @textDim;
+    font-size: 11px;
+    padding: 2px 4px;
+}
 
 /* ---- 按钮 ---- */
 QPushButton {

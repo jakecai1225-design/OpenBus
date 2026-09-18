@@ -6,9 +6,14 @@ Stdout is a single JSON object for PluginManager (QProcess); also usable from CL
 
 Usage:
     python plugin_tool.py pack <plugin_dir> [-o out.opk]
+    python plugin_tool.py pack-suites [-o out_dir]
     python plugin_tool.py install <package.opk> <plugins_dir>
     python plugin_tool.py uninstall <plugin_name> <plugins_dir>
     python plugin_tool.py validate <plugin_dir_or.opk>
+
+Market packages are domain suites only. `pack` still builds any valid plugin
+directory (custom plugins). `pack-suites` is the shipping command: it packs
+the suite list below and nothing else.
 """
 
 from __future__ import annotations
@@ -22,6 +27,20 @@ import tempfile
 import zipfile
 
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+
+# Domain suites shipped in the marketplace. Thin plugins were removed in S5.
+SUITE_IDS = (
+    "uds-suite",
+    "dbc-studio",
+    "canopen-suite",
+    "j1939-suite",
+    "obd-suite",
+    "tx-lab",
+    "bus-security",
+    "protocol-hub",
+    "log-analysis",
+    "bus-utilities",
+)
 
 
 def _emit(ok, **kwargs):
@@ -62,35 +81,23 @@ def _is_pycache(path):
     return "__pycache__" in parts or path.endswith((".pyc", ".pyo"))
 
 
-def cmd_pack(args):
-    if len(args) < 1:
-        return _emit(False, error="usage: pack <plugin_dir> [-o out.opk]")
-    src_dir = args[0]
-    out_path = None
-    if "-o" in args:
-        i = args.index("-o")
-        if i + 1 < len(args):
-            out_path = args[i + 1]
-
+def _write_opk(src_dir, out_path=None):
+    """Write one .opk. Returns (path, name, version, error)."""
     if not os.path.isdir(src_dir):
-        return _emit(False, error=f"directory not found: {src_dir}")
+        return None, None, None, "directory not found: %s" % src_dir
     manifest, err = _load_manifest(src_dir)
     if err:
-        return _emit(False, error=err)
+        return None, None, None, err
     name, err = _validate_manifest(manifest)
     if err:
-        return _emit(False, error=err)
-
+        return None, None, None, err
     main_rel = manifest.get("main", "main.py")
-    main_path = os.path.join(src_dir, main_rel)
-    if not os.path.isfile(main_path):
-        return _emit(False, error=f"main entry missing: {main_rel}")
-
+    if not os.path.isfile(os.path.join(src_dir, main_rel)):
+        return None, None, None, "main entry missing: %s" % main_rel
     version = manifest.get("version", "0.0.0")
     if not out_path:
         out_path = os.path.join(os.path.dirname(os.path.abspath(src_dir)),
-                                f"{name}_{version}.opk")
-
+                                "%s_%s.opk" % (name, version))
     try:
         with zipfile.ZipFile(out_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             for root, dirs, files in os.walk(src_dir):
@@ -102,9 +109,52 @@ def cmd_pack(args):
                         continue
                     zf.write(full, rel)
     except OSError as e:
-        return _emit(False, error=f"pack failed: {e}")
+        return None, None, None, "pack failed: %s" % e
+    return os.path.abspath(out_path), name, version, None
 
-    return _emit(True, path=os.path.abspath(out_path), name=name, version=version)
+
+def cmd_pack(args):
+    if len(args) < 1:
+        return _emit(False, error="usage: pack <plugin_dir> [-o out.opk]")
+    src_dir = args[0]
+    out_path = None
+    if "-o" in args:
+        i = args.index("-o")
+        if i + 1 < len(args):
+            out_path = args[i + 1]
+    path, name, version, err = _write_opk(src_dir, out_path)
+    if err:
+        return _emit(False, error=err)
+    return _emit(True, path=path, name=name, version=version)
+
+
+def cmd_pack_suites(args):
+    """Pack every domain suite into out_dir (default: <repo>/dist/opk)."""
+    out_dir = None
+    if "-o" in args:
+        i = args.index("-o")
+        if i + 1 < len(args):
+            out_dir = args[i + 1]
+    plugins_dir = os.path.abspath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "plugins"))
+    if not out_dir:
+        out_dir = os.path.abspath(os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", "dist", "opk"))
+    os.makedirs(out_dir, exist_ok=True)
+
+    packages = []
+    for sid in SUITE_IDS:
+        src = os.path.join(plugins_dir, sid)
+        manifest, err = _load_manifest(src)
+        if err:
+            return _emit(False, error="%s: %s" % (sid, err))
+        version = manifest.get("version", "0.0.0")
+        out_path = os.path.join(out_dir, "%s_%s.opk" % (sid, version))
+        path, _name, _ver, err = _write_opk(src, out_path)
+        if err:
+            return _emit(False, error="%s: %s" % (sid, err))
+        packages.append(path)
+    return _emit(True, count=len(packages), packages=packages)
 
 
 def cmd_install(args):
@@ -207,11 +257,13 @@ def cmd_validate(args):
 
 def main():
     if len(sys.argv) < 2:
-        return _emit(False, error="usage: plugin_tool.py <pack|install|uninstall|validate> ...")
+        return _emit(False, error="usage: plugin_tool.py <pack|pack-suites|install|uninstall|validate> ...")
     cmd = sys.argv[1]
     args = sys.argv[2:]
     if cmd == "pack":
         return cmd_pack(args)
+    if cmd == "pack-suites":
+        return cmd_pack_suites(args)
     if cmd == "install":
         return cmd_install(args)
     if cmd == "uninstall":

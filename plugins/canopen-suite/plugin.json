@@ -1,0 +1,19 @@
+{
+    "name": "canopen-suite",
+    "version": "2.0.0",
+    "author": "sin",
+    "description": "CANopen Suite: Network scan, COB monitor, Object Dictionary SDO, CiA 301/402 profiles, EDS editor and shared log (CiA 301). Replaces the separate canopen-scanner tool.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:canopenSuite.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "canopenSuite.open",
+                "title": "CANopen Suite"
+            }
+        ]
+    }
+}

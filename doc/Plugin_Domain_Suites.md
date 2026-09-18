@@ -59,7 +59,7 @@
 | `ai-agent` | **AI Agent** | （新建，见 aiagent.md） | Majster-AI × MCP |
 
 > 实施顺序建议：**UDS Suite → DBC Studio → CANopen Suite → TX Lab → 其余**。  
-> 旧插件不立刻删除：改为 **deprecated stub**（打开套件对应工作区），一个大版本后再移除目录。
+> S5 已移除旧插件目录。源码树与 `plugin_tool.py pack-suites` 只保留领域套件；自定义插件仍可用 `pack <dir>` 单独打包。
 
 ---
 
@@ -105,7 +105,7 @@
 ## 5. 迁移规则
 
 1. **新建** `plugins/<suite-id>/` 为唯一推荐入口。  
-2. **旧插件** `plugin.json` description 标注 `Deprecated: use <Suite>`；`main.py` 激活时打开套件并 `goto(page)`。  
+2. **旧插件目录已在 S5 删除**。套件是唯一入口；不要再恢复细插件目录。自定义插件用 `plugin_tool.py pack`，市场发布用 `pack-suites`。  
 3. **能力搬迁**：逻辑模块迁入套件包内（`pages/`、`core/`）；避免继续加深旧目录。  
 4. **测试**：核心协议栈保留/迁移单测（如 UDS profile_seq）。  
 5. **市场/打包**：`.opk` 以套件为单位发布。
@@ -197,10 +197,10 @@
 
 ### 7.4 验收（v1）
 
-- [ ] 对标 CANdb++ 的「能改能存」最小闭环（非只读查看器）  
-- [ ] Lint/Diff/Merge/Export 不再需要离开套件  
-- [ ] 非法编辑有校验提示；保存前可强制 Lint  
-- [ ] 英文 UI；共享当前文档路径
+- [x] 对标 CANdb++ 的「能改能存」最小闭环（非只读查看器）  
+- [x] Lint/Diff/Merge/Export 不再需要离开套件  
+- [x] 非法编辑有校验提示；保存前可强制 Lint  
+- [x] 英文 UI；共享当前文档路径
 
 ---
 
@@ -238,10 +238,10 @@
 
 ### 8.4 验收（v1）
 
-- [ ] 扫描 → 选节点 → SDO 读 0x1018 一条龙  
-- [ ] 无 EDS 时 OD 树与 SDO 联动  
-- [ ] 301/402 库可搜索插入到编辑器  
-- [ ] 英文 UI；写 SDO 确认
+- [x] 扫描 → 选节点 → SDO 读 0x1018 一条龙  
+- [x] 无 EDS 时 OD 树与 SDO 联动  
+- [x] 301/402 库可搜索插入到编辑器  
+- [x] 英文 UI；写 SDO 确认
 
 ---
 
@@ -251,10 +251,10 @@
 |------|------|------|
 | S0 | 本策略 + UDS/DBC/CANopen 需求定稿 | **done（本文）** |
 | S1 | **UDS Suite** 壳 + 共享会话 + 六工作区落地；旧 UDS 插件 stub | **done（2026-09-18）** |
-| S2 | **DBC Studio** 编辑器闭环 + Validate/Compare/Merge/Export | pending |
-| S3 | **CANopen Suite** Network/Monitor/OD/EDS/Profiles | pending |
-| S4 | TX Lab / Protocol Hub / Log Analysis / Bus Security 合并 | pending |
-| S5 | 清理 deprecated 目录；市场只发套件 | pending |
+| S2 | **DBC Studio** 编辑器闭环 + Validate/Compare/Merge/Export | **done（2026-09-18）** |
+| S3 | **CANopen Suite** Network/Monitor/OD/EDS/Profiles | **done（2026-09-18）** |
+| S4 | TX Lab / Bus Security / Protocol Hub / Log Analysis / Bus Utilities / J1939 / OBD | **done（2026-09-18）** |
+| S5 | 清理 deprecated 目录；市场只发套件 | **done（2026-09-18）** |
 
 ---
 
@@ -264,3 +264,14 @@
 - Wave A/B 的 `_shared` 壳与状态机保留，作为套件基建。  
 - 细粒度插件代码是迁移原料，不是最终产品形态。  
 - 2026-09-18：**UDS Suite v2.0.0** 落地于 `plugins/uds-suite/`（Diagnose/Scan/Batch/Security/Profiles/Log + SharedSession）；旧四插件改为 stub（`goto.json` + `sin.commands.execute("udsSuite.open")`）。Scan 范围探测仍用临时 `_shared.IsotpClient`，避免改写共享栈 ID。
+- 2026-09-18：**CANopen Suite v2.0.0** 落地于 `plugins/canopen-suite/`（Network/Monitor/Object Dictionary/Profiles/EDS Editor/Log + SharedSession：Node-ID、EDS OD、expedited SDO、NMT）；`canopen-scanner` 改为 stub → Network；`tests/test_eds_parse.py` 覆盖 EDS 解析与 AST/CJK 检查。
+- 2026-09-18：**DBC Studio v2.0.0** 落地于 `plugins/dbc-studio/`（Editor/Validate/Compare/Merge/Export/Library + DbcDocument）；旧五插件（lint/diff/merge/exporter/codegen）改为 stub；`tests/test_serialize_roundtrip.py` 覆盖序列化/Lint/Merge。
+- 2026-09-18：**Bus Security v2.0.0** 落地于 `plugins/bus-security/`（Fuzzer/IDS/Stress/E2E/Log + SharedSession：rate defaults、Stop All）；旧四插件（can-fuzzer / can-ids / can-stress / e2e-checksum）改为 stub → 对应工作区；危险操作二次确认；`PLUGIN_ID=bus-security` 持久化。
+- 2026-09-18：**TX Lab v2.0.0** 落地于 `plugins/tx-lab/`（Generator / Restbus / Dashboard / Log + SharedSession：可选 DBC、总线状态、Start/Stop all TX）；旧三插件（can-frame-generator / can-simulator / can-dashboard）改为 stub → 对应工作区；`tests/test_import_smoke.py` 覆盖 AST 导入与零 CJK。
+- 2026-09-18：**Log Analysis v2.0.0**（产品名 Log & Compare）落地于 `plugins/log-analysis/`（Toolkit / Compare / Trigger / Quality / Reverse / ID Scan / Log + SharedSession：working folder / last paths）；旧六插件（log-toolkit / frame-compare / trigger-logger / can-quality-report / can-reverse / can-id-scanner）改为 stub → 对应工作区；`tests/test_import_smoke.py` 覆盖 AST 导入与零 CJK。
+- 2026-09-18：**Protocol Hub v2.0.0** 落地于 `plugins/protocol-hub/`（NM / ISO-TP / ISOBUS / NMEA2000 / GBT27930 / XCP / Log）；旧六协议监视器（autosar-nm-monitor / iso-tp-monitor / isobus-monitor / nmea2000-decoder / gbt27930-monitor / xcp-monitor）改为 stub → 对应工作区。
+- 2026-09-18：**Bus Utilities v2.0.0** 落地于 `plugins/bus-utilities/`（Bit Timing / Gateway / Log）；`can-bit-timing` / `can-gateway` 改为 stub。
+- 2026-09-18：**J1939 Suite v2.0.0** 落地于 `plugins/j1939-suite/`（Analyzer / Log）；`j1939-analyzer` 改为 stub → Analyzer。
+- 2026-09-18：**OBD Suite v2.0.0** 落地于 `plugins/obd-suite/`（Scanner / Log）；`obd2-scanner` 改为 stub → Scanner。
+- 2026-09-18：**S4 收口**：领域套件地图内除 AI Agent 外的全部套件均有可打开壳 + 旧插件 stub；S5 仅剩目录清理与市场打包策略。
+- 2026-09-18：**S5**：删除已吸收的细插件目录（UDS×4、DBC×5、CANopen scanner、TX×3、Bus Security×4、Protocol Hub×6、Log×6、Bus Utilities×2、J1939 analyzer、OBD scanner）。协议自测迁到 `plugins/uds-suite/tests/test_proto.py`。市场打包命令为 `python scripts/plugin_tool.py pack-suites`（只打 10 个套件 `.opk`）。`pack <dir>` 仍可用于自定义插件。AI Agent 仍见 aiagent.md，未纳入本批。

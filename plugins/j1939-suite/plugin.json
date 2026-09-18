@@ -1,0 +1,19 @@
+{
+    "name": "j1939-suite",
+    "version": "2.0.0",
+    "author": "sin",
+    "description": "J1939 Suite: PGN/SPN analysis, DM1/DM2, Address Claim, TP reassembly and RQST with shared activity log. Replaces j1939-analyzer.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:j1939Suite.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "j1939Suite.open",
+                "title": "J1939 Suite"
+            }
+        ]
+    }
+}

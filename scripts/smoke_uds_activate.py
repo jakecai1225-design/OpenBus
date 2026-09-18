@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Activate uds-diagnostic through sin_host over ZMQ (offscreen Qt)."""
+"""Activate uds-suite through sin_host over ZMQ (offscreen Qt)."""
 from __future__ import annotations
 
 import json
@@ -15,7 +15,7 @@ import zmq
 def main() -> int:
     root = pathlib.Path(__file__).resolve().parents[1]
     bin_dir = root / "build" / "bin"
-    plugin_dir = bin_dir / "plugins" / "uds-diagnostic"
+    plugin_dir = bin_dir / "plugins" / "uds-suite"
     host_script = bin_dir / "scripts" / "sin_host.py"
     assert plugin_dir.joinpath("main.py").is_file(), plugin_dir
     assert host_script.is_file(), host_script
@@ -67,7 +67,7 @@ def main() -> int:
                 "jsonrpc": "2.0",
                 "method": "activate",
                 "params": {
-                    "plugin": "uds-diagnostic",
+                    "plugin": "uds-suite",
                     "directory": str(plugin_dir),
                     "main": "main.py",
                 },
@@ -103,7 +103,7 @@ def main() -> int:
     if err.strip():
         print("STDERR", err[-2000:])
 
-    ok_log = any("uds-diagnostic" in x and "activated" in x for x in logs)
+    ok_log = any("uds-suite" in x and "activated" in x for x in logs)
     print("RESULT activated=", activated, "ok_log=", ok_log, "exit=", p.returncode)
     return 0 if (activated and ok_log) else 1
 

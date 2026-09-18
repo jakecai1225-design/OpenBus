@@ -1,7 +1,7 @@
 # openbus AI Agent 插件 — 设计思路、功能特性与实现路径
 
-> 文档状态：调研与设计（2026-09-18）  
-> 目标产物：重磅级 Python 插件 `plugins/ai-agent/`（暂定 id：`ai-agent`）  
+> 文档状态：Phase 1 MVP 已落地（2026-09-18），见 `plugins/ai-agent/`  
+> 目标产物：重磅级 Python 插件 `plugins/ai-agent/`（id：`ai-agent`）  
 > 对标定位：一流 AI Agent 的「工具编排 + 人机审批」能力 × 汽车总线诊断场景  
 > 闭环目标：**自然语言需求 → 调用主进程 / 插件能力 → 观测总线 → 验证 → 报告**
 
@@ -268,22 +268,22 @@ emit final report
 
 ### Phase 0 — 调研落地准备（0.5–1 周）
 
-- [ ] 冻结 V1 tool 清单与权限矩阵（本文 §3.3 / §3.4）。  
-- [ ] 盘点主进程 RPC 缺口（设备状态、激活插件等），列最小补齐项。  
-- [ ] 选定 LLM 抽象：自研薄适配 **或** litellm（评估体积与 MSYS2 兼容）。  
-- [ ] 安全评审：默认 readonly、审计路径、Key 存储。
+- [x] 冻结 V1 只读 tool 清单：`frames_*` / `dbc_decode_frame` / `workspace_get_paths` / `bus_get_status`；写工具 `frames_send` 注册但不进入 schema。  
+- [ ] 盘点主进程 RPC 缺口（设备状态、激活插件等），列最小补齐项。`bus_get_status` 的设备字段暂为占位。  
+- [x] 选定 LLM 抽象：自研薄 `LLMClient`（urllib，OpenAI-compatible，含 Ollama `/v1`），不引入 litellm。  
+- [x] 安全评审（MVP）：默认 readonly；审计 `~/.openbus/ai-agent/sessions/<id>.jsonl`；Key 在本地 `settings.json`，不进 git、不进 tool 日志。
 
-### Phase 1 — MVP 闭环（2–3 周）**【优先交付】**
+### Phase 1 — MVP 闭环（2–3 周）**【已落地 2026-09-18】**
 
 **目标**：自然语言 → 只读工具 → 有依据的分析报告。
 
-1. 插件骨架：`plugin.json`、Chat UI、`LLMClient`（至少 OpenAI-compatible + 一本地 Ollama）。  
-2. ToolRegistry：`frames.*` / `dbc.decode` / `frames.stats` / `workspace.*`。  
-3. Orchestrator + session jsonl。  
-4. 一键「Analyze recent Trace」。  
-5. 单元测试：mock LLM 固定 tool_calls 路径。
+1. [x] 插件骨架：`plugin.json`、Chat UI、`LLMClient`（OpenAI-compatible + Ollama 预设）。  
+2. [x] ToolRegistry：`frames_get_recent` / `frames_get_selected` / `frames_stats` / `dbc_decode_frame` / `workspace_get_paths`。  
+3. [x] Orchestrator + session jsonl。  
+4. [x] 一键「Analyze recent Trace」。  
+5. [x] 单元测试：mock LLM 固定 tool_calls 路径（`plugins/ai-agent/tests/`）。
 
-**验收**：在模拟器或回放日志下，用户提问「谁在发得最多」能给出 ID 排行与 DBC 名（若有）。
+**验收**：`summarize_frames` 在假 Trace 上把 `0x123` 排第一并带上 DBC 名 `EngineData`；scripted tool-loop 走 `frames_stats` 后给出同一结论。真机提问仍需配置 Provider。
 
 ### Phase 2 — 写路径 + 领域 Facade（2–3 周）
 
@@ -353,4 +353,4 @@ emit final report
 
 ---
 
-*本文为设计与路径文档，不修改既有插件实现。获批后按 Phase 1 起编码。*
+*Phase 1 代码在 `plugins/ai-agent/`。Phase 2 起再做审批写入、UDS/OBD facade 与报告之外的工件生成。*

@@ -194,6 +194,10 @@ set(SRC_UI
     ui/terminal/terminalsession.cpp
     ui/terminal/terminalworkspace.h
     ui/terminal/terminalworkspace.cpp
+    ui/commandcenter.h
+    ui/commandcenter.cpp
+    ui/commandpalette.h
+    ui/commandpalette.cpp
     ui/rightpanel.h
     ui/rightpanel.cpp
     ui/panels/sidebarpanels.h

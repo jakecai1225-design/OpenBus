@@ -1,0 +1,19 @@
+{
+    "name": "bus-security",
+    "version": "2.0.0",
+    "author": "sin",
+    "description": "Bus Security: Fuzzer, IDS, Stress, E2E checksum and shared log in one window. Replaces the separate can-fuzzer / can-ids / can-stress / e2e-checksum tools.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:busSecurity.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "busSecurity.open",
+                "title": "Bus Security"
+            }
+        ]
+    }
+}

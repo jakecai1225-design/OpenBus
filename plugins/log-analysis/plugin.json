@@ -1,0 +1,19 @@
+{
+    "name": "log-analysis",
+    "version": "2.0.0",
+    "author": "sin",
+    "description": "Log Analysis: Toolkit, Compare, Trigger, Quality, Reverse, ID Scan and shared log in one window. Replaces log-toolkit / frame-compare / trigger-logger / can-quality-report / can-reverse / can-id-scanner.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:logAnalysis.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "logAnalysis.open",
+                "title": "Log Analysis"
+            }
+        ]
+    }
+}

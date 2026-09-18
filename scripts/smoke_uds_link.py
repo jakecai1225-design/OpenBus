@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""E2E: activate uds-diagnostic, confirm subscribeFrames, push a FRAME_BATCH, shutdown."""
+"""E2E: activate uds-suite, confirm subscribeFrames, push a FRAME_BATCH, shutdown."""
 from __future__ import annotations
 
 import json
@@ -28,7 +28,7 @@ def encode_batch(frames):
 def main() -> int:
     root = pathlib.Path(__file__).resolve().parents[1]
     bin_dir = root / "build" / "bin"
-    plugin_dir = bin_dir / "plugins" / "uds-diagnostic"
+    plugin_dir = bin_dir / "plugins" / "uds-suite"
     host_script = bin_dir / "scripts" / "sin_host.py"
     for name in ("sin_host.py", "plugin_tool.py"):
         (bin_dir / "scripts" / name).write_bytes((root / "scripts" / name).read_bytes())
@@ -69,7 +69,7 @@ def main() -> int:
             router.send_multipart([identity, json.dumps({
                 "jsonrpc": "2.0", "method": "activate", "id": 1,
                 "params": {
-                    "plugin": "uds-diagnostic",
+                    "plugin": "uds-suite",
                     "directory": str(plugin_dir),
                     "main": "main.py",
                 },

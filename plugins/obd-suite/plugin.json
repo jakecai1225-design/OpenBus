@@ -1,0 +1,19 @@
+{
+    "name": "obd-suite",
+    "version": "2.0.0",
+    "author": "sin",
+    "description": "OBD Suite: OBD-II Mode 01-09 scanner, freeze frame, DTC and PID history with shared activity log. Replaces obd2-scanner.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:obdSuite.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "obdSuite.open",
+                "title": "OBD Suite"
+            }
+        ]
+    }
+}

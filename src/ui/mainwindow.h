@@ -28,6 +28,8 @@ class BookmarkManager;
 class IOGraphView;
 class WatcherView;   // Watcher 观测页（壳侧单实例标签页，doc/Watcher方案.md 方案 A）
 class PluginManager;
+class CommandCenter;
+class CommandPalette;
 class SettingsPage;    // 设置页（标签页形态，原 SettingsDialog 弹窗改造）
 class ShortcutsPage;   // 快捷键参考页（标签页形态）
 class WelcomePage;     // VS Code-style welcome / start page
@@ -192,6 +194,9 @@ private:
     void createLayout();
     void createStatusBar();
     void createWindowButtons();
+    void createCommandCenter();
+    void repositionCommandCenter();
+    void showCommandPalette(const QString &initialQuery = QString());
     void updateActions();
     void updateStatistics();
     // setupTraceTab 已随 Trace 页迁入 TraceModule（拆分方案 B5：
@@ -333,6 +338,10 @@ private:
     QToolButton *m_layoutLeftBtn = nullptr;
     QToolButton *m_layoutBottomBtn = nullptr;
     QToolButton *m_layoutRightBtn = nullptr;
+    QLabel *m_brandMark = nullptr;
+    // VS Code Command Center (menu-bar search pill + palette)
+    CommandCenter *m_commandCenter = nullptr;
+    CommandPalette *m_commandPalette = nullptr;
     void syncLayoutToggleButtons();
     QPoint m_dragPosition;
 };

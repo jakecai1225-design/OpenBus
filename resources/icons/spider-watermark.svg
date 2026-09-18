@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <g stroke="currentColor" stroke-width="0.9" stroke-linecap="round">
+    <circle cx="100" cy="100" r="96"/>
+    <circle cx="100" cy="100" r="76"/>
+    <circle cx="100" cy="100" r="56"/>
+    <circle cx="100" cy="100" r="36"/>
+    <line x1="100" y1="4" x2="100" y2="196"/>
+    <line x1="4" y1="100" x2="196" y2="100"/>
+    <g transform="rotate(30 100 100)">
+      <line x1="100" y1="4" x2="100" y2="196"/>
+      <line x1="4" y1="100" x2="196" y2="100"/>
+    </g>
+    <g transform="rotate(60 100 100)">
+      <line x1="100" y1="4" x2="100" y2="196"/>
+      <line x1="4" y1="100" x2="196" y2="100"/>
+    </g>
+  </g>
+  <g fill="currentColor" stroke="none">
+    <ellipse cx="100" cy="112" rx="16" ry="21"/>
+    <circle cx="100" cy="86" r="10"/>
+  </g>
+  <g stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none">
+    <path d="M92 82 C70 62 50 44 30 28"/>
+    <path d="M90 90 C64 82 40 76 16 68"/>
+    <path d="M90 108 C62 120 38 140 18 164"/>
+    <path d="M94 118 C76 142 60 164 46 184"/>
+    <path d="M108 82 C130 62 150 44 170 28"/>
+    <path d="M110 90 C136 82 160 76 184 68"/>
+    <path d="M110 108 C138 120 162 140 182 164"/>
+    <path d="M106 118 C124 142 140 164 154 184"/>
+  </g>
+  <g fill="currentColor" stroke="none">
+    <circle cx="100" cy="24" r="2.4"/>
+    <circle cx="176" cy="100" r="2"/>
+    <circle cx="148" cy="128" r="1.7"/>
+  </g>
+</svg>

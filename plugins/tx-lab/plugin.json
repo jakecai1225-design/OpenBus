@@ -1,0 +1,19 @@
+{
+    "name": "tx-lab",
+    "version": "2.0.0",
+    "author": "sin",
+    "description": "TX Lab: periodic frame generator, Restbus simulation, live dashboard and shared log in one window. Replaces the separate can-frame-generator / can-simulator / can-dashboard tools.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:txLab.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "txLab.open",
+                "title": "TX Lab"
+            }
+        ]
+    }
+}

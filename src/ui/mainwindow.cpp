@@ -109,6 +109,7 @@ MainWindow::MainWindow(QWidget *parent)
     // ---- UI 构建 ----
     createMenuBar();
     createWindowButtons();
+    createCommandCenter();
     createStatusBar();  // 先创建状态栏（openTab 需要 m_tabLabel）
     createLayout();
 

@@ -60,5 +60,7 @@
         <file>icons/win-minimize.svg</file>
         <file>icons/win-maximize.svg</file>
         <file>icons/win-restore.svg</file>
+        <file>icons/spider-logo.svg</file>
+        <file>icons/spider-watermark.svg</file>
     </qresource>
 </RCC>
