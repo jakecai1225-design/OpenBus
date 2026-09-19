@@ -17,6 +17,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from _shared import vscode_theme, plugin_shell
+
 from agent.llm_client import LLMClient
 from agent.orchestrator import Orchestrator
 from agent.prompts import ROLES
@@ -73,13 +75,24 @@ class ChatWindow(QMainWindow):
         self._busy = False
         self._report_lines = []
 
+        vscode_theme.apply(self)
+        plugin_shell.attach_status_bar(self, "Session %s" % self._store.session_id)
+
         central = QWidget()
+        central.setObjectName("SuiteContent")
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
-        root.setContentsMargins(10, 8, 10, 8)
-        root.setSpacing(6)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        settings = QHBoxLayout()
+        toolbar = QWidget()
+        toolbar.setObjectName("SuiteToolbar")
+        settings = QHBoxLayout(toolbar)
+        settings.setContentsMargins(12, 6, 12, 6)
+        settings.setSpacing(8)
+        _t = QLabel("PROVIDER")
+        _t.setObjectName("SuiteToolbarTitle")
+        settings.addWidget(_t)
         self.provider = QComboBox()
         self.provider.addItems(list(_PRESETS.keys()))
         self.base_url = QLineEdit()
@@ -91,15 +104,17 @@ class ChatWindow(QMainWindow):
         self.api_key.setEchoMode(QLineEdit.EchoMode.Password)
         save_btn = QPushButton("Save")
         save_btn.setToolTip("Stored in the local ai-agent settings file. Not written to git.")
-        settings.addWidget(QLabel("Provider"))
         settings.addWidget(self.provider)
         settings.addWidget(self.base_url, 2)
         settings.addWidget(self.model, 1)
         settings.addWidget(self.api_key, 1)
         settings.addWidget(save_btn)
-        root.addLayout(settings)
+        root.addWidget(toolbar)
 
-        actions = QHBoxLayout()
+        actions_bar = QWidget()
+        actions = QHBoxLayout(actions_bar)
+        actions.setContentsMargins(12, 8, 12, 8)
+        actions.setSpacing(8)
         self.role = QComboBox()
         self.role.addItems(list(ROLES))
         self.analyze_btn = QPushButton("Analyze recent Trace")
@@ -113,19 +128,26 @@ class ChatWindow(QMainWindow):
         actions.addWidget(new_btn)
         actions.addStretch(1)
         actions.addWidget(self.policy_label)
-        root.addLayout(actions)
+        root.addWidget(actions_bar)
+
+        body = QWidget()
+        body_l = QVBoxLayout(body)
+        body_l.setContentsMargins(16, 8, 16, 12)
+        body_l.setSpacing(8)
 
         self.transcript = QTextEdit()
         self.transcript.setReadOnly(True)
         self.transcript.setPlaceholderText(
             "Ask about the recent trace. Example: who is transmitting the most?")
-        root.addWidget(self.transcript, 1)
+        body_l.addWidget(self.transcript, 1)
 
-        root.addWidget(QLabel("Tool trace"))
+        tool_title = QLabel("TOOL TRACE")
+        tool_title.setObjectName("SuiteToolbarTitle")
+        body_l.addWidget(tool_title)
         self.trace = QPlainTextEdit()
         self.trace.setReadOnly(True)
         self.trace.setFixedHeight(140)
-        root.addWidget(self.trace)
+        body_l.addWidget(self.trace)
 
         row = QHBoxLayout()
         self.input = QLineEdit()
@@ -133,9 +155,8 @@ class ChatWindow(QMainWindow):
         self.send_btn = QPushButton("Send")
         row.addWidget(self.input, 1)
         row.addWidget(self.send_btn)
-        root.addLayout(row)
-
-        self.statusBar().showMessage("Session %s" % self._store.session_id)
+        body_l.addLayout(row)
+        root.addWidget(body, 1)
 
         self.provider.currentTextChanged.connect(self._apply_preset)
         save_btn.clicked.connect(self._save_settings)
@@ -180,7 +201,7 @@ class ChatWindow(QMainWindow):
         }
         path = save_settings(data)
         self._push_client()
-        self.statusBar().showMessage("Settings saved (%s)" % path, 4000)
+        plugin_shell.set_status(self, "Settings saved (%s)" % path, 4000)
 
     def _push_client(self):
         self._llm.base_url = self.base_url.text().strip().rstrip("/")
@@ -239,7 +260,7 @@ class ChatWindow(QMainWindow):
         self.transcript.clear()
         self.trace.clear()
         self._report_lines = []
-        self.statusBar().showMessage("New chat in session %s" % self._store.session_id, 3000)
+        plugin_shell.set_status(self, "New chat in session %s" % self._store.session_id, 3000)
 
     def _start(self, text: str, echo: str):
         if self._busy:
@@ -247,7 +268,7 @@ class ChatWindow(QMainWindow):
         self._push_client()
         self._append("You", echo)
         self._set_busy(True)
-        self.statusBar().showMessage("Running")
+        plugin_shell.set_status(self, "Running")
         self._thread = _RunThread(self._orch, text)
         self._thread.step.connect(self._on_step)
         self._thread.done.connect(self._on_done)
@@ -260,12 +281,12 @@ class ChatWindow(QMainWindow):
     def _on_done(self, answer: str):
         self._append("Agent", answer)
         self._set_busy(False)
-        self.statusBar().showMessage("Ready")
+        plugin_shell.set_status(self, "Ready")
 
     def _on_failed(self, message: str):
         self._append("Error", message)
         self._set_busy(False)
-        self.statusBar().showMessage("Failed")
+        plugin_shell.set_status(self, "Failed")
 
     def shutdown(self):
         if self._thread is not None and self._thread.isRunning():

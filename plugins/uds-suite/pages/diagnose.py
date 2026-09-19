@@ -11,9 +11,9 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
-    QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QHeaderView,
+    QFileDialog, QFormLayout, QHBoxLayout, QHeaderView,
     QInputDialog, QLabel, QLineEdit, QMessageBox, QProgressBar, QPushButton,
-    QSpinBox, QTabWidget, QTableWidget, QTableWidgetItem, QTreeWidget,
+    QSizePolicy, QStackedWidget, QTabBar, QTableWidget, QTableWidgetItem, QTreeWidget,
     QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -107,22 +107,49 @@ def _fit_len(key, n):
     return b"\x00" * (n - len(key)) + key
 
 
+def _tab(bar, stack, widget, name: str, hint: str):
+    """Add a business tab. Guide text is a tooltip, not a second header row."""
+    wrap = QWidget()
+    v = QVBoxLayout(wrap)
+    v.setContentsMargins(0, 8, 0, 0)
+    v.setSpacing(0)
+    v.addWidget(widget, 1)
+    stack.addWidget(wrap)
+    idx = bar.addTab(name)
+    if hint:
+        bar.setTabToolTip(idx, hint)
+
+
 def build(parent, session, log_fn) -> QWidget:
-    root = QWidget(parent)
-    layout = QVBoxLayout(root)
-    layout.setContentsMargins(4, 4, 4, 4)
+    from widgets.layout import page, attach_output
+    from widgets.step_spin import StepSpin
+    from _shared import vscode_theme, codicons
+
+    root, layout = page(parent)
+    layout.setContentsMargins(16, 0, 16, 8)
+    layout.setSpacing(0)
+
+    bar = QTabBar()
+    bar.setObjectName("SuiteTopTabs")
+    bar.setDrawBase(False)
+    bar.setExpanding(False)
+    bar.setUsesScrollButtons(False)
+    stack = QStackedWidget()
+    bar.currentChanged.connect(stack.setCurrentIndex)
+    layout.addWidget(bar)
 
     def uds_send(pdu, on_done=None, expect_response=True, tag="Request"):
         session.request(pdu, on_done=on_done, expect_response=expect_response, tag=tag)
 
-    tabs = QTabWidget()
-    layout.addWidget(tabs, 1)
-
     # ========== Tab 1: Services ==========
     svc_tab = QWidget()
     svc_h = QHBoxLayout(svc_tab)
+    svc_h.setContentsMargins(0, 0, 0, 0)
+    svc_h.setSpacing(6)
     svc_tree = QTreeWidget()
     svc_tree.setHeaderLabel("Services")
+    svc_tree.setMinimumWidth(240)
+    svc_tree.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
     for cat, items in SERVICE_TREE:
         cat_item = QTreeWidgetItem([cat])
         cat_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
@@ -136,25 +163,34 @@ def build(parent, session, log_fn) -> QWidget:
             cat_item.addChild(it)
     svc_tree.expandAll()
 
-    svc_right = QWidget()
-    svc_right_v = QVBoxLayout(svc_right)
+    req_host = QWidget()
+    req_body = QVBoxLayout(req_host)
+    req_body.setContentsMargins(4, 0, 0, 0)
+    req_body.setSpacing(6)
     svc_title = QLabel("Select a service")
-    svc_title.setStyleSheet("font-weight:bold;")
-    svc_param_box = QGroupBox("Parameters")
+    svc_title.setObjectName("SuiteSectionTitle")
+    svc_param_box = QWidget()
     svc_form = QFormLayout(svc_param_box)
-    svc_send_btn = QPushButton("Send request")
-    svc_send_btn.setMinimumHeight(32)
+    vscode_theme.tune_form(svc_form)
+    svc_send_btn = QPushButton("Send")
+    svc_send_btn.setObjectName("PrimaryButton")
+    svc_send_btn.setFixedSize(84, 28)
+    svc_send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    codicons.set_button(svc_send_btn, "send", primary=True)
     svc_resp_label = QLabel("Last response: —")
+    svc_resp_label.setObjectName("SuiteHint")
     svc_resp_label.setWordWrap(True)
     svc_resp_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-    svc_right_v.addWidget(svc_title)
-    svc_right_v.addWidget(svc_param_box)
-    svc_right_v.addWidget(svc_send_btn)
-    svc_right_v.addWidget(QLabel("Response:"))
-    svc_right_v.addWidget(svc_resp_label)
-    svc_right_v.addStretch()
-    svc_h.addWidget(svc_tree, 1)
-    svc_h.addWidget(svc_right, 2)
+    req_body.addWidget(svc_title)
+    req_body.addWidget(svc_param_box)
+    req_body.addWidget(svc_send_btn, 0, Qt.AlignmentFlag.AlignLeft)
+    resp_cap = QLabel("Response")
+    resp_cap.setObjectName("BusStripLabel")
+    req_body.addWidget(resp_cap)
+    req_body.addWidget(svc_resp_label)
+    req_body.addStretch()
+    svc_h.addWidget(svc_tree, 2)
+    svc_h.addWidget(req_host, 3)
 
     _svc_maker = [None]
     _svc_expect = [True]
@@ -276,11 +312,7 @@ def build(parent, session, log_fn) -> QWidget:
                      (0x04, "04 reportDTCSnapshotByDTCNumber"),
                      (0x0A, "0A reportSupportedDTC")):
             c.addItem(v, k)
-        m = QSpinBox()
-        m.setRange(0, 0xFF)
-        m.setDisplayIntegerBase(16)
-        m.setPrefix("0x")
-        m.setValue(0xFF)
+        m = StepSpin(0xFF, minimum=0, maximum=0xFF, hex_mode=True, width=72)
         e = _hex_edit("DTC number 3 bytes (sub 04)", "FFFFFF")
         svc_form.addRow("Sub-function:", c)
         svc_form.addRow("Status mask:", m)
@@ -326,9 +358,7 @@ def build(parent, session, log_fn) -> QWidget:
         f.addItem("0x44 addr 4B + size 4B", (4, 4))
         f.addItem("0x22 addr 2B + size 2B", (2, 2))
         a = _hex_edit("Start address hex", "08040000")
-        s = QSpinBox()
-        s.setRange(1, 0x7FFFFFFF)
-        s.setValue(0x10000)
+        s = StepSpin(0x10000, minimum=1, maximum=0x7FFFFFFF, width=120)
         svc_form.addRow("Format:", f)
         svc_form.addRow("Start address:", a)
         svc_form.addRow("Byte count:", s)
@@ -341,9 +371,7 @@ def build(parent, session, log_fn) -> QWidget:
         return make
 
     def _f_36():
-        c = QSpinBox()
-        c.setRange(0, 0xFF)
-        c.setValue(1)
+        c = StepSpin(1, minimum=0, maximum=0xFF, width=72)
         d = _hex_edit("Block data hex")
         svc_form.addRow("Block counter:", c)
         svc_form.addRow("Data:", d)
@@ -399,11 +427,14 @@ def build(parent, session, log_fn) -> QWidget:
                  tag=NAMES.get(pdu[0] if pdu else 0, "Request"))
 
     svc_send_btn.clicked.connect(_on_svc_send)
-    tabs.addTab(svc_tab, "Services")
+    _tab(bar, stack, svc_tab, "Services",
+         "Pick a UDS service, fill parameters, Send. Response appears below and in OUTPUT.")
 
     # ========== Tab 2: DID ==========
     did_tab = QWidget()
     did_v = QVBoxLayout(did_tab)
+    did_v.setContentsMargins(0, 0, 0, 0)
+    did_v.setSpacing(8)
     did_table = QTableWidget(0, 6)
     did_table.setHorizontalHeaderLabels(
         ["DID", "Name", "Type", "Raw", "Decoded", "Period(ms)"])
@@ -411,22 +442,42 @@ def build(parent, session, log_fn) -> QWidget:
     did_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     did_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     did_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-    did_v.addWidget(did_table, 1)
 
     did_btn_row = QHBoxLayout()
     did_add = QPushButton("Add")
     did_del = QPushButton("Remove")
     did_read_all = QPushButton("Read all")
+    did_read_all.setObjectName("PrimaryButton")
     did_poll_check = QCheckBox("Periodic poll")
     did_write_edit = QLineEdit()
     did_write_edit.setPlaceholderText("Write value (selected row)")
     did_write_btn = QPushButton("Write selected")
+    for w, ic in ((did_add, "add"), (did_del, "delete"), (did_read_all, "start"),
+                  (did_write_btn, "edit")):
+        w.setFixedHeight(28)
+        if w is did_read_all:
+            codicons.set_button(w, ic, primary=True)
+        else:
+            codicons.set_button(w, ic)
     for w in (did_add, did_del, did_read_all, did_poll_check):
         did_btn_row.addWidget(w)
     did_btn_row.addStretch()
     did_btn_row.addWidget(did_write_edit, 2)
+    did_write_btn.setFixedHeight(28)
     did_btn_row.addWidget(did_write_btn)
-    did_v.addLayout(did_btn_row)
+
+    act_card, act_body = vscode_theme.block(
+        "Actions",
+        "Add or remove rows, read every DID, or write the selected row.",
+    )
+    act_body.addLayout(did_btn_row)
+    list_card, list_body = vscode_theme.block(
+        "Identifiers",
+        "22 reads, 2E writes. Built-in dictionary plus rows you add.",
+    )
+    list_body.addWidget(did_table, 1)
+    did_v.addWidget(act_card)
+    did_v.addWidget(list_card, 1)
 
     _did_rows = []
 
@@ -611,13 +662,19 @@ def build(parent, session, log_fn) -> QWidget:
     did_poll_timer.setInterval(200)
     did_poll_timer.timeout.connect(_did_poll_tick)
     did_poll_timer.start(200)
-    tabs.addTab(did_tab, "DID")
+    _tab(bar, stack, did_tab, "DID",
+         "Read or write identifiers (22 / 2E). Built-in dictionary plus your own DIDs.")
 
     # ========== Tab 3: DTC ==========
     dtc_tab = QWidget()
     dtc_v = QVBoxLayout(dtc_tab)
-    mask_box = QGroupBox("Status mask (reportDTCByStatusMask 19 02)")
-    mask_row = QHBoxLayout(mask_box)
+    dtc_v.setContentsMargins(0, 0, 0, 0)
+    dtc_v.setSpacing(8)
+    mask_card, mask_body = vscode_theme.block(
+        "Status mask",
+        "Bits included in 19 02. Test failed and confirmed are on by default.",
+    )
+    mask_row = QHBoxLayout()
     mask_checks = {}
     for bit, name in DTC_STATUS_BITS.items():
         cb = QCheckBox(name)
@@ -627,15 +684,25 @@ def build(parent, session, log_fn) -> QWidget:
         mask_row.addWidget(cb)
         mask_checks[bit] = cb
     mask_row.addStretch()
+    mask_body.addLayout(mask_row)
 
     dtc_btn_row = QHBoxLayout()
-    dtc_read_btn = QPushButton("Read DTC list (19 02)")
-    dtc_cnt_btn = QPushButton("Read DTC count (19 01)")
-    dtc_clear_btn = QPushButton("Clear DTC (14 FF FF FF)")
+    dtc_read_btn = QPushButton("Read DTC list")
+    dtc_read_btn.setObjectName("PrimaryButton")
+    dtc_cnt_btn = QPushButton("Read count")
+    dtc_clear_btn = QPushButton("Clear all")
+    for w, ic, primary in (
+        (dtc_read_btn, "search", True),
+        (dtc_cnt_btn, "info", False),
+        (dtc_clear_btn, "clear", False),
+    ):
+        w.setFixedHeight(28)
+        codicons.set_button(w, ic, primary=primary)
     dtc_btn_row.addWidget(dtc_read_btn)
     dtc_btn_row.addWidget(dtc_cnt_btn)
     dtc_btn_row.addStretch()
     dtc_btn_row.addWidget(dtc_clear_btn)
+    mask_body.addLayout(dtc_btn_row)
 
     dtc_table = QTableWidget(0, 4)
     dtc_table.setHorizontalHeaderLabels(
@@ -643,9 +710,13 @@ def build(parent, session, log_fn) -> QWidget:
     dtc_table.verticalHeader().setVisible(False)
     dtc_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     dtc_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-    dtc_v.addWidget(mask_box)
-    dtc_v.addLayout(dtc_btn_row)
-    dtc_v.addWidget(dtc_table, 1)
+    fault_card, fault_body = vscode_theme.block(
+        "Faults",
+        "Decoded DTC and status bits from the last 19 02.",
+    )
+    fault_body.addWidget(dtc_table, 1)
+    dtc_v.addWidget(mask_card)
+    dtc_v.addWidget(fault_card, 1)
 
     def _mask_value():
         v = 0
@@ -708,11 +779,21 @@ def build(parent, session, log_fn) -> QWidget:
     dtc_read_btn.clicked.connect(_on_dtc_read)
     dtc_cnt_btn.clicked.connect(_on_dtc_count)
     dtc_clear_btn.clicked.connect(_on_dtc_clear)
-    tabs.addTab(dtc_tab, "DTC")
+    _tab(bar, stack, dtc_tab, "DTC",
+         "Read stored faults (19) or clear them (14). Status bits are decoded in the table.")
 
     # ========== Tab 4: Security Access (local algos OK) ==========
     sec_tab = QWidget()
-    sec_form = QFormLayout(sec_tab)
+    sec_v = QVBoxLayout(sec_tab)
+    sec_v.setContentsMargins(0, 0, 0, 0)
+    sec_v.setSpacing(8)
+    unlock_card, unlock_body = vscode_theme.block(
+        "Unlock",
+        "Request a seed, compute a key, then send it. Observational audit is the Security page.",
+    )
+    sec_host = QWidget()
+    sec_form = QFormLayout(sec_host)
+    vscode_theme.tune_form(sec_form)
     sec_level = QComboBox()
     for lv in (0x01, 0x03, 0x05, 0x07, 0x09, 0x0B):
         sec_level.addItem(
@@ -723,14 +804,17 @@ def build(parent, session, log_fn) -> QWidget:
     sec_algo.addItem("Algo file (calculate_key)", "file")
     sec_expr = QLineEdit("seed ^ 0x11223344")
     sec_expr.setToolTip("Vars: seed (big-endian int) / seed_bytes; return int or bytes")
-    sec_file_btn = QPushButton("Choose algo file…")
+    sec_file_btn = QPushButton("Choose file")
+    sec_file_btn.setObjectName("SecondaryButton")
+    sec_file_btn.setFixedHeight(28)
+    codicons.set_button(sec_file_btn, "browse")
     sec_file_label = QLabel("None")
     sec_seed_label = QLabel("—")
     sec_key_label = QLabel("—")
     sec_result_label = QLabel("—")
     for l in (sec_seed_label, sec_key_label, sec_result_label):
         l.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        l.setStyleSheet("font-family: Consolas, monospace;")
+        l.setStyleSheet("font-family: Consolas, 'Cascadia Mono', monospace; font-size: 12px;")
     sec_seed_btn = QPushButton("Request seed (27 odd)")
     sec_key_btn = QPushButton("Send key (27 even)")
     sec_key_btn.setEnabled(False)
@@ -815,62 +899,120 @@ def build(parent, session, log_fn) -> QWidget:
 
         uds_send(encode_27(lv) + key, cb, tag="Send key 27 %02X" % lv)
 
+    sec_seed_btn.setObjectName("PrimaryButton")
+    sec_seed_btn.setFixedSize(180, 28)
+    sec_key_btn.setObjectName("SecondaryButton")
+    sec_key_btn.setFixedSize(180, 28)
+    codicons.set_button(sec_seed_btn, "lock", primary=True)
+    codicons.set_button(sec_key_btn, "check")
     sec_seed_btn.clicked.connect(_on_request_seed)
     sec_key_btn.clicked.connect(_on_send_key)
-    tabs.addTab(sec_tab, "Security")
+    unlock_body.addWidget(sec_host)
+    sec_v.addWidget(unlock_card)
+    sec_v.addStretch(1)
+    _tab(bar, stack, sec_tab, "Security",
+         "Request a seed (27 01), compute a key, send it (27 02). Not an audit — that is the Security page.")
 
     # ========== Tab 5: Flash ==========
     fl_tab = QWidget()
     fl_v = QVBoxLayout(fl_tab)
-    fl_form = QFormLayout()
+    fl_v.setContentsMargins(0, 0, 0, 0)
+    fl_v.setSpacing(8)
     fl_file_edit = QLineEdit()
-    fl_file_edit.setPlaceholderText("Firmware binary (.bin / raw bytes)")
-    fl_file_btn = QPushButton("Browse…")
+    fl_file_edit.setPlaceholderText("BIN, Intel HEX, or Motorola S19")
+    fl_file_btn = QPushButton("Browse")
+    fl_file_btn.setObjectName("SecondaryButton")
+    fl_file_btn.setFixedSize(96, 28)
+    codicons.set_button(fl_file_btn, "browse")
     fl_file_row = QHBoxLayout()
     fl_file_row.addWidget(fl_file_edit, 1)
     fl_file_row.addWidget(fl_file_btn)
     fl_addr = _hex_edit("Start address hex (4 bytes)", "08040000")
-    fl_pre_check = QCheckBox("Precheck (10 02 → 27 unlock → 85 02 → 28 03 03)")
+    fl_pre_check = QCheckBox("Precheck (10 02, 27 unlock, 85 02, 28 03 03)")
     fl_pre_check.setChecked(True)
+    fl_erase_check = QCheckBox("Erase before download (31 01 FF00 + address + size)")
+    fl_erase_check.setChecked(True)
+    fl_reset_check = QCheckBox("ECU reset when done (11 01)")
+    fl_reset_check.setChecked(True)
     fl_sec_lv = QComboBox()
     for lv in (0x01, 0x03, 0x05):
         fl_sec_lv.addItem("level %d" % ((lv + 1) // 2), lv)
     fl_block_edit = QLineEdit()
     fl_block_edit.setPlaceholderText("Empty = use max block from 34 response")
-    fl_form.addRow("Firmware file:", fl_file_row)
-    fl_form.addRow("Start address:", fl_addr)
-    fl_form.addRow("Precheck:", fl_pre_check)
-    fl_form.addRow("Security level:", fl_sec_lv)
-    fl_form.addRow("Block size:", fl_block_edit)
-    fl_progress = QProgressBar()
-    fl_progress.setRange(0, 1000)
-    fl_progress.setValue(0)
-    fl_status = QLabel("Idle — choose a file then Start")
-    fl_status.setStyleSheet("color:#555;")
+
+    cols = QHBoxLayout()
+    cols.setSpacing(8)
+    file_card, file_body = vscode_theme.block(
+        "File",
+        "BIN, Intel HEX, or Motorola S19. HEX and S19 fill the start address.",
+    )
+    file_host = QWidget()
+    file_form = QFormLayout(file_host)
+    vscode_theme.tune_form(file_form)
+    file_form.addRow("Firmware", fl_file_row)
+    file_form.addRow("Start address", fl_addr)
+    file_form.addRow("Block size", fl_block_edit)
+    file_body.addWidget(file_host)
+    cols.addWidget(file_card, 1)
+
+    seq_card, seq_body = vscode_theme.block(
+        "Sequence",
+        "Runs in order: precheck, erase, 34/36/37, checksum, reset.",
+    )
+    seq_body.addWidget(fl_pre_check)
+    seq_body.addWidget(fl_erase_check)
+    seq_body.addWidget(fl_reset_check)
+    seq_host = QWidget()
+    seq_form = QFormLayout(seq_host)
+    vscode_theme.tune_form(seq_form)
+    seq_form.addRow("Security level", fl_sec_lv)
+    seq_body.addWidget(seq_host)
     fl_btn_row = QHBoxLayout()
     fl_start_btn = QPushButton("Start flash")
-    fl_start_btn.setMinimumHeight(34)
+    fl_start_btn.setObjectName("PrimaryButton")
+    fl_start_btn.setFixedSize(120, 28)
+    fl_start_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    codicons.set_button(fl_start_btn, "start", primary=True)
     fl_stop_btn = QPushButton("Abort")
+    fl_stop_btn.setObjectName("SecondaryButton")
+    fl_stop_btn.setFixedSize(88, 28)
+    codicons.set_button(fl_stop_btn, "abort")
     fl_stop_btn.setEnabled(False)
     fl_btn_row.addWidget(fl_start_btn)
     fl_btn_row.addWidget(fl_stop_btn)
     fl_btn_row.addStretch()
-    fl_v.addLayout(fl_form)
-    fl_v.addLayout(fl_btn_row)
-    fl_v.addWidget(fl_progress)
-    fl_v.addWidget(fl_status)
+    seq_body.addLayout(fl_btn_row)
+    cols.addWidget(seq_card, 1)
+    fl_v.addLayout(cols)
+
+    fl_progress = QProgressBar()
+    fl_progress.setRange(0, 1000)
+    fl_progress.setValue(0)
+    fl_status = QLabel("Idle — choose a file, then Start flash")
+    fl_status.setObjectName("SuiteHint")
+    prog_card, prog_body = vscode_theme.block(
+        "Progress",
+        "Current step. Each request is also written to OUTPUT.",
+    )
+    prog_body.addWidget(fl_progress)
+    prog_body.addWidget(fl_status)
+    fl_v.addWidget(prog_card)
     fl_v.addStretch()
 
     def _on_pick_file():
         path, _ = QFileDialog.getOpenFileName(
-            root, "Firmware file", "", "All files (*.*)")
+            root, "Firmware file", "",
+            "Firmware (*.bin *.hex *.ihex *.s19 *.s28 *.s37 *.srec *.mot);;All files (*.*)")
         if path:
             fl_file_edit.setText(path)
             try:
-                size = os.path.getsize(path)
-                fl_status.setText("Selected %d bytes (0x%X)" % (size, size))
-            except OSError:
-                pass
+                from core.image_load import load_firmware
+                addr, data, note = load_firmware(path)
+                fl_status.setText("%s — %d bytes @ 0x%X" % (note, len(data), addr))
+                if addr:
+                    fl_addr.setText("%08X" % addr)
+            except Exception as e:
+                fl_status.setText("Cannot parse: %s" % e)
 
     fl_file_btn.clicked.connect(_on_pick_file)
 
@@ -948,7 +1090,17 @@ def build(parent, session, log_fn) -> QWidget:
         elif st == "comm_off":
             if _flash.get("precheck"):
                 _fl_set("Precheck: communication off...")
-                _fl_send(encode_28(0x03, 0x03), "reqdl", "28 03 03")
+                nxt = "erase" if _flash.get("erase") else "reqdl"
+                _fl_send(encode_28(0x03, 0x03), nxt, "28 03 03")
+            else:
+                _fl_step("erase" if _flash.get("erase") else "reqdl", None)
+        elif st == "erase":
+            if _flash.get("erase"):
+                _fl_set("Erase 31 01 FF00...")
+                pdu = (encode_31(0x01, 0xFF00)
+                       + _flash["addr"].to_bytes(4, "big")
+                       + len(_flash["data"]).to_bytes(4, "big"))
+                _fl_send(pdu, "reqdl", "31 01 FF00")
             else:
                 _fl_step("reqdl", None)
         elif st == "reqdl":
@@ -976,11 +1128,19 @@ def build(parent, session, log_fn) -> QWidget:
             _flash["state"] = "data"
             _fl_set("Transferring (block %dB)..." % maxblk, 0.0)
             _fl_next_block()
+        elif st == "exit":
+            _fl_set("RequestTransferExit 37...")
+            _fl_send(encode_37(), "check", "37 RequestTransferExit")
         elif st == "check":
             _fl_set("Integrity check 31 01 FF01...")
-            _fl_send(encode_31(0x01, 0xFF01), "exit_ok", "31 01 FF01")
-        elif st == "exit_ok":
-            _fl_send(encode_37(), "done", "37 RequestTransferExit")
+            nxt = "reset" if _flash.get("reset") else "done"
+            _fl_send(encode_31(0x01, 0xFF01), nxt, "31 01 FF01")
+        elif st == "reset":
+            if _flash.get("reset"):
+                _fl_set("ECU reset 11 01...")
+                _fl_send(encode_11(0x01), "done", "11 01")
+            else:
+                _fl_step("done", None)
         elif st == "done":
             _fl_done()
 
@@ -990,8 +1150,8 @@ def build(parent, session, log_fn) -> QWidget:
         pos, data = _flash["pos"], _flash["data"]
         chunk = data[pos:pos + _flash["maxblk"] - 2]
         if not chunk:
-            _flash["state"] = "check"
-            _fl_step("check", None)
+            _flash["state"] = "exit"
+            _fl_step("exit", None)
             return
         counter = _flash["block"]
         _flash["block"] = (counter + 1) & 0xFF
@@ -1026,9 +1186,9 @@ def build(parent, session, log_fn) -> QWidget:
         if reply != QMessageBox.StandardButton.Yes:
             return
         try:
-            with open(path, "rb") as f:
-                data = f.read()
-        except OSError as e:
+            from core.image_load import load_firmware
+            img_addr, data, note = load_firmware(path)
+        except Exception as e:
             QMessageBox.warning(root, "Flash", "Read failed: %s" % e)
             return
         if not data:
@@ -1036,13 +1196,18 @@ def build(parent, session, log_fn) -> QWidget:
             return
         try:
             addr = int.from_bytes(_parse_n(fl_addr.text(), 4, "start address"), "big")
-        except ValueError as e:
-            QMessageBox.warning(root, "Flash", str(e))
-            return
+        except ValueError:
+            addr = img_addr
+        if img_addr and fl_addr.text().strip() in ("", "08040000"):
+            addr = img_addr
+            fl_addr.setText("%08X" % addr)
         _flash.update({
             "data": data, "addr": addr, "size": len(data),
             "pos": 0, "block": 1, "maxblk": 0,
-            "precheck": fl_pre_check.isChecked(), "t0": time.time(),
+            "precheck": fl_pre_check.isChecked(),
+            "erase": fl_erase_check.isChecked(),
+            "reset": fl_reset_check.isChecked(),
+            "t0": time.time(),
         })
         session.flashing = True
         fl_start_btn.setEnabled(False)
@@ -1063,6 +1228,8 @@ def build(parent, session, log_fn) -> QWidget:
 
     fl_start_btn.clicked.connect(_on_flash_start)
     fl_stop_btn.clicked.connect(_on_flash_stop)
-    tabs.addTab(fl_tab, "Flash")
+    _tab(bar, stack, fl_tab, "Flash",
+         "Programming sequence: optional precheck, erase, 34/36/37, checksum, reset. HEX and S19 fill the start address.")
 
+    attach_output(parent, layout, stack, session)
     return root

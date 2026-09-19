@@ -123,6 +123,7 @@ def build(parent, session, log_fn) -> QWidget:
             return
         alert_ts[key] = now
         events.append((now, level, kind, "ID 0x%X %s" % (cid, detail)))
+        session.note_finding(level, kind, "ID 0x%X %s" % (cid, detail))
         summary["alerts"] += 1
         log_fn("IDS", "%s %s — %s" % (level, kind, detail),
                "ERR" if level == "HIGH" else "WARN")

@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "version": "2026.09.18",
-  "updated": "2026-09-18",
+  "version": "2026.09.20",
+  "updated": "2026-09-20",
   "base": ".",
   "drivers": [
     {
@@ -340,8 +340,8 @@
       "description": "Diagnose, Scan, Batch, Security, Profiles and shared log (ISO 14229).",
       "icon": "assets/uds-suite.svg",
       "package": "opk/uds-suite_2.0.0.opk",
-      "sha256": "e58fcb54edd09c5d2b02474445fd9cd99d9cfa3d8687d89baaef09a33025f4c4",
-      "size": 46098,
+      "sha256": "1d36a0a2cfa7b7d6ccd4ec8baf996e58d61d7ca5413b3dbc7ad4501bd9657777",
+      "size": 57804,
       "readme": "## UDS Suite\n\nDiagnose, Scan, Batch, Security, Profiles and shared log (ISO 14229).\n",
       "tags": [
         "uds",
@@ -350,7 +350,7 @@
       ],
       "keywords": "uds diagnose scan batch security flash",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-18"
+      "updatedAt": "2026-09-20"
     },
     {
       "id": "dbc-studio",
@@ -360,8 +360,8 @@
       "description": "Edit, validate, compare, merge and export DBC databases.",
       "icon": "assets/dbc-studio.svg",
       "package": "opk/dbc-studio_2.0.0.opk",
-      "sha256": "89a859fea9f88ca6b3ffb41d8ddc9076a1c77e7a3871d2c3cbff698b136336ed",
-      "size": 31323,
+      "sha256": "3b108c43cb268812b5ed6f76e5a6ac30a5cfe5f13aa83f9bc46c7083571f79fc",
+      "size": 31519,
       "readme": "## DBC Studio\n\nEdit, validate, compare, merge and export DBC databases.\n",
       "tags": [
         "dbc",
@@ -369,7 +369,7 @@
       ],
       "keywords": "dbc lint diff merge export codegen",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-18"
+      "updatedAt": "2026-09-20"
     },
     {
       "id": "canopen-suite",
@@ -379,15 +379,15 @@
       "description": "Network scan, SDO, EDS/OD, NMT and CiA 301/402 profiles.",
       "icon": "assets/canopen-suite.svg",
       "package": "opk/canopen-suite_2.0.0.opk",
-      "sha256": "85b2ea838dd71fe31419b84f2ca43b59cc30ebd9e17a36f0bc0c22e1fbfc3050",
-      "size": 27080,
+      "sha256": "8c5ae6d46b98aa1947da67f16e7526dc557ed6631c141aa9a4fb578dd543b898",
+      "size": 26984,
       "readme": "## CANopen Suite\n\nNetwork scan, SDO, EDS/OD, NMT and CiA 301/402 profiles.\n",
       "tags": [
         "canopen"
       ],
       "keywords": "canopen eds od sdo nmt",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-18"
+      "updatedAt": "2026-09-20"
     },
     {
       "id": "j1939-suite",
@@ -397,15 +397,15 @@
       "description": "PGN/SPN analysis, DM1/DM2, Address Claim, TP and RQST.",
       "icon": "assets/j1939-suite.svg",
       "package": "opk/j1939-suite_2.0.0.opk",
-      "sha256": "126e230d23326529220f94c7b953183f0cfb9d86fce270de6aa698a54efa533e",
-      "size": 12794,
+      "sha256": "f34963e72c4491a91a373753f327fb68ef0b531ccad3a466cf5aaa9d0b83bda5",
+      "size": 12774,
       "readme": "## J1939 Suite\n\nPGN/SPN analysis, DM1/DM2, Address Claim, TP and RQST.\n",
       "tags": [
         "j1939"
       ],
       "keywords": "j1939 pgn spn dm1 tp",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-18"
+      "updatedAt": "2026-09-20"
     },
     {
       "id": "obd-suite",
@@ -415,8 +415,8 @@
       "description": "OBD-II Mode 01-09 scanner, freeze frame, DTC and PID history.",
       "icon": "assets/obd-suite.svg",
       "package": "opk/obd-suite_2.0.0.opk",
-      "sha256": "7eae954e710f22e0816239d6d9d6bdebbae2a19b8aabba963551a6034e10513a",
-      "size": 11262,
+      "sha256": "17f1fed2e3934a806981995148b6e285ac6d9b43c0a68fb83822985afeda964f",
+      "size": 11232,
       "readme": "## OBD Suite\n\nOBD-II Mode 01-09 scanner, freeze frame, DTC and PID history.\n",
       "tags": [
         "obd",
@@ -424,7 +424,7 @@
       ],
       "keywords": "obd obd2 pid dtc",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-18"
+      "updatedAt": "2026-09-20"
     },
     {
       "id": "tx-lab",
@@ -434,8 +434,8 @@
       "description": "Periodic TX, Restbus simulation and live dashboard.",
       "icon": "assets/tx-lab.svg",
       "package": "opk/tx-lab_2.0.0.opk",
-      "sha256": "cc179cc00c52057084b313847aff84e4d62e98f9376bd34e3ec006e085ba7e2c",
-      "size": 21986,
+      "sha256": "d3731f6cd27f4e164a7a8c2523e4840a8445c85c548da1da6f168a6ef26b8f7b",
+      "size": 21971,
       "readme": "## TX Lab\n\nPeriodic TX, Restbus simulation and live dashboard.\n",
       "tags": [
         "tx",
@@ -443,7 +443,7 @@
       ],
       "keywords": "frame generator simulator dashboard restbus",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-18"
+      "updatedAt": "2026-09-20"
     },
     {
       "id": "bus-security",
@@ -453,15 +453,15 @@
       "description": "Fuzzer, IDS, stress and E2E checksum in one suite.",
       "icon": "assets/bus-security.svg",
       "package": "opk/bus-security_2.0.0.opk",
-      "sha256": "47c22cbfec2a0c6a9d6bb31d6ef8eb19b778dfd4abfad3f81799b42f41cb0f83",
-      "size": 24680,
+      "sha256": "722614b1886757fa69156cb1aeee1926c28f54207569af2a3468b551835c7824",
+      "size": 24639,
       "readme": "## Bus Security\n\nFuzzer, IDS, stress and E2E checksum in one suite.\n",
       "tags": [
         "security"
       ],
       "keywords": "fuzzer ids stress e2e",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-18"
+      "updatedAt": "2026-09-20"
     },
     {
       "id": "protocol-hub",
@@ -471,15 +471,15 @@
       "description": "NM, ISO-TP, ISOBUS, NMEA2000, GBT27930 and XCP monitors.",
       "icon": "assets/protocol-hub.svg",
       "package": "opk/protocol-hub_2.0.0.opk",
-      "sha256": "a90c74205e7e95948063c756ffb96e3ef797fd531a920d3c6593b0f895e7c507",
-      "size": 29077,
+      "sha256": "dea5f75b4157ef377051a51464a25b179358856d91aa45281e1d789adbe57294",
+      "size": 29166,
       "readme": "## Protocol Hub\n\nNM, ISO-TP, ISOBUS, NMEA2000, GBT27930 and XCP monitors.\n",
       "tags": [
         "protocol"
       ],
       "keywords": "nm isotp isobus nmea2000 gbt27930 xcp",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-18"
+      "updatedAt": "2026-09-20"
     },
     {
       "id": "log-analysis",
@@ -489,8 +489,8 @@
       "description": "Log toolkit, compare, trigger, quality, reverse and ID scan.",
       "icon": "assets/log-analysis.svg",
       "package": "opk/log-analysis_2.0.0.opk",
-      "sha256": "c01405f33ad6c5d9ded85ece244ceb32e6a491dbecb96a16aa1f6143714fecc6",
-      "size": 33628,
+      "sha256": "c7be3f18aafff6648778a14dbca8f594ea8e62a9e365f9d46fdd86d2fb148742",
+      "size": 33574,
       "readme": "## Log & Compare\n\nLog toolkit, compare, trigger, quality, reverse and ID scan.\n",
       "tags": [
         "log",
@@ -498,7 +498,7 @@
       ],
       "keywords": "log compare trigger quality reverse id-scan",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-18"
+      "updatedAt": "2026-09-20"
     },
     {
       "id": "bus-utilities",
@@ -508,15 +508,15 @@
       "description": "Bit timing calculator and CAN gateway rules.",
       "icon": "assets/bus-utilities.svg",
       "package": "opk/bus-utilities_2.0.0.opk",
-      "sha256": "95938cfb802528a32fcbd97ce96445cbfdfbe3e65065ab43c3f618d9ef2191b6",
-      "size": 13977,
+      "sha256": "ea0a26ccbd134813f3b350d9cfb9c9a468b716bc1c1e4d309452fd6b5f242a08",
+      "size": 13947,
       "readme": "## Bus Utilities\n\nBit timing calculator and CAN gateway rules.\n",
       "tags": [
         "tools"
       ],
       "keywords": "bit timing gateway",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-18"
+      "updatedAt": "2026-09-20"
     },
     {
       "id": "ai-agent",
@@ -526,8 +526,8 @@
       "description": "Read-only Trace/DBC tool loop with OpenAI-compatible providers.",
       "icon": "assets/ai-agent.svg",
       "package": "opk/ai-agent_0.1.0.opk",
-      "sha256": "ae539a280ea6a1fc76bf7b3c7ad7f51c69aabb648fce52328e70fcd8fcf93455",
-      "size": 15847,
+      "sha256": "a062628cba8ceb3b0167a3c3778c48fc47e639289014f9b81b980a797114c132",
+      "size": 11198,
       "readme": "## AI Agent\n\nRead-only Trace/DBC tool loop with OpenAI-compatible providers.\n",
       "tags": [
         "ai",
@@ -535,7 +535,7 @@
       ],
       "keywords": "ai agent llm ollama frames stats",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-18"
+      "updatedAt": "2026-09-20"
     }
   ]
 }

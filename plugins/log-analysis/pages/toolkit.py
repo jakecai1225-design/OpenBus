@@ -157,6 +157,7 @@ def build(parent, session, log_fn) -> QWidget:
             QMessageBox.warning(parent, "Load", "No frames parsed")
             return
         loaded["frames"].sort(key=lambda fr: fr[0])
+        session.set_corpus(loaded["frames"], loaded["names"])
         _update_info()
         _persist()
         log_fn("RX", "-", b"", "Toolkit loaded %d frames from %d file(s)"
@@ -169,6 +170,7 @@ def build(parent, session, log_fn) -> QWidget:
         loaded["frames"].clear()
         loaded["names"].clear()
         loaded["paths"].clear()
+        session.set_corpus([], [])
         _update_info()
         plugin_shell.set_status(parent, "Cleared", 2000)
 

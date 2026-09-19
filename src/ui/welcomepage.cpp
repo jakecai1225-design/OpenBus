@@ -328,8 +328,9 @@ void WelcomePage::applyTheme()
 
 void WelcomePage::rebuildWatermark()
 {
+    // Small, bold mark — VS Code empty-editor scale (~200–260px render)
     m_watermark = renderSvgPixmap(QStringLiteral(":/icons/spider-watermark.svg"),
-                                  QStringLiteral("#4A5968"), 720);
+                                  QStringLiteral("#5A6A78"), 256);
     update();
 }
 
@@ -345,9 +346,10 @@ void WelcomePage::paintEvent(QPaintEvent *event)
     if (m_watermark.isNull() || width() < 200 || height() < 200)
         return;
 
-    const int side = qBound(360, qMin(width(), height()), 820);
-    const int x = width() - int(side * 0.70);
+    // Centered, compact (VS Code–style empty editor watermark)
+    const int side = qBound(160, qRound(qMin(width(), height()) * 0.22), 260);
+    const int x = (width() - side) / 2;
     const int y = (height() - side) / 2;
-    p.setOpacity(0.34);
+    p.setOpacity(0.10);
     p.drawPixmap(QRect(x, y, side, side), m_watermark);
 }

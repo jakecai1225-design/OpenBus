@@ -6,18 +6,15 @@ from __future__ import annotations
 import math
 import time
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import (
     QFileDialog,
-    QFormLayout,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QMessageBox,
     QProgressBar,
     QPushButton,
-    QSpinBox,
     QTabWidget,
     QTextEdit,
     QTreeWidget,
@@ -26,7 +23,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import plugin_shell, state_store
+from _shared import plugin_shell, state_store, vscode_theme, codicons
 
 PLUGIN_ID = "uds-suite"
 
@@ -192,8 +189,10 @@ class _SeedCollector:
 
 
 def build(parent, session, log_fn) -> QWidget:
-    root = QWidget(parent)
-    layout = QVBoxLayout(root)
+    from widgets.layout import page, attach_output
+    from widgets.step_spin import StepSpin
+
+    root, layout = page(parent)
 
     seeds = []
     nrc_counts = {}
@@ -201,88 +200,121 @@ def build(parent, session, log_fn) -> QWidget:
     session_timing = [None]
     collector_ref = [None]
 
-    banner = QLabel(
-        "WARNING: Observational audit only. This tool requests seeds (27 01) "
-        "and never sends SecurityAccess keys (27 02). Do not use for key "
-        "brute-force. Unauthorized testing may be illegal.")
-    banner.setWordWrap(True)
-    banner.setStyleSheet(
-        "background:#fff3e0;color:#e65100;border:1px solid #ef6c00;"
-        "padding:8px;font-weight:bold;")
-    layout.addWidget(banner)
+    body = QWidget()
+    bl = QVBoxLayout(body)
+    bl.setContentsMargins(0, 0, 0, 0)
+    bl.setSpacing(8)
 
-    cfg = QGroupBox("Collection settings")
-    cfg_l = QFormLayout(cfg)
-    count_spin = QSpinBox()
-    count_spin.setRange(2, 200)
-    count_spin.setValue(20)
-    interval_spin = QSpinBox()
-    interval_spin.setRange(50, 10000)
-    interval_spin.setSingleStep(50)
-    interval_spin.setValue(300)
-    interval_spin.setSuffix(" ms")
-    cfg_l.addRow("Seed samples:", count_spin)
-    cfg_l.addRow("Interval:", interval_spin)
-    cfg_l.addRow(QLabel("Uses shared TX/RX from the connection strip."))
-    layout.addWidget(cfg)
+    collect_card, collect_body = vscode_theme.block(
+        "Collect",
+        "Observational only. Requests seeds (27 01) and never sends keys (27 02).",
+    )
 
-    layout.addWidget(plugin_shell.help_label(
-        "Flow: optional 10 03 (session timing) → repeated 27 01 seed requests. "
-        "Analysis: duplicates, linear increment, per-byte entropy, NRC histogram. "
-        "No keys are ever sent."))
+    action = QWidget()
+    al = QHBoxLayout(action)
+    al.setContentsMargins(0, 0, 0, 0)
+    al.setSpacing(8)
 
-    btns = QHBoxLayout()
-    collect_btn = QPushButton("Collect seeds (27 01)")
+    al.addWidget(QLabel("Samples"))
+    count_spin = StepSpin(20, minimum=2, maximum=200, width=72)
+    al.addWidget(count_spin)
+
+    al.addWidget(QLabel("Interval"))
+    interval_spin = StepSpin(300, minimum=50, maximum=10000, suffix=" ms", width=90)
+    al.addWidget(interval_spin)
+
+    collect_btn = QPushButton("Collect")
+    collect_btn.setObjectName("PrimaryButton")
+    collect_btn.setFixedSize(100, 28)
+    collect_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    collect_btn.setToolTip("27 01 seed requests only")
+    codicons.set_button(collect_btn, "start", primary=True)
     stop_btn = QPushButton("Stop")
+    stop_btn.setObjectName("SecondaryButton")
+    stop_btn.setFixedSize(80, 28)
+    codicons.set_button(stop_btn, "stop")
     analyze_btn = QPushButton("Analyze")
-    report_html_btn = QPushButton("Export HTML")
-    report_csv_btn = QPushButton("Export CSV")
-    clear_btn = QPushButton("Clear")
+    analyze_btn.setObjectName("SecondaryButton")
+    analyze_btn.setFixedSize(96, 28)
+    codicons.set_button(analyze_btn, "search")
     for w in (collect_btn, stop_btn, analyze_btn):
-        btns.addWidget(w)
-    btns.addStretch(1)
-    for w in (report_html_btn, report_csv_btn, clear_btn):
-        btns.addWidget(w)
-    layout.addLayout(btns)
+        w.setCursor(Qt.CursorShape.PointingHandCursor)
+        al.addWidget(w)
     stop_btn.setEnabled(False)
+    al.addStretch(1)
 
+    report_html_btn = QPushButton("HTML")
+    report_csv_btn = QPushButton("CSV")
+    clear_btn = QPushButton("Clear")
+    for w, ic in ((report_html_btn, "file"), (report_csv_btn, "export"), (clear_btn, "clear")):
+        w.setObjectName("GhostButton")
+        w.setFixedHeight(28)
+        w.setCursor(Qt.CursorShape.PointingHandCursor)
+        codicons.set_button(w, ic)
+        al.addWidget(w)
+    collect_body.addWidget(action)
+
+    status_row = QHBoxLayout()
+    status_row.setSpacing(8)
     progress = QProgressBar()
     progress.setRange(0, 100)
     progress.setValue(0)
-    layout.addWidget(progress)
+    progress.setTextVisible(False)
+    progress.setFixedHeight(6)
+    timing_label = QLabel("Session timing —")
+    timing_label.setObjectName("SuiteHint")
+    status_row.addWidget(progress, 1)
+    status_row.addWidget(timing_label)
+    collect_body.addLayout(status_row)
+    bl.addWidget(collect_card)
 
-    timing_label = QLabel("Session timing (10 03 → first 27 01): -")
-    layout.addWidget(timing_label)
-
+    result_card, result_body = vscode_theme.block(
+        "Results",
+        "Seeds, negative responses, and the written findings.",
+    )
     tabs = QTabWidget()
-    layout.addWidget(tabs, 1)
+    tabs.setDocumentMode(True)
+    tabs.setTabPosition(QTabWidget.TabPosition.North)
+    result_body.addWidget(tabs, 1)
+    bl.addWidget(result_card, 1)
 
     seed_tab = QWidget()
     sv = QVBoxLayout(seed_tab)
+    sv.setContentsMargins(0, 8, 0, 0)
+    sv.setSpacing(0)
     seed_tree = QTreeWidget()
     seed_tree.setHeaderLabels(["#", "Time", "Seed hex", "Delta"])
     seed_tree.setRootIsDecorated(False)
     seed_tree.setAlternatingRowColors(True)
+    seed_tree.setUniformRowHeights(True)
     seed_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+    seed_tree.header().setStretchLastSection(True)
     sv.addWidget(seed_tree, 1)
 
     nrc_tab = QWidget()
     nv = QVBoxLayout(nrc_tab)
+    nv.setContentsMargins(0, 8, 0, 0)
     nrc_tree = QTreeWidget()
     nrc_tree.setHeaderLabels(["NRC / event", "Count", "Meaning"])
     nrc_tree.setRootIsDecorated(False)
     nrc_tree.setAlternatingRowColors(True)
+    nrc_tree.setUniformRowHeights(True)
     nv.addWidget(nrc_tree, 1)
 
     finding_tab = QWidget()
     fv = QVBoxLayout(finding_tab)
+    fv.setContentsMargins(0, 8, 0, 0)
     finding_view = QTextEdit()
     finding_view.setReadOnly(True)
     fv.addWidget(finding_view, 1)
 
     tabs.addTab(seed_tab, "Seeds")
-    tabs.addTab(nrc_tab, "NRC histogram")
+    tabs.addTab(nrc_tab, "NRC")
     tabs.addTab(finding_tab, "Findings")
+
+    tabs.setTabToolTip(0, "Collected seed values and deltas")
+    tabs.setTabToolTip(1, "Negative response codes during collection")
+    tabs.setTabToolTip(2, "Duplicate, linear, and entropy findings")
 
     def _plog(text):
         log_fn("RX", "-", b"", "[Security] %s" % text)
@@ -537,7 +569,7 @@ def build(parent, session, log_fn) -> QWidget:
         nrc_tree.clear()
         finding_view.clear()
         progress.setValue(0)
-        timing_label.setText("Session timing (10 03 → first 27 01): -")
+        timing_label.setText("Session timing —")
 
     collect_btn.clicked.connect(_on_collect)
     stop_btn.clicked.connect(_on_stop)
@@ -552,4 +584,5 @@ def build(parent, session, log_fn) -> QWidget:
     if saved.get("sec_interval_ms"):
         interval_spin.setValue(int(saved["sec_interval_ms"]))
 
+    attach_output(parent, layout, body, session)
     return root

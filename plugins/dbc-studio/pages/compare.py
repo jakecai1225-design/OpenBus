@@ -7,27 +7,32 @@ import os
 
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
-    QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
+    QFileDialog, QFormLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
     QHeaderView,
 )
 
-from _shared import dbcparse, dbc_picker, plugin_shell
+from _shared import dbcparse, dbc_picker, plugin_shell, vscode_theme
 from core import diff_engine
 
 
 def build(shell, document, log_fn) -> QWidget:
     root = QWidget()
     layout = QVBoxLayout(root)
+    layout.setContentsMargins(16, 12, 16, 12)
+    layout.setSpacing(12)
 
-    cfg = QGroupBox("Compare")
-    form = QFormLayout(cfg)
+    cfg, form_host = vscode_theme.block(
+        "Compare", "Diff two DBC files (A vs B). Use current document as A when needed.")
+    form = QFormLayout()
+    vscode_theme.tune_form(form)
     path_a = QLineEdit()
     path_a.setPlaceholderText("Current document or pick file A")
     path_b = QLineEdit()
     path_b.setPlaceholderText("Pick file B")
     form.addRow("A:", path_a)
     form.addRow("B:", path_b)
+    form_host.addLayout(form)
     layout.addWidget(cfg)
 
     row = QHBoxLayout()

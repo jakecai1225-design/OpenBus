@@ -6,12 +6,11 @@ from __future__ import annotations
 import time
 from typing import Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -27,7 +26,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import plugin_shell, state_store
+from _shared import plugin_shell, state_store, vscode_theme, codicons
 
 from session import SharedSession
 
@@ -36,6 +35,8 @@ PLUGIN_ID = "bus-utilities"
 NAV_PAGES = [
     ("bit_timing", "Bit Timing"),
     ("gateway", "Gateway"),
+    ("scanner", "Scanner"),
+    ("quality", "Quality"),
     ("log", "Log"),
 ]
 
@@ -52,37 +53,32 @@ class AppShell(QMainWindow):
         self._log_buffer: list = []
         self._page_index = {key: i for i, (key, _) in enumerate(NAV_PAGES)}
 
+        vscode_theme.apply(self)
         plugin_shell.attach_status_bar(self, "Ready")
 
         central = QWidget()
         self.setCentralWidget(central)
         root = QHBoxLayout(central)
-        root.setContentsMargins(4, 4, 4, 4)
-        root.setSpacing(4)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
         self.nav = QListWidget()
-        self.nav.setFixedWidth(130)
+        self.nav.setObjectName("SuiteNav")
+        self.nav.setIconSize(QSize(16, 16))
+        self.nav.setFixedWidth(148)
         self.nav.setSpacing(2)
-        font = QFont()
-        font.setPointSize(11)
-        self.nav.setFont(font)
         for key, title in NAV_PAGES:
             item = QListWidgetItem(title)
             item.setData(Qt.ItemDataRole.UserRole, key)
+            codicons.set_nav_item(item, key, vscode_theme.TEXT)
             self.nav.addItem(item)
         root.addWidget(self.nav)
 
         right = QWidget()
+        right.setObjectName("SuiteContent")
         right_l = QVBoxLayout(right)
         right_l.setContentsMargins(0, 0, 0, 0)
         right_l.setSpacing(4)
-
-        strip = QGroupBox("Session")
-        strip_l = QHBoxLayout(strip)
-        strip_l.addWidget(QLabel(
-            "Offline calculator + live gateway — rules persist; forwarding off until Start."))
-        strip_l.addStretch(1)
-        right_l.addWidget(strip)
 
         splitter = QSplitter(Qt.Orientation.Vertical)
         self.stack = QStackedWidget()
@@ -96,12 +92,14 @@ class AppShell(QMainWindow):
 
         self.session.set_log_fn(self._log_row)
 
-        from pages import bit_timing, gateway, log_page
+        from pages import bit_timing, gateway, log_page, quality, scanner
 
         self._pages = {}
         builders = [
             ("bit_timing", bit_timing.build),
             ("gateway", gateway.build),
+            ("scanner", scanner.build),
+            ("quality", quality.build),
             ("log", log_page.build),
         ]
         for key, builder in builders:
@@ -130,8 +128,14 @@ class AppShell(QMainWindow):
             "Bus Utilities ready — Bit Timing / Gateway / Log")
 
     def _build_log_panel(self) -> QWidget:
-        group = QGroupBox("Activity log")
+        group = QWidget()
+        group.setObjectName("SuiteLogHost")
         v = QVBoxLayout(group)
+        v.setContentsMargins(8, 6, 8, 8)
+        v.setSpacing(6)
+        _log_title = QLabel("OUTPUT")
+        _log_title.setObjectName("SuiteToolbarTitle")
+        v.addWidget(_log_title)
         self.log_table = QTableWidget(0, 5)
         self.log_table.setHorizontalHeaderLabels(
             ["Time", "Dir", "CAN ID", "Data", "Note"])

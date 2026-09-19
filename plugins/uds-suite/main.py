@@ -73,6 +73,8 @@ def activate(context):
     context.register_command("udsSuite.open", on_open, "UDS Suite")
 
     _shell.show()
+    _shell.raise_()
+    _shell.activateWindow()
     sin.output.append(
         "UDS Suite ready (Diagnose / Scan / Batch / Security / Profiles / Log)")
 

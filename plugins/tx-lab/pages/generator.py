@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QFormLayout,
     QFrame,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -32,7 +31,7 @@ from PyQt6.QtWidgets import (
 )
 
 import sin
-from _shared import dbcparse, plugin_shell, state_store
+from _shared import dbcparse, plugin_shell, state_store, vscode_theme
 
 PLUGIN_ID = "tx-lab"
 
@@ -60,13 +59,18 @@ def _row_key(r):
 def build(parent, session, log_fn) -> QWidget:
     root = QWidget(parent)
     layout = QVBoxLayout(root)
+    layout.setContentsMargins(16, 12, 16, 12)
+    layout.setSpacing(12)
 
     rows: list = []
     next_due: dict = {}
     running = {"v": False}
 
-    cfg = QGroupBox("Quick add (manual)")
-    cfg_l = QFormLayout(cfg)
+    cfg, cfg_host = vscode_theme.block(
+        "Quick add",
+        "Each row keeps its own period. Double-click cells to edit.")
+    cfg_l = QFormLayout()
+    vscode_theme.tune_form(cfg_l)
     id_edit = QLineEdit("0x123")
     data_edit = QLineEdit("01 02 03 04 05 06 07 08")
     cycle_spin = QSpinBox()
@@ -89,11 +93,8 @@ def build(parent, session, log_fn) -> QWidget:
     for w in (ext_chk, fd_chk, brs_chk, esi_chk):
         flags.addWidget(w)
     cfg_l.addRow("Flags:", flags)
+    cfg_host.addLayout(cfg_l)
     layout.addWidget(cfg)
-
-    layout.addWidget(plugin_shell.help_label(
-        "Uses the suite DBC strip when adding from DBC. Each row has its own period. "
-        "Double-click cells to edit. Ctrl+S saves entries."))
 
     btns = QHBoxLayout()
     add_btn = QPushButton("Add")

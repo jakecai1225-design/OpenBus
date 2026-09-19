@@ -7,13 +7,12 @@ import os
 import time
 from typing import Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QFileDialog,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -30,7 +29,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import plugin_shell, state_store
+from _shared import plugin_shell, state_store, vscode_theme, codicons
 
 from session import SharedSession, NMT_START, NMT_STOP, NMT_RESET_NODE
 
@@ -39,9 +38,10 @@ PLUGIN_ID = "canopen-suite"
 NAV_PAGES = [
     ("network", "Network"),
     ("monitor", "Monitor"),
-    ("object_dict", "Object Dictionary"),
-    ("profiles", "Profiles"),
-    ("eds_editor", "EDS Editor"),
+    ("object_dict", "OD"),
+    ("pdo", "PDO"),
+    ("profiles", "Drive"),
+    ("eds_editor", "EDS"),
     ("log", "Log"),
 ]
 
@@ -58,27 +58,29 @@ class AppShell(QMainWindow):
         self._log_buffer: list = []
         self._page_index = {key: i for i, (key, _) in enumerate(NAV_PAGES)}
 
+        vscode_theme.apply(self)
         plugin_shell.attach_status_bar(self, "Ready")
 
         central = QWidget()
         self.setCentralWidget(central)
         root = QHBoxLayout(central)
-        root.setContentsMargins(4, 4, 4, 4)
-        root.setSpacing(4)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
         self.nav = QListWidget()
-        self.nav.setFixedWidth(150)
+        self.nav.setObjectName("SuiteNav")
+        self.nav.setIconSize(QSize(16, 16))
+        self.nav.setFixedWidth(148)
         self.nav.setSpacing(2)
-        font = QFont()
-        font.setPointSize(11)
-        self.nav.setFont(font)
         for key, title in NAV_PAGES:
             item = QListWidgetItem(title)
             item.setData(Qt.ItemDataRole.UserRole, key)
+            codicons.set_nav_item(item, key, vscode_theme.TEXT)
             self.nav.addItem(item)
         root.addWidget(self.nav)
 
         right = QWidget()
+        right.setObjectName("SuiteContent")
         right_l = QVBoxLayout(right)
         right_l.setContentsMargins(0, 0, 0, 0)
         right_l.setSpacing(4)
@@ -98,7 +100,7 @@ class AppShell(QMainWindow):
         self.session.set_log_fn(self._log_row)
 
         from pages import (
-            eds_editor, log_page, monitor, network, object_dict, profiles,
+            eds_editor, log_page, monitor, network, object_dict, pdo, profiles,
         )
 
         self._pages = {}
@@ -106,6 +108,7 @@ class AppShell(QMainWindow):
             ("network", network.build),
             ("monitor", monitor.build),
             ("object_dict", object_dict.build),
+            ("pdo", pdo.build),
             ("profiles", profiles.build),
             ("eds_editor", eds_editor.build),
             ("log", log_page.build),
@@ -129,19 +132,22 @@ class AppShell(QMainWindow):
             state_store.clear_state(PLUGIN_ID, "goto.json")
         self.goto_page(page or "network")
 
-        for i in range(6):
+        for i in range(len(NAV_PAGES)):
             plugin_shell.bind_shortcut(
                 self, "Ctrl+%d" % (i + 1),
                 lambda _=False, idx=i: self.goto_page(NAV_PAGES[idx][0]))
 
         self._log_row(
             "RX", "-", b"",
-            "CANopen Suite ready — Network / Monitor / OD / Profiles / EDS / Log")
+            "CANopen Suite ready — Network / Monitor / OD / PDO / Drive / EDS / Log")
 
     # ------------------------------------------------------------------
     def _build_session_strip(self) -> QWidget:
-        bar = QGroupBox("Session")
+        bar = QWidget()
+        bar.setObjectName("SuiteToolbar")
         row = QHBoxLayout(bar)
+        row.setContentsMargins(12, 6, 12, 6)
+        row.setSpacing(8)
 
         self.node_spin = QSpinBox()
         self.node_spin.setRange(1, 127)
@@ -156,7 +162,7 @@ class AppShell(QMainWindow):
         row.addWidget(apply_btn)
 
         sep = QLabel("|")
-        sep.setStyleSheet("color:#aaa;")
+        sep.setStyleSheet("color:#E5E5E5;")
         row.addWidget(sep)
 
         self.eds_label = QLabel("(no EDS)")
@@ -173,7 +179,7 @@ class AppShell(QMainWindow):
         row.addWidget(clear_eds_btn)
 
         sep2 = QLabel("|")
-        sep2.setStyleSheet("color:#aaa;")
+        sep2.setStyleSheet("color:#E5E5E5;")
         row.addWidget(sep2)
 
         for text, cmd in (
@@ -191,8 +197,14 @@ class AppShell(QMainWindow):
         return bar
 
     def _build_log_panel(self) -> QWidget:
-        group = QGroupBox("Activity log")
+        group = QWidget()
+        group.setObjectName("SuiteLogHost")
         v = QVBoxLayout(group)
+        v.setContentsMargins(8, 6, 8, 8)
+        v.setSpacing(6)
+        _log_title = QLabel("OUTPUT")
+        _log_title.setObjectName("SuiteToolbarTitle")
+        v.addWidget(_log_title)
 
         self.log_table = QTableWidget(0, 5)
         self.log_table.setHorizontalHeaderLabels(

@@ -6,12 +6,11 @@ from __future__ import annotations
 import time
 from typing import Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -27,14 +26,17 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import plugin_shell, state_store
+from _shared import plugin_shell, state_store, vscode_theme, codicons
 
 from session import SharedSession
 
 PLUGIN_ID = "j1939-suite"
 
 NAV_PAGES = [
-    ("analyzer", "Analyzer"),
+    ("analyzer", "Live"),
+    ("transport", "Transport"),
+    ("diagnostics", "Diagnostics"),
+    ("network", "Network"),
     ("log", "Log"),
 ]
 
@@ -51,36 +53,31 @@ class AppShell(QMainWindow):
         self._log_buffer: list = []
         self._page_index = {key: i for i, (key, _) in enumerate(NAV_PAGES)}
 
+        vscode_theme.apply(self)
         plugin_shell.attach_status_bar(self, "Ready")
 
         central = QWidget()
         self.setCentralWidget(central)
         root = QHBoxLayout(central)
-        root.setContentsMargins(4, 4, 4, 4)
-        root.setSpacing(4)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
         self.nav = QListWidget()
-        self.nav.setFixedWidth(130)
-        font = QFont()
-        font.setPointSize(11)
-        self.nav.setFont(font)
+        self.nav.setObjectName("SuiteNav")
+        self.nav.setIconSize(QSize(16, 16))
+        self.nav.setFixedWidth(148)
         for key, title in NAV_PAGES:
             item = QListWidgetItem(title)
             item.setData(Qt.ItemDataRole.UserRole, key)
+            codicons.set_nav_item(item, key, vscode_theme.TEXT)
             self.nav.addItem(item)
         root.addWidget(self.nav)
 
         right = QWidget()
+        right.setObjectName("SuiteContent")
         right_l = QVBoxLayout(right)
         right_l.setContentsMargins(0, 0, 0, 0)
         right_l.setSpacing(4)
-
-        strip = QGroupBox("Session")
-        strip_l = QHBoxLayout(strip)
-        strip_l.addWidget(QLabel(
-            "SAE J1939 — PGN/SPN, DM1/DM2, Address Claim, TP, RQST"))
-        strip_l.addStretch(1)
-        right_l.addWidget(strip)
 
         splitter = QSplitter(Qt.Orientation.Vertical)
         self.stack = QStackedWidget()
@@ -92,11 +89,14 @@ class AppShell(QMainWindow):
 
         self.session.set_log_fn(self._log_row)
 
-        from pages import analyzer, log_page
+        from pages import analyzer, log_page, views
 
         self._pages = {}
         for key, builder in (
             ("analyzer", analyzer.build),
+            ("transport", views.build_transport),
+            ("diagnostics", views.build_diagnostics),
+            ("network", views.build_network),
             ("log", log_page.build),
         ):
             w = builder(self, self.session, self._log_row)
@@ -122,8 +122,14 @@ class AppShell(QMainWindow):
         self._log_row("SYS", "-", b"", "J1939 Suite ready — Analyzer / Log")
 
     def _build_log_panel(self) -> QWidget:
-        group = QGroupBox("Activity log")
+        group = QWidget()
+        group.setObjectName("SuiteLogHost")
         v = QVBoxLayout(group)
+        v.setContentsMargins(8, 6, 8, 8)
+        v.setSpacing(6)
+        _log_title = QLabel("OUTPUT")
+        _log_title.setObjectName("SuiteToolbarTitle")
+        v.addWidget(_log_title)
         self.log_table = QTableWidget(0, 5)
         self.log_table.setHorizontalHeaderLabels(
             ["Time", "Dir", "CAN ID", "Data", "Note"])

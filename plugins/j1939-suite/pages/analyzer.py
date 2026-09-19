@@ -98,6 +98,7 @@ _pgn_stats = {}      # pgn -> {count, name, last_ts, sa}
 _addr_claims = {}    # sa -> claim dict
 _decoded = []        # (ts, pgn, text)
 _tp_pdus = []        # (ts, sa, da, pgn, payload, kind)
+_dm_rows = []        # (ts, pgn, sa, spn, text, lamps)
 _events = []
 _total = 0
 _running = True
@@ -289,8 +290,32 @@ def _record_decoded(ts, pgn, text):
         del _decoded[:1000]
 
 
-def _apply_decodes(ts, pgn, data, can_id=None):
+def snapshot_tp():
+    return list(_tp_pdus)
+
+
+def snapshot_dm():
+    return list(_dm_rows)
+
+
+def snapshot_addr():
+    return sorted(_addr_claims.items())
+
+
+def _store_dm(ts, pgn, sa, data):
+    lamps = ""
+    for spn, name, value, _unit in _decode_dm1(data):
+        if name == "Lamp status":
+            lamps = str(value)
+        elif name == "DTC":
+            _dm_rows.append((ts, pgn, sa, spn, str(value), lamps))
+    if len(_dm_rows) > 800:
+        del _dm_rows[:300]
+
+
+def _apply_decodes(ts, pgn, data, can_id=None, sa=0):
     if pgn in (0xFECA, 0xFECB):
+        _store_dm(ts, pgn, sa, data)
         for spn, name, value, unit in _decode_dm1(data):
             _record_decoded(ts, pgn, "%s: %s" % (name, value))
     for spn, name, value, unit in _decode_spns_builtin(pgn, data):
@@ -343,7 +368,7 @@ def _on_frame(frame):
             _record_decoded(
                 ts, pgn2,
                 "TP %s %d bytes: %s" % (kind, len(payload), _hex(payload[:32])))
-            _apply_decodes(ts, pgn2, payload)
+            _apply_decodes(ts, pgn2, payload, sa=sa)
         return
 
     if pgn == 0xEE00:
@@ -361,7 +386,7 @@ def _on_frame(frame):
     st["sa"] = sa
     st["name"] = _pgn_name(pgn) or st["name"]
 
-    _apply_decodes(ts, pgn, data, can_id=cid)
+    _apply_decodes(ts, pgn, data, can_id=cid, sa=sa)
 
 
 def _load_dbc_path(path):
@@ -385,6 +410,7 @@ def build(parent, session, log_fn):
     _addr_claims.clear()
     del _decoded[:]
     del _tp_pdus[:]
+    del _dm_rows[:]
     del _events[:]
     _total = 0
     _running = True

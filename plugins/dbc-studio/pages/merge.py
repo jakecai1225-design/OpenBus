@@ -21,6 +21,8 @@ PLUGIN_ID = "dbc-studio"
 def build(shell, document, log_fn) -> QWidget:
     root = QWidget()
     layout = QVBoxLayout(root)
+    layout.setContentsMargins(16, 12, 16, 12)
+    layout.setSpacing(12)
 
     layout.addWidget(QLabel(
         "Merge additional DBC files into a working copy. "

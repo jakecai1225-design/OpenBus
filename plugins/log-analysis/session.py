@@ -22,6 +22,9 @@ class SharedSession(QObject):
         self._frame_listeners: list[Callable] = []
         self._log_fn: Optional[Callable] = None
         self._running = True
+        self.frames: list = []
+        self.frame_names: list = []
+        self._corpus_listeners: list[Callable[[], None]] = []
 
     def set_log_fn(self, fn: Callable) -> None:
         self._log_fn = fn
@@ -75,6 +78,18 @@ class SharedSession(QObject):
             return
         self.last_export_path = path
         self._notify_paths()
+
+    def on_corpus_changed(self, cb: Callable[[], None]) -> None:
+        self._corpus_listeners.append(cb)
+
+    def set_corpus(self, frames, names=None) -> None:
+        self.frames = list(frames or [])
+        self.frame_names = list(names or [])
+        for cb in list(self._corpus_listeners):
+            try:
+                cb()
+            except Exception:
+                pass
 
     def start_dir(self, preferred: str = "") -> str:
         """Best starting directory for file dialogs."""

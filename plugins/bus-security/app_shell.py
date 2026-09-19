@@ -6,13 +6,12 @@ from __future__ import annotations
 import time
 from typing import Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QDoubleSpinBox,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -30,7 +29,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import plugin_shell, state_store
+from _shared import plugin_shell, state_store, vscode_theme, codicons
 
 from session import SharedSession
 
@@ -40,7 +39,8 @@ NAV_PAGES = [
     ("fuzzer", "Fuzzer"),
     ("ids", "IDS"),
     ("stress", "Stress"),
-    ("e2e", "E2E"),
+    ("e2e", "Integrity"),
+    ("findings", "Findings"),
     ("log", "Log"),
 ]
 
@@ -62,22 +62,23 @@ class AppShell(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         root = QHBoxLayout(central)
-        root.setContentsMargins(4, 4, 4, 4)
-        root.setSpacing(4)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
         self.nav = QListWidget()
-        self.nav.setFixedWidth(140)
+        self.nav.setObjectName("SuiteNav")
+        self.nav.setIconSize(QSize(16, 16))
+        self.nav.setFixedWidth(148)
         self.nav.setSpacing(2)
-        font = QFont()
-        font.setPointSize(11)
-        self.nav.setFont(font)
         for key, title in NAV_PAGES:
             item = QListWidgetItem(title)
             item.setData(Qt.ItemDataRole.UserRole, key)
+            codicons.set_nav_item(item, key, vscode_theme.TEXT)
             self.nav.addItem(item)
         root.addWidget(self.nav)
 
         right = QWidget()
+        right.setObjectName("SuiteContent")
         right_l = QVBoxLayout(right)
         right_l.setContentsMargins(0, 0, 0, 0)
         right_l.setSpacing(4)
@@ -96,7 +97,7 @@ class AppShell(QMainWindow):
 
         self.session.set_log_fn(self.log)
 
-        from pages import e2e, fuzzer, ids, log_page, stress
+        from pages import e2e, findings, fuzzer, ids, log_page, stress
 
         self._pages = {}
         builders = [
@@ -104,6 +105,7 @@ class AppShell(QMainWindow):
             ("ids", ids.build),
             ("stress", stress.build),
             ("e2e", e2e.build),
+            ("findings", findings.build),
             ("log", log_page.build),
         ]
         for key, builder in builders:
@@ -122,7 +124,7 @@ class AppShell(QMainWindow):
             state_store.clear_state(PLUGIN_ID, "goto.json")
         self.goto_page(page or "fuzzer")
 
-        for i in range(5):
+        for i in range(len(NAV_PAGES)):
             plugin_shell.bind_shortcut(
                 self, "Ctrl+%d" % (i + 1),
                 lambda _=False, idx=i: self.goto_page(NAV_PAGES[idx][0]))
@@ -134,8 +136,14 @@ class AppShell(QMainWindow):
 
     # ------------------------------------------------------------------
     def _build_rate_strip(self) -> QWidget:
-        bar = QGroupBox("Safety / rate defaults")
+        bar = QWidget()
+        bar.setObjectName("SuiteToolbar")
         row = QHBoxLayout(bar)
+        row.setContentsMargins(12, 6, 12, 6)
+        row.setSpacing(8)
+        _t = QLabel("SAFETY")
+        _t.setObjectName("SuiteToolbarTitle")
+        row.addWidget(_t)
 
         self.interval_spin = QSpinBox()
         self.interval_spin.setRange(1, 10000)
@@ -176,7 +184,7 @@ class AppShell(QMainWindow):
         row.addWidget(apply_btn)
 
         sep = QLabel("|")
-        sep.setStyleSheet("color:#aaa;")
+        sep.setStyleSheet("color:#E5E5E5;")
         row.addWidget(sep)
 
         stop_btn = QPushButton("Stop All")
@@ -191,8 +199,14 @@ class AppShell(QMainWindow):
         return bar
 
     def _build_log_panel(self) -> QWidget:
-        group = QGroupBox("Activity log")
+        group = QWidget()
+        group.setObjectName("SuiteLogHost")
         v = QVBoxLayout(group)
+        v.setContentsMargins(8, 6, 8, 8)
+        v.setSpacing(6)
+        _log_title = QLabel("OUTPUT")
+        _log_title.setObjectName("SuiteToolbarTitle")
+        v.addWidget(_log_title)
 
         self.log_table = QTableWidget(0, 3)
         self.log_table.setHorizontalHeaderLabels(["Time", "Source", "Message"])

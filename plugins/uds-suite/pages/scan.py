@@ -14,14 +14,12 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
     QCheckBox,
     QFormLayout,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QSpinBox,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -45,42 +43,65 @@ def _hex(data):
 
 
 def build(parent, session, log_fn) -> QWidget:
+    from _shared import vscode_theme, codicons
+    from widgets.step_spin import StepSpin
+
     root = QWidget(parent)
     layout = QVBoxLayout(root)
+    layout.setContentsMargins(16, 12, 16, 12)
+    layout.setSpacing(14)
 
-    cfg = QGroupBox("Scan range")
-    form = QFormLayout(cfg)
+    range_card, range_body = vscode_theme.block(
+        "Range",
+        "Probe each request ID with TesterPresent. Apply writes the selected row into the shared connection.",
+    )
+    form_host = QWidget()
+    form = QFormLayout(form_host)
+    vscode_theme.tune_form(form)
+    form.setContentsMargins(0, 0, 0, 0)
     start_edit = QLineEdit("0x7E0")
     end_edit = QLineEdit("0x7E7")
     offset_edit = QLineEdit("0x08")
-    timeout_spin = QSpinBox()
-    timeout_spin.setRange(100, 5000)
-    timeout_spin.setValue(600)
-    timeout_spin.setSuffix(" ms")
-    probe_check = QCheckBox("Probe session (10 03) + VIN (22 F190) after online")
+    timeout_spin = StepSpin(600, minimum=100, maximum=5000, suffix=" ms", width=100)
+    probe_check = QCheckBox("Also probe session (10 03) and VIN (22 F190)")
     probe_check.setChecked(True)
-    form.addRow("Start request ID:", start_edit)
-    form.addRow("End request ID:", end_edit)
-    form.addRow("Response offset:", offset_edit)
-    form.addRow("Per-ID timeout:", timeout_spin)
+    form.addRow("Start ID", start_edit)
+    form.addRow("End ID", end_edit)
+    form.addRow("Response offset", offset_edit)
+    form.addRow("Timeout", timeout_spin)
     form.addRow("", probe_check)
-    layout.addWidget(cfg)
-
-    layout.addWidget(plugin_shell.help_label(
-        "Sends TesterPresent (3E 00) per ID. Positive / NRC marks ECU online. "
-        "Scan uses a temporary ISO-TP client (does not replace the suite stack). "
-        "Select a row and Apply to connection to update the shared strip."))
+    range_body.addWidget(form_host)
 
     btns = QHBoxLayout()
+    btns.setSpacing(8)
     scan_btn = QPushButton("Start scan")
+    scan_btn.setObjectName("PrimaryButton")
+    scan_btn.setFixedSize(112, 28)
+    codicons.set_button(scan_btn, "start", primary=True)
     stop_btn = QPushButton("Stop")
-    apply_btn = QPushButton("Apply to connection")
+    stop_btn.setObjectName("SecondaryButton")
+    stop_btn.setFixedSize(80, 28)
+    codicons.set_button(stop_btn, "stop")
+    apply_btn = QPushButton("Apply")
+    apply_btn.setObjectName("SecondaryButton")
+    apply_btn.setFixedSize(88, 28)
+    codicons.set_button(apply_btn, "apply")
     clear_btn = QPushButton("Clear")
-    export_btn = QPushButton("Export CSV")
+    clear_btn.setObjectName("GhostButton")
+    clear_btn.setFixedHeight(28)
+    codicons.set_button(clear_btn, "clear")
+    export_btn = QPushButton("Export")
+    export_btn.setObjectName("GhostButton")
+    export_btn.setFixedHeight(28)
+    codicons.set_button(export_btn, "export")
+    btns.addWidget(scan_btn)
+    btns.addWidget(stop_btn)
+    btns.addWidget(apply_btn)
     btns.addStretch(1)
-    for w in (scan_btn, stop_btn, apply_btn, clear_btn, export_btn):
-        btns.addWidget(w)
-    layout.addLayout(btns)
+    btns.addWidget(clear_btn)
+    btns.addWidget(export_btn)
+    range_body.addLayout(btns)
+    layout.addWidget(range_card)
     stop_btn.setEnabled(False)
 
     tree = QTreeWidget()
@@ -91,11 +112,15 @@ def build(parent, session, log_fn) -> QWidget:
     tree.setAlternatingRowColors(True)
     tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     tree.header().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-    layout.addWidget(tree, 1)
-
     empty = plugin_shell.empty_state_label(
-        "No ECUs yet. Configure the ID range and click Start scan.")
-    layout.addWidget(empty)
+        "No ECUs yet. Set the range, then Start scan.")
+    result_card, result_body = vscode_theme.block(
+        "Results",
+        "Online ECUs. Select a row, then Apply to use those IDs.",
+    )
+    result_body.addWidget(tree, 1)
+    result_body.addWidget(empty)
+    layout.addWidget(result_card, 1)
 
     state = {
         "client": None,

@@ -111,6 +111,7 @@ _history = {}  # pid -> deque of (ts, text)
 _freeze = []   # [(pid, name, value, unit)]
 _dtcs = []
 _vin = ""
+_readiness_raw = b""
 _log = []
 _tx_id = 0x7DF
 _rx_id = 0x7E8
@@ -119,6 +120,28 @@ _poll_interval_ms = 500
 _running = True
 _isotp = None
 _pending_kind = None
+_sender = None
+
+
+def readiness_raw() -> bytes:
+    return bytes(_readiness_raw)
+
+
+def apply_ids(tx_id: int, rx_id: int) -> None:
+    global _tx_id, _rx_id
+    _tx_id = int(tx_id)
+    _rx_id = int(rx_id)
+    if _isotp is not None:
+        _isotp.func_id = _tx_id
+        _isotp.rx_id = _rx_id
+        _isotp.tx_id = 0x7E0 if _tx_id == 0x7DF else _tx_id
+
+
+def request_pid(mode: int, pid: int = 0, functional: bool = False) -> bool:
+    if _sender is None:
+        return False
+    _sender(mode, pid, functional)
+    return True
 
 
 def _lg(text):
@@ -137,7 +160,7 @@ def _decode_dtc(a, b):
 
 
 def _handle_pdu(pdu: bytes):
-    global _vin, _pending_kind
+    global _vin, _pending_kind, _readiness_raw
     if not pdu:
         return
     mode = pdu[0] - 0x40
@@ -154,6 +177,7 @@ def _handle_pdu(pdu: bytes):
                     if payload[i // 8] & (0x80 >> (i % 8)):
                         _supported[base + i] = True
             elif pid == 0x01 and payload:
+                _readiness_raw = bytes(payload[:4])
                 mil = "ON" if payload[0] & 0x80 else "OFF"
                 cnt = payload[0] & 0x7F
                 text = "MIL:%s DTCs:%d" % (mil, cnt)
@@ -204,7 +228,7 @@ def _handle_pdu(pdu: bytes):
 
 
 def build(parent, session, log_fn):
-    global _running, _polling, _tx_id, _rx_id, _isotp, _vin
+    global _running, _polling, _tx_id, _rx_id, _isotp, _vin, _sender, _readiness_raw
     _supported.clear()
     _values.clear()
     _history.clear()
@@ -212,6 +236,7 @@ def build(parent, session, log_fn):
     del _dtcs[:]
     _log.clear()
     _vin = ""
+    _readiness_raw = b""
     _polling = False
     _running = True
 
@@ -325,6 +350,8 @@ def build(parent, session, log_fn):
         _pending_kind = (mode, pid)
         _isotp.send(pdu, functional=functional and _tx_id == 0x7DF)
         _lg("TX mode=%02X pid=%02X via ISO-TP" % (mode, pid))
+
+    _sender = _request
 
     def on_frame(frame):
         if not _running:

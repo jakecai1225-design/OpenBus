@@ -43,6 +43,34 @@ SUITE_IDS = (
 )
 
 
+def _repo_plugins_dir():
+    return os.path.abspath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "plugins"))
+
+
+def _ensure_shared(plugins_dir):
+    """Copy plugins/_shared next to installed suites (required import root).
+
+    Domain suites do `from _shared import …`; SIN_PLUGINS_DIR must contain
+    the `_shared` package. Returns True if present after this call.
+    """
+    dest = os.path.join(plugins_dir, "_shared")
+    src = os.path.join(_repo_plugins_dir(), "_shared")
+    if not os.path.isdir(src):
+        return os.path.isdir(dest)
+    try:
+        if os.path.isdir(dest):
+            shutil.rmtree(dest)
+        shutil.copytree(
+            src,
+            dest,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
+        )
+        return True
+    except OSError:
+        return os.path.isdir(dest)
+
+
 def _emit(ok, **kwargs):
     kwargs["ok"] = bool(ok)
     print(json.dumps(kwargs, ensure_ascii=False))
@@ -194,8 +222,10 @@ def cmd_install(args):
         if os.path.exists(dest):
             shutil.rmtree(dest)
         shutil.copytree(extract_root, dest)
+        shared_ok = _ensure_shared(plugins_dir)
         return _emit(True, name=name, path=os.path.abspath(dest),
-                     version=manifest.get("version", ""))
+                     version=manifest.get("version", ""),
+                     shared=shared_ok)
     except (OSError, zipfile.BadZipFile) as e:
         return _emit(False, error=f"install failed: {e}")
     finally:

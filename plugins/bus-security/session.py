@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Callable, Optional
 
 from PyQt6.QtCore import QObject
@@ -26,6 +27,8 @@ class SharedSession(QObject):
         self._stop_handlers: list[Callable[[], None]] = []
         self._frame_listeners: list[Callable] = []
         self._defaults_listeners: list[Callable[[], None]] = []
+        self.findings: list = []
+        self._finding_listeners: list[Callable[[], None]] = []
 
     def set_log_fn(self, fn: Callable) -> None:
         self._log_fn = fn
@@ -81,6 +84,27 @@ class SharedSession(QObject):
             except Exception:
                 pass
         self.log("WARN", "Stop All — all active TX / monitors asked to halt", "WARN")
+
+    def on_finding(self, cb: Callable[[], None]) -> None:
+        self._finding_listeners.append(cb)
+
+    def note_finding(self, level: str, kind: str, text: str) -> None:
+        self.findings.append((time.time(), level, kind, text))
+        if len(self.findings) > 2000:
+            del self.findings[:500]
+        for cb in list(self._finding_listeners):
+            try:
+                cb()
+            except Exception:
+                pass
+
+    def clear_findings(self) -> None:
+        self.findings.clear()
+        for cb in list(self._finding_listeners):
+            try:
+                cb()
+            except Exception:
+                pass
 
     def on_bus_frame(self, cb: Callable) -> None:
         self._frame_listeners.append(cb)

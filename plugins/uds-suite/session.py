@@ -47,10 +47,11 @@ class SharedSession(QObject):
             "RX", self.rx_id, b"\x7F\x00\x78",
             "NRC 0x78 ResponsePending — waiting P2*")
 
+        self.tp_interval_ms = 2000
         self._tp_timer = QTimer(self)
-        self._tp_timer.setInterval(2000)
+        self._tp_timer.setInterval(self.tp_interval_ms)
         self._tp_timer.timeout.connect(self._on_tp_tick)
-        self._tp_timer.start(2000)
+        self._tp_timer.start(self.tp_interval_ms)
 
     def set_log_fn(self, fn: Callable) -> None:
         self._log_fn = fn
@@ -124,7 +125,12 @@ class SharedSession(QObject):
         self.log("TX", cid, pdu, tag)
 
         def _wrap(ok, resp, note):
-            if not ok:
+            if resp and len(resp) >= 3 and resp[0] == 0x7F:
+                from core import NRCS
+                name = NRCS.get(resp[2], "unknown")
+                self.log("ERR", self.rx_id, bytes(resp),
+                         "NRC 0x%02X %s" % (resp[2], name))
+            elif not ok:
                 self.log("ERR", "-", b"", note or "Failed")
             if on_done:
                 on_done(ok, resp, note)
@@ -143,16 +149,76 @@ class SharedSession(QObject):
             if ok and resp and resp[:1] == b"\x50":
                 name = SESSIONS.get(resp[1], "0x%02X" % resp[1])
                 self.set_session_name(name)
+                # ISO 14229 session timing: P2 in ms, P2* in 10 ms units.
+                if len(resp) >= 6:
+                    p2 = int.from_bytes(resp[2:4], "big")
+                    p2s = int.from_bytes(resp[4:6], "big") * 10
+                    if p2 > 0:
+                        self.client.p2_ms = p2
+                    if p2s > 0:
+                        self.client.p2star_ms = p2s
+                    self.log("RX", self.rx_id, bytes(resp),
+                             "%s  P2=%dms P2*=%dms" % (name, self.client.p2_ms,
+                                                       self.client.p2star_ms))
 
         self.request(encode_10(session), on_done=cb, tag="SessionControl 10")
 
+    def set_timing(self, p2_ms: int, p2star_ms: int, tp_ms: int) -> None:
+        self.client.p2_ms = max(50, int(p2_ms))
+        self.client.p2star_ms = max(self.client.p2_ms, int(p2star_ms))
+        self.tp_interval_ms = max(200, int(tp_ms))
+        self._tp_timer.setInterval(self.tp_interval_ms)
+
+    def read_identity(self) -> None:
+        """Workshop one-shot: read the usual identification DIDs (22 F1xx)."""
+        dids = (
+            (0xF186, "Active diagnostic session"),
+            (0xF187, "Spare part number"),
+            (0xF18A, "System supplier"),
+            (0xF18C, "ECU serial"),
+            (0xF190, "VIN"),
+            (0xF191, "ECU hardware"),
+            (0xF195, "ECU software"),
+            (0xF197, "System name"),
+        )
+        from core import encode_22
+
+        pending = list(dids)
+
+        def _next():
+            if not pending:
+                self.log("RX", "-", b"", "Identification read finished")
+                return
+            did, name = pending.pop(0)
+
+            def cb(ok, resp, note):
+                if ok and resp and resp[:1] == b"\x62" and len(resp) > 3:
+                    payload = bytes(resp[3:])
+                    text = payload.decode("ascii", "replace").rstrip("\x00 ")
+                    shown = text if text.isprintable() and text.strip() else payload.hex().upper()
+                    self.log("RX", self.rx_id, bytes(resp),
+                             "22 %04X %s = %s" % (did, name, shown))
+                _next()
+
+            self.request(encode_22(did), on_done=cb, tag="Read %04X %s" % (did, name))
+
+        _next()
+
     def _on_tp_tick(self) -> None:
-        if (self.tester_present and self.isotp._alive
-                and not self.flashing and not self.client.busy):
-            self._apply_ids_to_stack()
+        if not (self.tester_present and self.isotp._alive):
+            return
+        # During download, keep the session with a functional 3E 80 so the
+        # physical P2 slot stays free for 36 blocks (vFlash / TSMaster style).
+        if self.flashing:
             pdu = encode_3e(0x80)
-            self.isotp.send(pdu)
-            self.log("TX", self.tx_id, pdu, "TesterPresent 3E 80 (heartbeat)")
+            self.isotp.send(pdu, functional=True)
+            return
+        if self.client.busy:
+            return
+        self._apply_ids_to_stack()
+        pdu = encode_3e(0x80)
+        self.isotp.send(pdu)
+        self.log("TX", self.tx_id, pdu, "TesterPresent 3E 80 (heartbeat)")
 
     def shutdown(self) -> None:
         self._tp_timer.stop()

@@ -44,6 +44,8 @@ MODE_LABELS = ["const", "inc", "sine", "rand", "ramp"]
 def build(parent, session, log_fn) -> QWidget:
     root = QWidget(parent)
     layout = QVBoxLayout(root)
+    layout.setContentsMargins(16, 12, 16, 12)
+    layout.setSpacing(12)
 
     sims: list = []
     next_due: dict = {}
@@ -71,9 +73,9 @@ def build(parent, session, log_fn) -> QWidget:
     top.addWidget(start_btn)
     top.addWidget(stop_btn)
     layout.addLayout(top)
-    layout.addWidget(plugin_shell.help_label(
-        "Uses the suite DBC strip. Toggle Enable per message. "
-        "Each row has its own cycle. Ctrl+Shift+S saves sim config."))
+    layout.addWidget(QLabel(
+        "Toggle Enable per message. Each row has its own cycle. "
+        "Node filter uses the shared DBC."))
 
     dbc_label = QLabel("No DBC — load from shared strip")
     dbc_label.setStyleSheet("color:#888;font-weight:bold;")

@@ -4,12 +4,12 @@
 from __future__ import annotations
 
 from PyQt6.QtWidgets import (
-    QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox,
+    QCheckBox, QComboBox, QFileDialog, QFormLayout,
     QHBoxLayout, QLabel, QPushButton, QTabWidget, QTextEdit,
     QVBoxLayout, QWidget,
 )
 
-from _shared import plugin_shell, state_store
+from _shared import plugin_shell, state_store, vscode_theme
 from core import codegen, export_matrix
 
 PLUGIN_ID = "dbc-studio"
@@ -18,13 +18,18 @@ PLUGIN_ID = "dbc-studio"
 def build(shell, document, log_fn) -> QWidget:
     root = QWidget()
     layout = QVBoxLayout(root)
+    layout.setContentsMargins(16, 12, 16, 12)
+    layout.setSpacing(12)
     tabs = QTabWidget()
     layout.addWidget(tabs)
 
     matrix = QWidget()
     ml = QVBoxLayout(matrix)
-    opts_box = QGroupBox("Matrix options")
-    of = QFormLayout(opts_box)
+    ml.setContentsMargins(8, 8, 8, 8)
+    opts_card, of_host = vscode_theme.block(
+        "Matrix options", "Export a message/signal matrix for review or tooling.")
+    of = QFormLayout()
+    vscode_theme.tune_form(of)
     fmt = QComboBox()
     fmt.addItems(["CSV", "JSON", "HTML"])
     opt_minmax = QCheckBox("Include min/max")
@@ -38,7 +43,8 @@ def build(shell, document, log_fn) -> QWidget:
     of.addRow(opt_nodes)
     of.addRow(opt_values)
     of.addRow(opt_comment)
-    ml.addWidget(opts_box)
+    of_host.addLayout(of)
+    ml.addWidget(opts_card)
     mrow = QHBoxLayout()
     export_btn = QPushButton("Export matrix…")
     mrow.addStretch()

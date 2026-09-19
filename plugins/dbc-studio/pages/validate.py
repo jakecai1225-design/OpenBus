@@ -11,25 +11,28 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QCheckBox, QFileDialog, QHBoxLayout, QHeaderView, QLabel,
     QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
-    QAbstractItemView, QGroupBox, QScrollArea,
+    QAbstractItemView, QScrollArea, QFrame,
 )
 
-from _shared import plugin_shell
+from _shared import plugin_shell, vscode_theme
 from core import lint_engine
 
 
 def build(shell, document, log_fn) -> QWidget:
     root = QWidget()
     layout = QVBoxLayout(root)
+    layout.setContentsMargins(16, 12, 16, 12)
+    layout.setSpacing(12)
 
     rules = lint_engine.load_rules()
     rule_checks = {}
 
-    rules_box = QGroupBox("Rules")
-    rules_lay = QVBoxLayout(rules_box)
+    rules_card, rules_lay = vscode_theme.block(
+        "Rules", "Toggle lint rules, then Run lint on the open document.")
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
     scroll.setMaximumHeight(140)
+    scroll.setFrameShape(QFrame.Shape.NoFrame)
     inner = QWidget()
     inner_l = QVBoxLayout(inner)
     for rid, cfg in rules.items():
@@ -40,7 +43,7 @@ def build(shell, document, log_fn) -> QWidget:
     inner_l.addStretch()
     scroll.setWidget(inner)
     rules_lay.addWidget(scroll)
-    layout.addWidget(rules_box)
+    layout.addWidget(rules_card)
 
     btns = QHBoxLayout()
     run_btn = QPushButton("Run lint")

@@ -6,12 +6,11 @@ from __future__ import annotations
 import time
 from typing import Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -28,13 +27,14 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import plugin_shell, state_store
+from _shared import plugin_shell, state_store, vscode_theme, codicons
 
 from session import SharedSession
 
 PLUGIN_ID = "protocol-hub"
 
 NAV_PAGES = [
+    ("setup", "Setup"),
     ("nm", "NM"),
     ("isotp", "ISO-TP"),
     ("isobus", "ISOBUS"),
@@ -57,27 +57,29 @@ class AppShell(QMainWindow):
         self._log_buffer: list = []
         self._page_index = {key: i for i, (key, _) in enumerate(NAV_PAGES)}
 
+        vscode_theme.apply(self)
         plugin_shell.attach_status_bar(self, "Ready")
 
         central = QWidget()
         self.setCentralWidget(central)
         root = QHBoxLayout(central)
-        root.setContentsMargins(4, 4, 4, 4)
-        root.setSpacing(4)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
         self.nav = QListWidget()
-        self.nav.setFixedWidth(130)
+        self.nav.setObjectName("SuiteNav")
+        self.nav.setIconSize(QSize(16, 16))
+        self.nav.setFixedWidth(148)
         self.nav.setSpacing(2)
-        font = QFont()
-        font.setPointSize(11)
-        self.nav.setFont(font)
         for key, title in NAV_PAGES:
             item = QListWidgetItem(title)
             item.setData(Qt.ItemDataRole.UserRole, key)
+            codicons.set_nav_item(item, key, vscode_theme.TEXT)
             self.nav.addItem(item)
         root.addWidget(self.nav)
 
         right = QWidget()
+        right.setObjectName("SuiteContent")
         right_l = QVBoxLayout(right)
         right_l.setContentsMargins(0, 0, 0, 0)
         right_l.setSpacing(4)
@@ -97,11 +99,12 @@ class AppShell(QMainWindow):
         self.session.set_log_fn(self._log_row)
 
         from pages import (
-            gbt27930, isobus, isotp, log_page, nm, nmea2000, xcp,
+            gbt27930, isobus, isotp, log_page, nm, nmea2000, setup, xcp,
         )
 
         self._pages = {}
         builders = [
+            ("setup", setup.build),
             ("nm", nm.build),
             ("isotp", isotp.build),
             ("isobus", isobus.build),
@@ -136,8 +139,11 @@ class AppShell(QMainWindow):
             "Protocol Hub ready — NM / ISO-TP / ISOBUS / NMEA2000 / GBT27930 / XCP / Log")
 
     def _build_session_strip(self) -> QWidget:
-        bar = QGroupBox("Session")
+        bar = QWidget()
+        bar.setObjectName("SuiteToolbar")
         row = QHBoxLayout(bar)
+        row.setContentsMargins(12, 6, 12, 6)
+        row.setSpacing(8)
 
         row.addWidget(QLabel("Channel filter hint:"))
         self.hint_edit = QLineEdit()
@@ -161,8 +167,14 @@ class AppShell(QMainWindow):
         return bar
 
     def _build_log_panel(self) -> QWidget:
-        group = QGroupBox("Activity log")
+        group = QWidget()
+        group.setObjectName("SuiteLogHost")
         v = QVBoxLayout(group)
+        v.setContentsMargins(8, 6, 8, 8)
+        v.setSpacing(6)
+        _log_title = QLabel("OUTPUT")
+        _log_title.setObjectName("SuiteToolbarTitle")
+        v.addWidget(_log_title)
 
         self.log_table = QTableWidget(0, 5)
         self.log_table.setHorizontalHeaderLabels(

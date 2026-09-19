@@ -5,16 +5,15 @@ from __future__ import annotations
 
 import os
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QFileDialog,
     QFormLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -32,33 +31,30 @@ PLUGIN_ID = "uds-suite"
 
 
 def build(parent, session, log_fn) -> QWidget:
+    from _shared import vscode_theme, codicons
+
     root = QWidget(parent)
     layout = QVBoxLayout(root)
+    layout.setContentsMargins(16, 12, 16, 12)
+    layout.setSpacing(14)
 
-    layout.addWidget(plugin_shell.help_label(
-        "Save ECU connection profiles (TX/RX/Func IDs, notes, DID catalog path) "
-        "and manage sequence files for Batch. Apply writes IDs into the shared strip."))
+    cols = QHBoxLayout()
+    cols.setSpacing(8)
 
-    # ---- Profile editor ----
-    box = QGroupBox("ECU profile")
-    form = QFormLayout(box)
+    box, box_body = vscode_theme.block(
+        "ECU profile",
+        "Name, TX / Func / RX, notes. Apply writes these IDs into the shared connection.",
+    )
+    form_host = QWidget()
+    form = QFormLayout(form_host)
+    vscode_theme.tune_form(form)
+    form.setContentsMargins(0, 0, 0, 0)
 
     name_edit = QLineEdit("Default ECU")
-    tx_spin = QSpinBox()
-    tx_spin.setRange(1, 0x7FF)
-    tx_spin.setDisplayIntegerBase(16)
-    tx_spin.setPrefix("0x")
-    tx_spin.setValue(session.tx_id)
-    func_spin = QSpinBox()
-    func_spin.setRange(1, 0x7FF)
-    func_spin.setDisplayIntegerBase(16)
-    func_spin.setPrefix("0x")
-    func_spin.setValue(session.func_id)
-    rx_spin = QSpinBox()
-    rx_spin.setRange(1, 0x7FF)
-    rx_spin.setDisplayIntegerBase(16)
-    rx_spin.setPrefix("0x")
-    rx_spin.setValue(session.rx_id)
+    from widgets.step_spin import StepSpin
+    tx_spin = StepSpin(session.tx_id, minimum=1, maximum=0x7FF, hex_mode=True, width=110)
+    func_spin = StepSpin(session.func_id, minimum=1, maximum=0x7FF, hex_mode=True, width=110)
+    rx_spin = StepSpin(session.rx_id, minimum=1, maximum=0x7FF, hex_mode=True, width=110)
     did_edit = QLineEdit()
     did_edit.setPlaceholderText("Optional DID catalog path")
     notes_edit = QTextEdit()
@@ -70,36 +66,65 @@ def build(parent, session, log_fn) -> QWidget:
     form.addRow("Func ID:", func_spin)
     form.addRow("RX ID:", rx_spin)
     form.addRow("DID catalog:", did_edit)
-    form.addRow("Notes:", notes_edit)
-    layout.addWidget(box)
+    form.addRow("Notes", notes_edit)
+    box_body.addWidget(form_host)
 
     btn_row = QHBoxLayout()
-    load_btn = QPushButton("Load profile…")
-    save_btn = QPushButton("Save profile…")
-    apply_btn = QPushButton("Apply to connection")
-    sync_btn = QPushButton("Sync from connection")
-    for w in (load_btn, save_btn, apply_btn, sync_btn):
+    btn_row.setSpacing(8)
+    load_btn = QPushButton("Load")
+    save_btn = QPushButton("Save")
+    apply_btn = QPushButton("Apply")
+    apply_btn.setObjectName("PrimaryButton")
+    sync_btn = QPushButton("Sync")
+    for w, ic, primary in (
+        (load_btn, "load", False),
+        (save_btn, "save", False),
+        (apply_btn, "apply", True),
+        (sync_btn, "sync", False),
+    ):
+        w.setFixedHeight(28)
+        w.setToolTip({
+            load_btn: "Load a profile file",
+            save_btn: "Save this profile",
+            apply_btn: "Write these IDs into the shared connection",
+            sync_btn: "Copy IDs from the shared connection",
+        }[w])
+        codicons.set_button(w, ic, primary=primary)
         btn_row.addWidget(w)
     btn_row.addStretch()
-    layout.addLayout(btn_row)
+    box_body.addLayout(btn_row)
+    cols.addWidget(box, 1)
 
-    # ---- Sequence files ----
-    seq_box = QGroupBox("Sequence files")
-    seq_l = QVBoxLayout(seq_box)
+    seq_card, seq_body = vscode_theme.block(
+        "Sequence file",
+        "Preview a JSON or CSV sequence. Run it from the Batch page.",
+    )
     seq_path = QLineEdit()
-    seq_path.setPlaceholderText("Path to JSON/CSV sequence")
+    seq_path.setPlaceholderText("Path to JSON or CSV sequence")
     seq_row = QHBoxLayout()
-    seq_browse = QPushButton("Browse…")
+    seq_row.setSpacing(8)
+    seq_browse = QPushButton("Browse")
+    seq_browse.setFixedSize(96, 28)
+    codicons.set_button(seq_browse, "browse")
     seq_preview = QPushButton("Preview")
-    seq_to_batch = QPushButton("Note: open Batch to run")
+    seq_preview.setFixedSize(96, 28)
+    codicons.set_button(seq_preview, "search")
+    seq_to_batch = QPushButton("Open Batch to run")
     seq_to_batch.setEnabled(False)
+    seq_to_batch.setFixedHeight(28)
+    codicons.set_button(seq_to_batch, "batch")
     seq_row.addWidget(seq_path, 1)
     seq_row.addWidget(seq_browse)
     seq_row.addWidget(seq_preview)
-    seq_l.addLayout(seq_row)
+    seq_body.addLayout(seq_row)
     seq_info = QLabel("No sequence loaded")
-    seq_l.addWidget(seq_info)
-    layout.addWidget(seq_box)
+    seq_info.setObjectName("SuiteHint")
+    seq_info.setWordWrap(True)
+    seq_body.addWidget(seq_info)
+    seq_body.addWidget(seq_to_batch, 0, Qt.AlignmentFlag.AlignLeft)
+    seq_body.addStretch(1)
+    cols.addWidget(seq_card, 1)
+    layout.addLayout(cols)
     layout.addStretch()
 
     def _plog(text):

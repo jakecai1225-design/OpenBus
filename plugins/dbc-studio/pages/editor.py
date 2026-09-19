@@ -8,7 +8,6 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFormLayout,
-    QGroupBox,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -23,7 +22,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import dbcparse, plugin_shell
+from _shared import dbcparse, plugin_shell, vscode_theme
+
+from .bit_layout import BitLayout, _Draft
 
 
 def _parse_value_table(text: str) -> dict:
@@ -49,11 +50,8 @@ def _fmt_value_table(vt: dict) -> str:
 def build(shell, document, log_fn) -> QWidget:
     root = QWidget(shell)
     layout = QVBoxLayout(root)
-    layout.setContentsMargins(4, 4, 4, 4)
-
-    layout.addWidget(plugin_shell.help_label(
-        "Browse Network / Nodes / Messages / Signals. Edit properties and Apply. "
-        "Add or Delete messages and signals. Save writes UTF-8 .dbc via serialize."))
+    layout.setContentsMargins(16, 12, 16, 12)
+    layout.setSpacing(12)
 
     toolbar = QHBoxLayout()
     add_msg_btn = QPushButton("Add Message")
@@ -72,20 +70,25 @@ def build(shell, document, log_fn) -> QWidget:
     tree.setMinimumWidth(320)
     splitter.addWidget(tree)
 
-    prop_box = QGroupBox("Properties")
-    prop_layout = QVBoxLayout(prop_box)
+    prop_card, prop_layout = vscode_theme.block(
+        "Properties",
+        "Select a message or signal, edit fields, then Apply.")
     form = QFormLayout()
+    vscode_theme.tune_form(form)
     prop_layout.addLayout(form)
 
     hint = QLabel("Select a message or signal to edit.")
-    hint.setStyleSheet("color:#78909c;")
+    hint.setObjectName("SuiteHint")
     prop_layout.addWidget(hint)
+
+    bit_view = BitLayout()
+    prop_layout.addWidget(bit_view)
 
     apply_btn = QPushButton("Apply")
     apply_btn.setEnabled(False)
     prop_layout.addWidget(apply_btn)
     prop_layout.addStretch()
-    splitter.addWidget(prop_box)
+    splitter.addWidget(prop_card)
     splitter.setSizes([420, 520])
     layout.addWidget(splitter, 1)
 
@@ -96,6 +99,7 @@ def build(shell, document, log_fn) -> QWidget:
             form.removeRow(0)
         state["widgets"] = {}
         apply_btn.setEnabled(False)
+        bit_view.clear()
         hint.show()
 
     def _add_line(key, label, value=""):
@@ -142,7 +146,17 @@ def build(shell, document, log_fn) -> QWidget:
         _add_line("sender", "Sender", msg.sender or "")
         _add_spin("cycle_time", "Cycle time (ms)", msg.cycle_time, 0, 65535)
         _add_line("comment", "Comment", msg.comment or "")
+        bit_view.set_message(msg, None)
         apply_btn.setEnabled(True)
+
+    def _preview_signal(msg, name):
+        w = state["widgets"]
+        if "start_bit" not in w:
+            bit_view.set_message(msg, name)
+            return
+        endian = w["endian"].currentText().startswith("Intel")
+        draft = _Draft(name, w["start_bit"].value(), w["bit_length"].value(), endian)
+        bit_view.set_message(msg, name, draft)
 
     def _fill_signal(msg, sig):
         _clear_form()
@@ -166,6 +180,12 @@ def build(shell, document, log_fn) -> QWidget:
         _add_line("comment", "Comment", sig.comment or "")
         _add_line("value_table", "Value table", _fmt_value_table(sig.value_table))
         state["widgets"]["value_table"].setPlaceholderText("0=Off;1=On")
+        for key in ("start_bit", "bit_length"):
+            state["widgets"][key].valueChanged.connect(
+                lambda _v, m=msg, n=sig.name: _preview_signal(m, n))
+        state["widgets"]["endian"].currentIndexChanged.connect(
+            lambda _i, m=msg, n=sig.name: _preview_signal(m, n))
+        _preview_signal(msg, sig.name)
         apply_btn.setEnabled(True)
 
     def _rebuild_tree(select_can_id=None, select_signal=None):

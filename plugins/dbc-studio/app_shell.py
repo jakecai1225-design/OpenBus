@@ -7,13 +7,12 @@ import os
 import time
 from typing import Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QFileDialog,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -30,7 +29,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import dbc_picker, plugin_shell, state_store
+from _shared import dbc_picker, plugin_shell, state_store, vscode_theme, codicons
 
 from document import DbcDocument
 
@@ -62,27 +61,29 @@ class AppShell(QMainWindow):
         self._pages = {}
         self._editor_api = None
 
+        vscode_theme.apply(self)
         plugin_shell.attach_status_bar(self, "Ready")
 
         central = QWidget()
         self.setCentralWidget(central)
         root = QHBoxLayout(central)
-        root.setContentsMargins(4, 4, 4, 4)
-        root.setSpacing(4)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
         self.nav = QListWidget()
-        self.nav.setFixedWidth(140)
+        self.nav.setObjectName("SuiteNav")
+        self.nav.setIconSize(QSize(16, 16))
+        self.nav.setFixedWidth(148)
         self.nav.setSpacing(2)
-        font = QFont()
-        font.setPointSize(11)
-        self.nav.setFont(font)
         for key, title in NAV_PAGES:
             item = QListWidgetItem(title)
             item.setData(Qt.ItemDataRole.UserRole, key)
+            codicons.set_nav_item(item, key, vscode_theme.TEXT)
             self.nav.addItem(item)
         root.addWidget(self.nav)
 
         right = QWidget()
+        right.setObjectName("SuiteContent")
         right_l = QVBoxLayout(right)
         right_l.setContentsMargins(0, 0, 0, 0)
         right_l.setSpacing(4)
@@ -141,8 +142,14 @@ class AppShell(QMainWindow):
 
     # ------------------------------------------------------------------
     def _build_document_strip(self) -> QWidget:
-        bar = QGroupBox("Document")
+        bar = QWidget()
+        bar.setObjectName("SuiteToolbar")
         row = QHBoxLayout(bar)
+        row.setContentsMargins(12, 6, 12, 6)
+        row.setSpacing(8)
+        _t = QLabel("DOCUMENT")
+        _t.setObjectName("SuiteToolbarTitle")
+        row.addWidget(_t)
 
         self.path_label = QLabel("(unsaved)")
         self.path_label.setStyleSheet("font-weight:bold;")
@@ -168,8 +175,14 @@ class AppShell(QMainWindow):
         return bar
 
     def _build_log_panel(self) -> QWidget:
-        group = QGroupBox("Activity log")
+        group = QWidget()
+        group.setObjectName("SuiteLogHost")
         v = QVBoxLayout(group)
+        v.setContentsMargins(8, 6, 8, 8)
+        v.setSpacing(6)
+        _log_title = QLabel("OUTPUT")
+        _log_title.setObjectName("SuiteToolbarTitle")
+        v.addWidget(_log_title)
 
         self.log_table = QTableWidget(0, 3)
         self.log_table.setHorizontalHeaderLabels(["Time", "Source", "Message"])

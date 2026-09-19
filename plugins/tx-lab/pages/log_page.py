@@ -23,7 +23,7 @@ def build(parent, session, log_fn) -> QWidget:
         "All workspaces append here. Use Pause / Export CSV / Clear on the log strip."))
 
     layout.addWidget(QLabel(
-        "Tip: Ctrl+1…4 switches workspaces. Shared DBC and Start/Stop all TX "
+        "Tip: Ctrl+1…5 switches workspaces. Shared DBC and Start/Stop all TX "
         "apply suite-wide."))
 
     btn_row = QHBoxLayout()
