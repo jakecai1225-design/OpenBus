@@ -327,6 +327,19 @@ def handle_message(msg):
         execute_command(params)
     elif method == "fileOpened":
         handle_file_opened(params)
+    elif method == "ai.attach":
+        try:
+            from _shared import ai_attach
+            ai_attach.attach_from_host_params(params)
+            # Ensure AI Agent window is available
+            if "ai-agent" not in _plugins:
+                # Soft open: command may activate if registered later
+                pass
+            execute_command({"id": "aiAgent.open"})
+            log_info("ai.attach: %d attachment(s)" % len(
+                params.get("attachments") or ([params] if params.get("kind") else [])))
+        except Exception:
+            log_error(f"ai.attach failed:\n{traceback.format_exc()}")
     elif method and method.startswith("files.convert"):
         try:
             from sin import files as _files_api

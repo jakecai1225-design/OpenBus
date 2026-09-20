@@ -738,6 +738,12 @@ void PluginManager::handleHostMessage(const QString &method,
         // SDK sin.commands.execute()：转发到命令分发（激活监听插件 + 执行）
         onCommandExecuted(params.value("id").toString());
     }
+    else if (method == "ai.attach") {
+        // Plugin → host: forward into Python Context Inbox (and open AI)
+        attachToAi(params);
+        if (!id.isUndefined() && m_host)
+            m_host->sendResponse(id, QJsonObject{{"ok", true}});
+    }
     else {
         spdlog::warn("PluginManager: 未知方法 '{}'", method.toStdString());
         // 请求式未知方法回 JSON-RPC error（方案 §4.5：methodNotFound），
@@ -746,6 +752,38 @@ void PluginManager::handleHostMessage(const QString &method,
             m_host->sendErrorResponse(id, -32601,
                                       QStringLiteral("method not found: %1").arg(method));
     }
+}
+
+void PluginManager::attachFramesToAi(const QList<CanFrame> &frames, const QString &title)
+{
+    QJsonArray arr;
+    for (const auto &f : frames)
+        arr.append(frameToJson(f));
+    QJsonObject att{
+        {QStringLiteral("kind"), QStringLiteral("trace_frames")},
+        {QStringLiteral("title"), title.isEmpty()
+             ? QStringLiteral("Trace ×%1").arg(frames.size())
+             : title},
+        {QStringLiteral("frames"), arr},
+    };
+    QJsonObject params{{QStringLiteral("attachments"), QJsonArray{att}}};
+    attachToAi(params);
+}
+
+void PluginManager::attachToAi(const QJsonObject &params)
+{
+    if (!m_host)
+        return;
+    // Activate AI agent so the inbox listener is alive
+    if (!m_activatedPlugins.contains(QStringLiteral("ai-agent"))) {
+        if (m_plugins.contains(QStringLiteral("ai-agent")))
+            activatePlugin(QStringLiteral("ai-agent"));
+    } else {
+        m_host->sendNotification(QStringLiteral("executeCommand"),
+                                 QJsonObject{{QStringLiteral("id"),
+                                              QStringLiteral("aiAgent.open")}});
+    }
+    m_host->sendNotification(QStringLiteral("ai.attach"), params);
 }
 
 void PluginManager::provideSelectedFrames(const QJsonValue &requestId, const QList<CanFrame> &frames)

@@ -129,6 +129,7 @@ def build(parent, session, log_fn) -> QWidget:
     apply_od.setToolTip("Copy this draft into the live object dictionary")
     save_btn = _ghost("Save", "Overwrite the loaded EDS")
     save_as = _ghost("Save As", "Write an EDS file")
+    ai_btn = _ghost("Add to AI Chat", "Attach this EDS summary to the AI Agent")
     tools.addWidget(filt)
     tools.addWidget(add_obj)
     tools.addWidget(add_sub)
@@ -137,6 +138,7 @@ def build(parent, session, log_fn) -> QWidget:
     tools.addWidget(apply_od)
     tools.addWidget(save_btn)
     tools.addWidget(save_as)
+    tools.addWidget(ai_btn)
     dlay.addWidget(tools_host)
 
     split = QSplitter(Qt.Orientation.Horizontal)
@@ -536,6 +538,32 @@ def build(parent, session, log_fn) -> QWidget:
         log_fn("RX", "-", b"", "EDS draft applied (%d objects)" % len(session.od_entries))
         plugin_shell.set_status(parent, "Draft applied to object dictionary", 3000)
 
+    def _attach_ai():
+        entries = session.draft_entries or session.od_entries
+        summary = {
+            "object_count": len(entries),
+            "node_id": session.node_id,
+            "path": session.eds_path or "",
+            "file_info": dict(session.eds_file_info or {}),
+            "device_info": dict(session.eds_device_info or {}),
+        }
+        path = session.eds_path or ""
+        try:
+            import sin
+            sin.ai.attach_eds(
+                path, summary=summary,
+                title=os.path.basename(path) or "EDS")
+            plugin_shell.set_status(parent, "EDS attached to AI Chat", 3000)
+        except Exception as exc:
+            try:
+                from _shared import ai_attach
+                ai_attach.attach_eds(path, summary=summary)
+                plugin_shell.set_status(parent, "EDS attached to AI inbox", 3000)
+            except Exception:
+                QMessageBox.information(
+                    parent, "AI Agent",
+                    "Could not attach EDS (%s). Is AI Agent available?" % exc)
+
     def _check():
         grid.setRowCount(0)
         for finding in validate_eds(session.draft_entries):
@@ -564,6 +592,7 @@ def build(parent, session, log_fn) -> QWidget:
     apply_od.clicked.connect(_apply_od)
     save_btn.clicked.connect(_save)
     save_as.clicked.connect(_save_as)
+    ai_btn.clicked.connect(_attach_ai)
     filt.textChanged.connect(lambda _t: _rebuild())
     run_check.clicked.connect(_check)
     bar.currentChanged.connect(_on_tab)

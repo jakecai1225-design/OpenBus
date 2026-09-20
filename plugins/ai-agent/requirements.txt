@@ -1,0 +1,15 @@
+# AI Agent runtime notes (MSYS2 UCRT64).
+#
+# Bridge: Python stdlib HTTP (no fastapi).
+# Chat UI: prebuilt webui/dist (assistant-ui). Rebuild with MSYS2 node:
+#   cd plugins/ai-agent/webui && npm install && npm run build
+#
+# Orchestration: local Orchestrator by default.
+# Optional Agents SDK (when wheels exist for your Python ABI):
+#   /ucrt64/bin/python -m pip install --break-system-packages openai-agents
+#
+# Path B (in-window): Microsoft Edge --app embedded into the Qt window.
+# Path A (fallback): system browser via QDesktopServices.openUrl.
+# WebView2 Evergreen / Edge: https://developer.microsoft.com/microsoft-edge/webview2/
+#
+# Tauri web-plugin host: deferred (see plan appendix).

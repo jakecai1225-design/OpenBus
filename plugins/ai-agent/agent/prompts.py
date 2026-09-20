@@ -14,7 +14,8 @@ If a tool returns an error or empty data, say so.
 Keep the final answer short: ranking, evidence, next check.
 Write tools (frames_send, uds_read_did, obd_read_pid) only appear when the user
 enabled /allow-tx (or higher). They still require human approval.
-Prefer tx_build_cyclic / uds_build_sequence to create artifacts without sending."""
+Prefer tx_build_cyclic / uds_build_sequence to create artifacts without sending.
+Capability Bus tools are named cap.<id> when a domain suite is active."""
 
 _ROLE_EXTRA = {
     "Analyst": "Focus on trace statistics, top talkers, and decode hints.",
@@ -28,10 +29,14 @@ _ROLE_EXTRA = {
 }
 
 
-def system_prompt(role: str, policy_level: str = "readonly") -> str:
+def system_prompt(role: str, policy_level: str = "readonly",
+                  activity_block: str = "") -> str:
     extra = _ROLE_EXTRA.get(role, _ROLE_EXTRA["Analyst"])
-    return (
+    text = (
         _BASE
         + "\n\nRole: " + role + ". " + extra
         + "\nCurrent policy level: " + policy_level + "."
     )
+    if activity_block:
+        text += "\n\n" + activity_block.strip()
+    return text

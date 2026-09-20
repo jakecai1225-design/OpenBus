@@ -461,6 +461,8 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
     menu.addAction(&copyDataAction);
     menu.addSeparator();
     menu.addAction(&addToGraphicAction);
+    QAction addToAiAction(QStringLiteral("Add to AI Chat"), this);
+    menu.addAction(&addToAiAction);
     menu.addAction(&clearFilterAction);
 
     // ---- Wireshark 风格 Apply as Filter ----
@@ -742,6 +744,7 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
     copyAction.setEnabled(index.isValid());
     copyDataAction.setEnabled(index.isValid());
     addToGraphicAction.setEnabled(index.isValid());
+    addToAiAction.setEnabled(!selectedSourceRows().isEmpty());
     clearFilterAction.setEnabled(true);
 
     QAction *selected = menu.exec(event->globalPos());
@@ -771,6 +774,19 @@ void TraceView::contextMenuEvent(QContextMenuEvent *event)
         const CanFrame *frame = selectedFrame();
         if (frame)
             emit frameAddToGraphic(*frame);
+    } else if (selected == &addToAiAction) {
+        auto *source = traceSource();
+        if (!source)
+            return;
+        QVector<CanFrame> frames;
+        const QList<int> srcRows = selectedSourceRows();
+        frames.reserve(srcRows.size());
+        for (int row : srcRows) {
+            if (row >= 0 && row < source->rowCount())
+                frames.append(source->frameAt(row));
+        }
+        if (!frames.isEmpty())
+            emit framesAddToAi(frames);
     } else if (selected == &clearFilterAction) {
         emit clearFilterRequested();
     } else if (selected == &clearAction) {

@@ -114,6 +114,10 @@ signals:
     void requestRecentFrames(const QJsonValue &requestId, int count);
 
 public:
+    /// Attach Trace frames (or generic JSON attachments) to the AI Agent chat.
+    void attachToAi(const QJsonObject &params);
+    void attachFramesToAi(const QList<CanFrame> &frames, const QString &title = QString());
+
     /// MainWindow 调用：提供选中帧数据回复 Python 宿主
     void provideSelectedFrames(const QJsonValue &requestId, const QList<CanFrame> &frames);
 

@@ -1,11 +1,30 @@
 # openbus AI Agent 插件 — 设计思路、功能特性与实现路径
 
-> 文档状态：Phase 1 MVP 已落地（2026-09-18），见 `plugins/ai-agent/`  
-> **平台级 AI-Native 总方案（生命周期 / Capability Bus / 一切可投喂 / 多 Agent 选型 / 隔离）见 [`ai.md`](ai.md)**  
-> 编排原则：不自研多 Agent 内核；采用 OpenAI Agents SDK（handoff / as_tool），长 HITL 图可叠加 LangGraph — 详见 ai.md §8。  
+> 文档状态：Phase 1–2 已落地（见 `plugins/ai-agent/`）；向 **AI Native** 演进中  
+> **产品总纲（AI Native 定义 / 外挂对照 / 最小改动架构 / 工业约束）见 [`ai.md`](ai.md)**  
+> **实施勾选见 [`ai_implementation_plan.md`](ai_implementation_plan.md)**  
+> 编排原则：不自研多 Agent 内核；采用 OpenAI Agents SDK（handoff / as_tool），长 HITL 图可叠加 LangGraph — 详见 ai.md。  
+> 本插件角色：平台 **AI 工作台 + 编排引擎**（对标 Cursor 的聊天/配置/轨迹界面），挂在 **AI Native** 底座上；不是「可有可无的侧栏」，也不是与架构脱节的外挂问答。  
+> 全软件右键 Add to Chat / Ask **汇入本窗**；长对话与 Provider/Policy/MCP 等配置集中在此。须经 Capability Bus 操作总线对象，结论须可审计。  
 > 目标产物：重磅级 Python 插件 `plugins/ai-agent/`（id：`ai-agent`）  
-> 对标定位：一流 AI Agent 的「工具编排 + 人机审批」能力 × 汽车总线诊断场景  
-> 闭环目标：**自然语言需求 → 调用主进程 / 插件能力 → 观测总线 → 验证 → 报告**
+> 闭环目标：**活动上下文 + 投喂 + 知识库 → 调用能力 → 验证 → 带证据的报告；纠错与采纳沉淀，越用越懂本工程/用户**
+
+---
+
+## 0. 工作台产品边界（与 ai.md §0.4 / §0.5 对齐）
+
+| 在本插件内完成 | 不在本插件内重复造 |
+|----------------|-------------------|
+| Chat、流式、停止、多会话 | Trace/套件专业编辑 UI |
+| 附件芯片、`@`、上下文预算 | 采集热路径 |
+| **自动注入 Activity Snapshot** | — |
+| Provider / 模型 / API Key / 代理 | 各套件业务表单 |
+| Policy、HITL、Tool Trace | — |
+| Roles、Plan、报告导出、审计查看 | — |
+| Settings；**Knowledge 浏览/删除/导出** | — |
+| 「记住这次」「纠正并沉淀」 | — |
+
+全软件其它表面只保留轻量入口，把上下文送到本工作台；知识与偏好在本工作台可管。
 
 ---
 
@@ -99,7 +118,7 @@ P0 插件升级见 [Plugin_P0_Competitive_Upgrade.md](Plugin_P0_Competitive_Upgr
 
 | 特性 | 说明 |
 |------|------|
-| Chat 工作台 | 独立 `sin.ui` 窗口：消息流、工具轨迹折叠、一键复制报告 |
+| Chat 工作台 | **Windows A+B**：插件 Qt 窗内嵌 Edge `--app`（B）或「Open in browser」（A）；共用 localhost bridge + `webui/dist`；不引入 Qt WebEngine。编排优先 openai-agents，不可用时 Orchestrator。Tauri 宿主路径延后。 |
 | 系统提示可切换 | 角色：`Analyst` / `Diagnostics` / `TestEngineer` / `SafetyOfficer` |
 | 计划模式 | 先输出 Plan（只读），用户点「执行」再进入 tool-loop |
 | 多轮记忆 | 会话内摘要 + 关键上下文（当前 DBC、通道、最近告警） |

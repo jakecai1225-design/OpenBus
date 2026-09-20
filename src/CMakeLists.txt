@@ -927,7 +927,12 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/sdk")
                 "$<TARGET_FILE_DIR:openbus>/sdk"
         COMMAND ${CMAKE_COMMAND} -E make_directory
                 "$<TARGET_FILE_DIR:openbus>/scripts"
-        COMMENT "Copying plugin host materials (sdk + scripts) to output directory"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:openbus>/plugins"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/plugins/_shared"
+                "$<TARGET_FILE_DIR:openbus>/plugins/_shared"
+        COMMENT "Copying plugin host materials (sdk + scripts + _shared) to output directory"
     )
     if(_openbus_host_scripts)
         add_custom_command(TARGET openbus POST_BUILD

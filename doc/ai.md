@@ -1,662 +1,455 @@
-# openbus AI-Native 平台方案
+# openbus — AI Native 总线工作台方案
 
-> 文档：`doc/ai.md`  
-> 定位：全生命周期、全场景的 **AI-Native 产品架构**（平台层）  
-> 配套：Agent 插件实现细节见 [`aiagent.md`](aiagent.md)；插件传输契约见 [`插件方案.md`](插件方案.md)；领域套件策略见 [`Plugin_Domain_Suites.md`](Plugin_Domain_Suites.md)  
-> 现状锚点：`plugins/ai-agent` v0.2.0（自研 ReAct tool-loop + Policy/HITL + `sin.*` 读/有限写）  
-> 原则：**不重复造轮子** — 编排层采用业界成熟开源 Agent 框架；openbus 只做总线领域能力、策略与「一切可投喂」上下文。  
-> 日期：2026-09-20（增补：Context Attach / 多 Agent 选型）
+> 文档：`doc/ai.md`（产品定位 + 平台架构总纲）  
+> 配套：Agent 插件细节 [`aiagent.md`](aiagent.md) · 实施勾选 [`ai_implementation_plan.md`](ai_implementation_plan.md) · 传输 [`插件方案.md`](插件方案.md) · 领域套件 [`Plugin_Domain_Suites.md`](Plugin_Domain_Suites.md)  
+> 日期：2026-09-20  
+> **工程约束（硬）**：最小化改动主进程与插件框架；AI 推理**永不阻塞**采集热路径；AI 是协作者不是黑盒决策者。
 
 ---
 
-## 0. 一句话目标
+## 0. 产品定位一句话
 
-把 openbus 从「带 AI 聊天窗的总线 IDE」升级为 **AI-Native 总线工作台**：
+**openbus 是 AI Native 的工业总线分析工作台**（对标 CANoe 级采集 / 解析 / 诊断能力）。
 
-- **AI 能用全软件**：主进程能力 + 全部领域套件，都以可发现、可鉴权、可审计的工具/资源暴露给 Agent。  
-- **AI 能赋能全软件**：每个套件、Trace、市场、工程生命周期都有「Ask / Add to Chat / Explain / Fix / Generate」入口。  
-- **一切可投喂**：文件、目录、Log、Trace 行、DBC 信号、EDS 对象、OUTPUT 行等，均可右键 **Add to AI Chat**，变成可引用、可撤销的上下文芯片（对标 Cursor `@` / Add to Chat）。  
-- **编排不自研**：任务分解与多智能体协作采用成熟开源框架；我们只接 Capability Bus、Policy 与领域专家 Agent。  
-- **隔离但不割裂**：AI 与领域插件逻辑隔离、权限隔离、失败隔离；通过统一 **Capability Bus** 协作。
+- **架构层**：数据流、Capability Bus、Context Pool、**活动上下文**、**知识沉淀**、任务编排从底层按 AI 设计。  
+- **交互层**：完善的 AI 插件工作台（对标 Cursor）承载聊天与配置。  
+- **成长层**：始终知道用户在干啥；专业与个人经验沉淀 → **越用越聪明、越用越懂用户**。
+
+二者（+成长）同时成立：
+
+> **底层 Native，表层有一等公民工作台，知识与习惯越用越厚。**  
+> 拒绝「主体零改造 + 孤立侧栏」；**必须做好**工作台体验与可管可控的知识库。
+
+### 0.1 一句话判断标准
+
+| | 外挂 AI（拒绝） | AI Native + 一等公民工作台（我们要的） |
+|--|----------------|----------------------------------------|
+| 架构 | 主体不变，能力进不了数据对象 | Context Pool / Bus / 旁路洞察原生存在 |
+| 能力 | AI 不能操纵内部对象 | AI 经 Bus 读写总线数据、视图、工程资源（经策略） |
+| 工作流 | 人点菜单，偶发问 AI | 声明式目标 + 人机协同；投喂/选区自动进上下文 |
+| **交互面** | 简陋侧栏、无配置深度 | **`ai-agent` = Cursor 级工作台**（见 §0.4） |
+| openbus 现状 | 有窗但能力偏薄 | 目标：Native 底座 + 工作台体验一并做强 |
+
+### 0.2 工业车载硬约束（不可照搬消费级）
+
+1. **AI = 协作者**，不是自动决策者；结论必须带**置信度 + 证据溯源**；低置信度降级人工。  
+2. **领域边界不变**：硬件/协议插件、领域套件、**AI 推理/工作台插件**三类解耦。  
+3. **性能红线**：CAN FD 等实时采集路径**禁止**被推理阻塞；AI 只跑异步/旁路线程。  
+4. **一键回退**：可关闭 AI 层，回到纯传统 Trace / 套件视图。  
+5. **可审计可复现**：输入、prompt、工具轨迹、模型输出、置信度落盘。
+
+### 0.3 最小改动原则（怎么变成 Native 而不大拆）
+
+不重写 `PluginManager` / ZMQ / 套件壳。在**现有插件化骨架上叠加四条薄带**：
+
+| 薄带 | 作用 | 落点（尽量不碰热路径） |
+|------|------|------------------------|
+| **Context Pool** | 统一「可被 AI 看见的」工程/总线上下文 | `_shared/ai_attach` + 旁路订阅帧摘要 |
+| **Activity + Knowledge** | 知道用户在干啥；专业/个人经验沉淀 | 旁路活动事件 + 本机/工程知识层 |
+| **Capability Bus** | AI 与套件互调的唯一契约 | `_shared/capability_bus` |
+| **AI 工作台 + 推理插件** | Cursor 级聊天/配置 + 可替换模型 | **`ai-agent`** + 未来 `ai-*` |
+| **Experience Hooks** | Add to Chat / Ask / 证据 / 记住 | Trace/套件 → 汇入工作台 |
+
+主进程只增加必要通知/查询；采集 PUB 副本给 AI，不插入发送环。
+
+### 0.4 AI 工作台（`ai-agent`）— 对标 Cursor 的交互与配置
+
+架构 Native **不取消**独立 AI 窗口；相反，**`ai-agent` 必须做成产品级 Agent 工作台**，承担几乎全部「人对 AI 说话 / 配模型 / 看轨迹」的体验。全软件其它表面（Trace、套件）通过 **Add to Chat / Ask** 把上下文**送进这座工作台**，而不是每页自建一套聊天。
+
+| 模块 | 对标 Cursor 的能力 | openbus 要点 |
+|------|-------------------|--------------|
+| **Chat** | 多轮对话、流式输出、停止生成 | 消息流 + 附件芯片 + 证据块可点回 Trace/DBC |
+| **Composer / Agent 模式** | 计划 → 执行工具 → 汇总 | Manager + 专科；Plan 可先批后跑 |
+| **@ / 附件** | `@file`、选区、终端 | Attachment 芯片；一切可投喂汇入此窗 |
+| **Models / Provider** | 选模型、改 API、本地/云端 | OpenAI-compatible；Ollama/云端切换；密钥本地存 |
+| **Rules / Roles** | 项目规则、角色 | Analyst / Diagnostics / …；工程级 rules 预留 |
+| **Tools 可见性** | 工具列表与权限 | 当前 Policy 下 Bus 工具目录；HITL 审批队列 |
+| **History / 会话** | 历史线程、导出 | 会话列表、报告导出、审计只读查看 |
+| **Settings** | 完整设置页 | Provider、策略级别、TX 限额、洞察开关、MCP、隐私 |
+| **Usage / 状态** | 用量与上下文占用 | token/步数提示、附件预算、测量是否在跑 |
+
+**布局建议（工作台内，仍遵守套件 chrome 哲学）：**
+
+- 主区：对话 + 芯片栏（任务第一）。  
+- 可折叠：Tool Trace / 证据 / Plan。  
+- 设置：独立「Settings」页或窗内页签，**不要**把 Provider 表单永久占满顶栏（可收纳）。  
+- 全软件其它处：只保留轻量入口（右键 Add to Chat、Ask），**配置与长对话集中在 `ai-agent`**。
+
+详细交互规格继续写在 [`aiagent.md`](aiagent.md)；本文件只定「工作台是一等公民」的产品边界。
+
+**壳（Windows，已定）：** 领域套件继续纯 PyQt。AI Chat UI 为 Web（`webui/dist`）经本机 bridge；**B** = 系统 Edge `--app` 嵌入插件窗（无 Qt WebEngine）；**A** = 系统浏览器兜底。编排优先 `openai-agents`，MSYS2 无轮时用本地 Orchestrator。**Tauri 第二宿主延后**，不阻塞当前交付。
+
+### 0.5 越用越聪明（硬产品目标）
+
+AI Native 的最终体感不是「会聊天」，而是：
+
+> **软件始终知道用户在干什么；专业知识与个人习惯不断沉淀；同一项目上越用越懂、越问越准。**
+
+三层必须同时成立：
+
+| 层 | 含义 | 没有它会怎样 |
+|----|------|--------------|
+| **活动上下文** | 知当前工程、打开的 Trace/套件页、选中对象、最近操作、测量状态 | 每次提问都要重复背景 → 外挂感 |
+| **专业知识库** | 协议/DBC/EDS/故障案例/本社规范可检索 | 模型空转猜信号名 |
+| **经验沉淀** | 纠错、采纳的建议、成功剧本、用户偏好回流知识层 | 用一百次仍像第一次见面 |
+
+隐私默认：**本地优先**；不上云除非用户显式开启同步。原始高速帧不进知识库，只进摘要/指纹/案例卡片。
 
 ---
 
-## 1. 问题陈述（今天为什么不够）
+## 1. AI Native 核心特性 → openbus 映射
 
-### 1.1 已有资产
+### 1.1 底层架构
 
-| 层 | 现状 |
-|----|------|
-| 主进程 | C++/Qt：Trace、设备、DBCManager、PluginManager、ZMQ Hub |
-| 插件宿主 | 单一 `sin_host.py` 进程，多插件 **同进程加载** |
-| SDK | `sin.frames` / `dbc` / `signals` / `workspace` / `commands` / `files` / `output` / `ui` |
-| 领域套件 | UDS / DBC / CANopen / J1939 / OBD / AUTOSAR / EtherCAT / … |
-| AI Agent | 独立领域插件：Orchestrator + ToolRegistry + Policy + ChatWindow |
+#### A. 统一数据 Ingestion（上下文池，不是孤岛文件）
 
-### 1.2 结构性缺口
+| 传统 | AI Native（目标） | openbus 落地 |
+|------|-------------------|--------------|
+| Trace / DBC / 报告互不通，靠手工导入 | 采集流、描述文件、**用户操作与标注**进入同一 **Context Pool** | Attachment + Resource URI + **Activity Timeline**；测量旁路采样；描述文件注册为本体 |
+| 问 AI 要反复粘贴 | 模型一次可读关联切片 + **当前在干啥** | `resolve` + `activity.snapshot` + Capability |
 
-1. **能力面碎片化** — Agent 硬编码少量 tool；套件不发布工具清单；UDS/OBD「facade」多数是自拼 CAN 帧，未真正驱动套件会话与 ISO-TP 等待。  
-2. **宿主 RPC 不全** — 缺 `device.getStatus`、`plugins.list` / `plugins.activate`、深度 Trace 查询等，Agent 只能「猜」总线与插件状态。  
-3. **无跨插件契约** — 只有 `sin.commands.execute("udsSuite.open")` 与 `state_store` 软跳转；没有 Tool/Resource 注册表。  
-4. **隔离偏软** — 主进程 ↔ Python 宿主有进程边界；插件之间 **无** OS 沙箱，恶意/崩溃插件可影响同宿主全部套件与总线发送。  
-5. **赋能单向** — AI 窗口可调工具，但 Trace/套件页面几乎没有内嵌 AI 入口；**无** Cursor 式「Add to Chat / @引用」；生命周期未产品化。  
-6. **编排自研天花板** — 当前自研 `Orchestrator` 够演示单 Agent tool-loop，缺任务分解、子 Agent handoff、持久化 HITL 图；不应继续堆轮子。  
-7. **文档与实现漂移** — 市场文案仍写「只读」，Phase 2 已有 HITL 写路径；`aiagent.md` Phase 3（MCP）尚未落地。
+**不做**：把全量高速帧灌进 LLM / 向量库。  
+**要做**：引用 + 摘要 + 按需展开；活动事件异步落盘；热路径只写 CaptureLog。
 
----
-
-## 2. 产品愿景：三个「全」
-
-### 2.1 全生命周期（Lifecycle）
-
-| 阶段 | AI 角色 | 典型动作 |
-|------|---------|----------|
-| **安装 / 入门** | Onboarding Agent | 解释通道连接、推荐套件、生成「第一次 Trace」检查清单 |
-| **工程创建** | Workspace Agent | 打开/关联 DBC·EDS·ARXML·ESI；校验工程完整性 |
-| **分析** | Analyst | Trace 顶谈者、异常周期、信号解释、DBC 冲突 |
-| **诊断** | Diagnostics | UDS/OBD/J1939 DM；DID 读、DTC 解释；默认只读 |
-| **测试 / 台架** | TestEngineer | 生成 TX 周期表、UDS 序列、压力场景；HITL 后执行 |
-| **安全** | SafetyOfficer | 拒绝刷写/爆破；审计导出；策略门控说明 |
-| **交付** | Reporter | 会话 → Markdown/PDF 报告；可复现 tool 轨迹 |
-| **迭代** | Eval / Replay | 黄金用例回归 Agent 行为；策略变更对比 |
-
-### 2.2 全应用场景（Scenarios）
-
-- **交互式**：Chat、**Add to AI Chat**、套件内 Ask、Trace 选中帧 Explain。  
-- **后台**：测量运行中的异常检测订阅（频率突增、Bus-Off 征兆）。  
-- **批处理**：无头脚本 / CI：MCP 或 headless agent 跑只读分析。  
-- **跨工具**：外部 Cursor / Claude Desktop 通过 MCP 复用同一 Capability Bus。  
-- **教学 / 演示**：只读角色 + 仿真通道，禁止真车写。
-
-### 2.3 全能力面（Capability Surface）
-
-能力分四层，**禁止跳层裸调**：
+#### B. 可扩展推理插件体系（两类插件）
 
 ```
-L0  Host Primitives     sin.* / 主进程 RPC（帧、DBC、工程、设备、命令）
-L1  Domain Tools        各套件注册的 typed tools（读 OD、校验 EDS、COM pack…）
-L2  Workflows           多步剧本（scan→apply node→SDO read；DBC lint→fix）
-L3  Experience Hooks    UI 入口（Ask / Fix / Generate）绑定 L1/L2，不直连模型
+┌─ 硬件 / 协议 / 领域套件 ─┐     ┌─ AI 工作台 + 推理插件 ──────┐
+│ 驱动 · Trace · UDS …     │     │ ai-agent（Cursor 级交互面） │
+│ canopen / dbc / …        │◄───►│ Chat · Settings · Tools    │
+│ 采集、解析、专业 UI       │ Bus │ + 可选 anomaly 等专科插件   │
+└──────────────────────────┘     └────────────────────────────┘
 ```
 
-AI Agent 是 **L3 编排器之一**，不是唯一入口；其他套件通过同一 L1 注册表消费 AI（解释、补全），也通过同一总线被 AI 调用。
+- **业务逻辑与模型解耦**：工作台可切换本地/云端 Provider；领域套件不绑死 LLM。  
+- **交互集中、能力分散**：长对话与配置只在 `ai-agent`；能力在 Bus / Context Pool / Knowledge。  
+- **离线优先策略**：轻量洞察与检索本地；重生成可云端（可配置）。
+
+#### C. 活动上下文：AI 始终知道「用户在干啥」
+
+不是只靠用户右键投喂。系统在旁路维护一份 **Activity Snapshot**（可关、可脱敏），供每次推理自动注入短摘要：
+
+| 信号 | 示例 | 来源（最小改动） |
+|------|------|------------------|
+| 工程 | 工程路径、已加载 DBC/EDS 列表 | `workspace.*` / 工程状态 |
+| 视图 | 当前 Trace 页、Graphic、激活套件与页 id | PluginManager + 套件 `goto` 钩子（轻量事件） |
+| 选区 | 选中帧/信号/OD 行 | 已有选区 API + Attach |
+| 设备 | 通道、bitrate、测量 on/off | `device.getStatus`（待补） |
+| 最近操作 | 打开文件、改过滤、SDO 读、保存 EDS | 异步 **Activity Log**（环形缓冲，非热路径） |
+| 会话意图 | 当前 Role、Policy、未决 HITL | `ai-agent` 状态 |
+
+注入原则：
+
+- 默认只给模型 **200–800 token 的快照摘要**，大对象仍靠 Attach / uri。  
+- 用户可「锁定上下文」或「清除活动记忆」。  
+- **不问自知**：打开工作台或发送消息时自动带上快照，无需每次口述「我在看 CANopen EDS」。
+
+#### D. 专业知识库：分层沉淀，越用越懂
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ L-session   本会话附件、临时结论、未提交纠错                 │
+├──────────────────────────────────────────────────────────┤
+│ L-project   本工程：DBC/EDS 摘要、常用 Node、过滤偏好、      │
+│             成功诊断剧本、用户纠错卡片、报告索引               │
+├──────────────────────────────────────────────────────────┤
+│ L-user      跨工程：角色习惯、常用 Provider、禁区（勿自动TX） │
+├──────────────────────────────────────────────────────────┤
+│ L-domain    产品/组织：CiA/UDS 本体、内置手册、故障案例库     │
+└──────────────────────────────────────────────────────────┘
+         ▲ 检索（关键词 + 后期向量）    │ 写入（纠错/采纳/标注）
+         └──────── Knowledge Bus ───────┘
+```
+
+| 知识类型 | 内容 | 写入触发 | 使用方式 |
+|----------|------|----------|----------|
+| **领域本体** | 信号/对象/服务语义（来自 DBC/EDS/OD 解析） | 加载/保存描述文件 | 解码与解释优先查本体 |
+| **案例卡** | 「某 ID 刷屏→滤波」「某 abort→原因」 | 用户确认「记住这次」或采纳建议 | 相似场景检索 |
+| **纠错卡** | AI 判错 → 人工改正 | 工作台「纠正并沉淀」 | 抑制重复误判 |
+| **剧本** | 成功声明式任务的步骤摘要 | 任务成功且用户允许 | 下次同类目标少走弯路 |
+| **偏好** | 默认 Role、Policy、常用套件 | Settings / 隐式统计（可关） | 系统提示与默认工具集 |
+| **规范/手册** | PDF/内网文档（可选） | 显式导入 | 向量检索（Phase D） |
+
+Capability 预留：`knowledge.search` / `knowledge.remember` / `knowledge.forget`（forget 满足隐私与误记删除）。
+
+#### E. 反馈闭环（越用越聪明的发动机）
+
+```
+AI 建议 → 用户采纳 / 修改 / 拒绝
+              │
+              ├─ 采纳 → 可写入 L-project 案例或剧本
+              ├─ 修改 → 纠错卡（原结论 + 正确结论 + 证据 uri）
+              └─ 拒绝 → 负反馈（降低同类建议权重，不强制上传）
+```
+
+外挂聊天「纠了也白纠」；Native 要求：
+
+1. 纠错**默认可沉淀到本机/本工程**；  
+2. 下次 `knowledge.search` 优先命中；  
+3. 工作台可浏览/编辑/删除知识条目（人是最终主人）。
 
 ---
 
-## 3. 目标架构
+### 1.2 数据与能力
 
-### 3.1 逻辑视图
+| 特性 | 含义 | openbus |
+|------|------|---------|
+| **主动洞察** | 数据找人，非人翻表 | 异步 anomaly；告警可一键沉淀为案例 |
+| **自然语言一等公民** | NL 可驱动内部对象 | 声明式任务 + HITL |
+| **多模态** | 表、曲线、文本、截图 | Attachment kinds；Phase B+ |
+| **记得住** | 跨会话/跨天仍懂本工程 | L-project 知识 + 活动快照 |
+| **越问越准** | 纠错与采纳改变下次行为 | 反馈闭环 → knowledge.* |
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ openbus.exe (C++ Qt 主进程)                                       │
-│  Trace · Graphic · Device · DBCManager · PluginManager · Market │
-│  Capability Broker (新增) · Policy Authority · Audit Sink         │
-└───────────────┬───────────────────────────▲─────────────────────┘
-                │ ZMQ JSON-RPC + FRAME PUB   │
-┌───────────────▼───────────────────────────┴─────────────────────┐
-│ sin_host.py（单一 Python 宿主进程）                                │
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────────┐ │
-│  │ Domain Suites│  │  ai-agent    │  │ Capability Registry    │ │
-│  │ uds / canopen│  │ Orchestrator │  │ (in-host, process-wide)│ │
-│  │ dbc / …      │  │ Chat + Roles │  │ tools / resources /    │ │
-│  │              │  │ MCP optional │  │ prompts 声明与发现      │ │
-│  └──────┬───────┘  └──────┬───────┘  └──────────▲─────────────┘ │
-│         │ register tools  │ invoke              │                 │
-│         └─────────────────┴─────────────────────┘                 │
-│  Isolation: import firewall · suite module eviction · quota       │
-└───────────────────────────────────────────────────────────────────┘
-         │ MCP stdio / HTTP（可选对外）
-         ▼
-   Cursor / Claude Desktop / CI Agent
-```
+示例声明式目标：
 
-### 3.2 三条「打通」路径
-
-| 路径 | 作用 | 主契约 |
-|------|------|--------|
-| **A. Plugin ↔ Host** | 读写 Trace/DBC/设备/命令 | 扩展现有 `sin.*` + `PluginManager::handleHostMessage` |
-| **B. AI ↔ Domains** | Agent 调用套件能力；套件调用解释/生成 | **Capability Registry**（同宿主内存总线 + 可选主进程镜像） |
-| **C. External ↔ openbus** | 外部 Agent 复用能力 | **MCP Server** 投影同一 Registry |
-
-### 3.3 与「领域套件」策略的关系
-
-- **不**再为 AI 拆一堆细插件。  
-- **ai-agent** 保持平台级插件身份（市场独立条目）。  
-- 每个领域套件在 `activate` 时向 Registry **声明**自己的 tools/resources；`deactivate` 时注销。  
-- Agent **消费**套件工具面，必要时 `suite.open` + `goto` 打开专业 UI，而不是在聊天里重做 CANeds/CANdb++。
+> 「分析本次启动是否总线超时并导出报告」  
+> → 过滤时间窗 → 提信号 → 周期统计 → 结论 + 报告；若用户点「记住」，写入本工程案例卡。
 
 ---
 
-## 4. Capability Bus（核心新契约）
+### 1.3 交互体验（与 UI 哲学一致）
 
-### 4.1 为什么需要
+| 特性 | 要求 | openbus |
+|------|------|---------|
+| **渐进式协同** | 结论带置信度与证据；低置信降级 | `confidence` + `evidence[]` 可点回 |
+| **上下文感知** | 知当前 Trace/DBC/选中/**正在操作什么** | Activity Snapshot 自动注入 + Attach |
+| **知识可管** | 用户能看到「软件记住了什么」 | 工作台 Knowledge 页：浏览/删/导出 |
+| **自适应 UI** | 任务变则推荐视图 | 弱自适应：建议 `goto` / 打开套件 |
+| **一切可投喂** | 对标 Cursor Add to Chat | 右键汇入工作台芯片 |
 
-今天 Agent 的 `ToolRegistry` 是插件私有的。要「AI 用全软件」，必须有 **全宿主可见、可版本化、可鉴权** 的能力目录。
+UI 哲学延续：主区是任务；工作台集中对话与知识；不每页复制聊天壳。
 
-### 4.2 对象模型
+---
+
+### 1.4 工程 / 产品
+
+| 特性 | openbus |
+|------|---------|
+| 可审计可复现 | audit + 会话报告；知识写入同样留痕 |
+| 混合推理 | local_realtime / cloud_heavy |
+| 声明式任务 | Agents SDK Manager + 专科 |
+| 隐私 | 知识默认本机/本工程；云同步显式开关 |
+| 可关可忘 | 关 AI 层；`knowledge.forget`；清活动记忆 |
+
+## 2. 目标架构（在现有骨架上长出来）
+
+### 2.1 逻辑图
+
+```
+                    ┌─────────────────────────────────────────┐
+                    │  Experience：Ask / Attach / 证据卡片      │
+                    │  （Trace 右键 · 套件 · Chat 芯片）         │
+                    └───────────────────┬─────────────────────┘
+                                        │
+┌───────────────────────────────────────▼───────────────────────────────────────┐
+│                         AI Native 层（旁路，可关闭）                              │
+│  Context Pool · Activity Snapshot · Knowledge（L-session…L-domain）            │
+│  Capability Bus · Policy/HITL/Audit · Agent 编排（开源 SDK）· 洞察队列           │
+└───────────────┬───────────────────────────────▲───────────────────────────────┘
+                │ 只读订阅 / 活动事件 / attach    │ invoke / remember / search
+┌───────────────▼───────────────────────────────┴───────────────────────────────┐
+│ 既有 openbus 内核（最小改动）                                                    │
+│  Capture/Trace/Graphic │ Device │ DBCManager │ PluginManager │ ZMQ            │
+│  Domain Suites │ Drivers                                                     │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+**采集热路径**：驱动 → CaptureLog → Trace。  
+**AI 路径**：PUB 副本 / 活动事件 / Attach → Pool + Knowledge → 异步推理。分离。
+
+存储建议（最小改动、本地优先）：
+
+| 数据 | 位置 |
+|------|------|
+| 活动环形缓冲 | 内存 + 可选 `~/.openbus/activity/` |
+| L-project 知识 | 工程目录 `.openbus/knowledge/` 或 state_store |
+| L-user 偏好 | `~/.openbus/ai-agent/user_memory.json` |
+| L-domain | 安装包/只读资源 + 可选企业包 |
+| 审计 | `~/.openbus/audit/` |
+### 2.2 能力分层（禁止跳层）
+
+```
+L0  Host primitives     sin.* / 少量新增 RPC（ai.attach, device status…）
+L1  Domain tools        套件注册的 Capability（真会话，非假拼帧）
+L2  AI inference tools  异常检测、解读、生成（AI 插件注册）
+L3  Workflows           Manager 声明式编排 L1+L2
+L4  Experience          Attach / Ask / 证据 UI
+```
+
+### 2.3 与「领域套件」策略的关系
+
+- 继续：**少而完整的领域套件**，不拆细插件。  
+- **ai-agent**：平台级 **AI 工作台插件**（市场独立条目）= Cursor 级聊天/配置/轨迹 UI **+** 编排引擎；不是简陋侧栏，也不是第 N 个业务仿制品。  
+- 全软件入口（右键 Add to Chat 等）**汇入**该工作台会话，避免每页复制聊天壳。  
+- 未来可增加专用 AI 推理插件（如 `ai-anomaly`），一律走 Capability Bus。
+
+---
+
+## 3. Context Pool 与「一切可投喂」
+
+### 3.1 池内对象
+
+| 来源 | 进入方式 | 备注 |
+|------|----------|------|
+| Trace 选中 / 时间窗 | Attach / 自动选区 | 大窗口只存摘要 + uri |
+| **活动快照** | 自动（旁路事件） | 当前页/套件/设备/最近操作 |
+| 旁路帧统计 | 异步采样 | 主动洞察；可关 |
+| DBC/EDS/ARXML/ESI | 工程资源注册 | 本体 |
+| OUTPUT / Log | Attach | |
+| 用户标注 / 纠错 / 采纳 | **写入 Knowledge** | 越用越聪明 |
+| 报告 / 工件 | Attach + 索引 | |
+
+### 3.2 Attachment 与 Cursor 对标
+
+统一 `Attachment{…}`；Chat 芯片；`@`。原则：**投喂引用，不灌整仓**。
+
+### 3.3 证据溯源（工业关键）
 
 ```text
-Capability {
-  id:          "canopen.eds.validate"          # 稳定 ID
-  provider:    "canopen-suite"                 # 插件 id
-  kind:        tool | resource | prompt
-  title:       "Validate EDS draft"
-  description: "…"
-  input_schema / output_schema                 # JSON Schema
-  permission:  read | write | diag_write | flash
-  tags:        ["eds", "cia306"]
-  stability:   experimental | stable
-  version:     "1.0.0"
-}
-
-Resource {
-  id: "trace.selection" | "workspace.dbc" | "canopen.session.od"
-  # 只读上下文，供模型 /prompt 注入，禁止隐式写
-}
+claim / confidence / evidence[] / actions_suggested[]
 ```
 
-### 4.3 API（宿主内）
+点击 evidence → Trace / DBC / EDS。成功路径可一键「沉淀为案例」。
 
-建议新模块：`plugins/_shared/capability_bus.py`（或 `sdk/sin/capabilities.py` 薄封装）：
+### 3.4 活动事件最小集（实现时可增量）
 
-| API | 说明 |
-|-----|------|
-| `register(plugin_id, caps[])` | `activate` 时调用 |
-| `unregister(plugin_id)` | `deactivate` 时调用 |
-| `list(filter?)` | Agent / MCP `tools/list` |
-| `invoke(cap_id, args, ctx)` | 统一入口：Policy → 配额 → 审计 → provider handler |
-| `get_resource(id)` | 只读快照 |
+| 事件 | 何时发 | 载荷（摘要） |
+|------|--------|--------------|
+| `view.focused` | 切换 Trace/套件页 | plugin_id, page_id |
+| `selection.changed` | 选中变化（防抖） | kind, count, uri |
+| `resource.opened` | 打开 DBC/EDS/… | path, type |
+| `measure.state` | 测量启停 | on/off, bitrate |
+| `tool.invoked` | Capability 成功 | cap_id, ok |
+| `user.feedback` | 采纳/纠正/拒绝 | 指向 knowledge id |
 
-**硬性规则：**
-
-1. 领域套件 **不得** `import` 其他套件的 `pages.*` / `session` 私有符号。  
-2. AI **不得** 直接 `from canopen_suite…`；只走 `invoke`。  
-3. 跨插件协作只允许：Capability Bus、`sin.commands`、文件工件、`state_store` 约定键。
-
-### 4.4 主进程侧镜像（可选但推荐）
-
-在 `PluginManager` 增加轻量 RPC：
-
-- `capabilities.list`  
-- `capabilities.invoke`（转发到宿主）  
-
-好处：C++ UI（Trace 右键「Ask AI」）不必依赖 Python 窗体细节；审计可在主进程落一份。
+全部异步、可采样丢弃；**禁止**在帧中断里同步写盘。
 
 ---
 
-## 5. 宿主打通（Plugin ↔ Main）
+## 4. Capability Bus（AI 操纵软件的合法入口）
 
-### 5.1 现有通道（保留）
-
-| 通道 | 用途 |
-|------|------|
-| ZMQ ROUTER JSON-RPC | 控制面：`frames.*` `dbc.*` `workspace.*` `executeCommand` … |
-| ZMQ PUB 二进制帧 | 数据面：测量中的 FRAME_BATCH |
-| `registerCommand` | 菜单 / `sin.commands.execute` |
-| `sin.ui` / 自建窗口 | 插件 UI |
-
-详见 [`插件方案.md`](插件方案.md)。
-
-### 5.2 为 AI-Native 必补的 Host RPC
-
-| Method | 用途 | 优先级 |
-|--------|------|--------|
-| `device.getStatus` | 通道、bitrate、测量状态 | P0 |
-| `plugins.list` | 已安装/已激活插件 | P0 |
-| `plugins.activate` / `raise` | Agent 打开套件窗口 | P0 |
-| `trace.query` | 按 ID/时间窗/条件取帧（避免只 getRecent） | P1 |
-| `trace.getSelectionMeta` | 选中帧 + 解码缓存 | P1 |
-| `capabilities.list/invoke` | 主进程入口 | P1 |
-| `audit.append` | 统一审计汇入主进程 | P2 |
-
-### 5.3 `bus_get_status` 纠偏
-
-当前 Agent 工具返回 `"device": "unknown"`。P0 打通后，Analyst/Diagnostics 角色才能可靠拒绝「设备未开却发送」。
-
-### 5.4 套件深度 Facade（替代「假 UDS」）
-
-分两级：
-
-| 级别 | 行为 | 适用 |
-|------|------|------|
-| **L-frame** | 拼 SF/直接 `frames.send`（现状） | 演示、无套件环境 |
-| **L-suite** | `capabilities.invoke("uds.read_did")` → 套件 ISO-TP 会话等待响应 | 正式诊断 |
-
-路线：先 Registry + L-frame 兼容；UDS/CANopen/OBD 逐步迁到 L-suite，并在 tool 描述中标明 `provider` 与超时语义。
+- 套件 / AI 插件 `activate` → `register`；`deactivate` → `unregister`。  
+- AI **只** `list` / `invoke`；禁止跨插件裸 import。  
+- Policy：`readonly` → `tx_allowed` → `diag_write` → `flash`；写操作 HITL。  
+- 实现：`plugins/_shared/capability_bus.py`（已铺）。
 
 ---
 
-## 6. 隔离模型（AI 与其它插件）
-
-### 6.1 隔离目标（威胁模型）
-
-| 威胁 | 缓解 |
-|------|------|
-| Agent 幻觉导致乱发帧 | Policy 默认 readonly；写操作 HITL；TX 速率限制 |
-| 套件 bug 拖垮 Agent | Capability `invoke` 超时、异常捕获、结果大小上限 |
-| Agent / 第三方工具扫私有模块 | Import firewall + 禁止跨套件 path 注入 |
-| 密钥泄漏 | API Key 本地加密存储；审计剥离密钥；不进 git |
-| 供应链（恶意 .opk） | 市场签名/哈希（演进）；能力声明审查 |
-| 同进程内存破坏 | 长期：关键插件子进程；短期：软隔离 + 崩溃恢复宿主 |
-
-### 6.2 分层隔离（务实路线）
-
-**阶段 I（当前可立即强化）— Soft Isolation**
-
-- 单一 Python 宿主保留（启动成本与 Qt 绑定现实）。  
-- **Import firewall**：`sin_host` 加载插件时限制 `sys.path`；套件不得把对方目录加入 path。  
-- **Module eviction**：已有 `_SUITE_LOCAL_TOPS` 驱逐，扩展到 capability handler 卸载。  
-- **Policy 统一**：所有 `capabilities.invoke` 走同一 Policy Authority（级别来自用户会话，不来自调用方插件自称）。  
-- **配额**：每插件每分钟 invoke 次数、结果字节数、TX 次数。  
-- **审计**：`~/.openbus/audit/YYYYMMDD.jsonl` + 可选主进程副本。
-
-**阶段 II — Trust Zones**
-
-| Zone | 成员 | 权限 |
-|------|------|------|
-| `host-core` | Trace/DBC/workspace RPC | 由主进程实现 |
-| `domain` | 各 `*-suite` | 只注册自己的 caps |
-| `agent` | `ai-agent` | 可 list/invoke；不可改他人注册 |
-| `external-mcp` | MCP 客户端 | 默认只读；写需二次 HITL |
-
-**阶段 III — Hard Isolation（可选旗舰）**
-
-- 高风险插件（刷写、安全测试）跑 **子进程** + 更窄 RPC。  
-- 或 WASM/受限解释器跑「纯分析」工具。  
-- 成本高，仅在安全产品线需要时启动。
-
-### 6.3 AI 插件「特殊但不特权」
-
-- **特殊**：唯一默认持有 Orchestrator、Provider 配置、多角色系统提示。  
-- **不特权**：不能绕过 Policy；不能未经 Registry 调套件私有 API；崩溃不得要求主进程重启以外的特权恢复。
-
-### 6.4 与「一个套件窗口」策略共存
-
-C++ `PluginManager` 已对 `*-suite` 做互斥激活。AI 打开套件时：
-
-1. `plugins.activate("uds-suite")`  
-2. `capabilities.invoke("uds.…")` 使用该套件会话  
-3. 需要 UI 时再 `raise` / `goto`  
-
-Agent 自身窗口可与套件并存（非 `*-suite` 互斥集，或显式白名单）。
-
----
-
-## 7. 一切可投喂：Context Attach（对标 Cursor Add to Chat）
-
-### 7.1 产品原则
-
-> **凡用户能看见、能选中、有分析价值的对象，均可右键「Add to AI Chat」。**  
-> 投喂的是 **结构化引用（Attachment）**，不是把整份工程无脑塞进 prompt。  
-> 聊天输入区用 **芯片（chip）** 展示引用；支持 `@` 补全、拖拽、多选批量添加、一键移除。
-
-对标参考：
-
-| 产品 | 机制 | openbus 借鉴 |
-|------|------|----------------|
-| **Cursor** | 右键 / `@` 引用文件、文件夹、Terminal、Diff、Chat | 引用模型、芯片 UI、多附件 |
-| **Claude / ChatGPT** | 附件 + 项目知识 | 大附件摘要策略 |
-| **VS Code Copilot** | Add to Chat / `#file` | 编辑器选区投喂 |
-
-### 7.2 Attachment 统一模型
-
-所有投喂物归一为：
-
-```text
-Attachment {
-  id:           uuid
-  kind:         file | folder | selection | trace_frames | trace_signal |
-                dbc_message | dbc_signal | eds_object | od_entry |
-                log_rows | output_rows | graphic_cursor | device_status |
-                suite_page | artifact | custom
-  title:        "TPDO1 0x1A00"          # 芯片上显示的短名
-  uri:          "openbus://trace/frames?ids=…" | "file:///…" | "cap://…"
-  mime:         "application/vnd.openbus.trace-frames+json"
-  preview:      "3 frames · 0x123…"     # tooltip / 折叠摘要
-  payload_ref:  # 不把大体量内联进消息；会话侧按需 resolve
-    strategy:   inline | lazy | summarize
-    bytes_hint: 1200
-  provenance:   { source_plugin, window, ts }
-  ttl:          session | pinned
-}
-```
-
-**硬规则：**
-
-1. **默认 lazy**：Trace 多行、大文件、目录只存 URI + 元数据；发送给模型前由 `ContextResolver` 展开并截断。  
-2. **目录 ≠ 全量灌入**：文件夹附件展开为「树摘要 + 用户点名的子文件」；禁止一次塞进数万行（Cursor 也不整仓硬塞）。  
-3. **敏感剥离**：密钥、完整刷写镜像默认不可投喂；Policy 可拦截。  
-4. **可引用可撤销**：芯片关闭即从下一轮上下文移除；已发出历史轮次保留当时快照摘要。
-
-### 7.3 投喂目录（覆盖面）
-
-| 来源 | 右键菜单文案 | kind | 解析内容（示例） |
-|------|--------------|------|------------------|
-| 工程资源管理器 | Add to AI Chat | file / folder | 路径、语言、截断正文 / 目录树 |
-| Trace 行（单/多选） | Add frames to AI | trace_frames | id、时间、DLC、数据、可选 DBC 解码 |
-| Trace 信号 / Graphic 点 | Add signal to AI | trace_signal | 信号名、物理值、时间窗 |
-| DBC 树报文/信号 | Add to AI Chat | dbc_* | 布局、起止位、因子、接收节点 |
-| EDS / OD 对象 | Add object to AI | eds_object / od_entry | index:sub、类型、访问、默认值 |
-| OUTPUT / 套件 Log | Add log to AI | output_rows | 时间、方向、PDU、Note |
-| 校验/Lint 行 | Add finding to AI | artifact | level、规则、定位 |
-| 设备状态栏 | Add bus status | device_status | 通道、bitrate、测量 on/off |
-| 套件当前页 | Add page context | suite_page | 套件 id、页 id、可见选择 |
-| 已生成报告/工件 | Add artifact | artifact | 路径 + 摘要 |
-
-口号落地：**一切可投喂** = 上表可扩展；新 UI 只需实现 `IAttachable`（见下），不必改 Agent 内核。
-
-### 7.4 平台契约：`IAttachable` + Context Inbox
-
-```
-任意视图 ──右键──► AttachmentFactory.build(selection)
-                         │
-                         ▼
-              ContextInbox.push(attachment)     # 主进程或 sin_host 单例
-                         │
-                         ├── 若 AI 窗口未开：activate ai-agent + 打开当前会话
-                         └── Chat 输入区渲染 chip；可选自动 focus 输入框
-```
-
-建议 API：
-
-| API | 位置 | 作用 |
-|-----|------|------|
-| `sin.ai.attach(attachment\|dict)` | SDK 新模块 | 插件/套件投喂 |
-| `ai.attach` / `ai.openWithAttachments` | Host JSON-RPC | C++ Trace/资源管理器投喂 |
-| `ContextInbox` | `ai-agent` 或 `_shared` | 跨窗口队列；线程安全 |
-| `ContextResolver.resolve(atts, budget)` | agent 侧 | 按 token 预算展开 / 摘要 |
-
-C++ 侧：Trace、工程树、OUTPUT 统一挂 QAction「Add to AI Chat」→ RPC。  
-Python 套件：表格/树 `customContextMenu` 复用 `_shared/ai_attach.py` 助手，避免每页复制粘贴。
-
-### 7.5 聊天内 `@` 与芯片 UX
-
-- 输入 `@`：弹出最近附件、打开文件、当前 Trace 选中、已注册 Resource。  
-- 芯片：图标（按 kind）+ 短标题 + `×`；Hover 显示 preview。  
-- 工具条：「Clear context」「Pin」；过多附件时折叠为「+N more」。  
-- **Ask about this**（单对象立即开新线程并自动带一句「请分析以下对象」）与 **Add to Chat**（仅附加、用户自己写问题）分开，避免误触发烧 token。
-
-### 7.6 与 Capability Bus 的关系
-
-- Attachment = **只读上下文**（Resource 族）。  
-- 真正改总线 / 改文件仍走 Capability `invoke` + Policy。  
-- 「针对投喂对象修复」流程：Resolve 附件 → Manager Agent 规划 → 专科 Agent 调 tool → HITL → 结果再可作为 artifact 投喂回聊天。
-
-### 7.7 横切入口（与投喂并列）
-
-| 入口 | 行为 |
-|------|------|
-| **Add to AI Chat** | 附加到当前会话（默认） |
-| **Ask about this** | 新线程 + 预填问题 + 附件 |
-| **Explain** | 只读快捷意图（内部仍走 Attach + 固定 prompt） |
-| **Fix** | Attach finding + 生成补丁建议 → HITL |
-| **Generate** | 少附件 + 生成工件 |
-
-### 7.8 套件赋能示例（投喂之后）
-
-| 套件 | 典型投喂 → 分析 |
-|------|-----------------|
-| DBC Studio | 信号/报文 → 解释布局、冲突、生成补丁 |
-| CANopen EDS | 对象 → 缺强制项、SDO abort 解释 |
-| UDS | OUTPUT 否定响应 → 会话建议（拒绝爆破） |
-| Trace / Graphic | 多帧/信号 → 谁在刷屏、周期异常 |
-| AUTOSAR / EtherCAT | 校验行 → ARXML/ESI 修复建议 |
-| Market / 工程树 | 目录/插件 → 推荐安装与入门路径 |
-
-主进程：Trace「Summarize selection」、连接失败向导、空工程 checklist — 全部先 Attach 再问 Manager。
-
----
-
-## 8. 多智能体编排：调研结论与选型（不造轮子）
-
-### 8.1 我们需要什么
-
-| 需求 | 说明 |
-|------|------|
-| 任务分解 | 用户一句话 → 子任务图（读 Trace、查 DBC、调 UDS、写报告） |
-| 调用下级智能体 | Analyst / Diagnostics / EDS / DBC / Safety 等专科 |
-| 给出答案与操作结果 | 最终答复 + tool/capability 轨迹 + 可选 HITL 操作结果 |
-| 多 Provider | 已有 OpenAI-compatible（含 Ollama） |
-| 安全 | 与现有 Policy / HITL / 审计对齐 |
-| 体积 | 可随 openbus 插件分发，避免巨型依赖地狱 |
-
-### 8.2 2025–2026 主流开源 / SDK 对比
-
-| 框架 | 形态 | 优势 | 风险 / 代价 | 结论 |
-|------|------|------|-------------|------|
-| **OpenAI Agents SDK**（Python） | Agent + **handoffs** + **Agent.as_tool()** + MCP + guardrails | 官方多 Agent 范式清晰；与 OpenAI-compatible tool-loop 接近；文档把「经理调专科 / 交接专科」写死 | 偏 Responses/OpenAI 生态；需验证对纯本地 Ollama 的适配成本 | **编排首选候选** |
-| **LangGraph**（LangChain Inc.） | 显式状态图、checkpoint、HITL 一等公民 | 生产向事实标准之一；模型无关；复杂分支/重试强 | 学习曲线与依赖面更大；打包体积 | **复杂长流程 / 强 HITL 图的备选与增强层** |
-| **CrewAI** | 角色团队（Researcher/Writer…） | 最快搭出「多角色」Demo | 生产态控制、checkpoint、确定性弱于 LangGraph | **仅原型，不进发行版主路径** |
-| **AutoGen / AG2** | 对话式多 Agent | 研究向灵活 | Microsoft 已转向新 Agent Framework，AutoGen 维护态；新项目不建议押注 | **不采用** |
-| **Claude Agent SDK** | Anthropic 原生环 | Claude 生态完整 | 锁 Anthropic；与现有多 Provider 战略冲突作唯一底座 | **可选适配器，不作唯一底座** |
-| **Microsoft Agent Framework** | AutoGen+SK 收敛 | .NET/企业向 | 与当前 Python 插件栈不完全同构 | **观望** |
-| **自研 Orchestrator（现状）** | 单 Agent ReAct | 已落地、可控 | 继续堆 handoff/计划/子代理 = **重复造轮子** | **降级为薄适配层或淘汰** |
-
-权威能力锚点（OpenAI Agents SDK）：
-
-- **Agents as tools**：经理 Agent 保持会话控制，用 `Agent.as_tool()` 调用专科，适合「综合回答 + 汇总操作结果」。  
-- **Handoffs**：分流后由专科接管本轮，适合「诊断会话交给 Diagnostics」。  
-- 二者可组合；工具面可接 **MCP**（与本文 §9 一致）。
-
-参考：[Agent orchestration](https://openai.github.io/openai-agents-python/multi_agent/)、[Handoffs](https://openai.github.io/openai-agents-python/handoffs/)。
-
-### 8.3 决策（写入方案，避免摇摆）
+## 5. Agent 编排（不重复造轮子）
 
 | 决策 | 选择 |
 |------|------|
-| **是否自研多 Agent 内核** | **否**。停止扩展自研 ReAct 编排器的「子代理 / 计划图」能力。 |
-| **默认编排运行时** | **OpenAI Agents SDK**：Manager（编排）+ 专科 Agents（as_tool / handoff）。 |
-| **工具从哪来** | 全部来自 **Capability Bus**（及 L0 `sin.*`），包装成 SDK Tool；禁止专科 Agent 直 import 套件。 |
-| **长事务 / 强断点 HITL** | 若 SDK 会话态不够：对「刷写审批流、多步台架剧本」叠加 **LangGraph** 子图，而不是第三套自研状态机。 |
-| **CrewAI / AutoGen** | 不进主路径。 |
-| **现有 `orchestrator.py`** | Phase A：Adapter 包一层 Agents SDK；Phase B：删除重复 tool-loop 逻辑。 |
+| 多 Agent 内核 | **OpenAI Agents SDK**（Manager + `as_tool` / `handoff`） |
+| 长 HITL 图 | 按需 **LangGraph** 子图 |
+| 不采用 | 自研多 Agent、CrewAI 主路径、AutoGen 新项目 |
+| 工具来源 | Capability Bus + L0 `sin.*` |
+| 专科 | Analyst / Diagnostics / EDS·DBC / Test / Safety |
 
-### 8.4 目标运行时拓扑
+现有自研 `Orchestrator`：降级为适配/fallback，不再扩展 handoff。
+
+---
+
+## 6. 主动洞察（异步，可关）
 
 ```
-用户问题 + Attachment chips
-        │
-        ▼
-┌───────────────────┐
-│  Manager Agent    │  ← OpenAI Agents SDK（或兼容 Runner）
-│  分解任务 / 汇总   │
-└─────────┬─────────┘
-          │ as_tool / handoff
-    ┌─────┼─────┬──────────┬─────────┐
-    ▼     ▼     ▼          ▼         ▼
- Analyst Diag  DBC/EDS   TestEng   Safety
-    │     │     │          │         │
-    └─────┴─────┴────┬─────┴─────────┘
-                     ▼
-            Capability Bus.invoke
-                     ▼
-         Policy + HITL + Audit + sin.* / suites
+帧 PUB 副本 → 滑动窗特征（周期、跳变）→ 本地规则/小模型
+         → 告警事件 → OUTPUT + 可选 Trace 高亮 + 可一键 Attach 问 Manager
 ```
 
-专科 Agent = **薄系统提示 + 允许的 cap 白名单**，不是第二套聊天产品。  
-SafetyOfficer：只读审计 + 拒绝 flash/爆破类 handoff。
-
-### 8.5 与「投喂」的结合
-
-1. Manager 系统提示声明：优先使用用户芯片中的 Attachment，禁止无视投喂空谈。  
-2. 每个 Attachment resolve 后注入为带 `uri` 的消息块或 tool 可读 Resource。  
-3. 子 Agent 只接收与任务相关的附件子集（handoff `input_filter` / 显式传参），防止上下文膨胀——与 Cursor Explore 子代理「子上下文」同思路。
-
-### 8.6 打包与依赖策略
-
-- `ai-agent` 插件可选依赖：`openai-agents`（编排）；重流程再拉 `langgraph`。  
-- 无 API Key / 离线：Manager 仍可跑本地 Ollama（OpenAI-compatible）；若 SDK 某版本强绑云端，则保留 **最小兼容 Runner**（仅 tool-loop，无多 Agent）作降级，而不是再写框架。  
-- 许可证：优先 Apache/MIT 系；引入前在本文件决策表追加一行。
+- 默认关闭或低灵敏度；用户显式开启。  
+- **绝不**在 `onFrame` 热回调里跑大模型。
 
 ---
 
-## 8a. Agent 插件演进（原 §8 对齐）
+## 7. 主进程 / 框架改动边界（白名单）
 
-| 组件 | 路径 | 演进 |
-|------|------|------|
-| Orchestrator | `agent/orchestrator.py` | → Agents SDK Runner 适配器 |
-| ToolRegistry | `tools/registry.py` | → Bus Tool 适配；本地 fallback |
-| Policy | `tools/policy.py` | 平台 Policy Authority（所有 Agent 共用） |
-| ChatWindow | `chat_window.py` | 芯片栏、`@`、接收 ContextInbox |
-| Facades | `tools/plugin_facades.py` | 迁到各套件 `register_capabilities()` |
-| Session | `agent/session_store.py` | 附件快照 + 审计对齐 |
+### 7.1 允许的最小增量
 
-角色：Analyst / Diagnostics / TestEngineer / SafetyOfficer（映射为专科 Agent）。  
-级别：`readonly` → `tx_allowed` → `diag_write` → `flash`。细节见 [`aiagent.md`](aiagent.md)。
+| 项 | 理由 |
+|----|------|
+| `ai.attach` | 投喂进工作台 |
+| Trace 右键 Add to AI Chat | Experience |
+| 可选轻量 `activity.emit`（防抖旁路） | 活动上下文 |
+| 可选 `device.getStatus` / `plugins.list` | 快照完整性 |
+| 可选旁路帧统计订阅（已有 PUB） | 主动洞察 |
 
----
+### 7.2 明确不做（本阶段）
 
-## 9. MCP：对外同一能力面
-
-### 9.1 原则
-
-**一个 Registry，两种投影：**
-
-- 对内：Function Calling schema（OpenAI-compatible）  
-- 对外：MCP `tools/list` / `tools/call`（stdio 或 127.0.0.1 Streamable HTTP）
-
-### 9.2 安全
-
-- MCP 默认映射到 `readonly`  
-- 写工具需环境变量或 UI 显式开启，并仍走 HITL（本地弹窗或审批文件）  
-- 不把 API Key 暴露给 MCP 客户端  
-
-### 9.3 价值
-
-- Cursor / Claude Desktop / 自建 CI 与桌面 Agent **同一套总线工具**  
-- 避免「IDE 内一套、外部又封装一套」的双轨腐烂  
+- 重写 PluginManager / 每插件进程沙箱（除非 Phase D）。  
+- 在采集线程插入推理或知识写入。  
+- 未经同意上传用户知识到云。  
+- Computer Use；无人值守刷写/爆破。  
+- 为 AI 再拆一堆细业务插件。
 
 ---
 
-## 10. 数据、记忆与评测
+## 8. 外挂 → Native 演进路线
 
-### 10.1 上下文分层
+| 阶段 | 主题 | 进展 | 状态 |
+|------|------|------|------|
+| **A** | 地基 | Attach、Bus、工作台 Chat；**Activity Snapshot v0** | 完成 |
+| **B** | 协同+记忆 | 证据、多 Agent；**纠错/采纳 → L-project**；Knowledge 页 | 未开始 |
+| **C** | 生态 | MCP；知识本机导入导出 | 未开始 |
+| **D** | 深度聪明 | 向量、手册、主动洞察、L-user 偏好深化 | 按需 |
 
-| 层 | 内容 | TTL |
-|----|------|-----|
-| Turn | 当前用户句 + 最近 tool 结果 | 会话内 |
-| Thread | 摘要、当前套件、Node-ID、DBC 路径 | 会话 |
-| Workspace | 工程文件索引、最近报告 | 工程生命 |
-| Org（可选） | 内网手册 RAG | 配置启用 |
-
-### 10.2 RAG（Phase 后置）
-
-优先：**可引用的总线事实**（帧、解码、校验结果）＞ PDF 手册。手册 RAG 仅在企业版/内网索引开启。
-
-### 10.3 Eval
-
-- 黄金对话集：负载分析、DID 读、EDS 校验、拒绝刷写  
-- 指标：工具选择正确率、越权尝试拦截率、幻觉率（无 tool 却断言总线事实）  
-- CI：`ScriptedLLM` + 假 Capability provider（已有 mock 测试可扩展）
+**架构面：** Bus 可操作对象；上下文进池；可溯源；采集零阻塞；可关 AI。  
+**交互面：** 工作台达 Cursor 级日常可用。  
+**成长面：** 换会话仍懂本工程；纠错后同类误判下降；Knowledge 可删。
 
 ---
 
-## 11. 安全与合规清单（发布门禁）
+## 9. MVP 优先能力清单
 
-- [ ] 默认 Policy = readonly  
-- [ ] 一切 write/diag/flash 有 HITL 与审计  
-- [ ] API Key 不进审计、不进报告、不进市场包  
-- [ ] Capability 声明含 permission；未声明不可 invoke  
-- [ ] 结果截断（防 prompt 灌入超大 Trace）  
-- [ ] 测量未运行时禁止「已验证上线」类结论  
-- [ ] SafetyOfficer 回归用例必过  
-- [ ] 外部 MCP 默认只读  
-
----
-
-## 12. 分阶段路线图
-
-### Phase A — 平台地基 + 投喂 MVP（1–2 迭代）
-
-1. `capability_bus`（register / list / invoke / unregister）。  
-2. Host RPC：`device.getStatus`、`plugins.list`、`plugins.activate`、**`ai.attach`**。  
-3. **Context Attach MVP**：Trace 多选、OUTPUT 行、工程文件右键 → Add to AI Chat → 芯片。  
-4. `ai-agent`：ContextInbox + chip UI；ToolRegistry 改 Bus 适配。  
-5. 引入 **OpenAI Agents SDK** 作 Manager 试点（单专科 as_tool 即可）；自研 loop 降级。  
-6. 2 个套件真 caps：`uds-suite`、`canopen-suite`。  
-7. 审计 JSONL；修正「只读」文案。
-
-### Phase B — 深度投喂 + 多 Agent
-
-1. 投喂覆盖：DBC 树、EDS/OD、Graphic 点、目录（树摘要）、Lint 行。  
-2. `@` 补全；Ask about this / Explain / Fix。  
-3. Manager + Analyst / Diagnostics / EDS·DBC / Safety 专科（handoff 或 as_tool）。  
-4. Plan 模式；`trace.query`。  
-5. 删除重复自研 tool-loop。
-
-### Phase C — MCP 与外部生态
-
-1. Registry → MCP；外部 Cursor 可调同一工具面。  
-2. CI headless 只读分析。  
-3. 附件 URI 可被外部客户端解析的安全子集。
-
-### Phase D — LangGraph 增强与硬隔离（按需）
-
-1. 长台架/刷写审批流用 LangGraph 子图（仍不自研状态机）。  
-2. 高风险工具子进程化；企业 RAG；签名市场。
-
-**映射：** A≈打通+投喂；B≈多 Agent；C≈原 MCP Phase；D≈安全旗舰。
+| 优先级 | 能力 | 类型 |
+|--------|------|------|
+| P0 | AI 工作台 UX（Chat/芯片/Settings/Trace） | Experience |
+| P0 | Add to AI Chat 汇入工作台 | Experience |
+| P0 | Capability Bus + 样例 caps | 架构 |
+| P0 | **Activity Snapshot v0** 自动注入 | 上下文 |
+| P0 | 审计 | 工程 |
+| P1 | **Remember / 纠正并沉淀** + Knowledge 列表 | 知识 |
+| P1 | 证据卡片；Plan；多专科 | 协同 |
+| P1 | 声明式黄金用例 | 场景 |
+| P2 | 主动洞察；MCP | 洞察/生态 |
+| P3 | 向量库、手册、跨工程偏好 | 知识深化 |
 
 ---
 
-## 13. 关键决策（写入本方案，避免摇摆）
+## 10. 关键决策表
 
-| 决策 | 选择 | 理由 |
-|------|------|------|
-| AI 形态 | 工具型多 Agent + 场景投喂，非纯聊天 | 总线事实必须可绑定 |
-| 上下文 | **一切可投喂** / Attachment + chip / `@` | 对标 Cursor，深度绑定 |
-| 能力发现 | 统一 Capability Bus | 消灭硬编码 facade |
-| **编排内核** | **OpenAI Agents SDK**（主）；LangGraph（长 HITL 图） | **不重复造轮子** |
-| 不采用 | 自研多 Agent、CrewAI 主路径、AutoGen 新项目 | 维护与生产成熟度 |
-| 隔离 | 先软隔离 + 策略，再按需硬隔离 | 单宿主 Qt 现实 |
-| 跨插件调用 | 只允许 Bus / commands / 文件 / Attach | 防止套件纠缠 |
-| Computer Use | 不做主路径 | 脆、慢、难审计 |
-| 刷写 / 爆破 | 默认拒绝 | 安全底线 |
-| 大目录投喂 | 摘要 + 按需展开，禁止整仓灌入 | 上下文窗口现实 |
-| 文档语言 | 架构 Markdown 中文；代码英文 | 仓库规范 |
-
----
-
-## 14. 成功标准（可验收）
-
-1. **发现性**：`capabilities.list` 列出稳定领域工具。  
-2. **投喂**：Trace / 文件 / OUTPUT / DBC 或 EDS 至少四类可 Add to AI Chat，芯片可见可删，下一轮模型能引用其内容。  
-3. **闭环**：自然语言「读水温 DID」走 L-suite，报告含真实响应。  
-4. **多 Agent**：Manager 能分解任务并调用 ≥2 个专科 Agent，轨迹可审计。  
-5. **不造轮子**：发行版编排依赖声明含 Agents SDK（或文档记录的等价 Runner），无第二套自研 handoff 实现。  
-6. **隔离**：停用套件后 caps 消失；Agent 无法 import 私有模块。  
-7. **安全**：readonly 下写工具不可见；越权被拒并审计。  
-8. **对外**：MCP list 与内部 list 一致（可只读子集）。
+| 决策 | 选择 |
+|------|------|
+| 产品定位 | Native 底座 + Cursor 级工作台 + **越用越聪明的知识层** |
+| 上下文 | 活动快照自动注入 + 一切可投喂 |
+| 知识 | L-session…L-domain；本地/工程优先；可浏览可删 |
+| 变聪明 | 采纳/纠错/剧本沉淀 |
+| 交互归属 | 长对话/配置/知识管理在 `ai-agent` |
+| 改造策略 | 最小改动；旁路事件与存储 |
+| AI 角色 | 协作者；证据+置信度；可关可忘 |
+| 编排 | OpenAI Agents SDK |
+| 采集 | AI 与知识写入均异步旁路 |
+| 隐私 | 默认不上云 |
+| 文档 | 架构中文；代码英文 |
 
 ---
 
-## 15. 文档与代码索引
+## 11. 文档与代码索引
 
 | 资源 | 说明 |
 |------|------|
-| [`aiagent.md`](aiagent.md) | Agent 插件功能规格与 Phase 细节 |
-| [`插件方案.md`](插件方案.md) | ZMQ / sin SDK 传输契约 |
-| [`Plugin_Domain_Suites.md`](Plugin_Domain_Suites.md) | 领域套件地图；AI 消费工具面 |
-| [OpenAI Agents SDK — orchestration](https://openai.github.io/openai-agents-python/multi_agent/) | handoff / as_tool 权威文档 |
-| [OpenAI Agents SDK — handoffs](https://openai.github.io/openai-agents-python/handoffs/) | 专科交接 |
-| [Cursor — @ mentions](https://cursor.com/help/customization/context) | 投喂 UX 对标 |
-| `plugins/ai-agent/` | 当前实现 |
-| `sdk/sin/` | 宿主 SDK |
-| `scripts/sin_host.py` | Python 插件宿主 |
-| `src/core/plugin/pluginmanager.cpp` | 主进程 RPC 汇聚 |
+| [`ai_implementation_plan.md`](ai_implementation_plan.md) | 分阶段勾选 |
+| [`aiagent.md`](aiagent.md) | 工作台规格 |
+| [`插件方案.md`](插件方案.md) | ZMQ / sin SDK |
+| [`Plugin_Domain_Suites.md`](Plugin_Domain_Suites.md) | 领域套件 |
+| `plugins/_shared/capability_bus.py` / `ai_attach.py` | Bus / Attach |
+| `plugins/ai-agent/` | 工作台 |
+| `sdk/sin/ai.py` | `sin.ai.attach` |
 
 ---
 
-## 16. 结语
+## 12. 结语
 
-AI-Native 的关键不是「更会聊天」，而是：
+> **底层 Native；工作台一等公民；始终知道用户在干啥；专业与个人经验沉淀在本机/本工程 — 越用越聪明、越用越懂用户。**  
+> 采集不被挡；人永远能关掉、忘掉、回退。
 
-> **把看得见的一切变成可引用的附件；  
-> 把专业能力变成可调用的工具；  
-> 用成熟开源多 Agent 框架做任务分解与专科协作；  
-> 用策略与隔离保证事故半径可控。**
-
-openbus 差异化在 **总线领域深度 + 一切可投喂 + Capability Bus**，不在再写一套 Agent 操作系统。按 Phase A → D 推进：先让右键投喂与 Manager 跑通，再铺专科与 MCP。
-
----
+按实施计划：先 Snapshot v0 + 工作台，再 Remember/纠错闭环，最后向量与洞察。

@@ -115,6 +115,12 @@ class AppShell(QMainWindow):
             self._wb.set_editor_tabs(self._diagnose_tabs)
         else:
             self._wb.set_editor_title(dict(NAV_PAGES).get(key, key))
+        try:
+            from _shared import activity_snapshot
+            activity_snapshot.update(
+                active_plugin="uds-suite", active_page=key)
+        except Exception:
+            pass
 
     def _build_output_panel(self):
         # One chrome row: OUTPUT | tools … | collapse (list gets the rest)

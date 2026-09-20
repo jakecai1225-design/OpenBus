@@ -23,15 +23,30 @@ class Orchestrator:
         self.store = store
         self.role = role
         self.max_steps = max_steps
+        self.inject_activity_snapshot = True
         self.messages = [self._system_message()]
 
     def _policy_level(self) -> str:
         return getattr(getattr(self.registry, "policy", None), "level", "readonly")
 
+    def _activity_block(self) -> str:
+        if not self.inject_activity_snapshot:
+            return ""
+        try:
+            from agent import activity_snapshot
+            return activity_snapshot.format_for_prompt()
+        except Exception:
+            try:
+                from _shared import activity_snapshot
+                return activity_snapshot.format_for_prompt()
+            except Exception:
+                return ""
+
     def _system_message(self) -> dict:
         return {
             "role": "system",
-            "content": system_prompt(self.role, self._policy_level()),
+            "content": system_prompt(
+                self.role, self._policy_level(), self._activity_block()),
         }
 
     def set_role(self, role: str) -> None:
@@ -91,6 +106,14 @@ class Orchestrator:
                 started = time.time()
                 result = self.registry.invoke(name, args)
                 elapsed_ms = int((time.time() - started) * 1000)
+                truncated = bool(
+                    isinstance(result, dict)
+                    and (
+                        result.get("_truncated")
+                        or (isinstance(result.get("data"), dict)
+                            and result["data"].get("_truncated"))
+                    )
+                )
                 summary = json.dumps(result, ensure_ascii=False)
                 if len(summary) > 500:
                     summary = summary[:500] + "...(truncated)"
@@ -101,10 +124,12 @@ class Orchestrator:
                     "ok": bool(result.get("ok")),
                     "summary": summary,
                     "ms": elapsed_ms,
+                    "truncated": truncated,
                 })
                 if on_step:
                     flag = "ok" if result.get("ok") else "err"
-                    on_step("%s %s %dms" % (flag, name, elapsed_ms))
+                    trunc = " trunc" if truncated else ""
+                    on_step("%s %s %dms%s" % (flag, name, elapsed_ms, trunc))
                 self.messages.append(_tool_message(call.get("id") or name, result))
 
         final = "Stopped: tool-loop limit reached without a final answer."

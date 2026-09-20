@@ -1,6 +1,6 @@
 {
     "name": "canopen-suite",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "author": "sin",
     "description": "CANopen Suite — CANeds-grade EDS Dictionary/Device/Check, Network, OD SDO, PDO, CiA 301/402 library. Workbench chrome: activity bar + one editor tab row + OUTPUT.",
     "main": "main.py",

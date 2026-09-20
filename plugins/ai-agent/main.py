@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""AI Agent — read-only tool loop over Trace, DBC, and workspace."""
+"""AI Agent — Windows A+B workbench (browser + Edge embed); Tauri later."""
 
 from __future__ import annotations
 
 import os
 import sys
+import traceback
 
 import sin
 
@@ -28,15 +29,28 @@ def activate(context):
 
     def on_open(*_args):
         global _window
-        if _window is None:
-            _window = ChatWindow()
-        _window.show()
-        _window.raise_()
-        _window.activateWindow()
+        try:
+            alive = False
+            if _window is not None:
+                try:
+                    _ = _window.windowTitle()
+                    alive = True
+                except RuntimeError:
+                    _window = None
+            if not alive:
+                _window = ChatWindow()
+            _window.show()
+            _window.raise_()
+            _window.activateWindow()
+        except Exception as e:
+            sin.output.append(
+                "AI Agent open failed: %s\n%s" % (e, traceback.format_exc()))
+            raise
 
     context.register_command("aiAgent.open", on_open, "AI Agent")
     on_open()
-    sin.output.append("AI Agent ready (read-only Trace / DBC tools)")
+    sin.output.append(
+        "AI Agent ready (Edge embed B / browser A; Orchestrator or Agents SDK)")
 
 
 def deactivate():

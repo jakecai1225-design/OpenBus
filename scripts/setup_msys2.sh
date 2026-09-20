@@ -34,6 +34,9 @@ PACKAGES=(
   "${PKG_PREFIX}-python"
   "${PKG_PREFIX}-python-pyzmq"
   "${PKG_PREFIX}-python-pyqt6"
+  "${PKG_PREFIX}-python-pip"
+  "${PKG_PREFIX}-nodejs"
+  "${PKG_PREFIX}-npm"
   "${PKG_PREFIX}-gdb"
   # Plugin host (ZMQ) + Candle (libusb)
   "${PKG_PREFIX}-zeromq"

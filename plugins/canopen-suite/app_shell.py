@@ -122,6 +122,12 @@ class AppShell(QMainWindow):
             self._wb.set_editor_tabs(self._library_tabs)
         else:
             self._wb.set_editor_title(dict(NAV_PAGES).get(key, key))
+        try:
+            from _shared import activity_snapshot
+            activity_snapshot.update(
+                active_plugin="canopen-suite", active_page=key)
+        except Exception:
+            pass
 
     def _build_output_panel(self):
         self._wb.panel_tools.addStretch(1)

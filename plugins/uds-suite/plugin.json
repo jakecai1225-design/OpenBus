@@ -1,6 +1,6 @@
 {
     "name": "uds-suite",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "author": "sin",
     "description": "UDS Suite: Diagnose, Scan, Batch, Security audit, Profiles and shared log in one window (ISO 14229 / ISO 15765-2). Replaces the separate uds-diagnostic / uds-scan / uds-batch / uds-security-audit tools.",
     "main": "main.py",

@@ -101,6 +101,12 @@ QWidget *TraceModule::createPage(const QString &pageId, const QVariant &param, S
         ctx.shellInvoke("frameAddToGraphic", QVariant::fromValue(frame));
     });
 
+    // Add to AI Chat: selected frames → PluginManager.attachFramesToAi
+    QObject::connect(traceView, &TraceView::framesAddToAi, tab,
+                     [ctx](const QVector<CanFrame> &frames) {
+        ctx.shellInvoke(QStringLiteral("framesAddToAi"), QVariant::fromValue(frames));
+    });
+
     // Signal list: add one selected signal to Graphic (same shell path as DBC detail)
     QObject::connect(tab->signalDecode(), &SignalDecodeWidget::signalAddToGraphic, tab,
                      [ctx](quint32 canId, const QString &signalName) {

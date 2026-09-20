@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>openbus AI</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <div id="app">
+    <aside class="side">
+      <div class="brand">openbus AI</div>
+      <nav class="nav">
+        <button type="button" class="nav-item active" data-panel="chat">Chat</button>
+        <button type="button" class="nav-item" data-panel="settings">Settings</button>
+      </nav>
+      <div class="side-foot">
+        <div id="runtimeBadge" class="badge">…</div>
+        <div id="healthLine" class="muted">Connecting…</div>
+      </div>
+    </aside>
+    <main class="main">
+      <section id="panel-chat" class="panel">
+        <header class="chrome">
+          <span class="chrome-title">Chat</span>
+          <div class="chrome-actions">
+            <button type="button" id="btnRefreshAtt" class="ghost" title="Refresh attachments">Attachments</button>
+            <button type="button" id="btnClearAtt" class="ghost" title="Clear inbox">Clear inbox</button>
+          </div>
+        </header>
+        <div id="attBar" class="att-bar hidden"></div>
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <footer class="composer">
+          <textarea id="input" rows="2" placeholder="Ask about the bus, Trace selection, DBC…"></textarea>
+          <div class="composer-row">
+            <span id="snapHint" class="muted snap"></span>
+            <button type="button" id="btnSend" class="primary">Send</button>
+          </div>
+        </footer>
+      </section>
+      <section id="panel-settings" class="panel hidden">
+        <header class="chrome">
+          <span class="chrome-title">Settings</span>
+          <button type="button" id="btnSave" class="primary">Save</button>
+        </header>
+        <form id="settingsForm" class="form" autocomplete="off">
+          <label>Provider
+            <input name="provider" type="text" />
+          </label>
+          <label>Base URL
+            <input name="base_url" type="url" placeholder="http://127.0.0.1:11434/v1" />
+          </label>
+          <label>Model
+            <input name="model" type="text" placeholder="llama3.2" />
+          </label>
+          <label>API key
+            <input name="api_key" type="password" placeholder="optional for local" />
+          </label>
+          <label>Role
+            <input name="role" type="text" placeholder="Analyst" />
+          </label>
+          <label>Policy
+            <select name="policy">
+              <option value="readonly">readonly</option>
+              <option value="guided">guided</option>
+              <option value="full">full</option>
+            </select>
+          </label>
+          <label class="check">
+            <input name="inject_activity_snapshot" type="checkbox" />
+            Inject Activity Snapshot into prompts
+          </label>
+          <p id="settingsMsg" class="muted"></p>
+        </form>
+      </section>
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

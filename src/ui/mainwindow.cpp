@@ -294,6 +294,24 @@ ShellContext MainWindow::makeShellContext()
         } else if (action == QStringLiteral("frameAddToGraphic")) {
             // Trace 右键"添加信号到 Graphic"（拆分方案 B5）→ 壳查 DBC 加全部信号
             onFrameAddToGraphic(arg.value<CanFrame>());
+        } else if (action == QStringLiteral("framesAddToAi")) {
+            // Trace context menu → AI Agent Context Inbox (non-blocking attach)
+            if (!m_pluginManager)
+                return;
+            QList<CanFrame> frames;
+            if (arg.canConvert<QVector<CanFrame>>()) {
+                const auto vec = arg.value<QVector<CanFrame>>();
+                frames.reserve(vec.size());
+                for (const auto &f : vec)
+                    frames.append(f);
+            } else if (arg.canConvert(QVariant::List)) {
+                for (const QVariant &v : arg.toList()) {
+                    if (v.canConvert<CanFrame>())
+                        frames.append(v.value<CanFrame>());
+                }
+            }
+            if (!frames.isEmpty())
+                m_pluginManager->attachFramesToAi(frames);
         } else if (action == QStringLiteral("traceSelectionChanged")) {
             // Trace selection count → status bar (kept for older callers)
             const int n = arg.toInt();

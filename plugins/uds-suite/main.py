@@ -72,6 +72,7 @@ def activate(context):
 
     context.register_command("udsSuite.open", on_open, "UDS Suite")
 
+    _register_ai_caps()
     _shell.show()
     _shell.raise_()
     _shell.activateWindow()
@@ -79,8 +80,51 @@ def activate(context):
         "UDS Suite ready (Setup / Diagnose / Scan / Batch / Security / Profiles)")
 
 
+def _register_ai_caps():
+    """Read-only Capability Bus entries for the AI Agent (soft-fail)."""
+    try:
+        from _shared.capability_bus import Capability, register as cap_register
+    except Exception:
+        return
+
+    def session_info(_args: dict):
+        session = getattr(_shell, "session", None) if _shell else None
+        if session is None:
+            return {"ok": False, "error": "suite not ready"}
+        return {
+            "ok": True,
+            "tx_id": getattr(session, "tx_id", None),
+            "rx_id": getattr(session, "rx_id", None),
+            "func_id": getattr(session, "func_id", None),
+            "session_name": getattr(session, "session_name", "unknown"),
+            "tester_present": bool(getattr(session, "tester_present", False)),
+            "functional": bool(getattr(session, "functional", False)),
+        }
+
+    try:
+        cap_register(PLUGIN_ID, [
+            Capability(
+                id="uds.session.info",
+                provider=PLUGIN_ID,
+                title="UDS session info",
+                description="Read current UDS addressing and diagnostic session name",
+                parameters={"type": "object", "properties": {}},
+                permission="read",
+                handler=session_info,
+                tags=["uds", "session"],
+            ),
+        ])
+    except Exception:
+        pass
+
+
 def deactivate():
     global _shell, _context
+    try:
+        from _shared import capability_bus
+        capability_bus.unregister(PLUGIN_ID)
+    except Exception:
+        pass
     if _shell is not None:
         try:
             _shell.shutdown()
