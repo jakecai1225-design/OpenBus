@@ -143,6 +143,9 @@ def tune_form(form) -> None:
 
 
 def stylesheet() -> str:
+    import os
+    _icons = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
+    check_on = os.path.join(_icons, "check-white.svg").replace("\\", "/")
     return f"""
 /* ===== Shell — VS Code Light type scale: 13 body / 12 secondary / 11 meta ===== */
 QMainWindow, QDialog {{
@@ -160,7 +163,71 @@ QStatusBar {{
 }}
 QStatusBar::item {{ border: none; }}
 
-/* ===== Activity nav ===== */
+/* ===== Title bar + layout toggles (VS Code workbench) ===== */
+QWidget#SuiteTitleBar {{
+    background: {SIDEBAR};
+    border-bottom: 1px solid {BORDER};
+}}
+QLabel#SuiteTitleLabel {{
+    color: {TEXT};
+    font-size: 13px;
+    font-weight: 600;
+}}
+QLabel#SuiteTitleChip {{
+    color: {TEXT_DIM};
+    font-size: 12px;
+    font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+    padding: 3px 10px;
+    background: {EDITOR};
+    border: 1px solid {BORDER};
+    border-radius: 12px;
+}}
+QLabel#SuiteTitleChip:hover {{
+    border-color: {ACCENT};
+    color: {TEXT};
+}}
+QToolButton#LayoutToggleBtn {{
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 0;
+    margin: 0;
+}}
+QToolButton#LayoutToggleBtn:hover {{
+    background: {SIDEBAR_HOVER};
+    border-color: {BORDER};
+}}
+QToolButton#LayoutToggleBtn:checked {{
+    background: {ACCENT_SOFT};
+    border-color: transparent;
+}}
+QToolButton#LayoutToggleBtn:pressed {{
+    background: {BORDER};
+}}
+
+/* ===== Activity bar (VS Code icon rail) ===== */
+QWidget#SuiteActivityBar {{
+    background: {SIDEBAR};
+    border-right: 1px solid {BORDER};
+    max-width: 48px;
+}}
+QToolButton#ActivityBtn {{
+    background: transparent;
+    border: none;
+    border-left: 2px solid transparent;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+}}
+QToolButton#ActivityBtn:hover {{
+    background: {SIDEBAR_HOVER};
+}}
+QToolButton#ActivityBtn:checked {{
+    background: {EDITOR};
+    border-left: 2px solid {ACCENT};
+}}
+
+/* ===== Activity nav (legacy wide list) ===== */
 QListWidget#SuiteNav {{
     background: {SIDEBAR};
     color: {TEXT};
@@ -204,22 +271,28 @@ QWidget#SuiteToolbar QLabel#SuiteToolbarTitle {{
     letter-spacing: 0.6px;
     padding-right: 4px;
 }}
+QLabel#SuiteToolbarTitle {{
+    color: {TEXT_MUTED};
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+}}
 QLabel#SessionBadge {{
     color: {ACCENT};
     font-weight: 600;
-    font-size: 12px;
-    padding: 2px 8px;
+    font-size: 11px;
+    padding: 2px 10px;
     background: {ACCENT_SOFT};
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
 }}
 QWidget#SuiteToolbar QSpinBox {{
     background: {EDITOR};
-    border: 1px solid {BORDER};
-    border-radius: 4px;
-    padding: 2px 6px;
-    min-height: {CTRL_H};
-    max-height: {CTRL_H};
+    border: 1px solid #CECECE;
+    border-radius: 3px;
+    padding: 2px 8px;
+    min-height: 24px;
+    max-height: 26px;
     font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
     font-size: 12px;
     color: {TEXT};
@@ -233,7 +306,7 @@ QFrame#SuiteVDivider {{
     margin: 2px 6px;
 }}
 QFrame#SuiteHDivider {{
-    background: {BORDER};
+    background: {BORDER_SOFT};
     max-height: 1px;
 }}
 
@@ -241,39 +314,96 @@ QFrame#SuiteHDivider {{
 QWidget#SuiteContent {{
     background: {EDITOR};
 }}
-QWidget#SuiteLogHost {{
-    background: {SIDEBAR};
-    border-top: 1px solid {BORDER};
-}}
 QWidget#SuiteSection, QWidget#BusStrip, QWidget#SuiteBlock {{
     background: transparent;
     border: none;
 }}
-QWidget#ConnStatus {{
-    background: transparent;
-    border: none;
+QWidget#SuiteQuickBar {{
+    background: {SIDEBAR};
     border-bottom: 1px solid {BORDER};
 }}
-QWidget#StepSpin QSpinBox {{
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
+QWidget#SuiteStarters QPushButton#GhostButton {{
+    padding: 0 10px;
+    color: {ACCENT};
 }}
-QPushButton#StepSpinBtn {{
+QWidget#SuiteStarters QPushButton#GhostButton:hover {{
+    background: {ACCENT_SOFT};
+    color: {ACCENT_HOVER};
+}}
+QWidget#StepSpin QSpinBox,
+QSpinBox#SuiteSpin {{
     background: {EDITOR};
-    border: 1px solid #CECECE;
-    border-radius: 2px;
-    padding: 0;
+    color: {TEXT};
+    border: 1px solid #C8C8C8;
+    border-radius: 3px;
+    padding: 3px 8px 4px 8px;
     min-height: 28px;
     max-height: 28px;
-    min-width: 28px;
-    max-width: 28px;
+    font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+    font-size: 12px;
+    selection-background-color: {ACCENT_SOFT};
 }}
-QPushButton#StepSpinBtn:hover {{
-    background: #E8E8E8;
+QWidget#StepSpin QSpinBox:hover,
+QSpinBox#SuiteSpin:hover {{
+    border-color: #A8A8A8;
+}}
+QWidget#StepSpin QSpinBox:focus,
+QSpinBox#SuiteSpin:focus {{
+    border: 1px solid {ACCENT};
+}}
+QLabel#SuiteFieldLabel {{
+    color: {TEXT_DIM};
+    font-size: 12px;
+    font-weight: 500;
+}}
+QWidget#SuiteSettingsSection {{
+    background: transparent;
+    border: none;
+    padding: 0;
+}}
+QWidget#SuiteSettingsPage {{
+    background: {EDITOR};
+}}
+QFrame#SuiteHDivider {{
+    background: transparent;
+    border: none;
+    max-height: 0;
+    min-height: 0;
+    margin: 0;
+}}
+QPushButton#SegmentBtn {{
+    background: {EDITOR};
+    color: {TEXT};
+    border: 1px solid #CECECE;
+    border-radius: 0;
+    padding: 0 14px;
+    min-height: 26px;
+    max-height: 26px;
+    font-size: 12px;
+    font-weight: 500;
+}}
+QPushButton#SegmentBtn[segment="first"] {{
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
+}}
+QPushButton#SegmentBtn[segment="last"] {{
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+    margin-left: -1px;
+}}
+QPushButton#SegmentBtn[segment="mid"] {{
+    margin-left: -1px;
+}}
+QPushButton#SegmentBtn:hover {{
+    background: #F0F0F0;
+    color: {TEXT};
+}}
+QPushButton#SegmentBtn:checked {{
+    background: {ACCENT_SOFT};
+    color: {ACCENT};
     border-color: {ACCENT};
-}}
-QPushButton#StepSpinBtn:pressed {{
-    background: #DCDCDC;
+    font-weight: 600;
+    z-index: 1;
 }}
 QWidget#SuiteBlockHead {{
     background: transparent;
@@ -317,16 +447,17 @@ QPushButton {{
     background: {EDITOR};
     color: {TEXT};
     border: 1px solid #CECECE;
-    border-radius: 2px;
-    padding: 0 10px;
-    min-height: 28px;
-    max-height: 28px;
-    font-size: 13px;
+    border-radius: 3px;
+    padding: 0 12px;
+    min-height: 26px;
+    max-height: 26px;
+    font-size: 12px;
 }}
 QPushButton:hover {{
-    background: #E8E8E8;
+    background: #F3F3F3;
+    border-color: #B8B8B8;
 }}
-QPushButton:pressed {{ background: #DCDCDC; }}
+QPushButton:pressed {{ background: #E8E8E8; }}
 QPushButton:disabled {{
     color: #A0A0A0;
     background: {BG};
@@ -336,6 +467,7 @@ QPushButton#PrimaryButton {{
     color: #FFFFFF;
     border: 1px solid {ACCENT};
     font-weight: 600;
+    border-radius: 3px;
 }}
 QPushButton#PrimaryButton:hover {{
     background: {ACCENT_HOVER};
@@ -348,21 +480,87 @@ QPushButton#SecondaryButton {{
     font-weight: 500;
 }}
 QPushButton#SecondaryButton:hover {{
-    background: #E8E8E8;
+    background: #F3F3F3;
+    border-color: #B8B8B8;
 }}
 QPushButton#GhostButton {{
-    background: {EDITOR};
-    color: {TEXT};
-    border: 1px solid #CECECE;
+    background: transparent;
+    color: {TEXT_DIM};
+    border: 1px solid transparent;
     font-weight: 500;
 }}
 QPushButton#GhostButton:hover {{
-    background: #E8E8E8;
-    border-color: #B0B0B0;
+    background: {SIDEBAR_HOVER};
     color: {TEXT};
 }}
 
-/* ===== Tabs — underline style (VS Code), no tab boxes ===== */
+/* ===== Checkboxes ===== */
+QCheckBox {{
+    color: {TEXT};
+    font-size: 12px;
+    spacing: 8px;
+}}
+QCheckBox::indicator {{
+    width: 14px;
+    height: 14px;
+    border: 1px solid #CECECE;
+    border-radius: 2px;
+    background: {EDITOR};
+}}
+QCheckBox::indicator:hover {{
+    border-color: {ACCENT};
+}}
+QCheckBox::indicator:checked {{
+    background: {ACCENT};
+    border-color: {ACCENT};
+    image: url("{check_on}");
+}}
+
+/* ===== Editor tabs (VS Code main window tab strip) ===== */
+QWidget#SuiteEditorChrome {{
+    background: {SIDEBAR};
+    border-bottom: 1px solid {BORDER};
+}}
+QLabel#SuiteEditorTitle {{
+    color: {TEXT};
+    font-size: 13px;
+    font-weight: 600;
+    padding: 0 12px;
+}}
+QWidget#SuiteEditorTabHost {{
+    background: {SIDEBAR};
+}}
+QTabBar#SuiteEditorTabs {{
+    background: {SIDEBAR};
+    border: none;
+    min-height: 35px;
+}}
+QTabBar#SuiteEditorTabs::tab {{
+    background: {SIDEBAR};
+    color: {TEXT_DIM};
+    border: none;
+    border-right: 1px solid {BORDER};
+    border-radius: 0;
+    padding: 8px 14px;
+    margin: 0;
+    min-height: 35px;
+    font-size: 13px;
+}}
+QTabBar#SuiteEditorTabs::tab:selected {{
+    background: {EDITOR};
+    color: {TEXT};
+    font-weight: 600;
+    border-top: 1px solid {ACCENT};
+}}
+QTabBar#SuiteEditorTabs::tab:hover:!selected {{
+    background: {SIDEBAR_HOVER};
+    color: {TEXT};
+}}
+QWidget#SuiteEditorStack {{
+    background: {EDITOR};
+}}
+
+/* Legacy underline tabs (kept for older pages) ===== */
 QTabWidget::pane {{
     border: none;
     border-top: 1px solid {BORDER};
@@ -375,7 +573,7 @@ QTabBar#SuiteTopTabs {{
     margin: 0;
     padding-top: 2px;
 }}
-QTabBar::tab {{
+QTabBar#SuiteTopTabs::tab {{
     background: transparent;
     color: {TEXT_DIM};
     border: none;
@@ -385,13 +583,13 @@ QTabBar::tab {{
     margin-right: 0;
     min-height: 22px;
 }}
-QTabBar::tab:selected {{
+QTabBar#SuiteTopTabs::tab:selected {{
     color: {TEXT};
     background: transparent;
     border-bottom: 2px solid {ACCENT};
     font-weight: 600;
 }}
-QTabBar::tab:hover:!selected {{
+QTabBar#SuiteTopTabs::tab:hover:!selected {{
     background: transparent;
     color: {TEXT};
 }}
@@ -443,34 +641,22 @@ QTreeWidget::item:selected, QListWidget::item:selected {{
 /* ===== Inputs ===== */
 QLineEdit, QSpinBox, QComboBox {{
     background: {EDITOR};
-    border: 1px solid {BORDER};
-    border-radius: 4px;
-    padding: 3px 8px;
-    min-height: {CTRL_H};
+    border: 1px solid #C8C8C8;
+    border-radius: 3px;
+    padding: 3px 8px 4px 8px;
+    min-height: 28px;
+    max-height: 28px;
     color: {TEXT};
-    selection-background-color: #CDE8F6;
+    font-size: 12px;
+    selection-background-color: {ACCENT_SOFT};
+}}
+QLineEdit:hover, QSpinBox:hover, QComboBox:hover {{
+    border-color: #A8A8A8;
 }}
 QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{
     border: 1px solid {ACCENT};
 }}
 QComboBox::drop-down {{ border: none; width: 18px; }}
-QCheckBox {{
-    spacing: 6px;
-    color: {TEXT};
-}}
-QCheckBox::indicator {{
-    width: 14px; height: 14px;
-    border: 1px solid #9A9A9A;
-    border-radius: 2px;
-    background: {EDITOR};
-}}
-QCheckBox::indicator:hover {{
-    border-color: {ACCENT};
-}}
-QCheckBox::indicator:checked {{
-    background: {ACCENT};
-    border-color: {ACCENT};
-}}
 
 /* ===== GroupBox — title only, no box ===== */
 QGroupBox {{
@@ -529,10 +715,24 @@ QWidget#SuiteLogPanel {{
     background: transparent;
     border: none;
 }}
+QWidget#SuiteLogHost {{
+    background: {EDITOR};
+    border-top: 1px solid {BORDER_SOFT};
+}}
 QWidget#SuiteLogHeader {{
-    background: transparent;
+    background: {EDITOR};
     border: none;
-    border-top: 1px solid {BORDER};
+}}
+QHeaderView::section {{
+    background: {EDITOR};
+    color: {TEXT_MUTED};
+    border: none;
+    border-bottom: 1px solid {BORDER_SOFT};
+    border-right: none;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
 }}
 QProgressBar {{
     border: none;

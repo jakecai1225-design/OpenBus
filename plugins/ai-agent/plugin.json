@@ -1,8 +1,8 @@
 {
     "name": "ai-agent",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "author": "sin",
-    "description": "AI Agent: read-only tool loop over recent frames, DBC decode, and workspace context. OpenAI-compatible providers including local Ollama.",
+    "description": "AI Agent: Trace/DBC analysis plus HITL frames.send, UDS/OBD request facades and TX/UDS artifact builders. OpenAI-compatible providers including local Ollama.",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [

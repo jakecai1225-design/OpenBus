@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """UDS Suite — domain suite for ISO 14229 diagnostics.
 
-Workspaces: Diagnose | Scan | Batch | Security | Profiles | Log
-Shared connection strip + activity log; one ISO-TP/UDS stack.
+Workspaces: Setup | Diagnose | Scan | Batch | Security | Profiles
+VS Code workbench: activity bar + tabs + OUTPUT panel.
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ def activate(context):
     _shell.raise_()
     _shell.activateWindow()
     sin.output.append(
-        "UDS Suite ready (Diagnose / Scan / Batch / Security / Profiles / Log)")
+        "UDS Suite ready (Setup / Diagnose / Scan / Batch / Security / Profiles)")
 
 
 def deactivate():

@@ -84,12 +84,9 @@
 
 ### 插件化工具
 - **G9 重构** — 原“工具集/协议”侧边栏功能全部插件化（Python + PyQt6），插件在「插件市场」标签页与侧边栏迷你市场安装/启用，支持 `.opk` 包打包安装
-- **blf-converter** — BLF / ASC / CSV 报文日志格式互转，后台 Job 执行不阻塞 UI，实时进度与取消
-- **dbc-tool** — 独立打开任意 DBC 文件，树形浏览报文/信号层级，可编辑信号属性并保存
-- **bus-statistics** — 实时总线统计：各 CAN ID 帧数、周期均值/最小/最大、总线负载率
-- **uds-diagnostic** — UDS 诊断（ISO 14229，G10 强化版 v1.1.0）：标准 ISO-TP 流控（FC/BS/STmin/WAIT）、P2/P2* 超时与 0x78 续等、物理/功能/响应三 ID 可配、16 服务专属表单+结构化响应解码、DID 字典（内置+自定义+批量读/周期轮询）、DTC 状态位图解析与一键清除、种子-密钥安全访问（三种算法）、34/36/37 刷写助手（预检→传输→校验）、结构化日志与 CSV 导出，对标 ZCANPro / CANoe / TSMaster
-- **canopen-explorer** — CANopen（CiA 301）：NMT 节点控制、SDO expedited 读写、Heartbeat 监控、EMCY 解析
-- **插件开发** — 参见 [doc/插件系统方案.md](doc/插件系统方案.md)，`python scripts/plugin_tool.py pack <插件目录>` 一键打包 `.opk`
+- **领域套件（S0–S5）** — 以套件为单位发布：UDS Suite / DBC Studio / CANopen Suite / J1939 Suite / OBD Suite / TX Lab / Bus Security / Protocol Hub / Log & Compare / Bus Utilities；详见 [doc/Plugin_Domain_Suites.md](doc/Plugin_Domain_Suites.md)
+- **AI Agent** — 只读 Trace 分析 + HITL 写路径（`frames_send` / UDS·OBD 请求 facade）与工件生成；详见 [doc/aiagent.md](doc/aiagent.md)
+- **插件开发** — 参见 [doc/插件系统方案.md](doc/插件系统方案.md)，`python scripts/plugin_tool.py pack-suites` 打包领域套件，`python scripts/make_market.py` 生成本地市场索引
 
 ### 内置分析工具（工具菜单）
 - **Data Window** — 信号实时表格：当前值/原始值/物理值/最小值/最大值（Ctrl+Shift+D）

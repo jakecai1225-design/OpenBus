@@ -205,6 +205,16 @@ def build_market(out_dir: str, remote_url: str, opk_src: str) -> str:
         })
         print("plugin", sid, version, opk_name)
 
+    # Drop stale / thin .opk leftovers (old versions, non-suite packages).
+    keep_names = {os.path.basename(p["package"]) for p in plugins}
+    for name in os.listdir(opk_dir):
+        if not name.endswith(".opk"):
+            continue
+        if name not in keep_names:
+            stale = os.path.join(opk_dir, name)
+            os.remove(stale)
+            print("removed stale", name)
+
     market = {
         "schema": 2,
         "version": today.replace("-", "."),
@@ -242,7 +252,13 @@ def main() -> int:
     ap.add_argument(
         "--also-repo",
         action="store_true",
-        help="Also write a copy under <repo>/market for source control",
+        default=True,
+        help="Also sync <repo>/market (default: on)",
+    )
+    ap.add_argument(
+        "--no-also-repo",
+        action="store_true",
+        help="Do not sync <repo>/market",
     )
     args = ap.parse_args()
 
@@ -258,9 +274,14 @@ def main() -> int:
             ver = json.load(f).get("version", "0.1.0")
         out_ai = os.path.join(args.opk_src, "ai-agent_%s.opk" % ver)
         pack_one(ai_dir, out_ai)
+        # Drop older AI Agent packages in opk-src.
+        for name in os.listdir(args.opk_src):
+            if name.startswith("ai-agent_") and name.endswith(".opk") and name != os.path.basename(out_ai):
+                os.remove(os.path.join(args.opk_src, name))
+                print("removed stale", name)
 
     path = build_market(args.out, args.remote, args.opk_src)
-    if args.also_repo:
+    if args.also_repo and not args.no_also_repo:
         repo_market = os.path.join(ROOT, "market")
         if os.path.isdir(repo_market):
             shutil.rmtree(repo_market)

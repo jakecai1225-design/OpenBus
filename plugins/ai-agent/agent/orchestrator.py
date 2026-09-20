@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tool loop: model, tools, audit."""
+"""Tool loop: model, tools, audit, HITL approval."""
 
 from __future__ import annotations
 
@@ -23,21 +23,43 @@ class Orchestrator:
         self.store = store
         self.role = role
         self.max_steps = max_steps
-        self.messages = [{"role": "system", "content": system_prompt(role)}]
+        self.messages = [self._system_message()]
+
+    def _policy_level(self) -> str:
+        return getattr(getattr(self.registry, "policy", None), "level", "readonly")
+
+    def _system_message(self) -> dict:
+        return {
+            "role": "system",
+            "content": system_prompt(self.role, self._policy_level()),
+        }
 
     def set_role(self, role: str) -> None:
         self.role = role
+        self._refresh_system()
+
+    def refresh_policy_prompt(self) -> None:
+        self._refresh_system()
+
+    def _refresh_system(self) -> None:
+        msg = self._system_message()
         if self.messages and self.messages[0].get("role") == "system":
-            self.messages[0]["content"] = system_prompt(role)
+            self.messages[0] = msg
         else:
-            self.messages.insert(0, {"role": "system", "content": system_prompt(role)})
+            self.messages.insert(0, msg)
 
     def reset(self) -> None:
-        self.messages = [{"role": "system", "content": system_prompt(self.role)}]
+        self.messages = [self._system_message()]
 
     def run(self, user_text: str, on_step=None) -> str:
+        self._refresh_system()
         self.messages.append({"role": "user", "content": user_text})
-        self.store.append({"kind": "user", "role": self.role, "text": user_text})
+        self.store.append({
+            "kind": "user",
+            "role": self.role,
+            "policy": self._policy_level(),
+            "text": user_text,
+        })
         tools = self.registry.schema()
         for _step in range(self.max_steps):
             resp = self.llm.chat(self.messages, tools)

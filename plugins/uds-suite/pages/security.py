@@ -189,7 +189,7 @@ class _SeedCollector:
 
 
 def build(parent, session, log_fn) -> QWidget:
-    from widgets.layout import page, attach_output
+    from widgets.layout import page
     from widgets.step_spin import StepSpin
 
     root, layout = page(parent)
@@ -584,5 +584,5 @@ def build(parent, session, log_fn) -> QWidget:
     if saved.get("sec_interval_ms"):
         interval_spin.setValue(int(saved["sec_interval_ms"]))
 
-    attach_output(parent, layout, body, session)
+    layout.addWidget(body, 1)
     return root

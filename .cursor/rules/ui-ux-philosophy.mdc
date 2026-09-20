@@ -1,0 +1,36 @@
+---
+description: UI/UX philosophy — chrome stays quiet, primary work fills the space
+alwaysApply: true
+---
+
+# UI / UX Philosophy
+
+Apply when changing windows, layouts, or controls (suites, Trace, Graphic, market).
+
+## Priority
+
+- Primary work occupies the main area. Secondary chrome must not compete for attention or space.
+- First screen is the task, not settings. One obvious path; labels are verbs people already know.
+- Defaults show the pieces needed to start (side bar and bottom panel visible). Hide extras until asked.
+- One horizontal chrome row. Do not stack title bars, chips, and tab strips.
+
+## Chrome vs content
+
+- Dividers, backgrounds, and hints stay quieter than the content they frame. Prefer whitespace over heavy rules.
+- Keep the ability: collapse, shortcuts, tooltips. Do not delete the control — shrink it.
+- Bottom and side panels: one tool row, then the list/log. Do not add a second toolbar row.
+- Sub-features are editor tabs on the main window (VS Code tab strip), not a second nav under a title bar.
+- Session / bus / timing live on their own tab, not a full-width strip on every page.
+
+## Controls
+
+- Align labels and fields on one baseline. Inputs must show the full glyph (padding, height, all four borders).
+- Checkboxes show a check when selected. Segmented choices for a small exclusive set.
+- Human hints go in tooltips, not extra caption rows that eat vertical space.
+- Do not stretch forms across the window; keep a readable content width and give leftover space to the work surface.
+
+## Do not
+
+- Loud separators, nested cards, or status text that outranks the task.
+- Per-page copies of OUTPUT or connection chrome.
+- Extra vertical layers “for completeness.”

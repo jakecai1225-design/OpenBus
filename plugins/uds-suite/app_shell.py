@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
-"""AppShell — UDS Suite.
+"""AppShell — UDS Suite (minimal vertical chrome).
 
-Minimal shell: activity nav + page stack only.
-Connection controls and OUTPUT live on pages that need them
-(not forced onto every workspace).
+Layout:
+  Activity bar | [editor tabs OR page title + layout toggles]
+               | editor body
+               | OUTPUT (collapsible)
+
+Diagnose owns the top tab strip (Session / Services / DID / …).
+Other activity pages show a single title in that same chrome row.
 """
 
 from __future__ import annotations
@@ -11,36 +15,31 @@ from __future__ import annotations
 import time
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
-    QAbstractItemView,
-    QHeaderView,
-    QListWidget,
-    QListWidgetItem,
+    QCheckBox,
+    QHBoxLayout,
     QMainWindow,
-    QStackedWidget,
+    QPushButton,
     QTableWidget,
     QTableWidgetItem,
-    QHBoxLayout,
-    QVBoxLayout,
     QWidget,
 )
 
-from _shared import plugin_shell, state_store, vscode_theme, codicons
+from _shared import plugin_shell, state_store, suite_chrome, vscode_theme, codicons
 
 from session import SharedSession
 
 PLUGIN_ID = "uds-suite"
 
 NAV_PAGES = [
-    ("setup", "Setup"),
     ("diagnose", "Diagnose"),
     ("scan", "Scan"),
     ("batch", "Batch"),
     ("security", "Security"),
     ("profiles", "Profiles"),
-    ("log", "Log"),
+    ("setup", "Setup"),
 ]
 
 
@@ -53,60 +52,34 @@ class AppShell(QMainWindow):
 
         self._context = context
         self.session = SharedSession(parent=self)
-        self._log_rows: list = []  # (ts, dir, id, pdu, note, color)
+        self._log_rows: list = []
         self._log_table: Optional[QTableWidget] = None
         self._page_index = {key: i for i, (key, _) in enumerate(NAV_PAGES)}
+        self._diagnose_tabs = None
 
-        vscode_theme.apply(self)
-        plugin_shell.attach_status_bar(self, "Ready")
+        self._wb = suite_chrome.build_workbench(
+            self, NAV_PAGES, title="UDS Suite", panel_title="OUTPUT",
+            panel_visible=True, sidebar_visible=True)
+        self.stack = self._wb.stack
 
-        central = QWidget()
-        self.setCentralWidget(central)
-        root = QHBoxLayout(central)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
-
-        self.nav = QListWidget()
-        self.nav.setObjectName("SuiteNav")
-        self.nav.setFixedWidth(148)
-        self.nav.setIconSize(QSize(16, 16))
-        self.nav.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.nav.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        for key, title in NAV_PAGES:
-            item = QListWidgetItem(title)
-            item.setData(Qt.ItemDataRole.UserRole, key)
-            codicons.set_nav_item(item, key, vscode_theme.TEXT)
-            self.nav.addItem(item)
-        root.addWidget(self.nav)
-
-        content = QWidget()
-        content.setObjectName("SuiteContent")
-        cl = QVBoxLayout(content)
-        cl.setContentsMargins(0, 0, 0, 0)
-        cl.setSpacing(0)
-        self.stack = QStackedWidget()
-        cl.addWidget(self.stack, 1)
-        root.addWidget(content, 1)
-
+        self._build_output_panel()
         self.session.set_log_fn(self._log_row)
 
-        from pages import setup, diagnose, scan, batch, security, profiles, log_page
+        from pages import setup, diagnose, scan, batch, security, profiles
 
         self._pages = {}
         for key, builder in (
-            ("setup", setup.build),
             ("diagnose", diagnose.build),
             ("scan", scan.build),
             ("batch", batch.build),
             ("security", security.build),
             ("profiles", profiles.build),
-            ("log", log_page.build),
+            ("setup", setup.build),
         ):
             w = builder(self, self.session, self._log_row)
             self._pages[key] = w
             self.stack.addWidget(w)
 
-        self.nav.currentRowChanged.connect(self._on_nav)
         context.on_frame(self.session.on_frame)
 
         saved = state_store.load_state(PLUGIN_ID, default={}) or {}
@@ -115,16 +88,65 @@ class AppShell(QMainWindow):
         page = start_page or goto.get("start_page") or saved.get("nav_page")
         if goto:
             state_store.clear_state(PLUGIN_ID, "goto.json")
+        if page == "log":
+            self._wb.expand_panel()
+            page = "diagnose"
         self.goto_page(page or "diagnose")
 
-        for i in range(len(NAV_PAGES)):
-            plugin_shell.bind_shortcut(
-                self, "Ctrl+%d" % (i + 1),
-                lambda _=False, idx=i: self.goto_page(NAV_PAGES[idx][0]))
+        suite_chrome.bind_nav_shortcuts(self, NAV_PAGES, self.goto_page)
+        plugin_shell.bind_shortcut(
+            self, "Ctrl+J",
+            lambda: self._wb.set_panel_visible(not self._wb.is_panel_visible()))
+        plugin_shell.bind_shortcut(
+            self, "Ctrl+B",
+            lambda: self._wb.set_sidebar_visible(not self._wb.is_sidebar_visible()))
+        plugin_shell.bind_shortcut(
+            self, "Ctrl+Shift+E",
+            lambda: self._wb.set_maximized(not self._wb.is_maximized()))
+
+        self._log_row(
+            "SYS", "-", b"",
+            "Tabs: Session / Services / DID / … — Extended session then Send.")
+
+    # ------------------------------------------------------------------
+    def _on_workbench_page(self, key: str):
+        """Swap the single chrome row between Diagnose tabs and a page title."""
+        if key == "diagnose" and self._diagnose_tabs is not None:
+            self._wb.set_editor_tabs(self._diagnose_tabs)
+        else:
+            self._wb.set_editor_title(dict(NAV_PAGES).get(key, key))
+
+    def _build_output_panel(self):
+        # One chrome row: OUTPUT | tools … | collapse (list gets the rest)
+        frames = QCheckBox("ISO-TP frames")
+        frames.setToolTip("Include ISO-TP flow-control frames in the list")
+        frames.toggled.connect(lambda c: setattr(self.session, "show_isotp_frames", c))
+        self._wb.panel_tools.addWidget(frames)
+        self._wb.panel_tools.addStretch(1)
+
+        export_btn = QPushButton("Export")
+        export_btn.setObjectName("GhostButton")
+        export_btn.setFixedHeight(22)
+        export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        export_btn.setToolTip("Export log as CSV")
+        codicons.set_button(export_btn, "export", size=12)
+        clear_btn = QPushButton("Clear")
+        clear_btn.setObjectName("GhostButton")
+        clear_btn.setFixedHeight(22)
+        clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        clear_btn.setToolTip("Clear OUTPUT list")
+        codicons.set_button(clear_btn, "clear", size=12)
+        self._wb.panel_tools.addWidget(export_btn)
+        self._wb.panel_tools.addWidget(clear_btn)
+
+        table = suite_chrome.make_output_table()
+        self._wb.panel_body.addWidget(table, 1)
+        self.bind_log_table(table)
+        export_btn.clicked.connect(self.export_log)
+        clear_btn.clicked.connect(self.clear_log)
 
     # ------------------------------------------------------------------
     def bind_log_table(self, table: QTableWidget):
-        """Log page registers its table as the live view."""
         self._log_table = table
         table.setRowCount(0)
         for row in self._log_rows[-2000:]:
@@ -141,7 +163,6 @@ class AppShell(QMainWindow):
             while self._log_table.rowCount() > 2000:
                 self._log_table.removeRow(0)
             self._log_table.scrollToBottom()
-        # One-line status: last traffic without a permanent OUTPUT panel
         if isinstance(can_id, int):
             plugin_shell.set_status(
                 self, "%s 0x%X  %s" % (direction, can_id, (note or "")[:48]), 0)
@@ -165,6 +186,7 @@ class AppShell(QMainWindow):
             "RX": QColor(vscode_theme.RX),
             "ERR": QColor(vscode_theme.ERR),
             "FC": QColor(vscode_theme.FC),
+            "SYS": QColor(vscode_theme.TEXT_MUTED),
         }
         c = colors.get(color or direction, QColor(vscode_theme.TEXT_MUTED))
         row = self._log_table.rowCount()
@@ -196,29 +218,29 @@ class AppShell(QMainWindow):
             plugin_shell.set_status(self, "Exported %s" % path, 4000)
 
     # ------------------------------------------------------------------
-    def _on_nav(self, row: int):
-        if row < 0:
-            return
-        self.stack.setCurrentIndex(row)
-        plugin_shell.set_status(self, NAV_PAGES[row][1], 1200)
-        self._persist()
-
     def goto_page(self, key: str):
-        idx = self._page_index.get(key, 0)
-        self.nav.setCurrentRow(idx)
-        self.stack.setCurrentIndex(idx)
+        if key == "log":
+            self._wb.expand_panel()
+            return
+        self._wb.goto_page(key)
+        self._on_workbench_page(key)
+        plugin_shell.set_status(self, dict(NAV_PAGES).get(key, key), 1200)
+        self._persist()
 
     def _persist(self):
         geo = self.saveGeometry().toHex().data().decode("ascii")
+        sizes_v = self._wb.v_splitter.sizes()
         state_store.save_state(PLUGIN_ID, {
             "tx_id": self.session.tx_id,
             "rx_id": self.session.rx_id,
             "func_id": self.session.func_id,
             "functional": self.session.functional,
             "tester_present": self.session.tester_present,
-            "nav_page": NAV_PAGES[self.nav.currentRow()][0]
-            if self.nav.currentRow() >= 0 else "diagnose",
+            "nav_page": self._wb.current_page() or "diagnose",
             "geometry_hex": geo,
+            "sidebar_visible": self._wb.is_sidebar_visible(),
+            "panel_visible": self._wb.is_panel_visible(),
+            "splitter_v": sizes_v,
         })
 
     def _restore_state(self, saved: dict):
@@ -235,6 +257,12 @@ class AppShell(QMainWindow):
             if geo:
                 from PyQt6.QtCore import QByteArray
                 self.restoreGeometry(QByteArray.fromHex(geo.encode("ascii")))
+            sv = saved.get("splitter_v")
+            if isinstance(sv, list) and len(sv) == 2:
+                self._wb.v_splitter.setSizes([int(sv[0]), int(sv[1])])
+            # Always show activity + OUTPUT on launch (user can still hide)
+            self._wb.set_sidebar_visible(True)
+            self._wb.set_panel_visible(True)
         except (TypeError, ValueError):
             pass
 

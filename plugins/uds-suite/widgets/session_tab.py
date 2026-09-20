@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Setup workspace — bus IDs, session, timing.
+"""Session tab — bus IDs, diagnostic session, keep-alive, timing.
 
-Opened from activity-bar bottom (gear) or Diagnose Quick bar Bus IDs.
-Primary workflow stays on Diagnose; this page is for configuration.
+Whitespace separates sections (no loud dividers). Hints live in tooltips so
+content stays primary.
 """
 
 from __future__ import annotations
@@ -22,43 +22,35 @@ from _shared import plugin_shell, vscode_theme, codicons
 from widgets.step_spin import StepSpin
 
 
-def _field(label: str, widget: QWidget) -> QWidget:
-    """Inline label + control on one baseline."""
+def _field(label: str, widget: QWidget, tip: str = "", label_w: int = 36) -> QWidget:
     wrap = QWidget()
-    wrap.setObjectName("SuiteField")
     row = QHBoxLayout(wrap)
     row.setContentsMargins(0, 0, 0, 0)
-    row.setSpacing(8)
+    row.setSpacing(6)
     lab = QLabel(label)
     lab.setObjectName("SuiteFieldLabel")
-    lab.setFixedWidth(40)
+    lab.setFixedWidth(label_w)
     lab.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+    if tip:
+        lab.setToolTip(tip)
+        widget.setToolTip(tip)
     row.addWidget(lab)
     row.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
     return wrap
 
 
-def _section(title: str, hint: str = "") -> tuple[QWidget, QVBoxLayout]:
+def _section(title: str, tip: str = "") -> tuple[QWidget, QVBoxLayout]:
+    """Title only — tip on hover, not a second text row that adds noise."""
     card = QWidget()
     card.setObjectName("SuiteSettingsSection")
     outer = QVBoxLayout(card)
-    outer.setContentsMargins(0, 0, 0, 0)
-    outer.setSpacing(10)
-
-    head = QHBoxLayout()
-    head.setContentsMargins(0, 0, 0, 0)
-    head.setSpacing(10)
+    outer.setContentsMargins(0, 10, 0, 4)
+    outer.setSpacing(8)
     t = QLabel(title)
     t.setObjectName("SuiteSectionTitle")
-    head.addWidget(t)
-    if hint:
-        h = QLabel(hint)
-        h.setObjectName("SuiteHint")
-        head.addWidget(h, 1)
-    else:
-        head.addStretch(1)
-    outer.addLayout(head)
-
+    if tip:
+        t.setToolTip(tip)
+    outer.addWidget(t)
     body = QVBoxLayout()
     body.setContentsMargins(0, 0, 0, 0)
     body.setSpacing(8)
@@ -70,51 +62,54 @@ def build(parent, session, log_fn) -> QWidget:
     root = QWidget(parent)
     root.setObjectName("SuiteSettingsPage")
     outer = QVBoxLayout(root)
-    outer.setContentsMargins(20, 16, 20, 16)
+    outer.setContentsMargins(20, 12, 20, 12)
     outer.setSpacing(0)
 
-    # Constrain content width — avoids stretched, sparse controls
     content = QWidget()
-    content.setObjectName("SuiteSettingsContent")
-    content.setMaximumWidth(720)
+    content.setMaximumWidth(680)
     layout = QVBoxLayout(content)
     layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(0)
+    layout.setSpacing(4)
 
-    # ---- Connection ----
-    conn, cl = _section("Connection", "IDs shared by every page that sends")
+    # Connection
+    conn, cl = _section(
+        "Connection",
+        "TX = tester request ID, RX = ECU response ID, Func = functional address. "
+        "Apply once — used by every Diagnose action.")
     crow = QHBoxLayout()
-    crow.setContentsMargins(0, 0, 0, 0)
-    crow.setSpacing(16)
-    tx = StepSpin(session.tx_id, minimum=1, maximum=0x7FF, hex_mode=True, width=88)
-    rx = StepSpin(session.rx_id, minimum=1, maximum=0x7FF, hex_mode=True, width=88)
-    func = StepSpin(session.func_id, minimum=1, maximum=0x7FF, hex_mode=True, width=88)
-    crow.addWidget(_field("TX", tx))
-    crow.addWidget(_field("RX", rx))
-    crow.addWidget(_field("Func", func))
+    crow.setSpacing(14)
+    tx = StepSpin(session.tx_id, minimum=1, maximum=0x7FF, hex_mode=True, width=92)
+    rx = StepSpin(session.rx_id, minimum=1, maximum=0x7FF, hex_mode=True, width=92)
+    func = StepSpin(session.func_id, minimum=1, maximum=0x7FF, hex_mode=True, width=92)
+    crow.addWidget(_field("TX", tx, "Tester request CAN ID"))
+    crow.addWidget(_field("RX", rx, "ECU response CAN ID"))
+    crow.addWidget(_field("Func", func, "Functional / broadcast ID (e.g. 0x7DF)"))
     crow.addStretch(1)
     cl.addLayout(crow)
 
     crow2 = QHBoxLayout()
-    crow2.setContentsMargins(0, 0, 0, 0)
     crow2.setSpacing(12)
     func_check = QCheckBox("Functional addressing")
     func_check.setChecked(session.functional)
-    func_check.setToolTip("Send on Func ID instead of TX")
+    func_check.setToolTip("Send requests on Func ID instead of TX")
     crow2.addWidget(func_check)
     crow2.addStretch(1)
     apply_btn = QPushButton("Apply")
     apply_btn.setObjectName("PrimaryButton")
-    apply_btn.setFixedHeight(26)
+    apply_btn.setFixedHeight(28)
     apply_btn.setMinimumWidth(88)
     apply_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    apply_btn.setToolTip("Write IDs and timing into the shared session")
     codicons.set_button(apply_btn, "apply", primary=True, size=12)
     crow2.addWidget(apply_btn)
     cl.addLayout(crow2)
     layout.addWidget(conn)
 
-    # ---- Session (segmented) ----
-    sess, sl = _section("Session", "Diagnostic session + TesterPresent keep-alive")
+    # Session
+    sess, sl = _section(
+        "Session",
+        "Switch diagnostic session before DID / DTC / Flash. "
+        "Keep-alive sends TesterPresent 3E 80.")
     seg = QWidget()
     seg.setObjectName("SuiteSegment")
     seg_l = QHBoxLayout(seg)
@@ -122,15 +117,15 @@ def build(parent, session, log_fn) -> QWidget:
     seg_l.setSpacing(0)
     group = QButtonGroup(seg)
     group.setExclusive(True)
-    session_btns = {}
-    for i, (code, label) in enumerate(((0x01, "Default"), (0x03, "Extended"), (0x02, "Prog"))):
+    for i, (code, label) in enumerate(
+            ((0x01, "Default"), (0x03, "Extended"), (0x02, "Prog"))):
         b = QPushButton(label)
         b.setObjectName("SegmentBtn")
         b.setCheckable(True)
-        b.setFixedHeight(26)
+        b.setFixedHeight(28)
         b.setMinimumWidth(84)
         b.setCursor(Qt.CursorShape.PointingHandCursor)
-        b.setToolTip("Session 0x%02X" % code)
+        b.setToolTip("DiagnosticSessionControl 0x%02X" % code)
         if i == 0:
             b.setProperty("segment", "first")
         elif i == 2:
@@ -140,59 +135,40 @@ def build(parent, session, log_fn) -> QWidget:
         b.style().unpolish(b)
         b.style().polish(b)
         group.addButton(b)
-        session_btns[code] = b
         b.clicked.connect(lambda _=False, s=code: session.go_session(s))
         seg_l.addWidget(b)
-    seg_l.addStretch(1)
-    sl.addWidget(seg)
-
-    foot = QHBoxLayout()
-    foot.setContentsMargins(0, 0, 0, 0)
-    foot.setSpacing(12)
+    seg_l.addSpacing(12)
     session_label = QLabel("Session: unknown")
     session_label.setObjectName("SessionBadge")
-    foot.addWidget(session_label)
+    session_label.setToolTip("Last successful session reported by the ECU")
+    seg_l.addWidget(session_label)
     tp_check = QCheckBox("Keep-alive")
     tp_check.setChecked(session.tester_present)
-    tp_check.setToolTip("TesterPresent every TP ms. Functional during flash.")
+    tp_check.setToolTip("TesterPresent 3E 80 while you work")
     tp_check.toggled.connect(lambda c: setattr(session, "tester_present", c))
-    foot.addWidget(tp_check)
-    foot.addStretch(1)
-    sl.addLayout(foot)
+    seg_l.addWidget(tp_check)
+    seg_l.addStretch(1)
+    sl.addWidget(seg)
     layout.addWidget(sess)
 
-    # ---- Timing ----
-    timing, tl = _section("Timing", "P2 / P2* timeouts, TP keep-alive period")
+    # Timing
+    timing, tl = _section(
+        "Timing",
+        "P2 / P2* = response timeouts. TP = keep-alive period. Written with Apply.")
     trow = QHBoxLayout()
-    trow.setContentsMargins(0, 0, 0, 0)
-    trow.setSpacing(16)
-    p2 = StepSpin(session.client.p2_ms, minimum=50, maximum=10000, suffix=" ms", width=96)
-    p2s = StepSpin(session.client.p2star_ms, minimum=50, maximum=60000, suffix=" ms", width=96)
+    trow.setSpacing(14)
+    p2 = StepSpin(session.client.p2_ms, minimum=50, maximum=10000, suffix=" ms", width=100)
+    p2s = StepSpin(session.client.p2star_ms, minimum=50, maximum=60000, suffix=" ms", width=100)
     tp = StepSpin(getattr(session, "tp_interval_ms", 2000), minimum=200, maximum=10000,
-                  suffix=" ms", width=96)
-    p2.setToolTip("P2 server timeout")
-    p2s.setToolTip("P2* after NRC 0x78")
-    tp.setToolTip("TesterPresent interval")
-    trow.addWidget(_field("P2", p2))
-    trow.addWidget(_field("P2*", p2s))
-    trow.addWidget(_field("TP", tp))
+                  suffix=" ms", width=100)
+    trow.addWidget(_field("P2", p2, "P2 server timeout"))
+    trow.addWidget(_field("P2*", p2s, "P2* after NRC 0x78"))
+    trow.addWidget(_field("TP", tp, "TesterPresent interval"))
     trow.addStretch(1)
     tl.addLayout(trow)
     layout.addWidget(timing)
-
-    # ---- Identify ----
-    ident, il = _section("Identify", "F186 F187 F18A F18C F190 F191 F195 F197")
-    read_btn = QPushButton("Read ID")
-    read_btn.setObjectName("SecondaryButton")
-    read_btn.setFixedHeight(26)
-    read_btn.setMinimumWidth(96)
-    read_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-    codicons.set_button(read_btn, "refresh", size=12)
-    read_btn.clicked.connect(session.read_identity)
-    il.addWidget(read_btn, 0, Qt.AlignmentFlag.AlignLeft)
-    layout.addWidget(ident)
-
     layout.addStretch(1)
+
     outer.addWidget(content, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
     outer.addStretch(1)
 
@@ -209,22 +185,14 @@ def build(parent, session, log_fn) -> QWidget:
         session_label.setText("Session: %s" % name)
         p2.setValue(min(10000, max(50, session.client.p2_ms)))
         p2s.setValue(min(60000, max(50, session.client.p2star_ms)))
-        # Highlight matching segment when known
-        for code, btn in session_btns.items():
-            btn.setChecked(False)
 
     session.on_session_changed(_on_session)
 
     def _sync():
-        tx.blockSignals(True)
-        rx.blockSignals(True)
-        func.blockSignals(True)
-        tx.setValue(session.tx_id)
-        rx.setValue(session.rx_id)
-        func.setValue(session.func_id)
-        tx.blockSignals(False)
-        rx.blockSignals(False)
-        func.blockSignals(False)
+        for spin, val in ((tx, session.tx_id), (rx, session.rx_id), (func, session.func_id)):
+            spin.blockSignals(True)
+            spin.setValue(val)
+            spin.blockSignals(False)
         func_check.setChecked(session.functional)
         tp_check.setChecked(session.tester_present)
 

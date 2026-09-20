@@ -1,21 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Spin editors with VS Code chevron steppers (native arrows are too small)."""
+"""Compact spin editors — one bordered control, no detached steppers."""
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal, QSize
-from PyQt6.QtWidgets import (
-    QHBoxLayout,
-    QPushButton,
-    QSpinBox,
-    QWidget,
-)
-
-from _shared import vscode_theme, codicons
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtWidgets import QSpinBox, QWidget, QHBoxLayout
 
 
 class StepSpin(QWidget):
-    """QSpinBox with large icon steppers instead of native tiny arrows."""
+    """Clean QSpinBox wrapper (type / wheel / arrow keys). No external buttons."""
 
     valueChanged = pyqtSignal(int)
 
@@ -28,22 +21,25 @@ class StepSpin(QWidget):
         hex_mode: bool = False,
         suffix: str = "",
         prefix: str = "",
-        width: int = 100,
+        width: int = 96,
         parent=None,
     ):
         super().__init__(parent)
         self.setObjectName("StepSpin")
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(2)
+        row.setSpacing(0)
 
         self.spin = QSpinBox()
+        self.spin.setObjectName("SuiteSpin")
         self.spin.setRange(minimum, maximum)
         self.spin.setValue(value)
         self.spin.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
         self.spin.setFixedHeight(28)
-        self.spin.setMinimumWidth(width)
-        self.spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.spin.setFixedWidth(width)
+        self.spin.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         if hex_mode:
             self.spin.setDisplayIntegerBase(16)
             self.spin.setPrefix(prefix or "0x")
@@ -52,27 +48,7 @@ class StepSpin(QWidget):
         if suffix:
             self.spin.setSuffix(suffix)
         self.spin.valueChanged.connect(self.valueChanged.emit)
-
-        self.down_btn = QPushButton()
-        self.up_btn = QPushButton()
-        for b, name, tip in (
-            (self.down_btn, "chevron-down", "Decrease"),
-            (self.up_btn, "chevron-up", "Increase"),
-        ):
-            b.setObjectName("StepSpinBtn")
-            b.setFixedSize(28, 28)
-            b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            b.setToolTip(tip)
-            b.setIcon(codicons.icon(name, vscode_theme.TEXT, 14))
-            b.setIconSize(QSize(14, 14))
-
-        # Order: value, then down, then up (easy left-to-right hit targets).
-        self.down_btn.clicked.connect(self.spin.stepDown)
-        self.up_btn.clicked.connect(self.spin.stepUp)
-        row.addWidget(self.spin, 1)
-        row.addWidget(self.down_btn)
-        row.addWidget(self.up_btn)
+        row.addWidget(self.spin)
 
     def value(self) -> int:
         return self.spin.value()

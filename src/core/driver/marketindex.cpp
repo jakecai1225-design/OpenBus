@@ -12,6 +12,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSet>
 
 // ============================================================
 //  MarketIndex 实现 — market.json schema 2 加载 / 检索 / URL 解析
@@ -111,8 +112,23 @@ void MarketIndex::onReplyFinished(QNetworkReply *reply)
             m_drivers.append(info);
     }
 
-    // ---- plugins[]：Python 插件（.opk） ----
+    // ---- plugins[]: Python packages (.opk); domain suites only (drop thin leftovers) ----
+    static const QSet<QString> kDomainPluginIds = {
+        QStringLiteral("uds-suite"),
+        QStringLiteral("dbc-studio"),
+        QStringLiteral("canopen-suite"),
+        QStringLiteral("j1939-suite"),
+        QStringLiteral("obd-suite"),
+        QStringLiteral("tx-lab"),
+        QStringLiteral("bus-security"),
+        QStringLiteral("protocol-hub"),
+        QStringLiteral("log-analysis"),
+        QStringLiteral("bus-utilities"),
+        QStringLiteral("ai-agent"),
+    };
+
     m_plugins.clear();
+    int skippedThin = 0;
     const auto plugins = obj.value(QStringLiteral("plugins")).toArray();
     for (const auto &v : plugins) {
         const auto p = v.toObject();
@@ -131,14 +147,20 @@ void MarketIndex::onReplyFinished(QNetworkReply *reply)
         info.keywords = p.value(QStringLiteral("keywords")).toString();
         info.minAppVersion = p.value(QStringLiteral("minAppVersion")).toString();
         info.updatedAt = p.value(QStringLiteral("updatedAt")).toString();
-        if (!info.id.isEmpty() && !info.package.isEmpty())
-            m_plugins.append(info);
+        if (info.id.isEmpty() || info.package.isEmpty())
+            continue;
+        if (!kDomainPluginIds.contains(info.id)) {
+            ++skippedThin;
+            continue;
+        }
+        m_plugins.append(info);
     }
 
     m_loaded = true;
     m_lastError.clear();
-    OPENBUS_LOG_INFO("MarketIndex", "market loaded: {} drivers / {} plugins",
-                     m_drivers.size(), m_plugins.size());
+    OPENBUS_LOG_INFO("MarketIndex",
+                     "market loaded: {} drivers / {} plugins (skipped {} thin)",
+                     m_drivers.size(), m_plugins.size(), skippedThin);
     emit loaded(true, QString());
 }
 

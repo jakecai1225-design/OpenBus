@@ -108,10 +108,10 @@ def _fit_len(key, n):
 
 
 def _tab(bar, stack, widget, name: str, hint: str):
-    """Add a business tab. Guide text is a tooltip, not a second header row."""
+    """Add an editor tab. Content padding only — tab strip lives in shell chrome."""
     wrap = QWidget()
     v = QVBoxLayout(wrap)
-    v.setContentsMargins(0, 8, 0, 0)
+    v.setContentsMargins(16, 10, 16, 8)
     v.setSpacing(0)
     v.addWidget(widget, 1)
     stack.addWidget(wrap)
@@ -121,25 +121,41 @@ def _tab(bar, stack, widget, name: str, hint: str):
 
 
 def build(parent, session, log_fn) -> QWidget:
-    from widgets.layout import page, attach_output
+    from widgets.layout import page
     from widgets.step_spin import StepSpin
+    from widgets.session_tab import build as build_session_tab
     from _shared import vscode_theme, codicons
 
     root, layout = page(parent)
-    layout.setContentsMargins(16, 0, 16, 8)
+    layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
 
+    # Tab strip is mounted into the shell editor chrome (single top row).
     bar = QTabBar()
-    bar.setObjectName("SuiteTopTabs")
+    bar.setObjectName("SuiteEditorTabs")
     bar.setDrawBase(False)
     bar.setExpanding(False)
-    bar.setUsesScrollButtons(False)
+    bar.setDocumentMode(True)
+    bar.setUsesScrollButtons(True)
+    bar.setElideMode(Qt.TextElideMode.ElideRight)
     stack = QStackedWidget()
+    stack.setObjectName("SuiteEditorStack")
     bar.currentChanged.connect(stack.setCurrentIndex)
-    layout.addWidget(bar)
+    layout.addWidget(stack, 1)
+
+    wb = getattr(parent, "_wb", None)
+    if wb is not None and hasattr(wb, "set_editor_tabs"):
+        parent._diagnose_tabs = bar
+        wb.set_editor_tabs(bar)
 
     def uds_send(pdu, on_done=None, expect_response=True, tag="Request"):
         session.request(pdu, on_done=on_done, expect_response=expect_response, tag=tag)
+
+    # ========== Tab 0: Session ==========
+    session_page = build_session_tab(parent, session, log_fn)
+    stack.addWidget(session_page)
+    bar.addTab("Session")
+    bar.setTabToolTip(0, "TX/RX IDs, diagnostic session, keep-alive, timing")
 
     # ========== Tab 1: Services ==========
     svc_tab = QWidget()
@@ -182,6 +198,55 @@ def build(parent, session, log_fn) -> QWidget:
     svc_resp_label.setWordWrap(True)
     svc_resp_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
     req_body.addWidget(svc_title)
+
+    starters = QWidget()
+    starters.setObjectName("SuiteStarters")
+    st_l = QHBoxLayout(starters)
+    st_l.setContentsMargins(0, 0, 0, 4)
+    st_l.setSpacing(8)
+    st_hint = QLabel("Quick start:")
+    st_hint.setObjectName("SuiteHint")
+    st_l.addWidget(st_hint)
+
+    def _starter_btn(text, tip, sid, preset=None):
+        b = QPushButton(text)
+        b.setObjectName("GhostButton")
+        b.setFixedHeight(24)
+        b.setCursor(Qt.CursorShape.PointingHandCursor)
+        b.setToolTip(tip)
+        st_l.addWidget(b)
+
+        def _go(_=False, service_id=sid, pre=preset):
+            for i in range(svc_tree.topLevelItemCount()):
+                cat = svc_tree.topLevelItem(i)
+                for j in range(cat.childCount()):
+                    it = cat.child(j)
+                    if it.data(0, Qt.ItemDataRole.UserRole) == service_id:
+                        svc_tree.setCurrentItem(it)
+                        break
+            if pre:
+                pre()
+
+        b.clicked.connect(_go)
+        return b
+
+    def _preset_extended():
+        for i in range(svc_form.rowCount()):
+            w = svc_form.itemAt(i, QFormLayout.ItemRole.FieldRole)
+            if w and w.widget() and isinstance(w.widget(), QComboBox):
+                c = w.widget()
+                idx = c.findData(0x03)
+                if idx >= 0:
+                    c.setCurrentIndex(idx)
+                break
+
+    _starter_btn("Extended session", "10 03 — most ECUs need this before DID/DTC",
+                 0x10, _preset_extended)
+    _starter_btn("Read VIN", "22 F190 — common identity DID", 0x22)
+    _starter_btn("TesterPresent", "3E 80 — keep session alive", 0x3E)
+    st_l.addStretch(1)
+    req_body.addWidget(starters)
+
     req_body.addWidget(svc_param_box)
     req_body.addWidget(svc_send_btn, 0, Qt.AlignmentFlag.AlignLeft)
     resp_cap = QLabel("Response")
@@ -428,7 +493,17 @@ def build(parent, session, log_fn) -> QWidget:
 
     svc_send_btn.clicked.connect(_on_svc_send)
     _tab(bar, stack, svc_tab, "Services",
-         "Pick a UDS service, fill parameters, Send. Response appears below and in OUTPUT.")
+         "Pick a service (or Quick start), fill parameters, Send. Watch OUTPUT below.")
+
+    # Default path: land on Services with DiagnosticSessionControl → Extended
+    for i in range(svc_tree.topLevelItemCount()):
+        cat = svc_tree.topLevelItem(i)
+        for j in range(cat.childCount()):
+            it = cat.child(j)
+            if it.data(0, Qt.ItemDataRole.UserRole) == 0x10:
+                svc_tree.setCurrentItem(it)
+                _preset_extended()
+                break
 
     # ========== Tab 2: DID ==========
     did_tab = QWidget()
@@ -1231,5 +1306,7 @@ def build(parent, session, log_fn) -> QWidget:
     _tab(bar, stack, fl_tab, "Flash",
          "Programming sequence: optional precheck, erase, 34/36/37, checksum, reset. HEX and S19 fill the start address.")
 
-    attach_output(parent, layout, stack, session)
+    # Session | Services | DID | DTC | Security | Flash — start on Services
+    bar.setCurrentIndex(1)
+    stack.setCurrentIndex(1)
     return root

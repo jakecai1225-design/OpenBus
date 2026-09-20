@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
-"""Chat window: transcript, tool trace, provider settings."""
+"""Chat window: transcript, tool trace, provider settings, HITL approval."""
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+import json
+import threading
+
+from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QTextEdit,
@@ -45,11 +49,28 @@ class _RunThread(QThread):
     step = pyqtSignal(str)
     done = pyqtSignal(str)
     failed = pyqtSignal(str)
+    approve_needed = pyqtSignal(dict)
 
     def __init__(self, orchestrator, text: str):
         super().__init__()
         self._orchestrator = orchestrator
         self._text = text
+        self._approval_cond = threading.Condition()
+        self._approval_answer = None
+
+    def wait_approval(self, info: dict) -> bool:
+        with self._approval_cond:
+            self._approval_answer = None
+        self.approve_needed.emit(info)
+        with self._approval_cond:
+            while self._approval_answer is None:
+                self._approval_cond.wait(timeout=0.2)
+            return bool(self._approval_answer)
+
+    def resolve_approval(self, ok: bool) -> None:
+        with self._approval_cond:
+            self._approval_answer = bool(ok)
+            self._approval_cond.notify_all()
 
     def run(self):
         try:
@@ -68,7 +89,7 @@ class ChatWindow(QMainWindow):
 
         self._store = SessionStore()
         self._policy = Policy("readonly")
-        self._registry = ToolRegistry(SinHost(), self._policy)
+        self._registry = ToolRegistry(SinHost(), self._policy, approval_fn=None)
         self._llm = LLMClient("", "", "")
         self._orch = Orchestrator(self._llm, self._registry, self._store)
         self._thread = None
@@ -151,7 +172,8 @@ class ChatWindow(QMainWindow):
 
         row = QHBoxLayout()
         self.input = QLineEdit()
-        self.input.setPlaceholderText("Message, or /read-only  /report")
+        self.input.setPlaceholderText(
+            "Message, or /read-only  /allow-tx  /diag-write  /report")
         self.send_btn = QPushButton("Send")
         row.addWidget(self.input, 1)
         row.addWidget(self.send_btn)
@@ -167,6 +189,7 @@ class ChatWindow(QMainWindow):
         self.input.returnPressed.connect(self._send)
 
         self._load_settings()
+        self._sync_policy_label()
 
     def _load_settings(self):
         data = load_settings()
@@ -180,6 +203,11 @@ class ChatWindow(QMainWindow):
         role = data.get("role") or "Analyst"
         if role in ROLES:
             self.role.setCurrentText(role)
+        level = data.get("policy") or "readonly"
+        try:
+            self._policy.set_level(level)
+        except ValueError:
+            self._policy.set_level("readonly")
         self._push_client()
 
     def _apply_preset(self, name: str):
@@ -198,6 +226,7 @@ class ChatWindow(QMainWindow):
             "model": self.model.text().strip(),
             "api_key": self.api_key.text().strip(),
             "role": self.role.currentText(),
+            "policy": self._policy.level,
         }
         path = save_settings(data)
         self._push_client()
@@ -208,6 +237,10 @@ class ChatWindow(QMainWindow):
         self._llm.api_key = self.api_key.text().strip()
         self._llm.model = self.model.text().strip()
         self._orch.set_role(self.role.currentText())
+        self._orch.refresh_policy_prompt()
+
+    def _sync_policy_label(self):
+        self.policy_label.setText("Policy: %s" % self._policy.level)
 
     def _append(self, title: str, body: str):
         self.transcript.append("%s\n%s\n" % (title, body))
@@ -236,13 +269,26 @@ class ChatWindow(QMainWindow):
         cmd = text.split()[0].lower()
         if cmd == "/read-only":
             self._policy.set_level("readonly")
-            self.policy_label.setText("Policy: readonly")
+            self._sync_policy_label()
+            self._orch.refresh_policy_prompt()
             self._append("System", "Policy is readonly. Write tools stay hidden.")
             return
         if cmd == "/allow-tx":
+            self._policy.set_level("tx_allowed")
+            self._sync_policy_label()
+            self._orch.refresh_policy_prompt()
             self._append(
                 "System",
-                "TX is not enabled in this build. Policy stays readonly.")
+                "Policy is tx_allowed. frames_send / uds_read_did / obd_read_pid "
+                "are available and still require approval.")
+            return
+        if cmd in ("/diag-write", "/diag"):
+            self._policy.set_level("diag_write")
+            self._sync_policy_label()
+            self._orch.refresh_policy_prompt()
+            self._append(
+                "System",
+                "Policy is diag_write. Diagnostic write tools may appear when registered.")
             return
         if cmd == "/report":
             if not self._report_lines:
@@ -251,7 +297,9 @@ class ChatWindow(QMainWindow):
             path = self._store.export_markdown(self._report_lines)
             self._append("System", "Report written to %s" % path)
             return
-        self._append("System", "Unknown command. Try /read-only or /report.")
+        self._append(
+            "System",
+            "Unknown command. Try /read-only, /allow-tx, /diag-write, /report.")
 
     def _new_chat(self):
         if self._busy:
@@ -260,7 +308,37 @@ class ChatWindow(QMainWindow):
         self.transcript.clear()
         self.trace.clear()
         self._report_lines = []
-        plugin_shell.set_status(self, "New chat in session %s" % self._store.session_id, 3000)
+        plugin_shell.set_status(
+            self, "New chat in session %s" % self._store.session_id, 3000)
+
+    def _format_approval(self, info: dict) -> str:
+        args = info.get("arguments") or {}
+        pretty = json.dumps(args, indent=2, ensure_ascii=False)
+        return (
+            "Approve tool call?\n\n"
+            "Tool: %s\n"
+            "Permission: %s\n"
+            "Policy: %s\n\n"
+            "Arguments:\n%s"
+        ) % (
+            info.get("tool"),
+            info.get("permission"),
+            info.get("policy"),
+            pretty,
+        )
+
+    def _on_approve_needed(self, info: dict):
+        text = self._format_approval(info)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("Approve tool")
+        box.setText(text)
+        box.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        ok = box.exec() == QMessageBox.StandardButton.Yes
+        if self._thread is not None:
+            self._thread.resolve_approval(ok)
 
     def _start(self, text: str, echo: str):
         if self._busy:
@@ -270,9 +348,12 @@ class ChatWindow(QMainWindow):
         self._set_busy(True)
         plugin_shell.set_status(self, "Running")
         self._thread = _RunThread(self._orch, text)
+        # Bind approval to this worker so the GUI thread can answer.
+        self._registry.approval_fn = self._thread.wait_approval
         self._thread.step.connect(self._on_step)
         self._thread.done.connect(self._on_done)
         self._thread.failed.connect(self._on_failed)
+        self._thread.approve_needed.connect(self._on_approve_needed)
         self._thread.start()
 
     def _on_step(self, line: str):
@@ -281,13 +362,16 @@ class ChatWindow(QMainWindow):
     def _on_done(self, answer: str):
         self._append("Agent", answer)
         self._set_busy(False)
+        self._registry.approval_fn = None
         plugin_shell.set_status(self, "Ready")
 
     def _on_failed(self, message: str):
         self._append("Error", message)
         self._set_busy(False)
+        self._registry.approval_fn = None
         plugin_shell.set_status(self, "Failed")
 
     def shutdown(self):
         if self._thread is not None and self._thread.isRunning():
+            self._thread.resolve_approval(False)
             self._thread.wait(1500)

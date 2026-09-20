@@ -103,6 +103,12 @@ ALIASES = {
     "record": "record",
     "undo": "undo",
     "extensions": "extensions",
+    # Workbench layout toggles (VS Code title-bar style)
+    "layout-sidebar": "layout-sidebar-left",
+    "layout-sidebar-left": "layout-sidebar-left",
+    "layout-sidebar-right": "layout-sidebar-right",
+    "layout-panel": "layout-panel",
+    "layout-maximize": "layout-maximize",
 }
 
 

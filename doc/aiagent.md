@@ -285,14 +285,14 @@ emit final report
 
 **验收**：`summarize_frames` 在假 Trace 上把 `0x123` 排第一并带上 DBC 名 `EngineData`；scripted tool-loop 走 `frames_stats` 后给出同一结论。真机提问仍需配置 Provider。
 
-### Phase 2 — 写路径 + 领域 Facade（2–3 周）
+### Phase 2 — 写路径 + 领域 Facade（2–3 周）**【已落地 2026-09-20】**
 
-1. Policy + 审批卡片；`frames.send` / FrameGen / Simulator facade。  
-2. UDS / OBD2 facade（复用 `uds-diagnostic`、`_shared/isotp_client`）。  
-3. 工件生成：sequence CSV、tx JSON，确认后执行。  
-4. 报告导出 Markdown。
+1. [x] Policy 级别（`readonly` / `tx_allowed` / `diag_write` / `flash`）+ TX 速率限制；写工具 HITL 审批卡片。  
+2. [x] `frames_send` / `uds_read_did` / `obd_read_pid` facade（ISO-TP SF 发出；响应从 Trace 回读）。  
+3. [x] 工件生成：`tx_build_cyclic` JSON、`uds_build_sequence` CSV（不自动上总线）。  
+4. [x] `/report` Markdown 导出（沿用 Phase 1）；斜杠 `/allow-tx` `/diag-write` `/read-only`。
 
-**验收**：用户说「每 100ms 发 0x123 8 字节 00…」→ 审批 → 总线可见周期帧 → Agent 用 `get_recent` 自证。
+**验收**：单元测试覆盖「readonly 隐藏写工具 → /allow-tx + 审批后 frames_send 真正调用 host.send_frame」；工件生成不发帧。真机周期发送自证仍建议配合 TX Lab 加载 artifact。
 
 ### Phase 3 — MCP 外向与多 Agent（2 周）
 
@@ -353,4 +353,4 @@ emit final report
 
 ---
 
-*Phase 1 代码在 `plugins/ai-agent/`。Phase 2 起再做审批写入、UDS/OBD facade 与报告之外的工件生成。*
+*Phase 2 代码在 `plugins/ai-agent/`（v0.2.0）。Phase 3 起再做 MCP 外向与多 Agent。*

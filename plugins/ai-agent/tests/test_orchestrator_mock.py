@@ -36,7 +36,7 @@ class _Frame:
 
 class FakeHost:
     def __init__(self):
-        self.sent = 0
+        self.sent = []
         self.frames = (
             [_Frame(0x123, b"\x11\x22", ts=1.0 + i * 0.01) for i in range(5)]
             + [_Frame(0x456, b"\x00", ts=2.0)]
@@ -47,6 +47,15 @@ class FakeHost:
 
     def get_selected(self):
         return [self.frames[0]]
+
+    def send_frame(self, can_id, data, extended=False, fd=False):
+        raw = data if isinstance(data, (bytes, bytearray)) else bytes.fromhex(str(data))
+        self.sent.append({
+            "id": int(can_id),
+            "data": bytes(raw),
+            "extended": bool(extended),
+            "fd": bool(fd),
+        })
 
     def decode(self, can_id, data):
         if int(can_id) == 0x123:
@@ -64,6 +73,9 @@ class FakeHost:
             {"id": 0x123, "name": "EngineData", "dlc": 8},
             {"id": 0x456, "name": "BodyStatus", "dlc": 8},
         ]
+
+    def log(self, text):
+        pass
 
 
 def test_stats_ranks_top_id_with_dbc_name():
