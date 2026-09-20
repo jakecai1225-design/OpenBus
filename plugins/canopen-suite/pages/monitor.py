@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Monitor workspace — live COB classification table + CSV export."""
+"""Monitor — live COB classification. One tool row, then the list."""
 
 from __future__ import annotations
 
 import time
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -32,34 +33,34 @@ KINDS = [
 def build(parent, session, log_fn) -> QWidget:
     root = QWidget(parent)
     layout = QVBoxLayout(root)
+    layout.setContentsMargins(8, 6, 8, 6)
+    layout.setSpacing(6)
 
-    layout.addWidget(plugin_shell.help_label(
-        "Live bus frames classified by pre-defined connection set "
-        "(NMT / SYNC / EMCY / PDO / SDO / Heartbeat). Toggle filters below."))
-
+    tools = QHBoxLayout()
     filters = {}
-    filt_row = QHBoxLayout()
     for kind in ("NMT", "SYNC", "EMCY", "TPDO1", "RPDO1", "TSDO", "RSDO", "HB", "UNKNOWN"):
         chk = QCheckBox(kind)
         chk.setChecked(True)
+        chk.setToolTip("Show %s frames" % kind)
         filters[kind] = chk
-        filt_row.addWidget(chk)
-    # PDO2-4 share TPDO/RPDO parent toggles loosely — keep all kinds enabled by default
+        tools.addWidget(chk)
     for kind in KINDS:
-        if kind not in filters:
-            filters[kind] = None  # always show
-    filt_row.addStretch()
-    layout.addLayout(filt_row)
-
-    btn_row = QHBoxLayout()
+        filters.setdefault(kind, None)
+    tools.addStretch(1)
     pause_chk = QCheckBox("Pause")
+    pause_chk.setToolTip("Stop appending frames")
     clear_btn = QPushButton("Clear")
-    export_btn = QPushButton("Export CSV")
-    btn_row.addWidget(pause_chk)
-    btn_row.addStretch()
-    btn_row.addWidget(clear_btn)
-    btn_row.addWidget(export_btn)
-    layout.addLayout(btn_row)
+    clear_btn.setObjectName("GhostButton")
+    clear_btn.setFixedHeight(28)
+    clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    export_btn = QPushButton("Export")
+    export_btn.setObjectName("GhostButton")
+    export_btn.setFixedHeight(28)
+    export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    tools.addWidget(pause_chk)
+    tools.addWidget(clear_btn)
+    tools.addWidget(export_btn)
+    layout.addLayout(tools)
 
     table = QTableWidget(0, 6)
     table.setHorizontalHeaderLabels(
@@ -67,12 +68,12 @@ def build(parent, session, log_fn) -> QWidget:
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     table.verticalHeader().setVisible(False)
     table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+    table.setAlternatingRowColors(True)
     table.horizontalHeader().setSectionResizeMode(
         5, QHeaderView.ResizeMode.Stretch)
     layout.addWidget(table, 1)
 
     def _filter_ok(kind: str) -> bool:
-        # Map TPDO2-4 -> TPDO1 checkbox, RPDO2-4 -> RPDO1
         key = kind
         if kind.startswith("TPDO"):
             key = "TPDO1"
@@ -108,8 +109,7 @@ def build(parent, session, log_fn) -> QWidget:
             table.setItem(row, col, QTableWidgetItem(text))
         while table.rowCount() > 3000:
             table.removeRow(0)
-        bar = table.verticalScrollBar()
-        bar.setValue(bar.maximum())
+        table.scrollToBottom()
 
     session.on_bus_frame(on_frame)
 

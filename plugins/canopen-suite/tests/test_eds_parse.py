@@ -69,6 +69,10 @@ def test_roundtrip_meta():
     assert again.file_info.get("CreatedBy") == "test"
     assert again.device_info.get("VendorName") == "Demo"
     assert len(again.entries) == len(doc.entries)
+    listed = again.other_meta.get("mandatoryobjects", {})
+    vals = {v.lower() for v in listed.values()}
+    assert "0x1000" in vals
+    assert "0x1018" in vals
     findings = validate_eds(doc.entries)
     assert findings and findings[0]["level"] in ("info", "warn", "error")
     print("PASS eds FileInfo round-trip + validate")

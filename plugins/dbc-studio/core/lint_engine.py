@@ -108,22 +108,8 @@ def save_rules(rules: dict) -> str:
 
 
 def _signal_bits(sig) -> set:
-    bits = set()
-    if sig.bit_length <= 0:
-        return bits
-    if sig.little_endian:
-        for i in range(sig.bit_length):
-            bits.add(sig.start_bit + i)
-    else:
-        byte = sig.start_bit >> 3
-        bit = sig.start_bit & 7
-        for _ in range(sig.bit_length):
-            bits.add(byte * 8 + bit)
-            bit += 1
-            if bit == 8:
-                bit = 0
-                byte += 1
-    return bits
+    from _shared.dbcparse import signal_bit_numbers
+    return set(signal_bit_numbers(sig.start_bit, sig.bit_length, sig.little_endian))
 
 
 def _raw_range(sig) -> tuple:

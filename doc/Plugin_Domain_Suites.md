@@ -8,7 +8,7 @@
 
 - 旧升级轨（保留作历史）：[Plugin_P0_Competitive_Upgrade.md](Plugin_P0_Competitive_Upgrade.md)、[Plugin_Category_B_Upgrade.md](Plugin_Category_B_Upgrade.md)
 - 本文件：合并地图、UX 条、迁移、三领域需求（UDS / DBC / CANopen）
-- AI Agent 仍独立设计：[aiagent.md](aiagent.md)（消费领域套件的工具面，而不是再加碎片插件）
+- AI Agent 仍独立设计：[aiagent.md](aiagent.md)（消费领域套件的工具面，而不是再加碎片插件）；平台总方案见 [ai.md](ai.md)
 
 ---
 

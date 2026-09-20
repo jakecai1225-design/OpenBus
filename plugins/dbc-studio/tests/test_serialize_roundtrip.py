@@ -80,7 +80,21 @@ def test_lint_and_merge():
         print("PASS merge")
 
 
+def test_vector_layout():
+    """CANdb++ bit numbering: bit 0 is the LSB of byte 0."""
+    data = bytearray(8)
+    dbcparse.insert_intel(data, 0, 8, 0xAB)
+    assert data[0] == 0xAB
+    assert dbcparse.extract_intel(data, 0, 8) == 0xAB
+    data = bytearray(8)
+    dbcparse.insert_motorola(data, 7, 16, 0x1234)
+    assert data[0] == 0x12 and data[1] == 0x34
+    assert dbcparse.extract_motorola(bytes(data), 7, 16) == 0x1234
+    print("PASS vector bit layout")
+
+
 if __name__ == "__main__":
     test_roundtrip()
     test_lint_and_merge()
+    test_vector_layout()
     print("All dbc-studio tests passed")

@@ -1,6 +1,8 @@
 # openbus AI Agent 插件 — 设计思路、功能特性与实现路径
 
 > 文档状态：Phase 1 MVP 已落地（2026-09-18），见 `plugins/ai-agent/`  
+> **平台级 AI-Native 总方案（生命周期 / Capability Bus / 一切可投喂 / 多 Agent 选型 / 隔离）见 [`ai.md`](ai.md)**  
+> 编排原则：不自研多 Agent 内核；采用 OpenAI Agents SDK（handoff / as_tool），长 HITL 图可叠加 LangGraph — 详见 ai.md §8。  
 > 目标产物：重磅级 Python 插件 `plugins/ai-agent/`（id：`ai-agent`）  
 > 对标定位：一流 AI Agent 的「工具编排 + 人机审批」能力 × 汽车总线诊断场景  
 > 闭环目标：**自然语言需求 → 调用主进程 / 插件能力 → 观测总线 → 验证 → 报告**

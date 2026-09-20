@@ -42,19 +42,18 @@ def _emit_extract_raw(lines: list, sig, indent: str = "    ") -> None:
         lines.append("%s    unsigned i;" % indent)
         lines.append("%s    for (i = 0; i < %du; ++i) {" % (indent, sig.bit_length))
         lines.append("%s        unsigned bit = %du + i;" % (indent, sig.start_bit))
-        lines.append("%s        if ((buf[bit >> 3] >> (7 - (bit & 7))) & 1u)" % indent)
+        lines.append("%s        if ((buf[bit >> 3] >> (bit & 7)) & 1u)" % indent)
         lines.append("%s            raw |= (uint64_t)1 << i;" % indent)
         lines.append("%s    }" % indent)
         lines.append("%s}" % indent)
     else:
         lines.append("%s{" % indent)
-        lines.append("%s    unsigned byte = %du;" % (indent, sig.start_bit >> 3))
-        lines.append("%s    unsigned bit = %du;" % (indent, sig.start_bit & 7))
+        lines.append("%s    unsigned bit = %du;" % (indent, sig.start_bit))
         lines.append("%s    unsigned i;" % indent)
         lines.append("%s    for (i = 0; i < %du; ++i) {" % (indent, sig.bit_length))
         lines.append("%s        raw <<= 1;" % indent)
-        lines.append("%s        if ((buf[byte] >> (7 - bit)) & 1u) raw |= 1u;" % indent)
-        lines.append("%s        if (++bit == 8u) { bit = 0; ++byte; }" % indent)
+        lines.append("%s        if ((buf[bit >> 3] >> (bit & 7)) & 1u) raw |= 1u;" % indent)
+        lines.append("%s        if ((bit & 7u) == 0u) bit += 15u; else bit -= 1u;" % indent)
         lines.append("%s    }" % indent)
         lines.append("%s}" % indent)
     if sig.is_signed and 0 < sig.bit_length < 64:
@@ -72,24 +71,23 @@ def _emit_insert_raw(lines: list, sig, raw_expr: str, indent: str = "    ") -> N
         lines.append("%s        if ((%s >> i) & 1u) {" % (indent, raw_expr))
         lines.append("%s            unsigned bit = %du + i;" % (indent, sig.start_bit))
         lines.append(
-            "%s            buf[bit >> 3] |= (uint8_t)(1u << (7 - (bit & 7)));" % indent
+            "%s            buf[bit >> 3] |= (uint8_t)(1u << (bit & 7));" % indent
         )
         lines.append("%s        }" % indent)
         lines.append("%s    }" % indent)
         lines.append("%s}" % indent)
     else:
         lines.append("%s{" % indent)
-        lines.append("%s    unsigned byte = %du;" % (indent, sig.start_bit >> 3))
-        lines.append("%s    unsigned bit = %du;" % (indent, sig.start_bit & 7))
+        lines.append("%s    unsigned bit = %du;" % (indent, sig.start_bit))
         lines.append("%s    int i;" % indent)
         lines.append(
             "%s    for (i = %d; i >= 0; --i) {" % (indent, sig.bit_length - 1)
         )
         lines.append("%s        if ((%s >> i) & 1u)" % (indent, raw_expr))
         lines.append(
-            "%s            buf[byte] |= (uint8_t)(1u << (7 - bit));" % indent
+            "%s            buf[bit >> 3] |= (uint8_t)(1u << (bit & 7));" % indent
         )
-        lines.append("%s        if (++bit == 8u) { bit = 0; ++byte; }" % indent)
+        lines.append("%s        if ((bit & 7u) == 0u) bit += 15u; else bit -= 1u;" % indent)
         lines.append("%s    }" % indent)
         lines.append("%s}" % indent)
 

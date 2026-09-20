@@ -247,6 +247,7 @@ UDS remains the quality bar for chrome. Feature depth per domain follows the tab
 | 2026-09-20 | P2: CANopen PDO mapping page; J1939 Live/Transport/Diagnostics/Network; OBD Setup + Mode 01 readiness. |
 | 2026-09-20 | P3: Log Analysis Trace/Report on shared corpus; Protocol Hub Setup; Bus Utilities Scanner/Quality; Bus Security Findings. |
 | 2026-09-20 | Protocol description editors: ARXML (System Tree/Validate/Export) + ESI (Tree/Validate/Save) + EDS FileInfo round-trip/Validate/Save. DBC Studio already full. LDF/FIBEX/ODX deferred. |
+| 2026-09-20 | CANopen Suite workbench rewrite: activity bar + one chrome tab row (Network Scan|NMT, EDS Dictionary|Device|Check, Library CiA301|402). Session strip removed; Setup owns Node/EDS. Log is OUTPUT only. |
 
 ---
 
@@ -255,7 +256,7 @@ UDS remains the quality bar for chrome. Feature depth per domain follows the tab
 | Format | Suite | Top-3 references | Status |
 |--------|-------|------------------|--------|
 | **DBC** | `dbc-studio` | CANdb++ / TSMaster DB / Kvaser | Full create/edit/save/validate/compare/merge/export |
-| **EDS/DCF** | `canopen-suite` EDS | CANeds / emotas / port | Edit OD draft; FileInfo/DeviceInfo preserve; Validate; Save/Save As |
+| **EDS/DCF** | `canopen-suite` EDS | CANeds / emotas / port | Dictionary tree by index range, object definition (type/access/PDO/limits), Device FileInfo, Check, Apply to OD, Save |
 | **ARXML (COM subset)** | `autosar-suite` System | DaVinci / CANoe.AUTOSAR / TSMaster COM | Tree edit + Validate + Save ARXML + Export DBC (not full Classic project) |
 | **ESI** | `ethercat-suite` ESI | TwinCAT / EC-Engineer / SOEM tools | Tree edit PDO/Objects + Validate + Save XML (no ENI) |
 | **LDF / FIBEX / A2L / ODX** | — | — | Out of scope until dedicated LIN / measurement / UDS-ODX track |

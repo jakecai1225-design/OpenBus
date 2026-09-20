@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""PDO workspace — EDS mapping plus expedited SDO read of 0x16xx / 0x1Axx."""
+"""PDO mapping — one tool row, then the table. No card shell."""
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
@@ -15,7 +15,6 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import vscode_theme
 from core.pdo_map import decode_mapping, mapping_indexes, pdo_label
 
 
@@ -32,24 +31,32 @@ def _parse_int(text):
 def build(parent, session, log_fn) -> QWidget:
     root = QWidget(parent)
     layout = QVBoxLayout(root)
-    layout.setContentsMargins(16, 12, 16, 12)
-    layout.setSpacing(12)
+    layout.setContentsMargins(8, 6, 8, 6)
+    layout.setSpacing(6)
 
-    card, body = vscode_theme.block(
-        "PDO mapping",
-        "Shows RPDO/TPDO map objects. Read from node uses the shared Node-ID.")
-    row = QHBoxLayout()
-    eds_btn = QPushButton("Load from EDS")
-    read_btn = QPushButton("Read from node")
+    tools = QHBoxLayout()
+    eds_btn = QPushButton("From EDS")
+    eds_btn.setObjectName("GhostButton")
+    eds_btn.setFixedHeight(28)
+    eds_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    eds_btn.setToolTip("Load RPDO/TPDO map objects from the applied OD")
+    read_btn = QPushButton("Read node")
+    read_btn.setObjectName("PrimaryButton")
+    read_btn.setFixedHeight(28)
+    read_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    read_btn.setToolTip("Expedited SDO read of 0x16xx / 0x1Axx on the shared Node-ID")
     stop_btn = QPushButton("Stop")
+    stop_btn.setObjectName("GhostButton")
+    stop_btn.setFixedHeight(28)
+    stop_btn.setCursor(Qt.CursorShape.PointingHandCursor)
     status = QLabel("Idle")
-    row.addWidget(eds_btn)
-    row.addWidget(read_btn)
-    row.addWidget(stop_btn)
-    row.addStretch(1)
-    row.addWidget(status)
-    body.addLayout(row)
-    layout.addWidget(card)
+    status.setObjectName("SuiteHint")
+    tools.addWidget(eds_btn)
+    tools.addWidget(read_btn)
+    tools.addWidget(stop_btn)
+    tools.addStretch(1)
+    tools.addWidget(status)
+    layout.addLayout(tools)
 
     tree = QTreeWidget()
     tree.setHeaderLabels(["PDO", "Slot", "Object", "Name", "Bits", "Source"])
@@ -78,7 +85,7 @@ def build(parent, session, log_fn) -> QWidget:
                 pdo, str(slot), "0x%04X:%02X" % (index, sub),
                 name, str(bits), source,
             ]))
-        status.setText("%d mapped slots" % len(rows))
+        status.setText("%d slots" % len(rows))
 
     def _add(pdo_index, slot, value, source):
         decoded = decode_mapping(value)

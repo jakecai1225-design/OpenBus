@@ -169,6 +169,9 @@ def build_workbench(
         "esi": "ESI — EtherCAT slave description editor",
         "dc": "DC — cycle, shift and cable delay",
         "frames": "Frames — EtherCAT datagram and mailbox decode",
+        "od": "OD — live object dictionary and SDO",
+        "eds": "EDS — Dictionary / Device / Check (CANeds)",
+        "library": "Library — CiA 301 and CiA 402 stubs",
     }
 
     def _select_page(key: str):
@@ -186,9 +189,14 @@ def build_workbench(
                 color = vscode_theme.ACCENT if k == key else vscode_theme.TEXT_DIM
                 icon_key = nav_pages[page_index[k]][0]
                 codicons.set_button(b, icon_key, color=color, size=20)
-        # Default chrome title when page has no custom tabs
+        # Default chrome title when page has no custom tabs.
+        # Window._on_workbench_page remounts SuiteEditorTabs when the page owns them.
         title_map = dict(nav_pages)
-        if key != "diagnose":
+        tab_pages = {
+            "diagnose", "com", "system", "topology", "frames", "esi",
+            "network", "eds", "library",
+        }
+        if key not in tab_pages:
             set_editor_title(title_map.get(key, key))
 
     footer_keys = {"setup", "settings"}

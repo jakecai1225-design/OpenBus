@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Object Dictionary workspace — EDS tree + SDO read/write."""
+"""Object Dictionary — live OD tree + SDO. No nested chrome."""
 
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QFormLayout,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -26,61 +25,72 @@ from core.od_cia301 import CIA301_OBJECTS
 
 def build(parent, session, log_fn) -> QWidget:
     root = QWidget(parent)
-    layout = QVBoxLayout(root)
-
-    layout.addWidget(plugin_shell.help_label(
-        "Browse the loaded EDS object dictionary (or CiA 301 stubs if none). "
-        "SDO Read/Write use the shared Node-ID. Writes require confirmation."))
-
-    split = QHBoxLayout()
+    layout = QHBoxLayout(root)
+    layout.setContentsMargins(8, 6, 8, 6)
+    layout.setSpacing(8)
 
     tree = QTreeWidget()
     tree.setHeaderLabels(["Index", "Name", "Access", "Default"])
     tree.setAlternatingRowColors(True)
     tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-    split.addWidget(tree, 2)
+    layout.addWidget(tree, 3)
 
     right = QWidget()
+    right.setMaximumWidth(320)
     rv = QVBoxLayout(right)
-    form_box = QGroupBox("SDO")
-    form = QFormLayout(form_box)
+    rv.setContentsMargins(0, 0, 0, 0)
+    rv.setSpacing(8)
+    form = QFormLayout()
+    form.setSpacing(8)
     idx_spin = QSpinBox()
+    idx_spin.setObjectName("SuiteSpin")
     idx_spin.setRange(0x1000, 0xFFFF)
     idx_spin.setDisplayIntegerBase(16)
     idx_spin.setPrefix("0x")
     idx_spin.setValue(0x1018)
+    idx_spin.setFixedHeight(28)
     sub_spin = QSpinBox()
+    sub_spin.setObjectName("SuiteSpin")
     sub_spin.setRange(0, 255)
     sub_spin.setValue(1)
+    sub_spin.setFixedHeight(28)
     val_edit = QLineEdit("0")
+    val_edit.setFixedHeight(28)
+    val_edit.setToolTip("Write value (decimal or 0x hex)")
     size_spin = QSpinBox()
+    size_spin.setObjectName("SuiteSpin")
     size_spin.setRange(1, 4)
     size_spin.setValue(4)
+    size_spin.setFixedHeight(28)
     result_lbl = QLabel("-")
     result_lbl.setTextInteractionFlags(
         Qt.TextInteractionFlag.TextSelectableByMouse)
-    form.addRow("Index:", idx_spin)
-    form.addRow("Subindex:", sub_spin)
-    form.addRow("Write value:", val_edit)
-    form.addRow("Size (bytes):", size_spin)
-    form.addRow("Last result:", result_lbl)
-    rv.addWidget(form_box)
+    form.addRow("Index", idx_spin)
+    form.addRow("Sub-index", sub_spin)
+    form.addRow("Value", val_edit)
+    form.addRow("Size", size_spin)
+    form.addRow("Result", result_lbl)
+    rv.addLayout(form)
 
     btn_row = QHBoxLayout()
-    read_btn = QPushButton("SDO Read")
-    write_btn = QPushButton("SDO Write…")
+    read_btn = QPushButton("Read")
+    read_btn.setObjectName("PrimaryButton")
+    read_btn.setFixedHeight(28)
+    read_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    write_btn = QPushButton("Write")
+    write_btn.setObjectName("GhostButton")
+    write_btn.setFixedHeight(28)
+    write_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    write_btn.setToolTip("Confirm before writing to the node")
     btn_row.addWidget(read_btn)
     btn_row.addWidget(write_btn)
-    btn_row.addStretch()
     rv.addLayout(btn_row)
-    rv.addStretch()
-    split.addWidget(right, 1)
-    layout.addLayout(split, 1)
+    rv.addStretch(1)
+    layout.addWidget(right, 1)
 
     def _entries() -> list:
         if session.od_entries:
             return session.od_entries
-        # No EDS: show CiA 301 stubs so OD still works with SDO
         return list(CIA301_OBJECTS)
 
     def refresh_tree():

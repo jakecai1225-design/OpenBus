@@ -106,34 +106,51 @@ class DbcFile:
 #  位抽取 / 写入
 # ------------------------------------------------------------
 
+def signal_bit_numbers(start, length, little_endian):
+    """Vector / CANdb++ bit numbers. Bit 0 is the LSB of byte 0.
+
+    Intel: start is the LSB, then start+1 ...
+    Motorola: start is the MSB, then toward lower bits, wrapping to the next byte's bit 7.
+    Motorola list is MSB-first. Intel list is LSB-first.
+    """
+    start = int(start)
+    length = int(length)
+    if length <= 0:
+        return []
+    if little_endian:
+        return [start + i for i in range(length)]
+    bits = []
+    bit = start
+    for _ in range(length):
+        bits.append(bit)
+        if (bit & 7) == 0:
+            bit += 15
+        else:
+            bit -= 1
+    return bits
+
+
 def extract_intel(data, start, length):
-    """Intel（小端）：start 为信号 LSB 在 DBC 编号（0=MSB of byte0）中的位置"""
+    """Intel: start is the LSB (CANdb++). Bit 0 of a byte is its least significant bit."""
     value = 0
     n = len(data) * 8
     for i in range(length):
         bit = start + i
         if bit >= n:
             return None
-        if (data[bit >> 3] >> (7 - (bit & 7))) & 1:
+        if (data[bit >> 3] >> (bit & 7)) & 1:
             value |= 1 << i
     return value
 
 
 def extract_motorola(data, start, length):
-    """Motorola（大端）：start 为信号 MSB 位置，逐位向字节内高位编号推进"""
+    """Motorola: start is the MSB in the same bit numbering as Intel."""
     value = 0
-    byte = start >> 3
-    bit = start & 7          # 0 = MSB
-    for _ in range(length):
-        if byte >= len(data):
+    n = len(data) * 8
+    for bit in signal_bit_numbers(start, length, False):
+        if bit >= n or bit < 0:
             return None
-        value <<= 1
-        if (data[byte] >> (7 - bit)) & 1:
-            value |= 1
-        bit += 1
-        if bit == 8:
-            bit = 0
-            byte += 1
+        value = (value << 1) | ((data[bit >> 3] >> (bit & 7)) & 1)
     return value
 
 
@@ -141,22 +158,16 @@ def insert_intel(buf, start, length, value):
     for i in range(length):
         if (value >> i) & 1:
             bit = start + i
-            if bit < len(buf) * 8:
-                buf[bit >> 3] |= 1 << (7 - (bit & 7))
+            if 0 <= bit < len(buf) * 8:
+                buf[bit >> 3] |= 1 << (bit & 7)
 
 
 def insert_motorola(buf, start, length, value):
-    byte = start >> 3
-    bit = start & 7
-    for i in range(length - 1, -1, -1):
-        if byte >= len(buf):
-            return
-        if (value >> i) & 1:
-            buf[byte] |= 1 << (7 - bit)
-        bit += 1
-        if bit == 8:
-            bit = 0
-            byte += 1
+    bits = signal_bit_numbers(start, length, False)
+    for i, bit in enumerate(bits):
+        if (value >> (length - 1 - i)) & 1:
+            if 0 <= bit < len(buf) * 8:
+                buf[bit >> 3] |= 1 << (bit & 7)
 
 
 def signal_raw(sig, data):

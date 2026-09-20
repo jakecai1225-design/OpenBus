@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Network workspace — heartbeat + SDO 0x1018 scan, NMT, Apply node."""
+"""Network — Scan | NMT. Tabs live in the suite chrome row."""
 
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QProgressBar,
     QPushButton,
+    QStackedWidget,
+    QTabBar,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -57,49 +59,63 @@ def _sdo_value(data):
     return None
 
 
+def _ghost(text, tip):
+    btn = QPushButton(text)
+    btn.setObjectName("GhostButton")
+    btn.setFixedHeight(28)
+    btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    btn.setToolTip(tip)
+    return btn
+
+
 def build(parent, session, log_fn) -> QWidget:
-    root = QWidget(parent)
-    layout = QVBoxLayout(root)
+    bar = QTabBar()
+    bar.setObjectName("SuiteEditorTabs")
+    bar.setDrawBase(False)
+    bar.setExpanding(False)
+    bar.setDocumentMode(True)
+    bar.addTab("Scan")
+    bar.addTab("NMT")
+    parent._network_tabs = bar
 
-    layout.addWidget(plugin_shell.help_label(
-        "Scans nodes 1–127 with expedited SDO read of Identity 0x1018, and "
-        "listens for heartbeats 0x701–0x77F. Select a row and Apply node to "
-        "update the shared session strip. NMT buttons use the selected Node-ID."))
+    stack = QStackedWidget()
+    bar.currentChanged.connect(stack.setCurrentIndex)
 
-    top = QHBoxLayout()
-    deep_chk = QCheckBox("Deep probe (product / revision / serial)")
+    # ---- Scan ----
+    scan_page = QWidget()
+    slay = QVBoxLayout(scan_page)
+    slay.setContentsMargins(8, 6, 8, 6)
+    slay.setSpacing(6)
+
+    tools = QHBoxLayout()
+    deep_chk = QCheckBox("Deep")
     deep_chk.setChecked(True)
-    top.addWidget(deep_chk)
-    top.addStretch(1)
-    scan_btn = QPushButton("Start scan (1–127)")
-    stop_btn = QPushButton("Stop")
-    apply_btn = QPushButton("Apply node")
-    export_btn = QPushButton("Export CSV")
-    clear_btn = QPushButton("Clear")
-    for w in (scan_btn, stop_btn, apply_btn, export_btn, clear_btn):
-        top.addWidget(w)
-    layout.addLayout(top)
+    deep_chk.setToolTip("Also read product / revision / serial (0x1018:2–4)")
+    scan_btn = QPushButton("Scan")
+    scan_btn.setObjectName("PrimaryButton")
+    scan_btn.setFixedHeight(28)
+    scan_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    scan_btn.setToolTip("Probe nodes 1–127 via expedited SDO 0x1018")
+    stop_btn = _ghost("Stop", "Stop the scan")
+    apply_btn = _ghost("Apply", "Use the selected row as the shared Node-ID")
+    export_btn = _ghost("Export", "Export the node list as CSV")
+    clear_btn = _ghost("Clear", "Clear discovered nodes")
     stop_btn.setEnabled(False)
-
-    nmt_row = QHBoxLayout()
-    for text, cmd in (
-        ("Start", NMT_START),
-        ("Stop", NMT_STOP),
-        ("Pre-op", NMT_PREOP),
-        ("Reset", NMT_RESET_NODE),
-    ):
-        b = QPushButton("NMT %s" % text)
-        b.clicked.connect(lambda _=False, c=cmd: session.send_nmt(c))
-        nmt_row.addWidget(b)
-    nmt_row.addStretch()
-    layout.addLayout(nmt_row)
+    tools.addWidget(deep_chk)
+    tools.addStretch(1)
+    tools.addWidget(scan_btn)
+    tools.addWidget(stop_btn)
+    tools.addWidget(apply_btn)
+    tools.addWidget(export_btn)
+    tools.addWidget(clear_btn)
+    slay.addLayout(tools)
 
     progress = QProgressBar()
     progress.setRange(0, 127)
-    layout.addWidget(progress)
+    progress.setFixedHeight(4)
+    progress.setTextVisible(False)
+    slay.addWidget(progress)
 
-    empty = plugin_shell.empty_state_label(
-        "No nodes yet — start a scan or wait for heartbeats.")
     tree = QTreeWidget()
     tree.setHeaderLabels([
         "Node", "Vendor ID", "Vendor", "Product", "Revision", "Serial",
@@ -108,59 +124,57 @@ def build(parent, session, log_fn) -> QWidget:
     tree.setRootIsDecorated(False)
     tree.setAlternatingRowColors(True)
     tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-    layout.addWidget(empty)
-    layout.addWidget(tree, 1)
-    tree.hide()
+    tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+    slay.addWidget(tree, 1)
+    stack.addWidget(scan_page)
 
-    state = {
-        "running": False,
-        "node": 1,
-        "nodes": {},
-    }
+    # ---- NMT ----
+    nmt_page = QWidget()
+    nlay = QVBoxLayout(nmt_page)
+    nlay.setContentsMargins(8, 6, 8, 6)
+    nlay.setSpacing(8)
+    nrow = QHBoxLayout()
+    for text, cmd in (
+        ("Start", NMT_START),
+        ("Stop", NMT_STOP),
+        ("Pre-op", NMT_PREOP),
+        ("Reset", NMT_RESET_NODE),
+    ):
+        b = QPushButton("NMT %s" % text)
+        b.setObjectName("GhostButton")
+        b.setFixedHeight(28)
+        b.setCursor(Qt.CursorShape.PointingHandCursor)
+        b.setToolTip("Send NMT %s to the shared Node-ID" % text)
+        b.clicked.connect(lambda _=False, c=cmd: session.send_nmt(c))
+        nrow.addWidget(b)
+    nrow.addStretch(1)
+    nlay.addLayout(nrow)
+    nlay.addStretch(1)
+    stack.addWidget(nmt_page)
+
+    state = {"running": False, "node": 1, "nodes": {}}
 
     def refresh():
         nodes = state["nodes"]
-        if nodes:
-            empty.hide()
-            tree.show()
-        else:
-            tree.hide()
-            empty.show()
         tree.clear()
         for node in sorted(nodes):
             st = nodes[node]
             vendor = st.get("vendor")
-            vendor_s = ("0x%08X" % vendor) if vendor is not None else "-"
-            vendor_name = VENDOR_NAMES.get(vendor, "") if vendor is not None else ""
-            product = st.get("product")
-            rev = st.get("rev")
-            sn = st.get("sn")
-            way = "SDO probe" if st.get("sdo_ok") or st.get("sdo_abort") else "Heartbeat"
             item = QTreeWidgetItem([
                 str(node),
-                vendor_s,
-                vendor_name,
-                ("0x%08X" % product) if product is not None else "-",
-                ("0x%08X" % rev) if rev is not None else "-",
-                ("0x%08X" % sn) if sn is not None else "-",
+                ("0x%08X" % vendor) if vendor is not None else "-",
+                VENDOR_NAMES.get(vendor, "") if vendor is not None else "",
+                ("0x%08X" % st["product"]) if st.get("product") is not None else "-",
+                ("0x%08X" % st["rev"]) if st.get("rev") is not None else "-",
+                ("0x%08X" % st["sn"]) if st.get("sn") is not None else "-",
                 st.get("hb_state", "-"),
-                way,
+                "SDO probe" if st.get("sdo_ok") or st.get("sdo_abort") else "Heartbeat",
             ])
             item.setData(0, Qt.ItemDataRole.UserRole, node)
             if st.get("sdo_ok"):
                 item.setBackground(0, QColor("#2e7d32"))
                 item.setForeground(0, QColor("white"))
             tree.addTopLevelItem(item)
-        n_sdo = sum(
-            1 for st in nodes.values()
-            if st.get("sdo_ok") or st.get("sdo_abort"))
-        n_hb = sum(1 for st in nodes.values() if st.get("hb_state"))
-        plugin_shell.set_status(
-            parent,
-            "Nodes %d · SDO %d · heartbeat %d%s" % (
-                len(nodes), n_sdo, n_hb,
-                " · scanning…" if state["running"] else ""),
-        )
 
     def on_bus_frame(frame):
         fid = frame.id
@@ -262,8 +276,6 @@ def build(parent, session, log_fn) -> QWidget:
             except ValueError:
                 return
         session.set_node_id(int(node))
-        if hasattr(parent, "_sync_strip_from_session"):
-            parent._sync_strip_from_session()
         if hasattr(parent, "_persist"):
             parent._persist()
         plugin_shell.set_status(parent, "Applied Node-ID %d" % int(node), 3000)
@@ -298,7 +310,7 @@ def build(parent, session, log_fn) -> QWidget:
         progress.setValue(0)
         refresh()
 
-    ui_timer = QTimer(root)
+    ui_timer = QTimer(stack)
     ui_timer.timeout.connect(refresh)
     ui_timer.start(500)
 
@@ -307,4 +319,4 @@ def build(parent, session, log_fn) -> QWidget:
     apply_btn.clicked.connect(on_apply)
     export_btn.clicked.connect(on_export)
     clear_btn.clicked.connect(on_clear)
-    return root
+    return stack

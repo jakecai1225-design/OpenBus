@@ -16,7 +16,7 @@ SECTION_RE = re.compile(
     r"^\[([0-9A-Fa-f]{1,4}|[A-Za-z][A-Za-z0-9_]*)(?:sub([0-9A-Fa-f]+))?\]\s*$",
     re.IGNORECASE,
 )
-KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
+KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*|[0-9]+)\s*=\s*(.*)$")
 
 META_SECTIONS = {
     "fileinfo", "deviceinfo", "dummyusage", "comments",
@@ -138,6 +138,66 @@ def _emit_section(lines: list, title: str, data: Dict[str, str]) -> None:
     lines.append("")
 
 
+def _emit_supported(lines: list, title: str, indices: List[int]) -> None:
+    lines.append("[%s]" % title)
+    lines.append("SupportedObjects=%d" % len(indices))
+    for n, idx in enumerate(indices, 1):
+        lines.append("%d=0x%04X" % (n, idx))
+    lines.append("")
+
+
+OBJECT_TYPES = (
+    ("0x7", "VAR"),
+    ("0x8", "ARRAY"),
+    ("0x9", "RECORD"),
+    ("0x2", "DOMAIN"),
+)
+
+DATA_TYPES = (
+    ("0x0001", "BOOLEAN"),
+    ("0x0002", "INTEGER8"),
+    ("0x0003", "INTEGER16"),
+    ("0x0004", "INTEGER32"),
+    ("0x0005", "UNSIGNED8"),
+    ("0x0006", "UNSIGNED16"),
+    ("0x0007", "UNSIGNED32"),
+    ("0x0008", "REAL32"),
+    ("0x0009", "VISIBLE_STRING"),
+    ("0x000A", "OCTET_STRING"),
+    ("0x000B", "UNICODE_STRING"),
+    ("0x000F", "DOMAIN"),
+    ("0x0011", "REAL64"),
+)
+
+ACCESS_TYPES = ("ro", "wo", "rw", "const", "rwr", "rww")
+
+
+def index_group(index: int) -> str:
+    if 0x1000 <= index <= 0x1FFF:
+        return "Communication profile"
+    if 0x2000 <= index <= 0x5FFF:
+        return "Manufacturer"
+    if 0x6000 <= index <= 0x9FFF:
+        return "Device profile"
+    return "Other"
+
+
+def object_type_label(value: str) -> str:
+    raw = (value or "").strip().lower()
+    for code, name in OBJECT_TYPES:
+        if raw in (code.lower(), name.lower()):
+            return name
+    return value or "VAR"
+
+
+def data_type_label(value: str) -> str:
+    raw = (value or "").strip().lower()
+    for code, name in DATA_TYPES:
+        if raw in (code.lower(), name.lower()):
+            return name
+    return value or "UNSIGNED32"
+
+
 def export_eds_text(
     entries: List[OdEntry],
     file_name: str = "export.eds",
@@ -171,24 +231,24 @@ def export_eds_text(
     _emit_section(lines, "FileInfo", fi)
     _emit_section(lines, "DeviceInfo", di)
     for title, data in (other_meta or {}).items():
-        if title in ("fileinfo", "deviceinfo"):
+        if title in ("fileinfo", "deviceinfo", "mandatoryobjects",
+                     "optionalobjects", "manufacturerobjects"):
             continue
-        # Keep original casing when possible
         nice = title[:1].upper() + title[1:] if title else title
-        for key in ("MandatoryObjects", "OptionalObjects", "ManufacturerObjects",
-                    "DummyUsage", "Comments"):
+        for key in ("DummyUsage", "Comments"):
             if key.lower() == title:
                 nice = key
                 break
         _emit_section(lines, nice, data)
 
     indices = sorted({e.index for e in entries})
-    if "mandatoryobjects" not in {k.lower() for k in (other_meta or {})}:
-        lines.append("[MandatoryObjects]")
-        lines.append("SupportedObjects=%d" % min(len(indices), 1))
-        if indices:
-            lines.append("1=0x%04X" % indices[0])
-        lines.append("")
+    mandatory = [i for i in indices if i in (0x1000, 0x1001, 0x1018)]
+    manufacturer = [i for i in indices if 0x2000 <= i <= 0x5FFF]
+    covered = set(mandatory) | set(manufacturer)
+    optional = [i for i in indices if i not in covered]
+    _emit_supported(lines, "MandatoryObjects", mandatory)
+    _emit_supported(lines, "OptionalObjects", optional)
+    _emit_supported(lines, "ManufacturerObjects", manufacturer)
 
     for e in sorted(entries, key=lambda x: (x.index, x.subindex)):
         if e.subindex:

@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Signal bit map — same bit walk as _shared.dbcparse encode/decode."""
+"""CANdb++ layout window: columns 7..0, bit 0 is the LSB of byte 0."""
 
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, QRect
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import QWidget
+
+from _shared.dbcparse import signal_bit_numbers
 
 _PALETTE = (
     "#007ACC",
@@ -20,29 +22,17 @@ _PALETTE = (
 
 
 def cells_for_signal(sig, nbytes: int) -> list[tuple[int, int]]:
-    """Return (byte, visual_col) with visual_col 0 = MSB (bit 7) of the byte."""
+    """(byte, column) with column 0 on the left = bit 7 of that byte."""
     out = []
     length = int(getattr(sig, "bit_length", 0) or 0)
     if length <= 0 or nbytes <= 0:
         return out
-    if getattr(sig, "little_endian", True):
-        start = int(sig.start_bit)
-        for i in range(length):
-            bit = start + i
-            byte = bit >> 3
-            vis = bit & 7
-            if 0 <= byte < nbytes:
-                out.append((byte, vis))
-    else:
-        byte = int(sig.start_bit) >> 3
-        bit = int(sig.start_bit) & 7
-        for _ in range(length):
-            if 0 <= byte < nbytes:
-                out.append((byte, bit))
-            bit += 1
-            if bit == 8:
-                bit = 0
-                byte += 1
+    little = bool(getattr(sig, "little_endian", True))
+    for bit in signal_bit_numbers(getattr(sig, "start_bit", 0), length, little):
+        byte = bit >> 3
+        col = 7 - (bit & 7)
+        if 0 <= byte < nbytes and 0 <= col < 8:
+            out.append((byte, col))
     return out
 
 
@@ -55,15 +45,18 @@ class _Draft:
 
 
 class BitLayout(QWidget):
-    """8-column bit grid for the selected message. Highlight one signal."""
+    """CANdb++ byte/bit matrix. Click a colored cell to select that signal."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._rows = 8
         self._cells = {}
         self._legend = ""
-        self.setMinimumHeight(72)
-        self.setMinimumWidth(280)
+        self.on_pick = None
+        self._cell = 22
+        self.setMinimumHeight(80)
+        self.setMinimumWidth(240)
+        self.setMouseTracking(True)
 
     def clear(self):
         self._rows = 8
@@ -74,7 +67,6 @@ class BitLayout(QWidget):
     def set_message(self, msg, highlight: str | None = None, draft=None):
         nbytes = max(1, min(int(getattr(msg, "dlc", 8) or 8), 64))
         cells = {}
-        names = []
         for i, sig in enumerate(getattr(msg, "signals", []) or []):
             src = sig
             if draft is not None and sig.name == highlight:
@@ -85,18 +77,32 @@ class BitLayout(QWidget):
                 prev = cells.get(pos)
                 if prev is None or selected:
                     cells[pos] = (color, selected, sig.name)
-            if selected or not highlight:
-                names.append(sig.name)
         self._rows = nbytes
         self._cells = cells
-        if highlight:
-            self._legend = highlight
-        elif names:
-            self._legend = "%d signals" % len(getattr(msg, "signals", []) or [])
-        else:
-            self._legend = "no signals"
-        self.setMinimumHeight(28 + nbytes * 16 + 18)
+        self._legend = highlight or ("%d signals" % len(getattr(msg, "signals", []) or []))
+        cell = self._cell
+        self.setMinimumHeight(18 + nbytes * (cell + 1) + 22)
+        self.setMinimumWidth(40 + 8 * (cell + 1))
         self.update()
+
+    def _hit(self, pos):
+        cell = self._cell
+        gap = 1
+        left = 36
+        top = 18
+        col = (pos.x() - left) // (cell + gap)
+        row = (pos.y() - top) // (cell + gap)
+        if 0 <= col < 8 and 0 <= row < self._rows:
+            return row, col
+        return None
+
+    def mousePressEvent(self, event):
+        hit = self._hit(event.position().toPoint() if hasattr(event, "position") else event.pos())
+        if hit is None:
+            return
+        info = self._cells.get(hit)
+        if info and self.on_pick:
+            self.on_pick(info[2])
 
     def paintEvent(self, _event):
         p = QPainter(self)
@@ -105,21 +111,13 @@ class BitLayout(QWidget):
         font = QFont("Consolas", 8)
         p.setFont(font)
         left = 36
-        top = 16
-        cell = 16
+        top = 18
+        cell = self._cell
         gap = 1
         p.setPen(QColor("#6E6E6E"))
         for col in range(8):
-            label = str(7 - col)
             x = left + col * (cell + gap)
-            p.drawText(QRect(x, 0, cell, 14), Qt.AlignmentFlag.AlignCenter, label)
-        if not self._cells and not self._legend:
-            p.setPen(QColor("#6E6E6E"))
-            p.drawText(self.rect().adjusted(8, 8, -8, -8),
-                       Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
-                       "Bit layout appears when a message is selected.")
-            p.end()
-            return
+            p.drawText(QRect(x, 0, cell, 16), Qt.AlignmentFlag.AlignCenter, str(7 - col))
         for row in range(self._rows):
             y = top + row * (cell + gap)
             p.setPen(QColor("#6E6E6E"))
@@ -132,18 +130,15 @@ class BitLayout(QWidget):
                 rect = QRect(x, y, cell, cell)
                 if info is None:
                     p.fillRect(rect, QColor("#F3F3F3"))
-                    p.setPen(QPen(QColor("#E5E5E5")))
+                    p.setPen(QPen(QColor("#D0D0D0")))
                     p.drawRect(rect)
                 else:
                     color, selected, _name = info
                     p.fillRect(rect, QColor(color))
-                    if selected:
-                        p.setPen(QPen(QColor("#1E1E1E"), 2))
-                    else:
-                        p.setPen(QPen(QColor("#FFFFFF")))
+                    p.setPen(QPen(QColor("#1E1E1E") if selected else QColor("#FFFFFF"),
+                                  2 if selected else 1))
                     p.drawRect(rect.adjusted(0, 0, -1, -1))
         p.setPen(QColor("#333333"))
-        p.drawText(QRect(left, top + self._rows * (cell + gap) + 2, 220, 16),
-                   Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                   self._legend)
+        p.drawText(QRect(left, top + self._rows * (cell + gap) + 4, 280, 16),
+                   Qt.AlignmentFlag.AlignLeft, self._legend or "Layout")
         p.end()

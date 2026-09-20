@@ -34,8 +34,11 @@ ALIASES = {
     "network": "device",
     "monitor": "trace",
     "object_dict": "list",
-    "pdo": "trace",
+    "od": "list",
+    "pdo": "flow",
     "eds_editor": "file",
+    "eds": "edit",
+    "library": "database",
     "profiles": "account",
     # J1939 / OBD
     "analyzer": "search",
