@@ -40,6 +40,8 @@ SUITE_IDS = (
     "protocol-hub",
     "log-analysis",
     "bus-utilities",
+    "autosar-suite",
+    "ethercat-suite",
 )
 
 

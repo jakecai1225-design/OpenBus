@@ -11,22 +11,14 @@ from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QHBoxLayout,
     QHeaderView,
-    QLabel,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
     QPushButton,
-    QSplitter,
-    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
-    QVBoxLayout,
-    QWidget,
 )
 
-from _shared import plugin_shell, state_store, vscode_theme, codicons
+from _shared import plugin_shell, state_store, vscode_theme, codicons, suite_chrome
 
 from session import SharedSession
 
@@ -37,7 +29,6 @@ NAV_PAGES = [
     ("transport", "Transport"),
     ("diagnostics", "Diagnostics"),
     ("network", "Network"),
-    ("log", "Log"),
 ]
 
 
@@ -55,41 +46,14 @@ class AppShell(QMainWindow):
 
         vscode_theme.apply(self)
         plugin_shell.attach_status_bar(self, "Ready")
-
-        central = QWidget()
-        self.setCentralWidget(central)
-        root = QHBoxLayout(central)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
-
-        self.nav = QListWidget()
-        self.nav.setObjectName("SuiteNav")
-        self.nav.setIconSize(QSize(16, 16))
-        self.nav.setFixedWidth(148)
-        for key, title in NAV_PAGES:
-            item = QListWidgetItem(title)
-            item.setData(Qt.ItemDataRole.UserRole, key)
-            codicons.set_nav_item(item, key, vscode_theme.TEXT)
-            self.nav.addItem(item)
-        root.addWidget(self.nav)
-
-        right = QWidget()
-        right.setObjectName("SuiteContent")
-        right_l = QVBoxLayout(right)
-        right_l.setContentsMargins(0, 0, 0, 0)
-        right_l.setSpacing(4)
-
-        splitter = QSplitter(Qt.Orientation.Vertical)
-        self.stack = QStackedWidget()
-        splitter.addWidget(self.stack)
-        splitter.addWidget(self._build_log_panel())
-        splitter.setSizes([520, 200])
-        right_l.addWidget(splitter, 1)
-        root.addWidget(right, 1)
-
+        self._wb = suite_chrome.build_workbench(
+            self, NAV_PAGES, title="J1939 Suite", panel_title="OUTPUT",
+            panel_visible=True, sidebar_visible=True)
+        self.stack = self._wb.stack
+        self._build_log_panel()
         self.session.set_log_fn(self._log_row)
 
-        from pages import analyzer, log_page, views
+        from pages import analyzer, views
 
         self._pages = {}
         for key, builder in (
@@ -97,13 +61,11 @@ class AppShell(QMainWindow):
             ("transport", views.build_transport),
             ("diagnostics", views.build_diagnostics),
             ("network", views.build_network),
-            ("log", log_page.build),
         ):
             w = builder(self, self.session, self._log_row)
             self._pages[key] = w
             self.stack.addWidget(w)
 
-        self.nav.currentRowChanged.connect(self._on_nav)
         context.on_frame(self.session.on_frame)
 
         saved = state_store.load_state(PLUGIN_ID, default={}) or {}
@@ -112,25 +74,32 @@ class AppShell(QMainWindow):
         page = start_page or goto.get("start_page") or saved.get("nav_page")
         if goto:
             state_store.clear_state(PLUGIN_ID, "goto.json")
+        if page == "log":
+            page = "analyzer"
         self.goto_page(page or "analyzer")
+        self._wb.set_sidebar_visible(True)
+        self._wb.set_panel_visible(True)
+        suite_chrome.bind_nav_shortcuts(self, NAV_PAGES, self.goto_page)
+        self._log_row("SYS", "-", b"", "J1939 Suite ready")
 
-        for i in range(len(NAV_PAGES)):
-            plugin_shell.bind_shortcut(
-                self, "Ctrl+%d" % (i + 1),
-                lambda _=False, idx=i: self.goto_page(NAV_PAGES[idx][0]))
-
-        self._log_row("SYS", "-", b"", "J1939 Suite ready — Analyzer / Log")
-
-    def _build_log_panel(self) -> QWidget:
-        group = QWidget()
-        group.setObjectName("SuiteLogHost")
-        v = QVBoxLayout(group)
-        v.setContentsMargins(8, 6, 8, 8)
-        v.setSpacing(6)
-        _log_title = QLabel("OUTPUT")
-        _log_title.setObjectName("SuiteToolbarTitle")
-        v.addWidget(_log_title)
-        self.log_table = QTableWidget(0, 5)
+    def _build_log_panel(self):
+        self.log_pause = QCheckBox("Pause")
+        self.log_pause.setToolTip("Hold new rows until unchecked")
+        self._wb.panel_tools.addWidget(self.log_pause)
+        self._wb.panel_tools.addStretch(1)
+        export_btn = QPushButton("Export")
+        export_btn.setObjectName("GhostButton")
+        export_btn.setFixedHeight(22)
+        export_btn.setToolTip("Export log as CSV")
+        clear_btn = QPushButton("Clear")
+        clear_btn.setObjectName("GhostButton")
+        clear_btn.setFixedHeight(22)
+        clear_btn.setToolTip("Clear OUTPUT list")
+        codicons.set_button(export_btn, "export", size=12)
+        codicons.set_button(clear_btn, "clear", size=12)
+        self._wb.panel_tools.addWidget(export_btn)
+        self._wb.panel_tools.addWidget(clear_btn)
+        self.log_table = suite_chrome.make_output_table()
         self.log_table.setHorizontalHeaderLabels(
             ["Time", "Dir", "CAN ID", "Data", "Note"])
         self.log_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -139,30 +108,17 @@ class AppShell(QMainWindow):
             QAbstractItemView.SelectionBehavior.SelectRows)
         self.log_table.horizontalHeader().setSectionResizeMode(
             4, QHeaderView.ResizeMode.Stretch)
-        v.addWidget(self.log_table, 1)
-        btn_row = QHBoxLayout()
-        self.log_pause = QCheckBox("Pause")
-        export_btn = QPushButton("Export CSV")
-        clear_btn = QPushButton("Clear")
-        btn_row.addWidget(self.log_pause)
-        btn_row.addStretch()
-        btn_row.addWidget(export_btn)
-        btn_row.addWidget(clear_btn)
-        v.addLayout(btn_row)
+        self._wb.panel_body.addWidget(self.log_table, 1)
         export_btn.clicked.connect(self._export_log)
         clear_btn.clicked.connect(self.clear_log)
-        return group
-
-    def _on_nav(self, row: int):
-        if row < 0:
-            return
-        self.stack.setCurrentIndex(row)
-        self._persist()
 
     def goto_page(self, key: str):
-        idx = self._page_index.get(key, 0)
-        self.nav.setCurrentRow(idx)
-        self.stack.setCurrentIndex(idx)
+        if key == "log":
+            self._wb.expand_panel()
+            return
+        self._wb.goto_page(key)
+        self._wb.set_editor_title(dict(NAV_PAGES).get(key, key))
+        self._persist()
 
     def _log_row(self, direction, can_id, pdu, note, color=None):
         if self.log_pause.isChecked():
@@ -216,8 +172,7 @@ class AppShell(QMainWindow):
     def _persist(self):
         geo = self.saveGeometry().toHex().data().decode("ascii")
         state_store.save_state(PLUGIN_ID, {
-            "nav_page": NAV_PAGES[self.nav.currentRow()][0]
-            if self.nav.currentRow() >= 0 else "analyzer",
+            "nav_page": self._wb.current_page() or "analyzer",
             "geometry_hex": geo,
         })
 

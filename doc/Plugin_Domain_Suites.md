@@ -56,6 +56,8 @@
 | `protocol-monitors` | **Protocol Hub** | autosar-nm, iso-tp, isobus, nmea2000, gbt27930, xcp | 各协议专用观察器合一入口 |
 | `log-analysis` | **Log & Compare** | log-toolkit, frame-compare, trigger-logger, can-quality-report, can-reverse, can-id-scanner | CANalyzer + asammdf lite |
 | `bus-utilities` | **Bus Utilities** | can-bit-timing, can-gateway | 计算器 + 网关规则 |
+| `autosar-suite` | **AUTOSAR Suite** | 新建（Protocol Hub 只保留 NM 观察；本套件做 COM / ARXML / E2E / SecOC） | CANoe.AUTOSAR / DaVinci / TSMaster COM |
+| `ethercat-suite` | **EtherCAT Suite** | 新建 | TwinCAT ESI / EC-Engineer / SOEM 工具链 |
 | `ai-agent` | **AI Agent** | （新建，见 aiagent.md） | Majster-AI × MCP |
 
 > 实施顺序建议：**UDS Suite → DBC Studio → CANopen Suite → TX Lab → 其余**。  
@@ -277,3 +279,4 @@
 - 2026-09-18：**S5**：删除已吸收的细插件目录（UDS×4、DBC×5、CANopen scanner、TX×3、Bus Security×4、Protocol Hub×6、Log×6、Bus Utilities×2、J1939 analyzer、OBD scanner）。协议自测迁到 `plugins/uds-suite/tests/test_proto.py`。市场打包命令为 `python scripts/plugin_tool.py pack-suites`（只打 10 个套件 `.opk`）。`pack <dir>` 仍可用于自定义插件。AI Agent 仍见 aiagent.md，未纳入本批。
 - 2026-09-18：**本地市场索引**：`python scripts/make_market.py` 生成 `build/bin/market/market.json`（drivers 仍引用远程包 URL；plugins 仅领域套件 + AI Agent）。应用 `market.url` 置空后自动加载 exe 旁本地索引，不再展示 sin.org.cn 上的 37 个旧细插件。
 - 2026-09-20：**AI Agent Phase 2（v0.2.0）**：Policy 分级 + HITL 审批；`frames_send` / `uds_read_did` / `obd_read_pid`；工件 `tx_build_cyclic` / `uds_build_sequence`；领域套件地图本身 S0–S5 已收口，后续增强见 aiagent.md Phase 3+。
+- 2026-09-20：**协议描述文件编辑器**：DBC Studio 已完整；EDS 加强 FileInfo 往返 / Validate / Save；AUTOSAR System 升为 ARXML COM 子集编辑器（Tree/Validate/Export DBC）；EtherCAT ESI 升为可编辑可保存。LDF/FIBEX/ODX 暂缓。

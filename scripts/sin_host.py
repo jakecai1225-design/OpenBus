@@ -135,9 +135,21 @@ def load_plugin(plugin_name, plugin_dir, main_script):
     if not os.path.exists(main_path):
         log_error(f"plugin {plugin_name} entry missing: {main_path}")
         return None
+    # Drop cached app_shell/pages/... from a previously loaded suite.
+    # Every suite uses those top-level names; without this, opening CANopen
+    # after UDS reuses UDS classes and shows the wrong window.
+    _evict_stale_suite_modules(plugin_dir)
     # Plugin dir first for local modules (uds_client, …); keep plugins root for _shared.
     if plugin_dir and plugin_dir not in sys.path:
         sys.path.insert(0, plugin_dir)
+    else:
+        # Move this suite ahead of any other suite dir still on sys.path.
+        try:
+            sys.path.remove(plugin_dir)
+        except ValueError:
+            pass
+        if plugin_dir:
+            sys.path.insert(0, plugin_dir)
     parent = os.path.dirname(os.path.abspath(plugin_dir)) if plugin_dir else ""
     if parent and parent not in sys.path:
         sys.path.insert(0, parent)
@@ -152,6 +164,55 @@ def load_plugin(plugin_name, plugin_dir, main_script):
         return None
 
 
+# Top-level names shared by every domain suite. Must not leak across plugins.
+_SUITE_LOCAL_TOPS = ("app_shell", "session", "pages", "widgets", "core")
+
+
+def _is_under(path, directory):
+    if not path or not directory:
+        return False
+    try:
+        path = os.path.abspath(path)
+        directory = os.path.abspath(directory)
+        return os.path.commonpath([path, directory]) == directory
+    except ValueError:
+        return False
+
+
+def _evict_modules_under(directory):
+    if not directory:
+        return
+    for name, mod in list(sys.modules.items()):
+        f = getattr(mod, "__file__", None)
+        if f and _is_under(f, directory):
+            sys.modules.pop(name, None)
+
+
+def _evict_stale_suite_modules(keep_dir):
+    """Remove suite-local modules that do not belong to a still-loaded plugin."""
+    live = set()
+    for entry in _plugins.values():
+        d = entry.get("directory") or ""
+        if d:
+            live.add(os.path.abspath(d))
+    if keep_dir:
+        live.add(os.path.abspath(keep_dir))
+    plugins_root = os.path.dirname(os.path.abspath(keep_dir)) if keep_dir else ""
+    for name, mod in list(sys.modules.items()):
+        top = name.split(".", 1)[0]
+        if top not in _SUITE_LOCAL_TOPS:
+            continue
+        f = getattr(mod, "__file__", None)
+        if not f:
+            continue
+        af = os.path.abspath(f)
+        if plugins_root and not _is_under(af, plugins_root):
+            continue
+        if any(_is_under(af, d) for d in live):
+            continue
+        sys.modules.pop(name, None)
+
+
 def activate_plugin(params):
     name = params.get("plugin")
     directory = params.get("directory", "")
@@ -162,7 +223,11 @@ def activate_plugin(params):
     if module is None:
         return False
     context = PluginContext(name)
-    _plugins[name] = {"module": module, "context": context}
+    _plugins[name] = {
+        "module": module,
+        "context": context,
+        "directory": os.path.abspath(directory) if directory else "",
+    }
     try:
         from sin.ui import set_current_plugin
         set_current_plugin(name)
@@ -200,6 +265,10 @@ def deactivate_plugin(params):
             log_info(f"plugin {name} deactivated")
         except Exception:
             log_error(f"plugin {name} deactivate failed:\n{traceback.format_exc()}")
+    # Free app_shell/pages/... so the next suite does not import this one.
+    _evict_modules_under(entry.get("directory") or "")
+    main_key = f"_sin_plugin_{name}"
+    sys.modules.pop(main_key, None)
 
 
 def dispatch_frame_dicts(frames_data):

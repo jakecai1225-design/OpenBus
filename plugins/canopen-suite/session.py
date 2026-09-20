@@ -9,7 +9,7 @@ from typing import Callable, List, Optional
 import sin
 from PyQt6.QtCore import QObject
 
-from core.eds_parse import OdEntry, parse_eds_file
+from core.eds_parse import OdEntry, parse_eds_file_document
 from core.sdo_client import SdoClient
 
 
@@ -37,6 +37,9 @@ class SharedSession(QObject):
         self.eds_path = ""
         self.od_entries: List[OdEntry] = []
         self.draft_entries: List[OdEntry] = []  # EDS editor working copy
+        self.eds_file_info: dict = {}
+        self.eds_device_info: dict = {}
+        self.eds_other_meta: dict = {}
         self.bitrate_hint = "(bus bitrate from host)"
 
         self._node_listeners: list[Callable[[], None]] = []
@@ -93,23 +96,29 @@ class SharedSession(QObject):
 
     def load_eds(self, path: str) -> bool:
         try:
-            entries = parse_eds_file(path)
+            doc = parse_eds_file_document(path)
         except OSError as e:
             self.log("ERR", "-", b"", "EDS open failed: %s" % e)
             return False
         self.eds_path = path
-        self.od_entries = entries
-        self.draft_entries = copy.deepcopy(entries)
+        self.od_entries = doc.entries
+        self.draft_entries = copy.deepcopy(doc.entries)
+        self.eds_file_info = dict(doc.file_info)
+        self.eds_device_info = dict(doc.device_info)
+        self.eds_other_meta = {k: dict(v) for k, v in doc.other_meta.items()}
         self._notify_od()
         self.log(
             "RX", "-", b"",
-            "Loaded EDS: %s (%d objects)" % (path, len(entries)))
+            "Loaded EDS: %s (%d objects)" % (path, len(doc.entries)))
         return True
 
     def clear_eds(self) -> None:
         self.eds_path = ""
         self.od_entries = []
         self.draft_entries = []
+        self.eds_file_info = {}
+        self.eds_device_info = {}
+        self.eds_other_meta = {}
         self._notify_od()
         self.log("RX", "-", b"", "EDS cleared")
 

@@ -97,6 +97,20 @@ SUITE_CATALOG = [
         "keywords": "bit timing gateway",
     },
     {
+        "id": "autosar-suite",
+        "name": "AUTOSAR Suite",
+        "description": "COM I-PDU layout, ARXML extract, CanNm, E2E Profile 1 and SecOC.",
+        "tags": ["autosar", "com", "e2e"],
+        "keywords": "autosar com arxml cannm e2e secoc ipdu",
+    },
+    {
+        "id": "ethercat-suite",
+        "name": "EtherCAT Suite",
+        "description": "ESI, topology, PDO process image, CoE SDO, DC timing and datagram decode.",
+        "tags": ["ethercat", "coe", "pdo"],
+        "keywords": "ethercat esi coe pdo dc mailbox datagram",
+    },
+    {
         "id": "ai-agent",
         "name": "AI Agent",
         "description": "Read-only Trace/DBC tool loop with OpenAI-compatible providers.",

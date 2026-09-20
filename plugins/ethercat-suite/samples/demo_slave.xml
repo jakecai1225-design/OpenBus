@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<EtherCATInfo>
+  <Vendor>
+    <Id>2</Id>
+    <Name>OpenBus Demo</Name>
+  </Vendor>
+  <Descriptions>
+    <Devices>
+      <Device>
+        <Type ProductCode="#x00000010" RevisionNo="#x00010000">DemoDrive</Type>
+        <Name>Demo Drive</Name>
+        <RxPdo Fixed="1" Sm="2">
+          <Index>#x1600</Index>
+          <Name>RxPDO</Name>
+          <Entry>
+            <Index>#x7000</Index>
+            <SubIndex>1</SubIndex>
+            <BitLen>16</BitLen>
+            <Name>Controlword</Name>
+          </Entry>
+          <Entry>
+            <Index>#x7000</Index>
+            <SubIndex>2</SubIndex>
+            <BitLen>16</BitLen>
+            <Name>TargetVel</Name>
+          </Entry>
+        </RxPdo>
+        <TxPdo Fixed="1" Sm="3">
+          <Index>#x1A00</Index>
+          <Name>TxPDO</Name>
+          <Entry>
+            <Index>#x6000</Index>
+            <SubIndex>1</SubIndex>
+            <BitLen>16</BitLen>
+            <Name>Statusword</Name>
+          </Entry>
+        </TxPdo>
+        <Profile>
+          <Dictionary>
+            <Objects>
+              <Object>
+                <Index>#x1000</Index>
+                <Name>Device type</Name>
+                <Type>UDINT</Type>
+                <BitSize>32</BitSize>
+              </Object>
+              <Object>
+                <Index>#x1018</Index>
+                <Name>Identity</Name>
+                <Type>RECORD</Type>
+                <BitSize>144</BitSize>
+              </Object>
+              <Object>
+                <Index>#x1600</Index>
+                <Name>RxPDO map</Name>
+                <Type>RECORD</Type>
+                <BitSize>64</BitSize>
+              </Object>
+              <Object>
+                <Index>#x1A00</Index>
+                <Name>TxPDO map</Name>
+                <Type>RECORD</Type>
+                <BitSize>48</BitSize>
+              </Object>
+              <Object>
+                <Index>#x6000</Index>
+                <Name>Statusword</Name>
+                <Type>UINT</Type>
+                <BitSize>16</BitSize>
+              </Object>
+              <Object>
+                <Index>#x7000</Index>
+                <Name>Outputs</Name>
+                <Type>RECORD</Type>
+                <BitSize>32</BitSize>
+              </Object>
+            </Objects>
+          </Dictionary>
+        </Profile>
+      </Device>
+    </Devices>
+  </Descriptions>
+</EtherCATInfo>

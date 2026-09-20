@@ -340,8 +340,8 @@
       "description": "Diagnose, Scan, Batch, Security, Profiles and shared log (ISO 14229).",
       "icon": "assets/uds-suite.svg",
       "package": "opk/uds-suite_2.0.0.opk",
-      "sha256": "b13ca146eeeb96c2bb445a7b271f2e77ee936ed8e5fc506f08d5bc344311a8dc",
-      "size": 57523,
+      "sha256": "16c0b2c8626e5aa81b635c3221695e67e12d61e61e903fa50d432be3ca065fb7",
+      "size": 62157,
       "readme": "## UDS Suite\n\nDiagnose, Scan, Batch, Security, Profiles and shared log (ISO 14229).\n",
       "tags": [
         "uds",
@@ -379,8 +379,8 @@
       "description": "Network scan, SDO, EDS/OD, NMT and CiA 301/402 profiles.",
       "icon": "assets/canopen-suite.svg",
       "package": "opk/canopen-suite_2.0.0.opk",
-      "sha256": "81d77a5bf746c2e365dcdd084d41319e9f897d30c18f8606127e864c3ad64c8b",
-      "size": 29341,
+      "sha256": "d01dee9c82f6a2056a143c9347609a019f5afcee29ab0a34cfc1c2d55f43a6cf",
+      "size": 30867,
       "readme": "## CANopen Suite\n\nNetwork scan, SDO, EDS/OD, NMT and CiA 301/402 profiles.\n",
       "tags": [
         "canopen"
@@ -397,8 +397,8 @@
       "description": "PGN/SPN analysis, DM1/DM2, Address Claim, TP and RQST.",
       "icon": "assets/j1939-suite.svg",
       "package": "opk/j1939-suite_2.0.0.opk",
-      "sha256": "c33e005b97d03031abb8c751cbdec7ab6b0beb829d21930618b8f907c52e4070",
-      "size": 14085,
+      "sha256": "440d597f8ced07ee610886cf49a0e13cc090396c4d125c73bac8499bb3ad48df",
+      "size": 13768,
       "readme": "## J1939 Suite\n\nPGN/SPN analysis, DM1/DM2, Address Claim, TP and RQST.\n",
       "tags": [
         "j1939"
@@ -515,6 +515,46 @@
         "tools"
       ],
       "keywords": "bit timing gateway",
+      "minAppVersion": "0.1.0",
+      "updatedAt": "2026-09-20"
+    },
+    {
+      "id": "autosar-suite",
+      "name": "AUTOSAR Suite",
+      "publisher": "sin",
+      "version": "1.0.0",
+      "description": "COM I-PDU layout, ARXML extract, CanNm, E2E Profile 1 and SecOC.",
+      "icon": "assets/autosar-suite.svg",
+      "package": "opk/autosar-suite_1.0.0.opk",
+      "sha256": "ed349d238ba62b5a12d2d929606d69862b2daeddd4dc292716d66a55636e875a",
+      "size": 27124,
+      "readme": "## AUTOSAR Suite\n\nCOM I-PDU layout, ARXML extract, CanNm, E2E Profile 1 and SecOC.\n",
+      "tags": [
+        "autosar",
+        "com",
+        "e2e"
+      ],
+      "keywords": "autosar com arxml cannm e2e secoc ipdu",
+      "minAppVersion": "0.1.0",
+      "updatedAt": "2026-09-20"
+    },
+    {
+      "id": "ethercat-suite",
+      "name": "EtherCAT Suite",
+      "publisher": "sin",
+      "version": "1.0.0",
+      "description": "ESI, topology, PDO process image, CoE SDO, DC timing and datagram decode.",
+      "icon": "assets/ethercat-suite.svg",
+      "package": "opk/ethercat-suite_1.0.0.opk",
+      "sha256": "7bcb922d43872ff81ad10a6e0a498137d80e0b06df65ae4b77e552cc5f645633",
+      "size": 26783,
+      "readme": "## EtherCAT Suite\n\nESI, topology, PDO process image, CoE SDO, DC timing and datagram decode.\n",
+      "tags": [
+        "ethercat",
+        "coe",
+        "pdo"
+      ],
+      "keywords": "ethercat esi coe pdo dc mailbox datagram",
       "minAppVersion": "0.1.0",
       "updatedAt": "2026-09-20"
     },

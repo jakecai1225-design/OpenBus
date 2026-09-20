@@ -465,6 +465,16 @@ void PluginManager::activatePlugin(const QString &name)
     if (m_activatedPlugins.contains(name))
         return;
 
+    // One suite window at a time. Suites share import names (app_shell, pages);
+    // leaving the previous suite loaded makes the next one open the old UI.
+    if (name.endsWith(QStringLiteral("-suite"))) {
+        const QStringList active = m_activatedPlugins.values();
+        for (const QString &other : active) {
+            if (other != name && other.endsWith(QStringLiteral("-suite")))
+                deactivatePlugin(other);
+        }
+    }
+
     const PluginInfo &info = m_plugins[name];
 
     QJsonObject params;

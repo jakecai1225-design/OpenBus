@@ -1,0 +1,19 @@
+{
+    "name": "autosar-suite",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "AUTOSAR Suite: COM I-PDU layout, ARXML extract, CanNm, E2E Profile 1 and SecOC in one window.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:autosarSuite.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "autosarSuite.open",
+                "title": "AUTOSAR Suite"
+            }
+        ]
+    }
+}

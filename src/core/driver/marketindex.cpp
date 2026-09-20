@@ -124,6 +124,8 @@ void MarketIndex::onReplyFinished(QNetworkReply *reply)
         QStringLiteral("protocol-hub"),
         QStringLiteral("log-analysis"),
         QStringLiteral("bus-utilities"),
+        QStringLiteral("autosar-suite"),
+        QStringLiteral("ethercat-suite"),
         QStringLiteral("ai-agent"),
     };
 

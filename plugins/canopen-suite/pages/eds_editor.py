@@ -9,9 +9,9 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QFileDialog,
     QFormLayout,
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
+    QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -24,16 +24,21 @@ from PyQt6.QtWidgets import (
 )
 
 from _shared import plugin_shell
-from core.eds_parse import OdEntry, export_eds_text
+from core.eds_parse import OdEntry, export_eds_text, validate_eds
 
 
 def build(parent, session, log_fn) -> QWidget:
     root = QWidget(parent)
     layout = QVBoxLayout(root)
+    layout.setContentsMargins(12, 8, 12, 8)
+    layout.setSpacing(8)
 
-    layout.addWidget(plugin_shell.help_label(
-        "Edit the working OD draft (from loaded EDS or Profiles inserts). "
-        "Add / remove entries, then Export EDS text or Apply draft to OD tree."))
+    tip = QLabel(
+        "CANeds-style draft OD. FileInfo/DeviceInfo are preserved on Save. "
+        "Apply pushes the draft into the live Object Dictionary.")
+    tip.setObjectName("SuiteHint")
+    tip.setWordWrap(True)
+    layout.addWidget(tip)
 
     split = QHBoxLayout()
 
@@ -45,40 +50,61 @@ def build(parent, session, log_fn) -> QWidget:
 
     right = QWidget()
     rv = QVBoxLayout(right)
-    form_box = QGroupBox("Entry")
-    form = QFormLayout(form_box)
+    rv.setContentsMargins(0, 0, 0, 0)
+    form = QFormLayout()
+    form.setSpacing(8)
     idx_spin = QSpinBox()
+    idx_spin.setObjectName("SuiteSpin")
     idx_spin.setRange(0x1000, 0xFFFF)
     idx_spin.setDisplayIntegerBase(16)
     idx_spin.setPrefix("0x")
     idx_spin.setValue(0x2000)
+    idx_spin.setFixedHeight(28)
     sub_spin = QSpinBox()
+    sub_spin.setObjectName("SuiteSpin")
     sub_spin.setRange(0, 255)
+    sub_spin.setFixedHeight(28)
     name_edit = QLineEdit()
+    name_edit.setFixedHeight(28)
     access_edit = QLineEdit("rw")
+    access_edit.setFixedHeight(28)
     dtype_edit = QLineEdit("0x0007")
+    dtype_edit.setFixedHeight(28)
     default_edit = QLineEdit()
-    form.addRow("Index:", idx_spin)
-    form.addRow("Subindex:", sub_spin)
-    form.addRow("Name:", name_edit)
-    form.addRow("Access:", access_edit)
-    form.addRow("DataType:", dtype_edit)
-    form.addRow("Default:", default_edit)
-    rv.addWidget(form_box)
+    default_edit.setFixedHeight(28)
+    form.addRow("Index", idx_spin)
+    form.addRow("Subindex", sub_spin)
+    form.addRow("Name", name_edit)
+    form.addRow("Access", access_edit)
+    form.addRow("DataType", dtype_edit)
+    form.addRow("Default", default_edit)
+    rv.addLayout(form)
 
     btn_row = QHBoxLayout()
     add_btn = QPushButton("Add / Update")
-    remove_btn = QPushButton("Remove selected")
-    apply_btn = QPushButton("Apply draft → OD")
-    export_btn = QPushButton("Export EDS…")
-    preview_btn = QPushButton("Preview text")
-    for w in (add_btn, remove_btn, apply_btn, export_btn, preview_btn):
+    add_btn.setObjectName("GhostButton")
+    remove_btn = QPushButton("Remove")
+    remove_btn.setObjectName("GhostButton")
+    apply_btn = QPushButton("Apply → OD")
+    apply_btn.setObjectName("PrimaryButton")
+    validate_btn = QPushButton("Validate")
+    validate_btn.setObjectName("GhostButton")
+    save_btn = QPushButton("Save")
+    save_btn.setObjectName("GhostButton")
+    save_btn.setToolTip("Overwrite the loaded EDS path when set")
+    export_btn = QPushButton("Save As…")
+    export_btn.setObjectName("GhostButton")
+    preview_btn = QPushButton("Preview")
+    preview_btn.setObjectName("GhostButton")
+    for w in (add_btn, remove_btn, apply_btn, validate_btn, save_btn, export_btn, preview_btn):
+        w.setFixedHeight(28)
+        w.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_row.addWidget(w)
     rv.addLayout(btn_row)
 
     preview = QTextEdit()
     preview.setReadOnly(True)
-    preview.setPlaceholderText("EDS text preview…")
+    preview.setPlaceholderText("EDS text preview / validate findings…")
     rv.addWidget(preview, 1)
     split.addWidget(right, 1)
     layout.addLayout(split, 1)
@@ -153,32 +179,58 @@ def build(parent, session, log_fn) -> QWidget:
 
     def _text():
         base = os.path.basename(session.eds_path) if session.eds_path else "export.eds"
-        return export_eds_text(session.draft_entries, file_name=base)
+        return export_eds_text(
+            session.draft_entries,
+            file_name=base,
+            file_info=getattr(session, "eds_file_info", None),
+            device_info=getattr(session, "eds_device_info", None),
+            other_meta=getattr(session, "eds_other_meta", None),
+        )
 
     def on_preview():
         preview.setPlainText(_text())
 
-    def on_export():
-        path, _ = QFileDialog.getSaveFileName(
-            parent, "Export EDS",
-            session.eds_path or "export.eds",
-            "EDS (*.eds);;All files (*.*)")
-        if not path:
-            return
+    def on_validate():
+        lines = []
+        for finding in validate_eds(session.draft_entries):
+            lines.append("[%s] %s  %s" % (
+                finding["level"], finding.get("index", ""), finding["message"]))
+        preview.setPlainText("\n".join(lines))
+        log_fn("SYS", "-", b"", "EDS validate (%d)" % len(lines))
+
+    def _write(path: str) -> bool:
         try:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(_text())
         except OSError as e:
-            QMessageBox.warning(parent, "Export failed", str(e))
-            return
-        log_fn("RX", "-", b"", "Exported EDS: %s" % path)
-        plugin_shell.set_status(parent, "Exported %s" % path, 4000)
+            QMessageBox.warning(parent, "Save failed", str(e))
+            return False
+        session.eds_path = path
+        log_fn("RX", "-", b"", "Saved EDS: %s" % path)
+        plugin_shell.set_status(parent, "Saved %s" % path, 4000)
         preview.setPlainText(_text())
+        return True
+
+    def on_save():
+        if session.eds_path:
+            _write(session.eds_path)
+            return
+        on_export()
+
+    def on_export():
+        path, _ = QFileDialog.getSaveFileName(
+            parent, "Save EDS",
+            session.eds_path or "export.eds",
+            "EDS (*.eds);;All files (*.*)")
+        if path:
+            _write(path)
 
     tree.itemSelectionChanged.connect(on_select)
     add_btn.clicked.connect(on_add)
     remove_btn.clicked.connect(on_remove)
     apply_btn.clicked.connect(on_apply)
+    validate_btn.clicked.connect(on_validate)
+    save_btn.clicked.connect(on_save)
     export_btn.clicked.connect(on_export)
     preview_btn.clicked.connect(on_preview)
     session.on_od_changed(refresh_tree)

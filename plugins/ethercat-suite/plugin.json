@@ -1,0 +1,19 @@
+{
+    "name": "ethercat-suite",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "EtherCAT Suite: ESI, topology and AL state, PDO process image, CoE SDO mailbox, DC timing and datagram decode.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:ethercatSuite.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "ethercatSuite.open",
+                "title": "EtherCAT Suite"
+            }
+        ]
+    }
+}

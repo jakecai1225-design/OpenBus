@@ -29,6 +29,14 @@ Apply when changing windows, layouts, or controls (suites, Trace, Graphic, marke
 - Human hints go in tooltips, not extra caption rows that eat vertical space.
 - Do not stretch forms across the window; keep a readable content width and give leftover space to the work surface.
 
+## UDS benchmark (apply to every domain suite)
+
+- Activity bar: major workspaces only. Log is not a page.
+- One chrome row: editor tabs when a workspace has sub-features, otherwise the page name, plus layout toggles.
+- OUTPUT: one tool row (pause / export / clear), then the list. Ctrl+B / Ctrl+J. Side bar and OUTPUT visible by default.
+- Shared connection controls stay one thin row or their own tab — never a second title bar.
+- Page features stay; only chrome, navigation, and log placement change.
+
 ## Do not
 
 - Loud separators, nested cards, or status text that outranks the task.

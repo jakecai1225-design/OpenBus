@@ -59,6 +59,7 @@ class WorkbenchParts:
     current_page: Callable[[], str]
     set_editor_tabs: Callable[[QWidget], None]
     set_editor_title: Callable[[str], None]
+    editor_layout: QVBoxLayout
     # Compat
     title_bar: Optional[QWidget] = None
     title_trailing: Optional[QHBoxLayout] = None
@@ -160,6 +161,14 @@ def build_workbench(
         "security": "Security — observational SecurityAccess audit",
         "profiles": "Profiles — save / load ECU connection presets",
         "setup": "Setup — TX/RX IDs, timing, identify",
+        "com": "COM — I-PDU layout, live decode, pack and send",
+        "system": "System — ARXML editor: tree, validate, export DBC",
+        "secoc": "SecOC — freshness value and truncated MAC",
+        "topology": "Topology — slaves and AL state",
+        "coe": "CoE — object dictionary and SDO mailbox",
+        "esi": "ESI — EtherCAT slave description editor",
+        "dc": "DC — cycle, shift and cable delay",
+        "frames": "Frames — EtherCAT datagram and mailbox decode",
     }
 
     def _select_page(key: str):
@@ -476,6 +485,7 @@ def build_workbench(
         current_page=lambda: state["page"],
         set_editor_tabs=set_editor_tabs,
         set_editor_title=set_editor_title,
+        editor_layout=right_l,
         title_bar=chrome,
         title_trailing=chrome_slot,
         nav=activity,

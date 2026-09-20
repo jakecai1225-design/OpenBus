@@ -20,6 +20,8 @@
 | protocol-hub | CANoe options / Vehicle Spy / TSMaster | P0 shell + Setup | P3 in progress |
 | log-analysis | vSignalyzer / CANalyzer offline / CANtrace | Open / Trace / Report | P3 in progress |
 | bus-utilities | CANoe+VH6501 / IVNT-03 / PEAK Bit Rate Tool | Scanner + Quality | P3 in progress |
+| autosar-suite | CANoe option AUTOSAR / DaVinci / TSMaster COM | UDS chrome | ARXML editor P0 |
+| ethercat-suite | TwinCAT / EC-Engineer / SOEM | UDS chrome | ESI editor P0 |
 | ai-agent | (platform agent — see aiagent.md) | P0 theme | Done (P0) |
 
 Legacy thin plugins are **removed** from `plugins/` and `market.json` plugins[]. Do not reintroduce them.
@@ -244,3 +246,23 @@ UDS remains the quality bar for chrome. Feature depth per domain follows the tab
 | 2026-09-20 | DBC Editor bit-layout preview (codec-aligned). TX Lab nav: Transmit / Restbus / Replay / Panels / Log; ASC replay page. |
 | 2026-09-20 | P2: CANopen PDO mapping page; J1939 Live/Transport/Diagnostics/Network; OBD Setup + Mode 01 readiness. |
 | 2026-09-20 | P3: Log Analysis Trace/Report on shared corpus; Protocol Hub Setup; Bus Utilities Scanner/Quality; Bus Security Findings. |
+| 2026-09-20 | Protocol description editors: ARXML (System Tree/Validate/Export) + ESI (Tree/Validate/Save) + EDS FileInfo round-trip/Validate/Save. DBC Studio already full. LDF/FIBEX/ODX deferred. |
+
+---
+
+## Protocol description file editors
+
+| Format | Suite | Top-3 references | Status |
+|--------|-------|------------------|--------|
+| **DBC** | `dbc-studio` | CANdb++ / TSMaster DB / Kvaser | Full create/edit/save/validate/compare/merge/export |
+| **EDS/DCF** | `canopen-suite` EDS | CANeds / emotas / port | Edit OD draft; FileInfo/DeviceInfo preserve; Validate; Save/Save As |
+| **ARXML (COM subset)** | `autosar-suite` System | DaVinci / CANoe.AUTOSAR / TSMaster COM | Tree edit + Validate + Save ARXML + Export DBC (not full Classic project) |
+| **ESI** | `ethercat-suite` ESI | TwinCAT / EC-Engineer / SOEM tools | Tree edit PDO/Objects + Validate + Save XML (no ENI) |
+| **LDF / FIBEX / A2L / ODX** | — | — | Out of scope until dedicated LIN / measurement / UDS-ODX track |
+
+### UX bar (all description editors)
+
+- Same workbench as UDS: activity bar, one chrome row (editor tabs), OUTPUT
+- Primary path: Open → edit tree → Validate → Save
+- Hints on tooltips; no second toolbar row
+- Explicit handoff where useful (ARXML → DBC for DBC Studio)

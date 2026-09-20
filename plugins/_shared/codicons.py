@@ -72,6 +72,17 @@ ALIASES = {
     # Bus utilities
     "bit_timing": "settings",
     "gateway": "extensions",
+    # AUTOSAR
+    "system": "file",
+    "com": "list",
+    "secoc": "lock",
+    # EtherCAT
+    "topology": "device",
+    "coe": "list",
+    "esi": "file",
+    "dc": "sync",
+    "frames": "trace",
+    "mailbox": "trace",
     # Controls
     "chevron-up": "chevron-up",
     "chevron-down": "chevron-down",

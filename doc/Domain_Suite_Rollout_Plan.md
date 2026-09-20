@@ -26,6 +26,8 @@ Ship **one visual language** (UDS) across every domain suite, then deepen featur
 | `protocol-hub` | NM / ISO-TP / ISOBUS / NMEA / GBT / XCP |
 | `log-analysis` | Offline toolkit |
 | `bus-utilities` | Bit timing + gateway |
+| `autosar-suite` | COM / ARXML / CanNm / E2E / SecOC |
+| `ethercat-suite` | ESI / topology / PDO / CoE / DC / datagrams |
 | `ai-agent` | Platform agent (market optional) |
 
 | Removed | Status |

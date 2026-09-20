@@ -11,11 +11,21 @@ _SUITE = os.path.dirname(_HERE)
 if _SUITE not in sys.path:
     sys.path.insert(0, _SUITE)
 
-from core.eds_parse import parse_eds  # noqa: E402
+from core.eds_parse import (  # noqa: E402
+    export_eds_text,
+    parse_eds,
+    parse_eds_document,
+    validate_eds,
+)
 
 SAMPLE = """
 [FileInfo]
 FileName=Sample.eds
+CreatedBy=test
+
+[DeviceInfo]
+VendorName=Demo
+ProductName=Node
 
 [1000]
 ParameterName=Device type
@@ -48,6 +58,23 @@ def test_parse_identity():
     print("PASS eds parse identity/device type (%d entries)" % len(entries))
 
 
+def test_roundtrip_meta():
+    doc = parse_eds_document(SAMPLE)
+    text = export_eds_text(
+        doc.entries,
+        file_info=doc.file_info,
+        device_info=doc.device_info,
+    )
+    again = parse_eds_document(text)
+    assert again.file_info.get("CreatedBy") == "test"
+    assert again.device_info.get("VendorName") == "Demo"
+    assert len(again.entries) == len(doc.entries)
+    findings = validate_eds(doc.entries)
+    assert findings and findings[0]["level"] in ("info", "warn", "error")
+    print("PASS eds FileInfo round-trip + validate")
+
+
 if __name__ == "__main__":
     test_parse_identity()
+    test_roundtrip_meta()
     print("All canopen-suite eds tests passed")
