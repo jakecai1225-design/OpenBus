@@ -2,6 +2,7 @@
 #include <QTimer>
 #include "core/canframe.h"
 #include "core/capturelog.h"
+#include "core/filter_engine.h"
 #include "core/samplestore.h"
 #include "core/recorder.h"
 #include "core/player.h"
@@ -43,6 +44,44 @@
 #include "core/bookmarkmanager.h"
 // core/triggerrecorder.h 已移除 — 触发录制随录制页迁入 transceive 模块（拆分方案 B2）
 #include "utils/canutils.h"
+
+namespace {
+
+QVector<CanFrame> filterPlaybackFrames(const QVector<CanFrame> &frames,
+                                       const QVariantMap &cfg)
+{
+    // No Apply yet → pass everything through.
+    if (!cfg.value(QStringLiteral("filterApplied"), false).toBool())
+        return frames;
+
+    const QString dirMode =
+        cfg.value(QStringLiteral("direction"), QStringLiteral("all")).toString();
+    const QString protoMode =
+        cfg.value(QStringLiteral("protocol"), QStringLiteral("all")).toString();
+    const QString expr = cfg.value(QStringLiteral("filter")).toString().trimmed();
+
+    FilterEngine engine;
+    const bool useExpr = !expr.isEmpty() && engine.compile(expr);
+
+    QVector<CanFrame> out;
+    out.reserve(frames.size());
+    for (const CanFrame &f : frames) {
+        if (dirMode == QStringLiteral("rx") && f.direction != CanFrame::Rx)
+            continue;
+        if (dirMode == QStringLiteral("tx") && f.direction != CanFrame::Tx)
+            continue;
+        if (protoMode == QStringLiteral("can") && f.fd)
+            continue;
+        if (protoMode == QStringLiteral("canfd") && !f.fd)
+            continue;
+        if (useExpr && !engine.evaluate(f))
+            continue;
+        out.append(f);
+    }
+    return out;
+}
+
+} // namespace
 #include "core/appconfig.h"
 #include "core/projectmanager.h"
 #include "utils/svg_icon.h"
@@ -140,6 +179,8 @@ void MainWindow::onFramesReceived(const QVector<CanFrame> &frames)
         for (const auto &frame : frames)
             m_watcherView->onFrame(frame);
     }
+    if (m_rightPanel)
+        m_rightPanel->updateFromFrames(frames);
 
     m_receivedFrameCount += frames.size();
 
@@ -168,12 +209,63 @@ void MainWindow::onFramesReceived(const QVector<CanFrame> &frames)
 
 void MainWindow::onFramePlayed(const CanFrame &frame)
 {
-    onFrameReceived(frame);
+    QVector<CanFrame> one;
+    one.append(frame);
+    onFramesPlayed(one);
 }
 
 void MainWindow::onFramesPlayed(const QVector<CanFrame> &frames)
 {
-    onFramesReceived(frames);
+    if (frames.isEmpty())
+        return;
+
+    const QVariantMap cfg =
+        transceiveQuery(QStringLiteral("playbackConfig")).toMap();
+    const QVector<CanFrame> filtered = filterPlaybackFrames(frames, cfg);
+    if (filtered.isEmpty())
+        return;
+
+    // Playback to bus (device running): send each frame, then feed Trace with
+    // Tx echoes only — same hub as Transceive / plugin send. Do not also inject
+    // the original file frames (those keep Rx and would double-count).
+    if (m_deviceManager && m_deviceManager->isRunning()) {
+        QVector<CanFrame> echoes;
+        echoes.reserve(filtered.size());
+        const int channelUi =
+            cfg.value(QStringLiteral("channelIndex"), 0).toInt();
+        for (CanFrame f : filtered) {
+            f.direction = CanFrame::Tx;
+            if (channelUi >= 0)
+                f.channel = static_cast<quint8>(channelUi + 1);
+            CanFrame echo;
+            if (m_deviceManager->sendFrame(f, &echo))
+                echoes.append(echo);
+        }
+        if (!echoes.isEmpty()) {
+            onFramesReceived(echoes);
+            if (!m_measurementRunning) {
+                m_bottomPanel->appendOutput(
+                    QStringLiteral("Playback Tx on bus (%1 frames) but measurement "
+                                   "is stopped — Trace gated. Start measurement on Flow.")
+                        .arg(echoes.size()));
+            }
+        }
+        return;
+    }
+
+    // Offline Flow file source: keep log Rx/Tx for analysis.
+    if (flowQuery(QStringLiteral("currentSource")).toString()
+            == QStringLiteral("file")) {
+        onFramesReceived(filtered);
+        return;
+    }
+
+    // Device down / hardware Flow source: still echo into Trace as Tx so the
+    // Playback page Dir column matches "to bus" semantics.
+    QVector<CanFrame> marked = filtered;
+    for (CanFrame &f : marked)
+        f.direction = CanFrame::Tx;
+    onFramesReceived(marked);
 }
 
 // ============================================================

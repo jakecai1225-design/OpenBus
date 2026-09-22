@@ -34,14 +34,14 @@ void MeasurementSetupView::updateConnections()
         bool fromActive = fromIt->enabled;
         bool toActive = toIt->enabled;
         
-        // Source-type blocks have special activation rules:
-        // - signal_generator: uses enabled directly
-        // - source_real/source_file: controlled by activeSourceId()
+        // Source-type blocks:
+        // - signal_generator / file_playback: independent injectors (own enabled)
+        // - source_real / source_file: controlled by activeSourceId()
         if (fromIt->category == "source") {
-            if (fromIt->id == "signal_generator") {
-                fromActive = fromIt->enabled;  // Signal generator independent control
+            if (fromIt->id == "signal_generator" || fromIt->id == "file_playback") {
+                fromActive = fromIt->enabled;
             } else {
-                fromActive = (fromIt->id == activeSourceId());  // Real/File controlled by m_source
+                fromActive = (fromIt->id == activeSourceId());
             }
         }
         
@@ -102,11 +102,20 @@ void MeasurementSetupView::updateBlockVisual(const QString &id)
             // (inactive side appears grayed out)
             if (b.category == "source") {
                 if (b.id == "source_real") {
-                    gfx->setTitle(QStringLiteral("Real 实时"));
+                    gfx->setTitle(QStringLiteral("Real"));
+                    active = (b.id == activeSourceId());
+                } else if (b.id == "source_file") {
+                    gfx->setTitle(QStringLiteral("Offline Analysis"));
+                    active = (b.id == activeSourceId());
+                } else if (b.id == "signal_generator") {
+                    gfx->setTitle(QStringLiteral("Signal Generator"));
+                    active = b.enabled;
+                } else if (b.id == "file_playback") {
+                    gfx->setTitle(QStringLiteral("File Playback"));
+                    active = b.enabled;
                 } else {
-                    gfx->setTitle(QStringLiteral("离线分析"));
+                    active = (b.id == activeSourceId());
                 }
-                active = (b.id == activeSourceId());
             }
             gfx->setActive(active);
         }

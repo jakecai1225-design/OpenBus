@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
         AppConfig::instance()->set(QStringLiteral("theme"), QStringLiteral("Light"));
 
     MainWindow window;
-    window.show();
+    window.showMaximized();
 
     int ret = app.exec();
     logging::shutdown();

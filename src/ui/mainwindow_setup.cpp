@@ -350,32 +350,30 @@ void MainWindow::connectSidePanels()
     connect(m_sideBar->analysisPanel(), &MeasurementSetupPanel::openMeasurementSetupRequested,
             this, [this]() { onOpenMeasurementSetup(); });
 
-    // 右侧面板快捷按钮
-    connect(m_rightPanel, &RightPanel::recordRequested, this, &MainWindow::onQuickRecord);
-    connect(m_rightPanel, &RightPanel::stopRecordRequested, this, &MainWindow::onQuickStopRecord);
-    connect(m_rightPanel, &RightPanel::playRequested, this, &MainWindow::onPlay);
-    connect(m_rightPanel, &RightPanel::pauseRequested, this, &MainWindow::onPause);
-    connect(m_rightPanel, &RightPanel::stopRequested, this, &MainWindow::onStop);
-    connect(m_rightPanel, &RightPanel::clearTraceRequested, this, &MainWindow::onClear);
-    connect(m_rightPanel, &RightPanel::autoScrollToggled, this, &MainWindow::onAutoScrollToggled);
-    connect(m_rightPanel, &RightPanel::connectRequested, this, &MainWindow::onQuickConnect);
-    connect(m_rightPanel, &RightPanel::disconnectRequested, this, &MainWindow::onQuickDisconnect);
-    connect(m_rightPanel, &RightPanel::aiMessageSent, this, &MainWindow::onAiMessageSent);
-
-    // 关联
-    m_sideBar->dbcPanel()->setDbcManager(m_dbcManager);
-    // setGraphicView 已随 B5-5 移除 — Graphic 实例编排经 graphic 模块接口
-    m_sideBar->devicePanel()->setSimulator(m_simulator);
-    m_sideBar->devicePanel()->setDeviceManager(m_deviceManager);
-
-    // P0/P1: 连接书签管理器到 RightPanel
+    // 右侧辅助面板：书签 + Inspector/Watch 数据源
     if (m_bookmarkMgr && m_rightPanel) {
         m_rightPanel->setBookmarkManager(m_bookmarkMgr);
+        m_rightPanel->setDbcManager(m_dbcManager);
         connect(m_rightPanel, &RightPanel::bookmarkJumped,
                 this, &MainWindow::onBookmarkJumped);
+        connect(m_rightPanel, &RightPanel::openAiAgentRequested, this, [this]() {
+            if (!m_pluginManager)
+                return;
+            const QString id = QStringLiteral("ai-agent");
+            if (!m_pluginManager->isPluginActivated(id))
+                m_pluginManager->activatePlugin(id);
+            else
+                m_pluginManager->reactivatePlugin(id);
+            if (m_bottomPanel)
+                m_bottomPanel->appendOutput(
+                    QStringLiteral("AI Agent activated (plugin window)"));
+        });
     }
 
-    // 标签页变化 → 刷新侧边栏面板列表
+    // Side panel data sources
+    m_sideBar->dbcPanel()->setDbcManager(m_dbcManager);
+    m_sideBar->devicePanel()->setSimulator(m_simulator);
+    m_sideBar->devicePanel()->setDeviceManager(m_deviceManager);
     connect(m_editorArea, &SplitEditorArea::tabListChanged,
             this, &MainWindow::refreshPanelLists);
     // 标签页切换 → 同步侧边栏面板 + 更新标签名和统计

@@ -89,11 +89,14 @@ QWidget *TraceModule::createPage(const QString &pageId, const QVariant &param, S
             [ctx](const CanFrame &frame) {
                 ctx.shellInvoke("frameDoubleClicked", QVariant::fromValue(frame));
             });
-    QObject::connect(traceView, &TraceView::frameSelected, tab, [ctx, tab](const CanFrame &) {
-        // Frame selected -> tell shell to update "选中 X 行" label
+    QObject::connect(traceView, &TraceView::frameSelected, tab, [ctx, tab](const CanFrame &frame) {
         bool hasSelection = static_cast<bool>(tab->traceView()->selectedFrame());
         int rows = hasSelection ? 1 : 0;
-        ctx.shellInvoke("traceSelectionChanged", rows);
+        ctx.shellInvoke(QStringLiteral("traceSelectionChanged"), rows);
+        if (hasSelection)
+            ctx.shellInvoke(QStringLiteral("inspectFrame"), QVariant::fromValue(frame));
+        else
+            ctx.shellInvoke(QStringLiteral("clearInspection"), {});
     });
 
     // Add to Graphic: send raw frame to shell (shell does DBC lookup + adds all signals)

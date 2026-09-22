@@ -134,7 +134,11 @@ QWidget *FlowModule::createSetupPage(ShellContext &ctx)
     });
     QObject::connect(view, &MeasurementSetupView::sendPageOpened, view, [this]() {
         if (m_ctx.shellInvoke)
-            m_ctx.shellInvoke(QStringLiteral("sendPageOpened"), {});  // ✅ 打开发送配置页面
+            m_ctx.shellInvoke(QStringLiteral("sendPageOpened"), {});
+    });
+    QObject::connect(view, &MeasurementSetupView::playbackPageOpened, view, [this]() {
+        if (m_ctx.shellInvoke)
+            m_ctx.shellInvoke(QStringLiteral("openPlaybackTab"), {});
     });
     QObject::connect(view, &MeasurementSetupView::measurementToggled, view,
                      [this](bool running) {

@@ -97,8 +97,10 @@ signals:
     void realBlockClicked();
     /// 请求跳转到离线分析标签页（双击离线分析块时触发）
     void fileBlockClicked();
-    /// 请求打开发送配置页面（双击信号发生器块时触发）
+    /// Open signal send page (double-click Signal Generator)
     void sendPageOpened();
+    /// Open file playback page (double-click File Playback)
+    void playbackPageOpened();
 
 public slots:
     // ---- 右键弹窗对话框（需要外部调用） ----

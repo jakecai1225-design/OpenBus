@@ -57,16 +57,16 @@ void MeasurementSetupView::rebuildScene()
             b.color = active ? QColor(0x4C, 0xAF, 0x50) : QColor(0x80, 0x80, 0x80);
             
             if (b.id == "source_real") {
-                b.title = QStringLiteral("Real 实时");
-                // Real's state controlled by activeSourceId()
+                b.title = QStringLiteral("Real");
                 active = (b.id == activeSourceId());
             } else if (b.id == "source_file") {
-                b.title = QStringLiteral("离线分析");
-                // Offline analysis state controlled by activeSourceId()
+                b.title = QStringLiteral("Offline Analysis");
                 active = (b.id == activeSourceId());
             } else if (b.id == "signal_generator") {
-                b.title = QStringLiteral("信号发生器");
-                // signal_generator directly uses enabled state
+                b.title = QStringLiteral("Signal Generator");
+                active = b.enabled;
+            } else if (b.id == "file_playback") {
+                b.title = QStringLiteral("File Playback");
                 active = b.enabled;
             }
         }

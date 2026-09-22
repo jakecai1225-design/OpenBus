@@ -146,13 +146,6 @@ private slots:
     // 直调——slot 声明保证元对象可达（L2 UI 驱动测试经 invokeMethod 驱动，DEF-09）
     void onMeasurementToggled(bool running);
 
-    // 右侧面板快捷按钮
-    void onQuickRecord();
-    void onQuickStopRecord();
-    void onQuickConnect();
-    void onQuickDisconnect();
-    void onAiMessageSent(const QString &text);
-
     // Flow 页面回调：Filter/DBC（双击块时由 Shell 触发）
     void onMeasurementViewFilterRequested();
     void onMeasurementViewDbcSelectRequested();

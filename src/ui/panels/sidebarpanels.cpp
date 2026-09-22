@@ -51,6 +51,12 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QSizePolicy>
+#include <QEnterEvent>
+#include <QMouseEvent>
+#include <QIcon>
+#include <QCursor>
+#include <QShowEvent>
+#include <QTimer>
 #include <QPainter>
 #include <QPixmap>
 #include <QBrush>
@@ -86,6 +92,197 @@ void SidePanel::setupTitle(const QString &title)
 }
 
 // ============================================================
+//  ExplorerItemRow / ExplorerItemActions — VS Code item actions
+// ============================================================
+
+ExplorerItemRow::ExplorerItemRow(const QString &text, QWidget *parent)
+    : QWidget(parent)
+{
+    setObjectName(QStringLiteral("ExplorerItemRow"));
+    setAttribute(Qt::WA_Hover, true);
+    setCursor(Qt::PointingHandCursor);
+
+    auto *lay = new QHBoxLayout(this);
+    lay->setContentsMargins(8, 1, 4, 1);
+    lay->setSpacing(4);
+
+    m_iconLabel = new QLabel(this);
+    m_iconLabel->setFixedSize(16, 16);
+    m_iconLabel->setVisible(false);
+    lay->addWidget(m_iconLabel, 0, Qt::AlignVCenter);
+
+    m_textLabel = new QLabel(text, this);
+    m_textLabel->setObjectName(QStringLiteral("ExplorerItemLabel"));
+    m_textLabel->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    lay->addWidget(m_textLabel, 1);
+
+    m_actionsHost = new QWidget(this);
+    m_actionsHost->setObjectName(QStringLiteral("ExplorerItemActions"));
+    m_actionsLay = new QHBoxLayout(m_actionsHost);
+    m_actionsLay->setContentsMargins(0, 0, 0, 0);
+    m_actionsLay->setSpacing(0);
+    lay->addWidget(m_actionsHost, 0, Qt::AlignVCenter);
+
+    setActionsVisible(false);
+}
+
+void ExplorerItemRow::setText(const QString &text)
+{
+    m_textLabel->setText(text);
+}
+
+void ExplorerItemRow::setLeadingIcon(const QIcon &icon)
+{
+    if (icon.isNull()) {
+        m_iconLabel->clear();
+        m_iconLabel->setVisible(false);
+        return;
+    }
+    m_iconLabel->setPixmap(icon.pixmap(16, 16));
+    m_iconLabel->setVisible(true);
+}
+
+QToolButton *ExplorerItemRow::addAction(const QString &iconPath,
+                                        const QString &tooltip,
+                                        int iconSize)
+{
+    auto *btn = new QToolButton(m_actionsHost);
+    btn->setObjectName(QStringLiteral("ExplorerSectionAction"));
+    btn->setAutoRaise(true);
+    btn->setFocusPolicy(Qt::NoFocus);
+    btn->setCursor(Qt::PointingHandCursor);
+    btn->setToolTip(tooltip);
+    btn->setFixedSize(20, 20);
+    btn->setIconSize(QSize(iconSize, iconSize));
+    btn->setIcon(svgIcon(iconPath, ThemeManager::instance()->currentTheme().text, iconSize));
+    m_actionsLay->addWidget(btn, 0, Qt::AlignVCenter);
+    m_actions.append(btn);
+    m_actionIconPaths.append(iconPath);
+    updateActionVisibility();
+    return btn;
+}
+
+void ExplorerItemRow::setActionsVisible(bool on)
+{
+    m_hovered = on;
+    updateActionVisibility();
+}
+
+void ExplorerItemRow::refreshTheme()
+{
+    const QString c = ThemeManager::instance()->currentTheme().text;
+    for (int i = 0; i < m_actions.size(); ++i) {
+        const int sz = m_actions[i]->iconSize().width();
+        m_actions[i]->setIcon(svgIcon(m_actionIconPaths.value(i), c, sz > 0 ? sz : 12));
+    }
+}
+
+void ExplorerItemRow::updateActionVisibility()
+{
+    bool force = false;
+    for (auto *b : m_actions) {
+        if (b->isDown()) {
+            force = true;
+            break;
+        }
+    }
+    const bool show = m_hovered || force;
+    for (auto *b : m_actions)
+        b->setVisible(show);
+}
+
+void ExplorerItemRow::enterEvent(QEnterEvent *event)
+{
+    QWidget::enterEvent(event);
+    setActionsVisible(true);
+}
+
+void ExplorerItemRow::leaveEvent(QEvent *event)
+{
+    QWidget::leaveEvent(event);
+    const QPoint g = QCursor::pos();
+    if (!rect().contains(mapFromGlobal(g)))
+        setActionsVisible(false);
+}
+
+void ExplorerItemRow::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton
+        && !m_actionsHost->geometry().contains(event->pos())) {
+        emit activated();
+    }
+    QWidget::mouseReleaseEvent(event);
+}
+
+ExplorerItemActions::ExplorerItemActions(QWidget *parent)
+    : QWidget(parent)
+{
+    setObjectName(QStringLiteral("ExplorerItemActions"));
+    setAttribute(Qt::WA_Hover, true);
+    m_lay = new QHBoxLayout(this);
+    m_lay->setContentsMargins(0, 0, 2, 0);
+    m_lay->setSpacing(0);
+    setActionsVisible(false);
+}
+
+QToolButton *ExplorerItemActions::addAction(const QString &iconPath,
+                                            const QString &tooltip,
+                                            int iconSize)
+{
+    auto *btn = new QToolButton(this);
+    btn->setObjectName(QStringLiteral("ExplorerSectionAction"));
+    btn->setAutoRaise(true);
+    btn->setFocusPolicy(Qt::NoFocus);
+    btn->setCursor(Qt::PointingHandCursor);
+    btn->setToolTip(tooltip);
+    btn->setFixedSize(20, 20);
+    btn->setIconSize(QSize(iconSize, iconSize));
+    btn->setIcon(svgIcon(iconPath, ThemeManager::instance()->currentTheme().text, iconSize));
+    m_lay->addWidget(btn, 0, Qt::AlignVCenter);
+    m_actions.append(btn);
+    m_actionIconPaths.append(iconPath);
+    setFixedWidth(qMax(20, m_actions.size() * 20));
+    setActionsVisible(m_hovered);
+    return btn;
+}
+
+void ExplorerItemActions::setActionsVisible(bool on)
+{
+    m_hovered = on;
+    bool force = false;
+    for (auto *b : m_actions) {
+        if (b->isDown()) {
+            force = true;
+            break;
+        }
+    }
+    const bool show = on || force;
+    for (auto *b : m_actions)
+        b->setVisible(show);
+}
+
+void ExplorerItemActions::refreshTheme()
+{
+    const QString c = ThemeManager::instance()->currentTheme().text;
+    for (int i = 0; i < m_actions.size(); ++i) {
+        const int sz = m_actions[i]->iconSize().width();
+        m_actions[i]->setIcon(svgIcon(m_actionIconPaths.value(i), c, sz > 0 ? sz : 12));
+    }
+}
+
+void ExplorerItemActions::enterEvent(QEnterEvent *event)
+{
+    QWidget::enterEvent(event);
+    setActionsVisible(true);
+}
+
+void ExplorerItemActions::leaveEvent(QEvent *event)
+{
+    QWidget::leaveEvent(event);
+    setActionsVisible(false);
+}
+
+// ============================================================
 //  ExplorerSection — VS Code twistie section
 // ============================================================
 
@@ -97,13 +294,18 @@ ExplorerSection::ExplorerSection(const QString &title, QWidget *parent)
     lay->setContentsMargins(0, 0, 0, 0);
     lay->setSpacing(0);
 
-    auto *headerRow = new QWidget(this);
-    headerRow->setObjectName(QStringLiteral("ExplorerSectionHeaderRow"));
-    auto *headerLay = new QHBoxLayout(headerRow);
-    headerLay->setContentsMargins(0, 0, 6, 0);
-    headerLay->setSpacing(4);
+    setAttribute(Qt::WA_Hover, true);
+    installEventFilter(this);
 
-    m_header = new QToolButton(headerRow);
+    m_headerRow = new QWidget(this);
+    m_headerRow->setObjectName(QStringLiteral("ExplorerSectionHeaderRow"));
+    m_headerRow->setAttribute(Qt::WA_Hover, true);
+    m_headerRow->installEventFilter(this);
+    m_headerLay = new QHBoxLayout(m_headerRow);
+    m_headerLay->setContentsMargins(0, 0, 4, 0);
+    m_headerLay->setSpacing(2);
+
+    m_header = new QToolButton(m_headerRow);
     m_header->setObjectName(QStringLiteral("ExplorerSectionHeader"));
     m_header->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_header->setAutoRaise(true);
@@ -111,28 +313,40 @@ ExplorerSection::ExplorerSection(const QString &title, QWidget *parent)
     m_header->setCursor(Qt::PointingHandCursor);
     m_header->setFocusPolicy(Qt::NoFocus);
     connect(m_header, &QToolButton::clicked, this, &ExplorerSection::toggle);
-    headerLay->addWidget(m_header, 0);
+    m_headerLay->addWidget(m_header, 1);
 
-    m_statusDot = new QLabel(QStringLiteral("●"), headerRow);
+    m_statusDot = new QLabel(QStringLiteral("●"), m_headerRow);
     m_statusDot->setObjectName(QStringLiteral("ExplorerSectionStatusDot"));
     m_statusDot->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
     m_statusDot->setStyleSheet(QStringLiteral(
         "QLabel#ExplorerSectionStatusDot { color: #22C55E; font-size: 11px; }"));
     m_statusDot->setVisible(false);
-    headerLay->addWidget(m_statusDot, 0, Qt::AlignVCenter);
-    headerLay->addStretch(1);
+    m_headerLay->addWidget(m_statusDot, 0, Qt::AlignVCenter);
 
-    lay->addWidget(headerRow);
+    m_actionsHost = new QWidget(m_headerRow);
+    m_actionsHost->setObjectName(QStringLiteral("ExplorerSectionActions"));
+    m_actionsLay = new QHBoxLayout(m_actionsHost);
+    m_actionsLay->setContentsMargins(0, 0, 0, 0);
+    m_actionsLay->setSpacing(0);
+    m_headerLay->addWidget(m_actionsHost, 0, Qt::AlignVCenter);
+
+    lay->addWidget(m_headerRow, 0);
 
     m_body = new QWidget(this);
     m_body->setObjectName(QStringLiteral("ExplorerSectionBody"));
+    m_body->setAttribute(Qt::WA_Hover, true);
+    m_body->installEventFilter(this);
     m_bodyLayout = new QVBoxLayout(m_body);
     m_bodyLayout->setContentsMargins(0, 0, 0, 0);
     m_bodyLayout->setSpacing(0);
     lay->addWidget(m_body, 1);
 
     setTitle(title);
+    applyExpandPolicy();
     updateHeaderChrome();
+    setHeaderActionsHovered(false);
+    // Parent layout may not be ready yet; rebalance once shown / next tick.
+    QTimer::singleShot(0, this, &ExplorerSection::rebalanceSiblings);
 }
 
 void ExplorerSection::setTitle(const QString &title)
@@ -152,7 +366,10 @@ void ExplorerSection::setExpanded(bool expanded)
         return;
     m_expanded = expanded;
     m_body->setVisible(m_expanded);
+    applyExpandPolicy();
     updateHeaderChrome();
+    rebalanceSiblings();
+    emit expandedChanged(m_expanded);
 }
 
 void ExplorerSection::toggle()
@@ -160,15 +377,189 @@ void ExplorerSection::toggle()
     setExpanded(!m_expanded);
 }
 
+void ExplorerSection::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    rebalanceSiblings();
+}
+
+void ExplorerSection::rebalanceSiblings()
+{
+    QWidget *p = parentWidget();
+    if (!p)
+        return;
+    auto *lay = qobject_cast<QVBoxLayout *>(p->layout());
+    if (!lay)
+        return;
+
+    QList<ExplorerSection *> sections;
+    QWidget *tail = nullptr;
+    for (int i = 0; i < lay->count(); ++i) {
+        QLayoutItem *it = lay->itemAt(i);
+        if (!it)
+            continue;
+        if (auto *s = qobject_cast<ExplorerSection *>(it->widget()))
+            sections.append(s);
+        else if (auto *w = it->widget()) {
+            if (w->objectName() == QLatin1String("ExplorerSectionTailSpacer"))
+                tail = w;
+        }
+    }
+    if (sections.isEmpty())
+        return;
+
+    int expandedCount = 0;
+    for (auto *s : sections) {
+        if (s->isExpanded())
+            ++expandedCount;
+    }
+
+    // Expanded sections share leftover height equally (stretch 1).
+    // Collapsed keep fixed header height (stretch 0).
+    // Leading collapsed stay top; trailing collapsed are pushed to the bottom
+    // by the expanded stretch — VS Code view-container packing.
+    for (auto *s : sections) {
+        const int idx = lay->indexOf(s);
+        if (idx < 0)
+            continue;
+        lay->setStretch(idx, s->isExpanded() ? 1 : 0);
+        s->applyExpandPolicy();
+    }
+
+    if (expandedCount == 0) {
+        // All collapsed → pack to the top; absorb leftover below.
+        if (!tail) {
+            tail = new QWidget(p);
+            tail->setObjectName(QStringLiteral("ExplorerSectionTailSpacer"));
+            tail->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+            tail->setMinimumHeight(0);
+            lay->addWidget(tail, 1);
+        } else {
+            tail->setVisible(true);
+            tail->setMaximumHeight(QWIDGETSIZE_MAX);
+            lay->setStretch(lay->indexOf(tail), 1);
+        }
+    } else if (tail) {
+        // Expanded views own the leftover space; hide the tail spacer.
+        const int idx = lay->indexOf(tail);
+        if (idx >= 0)
+            lay->setStretch(idx, 0);
+        tail->setMaximumHeight(0);
+        tail->setVisible(false);
+    }
+
+    p->updateGeometry();
+}
+
 void ExplorerSection::refreshTheme()
 {
     updateHeaderChrome();
+    refreshActionIcons();
 }
 
 void ExplorerSection::setStatusDotVisible(bool on)
 {
     if (m_statusDot)
         m_statusDot->setVisible(on);
+}
+
+QToolButton *ExplorerSection::addHeaderAction(const QString &iconPath,
+                                             const QString &tooltip,
+                                             int iconSize)
+{
+    auto *btn = new QToolButton(m_actionsHost);
+    btn->setObjectName(QStringLiteral("ExplorerSectionAction"));
+    btn->setAutoRaise(true);
+    btn->setFocusPolicy(Qt::NoFocus);
+    btn->setCursor(Qt::PointingHandCursor);
+    btn->setToolTip(tooltip);
+    btn->setFixedSize(22, 22);
+    btn->setIconSize(QSize(iconSize, iconSize));
+    btn->setIcon(svgIcon(iconPath, ThemeManager::instance()->currentTheme().text, iconSize));
+    connect(btn, &QToolButton::pressed, this, [this]() {
+        setHeaderActionsHovered(true);
+    });
+    connect(btn, &QToolButton::released, this, [this]() {
+        const QPoint g = QCursor::pos();
+        const bool over = m_headerRow
+            && m_headerRow->rect().contains(m_headerRow->mapFromGlobal(g));
+        setHeaderActionsHovered(over);
+    });
+    m_actionsLay->addWidget(btn, 0, Qt::AlignVCenter);
+    m_actions.append(btn);
+    m_actionIconPaths.append(iconPath);
+    setHeaderActionsHovered(m_headerHovered);
+    return btn;
+}
+
+void ExplorerSection::applyExpandPolicy()
+{
+    if (m_expanded) {
+        setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+        setMaximumHeight(QWIDGETSIZE_MAX);
+        setMinimumHeight(0);
+    } else {
+        setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+        const int h = m_headerRow ? m_headerRow->sizeHint().height() : 22;
+        setMaximumHeight(qMax(22, h));
+        setMinimumHeight(0);
+    }
+    updateGeometry();
+    if (parentWidget())
+        parentWidget()->updateGeometry();
+}
+
+void ExplorerSection::setHeaderActionsHovered(bool hovered)
+{
+    m_headerHovered = hovered;
+    bool force = false;
+    for (auto *b : m_actions) {
+        if (b->isDown()) {
+            force = true;
+            break;
+        }
+    }
+    const bool show = hovered || force;
+    for (auto *b : m_actions)
+        b->setVisible(show);
+}
+
+void ExplorerSection::refreshActionIcons()
+{
+    const QString c = ThemeManager::instance()->currentTheme().text;
+    for (int i = 0; i < m_actions.size(); ++i) {
+        const int sz = m_actions[i]->iconSize().width();
+        m_actions[i]->setIcon(svgIcon(m_actionIconPaths.value(i), c, sz > 0 ? sz : 14));
+    }
+}
+
+bool ExplorerSection::eventFilter(QObject *watched, QEvent *event)
+{
+    const bool onSection = (watched == this || watched == m_headerRow
+                            || watched == m_body || watched == m_actionsHost);
+    if (onSection) {
+        switch (event->type()) {
+        case QEvent::Enter:
+        case QEvent::HoverEnter:
+            setHeaderActionsHovered(true);
+            break;
+        case QEvent::Leave:
+        case QEvent::HoverLeave: {
+            const QPoint g = QCursor::pos();
+            if (!rect().contains(mapFromGlobal(g)))
+                setHeaderActionsHovered(false);
+            break;
+        }
+        default:
+            break;
+        }
+    } else if (auto *btn = qobject_cast<QToolButton *>(watched)) {
+        if (m_actions.contains(btn)) {
+            if (event->type() == QEvent::Enter || event->type() == QEvent::HoverEnter)
+                setHeaderActionsHovered(true);
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 void ExplorerSection::updateHeaderChrome()
@@ -180,6 +571,69 @@ void ExplorerSection::updateHeaderChrome()
     m_header->setStyleSheet(QString());
 }
 
+namespace {
+
+/// Show ExplorerItemActions in column 1 while the mouse is over that tree row.
+class TreeRowActionHoverFilter : public QObject
+{
+public:
+    explicit TreeRowActionHoverFilter(QTreeWidget *tree)
+        : QObject(tree), m_tree(tree)
+    {
+        tree->setMouseTracking(true);
+        if (tree->viewport()) {
+            tree->viewport()->setMouseTracking(true);
+            tree->viewport()->installEventFilter(this);
+        }
+        tree->installEventFilter(this);
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (watched == m_tree->viewport()) {
+            if (event->type() == QEvent::MouseMove) {
+                auto *me = static_cast<QMouseEvent *>(event);
+                setHoverItem(m_tree->itemAt(me->pos()));
+            } else if (event->type() == QEvent::Leave) {
+                setHoverItem(nullptr);
+            }
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    void setHoverItem(QTreeWidgetItem *item)
+    {
+        if (item == m_last)
+            return;
+        if (m_last) {
+            if (auto *w = qobject_cast<ExplorerItemActions *>(
+                    m_tree->itemWidget(m_last, 1)))
+                w->setActionsVisible(false);
+        }
+        m_last = item;
+        if (m_last) {
+            if (auto *w = qobject_cast<ExplorerItemActions *>(
+                    m_tree->itemWidget(m_last, 1)))
+                w->setActionsVisible(true);
+        }
+    }
+
+    QTreeWidget *m_tree = nullptr;
+    QTreeWidgetItem *m_last = nullptr;
+};
+
+void installTreeRowActionHover(QTreeWidget *tree)
+{
+    if (!tree || tree->property("_explorerActionHover").toBool())
+        return;
+    tree->setProperty("_explorerActionHover", true);
+    new TreeRowActionHoverFilter(tree);
+}
+
+} // namespace
+
 // ============================================================
 //  ProjectPanel
 // ============================================================
@@ -189,8 +643,16 @@ ProjectPanel::ProjectPanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
-    // Active project section (plain title + trailing green status ●)
-    m_projectSection = new ExplorerSection(QStringLiteral("当前工程"), this);
+    m_projectSection = new ExplorerSection(QStringLiteral("Open Project"), this);
+    auto *newProjBtn = m_projectSection->addHeaderAction(
+        QStringLiteral(":/icons/plus.svg"),
+        QStringLiteral("New Project"));
+    auto *openProjBtn = m_projectSection->addHeaderAction(
+        QStringLiteral(":/icons/folder.svg"),
+        QStringLiteral("Open Project"));
+    connect(newProjBtn, &QToolButton::clicked, this, &ProjectPanel::onNewProject);
+    connect(openProjBtn, &QToolButton::clicked, this, &ProjectPanel::onOpenProject);
+
     m_projectTree = new QTreeWidget(m_projectSection->bodyWidget());
     applyExplorerTree(m_projectTree, QStringLiteral("ProjectTree"));
     m_projectTree->setHeaderHidden(true);
@@ -199,19 +661,27 @@ ProjectPanel::ProjectPanel(QWidget *parent)
     m_projectTree->header()->setStretchLastSection(false);
     m_projectTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_projectTree->header()->setSectionResizeMode(1, QHeaderView::Fixed);
-    m_projectTree->setColumnWidth(1, 18);
+    m_projectTree->setColumnWidth(1, 44);
     m_projectTree->setExpandsOnDoubleClick(false);
     m_projectTree->setContextMenuPolicy(Qt::CustomContextMenu);
+    installTreeRowActionHover(m_projectTree);
     m_projectSection->bodyLayout()->addWidget(m_projectTree, 1);
-    cl->addWidget(m_projectSection, 3);
+    cl->addWidget(m_projectSection, 1);
 
-    // Recent section (collapsible)
     m_recentSection = new ExplorerSection(QStringLiteral("Recent"), this);
+    auto *clearRecentBtn = m_recentSection->addHeaderAction(
+        QStringLiteral(":/icons/clear-all.svg"),
+        QStringLiteral("Clear Recent"));
+    connect(clearRecentBtn, &QToolButton::clicked, this, [this]() {
+        SessionManager::instance()->clearRecent();
+        refreshRecentList();
+    });
     m_recentList = new QListWidget(m_recentSection->bodyWidget());
     m_recentList->setObjectName(QStringLiteral("ExplorerRecentList"));
     m_recentList->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_recentList->setMouseTracking(true);
     m_recentSection->bodyLayout()->addWidget(m_recentList, 1);
-    cl->addWidget(m_recentSection, 2);
+    cl->addWidget(m_recentSection, 1);
 
     ProjectContext defaultProj;
     defaultProj.name = QStringLiteral("Default Project");
@@ -220,7 +690,6 @@ ProjectPanel::ProjectPanel(QWidget *parent)
     refreshList();
     refreshRecentList();
 
-    // Refresh section twistie icons on theme change
     auto *themeRelay = new SignalRelay(this);
     themeRelay->fire0 = [this]() {
         if (m_projectSection)
@@ -251,8 +720,7 @@ void ProjectPanel::updateProjectSectionTitle()
 {
     if (!m_projectSection)
         return;
-    // Fixed section label; active cue is the trailing green ● only
-    m_projectSection->setTitle(QStringLiteral("当前工程"));
+    m_projectSection->setTitle(QStringLiteral("Open Project"));
     const bool hasActive = (m_currentIndex >= 0 && m_currentIndex < m_projects.size());
     m_projectSection->setStatusDotVisible(hasActive);
 }
@@ -327,6 +795,19 @@ void ProjectPanel::refreshList()
             fItem->setIcon(0, iconFile);
             fItem->setData(0, Qt::UserRole, proj.filePath);
             fItem->setToolTip(0, proj.filePath);
+            auto *acts = new ExplorerItemActions(m_projectTree);
+            auto *revealBtn = acts->addAction(QStringLiteral(":/icons/folder.svg"),
+                                              QStringLiteral("Reveal in File Explorer"));
+            auto *openBtn = acts->addAction(QStringLiteral(":/icons/goto.svg"),
+                                            QStringLiteral("Open project file"));
+            const QString path = proj.filePath;
+            connect(revealBtn, &QToolButton::clicked, this, [path]() {
+                revealInFileManager(path);
+            });
+            connect(openBtn, &QToolButton::clicked, this, [this, path]() {
+                emit openProjectRequested(path);
+            });
+            m_projectTree->setItemWidget(fItem, 1, acts);
         }
 
         QString playback = extractPlaybackFile(proj.stateJson);
@@ -336,6 +817,18 @@ void ProjectPanel::refreshList()
             fItem->setIcon(0, iconFile);
             fItem->setData(0, Qt::UserRole, playback);
             fItem->setToolTip(0, playback);
+            auto *acts = new ExplorerItemActions(m_projectTree);
+            auto *revealBtn = acts->addAction(QStringLiteral(":/icons/folder.svg"),
+                                              QStringLiteral("Reveal in File Explorer"));
+            auto *previewBtn = acts->addAction(QStringLiteral(":/icons/goto.svg"),
+                                               QStringLiteral("Preview"));
+            connect(revealBtn, &QToolButton::clicked, this, [playback]() {
+                revealInFileManager(playback);
+            });
+            connect(previewBtn, &QToolButton::clicked, this, [this, playback]() {
+                emit filePreviewRequested(playback);
+            });
+            m_projectTree->setItemWidget(fItem, 1, acts);
         }
 
         auto dbcFiles = extractDbcFiles(proj.stateJson);
@@ -349,6 +842,18 @@ void ProjectPanel::refreshList()
                 fItem->setIcon(0, iconDb);
                 fItem->setData(0, Qt::UserRole, f);
                 fItem->setToolTip(0, f);
+                auto *acts = new ExplorerItemActions(m_projectTree);
+                auto *revealBtn = acts->addAction(QStringLiteral(":/icons/folder.svg"),
+                                                  QStringLiteral("Reveal in File Explorer"));
+                auto *previewBtn = acts->addAction(QStringLiteral(":/icons/goto.svg"),
+                                                   QStringLiteral("Preview"));
+                connect(revealBtn, &QToolButton::clicked, this, [f]() {
+                    revealInFileManager(f);
+                });
+                connect(previewBtn, &QToolButton::clicked, this, [this, f]() {
+                    emit filePreviewRequested(f);
+                });
+                m_projectTree->setItemWidget(fItem, 1, acts);
             }
         }
 
@@ -368,6 +873,18 @@ void ProjectPanel::refreshList()
                 fItem->setIcon(0, iconFile);
                 fItem->setData(0, Qt::UserRole, f);
                 fItem->setToolTip(0, f);
+                auto *acts = new ExplorerItemActions(m_projectTree);
+                auto *revealBtn = acts->addAction(QStringLiteral(":/icons/folder.svg"),
+                                                  QStringLiteral("Reveal in File Explorer"));
+                auto *previewBtn = acts->addAction(QStringLiteral(":/icons/goto.svg"),
+                                                   QStringLiteral("Preview"));
+                connect(revealBtn, &QToolButton::clicked, this, [f]() {
+                    revealInFileManager(f);
+                });
+                connect(previewBtn, &QToolButton::clicked, this, [this, f]() {
+                    emit filePreviewRequested(f);
+                });
+                m_projectTree->setItemWidget(fItem, 1, acts);
             }
         }
 
@@ -383,6 +900,18 @@ void ProjectPanel::refreshList()
                 fItem->setIcon(0, iconFile);
                 fItem->setData(0, Qt::UserRole, f);
                 fItem->setToolTip(0, f);
+                auto *acts = new ExplorerItemActions(m_projectTree);
+                auto *revealBtn = acts->addAction(QStringLiteral(":/icons/folder.svg"),
+                                                  QStringLiteral("Reveal in File Explorer"));
+                auto *previewBtn = acts->addAction(QStringLiteral(":/icons/goto.svg"),
+                                                   QStringLiteral("Preview"));
+                connect(revealBtn, &QToolButton::clicked, this, [f]() {
+                    revealInFileManager(f);
+                });
+                connect(previewBtn, &QToolButton::clicked, this, [this, f]() {
+                    emit filePreviewRequested(f);
+                });
+                m_projectTree->setItemWidget(fItem, 1, acts);
             }
         }
 
@@ -484,10 +1013,37 @@ void ProjectPanel::refreshRecentList()
         if (map.value("pinned").toBool())
             name = QStringLiteral("[Pinned] ") + name;
 
-        auto *listItem = new QListWidgetItem(name);
-        listItem->setToolTip(p);
+        auto *listItem = new QListWidgetItem(m_recentList);
         listItem->setData(Qt::UserRole, p);
-        m_recentList->addItem(listItem);
+        listItem->setToolTip(p);
+
+        auto *row = new ExplorerItemRow(name, m_recentList);
+        row->setLeadingIcon(svgIcon(QStringLiteral(":/icons/file.svg"),
+                                    ThemeManager::instance()->currentTheme().textDim, 14));
+        auto *openBtn = row->addAction(QStringLiteral(":/icons/goto.svg"),
+                                       QStringLiteral("Open"));
+        auto *revealBtn = row->addAction(QStringLiteral(":/icons/folder.svg"),
+                                         QStringLiteral("Reveal in File Explorer"));
+        auto *removeBtn = row->addAction(QStringLiteral(":/icons/close.svg"),
+                                         QStringLiteral("Remove from Recent"));
+        connect(openBtn, &QToolButton::clicked, this, [this, p]() {
+            emit openProjectRequested(p);
+        });
+        connect(revealBtn, &QToolButton::clicked, this, [p]() {
+            revealInFileManager(p);
+        });
+        connect(removeBtn, &QToolButton::clicked, this, [this, p]() {
+            SessionManager::instance()->removeRecent(p);
+            refreshRecentList();
+        });
+        connect(row, &ExplorerItemRow::activated, this, [this, listItem]() {
+            m_recentList->setCurrentItem(listItem);
+            const QString path = listItem->data(Qt::UserRole).toString();
+            if (!path.isEmpty())
+                emit openProjectRequested(path);
+        });
+        listItem->setSizeHint(row->sizeHint().expandedTo(QSize(0, 22)));
+        m_recentList->setItemWidget(listItem, row);
     }
 }
 
@@ -781,43 +1337,43 @@ QStringList ProjectPanel::extractOfflineFiles(const QString &stateJson) const
 // ============================================================
 
 DbcPanel::DbcPanel(QWidget *parent)
-    : SidePanel("数据库", parent)
+    : SidePanel(QStringLiteral("DATABASES"), parent)
 {
-    m_tree = new QTreeWidget(this);
+    auto *cl = contentLayout();
+
+    m_dbSection = new ExplorerSection(QStringLiteral("Databases"), this);
+    m_importBtn = m_dbSection->addHeaderAction(
+        QStringLiteral(":/icons/plus.svg"),
+        QStringLiteral("Load database file"));
+    m_removeBtn = m_dbSection->addHeaderAction(
+        QStringLiteral(":/icons/dash.svg"),
+        QStringLiteral("Remove selected database"));
+
+    m_tree = new QTreeWidget(m_dbSection->bodyWidget());
     applyExplorerTree(m_tree);
     m_tree->setHeaderHidden(true);
-    m_tree->setColumnCount(1);
+    m_tree->setColumnCount(2);
+    m_tree->header()->setStretchLastSection(false);
+    m_tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_tree->header()->setSectionResizeMode(1, QHeaderView::Fixed);
+    m_tree->setColumnWidth(1, 24);
     m_tree->setExpandsOnDoubleClick(false);
+    installTreeRowActionHover(m_tree);
+    m_dbSection->bodyLayout()->addWidget(m_tree, 1);
+    cl->addWidget(m_dbSection, 1);
 
-    auto *cl = contentLayout();
-    cl->addWidget(m_tree);
-
-    auto *btnBar = new QHBoxLayout;
-    btnBar->setContentsMargins(8, 6, 8, 6);
-    btnBar->setSpacing(4);
-    const QString dbcIconCol = ThemeManager::instance()->currentTheme().text;
-    auto *importBtn = new QPushButton(
-        svgIcon(":/icons/plus.svg", dbcIconCol, 14), "加载数据库文件", this);
-    auto *removeBtn = new QPushButton(
-        svgIcon(":/icons/dash.svg", dbcIconCol, 14), "删除", this);
-    // 主题切换 → 重刷按钮图标颜色
-    auto *importRelay = new SignalRelay(this);
-    importRelay->fire0 = [importBtn, removeBtn]() {
-        const QString c = ThemeManager::instance()->currentTheme().text;
-        importBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
-        removeBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
+    auto *themeRelay = new SignalRelay(this);
+    themeRelay->fire0 = [this]() {
+        if (m_dbSection)
+            m_dbSection->refreshTheme();
     };
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
-            importRelay, SLOT(fire()));
-    btnBar->addWidget(importBtn);
-    btnBar->addWidget(removeBtn);
-    btnBar->addStretch();
-    cl->addLayout(btnBar);
+            themeRelay, SLOT(fire()));
 
     initCategoryNodes();
 
-    connect(importBtn, &QPushButton::clicked, this, &DbcPanel::onImportDatabase);
-    connect(removeBtn, &QPushButton::clicked, this, &DbcPanel::onRemoveDatabase);
+    connect(m_importBtn, &QToolButton::clicked, this, &DbcPanel::onImportDatabase);
+    connect(m_removeBtn, &QToolButton::clicked, this, &DbcPanel::onRemoveDatabase);
     connect(m_tree, &QTreeWidget::itemClicked,
             this, &DbcPanel::onItemClicked);
 }
@@ -885,14 +1441,15 @@ void DbcPanel::setDbcManager(DbcManager *mgr)
 void DbcPanel::onImportDatabase()
 {
     QString path = QFileDialog::getOpenFileName(
-        this, "加载数据库文件", {},
-        "CAN/CANFD DBC (*.dbc);;"
-        "CANopen EDS/DCF/XDD (*.eds *.dcf *.xdd);;"
-        "EtherCAT ESI (*.xml);;"
-        "LIN LDF/NCF (*.ldf *.ncf);;"
-        "J1939 DPF (*.dpf);;"
-        "AUTOSAR ARXML (*.arxml);;"
-        "所有文件 (*.*)");
+        this, QStringLiteral("Load database file"), {},
+        QStringLiteral(
+            "CAN/CANFD DBC (*.dbc);;"
+            "CANopen EDS/DCF/XDD (*.eds *.dcf *.xdd);;"
+            "EtherCAT ESI (*.xml);;"
+            "LIN LDF/NCF (*.ldf *.ncf);;"
+            "J1939 DPF (*.dpf);;"
+            "AUTOSAR ARXML (*.arxml);;"
+            "All files (*.*)"));
     if (path.isEmpty())
         return;
 
@@ -931,33 +1488,40 @@ void DbcPanel::onImportDatabase()
 
 void DbcPanel::onRemoveDatabase()
 {
-    // 获取当前选中的叶子节点
     auto *item = m_tree->currentItem();
     if (!item || item->childCount() > 0) {
-        QMessageBox::information(this, "删除", "请先选择一个数据库文件");
+        QMessageBox::information(this, QStringLiteral("Remove"),
+                                 QStringLiteral("Select a database file first."));
         return;
     }
+    removeDatabaseItem(item);
+}
+
+void DbcPanel::removeDatabaseItem(QTreeWidgetItem *item)
+{
+    if (!item || item->childCount() > 0)
+        return;
 
     QString category = item->data(0, Qt::UserRole).toString();
     QString filePath = item->data(0, Qt::UserRole + 1).toString();
     QString fileName = item->text(0);
 
     if (filePath.isEmpty()) {
-        QMessageBox::information(this, "删除", "无法获取文件路径");
+        QMessageBox::information(this, QStringLiteral("Remove"),
+                                 QStringLiteral("Cannot resolve file path."));
         return;
     }
 
-    auto reply = QMessageBox::question(this, "删除数据库文件",
-        QString("确定删除 \"%1\"?").arg(fileName));
+    auto reply = QMessageBox::question(
+        this, QStringLiteral("Remove database"),
+        QStringLiteral("Remove \"%1\"?").arg(fileName));
     if (reply != QMessageBox::Yes)
         return;
 
     if (category == "CAN/CANFD" && m_dbcMgr) {
-        // DBC 文件 → 通过 DbcManager 卸载，同时通知 MainWindow 清理关联标签页
         emit dbcRemoveRequested(filePath);
         m_dbcMgr->unloadDbc(filePath);
     } else {
-        // 其他协议文件 → 从本地列表移除
         for (int i = 0; i < m_otherDbs.size(); ++i) {
             if (m_otherDbs[i].filePath == filePath) {
                 m_otherDbs.removeAt(i);
@@ -970,7 +1534,6 @@ void DbcPanel::onRemoveDatabase()
 
 void DbcPanel::refreshTree()
 {
-    // 清空分类节点下的子项
     auto clearChildren = [](QTreeWidgetItem *cat) {
         while (cat->childCount() > 0)
             delete cat->takeChild(0);
@@ -984,17 +1547,27 @@ void DbcPanel::refreshTree()
 
     const QString iconCol = ThemeManager::instance()->currentTheme().text;
 
-    // DBC 文件 → CAN/CANFD 分类
+    auto attachRemove = [this](QTreeWidgetItem *item) {
+        auto *acts = new ExplorerItemActions(m_tree);
+        auto *rm = acts->addAction(QStringLiteral(":/icons/close.svg"),
+                                   QStringLiteral("Remove"));
+        connect(rm, &QToolButton::clicked, this, [this, item]() {
+            m_tree->setCurrentItem(item);
+            removeDatabaseItem(item);
+        });
+        m_tree->setItemWidget(item, 1, acts);
+    };
+
     if (m_dbcMgr) {
         for (const auto &file : m_dbcMgr->files()) {
             auto *item = new QTreeWidgetItem(m_catCanFd, {file.fileName});
             item->setIcon(0, svgIcon(":/icons/file.svg", iconCol));
             item->setData(0, Qt::UserRole, "CAN/CANFD");
-            item->setData(0, Qt::UserRole + 1, file.filePath);  // 存储完整路径用于删除
+            item->setData(0, Qt::UserRole + 1, file.filePath);
+            attachRemove(item);
         }
     }
 
-    // 其他协议文件
     for (const auto &entry : m_otherDbs) {
         QTreeWidgetItem *parent = nullptr;
         if (entry.category == "CAN/CANFD")       parent = m_catCanFd;
@@ -1009,9 +1582,9 @@ void DbcPanel::refreshTree()
         item->setIcon(0, svgIcon(":/icons/file.svg", iconCol));
         item->setData(0, Qt::UserRole, entry.category);
         item->setData(0, Qt::UserRole + 1, entry.filePath);
+        attachRemove(item);
     }
 
-    // 展开有内容的分类节点
     auto updateVisibility = [](QTreeWidgetItem *cat) {
         bool hasChildren = cat->childCount() > 0;
         cat->setHidden(!hasChildren);
@@ -1025,7 +1598,6 @@ void DbcPanel::refreshTree()
     updateVisibility(m_catJ1939);
     updateVisibility(m_catAutosar);
 
-    // 更新分类节点标题中的计数
     auto setCount = [](QTreeWidgetItem *cat, const QString &label) {
         int n = cat->childCount();
         cat->setText(0, QString("%1 %2").arg(label).arg(n > 0 ? QString("(%1)").arg(n) : ""));
@@ -1069,23 +1641,18 @@ TracePanel::TracePanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
-    // 已打开实例列表（VS Code 版式：已打开在上；切换 / 右键 / 删除交互不变）
-    auto *openedLabel = new QLabel(QStringLiteral("已打开"), this);
-    openedLabel->setObjectName("SidePanelSubTitle");
-    cl->addWidget(openedLabel);
-
-    m_traceList = new QListWidget(this);
+    m_openedSection = new ExplorerSection(QStringLiteral("Open Editors"), this);
+    m_delBtn = m_openedSection->addHeaderAction(
+        QStringLiteral(":/icons/dash.svg"),
+        QStringLiteral("Close selected Trace"));
+    m_traceList = new QListWidget(m_openedSection->bodyWidget());
     m_traceList->setContextMenuPolicy(Qt::CustomContextMenu);
-    cl->addWidget(m_traceList, 1);
+    m_traceList->setMouseTracking(true);
+    m_openedSection->bodyLayout()->addWidget(m_traceList, 1);
+    cl->addWidget(m_openedSection, 1);
 
-    // 模板平铺（doc/flow.md §7.2 平铺修订）：一形态一行，已实现可点击新建，
-    // 未实现置灰占位（TR 系列落地后启用）——不再分节嵌套；
-    // VS Code 版式：新建入口收拢到面板下方（对标 Explorer OPEN EDITORS 在上）
-    auto *newLabel = new QLabel(QStringLiteral("新建 Trace"), this);
-    newLabel->setObjectName("SidePanelSubTitle");
-    cl->addWidget(newLabel);
-
-    m_templateList = new QListWidget(this);
+    m_newSection = new ExplorerSection(QStringLiteral("New Trace"), this);
+    m_templateList = new QListWidget(m_newSection->bodyWidget());
     const QString tmplIconCol = ThemeManager::instance()->currentTheme().text;
     auto addTemplate = [this, tmplIconCol](const QString &name,
                                            const QString &formId,
@@ -1097,38 +1664,35 @@ TracePanel::TracePanel(QWidget *parent)
         if (enabled)
             row->setIcon(svgIcon(":/icons/plus.svg", tmplIconCol, 14));
         else {
-            row->setFlags(Qt::NoItemFlags);   // 置灰占位：不可选中不可点击
+            row->setFlags(Qt::NoItemFlags);
             row->setIcon(svgIcon(":/icons/plus.svg", "#6c6c6c", 14));
         }
     };
-    addTemplate(QStringLiteral("帧列表"), QStringLiteral("framelist"),
-                QStringLiteral("新建帧列表 Trace（TR1，当前形态）"), true);
-    addTemplate(QStringLiteral("事务配对"), QStringLiteral("transaction"),
-                QStringLiteral("UDS / CANopen SDO 请求-响应事务视图（TR 系列规划）"), false);
-    addTemplate(QStringLiteral("聚合监视"), QStringLiteral("aggregwatch"),
-                QStringLiteral("报文 / 信号最新值监视（TR 系列规划）"), false);
-    addTemplate(QStringLiteral("文本日志流"), QStringLiteral("textlog"),
-                QStringLiteral("串口 ASCII / 插件输出 / 系统事件（TR 系列规划）"), false);
-    addTemplate(QStringLiteral("字节流"), QStringLiteral("bytestream"),
-                QStringLiteral("通用二进制 / HEX 模式（TR 系列规划）"), false);
-    addTemplate(QStringLiteral("时序段"), QStringLiteral("timeline"),
-                QStringLiteral("LIN 调度表 / FlexRay 周期时间轴（TR 系列规划）"), false);
-    cl->addWidget(m_templateList);
+    addTemplate(QStringLiteral("Frame List"), QStringLiteral("framelist"),
+                QStringLiteral("New frame-list Trace (current form)"), true);
+    addTemplate(QStringLiteral("Transaction"), QStringLiteral("transaction"),
+                QStringLiteral("UDS / CANopen SDO request-response (planned)"), false);
+    addTemplate(QStringLiteral("Aggregate Watch"), QStringLiteral("aggregwatch"),
+                QStringLiteral("Latest frame / signal values (planned)"), false);
+    addTemplate(QStringLiteral("Text Log"), QStringLiteral("textlog"),
+                QStringLiteral("Serial ASCII / plugin / system events (planned)"), false);
+    addTemplate(QStringLiteral("Byte Stream"), QStringLiteral("bytestream"),
+                QStringLiteral("Binary / HEX stream (planned)"), false);
+    addTemplate(QStringLiteral("Timeline"), QStringLiteral("timeline"),
+                QStringLiteral("LIN schedule / FlexRay cycle timeline (planned)"), false);
+    m_newSection->bodyLayout()->addWidget(m_templateList, 1);
+    cl->addWidget(m_newSection, 1);
 
     connect(m_templateList, &QListWidget::itemClicked,
             this, &TracePanel::onTemplateClicked);
 
-    auto *btnBar = new QHBoxLayout;
-    btnBar->setContentsMargins(8, 6, 8, 6);
-    btnBar->setSpacing(4);
-    m_delBtn = new QPushButton(
-        svgIcon(":/icons/dash.svg", ThemeManager::instance()->currentTheme().text, 14),
-        "删除", this);
-    // 主题切换 → 重刷模板行与删除按钮图标颜色
-    auto *traceBtnRelay = new SignalRelay(this);
-    traceBtnRelay->fire0 = [this]() {
+    auto *themeRelay = new SignalRelay(this);
+    themeRelay->fire0 = [this]() {
+        if (m_openedSection)
+            m_openedSection->refreshTheme();
+        if (m_newSection)
+            m_newSection->refreshTheme();
         const QString c = ThemeManager::instance()->currentTheme().text;
-        m_delBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
         for (int i = 0; i < m_templateList->count(); ++i) {
             auto *row = m_templateList->item(i);
             if (row->flags().testFlag(Qt::ItemIsEnabled))
@@ -1136,12 +1700,9 @@ TracePanel::TracePanel(QWidget *parent)
         }
     };
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
-            traceBtnRelay, SLOT(fire()));
-    btnBar->addWidget(m_delBtn);
-    btnBar->addStretch();
-    cl->addLayout(btnBar);
+            themeRelay, SLOT(fire()));
 
-    connect(m_delBtn, &QPushButton::clicked, this, &TracePanel::onDeleteTrace);
+    connect(m_delBtn, &QToolButton::clicked, this, &TracePanel::onDeleteTrace);
     connect(m_traceList, &QListWidget::currentRowChanged,
             this, &TracePanel::onPageSelected);
     connect(m_traceList, &QWidget::customContextMenuRequested,
@@ -1153,8 +1714,28 @@ void TracePanel::refreshList(const QStringList &names)
     m_traceList->blockSignals(true);
     int prevRow = m_traceList->currentRow();
     m_traceList->clear();
-    for (const auto &n : names)
-        m_traceList->addItem(n);
+    for (const auto &n : names) {
+        auto *item = new QListWidgetItem(m_traceList);
+        item->setData(Qt::UserRole, n);
+        auto *row = new ExplorerItemRow(n, m_traceList);
+        row->setLeadingIcon(svgIcon(QStringLiteral(":/icons/trace.svg"),
+                                    ThemeManager::instance()->currentTheme().text, 14));
+        auto *closeBtn = row->addAction(QStringLiteral(":/icons/close.svg"),
+                                        QStringLiteral("Close"));
+        connect(closeBtn, &QToolButton::clicked, this, [this, item]() {
+            const int r = m_traceList->row(item);
+            if (r >= 0)
+                emit traceDeleteRequested(r);
+        });
+        connect(row, &ExplorerItemRow::activated, this, [this, item]() {
+            m_traceList->setCurrentItem(item);
+            const int r = m_traceList->row(item);
+            if (r >= 0)
+                emit tracePageSelected(r);
+        });
+        item->setSizeHint(row->sizeHint().expandedTo(QSize(0, 22)));
+        m_traceList->setItemWidget(item, row);
+    }
     if (prevRow >= 0 && prevRow < m_traceList->count())
         m_traceList->setCurrentRow(prevRow);
     m_traceList->blockSignals(false);
@@ -1189,8 +1770,8 @@ void TracePanel::onContextMenu(const QPoint &pos)
     int row = m_traceList->row(item);
 
     QMenu menu(this);
-    auto *actJump = menu.addAction(QStringLiteral("跳转到此标签页"));
-    auto *actDel = menu.addAction(QStringLiteral("删除此 Trace"));
+    auto *actJump = menu.addAction(QStringLiteral("Jump to this tab"));
+    auto *actDel = menu.addAction(QStringLiteral("Close this Trace"));
     QAction *chosen = menu.exec(m_traceList->viewport()->mapToGlobal(pos));
     if (chosen == actJump) {
         emit tracePageSelected(row);
@@ -1204,27 +1785,22 @@ void TracePanel::onContextMenu(const QPoint &pos)
 // ============================================================
 
 GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
-    : SidePanel("Graphic 页面列表", parent)
+    : SidePanel("Graphic", parent)
 {
     auto *cl = contentLayout();
 
-    // 已打开页面列表（VS Code 版式：已打开在上；切换 / 右键 / 删除交互不变）
-    auto *openedLabel = new QLabel(QStringLiteral("已打开"), this);
-    openedLabel->setObjectName("SidePanelSubTitle");
-    cl->addWidget(openedLabel);
-
-    m_pageList = new QListWidget(this);
+    m_openedSection = new ExplorerSection(QStringLiteral("Open Editors"), this);
+    m_delBtn = m_openedSection->addHeaderAction(
+        QStringLiteral(":/icons/dash.svg"),
+        QStringLiteral("Close selected Graphic"));
+    m_pageList = new QListWidget(m_openedSection->bodyWidget());
     m_pageList->setContextMenuPolicy(Qt::CustomContextMenu);
-    cl->addWidget(m_pageList, 1);
+    m_pageList->setMouseTracking(true);
+    m_openedSection->bodyLayout()->addWidget(m_pageList, 1);
+    cl->addWidget(m_openedSection, 1);
 
-    // 模板平铺（doc/flow.md §7.2 平铺修订）：一形态一行，已实现可点击新建，
-    // 未实现置灰占位（GV 系列落地后启用）——不再分节嵌套；
-    // VS Code 版式：新建入口收拢到面板下方（对标 Explorer OPEN EDITORS 在上）
-    auto *newLabel = new QLabel(QStringLiteral("新建 Graphic"), this);
-    newLabel->setObjectName("SidePanelSubTitle");
-    cl->addWidget(newLabel);
-
-    m_templateList = new QListWidget(this);
+    m_newSection = new ExplorerSection(QStringLiteral("New Graphic"), this);
+    m_templateList = new QListWidget(m_newSection->bodyWidget());
     const QString tmplIconCol = ThemeManager::instance()->currentTheme().text;
     auto addTemplate = [this, tmplIconCol](const QString &name,
                                            const QString &formId,
@@ -1236,30 +1812,34 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
         if (enabled)
             row->setIcon(svgIcon(":/icons/plus.svg", tmplIconCol, 14));
         else {
-            row->setFlags(Qt::NoItemFlags);   // 置灰占位：不可选中不可点击
+            row->setFlags(Qt::NoItemFlags);
             row->setIcon(svgIcon(":/icons/plus.svg", "#6c6c6c", 14));
         }
     };
-    addTemplate(QStringLiteral("时序波形"), QStringLiteral("waveform"),
-                QStringLiteral("新建时序波形 Graphic（当前形态）"), true);
-    addTemplate(QStringLiteral("XY 关联"), QStringLiteral("xyplot"),
-                QStringLiteral("X/Y 信号关联轨迹图（GV 系列规划）"), false);
-    addTemplate(QStringLiteral("数字总线"), QStringLiteral("digital"),
-                QStringLiteral("位信号方波轨道（逻辑分析仪风格，GV 系列规划）"), false);
-    addTemplate(QStringLiteral("状态时间线"), QStringLiteral("statetimeline"),
-                QStringLiteral("枚举值色带段 + 状态图例（GV 系列规划）"), false);
-    addTemplate(QStringLiteral("仪表盘"), QStringLiteral("gauge"),
-                QStringLiteral("表盘 / 条形 / LED / 数值组件网格（GV 系列规划）"), false);
-    addTemplate(QStringLiteral("柱状统计"), QStringLiteral("barstats"),
-                QStringLiteral("时间分桶聚合柱 / 面积图（GV 系列规划）"), false);
-    cl->addWidget(m_templateList);
+    addTemplate(QStringLiteral("Waveform"), QStringLiteral("waveform"),
+                QStringLiteral("New waveform Graphic (current form)"), true);
+    addTemplate(QStringLiteral("XY Plot"), QStringLiteral("xyplot"),
+                QStringLiteral("X/Y signal correlation (planned)"), false);
+    addTemplate(QStringLiteral("Digital Bus"), QStringLiteral("digital"),
+                QStringLiteral("Bit-level digital lanes (planned)"), false);
+    addTemplate(QStringLiteral("State Timeline"), QStringLiteral("statetimeline"),
+                QStringLiteral("Enum color bands (planned)"), false);
+    addTemplate(QStringLiteral("Gauge"), QStringLiteral("gauge"),
+                QStringLiteral("Gauges / bars / LEDs (planned)"), false);
+    addTemplate(QStringLiteral("Bar Stats"), QStringLiteral("barstats"),
+                QStringLiteral("Time-bucketed stats (planned)"), false);
+    m_newSection->bodyLayout()->addWidget(m_templateList, 1);
+    cl->addWidget(m_newSection, 1);
 
     connect(m_templateList, &QListWidget::itemClicked,
             this, &GraphicConfigPanel::onTemplateClicked);
 
-    // Theme → refresh template row icons (signal add/delete live only inside GraphicView)
-    auto *graphBtnRelay = new SignalRelay(this);
-    graphBtnRelay->fire0 = [this]() {
+    auto *themeRelay = new SignalRelay(this);
+    themeRelay->fire0 = [this]() {
+        if (m_openedSection)
+            m_openedSection->refreshTheme();
+        if (m_newSection)
+            m_newSection->refreshTheme();
         const QString c = ThemeManager::instance()->currentTheme().text;
         for (int i = 0; i < m_templateList->count(); ++i) {
             auto *row = m_templateList->item(i);
@@ -1268,8 +1848,13 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
         }
     };
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
-            graphBtnRelay, SLOT(fire()));
+            themeRelay, SLOT(fire()));
 
+    connect(m_delBtn, &QToolButton::clicked, this, [this]() {
+        const int row = m_pageList->currentRow();
+        if (row >= 0)
+            emit graphicDeleteRequested(row);
+    });
     connect(m_pageList, &QListWidget::currentRowChanged,
             this, &GraphicConfigPanel::onPageSelected);
     connect(m_pageList, &QWidget::customContextMenuRequested,
@@ -1316,8 +1901,28 @@ void GraphicConfigPanel::refreshList(const QStringList &names)
     m_pageList->blockSignals(true);
     int prevRow = m_pageList->currentRow();
     m_pageList->clear();
-    for (const auto &n : names)
-        m_pageList->addItem(n);
+    for (const auto &n : names) {
+        auto *item = new QListWidgetItem(m_pageList);
+        item->setData(Qt::UserRole, n);
+        auto *row = new ExplorerItemRow(n, m_pageList);
+        row->setLeadingIcon(svgIcon(QStringLiteral(":/icons/graphic.svg"),
+                                    ThemeManager::instance()->currentTheme().text, 14));
+        auto *closeBtn = row->addAction(QStringLiteral(":/icons/close.svg"),
+                                        QStringLiteral("Close"));
+        connect(closeBtn, &QToolButton::clicked, this, [this, item]() {
+            const int r = m_pageList->row(item);
+            if (r >= 0)
+                emit graphicDeleteRequested(r);
+        });
+        connect(row, &ExplorerItemRow::activated, this, [this, item]() {
+            m_pageList->setCurrentItem(item);
+            const int r = m_pageList->row(item);
+            if (r >= 0)
+                emit graphicPageSelected(r);
+        });
+        item->setSizeHint(row->sizeHint().expandedTo(QSize(0, 22)));
+        m_pageList->setItemWidget(item, row);
+    }
     if (prevRow >= 0 && prevRow < m_pageList->count())
         m_pageList->setCurrentRow(prevRow);
     m_pageList->blockSignals(false);
@@ -1328,47 +1933,46 @@ void GraphicConfigPanel::refreshList(const QStringList &names)
 // ============================================================
 
 DevicePanel::DevicePanel(QWidget *parent)
-    : SidePanel(QStringLiteral("设备连接"), parent)
+    : SidePanel(QStringLiteral("DEVICES"), parent)
 {
     auto *cl = contentLayout();
 
-    m_deviceTree = new QTreeWidget(this);
+    m_devicesSection = new ExplorerSection(QStringLiteral("Devices"), this);
+    m_addBtn = m_devicesSection->addHeaderAction(
+        QStringLiteral(":/icons/plus.svg"),
+        QStringLiteral("Add device (open market)"));
+    m_scanBtn = m_devicesSection->addHeaderAction(
+        QStringLiteral(":/icons/refresh.svg"),
+        QStringLiteral("Scan for devices"));
+
+    m_deviceTree = new QTreeWidget(m_devicesSection->bodyWidget());
     applyExplorerTree(m_deviceTree);
     m_deviceTree->setHeaderHidden(true);
+    m_deviceTree->setColumnCount(2);
+    m_deviceTree->header()->setStretchLastSection(false);
+    m_deviceTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_deviceTree->header()->setSectionResizeMode(1, QHeaderView::Fixed);
+    m_deviceTree->setColumnWidth(1, 24);
     m_deviceTree->setExpandsOnDoubleClick(false);
-    cl->addWidget(m_deviceTree, 1);
+    installTreeRowActionHover(m_deviceTree);
+    m_devicesSection->bodyLayout()->addWidget(m_deviceTree, 1);
+    cl->addWidget(m_devicesSection, 1);
 
-    // 扫描设备按钮 — 沉到面板最底部（VS Code 侧栏底部动作区风格：
-    // 扁平无框 + 图标 + 悬停高亮；截图反馈 2026-08-23 由列表中部下移）
-    auto *scanBar = new QHBoxLayout;
-    scanBar->setContentsMargins(4, 4, 4, 6);
-    scanBar->setSpacing(4);
-    m_scanBtn = new QPushButton(this);
-    m_scanBtn->setObjectName("SidePanelFooterButton");
-    m_scanBtn->setIcon(svgIcon(":/icons/refresh.svg",
-                               ThemeManager::instance()->currentTheme().text, 14));
-    m_scanBtn->setText(QStringLiteral("扫描设备"));
-    m_scanBtn->setToolTip(QStringLiteral("重新枚举本机 CAN 设备"));
-    scanBar->addWidget(m_scanBtn);
-    scanBar->addStretch();
-    cl->addLayout(scanBar);
-
-    // 主题切换 → 重刷扫描按钮图标颜色
-    auto *scanBtnRelay = new SignalRelay(this);
-    scanBtnRelay->fire0 = [this]() {
-        m_scanBtn->setIcon(svgIcon(":/icons/refresh.svg",
-                                   ThemeManager::instance()->currentTheme().text, 14));
+    auto *themeRelay = new SignalRelay(this);
+    themeRelay->fire0 = [this]() {
+        if (m_devicesSection)
+            m_devicesSection->refreshTheme();
     };
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
-            scanBtnRelay, SLOT(fire()));
+            themeRelay, SLOT(fire()));
 
     connect(m_deviceTree, &QTreeWidget::itemClicked,
             this, &DevicePanel::onItemClicked);
     connect(m_deviceTree, &QTreeWidget::itemDoubleClicked,
             this, &DevicePanel::onItemDoubleClicked);
-    connect(m_scanBtn, &QPushButton::clicked, this, &DevicePanel::onScanClicked);
+    connect(m_scanBtn, &QToolButton::clicked, this, &DevicePanel::onScanClicked);
+    connect(m_addBtn, &QToolButton::clicked, this, &DevicePanel::onAddDeviceClicked);
 
-    // 外置驱动安装/卸载后设备树即时刷新（热加载）
     connect(DriverRegistry::instance(), SIGNAL(driversChanged()),
             this, SLOT(refreshDevices()));
 
@@ -1391,43 +1995,49 @@ void DevicePanel::refreshDevices()
     populateTree();
 }
 
+void DevicePanel::onAddDeviceClicked()
+{
+    emit addDeviceRequested();
+}
+
 void DevicePanel::onScanClicked()
 {
-    // 重新枚举设备并刷新树
-    if (m_scanBtn) {
+    if (m_scanBtn)
         m_scanBtn->setEnabled(false);
-        m_scanBtn->setText(QStringLiteral("扫描中..."));
-    }
     refreshDevices();
-    if (m_scanBtn) {
+    if (m_scanBtn)
         m_scanBtn->setEnabled(true);
-        m_scanBtn->setText(QStringLiteral("扫描设备"));
-    }
 }
 
 void DevicePanel::populateTree()
 {
     m_deviceTree->clear();
 
-    // 模拟器（openbus 官方，内置；不经 Registry，方案 §13.3）
+    auto attachOpen = [this](QTreeWidgetItem *item) {
+        auto *acts = new ExplorerItemActions(m_deviceTree);
+        auto *openBtn = acts->addAction(QStringLiteral(":/icons/goto.svg"),
+                                        QStringLiteral("Open connection"));
+        connect(openBtn, &QToolButton::clicked, this, [this, item]() {
+            m_deviceTree->setCurrentItem(item);
+            onItemClicked(item, 0);
+        });
+        m_deviceTree->setItemWidget(item, 1, acts);
+    };
+
     auto *simItem = new QTreeWidgetItem(m_deviceTree);
-    simItem->setText(0, QStringLiteral("openbus 模拟器"));
-    simItem->setData(0, Qt::UserRole, 0);       // deviceKind = 0 (Simulator)
-    simItem->setData(0, Qt::UserRole + 1, 0);   // devIndex = 0
+    simItem->setText(0, QStringLiteral("openbus Simulator"));
+    simItem->setData(0, Qt::UserRole, 0);
+    simItem->setData(0, Qt::UserRole + 1, 0);
+    attachOpen(simItem);
 
-    // 统一枚举（DriverRegistry 聚合内置 + 外置，DeviceInfo.driverId 分组）
     const auto allDevices = ICanDevice::enumerateAll();
-
-    // ---- 驱动分区（Registry 动态生成；仅显示已安装且启用的驱动） ----
     const auto drivers = DriverRegistry::instance()->drivers();
     for (const auto &drv : drivers) {
-        // 仅显示：已启用 AND 已安装可用
         if (!drv.enabled || !drv.available)
             continue;
         auto *parent = new QTreeWidgetItem(m_deviceTree);
         parent->setText(0, drv.displayName);
 
-        // 该驱动的在线设备
         QList<ICanDevice::DeviceInfo> devs;
         for (const auto &d : allDevices) {
             if (d.driverId == drv.driverId)
@@ -1441,42 +2051,26 @@ void DevicePanel::populateTree()
                 dev->setData(0, Qt::UserRole, drv.deviceKind);
                 dev->setData(0, Qt::UserRole + 1, d.deviceIndex);
                 dev->setData(0, Qt::UserRole + 2, d.deviceType);
+                attachOpen(dev);
             }
         } else {
-            // 驱动可用但无在线设备：提示叶子 (点击打开连接页手动配置)
             auto *empty = new QTreeWidgetItem(parent);
-            empty->setText(0, QStringLiteral("  %1 (未检测到硬件)").arg(drv.displayName));
+            empty->setText(0, QStringLiteral("  %1 (no hardware detected)")
+                                   .arg(drv.displayName));
             empty->setData(0, Qt::UserRole, drv.deviceKind);
             empty->setData(0, Qt::UserRole + 1, 0);
+            attachOpen(empty);
         }
         parent->setExpanded(true);
     }
-
-    // ---- 「新增设备」折叠栏底部固定入口 → 设备市场标签页 ----
-    auto *addItem = new QTreeWidgetItem(m_deviceTree);
-    addItem->setText(0, QStringLiteral("新增设备"));
-    addItem->setIcon(0, svgIcon(":/icons/plus.svg",
-                                ThemeManager::instance()->currentTheme().text, 16));
-    QFont addFont = addItem->font(0);
-    addFont.setBold(true);
-    addItem->setFont(0, addFont);
-    addItem->setData(0, Qt::UserRole + 3, QStringLiteral("__add__"));
 }
 
 void DevicePanel::onItemClicked(QTreeWidgetItem *item, int /*column*/)
 {
-    // 「＋ 新增设备」入口 → 设备市场标签页
-    if (item->data(0, Qt::UserRole + 3).toString() == QLatin1String("__add__")) {
-        emit addDeviceRequested();
-        return;
-    }
-
-    // 父节点 → 展开/折叠
     if (item->childCount() > 0) {
         item->setExpanded(!item->isExpanded());
         return;
     }
-    // 叶子节点 → 发出打开请求
     int deviceKind = item->data(0, Qt::UserRole).toInt();
     int devIndex = item->data(0, Qt::UserRole + 1).toInt();
     int deviceType = item->data(0, Qt::UserRole + 2).toInt();
@@ -1485,10 +2079,6 @@ void DevicePanel::onItemClicked(QTreeWidgetItem *item, int /*column*/)
 
 void DevicePanel::onItemDoubleClicked(QTreeWidgetItem *item, int /*column*/)
 {
-    if (item->data(0, Qt::UserRole + 3).toString() == QLatin1String("__add__")) {
-        emit addDeviceRequested();
-        return;
-    }
     if (item->childCount() > 0)
         return;
     int deviceKind = item->data(0, Qt::UserRole).toInt();
@@ -1502,33 +2092,33 @@ void DevicePanel::onItemDoubleClicked(QTreeWidgetItem *item, int /*column*/)
 // ============================================================
 
 TransceivePanel::TransceivePanel(QWidget *parent)
-    : SidePanel("收发", parent)
+    : SidePanel(QStringLiteral("Transceive"), parent)
 {
     auto *cl = contentLayout();
 
     const QString iconColor = ThemeManager::instance()->currentTheme().text;
 
-    auto *sendBtn = new QPushButton(QStringLiteral("发送"), this);
+    auto *sendBtn = new QPushButton(QStringLiteral("Send"), this);
     sendBtn->setObjectName("SidePanelButton");
-    sendBtn->setToolTip(QStringLiteral("点击打开发送标签页"));
+    sendBtn->setToolTip(QStringLiteral("Open Send tab"));
     sendBtn->setIcon(svgIcon(":/icons/list.svg", iconColor, 16));
     cl->addWidget(sendBtn);
 
-    auto *playbackBtn = new QPushButton(QStringLiteral("回放"), this);
+    auto *playbackBtn = new QPushButton(QStringLiteral("Playback"), this);
     playbackBtn->setObjectName("SidePanelButton");
-    playbackBtn->setToolTip(QStringLiteral("点击打开回放标签页"));
+    playbackBtn->setToolTip(QStringLiteral("Open Playback tab"));
     playbackBtn->setIcon(svgIcon(":/icons/play.svg", iconColor, 16));
     cl->addWidget(playbackBtn);
 
-    auto *offlineBtn = new QPushButton(QStringLiteral("离线分析"), this);
+    auto *offlineBtn = new QPushButton(QStringLiteral("Offline Analysis"), this);
     offlineBtn->setObjectName("SidePanelButton");
-    offlineBtn->setToolTip(QStringLiteral("点击打开离线分析标签页"));
+    offlineBtn->setToolTip(QStringLiteral("Open Offline Analysis tab"));
     offlineBtn->setIcon(svgIcon(":/icons/file.svg", iconColor, 16));
     cl->addWidget(offlineBtn);
 
-    auto *recordBtn = new QPushButton(QStringLiteral("录制"), this);
+    auto *recordBtn = new QPushButton(QStringLiteral("Record"), this);
     recordBtn->setObjectName("SidePanelButton");
-    recordBtn->setToolTip(QStringLiteral("点击打开录制标签页"));
+    recordBtn->setToolTip(QStringLiteral("Open Record tab"));
     recordBtn->setIcon(svgIcon(":/icons/record.svg", iconColor, 16));
     cl->addWidget(recordBtn);
 
@@ -1593,64 +2183,58 @@ MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
 {
     auto *cl = contentLayout();
 
-    // 已打开流页列表（VS Code 版式：已打开在上，对标 Explorer OPEN EDITORS；
-    // 数据由壳 refreshPanelLists 收集 Flow 标签页喂入，行点击打开/聚焦画布）
-    auto *openedLabel = new QLabel(QStringLiteral("已打开"), this);
-    openedLabel->setObjectName("SidePanelSubTitle");
-    cl->addWidget(openedLabel);
-
-    m_openedList = new QListWidget(this);
+    m_openedSection = new ExplorerSection(QStringLiteral("Open Editors"), this);
+    m_openedList = new QListWidget(m_openedSection->bodyWidget());
+    m_openedList->setMouseTracking(true);
     connect(m_openedList, &QListWidget::itemClicked,
             this, &MeasurementSetupPanel::onOpenedClicked);
-    cl->addWidget(m_openedList);
+    m_openedSection->bodyLayout()->addWidget(m_openedList, 1);
+    cl->addWidget(m_openedSection, 1);
 
-    // 协议流模板平铺（doc/flow.md §7.2 平铺修订）：注册表适配器 → 可点击行；
-    // 未落地协议 → 置灰占位行（同 protocolId 适配器注册后由 rebuildTemplates 接管）；
-    // VS Code 版式：新建入口收拢到面板下方
-    auto *newLabel = new QLabel(QStringLiteral("新建协议流"), this);
-    newLabel->setObjectName("SidePanelSubTitle");
-    cl->addWidget(newLabel);
-
-    m_templateList = new QListWidget(this);
-    cl->addWidget(m_templateList, 1);
+    m_newSection = new ExplorerSection(QStringLiteral("New Protocol Flow"), this);
+    m_templateList = new QListWidget(m_newSection->bodyWidget());
+    m_newSection->bodyLayout()->addWidget(m_templateList, 1);
+    cl->addWidget(m_newSection, 1);
     rebuildTemplates();
 
     connect(m_templateList, &QListWidget::itemClicked,
             this, &MeasurementSetupPanel::onTemplateClicked);
 
-    auto *hint = new QLabel("\n"
-                            "\xE2\x80\xA2 点击 CAN Flow 打开画布\n"
-                            "\xE2\x80\xA2 未启用块：单击启用\n"
-                            "\xE2\x80\xA2 已启用块：单击/双击进入配置\n"
-                            "\xE2\x80\xA2 右键菜单：配置 / 启停 / 增删", this);
-    hint->setWordWrap(true);
-    hint->setObjectName("SidePanelHint");
-    cl->addWidget(hint);
-
-    // M1 预埋：新增协议流占位入口（协议市场 F1 剩余就绪前禁用）
-    auto *addFlowBtn = new QPushButton(QStringLiteral("从市场添加协议流"), this);
-    addFlowBtn->setEnabled(false);
-    addFlowBtn->setToolTip(QStringLiteral("协议市场就绪后启用（doc/flow.md §十三 M1）"));
-    auto *addFlowBar = new QHBoxLayout;
-    addFlowBar->setContentsMargins(8, 6, 8, 6);
-    addFlowBar->addWidget(addFlowBtn);
-    cl->addLayout(addFlowBar);
-
-    // 模板行重灌：注册表适配器注册（F4 协议包）或主题切换（图标颜色）
-    auto *registryRelay = new SignalRelay(this);
-    registryRelay->fire0 = [this]() { rebuildTemplates(); };
+    auto *themeRelay = new SignalRelay(this);
+    themeRelay->fire0 = [this]() {
+        if (m_openedSection)
+            m_openedSection->refreshTheme();
+        if (m_newSection)
+            m_newSection->refreshTheme();
+        rebuildTemplates();
+    };
     connect(ProtocolRegistry::instance(), SIGNAL(adapterRegistered(QString)),
-            registryRelay, SLOT(fire()));
+            themeRelay, SLOT(fire()));
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
-            registryRelay, SLOT(fire()));
+            themeRelay, SLOT(fire()));
 }
 
 void MeasurementSetupPanel::refreshOpenList(const QStringList &names)
 {
-    // 壳侧喂入已打开流页名单（itemClicked 为用户交互信号，程序化增删行不触发）
     m_openedList->clear();
-    for (const auto &n : names)
-        m_openedList->addItem(n);
+    for (const auto &n : names) {
+        auto *item = new QListWidgetItem(m_openedList);
+        item->setData(Qt::UserRole, n);
+        auto *row = new ExplorerItemRow(n, m_openedList);
+        row->setLeadingIcon(svgIcon(QStringLiteral(":/icons/flow.svg"),
+                                    ThemeManager::instance()->currentTheme().text, 14));
+        auto *jumpBtn = row->addAction(QStringLiteral(":/icons/goto.svg"),
+                                       QStringLiteral("Open canvas"));
+        connect(jumpBtn, &QToolButton::clicked, this, [this]() {
+            emit openMeasurementSetupRequested();
+        });
+        connect(row, &ExplorerItemRow::activated, this, [this, item]() {
+            m_openedList->setCurrentItem(item);
+            emit openMeasurementSetupRequested();
+        });
+        item->setSizeHint(row->sizeHint().expandedTo(QSize(0, 22)));
+        m_openedList->setItemWidget(item, row);
+    }
 }
 
 void MeasurementSetupPanel::rebuildTemplates()
@@ -1670,9 +2254,9 @@ void MeasurementSetupPanel::rebuildTemplates()
     // ② 未落地协议 → 置灰占位行（预埋模板入口；F 系列落地/协议包安装后启用）
     struct Placeholder { const char *pid; const char *title; const char *tip; };
     static const Placeholder placeholders[] = {
-        { "ethercat", "EtherCAT Flow", "EtherCAT 适配器（F3）落地后启用" },
-        { "canopen",  "CANopen Flow",  "CANopen 适配器落地后启用（规划中）" },
-        { "general",  "通用 Flow",     "通用 Flow 适配器（F2）落地后启用" },
+        { "ethercat", "EtherCAT Flow", "Enabled when EtherCAT adapter ships" },
+        { "canopen",  "CANopen Flow",  "Enabled when CANopen adapter ships" },
+        { "general",  "Generic Flow",  "Enabled when generic Flow adapter ships" },
     };
     for (const auto &p : placeholders) {
         if (registered.contains(QLatin1String(p.pid)))
@@ -1734,20 +2318,40 @@ ExtensionsPanel::ExtensionsPanel(QWidget *parent)
     menuRelay->fire0 = [this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
         m_menuBtn->setIcon(svgIcon(":/icons/kebab.svg", c, 16));
+        if (m_installedSection)
+            m_installedSection->refreshTheme();
+        if (m_runningSection)
+            m_runningSection->refreshTheme();
     };
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             menuRelay, SLOT(fire()));
 
-    auto *listHost = new QWidget(this);
-    m_listLay = new QVBoxLayout(listHost);
+    // VS Code views: sections share remaining height (no outer scroll stack).
+    m_sectionsHost = new QWidget(this);
+    m_listLay = new QVBoxLayout(m_sectionsHost);
     m_listLay->setContentsMargins(0, 0, 0, 0);
-    m_listLay->setSpacing(2);
-    m_listLay->addStretch(1);
-    m_listArea = new QScrollArea(this);
-    m_listArea->setWidgetResizable(true);
-    m_listArea->setWidget(listHost);
-    m_listArea->setFrameShape(QFrame::NoFrame);
-    cl->addWidget(m_listArea, 1);
+    m_listLay->setSpacing(0);
+    cl->addWidget(m_sectionsHost, 1);
+
+    m_installedSection = new ExplorerSection(QStringLiteral("Installed"), m_sectionsHost);
+    auto *refreshBtn = m_installedSection->addHeaderAction(
+        QStringLiteral(":/icons/refresh.svg"),
+        QStringLiteral("Refresh"));
+    connect(refreshBtn, &QToolButton::clicked, this, [this]() {
+        MarketIndex::instance()->refresh();
+        DriverRegistry::instance()->scanAndLoad();
+        refreshEntries();
+    });
+    auto *marketBtn = m_installedSection->addHeaderAction(
+        QStringLiteral(":/icons/plus.svg"),
+        QStringLiteral("Open marketplace"));
+    connect(marketBtn, &QToolButton::clicked, this, [this]() {
+        emit openMarketRequested();
+    });
+    m_listLay->addWidget(m_installedSection, 1);
+
+    m_runningSection = new ExplorerSection(QStringLiteral("Running"), m_sectionsHost);
+    m_listLay->addWidget(m_runningSection, 1);
 
     connect(m_searchEdit, &QLineEdit::textChanged,
             this, &ExtensionsPanel::onSearchChanged);
@@ -1776,62 +2380,82 @@ void ExtensionsPanel::onSearchChanged()
 
 void ExtensionsPanel::rebuild()
 {
-    while (m_listLay->count()) {
-        QLayoutItem *child = m_listLay->takeAt(0);
-        if (child->widget())
-            child->widget()->deleteLater();
-        delete child;
-    }
-    m_listLay->addStretch(1);
-    const auto insertBeforeStretch = [this](QWidget *w) {
-        m_listLay->insertWidget(m_listLay->count() - 1, w);
+    auto clearBody = [](ExplorerSection *sec) {
+        if (!sec)
+            return;
+        QLayout *lay = sec->bodyLayout();
+        while (lay->count()) {
+            QLayoutItem *child = lay->takeAt(0);
+            if (child->widget())
+                child->widget()->deleteLater();
+            delete child;
+        }
     };
+    clearBody(m_installedSection);
+    clearBody(m_runningSection);
 
     const QString text = m_searchEdit->text();
     auto *pm = PluginManager::instance();
 
-    auto *secInstalled = new ExplorerSection(QStringLiteral("Installed"), this);
-    auto *secRunning = new ExplorerSection(QStringLiteral("Running"), this);
-    secInstalled->setExpanded(true);
-    secRunning->setExpanded(true);
-
     int nInstalled = 0;
     int nRunning = 0;
+
+    auto *installedScroll = new QScrollArea(m_installedSection->bodyWidget());
+    installedScroll->setWidgetResizable(true);
+    installedScroll->setFrameShape(QFrame::NoFrame);
+    auto *installedHost = new QWidget(installedScroll);
+    auto *installedLay = new QVBoxLayout(installedHost);
+    installedLay->setContentsMargins(0, 0, 0, 0);
+    installedLay->setSpacing(2);
+    installedScroll->setWidget(installedHost);
+    m_installedSection->bodyLayout()->addWidget(installedScroll, 1);
+
+    auto *runningScroll = new QScrollArea(m_runningSection->bodyWidget());
+    runningScroll->setWidgetResizable(true);
+    runningScroll->setFrameShape(QFrame::NoFrame);
+    auto *runningHost = new QWidget(runningScroll);
+    auto *runningLay = new QVBoxLayout(runningHost);
+    runningLay->setContentsMargins(0, 0, 0, 0);
+    runningLay->setSpacing(2);
+    runningScroll->setWidget(runningHost);
+    m_runningSection->bodyLayout()->addWidget(runningScroll, 1);
 
     for (const auto &e : MarketModel::collectInstalledDrivers()) {
         if (!MarketIndex::matchWords(text, e.searchFields))
             continue;
-        secInstalled->bodyLayout()->addWidget(makeRow(e));
+        installedLay->addWidget(makeRow(e));
         ++nInstalled;
     }
     for (const auto &e : MarketModel::collectInstalledPlugins()) {
         if (!MarketIndex::matchWords(text, e.searchFields))
             continue;
-        secInstalled->bodyLayout()->addWidget(makeRow(e));
+        installedLay->addWidget(makeRow(e));
         ++nInstalled;
         if (pm && pm->isPluginActivated(e.item.id)) {
-            secRunning->bodyLayout()->addWidget(makeRow(e));
+            runningLay->addWidget(makeRow(e));
             ++nRunning;
         }
     }
 
     if (nInstalled == 0) {
-        auto *empty = new QLabel(QStringLiteral("No installed items"), this);
+        auto *empty = new QLabel(QStringLiteral("No installed items"), installedHost);
         empty->setStyleSheet(QStringLiteral("color: %1; padding: 8px;")
             .arg(ThemeManager::instance()->currentTheme().textDim));
-        secInstalled->bodyLayout()->addWidget(empty);
+        installedLay->addWidget(empty);
     }
     if (nRunning == 0) {
-        auto *empty = new QLabel(QStringLiteral("No running plugins"), this);
+        auto *empty = new QLabel(QStringLiteral("No running plugins"), runningHost);
         empty->setStyleSheet(QStringLiteral("color: %1; padding: 8px;")
             .arg(ThemeManager::instance()->currentTheme().textDim));
-        secRunning->bodyLayout()->addWidget(empty);
+        runningLay->addWidget(empty);
     }
-    secInstalled->bodyLayout()->addStretch(1);
-    secRunning->bodyLayout()->addStretch(1);
+    installedLay->addStretch(1);
+    runningLay->addStretch(1);
 
-    insertBeforeStretch(secInstalled);
-    insertBeforeStretch(secRunning);
+    m_installedSection->setTitle(
+        QStringLiteral("Installed (%1)").arg(nInstalled));
+    m_runningSection->setTitle(
+        QStringLiteral("Running (%1)").arg(nRunning));
 }
 
 FrameRow *ExtensionsPanel::makeRow(const MarketEntryData &e)
@@ -1904,7 +2528,7 @@ FrameRow *ExtensionsPanel::makeRow(const MarketEntryData &e)
         auto *gear = new QToolButton;
         gear->setIcon(svgIcon(":/icons/gear.svg",
                               ThemeManager::instance()->currentTheme().text, 14));
-        gear->setToolTip("更多操作");
+        gear->setToolTip(QStringLiteral("More actions"));
         gear->setAutoRaise(true);
         MarketEntryData entry = e;
         connect(gear, &QToolButton::clicked, this, [this, gear, entry]() {
@@ -1942,19 +2566,18 @@ void ExtensionsPanel::clearCommands()
 void ExtensionsPanel::onMenuClicked()
 {
     QMenu menu(this);
-    auto *installAct = menu.addAction(
-        QString::fromUtf8("从 .odp / .opk 离线安装..."));
+    auto *installAct = menu.addAction(QStringLiteral("Install from .odp / .opk…"));
     connect(installAct, &QAction::triggered, this, [this]() {
         emit installFromFileRequested();
     });
-    auto *openAct = menu.addAction(QString::fromUtf8("打开市场页"));
+    auto *openAct = menu.addAction(QStringLiteral("Open Marketplace"));
     connect(openAct, &QAction::triggered, this, [this]() {
         emit openMarketRequested();
     });
-    auto *refreshAct = menu.addAction(QString::fromUtf8("刷新"));
+    auto *refreshAct = menu.addAction(QStringLiteral("Refresh"));
     connect(refreshAct, &QAction::triggered, this, [this]() {
         MarketIndex::instance()->refresh();
-        DriverRegistry::instance()->scanAndLoad();   // driversChanged → 自动刷新
+        DriverRegistry::instance()->scanAndLoad();
         refreshEntries();
     });
     menu.exec(m_menuBtn->mapToGlobal(QPoint(0, m_menuBtn->height())));
@@ -1964,8 +2587,7 @@ void ExtensionsPanel::showGearMenu(const MarketEntryData &e, const QPoint &globa
 {
     QMenu menu(this);
 
-    // 在插件市场中查看详情（与行点击同一联动）
-    auto *viewAct = menu.addAction(QString::fromUtf8("在插件市场中查看"));
+    auto *viewAct = menu.addAction(QStringLiteral("View in Marketplace"));
     connect(viewAct, &QAction::triggered, this, [this, item = e.item]() {
         emit itemActivated(item);
     });
@@ -1976,34 +2598,33 @@ void ExtensionsPanel::showGearMenu(const MarketEntryData &e, const QPoint &globa
         const bool enabled = pm->isPluginEnabled(e.item.id);
         const bool activated = pm->isPluginActivated(e.item.id);
         if (!enabled) {
-            auto *enableAct = menu.addAction(QString::fromUtf8("启用"));
+            auto *enableAct = menu.addAction(QStringLiteral("Enable"));
             connect(enableAct, &QAction::triggered, this, [this, id = e.item.id]() {
                 emit pluginToggleRequested(id, true);
             });
         } else {
             if (activated) {
-                auto *stopAct = menu.addAction(QString::fromUtf8("停止"));
+                auto *stopAct = menu.addAction(QStringLiteral("Stop"));
                 connect(stopAct, &QAction::triggered, this, [this, id = e.item.id]() {
                     emit pluginDeactivateRequested(id);
                 });
             }
-            auto *startAct = menu.addAction(activated ? QString::fromUtf8("重启")
-                                                      : QString::fromUtf8("启动"));
+            auto *startAct = menu.addAction(activated ? QStringLiteral("Restart")
+                                                      : QStringLiteral("Start"));
             connect(startAct, &QAction::triggered, this, [this, id = e.item.id]() {
                 emit pluginActivated(id);
             });
-            auto *disableAct = menu.addAction(QString::fromUtf8("禁用"));
+            auto *disableAct = menu.addAction(QStringLiteral("Disable"));
             connect(disableAct, &QAction::triggered, this, [this, id = e.item.id]() {
                 emit pluginToggleRequested(id, false);
             });
         }
         menu.addSeparator();
-        auto *uninstallAct = menu.addAction(QString::fromUtf8("卸载"));
+        auto *uninstallAct = menu.addAction(QStringLiteral("Uninstall"));
         connect(uninstallAct, &QAction::triggered, this, [this, id = e.item.id]() {
             emit pluginUninstallRequested(id);
         });
     } else {
-        // 已装驱动：状态从 Registry 实时取
         const auto drivers = DriverRegistry::instance()->drivers();
         bool enabledNow = true;
         bool builtin = false;
@@ -2014,20 +2635,19 @@ void ExtensionsPanel::showGearMenu(const MarketEntryData &e, const QPoint &globa
                 break;
             }
         }
-        auto *toggleAct = menu.addAction(enabledNow ? QString::fromUtf8("禁用驱动")
-                                                     : QString::fromUtf8("启用驱动"));
-        toggleAct->setToolTip(QString::fromUtf8(
-            "禁用后设备树隐藏且不参与枚举/创建，重启后不加载（方案 §7.4）"));
+        auto *toggleAct = menu.addAction(enabledNow ? QStringLiteral("Disable driver")
+                                                     : QStringLiteral("Enable driver"));
+        toggleAct->setToolTip(QStringLiteral(
+            "When disabled, the driver is hidden from the device tree and not loaded"));
         connect(toggleAct, &QAction::triggered, this,
                 [this, id = e.item.id, to = !enabledNow]() {
             emit driverToggleRequested(id, to);
         });
-        auto *uninstallAct = menu.addAction(QString::fromUtf8("卸载驱动"));
+        auto *uninstallAct = menu.addAction(QStringLiteral("Uninstall driver"));
         uninstallAct->setEnabled(!builtin);
         uninstallAct->setToolTip(builtin
-            ? QString::fromUtf8("内置驱动不可卸载")
-            : QString::fromUtf8(
-                "已加载的 DLL 在重启程序前仍驻留内存（方案 §7.4）"));
+            ? QStringLiteral("Built-in drivers cannot be uninstalled")
+            : QStringLiteral("Loaded DLLs stay in memory until the app restarts"));
         connect(uninstallAct, &QAction::triggered, this, [this, id = e.item.id]() {
             emit driverUninstallRequested(id);
         });

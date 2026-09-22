@@ -5,6 +5,7 @@
 #include <QStackedWidget>
 #include <QList>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QColor>
 #include <QRectF>
 
@@ -21,8 +22,74 @@ class QLabel;
 class QPushButton;
 class QLineEdit;
 class QToolButton;
+class QHBoxLayout;
+class QEvent;
+class QShowEvent;
+class QEnterEvent;
+class QMouseEvent;
+class QLabel;
+class QIcon;
 class DbcManager;
 class CanSimulator;
+
+// ============================================================
+//  VS Code–style list/tree row with trailing hover actions
+// ============================================================
+class ExplorerItemRow : public QWidget
+{
+    Q_OBJECT
+public:
+    explicit ExplorerItemRow(const QString &text, QWidget *parent = nullptr);
+
+    void setText(const QString &text);
+    void setLeadingIcon(const QIcon &icon);
+    QToolButton *addAction(const QString &iconPath, const QString &tooltip,
+                           int iconSize = 12);
+    void setActionsVisible(bool on);
+    void refreshTheme();
+
+signals:
+    void activated();
+
+protected:
+    void enterEvent(QEnterEvent *event) override;
+    void leaveEvent(QEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+
+private:
+    void updateActionVisibility();
+
+    QLabel *m_iconLabel = nullptr;
+    QLabel *m_textLabel = nullptr;
+    QWidget *m_actionsHost = nullptr;
+    QHBoxLayout *m_actionsLay = nullptr;
+    QList<QToolButton *> m_actions;
+    QStringList m_actionIconPaths;
+    bool m_hovered = false;
+};
+
+/// Buttons-only host for QTreeWidget action column (hover-visible).
+class ExplorerItemActions : public QWidget
+{
+    Q_OBJECT
+public:
+    explicit ExplorerItemActions(QWidget *parent = nullptr);
+
+    QToolButton *addAction(const QString &iconPath, const QString &tooltip,
+                           int iconSize = 12);
+    void setActionsVisible(bool on);
+    void refreshTheme();
+
+protected:
+    void enterEvent(QEnterEvent *event) override;
+    void leaveEvent(QEvent *event) override;
+
+private:
+    QHBoxLayout *m_lay = nullptr;
+    QList<QToolButton *> m_actions;
+    QStringList m_actionIconPaths;
+    bool m_hovered = false;
+};
 
 // ============================================================
 //  基类 — 所有侧边面板共用的标题栏样式
@@ -61,17 +128,43 @@ public:
     /// Trailing green status dot (plain title + green ● only)
     void setStatusDotVisible(bool on);
 
+    /// Icon-only action on the header trailing edge (VS Code view actions).
+    /// Buttons show on header hover; stay visible while pressed / menu open.
+    QToolButton *addHeaderAction(const QString &iconPath, const QString &tooltip,
+                                 int iconSize = 14);
+
+    /// Re-pack sibling ExplorerSections like VS Code views:
+    /// all collapsed → top; expanded share middle; trailing collapsed → bottom.
+    void rebalanceSiblings();
+
+signals:
+    void expandedChanged(bool expanded);
+
 public slots:
     void toggle();
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+
 private:
     void updateHeaderChrome();
+    void applyExpandPolicy();
+    void setHeaderActionsHovered(bool hovered);
+    void refreshActionIcons();
 
+    QWidget *m_headerRow = nullptr;
+    QHBoxLayout *m_headerLay = nullptr;
     QToolButton *m_header = nullptr;
     QLabel *m_statusDot = nullptr;
+    QWidget *m_actionsHost = nullptr;
+    QHBoxLayout *m_actionsLay = nullptr;
+    QList<QToolButton *> m_actions;
+    QStringList m_actionIconPaths;
     QWidget *m_body = nullptr;
     QVBoxLayout *m_bodyLayout = nullptr;
     bool m_expanded = true;
+    bool m_headerHovered = false;
 };
 
 // ============================================================
@@ -169,9 +262,12 @@ private slots:
     void onItemClicked(QTreeWidgetItem *item, int column);
 
 private:
-    QTreeWidget *m_tree;
+    ExplorerSection *m_dbSection = nullptr;
+    QTreeWidget *m_tree = nullptr;
     DbcManager *m_dbcMgr = nullptr;
-    QList<DatabaseEntry> m_otherDbs;  // 非 DBC 文件列表
+    QList<DatabaseEntry> m_otherDbs;
+    QToolButton *m_importBtn = nullptr;
+    QToolButton *m_removeBtn = nullptr;
 
     // 协议分类根节点
     QTreeWidgetItem *m_catCanFd    = nullptr;
@@ -184,6 +280,7 @@ private:
     static QString categoryForFile(const QString &fileName);
     void initCategoryNodes();
     void refreshTree();
+    void removeDatabaseItem(QTreeWidgetItem *item);
 };
 
 // ============================================================
@@ -210,9 +307,11 @@ private slots:
     void onContextMenu(const QPoint &pos);
 
 private:
-    QListWidget *m_templateList = nullptr;  ///< 形态模板平铺行（doc/flow.md §7.2 平铺修订）
-    QListWidget *m_traceList;
-    QPushButton *m_delBtn = nullptr;
+    QListWidget *m_templateList = nullptr;
+    QListWidget *m_traceList = nullptr;
+    ExplorerSection *m_openedSection = nullptr;
+    ExplorerSection *m_newSection = nullptr;
+    QToolButton *m_delBtn = nullptr;
 };
 
 // ============================================================
@@ -238,8 +337,11 @@ private slots:
     void onContextMenu(const QPoint &pos);
 
 private:
-    QListWidget *m_templateList = nullptr;  ///< Form template rows
+    QListWidget *m_templateList = nullptr;
     QListWidget *m_pageList = nullptr;
+    ExplorerSection *m_openedSection = nullptr;
+    ExplorerSection *m_newSection = nullptr;
+    QToolButton *m_delBtn = nullptr;
 };
 
 // ============================================================
@@ -278,10 +380,13 @@ private slots:
     void onItemClicked(QTreeWidgetItem *item, int column);
     void onItemDoubleClicked(QTreeWidgetItem *item, int column);
     void onScanClicked();
+    void onAddDeviceClicked();
 
 private:
-    QTreeWidget *m_deviceTree;
-    QPushButton *m_scanBtn = nullptr;
+    ExplorerSection *m_devicesSection = nullptr;
+    QTreeWidget *m_deviceTree = nullptr;
+    QToolButton *m_scanBtn = nullptr;
+    QToolButton *m_addBtn = nullptr;
     CanSimulator *m_simulator = nullptr;
     CanDeviceManager *m_deviceMgr = nullptr;
 
@@ -354,8 +459,10 @@ private slots:
     void rebuildTemplates();
 
 private:
-    QListWidget *m_openedList = nullptr;    ///< 已打开流页列表（VS Code OPEN EDITORS 位）
-    QListWidget *m_templateList = nullptr;  ///< 协议流模板平铺行
+    ExplorerSection *m_openedSection = nullptr;
+    ExplorerSection *m_newSection = nullptr;
+    QListWidget *m_openedList = nullptr;
+    QListWidget *m_templateList = nullptr;
 };
 
 // ============================================================
@@ -392,10 +499,12 @@ private slots:
     void onMenuClicked();
 
 private:
-    QLineEdit *m_searchEdit;
-    QToolButton *m_menuBtn;
-    QScrollArea *m_listArea = nullptr;
+    QLineEdit *m_searchEdit = nullptr;
+    QToolButton *m_menuBtn = nullptr;
+    QWidget *m_sectionsHost = nullptr;
     QVBoxLayout *m_listLay = nullptr;
+    ExplorerSection *m_installedSection = nullptr;
+    ExplorerSection *m_runningSection = nullptr;
 
     void rebuild();
     FrameRow *makeRow(const MarketEntryData &e);

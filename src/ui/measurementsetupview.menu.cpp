@@ -74,35 +74,45 @@ void MeasurementSetupView::buildContextMenu(BlockItem *block, const QPointF &)
     titleAct->setFont(titleFont);
     m_rightMenu->addSeparator();
     
-    // ---- Data source blocks ----
+    // ---- Data source / injector blocks ----
     if (blockCategory == "source") {
-        // Switch data source
-        if (blockId == "source_real") {
-            auto *actSwitch = m_rightMenu->addAction(QStringLiteral("切换到离线分析"));
-            actSwitch->setStatusTip(QStringLiteral("Switch to offline analysis mode"));
-            connect(actSwitch, &QAction::triggered, this, [this]() {
-                setSource(Source::File);
-                emit sourceChanged(static_cast<int>(Source::File));
+        if (blockId == "source_real" || blockId == "source_file") {
+            if (blockId == "source_real") {
+                auto *actSwitch = m_rightMenu->addAction(QStringLiteral("Switch to Offline Analysis"));
+                actSwitch->setStatusTip(QStringLiteral("Switch to offline analysis mode"));
+                connect(actSwitch, &QAction::triggered, this, [this]() {
+                    setSource(Source::File);
+                    emit sourceChanged(static_cast<int>(Source::File));
+                });
+            } else {
+                auto *actSwitch = m_rightMenu->addAction(QStringLiteral("Switch to Real"));
+                actSwitch->setStatusTip(QStringLiteral("Switch to hardware real-time acquisition"));
+                connect(actSwitch, &QAction::triggered, this, [this]() {
+                    setSource(Source::Hardware);
+                    emit sourceChanged(static_cast<int>(Source::Hardware));
+                });
+            }
+            m_rightMenu->addSeparator();
+            auto *actCfg = m_rightMenu->addAction(
+                blockId == "source_real" ? QStringLiteral("Device settings...")
+                                         : QStringLiteral("Open Offline Analysis..."));
+            connect(actCfg, &QAction::triggered, this, [this, blockId]() {
+                if (blockId == "source_real")
+                    emit realBlockClicked();
+                else
+                    emit fileBlockClicked();
             });
-        } else {
-            auto *actSwitch = m_rightMenu->addAction(QStringLiteral(" 切换到 Real 实时采集"));
-            actSwitch->setStatusTip(QStringLiteral("Switch to hardware real-time acquisition mode"));
-            connect(actSwitch, &QAction::triggered, this, [this]() {
-                setSource(Source::Hardware);
-                emit sourceChanged(static_cast<int>(Source::Hardware));
+        } else if (blockId == "signal_generator") {
+            auto *actOpen = m_rightMenu->addAction(QStringLiteral("Open Signal Send..."));
+            connect(actOpen, &QAction::triggered, this, [this]() {
+                emit sendPageOpened();
+            });
+        } else if (blockId == "file_playback") {
+            auto *actOpen = m_rightMenu->addAction(QStringLiteral("Open File Playback..."));
+            connect(actOpen, &QAction::triggered, this, [this]() {
+                emit playbackPageOpened();
             });
         }
-        
-        m_rightMenu->addSeparator();
-        auto *actCfg = m_rightMenu->addAction(
-            blockId == "source_real" ? QStringLiteral("设备参数配置...")
-                                     : QStringLiteral("打开离线分析..."));
-        connect(actCfg, &QAction::triggered, this, [this, blockId]() {
-            if (blockId == "source_real")
-                emit realBlockClicked();
-            else
-                emit fileBlockClicked();
-        });
     }
     
     // ---- Filter block ----

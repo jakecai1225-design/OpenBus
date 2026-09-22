@@ -273,50 +273,7 @@ void MainWindow::onAutoScrollToggled(bool on)
 
 
 // ============================================================
-//  右侧面板快捷按钮
-// ============================================================
-
-void MainWindow::onQuickRecord()
-{
-    if (!m_recording)
-        onRecord();
-}
-
-void MainWindow::onQuickStopRecord()
-{
-    if (m_recording)
-        m_recorder->stop();
-}
-
-void MainWindow::onQuickConnect()
-{
-    // 硬件设备优先连接；未配置真实设备时不再隐式启动模拟器（防混淆），
-    // 改为输出引导——模拟器须由用户显式连接（设备连接页 / 模拟器开关）
-    if (m_deviceManager->isRealDevice() && !m_deviceManager->isRunning()) {
-        m_deviceManager->start();
-    } else if (!m_simulator->isRunning() && !m_deviceManager->isRealDevice()) {
-        m_bottomPanel->appendOutput(
-            QStringLiteral("未配置真实设备：请在设备面板选择并连接硬件；"
-                           "如需模拟数据，请显式连接 openbus 模拟器"));
-    }
-}
-
-void MainWindow::onQuickDisconnect()
-{
-    m_simulator->stop();
-    m_deviceManager->stop();
-    m_connLabel->setText("未连接");
-    m_bottomPanel->appendOutput("设备已断开");
-}
-
-void MainWindow::onAiMessageSent(const QString &text)
-{
-    // 简单 AI 回复
-    m_rightPanel->appendAiMessage("AI", "收到: " + text + "\n(AI 分析功能待实现)");
-}
-
-// ============================================================
-//  命令行
+//  Command line / terminal
 // ============================================================
 
 void MainWindow::onCommandEntered(const QString &cmd)

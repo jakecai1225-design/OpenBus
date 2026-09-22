@@ -95,28 +95,38 @@ void MeasurementSetupView::buildTopology()
     const qreal switchW = 70;
     const qreal switchH = 32;
     
-    // ---- Column 1: CAN signal generator (only data source root) ----
+    // ---- Column 1: injectors into Real (signal generator + file playback) ----
+    qreal srcY1 = 50;  // Align with Real
+    qreal srcY2 = srcY1 + srcH + switchH + 10;  // Align with offline analysis
+
     BlockItem signalGen;
     signalGen.id = "signal_generator";
-    signalGen.title = "信号发生器";  // Remove "CAN" prefix
+    signalGen.title = QStringLiteral("Signal Generator");
     signalGen.icon = "";
     signalGen.category = "source";
     signalGen.moduleName = "signal_generator";
-    signalGen.rect = QRectF(startX, 50, srcW, srcH);  // Use unified height srcH=bh
-    signalGen.color = QColor(0xD3, 0x2F, 0x2F);  // Red, highlighting as data source root
-    signalGen.enabled = false;  // Default disabled, user must manually activate
+    signalGen.rect = QRectF(startX, srcY1, srcW, srcH);
+    signalGen.color = QColor(0xD3, 0x2F, 0x2F);
+    signalGen.enabled = false;  // Default off; user activates
     m_blocks["signal_generator"] = signalGen;
-    
-    qreal x = startX + srcW + gapX;  // Move to column 2
-    
-    // ---- Column 2: Data source switch + Real/offline analysis ----
-    qreal srcY1 = 50;  // Real's y-coordinate
-    qreal srcY2 = srcY1 + srcH + switchH + 10;  // Offline analysis's y-coordinate
-    
-    // Real (hardware real-time)
+
+    BlockItem filePlayback;
+    filePlayback.id = "file_playback";
+    filePlayback.title = QStringLiteral("File Playback");
+    filePlayback.icon = "";
+    filePlayback.category = "source";
+    filePlayback.moduleName = "file_playback";
+    filePlayback.rect = QRectF(startX, srcY2, srcW, srcH);
+    filePlayback.color = QColor(0xD3, 0x2F, 0x2F);
+    filePlayback.enabled = false;
+    m_blocks["file_playback"] = filePlayback;
+
+    qreal x = startX + srcW + gapX;  // Column 2
+
+    // ---- Column 2: Data source switch + Real / offline analysis ----
     BlockItem srcReal;
     srcReal.id = "source_real";
-    srcReal.title = "Real 实时";
+    srcReal.title = QStringLiteral("Real");
     srcReal.icon = "";
     srcReal.category = "source";
     srcReal.moduleName = "real";
@@ -124,11 +134,10 @@ void MeasurementSetupView::buildTopology()
     srcReal.color = QColor(0x4a, 0x90, 0xd9);
     srcReal.enabled = (m_source == Source::Hardware);
     m_blocks["source_real"] = srcReal;
-    
-    // Offline analysis (file data source)
+
     BlockItem srcFile;
     srcFile.id = "source_file";
-    srcFile.title = QStringLiteral("离线分析");
+    srcFile.title = QStringLiteral("Offline Analysis");
     srcFile.icon = "";
     srcFile.category = "source";
     srcFile.moduleName = "file";
@@ -213,10 +222,11 @@ void MeasurementSetupView::buildTopology()
         c.pathItem = nullptr;
         m_connections.append(c);
     };
-    // Data flow architecture: signal generator → Real → Filter → CAN parser; file playback can switch injection into Real
-    addConn("signal_generator", "source_real");  // Signal generator data injected into Real
-    addConn("source_real", "filter");            // Real → Filter (main path)
-    addConn("source_file", "filter");            // File playback directly connects to Filter
+    // Injectors → Real → Filter → CAN parser; offline analysis → Filter
+    addConn("signal_generator", "source_real");
+    addConn("file_playback", "source_real");
+    addConn("source_real", "filter");
+    addConn("source_file", "filter");
     addConn("filter", "database");
     // DBC → all modules
     addConn("database", "trace1");

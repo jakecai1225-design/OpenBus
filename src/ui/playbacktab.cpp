@@ -25,24 +25,35 @@
 #include <QFileInfo>
 #include <QVariantMap>
 #include <QVariantList>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QUrl>
+#include <QEvent>
 
 PlaybackTab::PlaybackTab(QWidget *parent)
     : QWidget(parent)
 {
+    setAcceptDrops(true);
+
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(20, 20, 20, 20);
     mainLayout->setSpacing(12);
 
-    // ---- 回放控制 ----
-    auto *ctrlGroup = new QGroupBox("回放控制", this);
+    // ---- Playback control ----
+    auto *ctrlGroup = new QGroupBox(QStringLiteral("Playback"), this);
     auto *ctrlLayout = new QVBoxLayout(ctrlGroup);
 
     // Play / Pause / Stop
     auto *btnLayout = new QHBoxLayout;
     const QString iconCol = ThemeManager::instance()->currentTheme().text;
-    m_playBtn = new QPushButton(svgIcon(":/icons/play.svg", iconCol, 16), "播放", ctrlGroup);
-    m_pauseBtn = new QPushButton(svgIcon(":/icons/pause.svg", iconCol, 16), "暂停", ctrlGroup);
-    m_stopBtn = new QPushButton(svgIcon(":/icons/stop.svg", iconCol, 16), "停止", ctrlGroup);
+    m_playBtn = new QPushButton(svgIcon(":/icons/play.svg", iconCol, 16),
+                                QStringLiteral("Play"), ctrlGroup);
+    m_pauseBtn = new QPushButton(svgIcon(":/icons/pause.svg", iconCol, 16),
+                                 QStringLiteral("Pause"), ctrlGroup);
+    m_stopBtn = new QPushButton(svgIcon(":/icons/stop.svg", iconCol, 16),
+                                QStringLiteral("Stop"), ctrlGroup);
     m_playBtn->setEnabled(false);
     m_pauseBtn->setEnabled(false);
     m_stopBtn->setEnabled(false);
@@ -57,7 +68,7 @@ PlaybackTab::PlaybackTab(QWidget *parent)
 
     // Seek slider
     auto *seekLayout = new QHBoxLayout;
-    seekLayout->addWidget(new QLabel("进度:", ctrlGroup));
+    seekLayout->addWidget(new QLabel(QStringLiteral("Seek:"), ctrlGroup));
     m_seekSlider = new QSlider(Qt::Horizontal, ctrlGroup);
     m_seekSlider->setMinimum(0);
     m_seekSlider->setMaximum(1000);
@@ -65,16 +76,16 @@ PlaybackTab::PlaybackTab(QWidget *parent)
     seekLayout->addWidget(m_seekSlider, 1);
     ctrlLayout->addLayout(seekLayout);
 
-    m_posLabel = new QLabel("位置: 0.000s / 0.000s", ctrlGroup);
+    m_posLabel = new QLabel(QStringLiteral("Position: 0.000s / 0.000s"), ctrlGroup);
     ctrlLayout->addWidget(m_posLabel);
 
-    m_fileInfoLabel = new QLabel("文件: (未加载)", ctrlGroup);
+    m_fileInfoLabel = new QLabel(QStringLiteral("File: (not loaded)"), ctrlGroup);
     m_fileInfoLabel->setObjectName("DimLabel");
     ctrlLayout->addWidget(m_fileInfoLabel);
 
     // Speed & options
     auto *optLayout = new QHBoxLayout;
-    optLayout->addWidget(new QLabel("速度:", ctrlGroup));
+    optLayout->addWidget(new QLabel(QStringLiteral("Speed:"), ctrlGroup));
     m_speedCombo = new QComboBox(ctrlGroup);
     m_speedCombo->addItem("0.1x", 0.1);
     m_speedCombo->addItem("0.5x", 0.5);
@@ -85,8 +96,8 @@ PlaybackTab::PlaybackTab(QWidget *parent)
     m_speedCombo->setCurrentIndex(2);
     optLayout->addWidget(m_speedCombo);
     optLayout->addSpacing(20);
-    m_loopChk = new QCheckBox("循环回放", ctrlGroup);
-    m_autoScrollChk = new QCheckBox("回放时自动滚动", ctrlGroup);
+    m_loopChk = new QCheckBox(QStringLiteral("Loop"), ctrlGroup);
+    m_autoScrollChk = new QCheckBox(QStringLiteral("Auto-scroll during playback"), ctrlGroup);
     m_autoScrollChk->setChecked(true);
     optLayout->addWidget(m_loopChk);
     optLayout->addWidget(m_autoScrollChk);
@@ -95,12 +106,14 @@ PlaybackTab::PlaybackTab(QWidget *parent)
 
     mainLayout->addWidget(ctrlGroup);
 
-    // ---- 回放文件列表 ----
-    auto *listGroup = new QGroupBox("回放文件列表", this);
+    // ---- Playback file list ----
+    auto *listGroup = new QGroupBox("Playback files", this);
     auto *listLayout = new QVBoxLayout(listGroup);
 
     m_fileList = new QTableWidget(0, 6, listGroup);
-    m_fileList->setHorizontalHeaderLabels({"#", "文件名", "帧数", "时长", "进度", "状态"});
+    m_fileList->setHorizontalHeaderLabels(
+        {QStringLiteral("#"), QStringLiteral("File"), QStringLiteral("Frames"),
+         QStringLiteral("Duration"), QStringLiteral("Progress"), QStringLiteral("Status")});
     m_fileList->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     m_fileList->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     m_fileList->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
@@ -110,13 +123,20 @@ PlaybackTab::PlaybackTab(QWidget *parent)
     m_fileList->verticalHeader()->setVisible(false);
     m_fileList->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_fileList->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_fileList->setAcceptDrops(true);
+    m_fileList->viewport()->setAcceptDrops(true);
+    m_fileList->setDragDropMode(QAbstractItemView::DropOnly);
+    m_fileList->setDropIndicatorShown(true);
+    m_fileList->installEventFilter(this);
+    m_fileList->viewport()->installEventFilter(this);
+    m_fileList->setToolTip(QStringLiteral("Drop .blf / .asc / .csv / .pcap / .trc files here"));
     listLayout->addWidget(m_fileList);
 
     auto *listBtnLayout = new QHBoxLayout;
-    m_addFileBtn = new QPushButton(svgIcon(":/icons/plus.svg", iconCol, 14), "添加文件", listGroup);
-    m_removeFileBtn = new QPushButton(svgIcon(":/icons/dash.svg", iconCol, 14), "删除文件", listGroup);
-    m_moveUpBtn = new QPushButton(svgIcon(":/icons/chevron-up.svg", iconCol, 14), "上移", listGroup);
-    m_moveDownBtn = new QPushButton(svgIcon(":/icons/chevron-down.svg", iconCol, 14), "下移", listGroup);
+    m_addFileBtn = new QPushButton(svgIcon(":/icons/plus.svg", iconCol, 14), "Add files", listGroup);
+    m_removeFileBtn = new QPushButton(svgIcon(":/icons/dash.svg", iconCol, 14), "Remove", listGroup);
+    m_moveUpBtn = new QPushButton(svgIcon(":/icons/chevron-up.svg", iconCol, 14), "Up", listGroup);
+    m_moveDownBtn = new QPushButton(svgIcon(":/icons/chevron-down.svg", iconCol, 14), "Down", listGroup);
     listBtnLayout->addWidget(m_addFileBtn);
     listBtnLayout->addWidget(m_removeFileBtn);
     listBtnLayout->addWidget(m_moveUpBtn);
@@ -126,32 +146,56 @@ PlaybackTab::PlaybackTab(QWidget *parent)
 
     mainLayout->addWidget(listGroup, 1);
 
-    // ---- 通道 & 过滤 ----
-    auto *miscGroup = new QGroupBox("回放设置", this);
+    // ---- Playback settings ----
+    auto *miscGroup = new QGroupBox("Playback settings", this);
     auto *miscLayout = new QHBoxLayout(miscGroup);
 
-    miscLayout->addWidget(new QLabel("回放通道:", miscGroup));
+    miscLayout->addWidget(new QLabel("Channel:", miscGroup));
     m_channelCombo = new QComboBox(miscGroup);
     m_channelCombo->addItem("Channel 1");
     m_channelCombo->addItem("Channel 2");
     miscLayout->addWidget(m_channelCombo);
 
-    miscLayout->addSpacing(20);
+    miscLayout->addSpacing(12);
 
-    miscLayout->addWidget(new QLabel("回放过滤:", miscGroup));
+    miscLayout->addWidget(new QLabel("Direction:", miscGroup));
+    m_directionCombo = new QComboBox(miscGroup);
+    m_directionCombo->addItem(QStringLiteral("All"), QStringLiteral("all"));
+    m_directionCombo->addItem(QStringLiteral("Rx"), QStringLiteral("rx"));
+    m_directionCombo->addItem(QStringLiteral("Tx"), QStringLiteral("tx"));
+    miscLayout->addWidget(m_directionCombo);
+
+    miscLayout->addSpacing(12);
+
+    miscLayout->addWidget(new QLabel("Protocol:", miscGroup));
+    m_protocolCombo = new QComboBox(miscGroup);
+    m_protocolCombo->addItem(QStringLiteral("All"), QStringLiteral("all"));
+    m_protocolCombo->addItem(QStringLiteral("CAN"), QStringLiteral("can"));
+    m_protocolCombo->addItem(QStringLiteral("CAN FD"), QStringLiteral("canfd"));
+    miscLayout->addWidget(m_protocolCombo);
+
+    miscLayout->addSpacing(12);
+
+    miscLayout->addWidget(new QLabel("Filter:", miscGroup));
     m_filterEdit = new QLineEdit(miscGroup);
-    m_filterEdit->setPlaceholderText("例如: id == 0x123");
+    m_filterEdit->setPlaceholderText(QStringLiteral("e.g. id == 0x123"));
     miscLayout->addWidget(m_filterEdit, 1);
+
+    m_applyFilterBtn = new QPushButton(QStringLiteral("Apply"), miscGroup);
+    m_applyFilterBtn->setToolTip(
+        QStringLiteral("Commit direction / protocol / expression filters. "
+                       "Until Apply, playback uses no filter."));
+    miscLayout->addWidget(m_applyFilterBtn);
 
     mainLayout->addWidget(miscGroup);
 
-    // ---- 异步文件解析定时器 ----
+    // ---- Async metadata parse ----
     m_parseTimer = new QTimer(this);
     m_parseTimer->setInterval(50);
     m_parseTimer->setSingleShot(false);
     connect(m_parseTimer, &QTimer::timeout, this, &PlaybackTab::onParseTimer);
 
-    // ---- 信号连接 ----
+    // ---- Connections ----
     connect(m_playBtn, &QPushButton::clicked, this, &PlaybackTab::onPlay);
     connect(m_pauseBtn, &QPushButton::clicked, this, &PlaybackTab::onPause);
     connect(m_stopBtn, &QPushButton::clicked, this, &PlaybackTab::onStop);
@@ -170,9 +214,17 @@ PlaybackTab::PlaybackTab(QWidget *parent)
             this, &PlaybackTab::onFileListDoubleClicked);
     connect(m_loopChk, &QCheckBox::toggled, this, &PlaybackTab::loopToggled);
     connect(m_autoScrollChk, &QCheckBox::toggled, this, &PlaybackTab::autoScrollToggled);
+    connect(m_applyFilterBtn, &QPushButton::clicked, this, &PlaybackTab::onApplyFilter);
+    connect(m_directionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int) { markFilterDirty(); });
+    connect(m_protocolCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int) { markFilterDirty(); });
+    connect(m_filterEdit, &QLineEdit::textChanged, this, [this](const QString &) {
+        markFilterDirty();
+    });
 
-    // 主题切换 → 重刷全部按钮图标颜色
-    // DEF-08 字符串信号：ThemeManager 定义于 data.dll
+    // Theme refresh → recolor button icons
+    // DEF-08 string signal: ThemeManager lives in data.dll
     auto *themeRelay = new SignalRelay(this);
     themeRelay->fire0 = [this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
@@ -192,18 +244,87 @@ void PlaybackTab::onPlay() { emit playRequested(); }
 void PlaybackTab::onPause() { emit pauseRequested(); }
 void PlaybackTab::onStop() { emit stopRequested(); }
 
+void PlaybackTab::markFilterDirty()
+{
+    // UI draft changed; active filter stays until Apply.
+    if (m_filterApplied)
+        m_applyFilterBtn->setText(QStringLiteral("Apply*"));
+    else
+        m_applyFilterBtn->setText(QStringLiteral("Apply"));
+}
+
+void PlaybackTab::onApplyFilter()
+{
+    m_filterApplied = true;
+    m_appliedDirection = m_directionCombo->currentData().toString();
+    m_appliedProtocol = m_protocolCombo->currentData().toString();
+    m_appliedFilter = m_filterEdit->text().trimmed();
+    m_applyFilterBtn->setText(QStringLiteral("Apply"));
+}
+
 void PlaybackTab::onAddFile()
 {
     QStringList paths = QFileDialog::getOpenFileNames(
-        this, "添加回放文件", {},
+        this, QStringLiteral("Add playback files"), {},
         CanFileIO::allFileFilters());
-    if (paths.isEmpty()) return;
+    addFiles(paths);
+}
 
-    for (const auto &path : paths)
+bool PlaybackTab::isPlaybackFile(const QString &path)
+{
+    const QString suf = QFileInfo(path).suffix();
+    return CanFileIO::formatFromSuffix(suf) != CanFileIO::Format::Unknown;
+}
+
+QStringList PlaybackTab::playbackPathsFromMime(const QMimeData *mime)
+{
+    QStringList out;
+    if (!mime || !mime->hasUrls())
+        return out;
+    for (const QUrl &url : mime->urls()) {
+        if (!url.isLocalFile())
+            continue;
+        const QString path = url.toLocalFile();
+        if (isPlaybackFile(path))
+            out << path;
+    }
+    return out;
+}
+
+void PlaybackTab::addFiles(const QStringList &paths)
+{
+    if (paths.isEmpty())
+        return;
+
+    const bool wasEmpty = (m_fileList->rowCount() == 0);
+    const int firstNew = m_fileList->rowCount();
+    int added = 0;
+    for (const QString &path : paths) {
+        if (!isPlaybackFile(path))
+            continue;
+        // Skip duplicates
+        bool exists = false;
+        for (int i = 0; i < m_fileList->rowCount(); ++i) {
+            const auto *item = m_fileList->item(i, 1);
+            if (item && item->data(Qt::UserRole).toString() == path) {
+                exists = true;
+                break;
+            }
+        }
+        if (exists)
+            continue;
         addFilePath(path);
+        ++added;
+    }
+    if (added == 0)
+        return;
 
     if (!m_parseTimer->isActive())
         m_parseTimer->start();
+
+    // Auto-load into Player so Play works without double-click.
+    if (wasEmpty || m_currentLoadedRow < 0)
+        loadRowIntoPlayer(firstNew);
 }
 
 void PlaybackTab::addFilePath(const QString &path)
@@ -217,22 +338,114 @@ void PlaybackTab::addFilePath(const QString &path)
     m_fileList->setItem(row, 0, numItem);
 
     auto *nameItem = new QTableWidgetItem(fi.fileName());
-    nameItem->setData(Qt::UserRole, path);  // 存储完整路径
+    nameItem->setData(Qt::UserRole, path);
     nameItem->setToolTip(path);
     m_fileList->setItem(row, 1, nameItem);
 
-    m_fileList->setItem(row, 2, new QTableWidgetItem("解析中..."));
-    m_fileList->setItem(row, 3, new QTableWidgetItem("-"));
-    m_fileList->setItem(row, 5, new QTableWidgetItem("就绪"));
+    m_fileList->setItem(row, 2, new QTableWidgetItem(QStringLiteral("Parsing…")));
+    m_fileList->setItem(row, 3, new QTableWidgetItem(QStringLiteral("-")));
+    m_fileList->setItem(row, 5, new QTableWidgetItem(QStringLiteral("Ready")));
 
     auto *bar = new QProgressBar();
     bar->setRange(0, 100);
     bar->setValue(0);
-    bar->setFormat("—");
+    bar->setFormat(QStringLiteral("—"));
     bar->setAlignment(Qt::AlignCenter);
     m_fileList->setCellWidget(row, 4, bar);
 
     m_parseQueue.enqueue(row);
+}
+
+void PlaybackTab::loadRowIntoPlayer(int row)
+{
+    if (row < 0 || row >= m_fileList->rowCount())
+        return;
+
+    auto *nameItem = m_fileList->item(row, 1);
+    if (!nameItem)
+        return;
+
+    const QString path = nameItem->data(Qt::UserRole).toString();
+    if (path.isEmpty())
+        return;
+
+    for (int i = 0; i < m_fileList->rowCount(); ++i) {
+        auto *statusItem = m_fileList->item(i, 5);
+        if (statusItem) {
+            if (i == row)
+                statusItem->setText(QStringLiteral("Loading"));
+            else if (statusItem->text() == QStringLiteral("Loaded")
+                     || statusItem->text() == QStringLiteral("Loading")
+                     || statusItem->text() == QStringLiteral("Playing"))
+                statusItem->setText(QStringLiteral("Ready"));
+        }
+        if (i != row) {
+            auto *bar = qobject_cast<QProgressBar *>(m_fileList->cellWidget(i, 4));
+            if (bar && bar->value() >= 100)
+                bar->setValue(0);
+        }
+    }
+
+    m_currentLoadedRow = row;
+    emit fileLoaded(path);
+}
+
+void PlaybackTab::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (!playbackPathsFromMime(event->mimeData()).isEmpty())
+        event->acceptProposedAction();
+}
+
+void PlaybackTab::dragMoveEvent(QDragMoveEvent *event)
+{
+    if (!playbackPathsFromMime(event->mimeData()).isEmpty())
+        event->acceptProposedAction();
+}
+
+void PlaybackTab::dropEvent(QDropEvent *event)
+{
+    const QStringList paths = playbackPathsFromMime(event->mimeData());
+    if (paths.isEmpty())
+        return;
+    event->acceptProposedAction();
+    addFiles(paths);
+}
+
+bool PlaybackTab::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_fileList || watched == m_fileList->viewport()) {
+        switch (event->type()) {
+        case QEvent::DragEnter: {
+            auto *e = static_cast<QDragEnterEvent *>(event);
+            if (!playbackPathsFromMime(e->mimeData()).isEmpty()) {
+                e->acceptProposedAction();
+                return true;
+            }
+            break;
+        }
+        case QEvent::DragMove: {
+            auto *e = static_cast<QDragMoveEvent *>(event);
+            if (!playbackPathsFromMime(e->mimeData()).isEmpty()) {
+                e->acceptProposedAction();
+                return true;
+            }
+            break;
+        }
+        case QEvent::Drop: {
+            auto *e = static_cast<QDropEvent *>(event);
+            const QStringList paths = playbackPathsFromMime(e->mimeData());
+            if (!paths.isEmpty()) {
+                e->acceptProposedAction();
+                addFiles(paths);
+                return true;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 void PlaybackTab::onRemoveFile()
@@ -240,9 +453,8 @@ void PlaybackTab::onRemoveFile()
     int row = m_fileList->currentRow();
     if (row < 0) return;
 
-    // 从解析队列中移除
+    // Drop from parse queue; reindex later rows
     m_parseQueue.removeOne(row);
-    // 调整队列中大于该行的行号
     for (int i = 0; i < m_parseQueue.size(); ++i) {
         if (m_parseQueue[i] > row)
             m_parseQueue[i] = m_parseQueue[i] - 1;
@@ -263,10 +475,9 @@ void PlaybackTab::onMoveUp()
     int row = m_fileList->currentRow();
     if (row <= 0) return;
 
-    // 交换 row 和 row-1 的所有 cell 内容
+    // Swap row with row-1 (progress column is a widget)
     for (int col = 0; col < m_fileList->columnCount(); ++col) {
         if (col == 4) {
-            // 进度列是 widget，需要交换 widget
             auto *w1 = m_fileList->cellWidget(row, col);
             auto *w2 = m_fileList->cellWidget(row - 1, col);
             m_fileList->removeCellWidget(row, col);
@@ -295,7 +506,7 @@ void PlaybackTab::onMoveDown()
     int row = m_fileList->currentRow();
     if (row < 0 || row >= m_fileList->rowCount() - 1) return;
 
-    // 交换 row 和 row+1 的所有 cell 内容
+    // Swap row with row+1
     for (int col = 0; col < m_fileList->columnCount(); ++col) {
         if (col == 4) {
             auto *w1 = m_fileList->cellWidget(row, col);
@@ -333,34 +544,7 @@ void PlaybackTab::renumberRows()
 void PlaybackTab::onFileListDoubleClicked(int row, int col)
 {
     Q_UNUSED(col);
-    if (row < 0 || row >= m_fileList->rowCount())
-        return;
-
-    auto *nameItem = m_fileList->item(row, 1);
-    if (!nameItem) return;
-
-    QString path = nameItem->data(Qt::UserRole).toString();
-    if (path.isEmpty()) return;
-
-    // 更新列表中所有行的状态
-    for (int i = 0; i < m_fileList->rowCount(); ++i) {
-        auto *statusItem = m_fileList->item(i, 5);
-        if (statusItem) {
-            if (i == row)
-                statusItem->setText("加载中");
-            else if (statusItem->text() == "已加载" || statusItem->text() == "加载中")
-                statusItem->setText("就绪");
-        }
-        // 重置非当前行的进度条
-        if (i != row) {
-            auto *bar = qobject_cast<QProgressBar*>(m_fileList->cellWidget(i, 4));
-            if (bar && bar->value() >= 100)
-                bar->setValue(0);
-        }
-    }
-
-    m_currentLoadedRow = row;
-    emit fileLoaded(path);
+    loadRowIntoPlayer(row);
 }
 
 void PlaybackTab::onParseTimer()
@@ -388,13 +572,14 @@ void PlaybackTab::parseFileInfo(int row)
     QString path = nameItem->data(Qt::UserRole).toString();
     if (path.isEmpty()) return;
 
-    // 使用工厂创建读取器，读取帧数和时长
     auto reader = CanFileIOFactory::createReader(path);
     if (!reader || !reader->open(path)) {
         auto *framesItem = m_fileList->item(row, 2);
-        if (framesItem) framesItem->setText("解析失败");
+        if (framesItem)
+            framesItem->setText(QStringLiteral("Parse failed"));
         auto *durItem = m_fileList->item(row, 3);
-        if (durItem) durItem->setText("-");
+        if (durItem)
+            durItem->setText(QStringLiteral("-"));
         return;
     }
 
@@ -433,37 +618,35 @@ void PlaybackTab::setProgress(int cur, int total, double curTime, double totalTi
     if (totalTime > 0)
         m_seekSlider->setValue(static_cast<int>(curTime / totalTime * 1000));
     if (totalTime > 0)
-        m_posLabel->setText(QString("位置: %1s / %2s")
+        m_posLabel->setText(QStringLiteral("Position: %1s / %2s")
             .arg(curTime, 0, 'f', 3).arg(totalTime, 0, 'f', 3));
     else
-        m_posLabel->setText(QString("位置: %1s").arg(curTime, 0, 'f', 3));
+        m_posLabel->setText(QStringLiteral("Position: %1s").arg(curTime, 0, 'f', 3));
 
-    // 更新文件列表中当前播放文件的进度条
     if (m_currentLoadedRow >= 0 && m_currentLoadedRow < m_fileList->rowCount()) {
         auto *bar = qobject_cast<QProgressBar*>(m_fileList->cellWidget(m_currentLoadedRow, 4));
         if (bar) {
             if (total > 0) {
                 int pct = static_cast<int>(cur * 100.0 / total);
                 bar->setValue(pct);
-                bar->setFormat(QString("%1% (%2/%3)").arg(pct).arg(cur).arg(total));
+                bar->setFormat(QStringLiteral("%1% (%2/%3)").arg(pct).arg(cur).arg(total));
             } else {
                 bar->setValue(0);
-                bar->setFormat("—");
+                bar->setFormat(QStringLiteral("—"));
             }
         }
 
         auto *statusItem = m_fileList->item(m_currentLoadedRow, 5);
-        if (statusItem && statusItem->text() != "播放中")
-            statusItem->setText("播放中");
+        if (statusItem && statusItem->text() != QStringLiteral("Playing"))
+            statusItem->setText(QStringLiteral("Playing"));
     }
 }
 
 void PlaybackTab::setFileInfo(const QString &fileName, int frames, double duration)
 {
-    m_fileInfoLabel->setText(QString("文件: %1 (%2 帧, %3s)")
+    m_fileInfoLabel->setText(QStringLiteral("File: %1 (%2 frames, %3s)")
         .arg(fileName).arg(frames).arg(duration, 0, 'f', 3));
 
-    // 更新文件列表中匹配行的信息
     for (int i = 0; i < m_fileList->rowCount(); ++i) {
         auto *nameItem = m_fileList->item(i, 1);
         if (nameItem && nameItem->text() == fileName) {
@@ -473,9 +656,9 @@ void PlaybackTab::setFileInfo(const QString &fileName, int frames, double durati
             if (framesItem)
                 framesItem->setText(QString::number(frames));
             if (durItem)
-                durItem->setText(QString::number(duration, 'f', 3) + "s");
+                durItem->setText(QString::number(duration, 'f', 3) + QStringLiteral("s"));
             if (statusItem)
-                statusItem->setText("已加载");
+                statusItem->setText(QStringLiteral("Loaded"));
             m_currentLoadedRow = i;
             break;
         }
@@ -489,7 +672,20 @@ QVariantMap PlaybackTab::configMap() const
     m.insert(QStringLiteral("loop"), m_loopChk->isChecked());
     m.insert(QStringLiteral("autoScroll"), m_autoScrollChk->isChecked());
     m.insert(QStringLiteral("channelIndex"), m_channelCombo->currentIndex());
-    m.insert(QStringLiteral("filter"), m_filterEdit->text());
+    // Active filter only after Apply; otherwise playback sees no filter.
+    if (m_filterApplied) {
+        m.insert(QStringLiteral("direction"), m_appliedDirection);
+        m.insert(QStringLiteral("protocol"), m_appliedProtocol);
+        m.insert(QStringLiteral("filter"), m_appliedFilter);
+    } else {
+        m.insert(QStringLiteral("direction"), QStringLiteral("all"));
+        m.insert(QStringLiteral("protocol"), QStringLiteral("all"));
+        m.insert(QStringLiteral("filter"), QString());
+    }
+    m.insert(QStringLiteral("filterApplied"), m_filterApplied);
+    m.insert(QStringLiteral("directionDraft"), m_directionCombo->currentData().toString());
+    m.insert(QStringLiteral("protocolDraft"), m_protocolCombo->currentData().toString());
+    m.insert(QStringLiteral("filterDraft"), m_filterEdit->text());
     m.insert(QStringLiteral("currentRow"), m_currentLoadedRow);
 
     QStringList files;
@@ -533,8 +729,44 @@ void PlaybackTab::loadConfig(const QVariantMap &map)
         if (ci >= 0 && ci < m_channelCombo->count())
             m_channelCombo->setCurrentIndex(ci);
     }
-    if (map.contains(QStringLiteral("filter")))
-        m_filterEdit->setText(map.value(QStringLiteral("filter")).toString());
+
+    // Restore draft UI first (prefer *Draft keys, fall back to legacy keys).
+    const QString dirDraft = map.value(
+        QStringLiteral("directionDraft"),
+        map.value(QStringLiteral("direction"), QStringLiteral("all"))).toString();
+    const QString protoDraft = map.value(
+        QStringLiteral("protocolDraft"),
+        map.value(QStringLiteral("protocol"), QStringLiteral("all"))).toString();
+    const QString filterDraft = map.value(
+        QStringLiteral("filterDraft"),
+        map.value(QStringLiteral("filter")).toString()).toString();
+
+    {
+        const int idx = m_directionCombo->findData(dirDraft);
+        if (idx >= 0)
+            m_directionCombo->setCurrentIndex(idx);
+    }
+    {
+        const int idx = m_protocolCombo->findData(protoDraft);
+        if (idx >= 0)
+            m_protocolCombo->setCurrentIndex(idx);
+    }
+    m_filterEdit->setText(filterDraft);
+
+    m_filterApplied = map.value(QStringLiteral("filterApplied"), false).toBool();
+    if (m_filterApplied) {
+        m_appliedDirection = map.value(
+            QStringLiteral("direction"), QStringLiteral("all")).toString();
+        m_appliedProtocol = map.value(
+            QStringLiteral("protocol"), QStringLiteral("all")).toString();
+        m_appliedFilter = map.value(QStringLiteral("filter")).toString();
+        m_applyFilterBtn->setText(QStringLiteral("Apply"));
+    } else {
+        m_appliedDirection = QStringLiteral("all");
+        m_appliedProtocol = QStringLiteral("all");
+        m_appliedFilter.clear();
+        m_applyFilterBtn->setText(QStringLiteral("Apply"));
+    }
 
     const QStringList files = map.value(QStringLiteral("files")).toStringList();
     if (!files.isEmpty()) {
@@ -546,25 +778,10 @@ void PlaybackTab::loadConfig(const QVariantMap &map)
         if (!m_parseTimer->isActive())
             m_parseTimer->start();
 
-        const int wantRow = map.value(QStringLiteral("currentRow"), 0).toInt();
-        if (wantRow >= 0 && wantRow < m_fileList->rowCount()) {
-            auto *nameItem = m_fileList->item(wantRow, 1);
-            if (nameItem) {
-                const QString path = nameItem->data(Qt::UserRole).toString();
-                if (!path.isEmpty()) {
-                    m_currentLoadedRow = wantRow;
-                    emit fileLoaded(path);
-                }
-            }
-        } else if (m_fileList->rowCount() > 0) {
-            auto *nameItem = m_fileList->item(0, 1);
-            if (nameItem) {
-                const QString path = nameItem->data(Qt::UserRole).toString();
-                if (!path.isEmpty()) {
-                    m_currentLoadedRow = 0;
-                    emit fileLoaded(path);
-                }
-            }
-        }
+        int wantRow = map.value(QStringLiteral("currentRow"), 0).toInt();
+        if (wantRow < 0 || wantRow >= m_fileList->rowCount())
+            wantRow = 0;
+        if (m_fileList->rowCount() > 0)
+            loadRowIntoPlayer(wantRow);
     }
 }

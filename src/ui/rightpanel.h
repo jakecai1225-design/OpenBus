@@ -2,16 +2,24 @@
 #define RIGHTPANEL_H
 
 #include <QTabWidget>
+#include <QVector>
+#include <QHash>
+
+#include "core/canframe.h"
 
 class QPlainTextEdit;
-class QLineEdit;
-class QPushButton;
 class QLabel;
 class QListWidget;
+class QPushButton;
+class QLineEdit;
 class BookmarkManager;
+class DbcManager;
 
 /**
- * @brief 右侧面板 — AI 对话 + 快捷按钮
+ * @brief Right assist dock — Inspector / Bookmarks / Watch
+ *
+ * Secondary chrome for measurement: inspect selection, jump bookmarks,
+ * watch live ID/signal values. Not a second toolbar.
  */
 class RightPanel : public QTabWidget
 {
@@ -20,47 +28,56 @@ class RightPanel : public QTabWidget
 public:
     explicit RightPanel(QWidget *parent = nullptr);
 
-public slots:
-    void appendAiMessage(const QString &role, const QString &text);
-
-    /// 刷新书签列表
-    void refreshBookmarks();
-    /// 设置书签管理器
     void setBookmarkManager(BookmarkManager *mgr);
+    void setDbcManager(DbcManager *mgr);
+
+public slots:
+    void refreshBookmarks();
+    /// Fill Inspector from a Trace selection (or clear when invalid).
+    void inspectFrame(const CanFrame &frame);
+    void clearInspection();
+    /// Update Watch last-values from a live/playback frame batch.
+    void updateFromFrames(const QVector<CanFrame> &frames);
+    /// Pin a CAN ID (raw hex watch) from Inspector.
+    void addWatchCanId(quint32 canId);
+    /// Pin a decoded signal (id + name).
+    void addWatchSignal(quint32 canId, const QString &signalName);
 
 signals:
-    void aiMessageSent(const QString &text);
-    void recordRequested();
-    void stopRecordRequested();
-    void playRequested();
-    void pauseRequested();
-    void stopRequested();
-    void clearTraceRequested();
-    void autoScrollToggled(bool on);
-    void connectRequested();
-    void disconnectRequested();
-    /// 书签跳转 (frameIndex)
     void bookmarkJumped(int frameIndex);
+    void openAiAgentRequested();
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
-    // AI 对话
-    QPlainTextEdit *m_chatMessages;
-    QLineEdit *m_chatInput;
+    struct WatchEntry {
+        quint32 canId = 0;
+        QString signalName;   ///< empty → watch raw data hex
+        QString lastValue;
+        QString displayName() const;
+    };
 
-    // 书签
-    QListWidget *m_bookmarkList;
+    void rebuildWatchList();
+    void renderInspectorEmpty();
+    void renderInspectorFrame(const CanFrame &frame);
+
+    // Inspector
+    QPlainTextEdit *m_inspectorText = nullptr;
+    QPushButton *m_addWatchBtn = nullptr;
+    QPushButton *m_aiAgentBtn = nullptr;
+    CanFrame m_lastFrame;
+    bool m_hasInspection = false;
+
+    // Bookmarks
+    QListWidget *m_bookmarkList = nullptr;
     BookmarkManager *m_bookmarkMgr = nullptr;
 
-    // 快捷按钮
-    QPushButton *m_recordBtn;
-    QPushButton *m_stopRecBtn;
-    QPushButton *m_playBtn;
-    QPushButton *m_pauseBtn;
-    QPushButton *m_stopBtn;
-    QPushButton *m_clearTraceBtn;
-    QPushButton *m_autoScrollBtn;
-    QPushButton *m_connectBtn;
-    QPushButton *m_disconnectBtn;
+    // Watch
+    QListWidget *m_watchList = nullptr;
+    QLineEdit *m_watchIdEdit = nullptr;
+    QVector<WatchEntry> m_watches;
+    DbcManager *m_dbcMgr = nullptr;
 };
 
 #endif // RIGHTPANEL_H

@@ -260,6 +260,8 @@ ShellContext MainWindow::makeShellContext()
             openDevicePage();
         } else if (action == QStringLiteral("sendPageOpened")) {
             onOpenSendTab();
+        } else if (action == QStringLiteral("openPlaybackTab")) {
+            onOpenPlaybackTab();
         } else if (action == QStringLiteral("measurementToggled")) {
             onMeasurementToggled(arg.toBool());
         } else if (action == QStringLiteral("moduleToggled")) {
@@ -317,6 +319,12 @@ ShellContext MainWindow::makeShellContext()
             const int n = arg.toInt();
             m_selectedLabel->setText(n > 0 ? QStringLiteral("Sel: %1").arg(n)
                                            : QStringLiteral("Sel: 0"));
+        } else if (action == QStringLiteral("inspectFrame")) {
+            if (m_rightPanel)
+                m_rightPanel->inspectFrame(arg.value<CanFrame>());
+        } else if (action == QStringLiteral("clearInspection")) {
+            if (m_rightPanel)
+                m_rightPanel->clearInspection();
         } else if (action == QStringLiteral("traceStatus")) {
             // Concise Trace status from TraceTab (replaces in-tab status strip)
             const QVariantMap info = arg.toMap();
@@ -548,9 +556,12 @@ QVariantMap MainWindow::buildSignalMap(quint32 canId, bool extended, const QStri
 void MainWindow::flowInvoke(const QString &action, const QVariant &arg)
 {
     if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("flow"))) {
-        // signal_generator：打开信号发送 Tab
         if (action == QStringLiteral("sendPageOpened")) {
             onOpenSendTab();
+            return;
+        }
+        if (action == QStringLiteral("openPlaybackTab")) {
+            onOpenPlaybackTab();
             return;
         }
         mod->invoke(action, arg);

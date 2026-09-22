@@ -73,9 +73,9 @@ void MeasurementSetupView::setBlockEnabled(const QString &id, bool enabled)
     if (it == m_blocks.end()) return;
     auto &b = it.value();
     
-    // Signal generator allows toggle via double-click; real/file cannot be directly disabled
+    // Injectors (signal generator / file playback) may toggle; Real/File cannot
     if (b.category == "source") {
-        if (b.id != "signal_generator")
+        if (b.id != "signal_generator" && b.id != "file_playback")
             return;
     }
     if (b.enabled == enabled) return;

@@ -29,20 +29,18 @@ void MeasurementSetupView::onSceneClicked(const QPointF &scenePos)
     if (!b) return;
     
     // Unified interaction rules:
-    // - data source blocks: Real/File mutual exclusion with auto-switch; signal_generator independent toggle
-    // - Filter/CAN parser/Watcher/Record: enabled toggling on single-click
-    // - Trace/Graphic independent blocks: enabled toggling
+    // - Real/File: mutual exclusive source switch
+    // - signal_generator / file_playback: independent injectors into Real
+    // - Filter/CAN parser/Watcher/Record / Trace/Graphic: enable toggle
     if (b->category == "source") {
-        if (b->id == "signal_generator") {
-            // Signal generator: independent toggle
+        if (b->id == "signal_generator" || b->id == "file_playback") {
             setBlockEnabled(b->id, !b->enabled);
-            m_lastClickTime = now;  // Record click time for double-click detection
+            m_lastClickTime = now;
         } else {
-            // Real/File mutual exclusion with auto-activation of current block, deactivation of other
             Source newSrc = (b->id == "source_real") ? Source::Hardware : Source::File;
             setSource(newSrc);
             emit sourceChanged(static_cast<int>(newSrc));
-            m_lastClickTime = now;  // Record click time for double-click detection
+            m_lastClickTime = now;
         }
     } else if (b->category == "filter" || b->category == "database" ||
                b->id == "watcher" || b->id == "record") {
@@ -78,11 +76,13 @@ void MeasurementSetupView::onSceneDoubleClicked(const QPointF &scenePos)
                 emit fileBlockClicked();
             }
         } else if (b->id == "signal_generator") {
-            // Signal generator: double-click opens send configuration
-            // Regardless of enable state, allow opening configuration
-            if (isFastDoubleClick) {
+            // Signal generator: open send page (any enable state)
+            if (isFastDoubleClick)
                 emit sendPageOpened();
-            }
+        } else if (b->id == "file_playback") {
+            // File playback: open playback tab (any enable state)
+            if (isFastDoubleClick)
+                emit playbackPageOpened();
         }
     } else if (b->category == "filter" || b->category == "database") {
         // Filter / CAN parser: same as other config blocks —
