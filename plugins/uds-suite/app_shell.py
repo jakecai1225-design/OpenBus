@@ -82,6 +82,7 @@ class AppShell(QMainWindow):
 
         context.on_frame(self.session.on_frame)
 
+        plugin_shell.wire_close_deactivates(self, PLUGIN_ID)
         saved = state_store.load_state(PLUGIN_ID, default={}) or {}
         self._restore_state(saved)
         goto = state_store.load_state(PLUGIN_ID, "goto.json") or {}

@@ -1,0 +1,220 @@
+{
+  "module": "Com",
+  "definition": "/AUTOSAR/EcucDefs/Com",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "ComGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "ComConfigurationUseDet",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ComConfigurationUseDet",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComConfigurationUseDet"
+        },
+        {
+          "shortName": "ComRetryFailedTransmitRequests",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ComRetryFailedTransmitRequests",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComRetryFailedTransmitRequests"
+        },
+        {
+          "shortName": "ComEnableMDTForCyclicTransmission",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ComEnableMDTForCyclicTransmission",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComEnableMDTForCyclicTransmission"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComConfig",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComConfig",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComIPduGroup",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComIPduGroup",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "ComConfig",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "ComIPduGroupHandleId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "ComIPduGroupHandleId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPduGroup/ComIPduGroupHandleId"
+        },
+        {
+          "shortName": "ComIPduGroupGroupRef",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ComIPduGroupGroupRef",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPduGroup/ComIPduGroupGroupRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComIPdu",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComIPdu",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "ComConfig",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "ComIPduDirection",
+          "kind": "enumeration",
+          "default": "SEND",
+          "summary": "ComIPduDirection",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "SEND",
+            "RECEIVE"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduDirection"
+        },
+        {
+          "shortName": "ComIPduSignalProcessing",
+          "kind": "enumeration",
+          "default": "IMMEDIATE",
+          "summary": "ComIPduSignalProcessing",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "IMMEDIATE",
+            "DEFERRED"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduSignalProcessing"
+        },
+        {
+          "shortName": "ComIPduSize",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "I-PDU length bytes",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 64,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduSize"
+        },
+        {
+          "shortName": "ComPduIdRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "ComPduIdRef",
+          "detail": "",
+          "range": "",
+          "destination": "pdu",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComPduIdRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComSignal",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "ComIPdu",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "ComBitPosition",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "ComBitPosition",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 512,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComBitPosition"
+        },
+        {
+          "shortName": "ComBitSize",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "ComBitSize",
+          "detail": "",
+          "range": "",
+          "min": 1,
+          "max": 64,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComBitSize"
+        },
+        {
+          "shortName": "ComSignalEndianness",
+          "kind": "enumeration",
+          "default": "LITTLE_ENDIAN",
+          "summary": "ComSignalEndianness",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "LITTLE_ENDIAN",
+            "BIG_ENDIAN"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComSignalEndianness"
+        },
+        {
+          "shortName": "ComSignalType",
+          "kind": "enumeration",
+          "default": "UINT8",
+          "summary": "ComSignalType",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "UINT8",
+            "UINT16",
+            "UINT32",
+            "BOOLEAN",
+            "FLOAT32"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComSignalType"
+        },
+        {
+          "shortName": "ComTransferProperty",
+          "kind": "enumeration",
+          "default": "PENDING",
+          "summary": "ComTransferProperty",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "PENDING",
+            "TRIGGERED",
+            "TRIGGERED_WITHOUT_REPETITION"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComTransferProperty"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

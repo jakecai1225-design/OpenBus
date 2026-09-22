@@ -93,6 +93,40 @@ def export_csv(
     return path
 
 
+def notify_plugin_closed(plugin_id: str) -> None:
+    """Tell the host to deactivate this plugin (close window = exit plugin)."""
+    if not plugin_id:
+        return
+    try:
+        from sin._transport import send_notification
+        send_notification("pluginWindowClosed", {"plugin": plugin_id})
+    except Exception:
+        pass
+
+
+def wire_close_deactivates(window: QMainWindow, plugin_id: str) -> None:
+    """On accepted close, notify the host so the plugin is unloaded.
+
+    Domain suites use a plain QMainWindow (not sin.ui.create_window), so
+    without this hook the host keeps the old plugin loaded and the next
+    suite can reuse cached app_shell/pages modules (wrong UI).
+    """
+    if not plugin_id or getattr(window, "_sin_close_wired", None) == plugin_id:
+        return
+    window._sin_close_wired = plugin_id
+    prev = window.closeEvent
+
+    def _close_event(event, _prev=prev, _pid=plugin_id, _win=window):
+        _prev(event)
+        if not event.isAccepted():
+            return
+        if getattr(_win, "_sin_suppress_close_notify", False):
+            return
+        notify_plugin_closed(_pid)
+
+    window.closeEvent = _close_event  # type: ignore[method-assign]
+
+
 def help_label(text: str) -> QLabel:
     """Small muted help / tip strip under toolbars."""
     lbl = QLabel(text)

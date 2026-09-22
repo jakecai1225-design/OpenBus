@@ -1,0 +1,47 @@
+{
+  "module": "MemIf",
+  "definition": "/AUTOSAR/EcucDefs/MemIf",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "MemIfGeneral",
+      "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "MemIfNumberOfDevices",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "MemIfNumberOfDevices",
+          "detail": "",
+          "range": "",
+          "min": 1,
+          "max": 16,
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfGeneral/MemIfNumberOfDevices"
+        },
+        {
+          "shortName": "MemIfDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "MemIfDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfGeneral/MemIfDevErrorDetect"
+        },
+        {
+          "shortName": "MemIfVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "MemIfVersionInfoApi",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfGeneral/MemIfVersionInfoApi"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

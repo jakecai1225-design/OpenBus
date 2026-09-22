@@ -7,12 +7,21 @@ import copy
 import os
 
 from PyQt6.QtWidgets import (
-    QComboBox, QFileDialog, QHBoxLayout, QLabel, QListWidget,
-    QMessageBox, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
-    QWidget, QHeaderView, QAbstractItemView,
+    QAbstractItemView,
+    QComboBox,
+    QFileDialog,
+    QHeaderView,
+    QLabel,
+    QListWidget,
+    QMessageBox,
+    QPushButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
-from _shared import dbcparse, dbc_picker, plugin_shell, state_store
+from _shared import codicons, dbc_picker, dbcparse, plugin_shell, state_store, suite_chrome
 from core import merge_engine
 
 PLUGIN_ID = "dbc-studio"
@@ -21,45 +30,89 @@ PLUGIN_ID = "dbc-studio"
 def build(shell, document, log_fn) -> QWidget:
     root = QWidget()
     layout = QVBoxLayout(root)
-    layout.setContentsMargins(16, 12, 16, 12)
-    layout.setSpacing(12)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
 
-    layout.addWidget(QLabel(
-        "Merge additional DBC files into a working copy. "
-        "Apply result replaces the current document."))
-
-    row = QHBoxLayout()
-    add_btn = QPushButton("Add file…")
-    add_ws = QPushButton("Add workspace…")
-    clear_btn = QPushButton("Clear list")
+    chrome, crow = suite_chrome.make_toolbar()
+    add_btn = QPushButton("Add file")
+    add_btn.setObjectName("GhostButton")
+    add_btn.setFixedHeight(28)
+    codicons.set_button(add_btn, "add")
+    add_ws = QPushButton("Workspace")
+    add_ws.setObjectName("GhostButton")
+    add_ws.setFixedHeight(28)
+    codicons.set_button(add_ws, "database")
+    clear_btn = QPushButton("Clear")
+    clear_btn.setObjectName("GhostButton")
+    clear_btn.setFixedHeight(28)
+    codicons.set_button(clear_btn, "clear")
+    crow.addWidget(add_btn)
+    crow.addWidget(add_ws)
+    crow.addWidget(clear_btn)
+    crow.addWidget(QLabel("Policy"))
     policy = QComboBox()
     policy.addItems(["Skip (keep first)", "Rename later", "Prefer A (keep first)"])
+    policy.setFixedHeight(28)
+    policy.setMinimumWidth(160)
+    crow.addWidget(policy)
+    crow.addStretch(1)
     run_btn = QPushButton("Merge")
+    run_btn.setFixedHeight(28)
+    codicons.set_button(run_btn, "merge", primary=True)
     apply_btn = QPushButton("Apply to Editor")
-    export_btn = QPushButton("Conflict CSV")
-    for w in (add_btn, add_ws, clear_btn):
-        row.addWidget(w)
-    row.addWidget(QLabel("Policy:"))
-    row.addWidget(policy)
-    row.addStretch()
-    row.addWidget(run_btn)
-    row.addWidget(apply_btn)
-    row.addWidget(export_btn)
-    layout.addLayout(row)
+    apply_btn.setFixedHeight(28)
+    codicons.set_button(apply_btn, "apply", primary=True)
+    export_btn = QPushButton("Conflicts CSV")
+    export_btn.setObjectName("GhostButton")
+    export_btn.setFixedHeight(28)
+    codicons.set_button(export_btn, "export")
+    crow.addWidget(run_btn)
+    crow.addWidget(apply_btn)
+    crow.addWidget(export_btn)
+    layout.addWidget(chrome)
 
+    body = QWidget()
+    body.setObjectName("SuiteContent")
+    bl = QVBoxLayout(body)
+    suite_chrome.page_margins(bl)
+    bl.setSpacing(10)
+
+    hint = QLabel(
+        "Merge additional DBC files into a working copy, then Apply to replace "
+        "the open document.")
+    hint.setWordWrap(True)
+    hint.setStyleSheet("color:#78909c;font-size:12px;")
+    bl.addWidget(hint)
+
+    files_head = QLabel("Input files")
+    files_head.setObjectName("SuiteSectionTitle")
+    bl.addWidget(files_head)
     files = QListWidget()
-    layout.addWidget(files)
+    files.setAlternatingRowColors(True)
+    files.setMaximumHeight(100)
+    files.setStyleSheet(
+        "QListWidget { border: 1px solid #EEEEEE; }"
+    )
+    bl.addWidget(files)
 
     summary = QLabel("Add one or more DBC files to merge")
-    layout.addWidget(summary)
+    summary.setStyleSheet("color:#90A4AE;font-size:11px;")
+    bl.addWidget(summary)
 
     tree = QTreeWidget()
+    tree.setObjectName("SuiteMatrix")
     tree.setHeaderLabels(["CAN ID", "Kept", "Other", "Source", "Action"])
     tree.setRootIsDecorated(False)
     tree.setAlternatingRowColors(True)
     tree.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-    layout.addWidget(tree, 1)
+    tree.setStyleSheet(
+        "QTreeWidget#SuiteMatrix { border: 1px solid #EEEEEE; }"
+        "QTreeWidget#SuiteMatrix::item:selected {"
+        " background: #E3F2FD; color: #0D47A1; }"
+    )
+    bl.addWidget(tree, 1)
+    layout.addWidget(body, 1)
 
     state = {"merged": None, "conflicts": []}
 
@@ -98,9 +151,10 @@ def build(shell, document, log_fn) -> QWidget:
                 "0x%X" % cid, kept, other, src, action,
             ]))
         summary.setText(
-            "Merged %d file(s) → %d messages, %d conflicts"
+            "Merged %d file(s) → %d messages · %d conflicts"
             % (len(paths), len(base.messages), len(conflicts)))
         log_fn("Merge", summary.text())
+        plugin_shell.set_status(shell, summary.text(), 4000)
         state_store.save_state(PLUGIN_ID, {
             "merge_policy": pol,
             "merge_inputs": paths,
@@ -112,12 +166,14 @@ def build(shell, document, log_fn) -> QWidget:
             return
         ans = QMessageBox.question(
             shell, "Apply merge",
-            "Replace current document with merge result?\nUnsaved edits will be lost.",
+            "Replace current document with merge result?\n"
+            "Unsaved edits will be lost.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if ans != QMessageBox.StandardButton.Yes:
             return
-        document.set_db(state["merged"], path=document.path, dirty=True)
-        log_fn("Merge", "Applied merge to Editor (%d messages)" % len(document.db.messages))
+        document.apply_db(state["merged"])
+        log_fn("Merge", "Applied merge to Editor (%d messages)" % len(
+            document.db.messages))
         shell.goto_page("editor")
 
     def _on_csv():

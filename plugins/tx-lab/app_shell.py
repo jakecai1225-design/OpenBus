@@ -56,6 +56,7 @@ class AppShell(QMainWindow):
 
         vscode_theme.apply(self)
         plugin_shell.attach_status_bar(self, "Ready")
+        plugin_shell.wire_close_deactivates(self, PLUGIN_ID)
 
         central = QWidget()
         self.setCentralWidget(central)

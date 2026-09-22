@@ -1,1 +1,11 @@
-﻿this is not a valid dbc file ^^^^ 1234 garbage content
+VERSION ""
+
+NS_ :
+
+BS_:
+
+BU_: edc viufl
+
+
+BA_DEF_ BO_ "GenMsgCycleTime" INT 0 65535;
+BA_DEF_ BO_ "GenMsgSendType" ENUM "Cyclic","Event","NotUsed";

@@ -1,0 +1,49 @@
+{
+  "module": "FrNm",
+  "definition": "/AUTOSAR/EcucDefs/FrNm",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "FrNmGlobalConfig",
+      "definition": "/AUTOSAR/EcucDefs/FrNm/FrNmGlobalConfig",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "FrNmChannelConfig",
+          "kind": "string",
+          "default": "",
+          "summary": "FrNmChannelConfig",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrNm/FrNmGlobalConfig/FrNmChannelConfig"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "FrNmGeneral",
+      "definition": "/AUTOSAR/EcucDefs/FrNm/FrNmGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "FrNmMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "FrNmMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/FrNm/FrNmGeneral/FrNmMainFunctionPeriod"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

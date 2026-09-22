@@ -14,6 +14,7 @@ struct PluginInfo
 {
     // ---- 基本信息 ----
     QString name;            ///< 插件唯一标识
+    QString displayName;     ///< UI 展示名（缺省回退 commands[0].title / name）
     QString version;
     QString author;
     QString description;
@@ -38,6 +39,9 @@ struct PluginInfo
     QList<FileFormatContribution> fileFormats;
 
     // ---- 辅助查询 ----
+
+    /// 市场 / 侧栏 / 已安装列表用的友好标题
+    QString title() const;
 
     /// 是否在指定激活事件时触发
     bool hasActivationEvent(const QString &event) const;

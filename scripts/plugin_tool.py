@@ -32,6 +32,8 @@ NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 SUITE_IDS = (
     "uds-suite",
     "dbc-studio",
+    "eds-studio",
+    "autosar-suite",
     "canopen-suite",
     "j1939-suite",
     "obd-suite",
@@ -40,7 +42,6 @@ SUITE_IDS = (
     "protocol-hub",
     "log-analysis",
     "bus-utilities",
-    "autosar-suite",
     "ethercat-suite",
 )
 

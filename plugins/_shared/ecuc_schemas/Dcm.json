@@ -1,0 +1,214 @@
+{
+  "module": "Dcm",
+  "definition": "/AUTOSAR/EcucDefs/Dcm",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "DcmGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DcmDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DcmDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmGeneral/DcmDevErrorDetect"
+        },
+        {
+          "shortName": "DcmVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DcmVersionInfoApi",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmGeneral/DcmVersionInfoApi"
+        },
+        {
+          "shortName": "DcmRespondAllRequest",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DcmRespondAllRequest",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmGeneral/DcmRespondAllRequest"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmDslProtocol",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmConfigSet/DcmDslProtocol",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": "*",
+      "parent": "DcmConfigSet",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "DcmDslProtocolID",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "DcmDslProtocolID",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocol/DcmDslProtocolID"
+        },
+        {
+          "shortName": "DcmDslProtocolBuffer",
+          "kind": "string",
+          "default": "",
+          "summary": "DcmDslProtocolBuffer",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocol/DcmDslProtocolBuffer"
+        },
+        {
+          "shortName": "DcmDslProtocolPriority",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "DcmDslProtocolPriority",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocol/DcmDslProtocolPriority"
+        },
+        {
+          "shortName": "DcmDslProtocolRxPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "DcmDslProtocolRxPduRef",
+          "detail": "",
+          "range": "",
+          "destination": "pdu",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocol/DcmDslProtocolRxPduRef"
+        },
+        {
+          "shortName": "DcmDslProtocolTxPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "DcmDslProtocolTxPduRef",
+          "detail": "",
+          "range": "",
+          "destination": "pdu",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocol/DcmDslProtocolTxPduRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmDsdServiceTable",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmConfigSet/DcmDsdServiceTable",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "DcmConfigSet",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "DcmDsdSidTabServiceId",
+          "kind": "numerical",
+          "default": "0x22",
+          "summary": "DcmDsdSidTabServiceId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsdServiceTable/DcmDsdSidTabServiceId"
+        },
+        {
+          "shortName": "DcmDsdSidTabSubfuncAvail",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DcmDsdSidTabSubfuncAvail",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsdServiceTable/DcmDsdSidTabSubfuncAvail"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmDspSession",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmConfigSet/DcmDspSession",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": "*",
+      "parent": "DcmConfigSet",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "DcmDspSessionLevel",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "DcmDspSessionLevel",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSession/DcmDspSessionLevel"
+        },
+        {
+          "shortName": "DcmDspSessionP2ServerMax",
+          "kind": "numerical",
+          "default": "50",
+          "summary": "DcmDspSessionP2ServerMax",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSession/DcmDspSessionP2ServerMax"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmDspSecurity",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmConfigSet/DcmDspSecurity",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "DcmConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DcmDspSecurityLevel",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "DcmDspSecurityLevel",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurity/DcmDspSecurityLevel"
+        },
+        {
+          "shortName": "DcmDspSecurityADRSize",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "DcmDspSecurityADRSize",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurity/DcmDspSecurityADRSize"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

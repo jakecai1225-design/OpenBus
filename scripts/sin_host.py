@@ -189,26 +189,26 @@ def _evict_modules_under(directory):
 
 
 def _evict_stale_suite_modules(keep_dir):
-    """Remove suite-local modules that do not belong to a still-loaded plugin."""
-    live = set()
-    for entry in _plugins.values():
-        d = entry.get("directory") or ""
-        if d:
-            live.add(os.path.abspath(d))
-    if keep_dir:
-        live.add(os.path.abspath(keep_dir))
-    plugins_root = os.path.dirname(os.path.abspath(keep_dir)) if keep_dir else ""
+    """Drop shared suite tops (app_shell, pages, …) not owned by keep_dir.
+
+    Always evict colliding names from other plugin directories. Skipping eviction
+    while another plugin was still 'live' made the next suite import the
+    previous AppShell and show the wrong window after close then open.
+    """
+    keep = os.path.abspath(keep_dir) if keep_dir else ""
+    plugins_root = os.path.dirname(keep) if keep else ""
     for name, mod in list(sys.modules.items()):
         top = name.split(".", 1)[0]
         if top not in _SUITE_LOCAL_TOPS:
             continue
         f = getattr(mod, "__file__", None)
         if not f:
+            sys.modules.pop(name, None)
             continue
         af = os.path.abspath(f)
         if plugins_root and not _is_under(af, plugins_root):
             continue
-        if any(_is_under(af, d) for d in live):
+        if keep and _is_under(af, keep):
             continue
         sys.modules.pop(name, None)
 

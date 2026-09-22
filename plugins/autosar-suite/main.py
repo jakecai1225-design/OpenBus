@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-"""AUTOSAR Suite — COM, system extract, CanNm, E2E, SecOC."""
+"""AUTOSAR Suite — BSW configurator + live COM / NM / E2E / SecOC.
+
+Display name: AUTOSAR Studio. No BSW/RTE codegen — ARXML handoff only.
+"""
 
 from __future__ import annotations
 
@@ -48,14 +51,21 @@ def activate(context):
     global _shell, _context
     _context = context
     try:
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app is not None:
+            app.setApplicationName("AUTOSAR Studio")
+            app.setApplicationDisplayName("AUTOSAR Studio")
         from app_shell import AppShell
-    except ImportError as exc:
-        msg = "AUTOSAR Suite failed to import: %s" % exc
+        start = _resolve_start_page(context)
+        _shell = AppShell(context, start_page=start)
+    except Exception as exc:
+        import traceback
+        msg = "AUTOSAR Studio failed to start: %s" % exc
         sin.output.append(msg)
+        sin.output.append(traceback.format_exc())
+        _shell = None
         raise RuntimeError(msg) from exc
-
-    start = _resolve_start_page(context)
-    _shell = AppShell(context, start_page=start)
 
     def on_open(*_args):
         page = _resolve_start_page(context)
@@ -63,16 +73,20 @@ def activate(context):
             state_store.clear_state(PLUGIN_ID, "goto.json")
         _open_suite(page)
 
-    context.register_command("autosarSuite.open", on_open, "AUTOSAR Suite")
+    context.register_command("autosarSuite.open", on_open, "AUTOSAR Studio")
+    # Legacy command id from former arxml-studio
+    context.register_command("arxmlStudio.open", on_open, "AUTOSAR Studio")
     _shell.show()
     _shell.raise_()
     _shell.activateWindow()
-    sin.output.append("AUTOSAR Suite ready (COM / System / NM / E2E / SecOC)")
+    sin.output.append(
+        "AUTOSAR Studio ready (Project / Config / COM / Bus / Validate)")
 
 
 def deactivate():
     global _shell, _context
     if _shell is not None:
+        _shell._sin_suppress_close_notify = True
         try:
             _shell.shutdown()
         except Exception:

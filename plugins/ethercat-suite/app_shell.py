@@ -54,6 +54,7 @@ class AppShell(QMainWindow):
 
         vscode_theme.apply(self)
         plugin_shell.attach_status_bar(self, "Ready")
+        plugin_shell.wire_close_deactivates(self, PLUGIN_ID)
         self._wb = suite_chrome.build_workbench(
             self, NAV_PAGES, title="EtherCAT Suite", panel_title="OUTPUT",
             panel_visible=True, sidebar_visible=True)

@@ -1,0 +1,27 @@
+{
+  "module": "LdCom",
+  "definition": "/AUTOSAR/EcucDefs/LdCom",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "LdComConfig",
+      "definition": "/AUTOSAR/EcucDefs/LdCom/LdComConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "LdComIPdu",
+          "kind": "string",
+          "default": "",
+          "summary": "LdComIPdu",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LdCom/LdComConfig/LdComIPdu"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

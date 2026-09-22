@@ -10,12 +10,15 @@ from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -31,7 +34,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import dbcparse
+from _shared import codicons, dbcparse, plugin_shell, vscode_theme
+from core import csv_import
 
 from .bit_layout import BitLayout, _Draft
 
@@ -92,64 +96,112 @@ class _NameIdDialog(QDialog):
 def build(shell, document, log_fn) -> QWidget:
     root = QWidget(shell)
     layout = QVBoxLayout(root)
-    layout.setContentsMargins(8, 6, 8, 6)
-    layout.setSpacing(6)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
 
-    toolbar = QHBoxLayout()
+    toolbar_host = QWidget()
+    toolbar_host.setObjectName("SuiteToolbar")
+    toolbar = QHBoxLayout(toolbar_host)
+    toolbar.setContentsMargins(12, 6, 12, 6)
     toolbar.setSpacing(6)
     filt = _line("", "Filter nodes, messages and signals")
-    filt.setPlaceholderText("Filter")
-    filt.setMaximumWidth(220)
+    filt.setPlaceholderText("Filter tree…")
+    filt.setClearButtonEnabled(True)
+    filt.setMinimumWidth(160)
+    filt.setMaximumWidth(240)
     add_msg = QPushButton("Message")
     add_sig = QPushButton("Signal")
     add_node = QPushButton("Node")
-    delete_btn = QPushButton("Delete")
+    delete_btn = QPushButton("")
+    import_btn = QPushButton("")
+    ai_btn = QPushButton("")
     apply_btn = QPushButton("Apply")
     apply_btn.setObjectName("PrimaryButton")
     for b, tip in (
         (add_msg, "New message"),
         (add_sig, "New signal on the selected message"),
         (add_node, "New node"),
-        (delete_btn, "Delete the selection"),
-        (apply_btn, "Write the definition into the database"),
+        (delete_btn, "Delete selection (Del)"),
+        (import_btn, "Import messages/signals from CSV"),
+        (ai_btn, "Attach selection to AI Agent"),
+        (apply_btn, "Write the definition into the database (Ctrl+Enter)"),
     ):
         b.setFixedHeight(28)
         b.setCursor(Qt.CursorShape.PointingHandCursor)
         b.setToolTip(tip)
         if b is not apply_btn:
             b.setObjectName("GhostButton")
-    toolbar.addWidget(filt)
+    for b in (delete_btn, import_btn, ai_btn):
+        b.setFixedSize(28, 28)
+    codicons.set_button(add_msg, "add")
+    codicons.set_button(add_sig, "add")
+    codicons.set_button(add_node, "add")
+    codicons.set_button(delete_btn, "delete")
+    codicons.set_button(import_btn, "import")
+    codicons.set_button(ai_btn, "beaker")
+    codicons.set_button(apply_btn, "apply", primary=True)
+    toolbar.addWidget(filt, 1)
     toolbar.addWidget(add_msg)
     toolbar.addWidget(add_sig)
     toolbar.addWidget(add_node)
     toolbar.addWidget(delete_btn)
+    toolbar.addWidget(import_btn)
+    toolbar.addWidget(ai_btn)
     toolbar.addStretch(1)
     toolbar.addWidget(apply_btn)
-    layout.addLayout(toolbar)
+    layout.addWidget(toolbar_host)
+
+    body = QWidget()
+    body.setObjectName("SuiteContent")
+    body_l = QVBoxLayout(body)
+    body_l.setContentsMargins(12, 8, 12, 8)
+    body_l.setSpacing(8)
 
     splitter = QSplitter(Qt.Orientation.Horizontal)
+    splitter.setChildrenCollapsible(False)
     tree = QTreeWidget()
     tree.setHeaderLabels(["Name", "ID / layout"])
     tree.setAlternatingRowColors(True)
-    tree.setMinimumWidth(260)
+    tree.setUniformRowHeights(True)
+    tree.setAnimated(True)
+    tree.setIndentation(16)
+    tree.setMinimumWidth(300)
+    tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+    tree.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+    tree.setStyleSheet(
+        "QTreeWidget { border: 1px solid #EEEEEE; }"
+        "QTreeWidget::item { padding: 2px 4px; }"
+        "QTreeWidget::item:selected { background: #E3F2FD; color: #0D47A1; }"
+    )
+    hdr = tree.header()
+    hdr.setStretchLastSection(True)
+    hdr.setMinimumSectionSize(100)
+    hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+    hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+    tree.setColumnWidth(0, 260)
     splitter.addWidget(tree)
 
     stack = QStackedWidget()
-    empty = QLabel("Select a node, message or signal.")
-    empty.setObjectName("SuiteHint")
-    empty.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-    empty.setContentsMargins(12, 12, 12, 12)
+    stack.setMinimumWidth(300)
+    empty = plugin_shell.empty_state_label(
+        "Select a node, message, or signal in the tree.\n"
+        "Or create one with Message / Signal / Node above.")
     stack.addWidget(empty)
 
     msg_page = QWidget()
     msg_form = QFormLayout(msg_page)
     msg_form.setSpacing(8)
     msg_form.setContentsMargins(12, 8, 12, 8)
+    vscode_theme.tune_form(msg_form)
     m_name = _line("", "Message name")
     m_id = _line("", "CAN identifier")
     m_ext = QCheckBox("Extended (29-bit)")
     m_dlc = _spin(0, 64, 8, "Data length")
-    m_sender = _line("", "Transmitter node")
+    m_sender = QComboBox()
+    m_sender.setEditable(True)
+    m_sender.setFixedHeight(28)
+    m_sender.setToolTip(
+        "Transmitter node (BU_). Pick from the network or type a new name.")
     m_cycle = _spin(0, 65535, 0, "GenMsgCycleTime, milliseconds")
     m_comment = _line("", "Message comment")
     msg_form.addRow("Name", m_name)
@@ -165,6 +217,7 @@ def build(shell, document, log_fn) -> QWidget:
     sig_form = QFormLayout(sig_page)
     sig_form.setSpacing(8)
     sig_form.setContentsMargins(12, 8, 12, 8)
+    vscode_theme.tune_form(sig_form)
     s_name = _line("", "Signal name")
     s_start = _spin(0, 512, 0, "Start bit. Intel: LSB. Motorola: MSB. Bit 0 is the LSB of byte 0.")
     s_len = _spin(1, 64, 8, "Bit length")
@@ -187,9 +240,39 @@ def build(shell, document, log_fn) -> QWidget:
     s_comment = _line("", "Signal comment")
     s_values = _line("", "Value descriptions, 0=Off; 1=On")
     s_values.setPlaceholderText("0=Off; 1=On")
+    s_vtable = QComboBox()
+    s_vtable.setFixedHeight(28)
+    s_vtable.setToolTip("Assign a named VAL_TABLE_ (Value Tables page)")
+    rx_wrap = QWidget()
+    rx_col = QVBoxLayout(rx_wrap)
+    rx_col.setContentsMargins(0, 0, 0, 0)
+    rx_col.setSpacing(4)
+    rx_bar = QHBoxLayout()
+    rx_bar.setSpacing(6)
+    rx_hint = QLabel("Check nodes that receive this signal")
+    rx_hint.setStyleSheet("color:#90A4AE;font-size:11px;")
+    rx_bar.addWidget(rx_hint, 1)
+    rx_all = QPushButton("All")
+    rx_all.setObjectName("GhostButton")
+    rx_all.setFixedHeight(24)
+    rx_all.setToolTip("Select all receivers")
+    rx_none = QPushButton("None")
+    rx_none.setObjectName("GhostButton")
+    rx_none.setFixedHeight(24)
+    rx_none.setToolTip("Clear receivers")
+    rx_bar.addWidget(rx_all)
+    rx_bar.addWidget(rx_none)
+    rx_col.addLayout(rx_bar)
     receivers = QListWidget()
-    receivers.setToolTip("Receiver nodes")
-    receivers.setMaximumHeight(120)
+    receivers.setToolTip("Receiver nodes (Rx). Transmitter is set on the message.")
+    receivers.setMaximumHeight(140)
+    receivers.setAlternatingRowColors(True)
+    receivers.setStyleSheet(
+        "QListWidget { border: 1px solid #E0E0E0; border-radius: 2px; }"
+        "QListWidget::item { padding: 2px 4px; }"
+        "QListWidget::item:selected { background: #E3F2FD; color: #0D47A1; }"
+    )
+    rx_col.addWidget(receivers)
     sig_form.addRow("Name", s_name)
     sig_form.addRow("Start bit", s_start)
     sig_form.addRow("Length", s_len)
@@ -203,13 +286,15 @@ def build(shell, document, log_fn) -> QWidget:
     sig_form.addRow("Max", s_max)
     sig_form.addRow("Unit", s_unit)
     sig_form.addRow("Comment", s_comment)
+    sig_form.addRow("Value table", s_vtable)
     sig_form.addRow("Values", s_values)
-    sig_form.addRow("Receivers", receivers)
+    sig_form.addRow("Receivers", rx_wrap)
     stack.addWidget(sig_page)
 
     node_page = QWidget()
     node_form = QFormLayout(node_page)
     node_form.setContentsMargins(12, 8, 12, 8)
+    vscode_theme.tune_form(node_form)
     n_name = _line("", "Node name. Apply renames transmitter and receiver references.")
     node_form.addRow("Node", n_name)
     stack.addWidget(node_page)
@@ -217,6 +302,7 @@ def build(shell, document, log_fn) -> QWidget:
     splitter.addWidget(stack)
 
     layout_host = QWidget()
+    layout_host.setMinimumWidth(260)
     layout_col = QVBoxLayout(layout_host)
     layout_col.setContentsMargins(8, 4, 4, 4)
     layout_title = QLabel("Layout")
@@ -225,8 +311,12 @@ def build(shell, document, log_fn) -> QWidget:
     bit_view = BitLayout()
     layout_col.addWidget(bit_view, 1)
     splitter.addWidget(layout_host)
-    splitter.setSizes([300, 420, 340])
-    layout.addWidget(splitter, 1)
+    splitter.setStretchFactor(0, 3)
+    splitter.setStretchFactor(1, 3)
+    splitter.setStretchFactor(2, 2)
+    splitter.setSizes([380, 400, 300])
+    body_l.addWidget(splitter, 1)
+    layout.addWidget(body, 1)
 
     state = {"kind": None, "can_id": None, "signal": None, "node": None}
 
@@ -249,15 +339,51 @@ def build(shell, document, log_fn) -> QWidget:
         else:
             bit_view.set_message(msg, state["signal"])
 
+    def _node_names():
+        out = []
+        seen = set()
+        for n in document.db.nodes or []:
+            n = (n or "").strip()
+            if n and n != "Vector__XXX" and n not in seen:
+                seen.add(n)
+                out.append(n)
+        return out
+
+    def _fill_sender(current=""):
+        m_sender.blockSignals(True)
+        m_sender.clear()
+        m_sender.addItem("")
+        for n in _node_names():
+            m_sender.addItem(n)
+        text = (current or "").strip()
+        if text and text != "Vector__XXX":
+            idx = m_sender.findText(text)
+            if idx < 0:
+                m_sender.addItem(text)
+                idx = m_sender.findText(text)
+            m_sender.setCurrentIndex(max(0, idx))
+            m_sender.setEditText(text)
+        else:
+            m_sender.setCurrentIndex(0)
+            m_sender.setEditText("")
+        m_sender.blockSignals(False)
+
     def _fill_receivers(selected):
         receivers.clear()
         chosen = set(selected or [])
-        for node in document.db.nodes:
+        for node in _node_names():
             item = QListWidgetItem(node)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(
                 Qt.CheckState.Checked if node in chosen else Qt.CheckState.Unchecked)
             receivers.addItem(item)
+        # Preserve unknown receivers that are not in the node list yet
+        for name in sorted(chosen):
+            if name and name != "Vector__XXX" and name not in _node_names():
+                item = QListWidgetItem(name)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setCheckState(Qt.CheckState.Checked)
+                receivers.addItem(item)
 
     def _checked_receivers():
         out = []
@@ -266,6 +392,12 @@ def build(shell, document, log_fn) -> QWidget:
             if item.checkState() == Qt.CheckState.Checked:
                 out.append(item.text())
         return out
+
+    def _rx_set_all(checked):
+        state_flag = (
+            Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+        for i in range(receivers.count()):
+            receivers.item(i).setCheckState(state_flag)
 
     def _show_message(msg):
         state["kind"] = "message"
@@ -276,7 +408,7 @@ def build(shell, document, log_fn) -> QWidget:
         m_id.setText("0x%X" % msg.can_id)
         m_ext.setChecked(bool(msg.extended))
         m_dlc.setValue(int(msg.dlc))
-        m_sender.setText(msg.sender or "")
+        _fill_sender(msg.sender or "")
         m_cycle.setValue(int(msg.cycle_time or 0))
         m_comment.setText(msg.comment or "")
         stack.setCurrentWidget(msg_page)
@@ -306,6 +438,14 @@ def build(shell, document, log_fn) -> QWidget:
         s_unit.setText(sig.unit or "")
         s_comment.setText(sig.comment or "")
         s_values.setText(_fmt_value_table(sig.value_table))
+        s_vtable.blockSignals(True)
+        s_vtable.clear()
+        s_vtable.addItem("(inline / none)", "")
+        for tname in sorted(document.db.value_tables.keys()):
+            s_vtable.addItem(tname, tname)
+        idx = s_vtable.findData(getattr(sig, "value_table_name", "") or "")
+        s_vtable.setCurrentIndex(max(0, idx))
+        s_vtable.blockSignals(False)
         _fill_receivers(sig.receivers)
         stack.setCurrentWidget(sig_page)
         _preview()
@@ -344,7 +484,7 @@ def build(shell, document, log_fn) -> QWidget:
         net.addChild(msgs_item)
         for cid in sorted(db.messages.keys()):
             m = db.messages[cid]
-            detail = "0x%X   DLC %d   %s" % (cid, m.dlc, m.sender or "")
+            detail = "0x%X · %d" % (cid, m.dlc)
             visible_sigs = []
             for s in m.signals:
                 if query and query not in s.name.lower() and query not in m.name.lower() and query not in detail.lower():
@@ -353,6 +493,9 @@ def build(shell, document, log_fn) -> QWidget:
             if query and query not in m.name.lower() and query not in detail.lower() and not visible_sigs:
                 continue
             mi = QTreeWidgetItem([m.name, detail])
+            mi.setToolTip(0, m.name)
+            mi.setToolTip(1, "ID 0x%X  DLC %d  Tx %s" % (
+                cid, m.dlc, m.sender or ""))
             mi.setData(0, Qt.ItemDataRole.UserRole, ("message", cid, None))
             msgs_item.addChild(mi)
             if select_can_id == cid and not select_signal:
@@ -364,7 +507,13 @@ def build(shell, document, log_fn) -> QWidget:
                     s.start_bit, s.bit_length,
                     "1" if s.little_endian else "0",
                     "-" if s.is_signed else "+")
+                if s.mux_type == "multiplexor":
+                    sdetail = "M  " + sdetail
+                elif s.mux_type == "multiplexed":
+                    sdetail = "m%d  %s" % (int(s.mux_value or 0), sdetail)
                 si = QTreeWidgetItem([s.name, sdetail])
+                si.setToolTip(0, s.name)
+                si.setToolTip(1, sdetail)
                 si.setData(0, Qt.ItemDataRole.UserRole, ("signal", cid, s.name))
                 mi.addChild(si)
                 if select_can_id == cid and select_signal == s.name:
@@ -377,6 +526,16 @@ def build(shell, document, log_fn) -> QWidget:
         if select_item is not None:
             tree.setCurrentItem(select_item)
             tree.scrollToItem(select_item)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, _fit_tree_columns)
+
+    def _fit_tree_columns():
+        """Auto-size Name so indented tree labels stay readable."""
+        tree.resizeColumnToContents(0)
+        name_w = max(240, min(tree.columnWidth(0) + 28, 480))
+        total = max(tree.viewport().width(), 400)
+        name_w = min(name_w, max(220, total - 160))
+        tree.setColumnWidth(0, name_w)
 
     def _on_select():
         item = tree.currentItem()
@@ -427,7 +586,7 @@ def build(shell, document, log_fn) -> QWidget:
             msg.name = new_name
             msg.extended = m_ext.isChecked()
             msg.dlc = m_dlc.value()
-            msg.sender = m_sender.text().strip() or "Vector__XXX"
+            msg.sender = m_sender.currentText().strip() or "Vector__XXX"
             msg.cycle_time = m_cycle.value()
             msg.comment = m_comment.text().strip()
             if new_id != cid:
@@ -438,7 +597,8 @@ def build(shell, document, log_fn) -> QWidget:
             if msg.sender not in document.db.nodes:
                 document.db.nodes.append(msg.sender)
             document.mark_dirty(True)
-            log_fn("Editor", "Message %s  0x%X" % (msg.name, cid))
+            log_fn("Editor", "Message %s  0x%X  Tx=%s" % (
+                msg.name, cid, msg.sender))
             _rebuild_tree(cid, None)
             return
         if kind == "signal":
@@ -465,13 +625,21 @@ def build(shell, document, log_fn) -> QWidget:
             sig.maximum = _f(s_max, 0.0)
             sig.unit = s_unit.text().strip()
             sig.comment = s_comment.text().strip()
-            sig.value_table = _parse_value_table(s_values.text())
+            vname = s_vtable.currentData() or ""
+            if vname and vname in document.db.value_tables:
+                sig.value_table = dict(document.db.value_tables[vname])
+                sig.value_table_name = vname
+                s_values.setText(_fmt_value_table(sig.value_table))
+            else:
+                sig.value_table = _parse_value_table(s_values.text())
+                sig.value_table_name = ""
             sig.receivers = _checked_receivers() or ["Vector__XXX"]
             for r in sig.receivers:
                 if r not in document.db.nodes:
                     document.db.nodes.append(r)
             document.mark_dirty(True)
-            log_fn("Editor", "Signal %s / %s" % (msg.name, sig.name))
+            log_fn("Editor", "Signal %s / %s  Rx=%s" % (
+                msg.name, sig.name, ",".join(sig.receivers)))
             state["signal"] = sig.name
             _rebuild_tree(cid, sig.name)
             return
@@ -583,54 +751,138 @@ def build(shell, document, log_fn) -> QWidget:
         _rebuild_tree(select_node=name)
 
     def _on_delete():
+        items = tree.selectedItems()
+        targets = []
+        for it in items:
+            data = it.data(0, Qt.ItemDataRole.UserRole)
+            if not data:
+                continue
+            kind = data[0]
+            if kind == "message" and data[1] is not None:
+                targets.append(("message", data[1]))
+            elif kind == "signal" and data[1] is not None and data[2]:
+                targets.append(("signal", data[1], data[2]))
+            elif kind == "node" and data[2]:
+                targets.append(("node", data[2]))
+        # Fall back to current form selection
+        if not targets and state["kind"]:
+            if state["kind"] == "message":
+                targets.append(("message", state["can_id"]))
+            elif state["kind"] == "signal":
+                targets.append(("signal", state["can_id"], state["signal"]))
+            elif state["kind"] == "node":
+                targets.append(("node", state["node"]))
+        if not targets:
+            return
+        seen = set()
+        uniq = []
+        for t in targets:
+            if t in seen:
+                continue
+            seen.add(t)
+            uniq.append(t)
+        uniq.sort(key=lambda t: 0 if t[0] == "signal" else (1 if t[0] == "message" else 2))
+        label = "%d object(s)" % len(uniq)
+        if len(uniq) == 1:
+            t = uniq[0]
+            if t[0] == "message":
+                m = document.db.messages.get(t[1])
+                label = m.name if m else "0x%X" % t[1]
+            elif t[0] == "signal":
+                label = t[2]
+            else:
+                label = t[1]
+        if QMessageBox.question(
+                root, "Delete",
+                "Delete %s?" % label) != QMessageBox.StandardButton.Yes:
+            return
+        for t in uniq:
+            if t[0] == "signal":
+                msg = document.db.messages.get(t[1])
+                if msg:
+                    msg.signals = [s for s in msg.signals if s.name != t[2]]
+            elif t[0] == "message":
+                if t[1] in document.db.messages:
+                    del document.db.messages[t[1]]
+            elif t[0] == "node":
+                name = t[1]
+                document.db.nodes = [n for n in document.db.nodes if n != name]
+                if "Vector__XXX" not in document.db.nodes:
+                    document.db.nodes.append("Vector__XXX")
+                for msg in document.db.messages.values():
+                    if msg.sender == name:
+                        msg.sender = "Vector__XXX"
+                    for sig in msg.signals:
+                        sig.receivers = [
+                            "Vector__XXX" if r == name else r
+                            for r in sig.receivers]
+        document.mark_dirty(True)
+        log_fn("Editor", "Deleted %d object(s)" % len(uniq))
+        state["kind"] = None
+        _rebuild_tree()
+
+    def _on_import_csv():
+        path, _ = QFileDialog.getOpenFileName(
+            root, "Import CSV", "", "CSV (*.csv);;All (*)")
+        if not path:
+            return
+        stats = csv_import.import_csv_file(document.db, path)
+        document.mark_dirty(True)
+        msg = "Imported +%d messages · +%d signals" % (
+            stats["messages"], stats["signals"])
+        if stats.get("errors"):
+            msg += " · %d row errors" % len(stats["errors"])
+            log_fn("WARN", "; ".join(stats["errors"][:5]))
+        log_fn("Editor", msg)
+        plugin_shell.set_status(shell, msg, 4000)
+        _rebuild_tree()
+
+    def _on_ai_attach():
         kind = state["kind"]
+        payload = {
+            "kind": "dbc_selection",
+            "title": "DBC · %s" % document.display_name(),
+            "path": document.path or "",
+        }
         if kind == "message" and state["can_id"] is not None:
-            cid = state["can_id"]
-            msg = document.db.messages.get(cid)
-            label = msg.name if msg else str(cid)
-            if QMessageBox.question(
-                    root, "Delete message",
-                    "Delete %s and its signals?" % label) != QMessageBox.StandardButton.Yes:
-                return
-            del document.db.messages[cid]
-            document.mark_dirty(True)
-            log_fn("Editor", "Deleted message 0x%X" % cid)
-            state["kind"] = None
-            _rebuild_tree()
-            return
-        if kind == "signal":
+            msg = document.db.messages.get(state["can_id"])
+            if msg:
+                payload["message"] = {
+                    "id": "0x%X" % msg.can_id,
+                    "name": msg.name,
+                    "dlc": msg.dlc,
+                    "sender": msg.sender,
+                    "signals": [s.name for s in msg.signals],
+                }
+        elif kind == "signal":
             msg = _msg()
-            name = state["signal"]
-            if not msg or not name:
-                return
-            if QMessageBox.question(
-                    root, "Delete signal",
-                    "Delete %s?" % name) != QMessageBox.StandardButton.Yes:
-                return
-            msg.signals = [s for s in msg.signals if s.name != name]
-            document.mark_dirty(True)
-            log_fn("Editor", "Deleted signal %s" % name)
-            _rebuild_tree(msg.can_id, None)
-            return
-        if kind == "node" and state["node"]:
-            name = state["node"]
-            if QMessageBox.question(
-                    root, "Delete node",
-                    "Remove node %s? References become Vector__XXX." % name
-            ) != QMessageBox.StandardButton.Yes:
-                return
-            document.db.nodes = [n for n in document.db.nodes if n != name]
-            if "Vector__XXX" not in document.db.nodes:
-                document.db.nodes.append("Vector__XXX")
-            for msg in document.db.messages.values():
-                if msg.sender == name:
-                    msg.sender = "Vector__XXX"
-                for sig in msg.signals:
-                    sig.receivers = [
-                        "Vector__XXX" if r == name else r for r in sig.receivers]
-            document.mark_dirty(True)
-            log_fn("Editor", "Deleted node %s" % name)
-            _rebuild_tree()
+            sig = msg.signal(state["signal"]) if msg else None
+            if msg and sig:
+                payload["message"] = {"id": "0x%X" % msg.can_id, "name": msg.name}
+                payload["signal"] = {
+                    "name": sig.name,
+                    "start_bit": sig.start_bit,
+                    "length": sig.bit_length,
+                    "factor": sig.factor,
+                    "offset": sig.offset,
+                    "unit": sig.unit,
+                }
+        elif kind == "node" and state["node"]:
+            payload["node"] = state["node"]
+        else:
+            payload["summary"] = {
+                "messages": len(document.db.messages),
+                "nodes": len(document.db.nodes),
+            }
+        try:
+            import sin
+            sin.ai.attach(payload)
+            log_fn("Editor", "Attached selection to AI Agent")
+            plugin_shell.set_status(shell, "Attached to AI Agent", 2500)
+        except Exception as exc:
+            QMessageBox.information(
+                root, "AI Attach",
+                "Could not reach AI Agent:\n%s" % exc)
 
     def _pick_signal(name):
         cid = state["can_id"]
@@ -653,6 +905,13 @@ def build(shell, document, log_fn) -> QWidget:
     for w in (s_start, s_len):
         w.valueChanged.connect(lambda _v: _preview())
     s_endian.currentIndexChanged.connect(lambda _i: _preview())
+
+    def _on_vtable_picked(_i):
+        vname = s_vtable.currentData() or ""
+        if vname and vname in document.db.value_tables:
+            s_values.setText(_fmt_value_table(document.db.value_tables[vname]))
+
+    s_vtable.currentIndexChanged.connect(_on_vtable_picked)
     tree.currentItemChanged.connect(lambda _c, _p: _on_select())
     filt.textChanged.connect(lambda _t: _rebuild_tree(
         state.get("can_id"), state.get("signal"), state.get("node")))
@@ -661,6 +920,14 @@ def build(shell, document, log_fn) -> QWidget:
     add_sig.clicked.connect(_on_add_signal)
     add_node.clicked.connect(_on_add_node)
     delete_btn.clicked.connect(_on_delete)
+    import_btn.clicked.connect(_on_import_csv)
+    ai_btn.clicked.connect(_on_ai_attach)
+    rx_all.clicked.connect(lambda: _rx_set_all(True))
+    rx_none.clicked.connect(lambda: _rx_set_all(False))
+    from PyQt6.QtGui import QKeySequence, QShortcut
+    QShortcut(QKeySequence(Qt.Key.Key_Delete), tree, _on_delete)
+    QShortcut(QKeySequence("Ctrl+Return"), root, _on_apply)
+    splitter.splitterMoved.connect(lambda *_: _fit_tree_columns())
     document.on_changed(lambda: _rebuild_tree(
         state.get("can_id"), state.get("signal"), state.get("node")))
     _rebuild_tree()

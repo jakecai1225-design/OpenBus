@@ -1,0 +1,177 @@
+{
+  "module": "Dem",
+  "definition": "/AUTOSAR/EcucDefs/Dem",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "DemGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DemDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DemDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemDevErrorDetect"
+        },
+        {
+          "shortName": "DemAgingCycleCounterThreshold",
+          "kind": "numerical",
+          "default": "40",
+          "summary": "DemAgingCycleCounterThreshold",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemAgingCycleCounterThreshold"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DemConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/Dem/DemConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": []
+    },
+    {
+      "shortName": "DemEventParameter",
+      "definition": "/AUTOSAR/EcucDefs/Dem/DemConfigSet/DemEventParameter",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "DemConfigSet",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "DemEventId",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "DemEventId",
+          "detail": "",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemEventParameter/DemEventId"
+        },
+        {
+          "shortName": "DemEventKind",
+          "kind": "enumeration",
+          "default": "BSW",
+          "summary": "DemEventKind",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "BSW",
+            "SWC"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemEventParameter/DemEventKind"
+        },
+        {
+          "shortName": "DemDTCClassRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "DemDTCClassRef",
+          "detail": "",
+          "range": "",
+          "destination": "container",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemEventParameter/DemDTCClassRef"
+        },
+        {
+          "shortName": "DemEventFailureCycleCounterThreshold",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "DemEventFailureCycleCounterThreshold",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemEventParameter/DemEventFailureCycleCounterThreshold"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DemOperationCycle",
+      "definition": "/AUTOSAR/EcucDefs/Dem/DemConfigSet/DemOperationCycle",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": "*",
+      "parent": "DemConfigSet",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "DemOperationCycleId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "DemOperationCycleId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemOperationCycle/DemOperationCycleId"
+        },
+        {
+          "shortName": "DemOperationCycleType",
+          "kind": "enumeration",
+          "default": "POWER",
+          "summary": "DemOperationCycleType",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "POWER",
+            "IGNITION",
+            "OBD_DCY",
+            "WARMUP"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemOperationCycle/DemOperationCycleType"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DemDTCClass",
+      "definition": "/AUTOSAR/EcucDefs/Dem/DemConfigSet/DemDTCClass",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "DemConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DemDtcValue",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "DemDtcValue",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemDTCClass/DemDtcValue"
+        },
+        {
+          "shortName": "DemDTCSeverity",
+          "kind": "enumeration",
+          "default": "NO_SEVERITY",
+          "summary": "DemDTCSeverity",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "NO_SEVERITY",
+            "MAINTENANCE",
+            "CHECK_NOW"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemDTCClass/DemDTCSeverity"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

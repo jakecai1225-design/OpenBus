@@ -1,0 +1,73 @@
+{
+  "module": "EcuC",
+  "definition": "/AUTOSAR/EcucDefs/EcuC",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "EcucConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": []
+    },
+    {
+      "shortName": "EcucPduCollection",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucConfigSet/EcucPduCollection",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "EcucConfigSet",
+      "seed": false,
+      "params": [],
+      "subContainers": []
+    },
+    {
+      "shortName": "EcucPdu",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPduCollection/EcucPdu",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "EcucPduCollection",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "EcucPduId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "EcucPduId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPdu/EcucPduId"
+        },
+        {
+          "shortName": "EcucPduLength",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "EcucPduLength",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 64,
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPdu/EcucPduLength"
+        },
+        {
+          "shortName": "EcucPduType",
+          "kind": "enumeration",
+          "default": "NORMAL",
+          "summary": "EcucPduType",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "NORMAL",
+            "TP"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPdu/EcucPduType"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

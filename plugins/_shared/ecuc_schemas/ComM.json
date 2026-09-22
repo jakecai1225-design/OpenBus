@@ -1,0 +1,152 @@
+{
+  "module": "ComM",
+  "definition": "/AUTOSAR/EcucDefs/ComM",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "ComMGeneral",
+      "definition": "/AUTOSAR/EcucDefs/ComM/ComMGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "ComMModeLimitationEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ComMModeLimitationEnabled",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMGeneral/ComMModeLimitationEnabled"
+        },
+        {
+          "shortName": "ComMPncSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ComMPncSupport",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMGeneral/ComMPncSupport"
+        },
+        {
+          "shortName": "ComMMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "ComMMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMGeneral/ComMMainFunctionPeriod"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComMConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/ComM/ComMConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComMChannel",
+      "definition": "/AUTOSAR/EcucDefs/ComM/ComMConfigSet/ComMChannel",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": "*",
+      "parent": "ComMConfigSet",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "ComMChannelId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "ComMChannelId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMChannel/ComMChannelId"
+        },
+        {
+          "shortName": "ComMBusType",
+          "kind": "enumeration",
+          "default": "CAN",
+          "summary": "ComMBusType",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "CAN",
+            "LIN",
+            "FR",
+            "ETH"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMChannel/ComMBusType"
+        },
+        {
+          "shortName": "ComMMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "ComMMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMChannel/ComMMainFunctionPeriod"
+        },
+        {
+          "shortName": "ComMNmVariant",
+          "kind": "enumeration",
+          "default": "FULL",
+          "summary": "ComMNmVariant",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "FULL",
+            "LIGHT",
+            "NONE",
+            "PASSIVE"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMChannel/ComMNmVariant"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComMUser",
+      "definition": "/AUTOSAR/EcucDefs/ComM/ComMConfigSet/ComMUser",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "ComMConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "ComMUserIdentifier",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "ComMUserIdentifier",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMUser/ComMUserIdentifier"
+        },
+        {
+          "shortName": "ComMUserChannel",
+          "kind": "reference",
+          "default": "",
+          "summary": "ComMUserChannel",
+          "detail": "",
+          "range": "",
+          "destination": "container",
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMUser/ComMUserChannel"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

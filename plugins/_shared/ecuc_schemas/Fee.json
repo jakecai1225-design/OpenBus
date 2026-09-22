@@ -1,0 +1,91 @@
+{
+  "module": "Fee",
+  "definition": "/AUTOSAR/EcucDefs/Fee",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "FeeGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Fee/FeeGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "FeeDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "FeeDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeGeneral/FeeDevErrorDetect"
+        },
+        {
+          "shortName": "FeeVirtualPageSize",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "FeeVirtualPageSize",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeGeneral/FeeVirtualPageSize"
+        },
+        {
+          "shortName": "FeeMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "FeeMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeGeneral/FeeMainFunctionPeriod"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "FeeBlockConfiguration",
+      "definition": "/AUTOSAR/EcucDefs/Fee/FeeBlockConfiguration",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "FeeBlockNumber",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "FeeBlockNumber",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeBlockConfiguration/FeeBlockNumber"
+        },
+        {
+          "shortName": "FeeBlockSize",
+          "kind": "numerical",
+          "default": "64",
+          "summary": "FeeBlockSize",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeBlockConfiguration/FeeBlockSize"
+        },
+        {
+          "shortName": "FeeImmediateData",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "FeeImmediateData",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeBlockConfiguration/FeeImmediateData"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

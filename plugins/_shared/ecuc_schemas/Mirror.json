@@ -1,0 +1,56 @@
+{
+  "module": "Mirror",
+  "definition": "/AUTOSAR/EcucDefs/Mirror",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "MirrorConfig",
+      "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "MirrorNetwork",
+          "kind": "string",
+          "default": "",
+          "summary": "MirrorNetwork",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorConfig/MirrorNetwork"
+        },
+        {
+          "shortName": "MirrorSourceNetwork",
+          "kind": "string",
+          "default": "",
+          "summary": "MirrorSourceNetwork",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorConfig/MirrorSourceNetwork"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "MirrorGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "MirrorDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "MirrorDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorGeneral/MirrorDevErrorDetect"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

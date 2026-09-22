@@ -1,0 +1,145 @@
+{
+  "module": "CanIf",
+  "definition": "/AUTOSAR/EcucDefs/CanIf",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "CanIfPublicCfg",
+      "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanIfPublicDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CanIfPublicDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicDevErrorDetect"
+        },
+        {
+          "shortName": "CanIfPublicMultipleDrvSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CanIfPublicMultipleDrvSupport",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicMultipleDrvSupport"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanIfInitCfg",
+      "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanIfTxPduCfg",
+      "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfTxPduCfg",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "CanIfInitCfg",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "CanIfTxPduCanId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIfTxPduCanId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfTxPduCfg/CanIfTxPduCanId"
+        },
+        {
+          "shortName": "CanIfTxPduDlc",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "CanIfTxPduDlc",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 64,
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfTxPduCfg/CanIfTxPduDlc"
+        },
+        {
+          "shortName": "CanIfTxPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanIfTxPduRef",
+          "detail": "",
+          "range": "",
+          "destination": "pdu",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfTxPduCfg/CanIfTxPduRef"
+        },
+        {
+          "shortName": "CanIfTxPduType",
+          "kind": "enumeration",
+          "default": "STATIC",
+          "summary": "CanIfTxPduType",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "STATIC",
+            "DYNAMIC"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfTxPduCfg/CanIfTxPduType"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanIfRxPduCfg",
+      "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfRxPduCfg",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "CanIfInitCfg",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanIfRxPduCanId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIfRxPduCanId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfRxPduCfg/CanIfRxPduCanId"
+        },
+        {
+          "shortName": "CanIfRxPduDlc",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "CanIfRxPduDlc",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfRxPduCfg/CanIfRxPduDlc"
+        },
+        {
+          "shortName": "CanIfRxPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanIfRxPduRef",
+          "detail": "",
+          "range": "",
+          "destination": "pdu",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfRxPduCfg/CanIfRxPduRef"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

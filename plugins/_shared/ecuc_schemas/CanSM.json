@@ -1,0 +1,91 @@
+{
+  "module": "CanSM",
+  "definition": "/AUTOSAR/EcucDefs/CanSM",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "CanSMGeneral",
+      "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanSMDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CanSMDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMGeneral/CanSMDevErrorDetect"
+        },
+        {
+          "shortName": "CanSMMainFunctionTimePeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "CanSMMainFunctionTimePeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMGeneral/CanSMMainFunctionTimePeriod"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanSMConfiguration",
+      "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMConfiguration",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanSMManagerNetwork",
+      "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMConfiguration/CanSMManagerNetwork",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": "*",
+      "parent": "CanSMConfiguration",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "CanSMComMNetworkHandleRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanSMComMNetworkHandleRef",
+          "detail": "",
+          "range": "",
+          "destination": "container",
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMManagerNetwork/CanSMComMNetworkHandleRef"
+        },
+        {
+          "shortName": "CanSMBorTimeL1",
+          "kind": "numerical",
+          "default": "100",
+          "summary": "CanSMBorTimeL1",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMManagerNetwork/CanSMBorTimeL1"
+        },
+        {
+          "shortName": "CanSMBorTimeL2",
+          "kind": "numerical",
+          "default": "200",
+          "summary": "CanSMBorTimeL2",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMManagerNetwork/CanSMBorTimeL2"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

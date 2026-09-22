@@ -1,0 +1,47 @@
+{
+  "module": "FrSM",
+  "definition": "/AUTOSAR/EcucDefs/FrSM",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "FrSMConfig",
+      "definition": "/AUTOSAR/EcucDefs/FrSM/FrSMConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "FrSMCluster",
+          "kind": "string",
+          "default": "",
+          "summary": "FrSMCluster",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrSM/FrSMConfig/FrSMCluster"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "FrSMGeneral",
+      "definition": "/AUTOSAR/EcucDefs/FrSM/FrSMGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "FrSMDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "FrSMDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrSM/FrSMGeneral/FrSMDevErrorDetect"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

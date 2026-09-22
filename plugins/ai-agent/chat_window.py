@@ -170,7 +170,17 @@ class ChatWindow(QMainWindow):
         super().showEvent(event)
         activity_snapshot.update(active_plugin="ai-agent", active_page="chat")
 
+    def closeEvent(self, event):
+        super().closeEvent(event)
+        if event.isAccepted() and not getattr(self, "_sin_suppress_close_notify", False):
+            try:
+                from _shared import plugin_shell
+                plugin_shell.notify_plugin_closed("ai-agent")
+            except Exception:
+                pass
+
     def shutdown(self):
+        self._sin_suppress_close_notify = True
         if self._embed is not None:
             try:
                 self._embed.close_guest()

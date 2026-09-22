@@ -1,0 +1,65 @@
+{
+  "module": "TcpIp",
+  "definition": "/AUTOSAR/EcucDefs/TcpIp",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "TcpIpConfig",
+      "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "TcpIpCtrl",
+          "kind": "string",
+          "default": "",
+          "summary": "TcpIpCtrl",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpConfig/TcpIpCtrl"
+        },
+        {
+          "shortName": "TcpIpLocalAddr",
+          "kind": "string",
+          "default": "",
+          "summary": "TcpIpLocalAddr",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpConfig/TcpIpLocalAddr"
+        },
+        {
+          "shortName": "TcpIpSocketOwner",
+          "kind": "string",
+          "default": "",
+          "summary": "TcpIpSocketOwner",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpConfig/TcpIpSocketOwner"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "TcpIpGeneral",
+      "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "TcpIpDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TcpIpDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpGeneral/TcpIpDevErrorDetect"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

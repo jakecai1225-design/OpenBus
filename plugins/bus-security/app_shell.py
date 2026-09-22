@@ -58,6 +58,7 @@ class AppShell(QMainWindow):
         self._page_index = {key: i for i, (key, _) in enumerate(NAV_PAGES)}
 
         plugin_shell.attach_status_bar(self, "Ready — Stop All aborts TX")
+        plugin_shell.wire_close_deactivates(self, PLUGIN_ID)
 
         central = QWidget()
         self.setCentralWidget(central)

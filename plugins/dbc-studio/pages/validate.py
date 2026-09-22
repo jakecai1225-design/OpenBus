@@ -3,38 +3,90 @@
 
 from __future__ import annotations
 
-import json
-import os
-
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
-    QCheckBox, QFileDialog, QHBoxLayout, QHeaderView, QLabel,
-    QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
-    QAbstractItemView, QScrollArea, QFrame,
+    QAbstractItemView,
+    QCheckBox,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
-from _shared import plugin_shell, vscode_theme
+from _shared import codicons, plugin_shell, suite_chrome
 from core import lint_engine
 
 
 def build(shell, document, log_fn) -> QWidget:
     root = QWidget()
     layout = QVBoxLayout(root)
-    layout.setContentsMargins(16, 12, 16, 12)
-    layout.setSpacing(12)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
+
+    chrome, crow = suite_chrome.make_toolbar()
+    run_btn = QPushButton("Run lint")
+    run_btn.setFixedHeight(28)
+    codicons.set_button(run_btn, "validate", primary=True)
+    save_rules_btn = QPushButton("Save rules")
+    save_rules_btn.setObjectName("GhostButton")
+    save_rules_btn.setFixedHeight(28)
+    codicons.set_button(save_rules_btn, "save")
+    crow.addWidget(run_btn)
+    crow.addWidget(save_rules_btn)
+    crow.addStretch(1)
+    for text, tip, slot_name in (
+        ("CSV", "Export findings as CSV", "csv"),
+        ("JSON", "Export findings as JSON", "json"),
+        ("SARIF", "Export SARIF for CI", "sarif"),
+    ):
+        b = QPushButton(text)
+        b.setObjectName("GhostButton")
+        b.setFixedHeight(28)
+        b.setToolTip(tip)
+        codicons.set_button(b, "export")
+        crow.addWidget(b)
+        if slot_name == "csv":
+            export_csv_btn = b
+        elif slot_name == "json":
+            export_json_btn = b
+        else:
+            export_sarif_btn = b
+    layout.addWidget(chrome)
+
+    body = QWidget()
+    body.setObjectName("SuiteContent")
+    bl = QVBoxLayout(body)
+    suite_chrome.page_margins(bl)
+    bl.setSpacing(10)
+
+    hint = QLabel(
+        "Consistency check — double-click a finding to jump to Editor "
+        "(same job as CANdb++, with CSV / JSON / SARIF for CI).")
+    hint.setWordWrap(True)
+    hint.setStyleSheet("color:#78909c;font-size:12px;")
+    bl.addWidget(hint)
 
     rules = lint_engine.load_rules()
     rule_checks = {}
-
-    rules_card, rules_lay = vscode_theme.block(
-        "Rules", "Toggle lint rules, then Run lint on the open document.")
+    rules_head = QLabel("Rules")
+    rules_head.setObjectName("SuiteSectionTitle")
+    bl.addWidget(rules_head)
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
-    scroll.setMaximumHeight(140)
+    scroll.setMaximumHeight(120)
     scroll.setFrameShape(QFrame.Shape.NoFrame)
     inner = QWidget()
     inner_l = QVBoxLayout(inner)
+    inner_l.setContentsMargins(0, 0, 0, 0)
+    inner_l.setSpacing(4)
     for rid, cfg in rules.items():
         cb = QCheckBox("%s — %s" % (rid, cfg.get("title", rid)))
         cb.setChecked(bool(cfg.get("enabled", True)))
@@ -42,33 +94,26 @@ def build(shell, document, log_fn) -> QWidget:
         inner_l.addWidget(cb)
     inner_l.addStretch()
     scroll.setWidget(inner)
-    rules_lay.addWidget(scroll)
-    layout.addWidget(rules_card)
-
-    btns = QHBoxLayout()
-    run_btn = QPushButton("Run lint")
-    save_rules_btn = QPushButton("Save rule toggles")
-    export_csv_btn = QPushButton("Export CSV")
-    export_json_btn = QPushButton("Export JSON")
-    export_sarif_btn = QPushButton("Export SARIF")
-    btns.addWidget(run_btn)
-    btns.addWidget(save_rules_btn)
-    btns.addStretch()
-    btns.addWidget(export_csv_btn)
-    btns.addWidget(export_json_btn)
-    btns.addWidget(export_sarif_btn)
-    layout.addLayout(btns)
+    bl.addWidget(scroll)
 
     summary = QLabel("Run lint on the current document")
-    layout.addWidget(summary)
+    summary.setStyleSheet("color:#90A4AE;font-size:11px;")
+    bl.addWidget(summary)
 
     tree = QTreeWidget()
+    tree.setObjectName("SuiteMatrix")
     tree.setHeaderLabels(["Severity", "Rule", "Location", "Message"])
     tree.setRootIsDecorated(False)
     tree.setAlternatingRowColors(True)
     tree.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     tree.header().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-    layout.addWidget(tree, 1)
+    tree.setStyleSheet(
+        "QTreeWidget#SuiteMatrix { border: 1px solid #EEEEEE; }"
+        "QTreeWidget#SuiteMatrix::item:selected {"
+        " background: #E3F2FD; color: #0D47A1; }"
+    )
+    bl.addWidget(tree, 1)
+    layout.addWidget(body, 1)
 
     findings_cache = []
 
@@ -99,13 +144,14 @@ def build(shell, document, log_fn) -> QWidget:
             else:
                 n_info += 1
             item = QTreeWidgetItem([
-                sev, f.get("rule", ""), f.get("location", ""), f.get("message", ""),
+                sev, f.get("rule", ""), f.get("location", ""),
+                f.get("message", ""),
             ])
             item.setData(0, Qt.ItemDataRole.UserRole, f)
             item.setForeground(0, colors.get(sev, QColor("#333")))
             tree.addTopLevelItem(item)
         summary.setText(
-            "Findings: %d  (errors=%d warnings=%d info=%d)"
+            "%d findings · %d errors · %d warnings · %d info"
             % (len(findings_cache), n_err, n_warn, n_info))
         log_fn("Validate", "Lint: %d findings" % len(findings_cache))
         plugin_shell.set_status(shell, summary.text(), 4000)
@@ -161,4 +207,5 @@ def build(shell, document, log_fn) -> QWidget:
     document.on_changed(lambda: summary.setText(
         "Document changed — re-run lint (%s)" % document.display_name()))
 
+    root.run_lint = _on_run
     return root

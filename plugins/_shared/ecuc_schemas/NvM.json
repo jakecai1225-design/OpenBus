@@ -1,0 +1,110 @@
+{
+  "module": "NvM",
+  "definition": "/AUTOSAR/EcucDefs/NvM",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "NvMCommon",
+      "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "NvMDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "NvMDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMDevErrorDetect"
+        },
+        {
+          "shortName": "NvMMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "NvMMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMMainFunctionPeriod"
+        },
+        {
+          "shortName": "NvMApiConfigClass",
+          "kind": "enumeration",
+          "default": "2",
+          "summary": "NvMApiConfigClass",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "1",
+            "2",
+            "3"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMApiConfigClass"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "NvMBlockDescriptor",
+      "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "NvMNvramBlockIdentifier",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "NvMNvramBlockIdentifier",
+          "detail": "",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMNvramBlockIdentifier"
+        },
+        {
+          "shortName": "NvMBlockJobPriority",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "NvMBlockJobPriority",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMBlockJobPriority"
+        },
+        {
+          "shortName": "NvMBlockLength",
+          "kind": "numerical",
+          "default": "4",
+          "summary": "NvMBlockLength",
+          "detail": "",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMBlockLength"
+        },
+        {
+          "shortName": "NvMBlockManagementType",
+          "kind": "enumeration",
+          "default": "NATIVE",
+          "summary": "NvMBlockManagementType",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "NATIVE",
+            "REDUNDANT",
+            "DATASET"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMBlockManagementType"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

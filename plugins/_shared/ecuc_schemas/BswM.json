@@ -1,0 +1,170 @@
+{
+  "module": "BswM",
+  "definition": "/AUTOSAR/EcucDefs/BswM",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "BswMGeneral",
+      "definition": "/AUTOSAR/EcucDefs/BswM/BswMGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "BswMDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "BswMDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMGeneral/BswMDevErrorDetect"
+        },
+        {
+          "shortName": "BswMMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "BswMMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMGeneral/BswMMainFunctionPeriod"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "BswMConfig",
+      "definition": "/AUTOSAR/EcucDefs/BswM/BswMConfig",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": []
+    },
+    {
+      "shortName": "BswMModeRequestPort",
+      "definition": "/AUTOSAR/EcucDefs/BswM/BswMConfig/BswMModeRequestPort",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "BswMConfig",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "BswMModeRequestSource",
+          "kind": "enumeration",
+          "default": "BSW",
+          "summary": "BswMModeRequestSource",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "SWC",
+            "BSW",
+            "CDM"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMModeRequestPort/BswMModeRequestSource"
+        },
+        {
+          "shortName": "BswMRequestProcessing",
+          "kind": "enumeration",
+          "default": "IMMEDIATE",
+          "summary": "BswMRequestProcessing",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "IMMEDIATE",
+            "DEFERRED"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMModeRequestPort/BswMRequestProcessing"
+        },
+        {
+          "shortName": "BswMModeRequestMaxQueueSize",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "BswMModeRequestMaxQueueSize",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMModeRequestPort/BswMModeRequestMaxQueueSize"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "BswMActionList",
+      "definition": "/AUTOSAR/EcucDefs/BswM/BswMConfig/BswMActionList",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "BswMConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "BswMAbortOnFail",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "BswMAbortOnFail",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMActionList/BswMAbortOnFail"
+        },
+        {
+          "shortName": "BswMExecution",
+          "kind": "enumeration",
+          "default": "TRIGGER",
+          "summary": "BswMExecution",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "TRIGGER",
+            "CONDITION"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMActionList/BswMExecution"
+        },
+        {
+          "shortName": "BswMActionListPriority",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "BswMActionListPriority",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMActionList/BswMActionListPriority"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "BswMRule",
+      "definition": "/AUTOSAR/EcucDefs/BswM/BswMConfig/BswMRule",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "BswMConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "BswMNestedExecutionOnly",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "BswMNestedExecutionOnly",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMRule/BswMNestedExecutionOnly"
+        },
+        {
+          "shortName": "BswMRuleExpression",
+          "kind": "string",
+          "default": "",
+          "summary": "BswMRuleExpression",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMRule/BswMRuleExpression"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

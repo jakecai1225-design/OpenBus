@@ -1,0 +1,36 @@
+{
+  "module": "E2EXf",
+  "definition": "/AUTOSAR/EcucDefs/E2EXf",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "E2EXfTransformation",
+      "definition": "/AUTOSAR/EcucDefs/E2EXf/E2EXfTransformation",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "E2EXfProfile",
+          "kind": "string",
+          "default": "",
+          "summary": "E2EXfProfile",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/E2EXf/E2EXfTransformation/E2EXfProfile"
+        },
+        {
+          "shortName": "E2EXfContainer",
+          "kind": "string",
+          "default": "",
+          "summary": "E2EXfContainer",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/E2EXf/E2EXfTransformation/E2EXfContainer"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

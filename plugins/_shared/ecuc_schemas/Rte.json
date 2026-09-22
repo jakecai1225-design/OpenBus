@@ -1,0 +1,70 @@
+{
+  "module": "Rte",
+  "definition": "/AUTOSAR/EcucDefs/Rte",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "RteGeneration",
+      "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneration",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "RteOptimizationMode",
+          "kind": "enumeration",
+          "default": "RUNTIME",
+          "summary": "RteOptimizationMode",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "SIZE",
+            "RUNTIME",
+            "NONE"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneration/RteOptimizationMode"
+        },
+        {
+          "shortName": "RteDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "RteDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneration/RteDevErrorDetect"
+        },
+        {
+          "shortName": "RteVfbTraceEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "RteVfbTraceEnabled",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneration/RteVfbTraceEnabled"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "RteSwComponentInstance",
+      "definition": "/AUTOSAR/EcucDefs/Rte/RteSwComponentInstance",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "RteSoftwareComponentInstanceRef",
+          "kind": "string",
+          "default": "",
+          "summary": "RteSoftwareComponentInstanceRef",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteSwComponentInstance/RteSoftwareComponentInstanceRef"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

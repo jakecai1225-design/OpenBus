@@ -67,7 +67,23 @@ class BitLayout(QWidget):
     def set_message(self, msg, highlight: str | None = None, draft=None):
         nbytes = max(1, min(int(getattr(msg, "dlc", 8) or 8), 64))
         cells = {}
-        for i, sig in enumerate(getattr(msg, "signals", []) or []):
+        signals = getattr(msg, "signals", []) or []
+        # When a multiplexed signal is selected, emphasize matching mux group
+        focus_mux = None
+        focus_mux_val = None
+        for sig in signals:
+            if highlight and sig.name == highlight:
+                if sig.mux_type == "multiplexor":
+                    focus_mux = "multiplexor"
+                elif sig.mux_type == "multiplexed":
+                    focus_mux = "multiplexed"
+                    focus_mux_val = sig.mux_value
+                break
+        for i, sig in enumerate(signals):
+            # Dim multiplexed signals that do not match the focused mux value
+            if focus_mux == "multiplexed" and sig.mux_type == "multiplexed":
+                if sig.mux_value != focus_mux_val and sig.name != highlight:
+                    continue
             src = sig
             if draft is not None and sig.name == highlight:
                 src = draft
@@ -79,7 +95,19 @@ class BitLayout(QWidget):
                     cells[pos] = (color, selected, sig.name)
         self._rows = nbytes
         self._cells = cells
-        self._legend = highlight or ("%d signals" % len(getattr(msg, "signals", []) or []))
+        if highlight:
+            hs = next((s for s in signals if s.name == highlight), None)
+            if hs and hs.mux_type == "multiplexor":
+                self._legend = "%s  [M multiplexor]" % highlight
+            elif hs and hs.mux_type == "multiplexed":
+                self._legend = "%s  [m%d]" % (highlight, int(hs.mux_value or 0))
+            else:
+                self._legend = highlight
+        else:
+            n_mux = sum(1 for s in signals if s.mux_type)
+            self._legend = "%d signals%s" % (
+                len(signals),
+                (" · %d mux" % n_mux) if n_mux else "")
         cell = self._cell
         self.setMinimumHeight(18 + nbytes * (cell + 1) + 22)
         self.setMinimumWidth(40 + 8 * (cell + 1))

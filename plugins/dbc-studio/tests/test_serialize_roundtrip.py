@@ -32,9 +32,13 @@ BO_ 256 EngineData: 8 ECU1
 
 CM_ BO_ 256 \"Engine periodic\";
 CM_ SG_ 256 RPM \"Engine speed\";
+VAL_TABLE_ TempState 0 \"Cold\" 1 \"Warm\" 2 \"Hot\" ;
 VAL_ 256 Temp 0 \"Cold\" 1 \"Warm\" ;
 BA_DEF_ BO_ \"GenMsgCycleTime\" INT 0 65535;
+BA_DEF_ BO_ \"GenMsgSendType\" ENUM \"Cyclic\",\"Event\",\"NotUsed\";
+BA_DEF_DEF_ \"GenMsgCycleTime\" 10;
 BA_ \"GenMsgCycleTime\" BO_ 256 10;
+BA_ \"GenMsgSendType\" BO_ 256 0;
 """
 
 
@@ -80,6 +84,52 @@ def test_lint_and_merge():
         print("PASS merge")
 
 
+def test_communications_matrix_model():
+    from pages.matrix import build_matrix_model
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, "sample.dbc")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(SAMPLE)
+        db = dbcparse.parse_file(path)
+        nodes, rows = build_matrix_model(db)
+        assert "ECU1" in nodes and "ECU2" in nodes
+        assert any(r["signal"] == "RPM" for r in rows)
+        rpm = next(r for r in rows if r["signal"] == "RPM")
+        assert rpm["cells"].get("ECU1", (None,))[0] == "tx"
+        assert rpm["cells"].get("ECU2", (None,))[0] == "rx"
+        print("PASS communications matrix model")
+
+
+def test_value_tables_and_attributes_roundtrip():
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, "sample.dbc")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(SAMPLE)
+        db = dbcparse.parse_file(path)
+        assert "TempState" in db.value_tables
+        assert db.value_tables["TempState"][2] == "Hot"
+        assert db.attr_def("GenMsgCycleTime") is not None
+        assert db.attr_def("GenMsgSendType") is not None
+        msg = db.messages[256]
+        assert msg.cycle_time == 10
+        assert msg.attributes.get("GenMsgSendType") == "Cyclic"
+        out = os.path.join(td, "out.dbc")
+        text = dbcparse.serialize(db)
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(text)
+        db2 = dbcparse.parse_file(out)
+        assert "TempState" in db2.value_tables
+        assert db2.messages[256].cycle_time == 10
+        assert db2.attr_def("GenMsgSendType").enum_values[:2] == ["Cyclic", "Event"]
+        # Assign named table onto Temp
+        db2.messages[256].signal("Temp").value_table = dict(db2.value_tables["TempState"])
+        db2.messages[256].signal("Temp").value_table_name = "TempState"
+        text2 = dbcparse.serialize(db2)
+        assert "VAL_TABLE_ TempState" in text2
+        assert 'VAL_ 256 Temp' in text2
+        print("PASS value tables + attributes round-trip")
+
+
 def test_vector_layout():
     """CANdb++ bit numbering: bit 0 is the LSB of byte 0."""
     data = bytearray(8)
@@ -93,8 +143,56 @@ def test_vector_layout():
     print("PASS vector bit layout")
 
 
+def test_undo_redo():
+    doc = DbcDocument()
+    doc.db.nodes.append("ECU1")
+    doc.mark_dirty(True)
+    assert doc.dirty and doc.can_undo()
+    assert "ECU1" in doc.db.nodes
+    doc.undo()
+    assert "ECU1" not in doc.db.nodes
+    assert doc.can_redo()
+    doc.redo()
+    assert "ECU1" in doc.db.nodes
+    print("PASS undo / redo")
+
+
+def test_csv_import():
+    from core import csv_import
+    db = dbcparse.DbcFile()
+    db.nodes = ["Vector__XXX"]
+    stats = csv_import.import_csv_text(db, csv_import.template_csv())
+    assert stats["messages"] >= 1
+    assert stats["signals"] >= 2
+    assert 0x100 in db.messages
+    assert db.messages[0x100].signal("RPM") is not None
+    assert db.messages[0x100].signal("RPM").factor == 0.25
+    print("PASS csv import")
+
+
+def test_timing_lite():
+    from core import timing_lite
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, "sample.dbc")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(SAMPLE)
+        db = dbcparse.parse_file(path)
+        result = timing_lite.estimate_bus_load(db, 500000, True)
+        assert result["cyclic"] >= 1
+        assert result["load_pct"] > 0
+        assert timing_lite.load_band(10) == "ok"
+        assert timing_lite.load_band(40) == "warn"
+        assert timing_lite.load_band(60) == "high"
+        print("PASS timing lite (load=%.2f%%)" % result["load_pct"])
+
+
 if __name__ == "__main__":
     test_roundtrip()
     test_lint_and_merge()
+    test_communications_matrix_model()
+    test_value_tables_and_attributes_roundtrip()
     test_vector_layout()
+    test_undo_redo()
+    test_csv_import()
+    test_timing_lite()
     print("All dbc-studio tests passed")

@@ -1,0 +1,100 @@
+{
+  "module": "EcuM",
+  "definition": "/AUTOSAR/EcucDefs/EcuM",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "EcuMGeneral",
+      "definition": "/AUTOSAR/EcucDefs/EcuM/EcuMGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EcuMDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EcuMDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EcuM/EcuMGeneral/EcuMDevErrorDetect"
+        },
+        {
+          "shortName": "EcuMMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "EcuMMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/EcuM/EcuMGeneral/EcuMMainFunctionPeriod"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EcuMConfiguration",
+      "definition": "/AUTOSAR/EcucDefs/EcuM/EcuMConfiguration",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EcuMDefaultAppMode",
+          "kind": "string",
+          "default": "OSDEFAULTAPPMODE",
+          "summary": "EcuMDefaultAppMode",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EcuM/EcuMConfiguration/EcuMDefaultAppMode"
+        },
+        {
+          "shortName": "EcuMNormalMcuModeRef",
+          "kind": "string",
+          "default": "",
+          "summary": "EcuMNormalMcuModeRef",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EcuM/EcuMConfiguration/EcuMNormalMcuModeRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EcuMWakeupSource",
+      "definition": "/AUTOSAR/EcucDefs/EcuM/EcuMWakeupSource",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "EcuMWakeupSourceId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "EcuMWakeupSourceId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/EcuM/EcuMWakeupSource/EcuMWakeupSourceId"
+        },
+        {
+          "shortName": "EcuMValidationTimeout",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "EcuMValidationTimeout",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/EcuM/EcuMWakeupSource/EcuMValidationTimeout"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

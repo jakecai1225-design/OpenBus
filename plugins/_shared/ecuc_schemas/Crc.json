@@ -1,0 +1,45 @@
+{
+  "module": "Crc",
+  "definition": "/AUTOSAR/EcucDefs/Crc",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "CrcGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "Crc_8_Mode",
+          "kind": "string",
+          "default": "",
+          "summary": "Crc_8_Mode",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral/Crc_8_Mode"
+        },
+        {
+          "shortName": "Crc_16_Mode",
+          "kind": "string",
+          "default": "",
+          "summary": "Crc_16_Mode",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral/Crc_16_Mode"
+        },
+        {
+          "shortName": "Crc_32_Mode",
+          "kind": "string",
+          "default": "",
+          "summary": "Crc_32_Mode",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral/Crc_32_Mode"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

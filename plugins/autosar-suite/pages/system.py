@@ -28,19 +28,20 @@ from core.ipdu import Ipdu, Signal
 from widgets import combo, ghost, primary, spin, table
 
 
-def _tree_tab(session):
+def _tree_tab(session, shell=None):
     page = QWidget()
     root = QVBoxLayout(page)
     root.setContentsMargins(12, 8, 12, 8)
     root.setSpacing(8)
     row = QHBoxLayout()
     open_btn = ghost("Open", "folder", "Import ARXML COM extract")
+    bsw_btn = ghost("BSW Config", "extensions", "Open BSW module configurator")
     demo = ghost("Demo", "refresh", "Load BodyStatus sample")
     add_pdu = ghost("Add PDU", "add", "Append an empty I-PDU")
     add_sig = ghost("Add signal", "add", "Append a signal on the selected PDU")
     remove = ghost("Remove", "delete", "Remove selected PDU or signal")
     apply = primary("Apply", "Write property form back into the session")
-    for w in (open_btn, demo, add_pdu, add_sig, remove, apply):
+    for w in (open_btn, bsw_btn, demo, add_pdu, add_sig, remove, apply):
         row.addWidget(w)
     row.addStretch(1)
     root.addLayout(row)
@@ -204,7 +205,14 @@ def _tree_tab(session):
             session.load_arxml(path)
             session.arxml_path = path
 
+    def open_bsw():
+        if shell is not None and hasattr(shell, "goto_page"):
+            shell.goto_page("bsw")
+        else:
+            session.log("SYS", "-", b"", "BSW page unavailable")
+
     open_btn.clicked.connect(open_file)
+    bsw_btn.clicked.connect(open_bsw)
     demo.clicked.connect(session.load_sample)
     add_pdu.clicked.connect(do_add_pdu)
     add_sig.clicked.connect(do_add_sig)
@@ -303,19 +311,25 @@ def _export_tab(session):
 
 
 def build(parent, session, _log):
+    """System page — Tree / Validate / Export as in-page tabs (Bus chrome owns System/NM/E2E/SecOC)."""
     if not hasattr(session, "arxml_path"):
         session.arxml_path = ""
+    root = QWidget()
+    layout = QVBoxLayout(root)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
     bar = QTabBar()
-    bar.setObjectName("SuiteEditorTabs")
+    bar.setObjectName("SuiteInnerTabs")
     bar.setDrawBase(False)
     bar.setExpanding(False)
     bar.setDocumentMode(True)
     for name in ("Tree", "Validate", "Export"):
         bar.addTab(name)
     stack = QStackedWidget()
-    stack.addWidget(_tree_tab(session))
+    stack.addWidget(_tree_tab(session, parent))
     stack.addWidget(_validate_tab(session))
     stack.addWidget(_export_tab(session))
     bar.currentChanged.connect(stack.setCurrentIndex)
-    parent._system_tabs = bar
-    return stack
+    layout.addWidget(bar)
+    layout.addWidget(stack, 1)
+    return root

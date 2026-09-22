@@ -31,7 +31,8 @@ _DBC_SG = re.compile(
 class Signal:
     __slots__ = ("name", "start_bit", "bit_length", "little_endian", "is_signed",
                  "factor", "offset", "minimum", "maximum", "unit", "receivers",
-                 "comment", "value_table", "mux_type", "mux_value", "attributes")
+                 "comment", "value_table", "value_table_name", "mux_type",
+                 "mux_value", "attributes")
 
     def __init__(self):
         self.name = ""
@@ -47,6 +48,7 @@ class Signal:
         self.receivers = []
         self.comment = ""
         self.value_table = {}
+        self.value_table_name = ""
         self.mux_type = ""      # '' / 'multiplexor' / 'multiplexed'
         self.mux_value = None
         self.attributes = {}    # BA_ SG_ name -> value (str)
@@ -87,13 +89,33 @@ class Message:
         return None
 
 
+class AttrDef:
+    """BA_DEF_ entry (CANdb++ user-defined attribute)."""
+
+    __slots__ = ("name", "object_type", "value_type", "minimum", "maximum",
+                 "enum_values", "default")
+
+    def __init__(self, name="", object_type="", value_type="STRING"):
+        self.name = name
+        self.object_type = object_type  # "" | "BU_" | "BO_" | "SG_"
+        self.value_type = value_type    # INT FLOAT STRING ENUM HEX
+        self.minimum = None
+        self.maximum = None
+        self.enum_values = []
+        self.default = None
+
+
 class DbcFile:
     def __init__(self):
         self.version = ""
         self.nodes = []
-        self.messages = {}       # can_id(已去扩展位) -> Message（保持插入序）
+        self.messages = {}       # can_id -> Message
         self.warnings = []
         self.path = ""
+        self.attribute_defs = []           # list[AttrDef]
+        self.network_attributes = {}       # BA_ "name" value;
+        self.node_attributes = {}          # node -> {attr: value}
+        self.value_tables = {}             # name -> {int: str}
 
     def message_by_name(self, name):
         for m in self.messages.values():
@@ -101,9 +123,26 @@ class DbcFile:
                 return m
         return None
 
+    def attr_def(self, name):
+        for d in self.attribute_defs:
+            if d.name == name:
+                return d
+        return None
+
+    def ensure_default_attr_defs(self):
+        if not self.attr_def("GenMsgCycleTime"):
+            d = AttrDef("GenMsgCycleTime", "BO_", "INT")
+            d.minimum, d.maximum, d.default = 0, 65535, 0
+            self.attribute_defs.append(d)
+        if not self.attr_def("GenMsgSendType"):
+            d = AttrDef("GenMsgSendType", "BO_", "ENUM")
+            d.enum_values = ["Cyclic", "Event", "NotUsed"]
+            d.default = "Cyclic"
+            self.attribute_defs.append(d)
+
 
 # ------------------------------------------------------------
-#  位抽取 / 写入
+#  Bit extract / write
 # ------------------------------------------------------------
 
 def signal_bit_numbers(start, length, little_endian):
@@ -246,7 +285,6 @@ def parse_file(path):
             text = f.read()
 
     cur_msg = None
-    send_type_names = {}
 
     for lineno, line in enumerate(text.splitlines(), 1):
         stripped = line.strip()
@@ -278,7 +316,7 @@ def parse_file(path):
             elif stripped.startswith("SG_ ") and cur_msg is not None:
                 m = _DBC_SG.match(line)
                 if not m:
-                    db.warnings.append("%d: 无法解析 SG_ 行: %s" % (lineno, stripped[:60]))
+                    db.warnings.append("%d: cannot parse SG_ line: %s" % (lineno, stripped[:60]))
                     continue
                 sig = Signal()
                 sig.name = m.group(1)
@@ -318,69 +356,158 @@ def parse_file(path):
                     msg = db.messages.get(mid)
                     if msg:
                         msg.comment = _unquote(toks[3]) if len(toks) > 3 else ""
+            elif stripped.startswith("VAL_TABLE_"):
+                toks = _tokens(stripped)
+                # VAL_TABLE_ <name> <num> "desc" ... ;
+                if len(toks) >= 2:
+                    tname = toks[1]
+                    table = {}
+                    i = 2
+                    while i + 1 < len(toks):
+                        if toks[i] == ";":
+                            break
+                        try:
+                            val = int(toks[i], 0)
+                        except ValueError:
+                            break
+                        table[val] = _unquote(toks[i + 1])
+                        i += 2
+                    db.value_tables[tname] = table
             elif stripped.startswith("VAL_ "):
                 toks = _tokens(stripped)
                 # VAL_ <id> <sig> <num> "desc" ... ;
                 if len(toks) >= 4:
-                    mid = int(toks[1]) & _ID_MASK
+                    mid = int(toks[1], 0) & _ID_MASK
                     sig_name = toks[2]
                     msg = db.messages.get(mid)
                     sig = msg.signal(sig_name) if msg else None
                     if sig:
                         i = 3
-                        while i + 1 < len(toks):
-                            if toks[i] == ";":
-                                break
-                            try:
-                                val = int(toks[i])
-                            except ValueError:
-                                break
-                            sig.value_table[val] = _unquote(toks[i + 1])
-                            i += 2
+                        # Named table reference only (rare): VAL_ id sig TableName ;
+                        if (i + 1 < len(toks)
+                                and toks[i] != ";"
+                                and not toks[i].lstrip("-").isdigit()
+                                and not toks[i].startswith("0x")
+                                and (i + 1 >= len(toks) or toks[i + 1] == ";")):
+                            tname = toks[i]
+                            if tname in db.value_tables:
+                                sig.value_table = dict(db.value_tables[tname])
+                                sig.value_table_name = tname
+                        else:
+                            while i + 1 < len(toks):
+                                if toks[i] == ";":
+                                    break
+                                try:
+                                    val = int(toks[i], 0)
+                                except ValueError:
+                                    break
+                                sig.value_table[val] = _unquote(toks[i + 1])
+                                i += 2
+            elif stripped.startswith("BA_DEF_DEF_"):
+                # BA_DEF_DEF_ "name" <default>;
+                m = re.match(
+                    r'^BA_DEF_DEF_\s+"([^"]+)"\s+(.+);\s*$', stripped)
+                if m:
+                    name, raw = m.group(1), m.group(2).strip()
+                    d = db.attr_def(name)
+                    if d is None:
+                        d = AttrDef(name)
+                        db.attribute_defs.append(d)
+                    d.default = _unquote(raw) if raw.startswith('"') else raw
             elif stripped.startswith("BA_DEF_"):
-                # BA_DEF_ BO_ "GenMsgSendType" ENUM "Cyclic","Event",...;
-                m = re.match(r'^BA_DEF_\s+(?:BO_\s+)?"([^"]+)"\s+ENUM\s+(.*);\s*$', stripped)
-                if m and m.group(1) == "GenMsgSendType":
-                    send_type_names = [_unquote(t) for t in
-                                       re.findall(r'"(?:[^"\\]|\\.)*"', m.group(2))]
+                # BA_DEF_ [BU_|BO_|SG_] "name" TYPE ...;
+                m = re.match(
+                    r'^BA_DEF_\s+(?:(BU_|BO_|SG_)\s+)?"([^"]+)"\s+(\w+)\s*(.*);\s*$',
+                    stripped)
+                if m:
+                    obj, name, vtype, rest = (
+                        m.group(1) or "", m.group(2), m.group(3).upper(),
+                        (m.group(4) or "").strip())
+                    d = db.attr_def(name)
+                    if d is None:
+                        d = AttrDef(name, obj, vtype)
+                        db.attribute_defs.append(d)
+                    else:
+                        d.object_type = obj or d.object_type
+                        d.value_type = vtype or d.value_type
+                    if vtype == "ENUM":
+                        d.enum_values = [
+                            _unquote(t) for t in
+                            re.findall(r'"(?:[^"\\]|\\.)*"', rest)]
+                    elif vtype in ("INT", "HEX", "FLOAT"):
+                        nums = re.findall(r'[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?', rest)
+                        if len(nums) >= 2:
+                            try:
+                                d.minimum = float(nums[0]) if vtype == "FLOAT" else int(float(nums[0]))
+                                d.maximum = float(nums[1]) if vtype == "FLOAT" else int(float(nums[1]))
+                            except ValueError:
+                                pass
             elif stripped.startswith("BA_ "):
                 m_sg = re.match(
                     r'^BA_\s+"([^"]+)"\s+SG_\s+(\d+)\s+(\S+)\s+(.+);\s*$', stripped)
                 m_bo = re.match(
                     r'^BA_\s+"([^"]+)"\s+BO_\s+(\d+)\s+(.+);\s*$', stripped)
+                m_bu = re.match(
+                    r'^BA_\s+"([^"]+)"\s+BU_\s+(\S+)\s+(.+);\s*$', stripped)
+                m_net = re.match(
+                    r'^BA_\s+"([^"]+)"\s+(.+);\s*$', stripped)
                 if m_sg:
                     attr, mid_s, sig_name, val_s = (
-                        m_sg.group(1), m_sg.group(2), m_sg.group(3), m_sg.group(4).strip())
+                        m_sg.group(1), m_sg.group(2), m_sg.group(3),
+                        m_sg.group(4).strip())
                     msg = db.messages.get(int(mid_s) & _ID_MASK)
                     sig = msg.signal(sig_name) if msg else None
                     if sig is not None:
-                        sig.attributes[attr] = _unquote(val_s) if val_s.startswith('"') else val_s
+                        sig.attributes[attr] = _decode_attr_value(
+                            db, attr, val_s)
                 elif m_bo:
-                    attr, mid_s, val_s = m_bo.group(1), m_bo.group(2), m_bo.group(3).strip()
+                    attr, mid_s, val_s = (
+                        m_bo.group(1), m_bo.group(2), m_bo.group(3).strip())
                     msg = db.messages.get(int(mid_s) & _ID_MASK)
                     if not msg:
                         continue
-                    stored = _unquote(val_s) if val_s.startswith('"') else val_s
-                    if attr == "GenMsgSendType" and send_type_names:
-                        try:
-                            idx = int(val_s)
-                            if 0 <= idx < len(send_type_names):
-                                stored = send_type_names[idx]
-                        except ValueError:
-                            pass
+                    stored = _decode_attr_value(db, attr, val_s)
                     msg.attributes[attr] = stored
                     if attr == "GenMsgCycleTime":
                         try:
-                            msg.cycle_time = int(float(val_s))
+                            msg.cycle_time = int(float(str(stored)))
                         except ValueError:
                             pass
+                elif m_bu:
+                    attr, node, val_s = (
+                        m_bu.group(1), m_bu.group(2), m_bu.group(3).strip())
+                    db.node_attributes.setdefault(node, {})[attr] = (
+                        _decode_attr_value(db, attr, val_s))
+                elif m_net and m_net.group(2).split()[0] not in (
+                        "SG_", "BO_", "BU_"):
+                    # Network-level: BA_ "name" value; (no object type)
+                    attr, val_s = m_net.group(1), m_net.group(2).strip()
+                    if not re.match(r'^(SG_|BO_|BU_)\s', val_s):
+                        db.network_attributes[attr] = _decode_attr_value(
+                            db, attr, val_s)
         except Exception as exc:  # per-line tolerance
             db.warnings.append("%d: %s (%s)" % (lineno, stripped[:60], exc))
+    db.ensure_default_attr_defs()
     return db
 
 
+def _decode_attr_value(db, attr_name, val_s):
+    raw = val_s.strip()
+    d = db.attr_def(attr_name)
+    if raw.startswith('"'):
+        return _unquote(raw)
+    if d and d.value_type == "ENUM" and d.enum_values:
+        try:
+            idx = int(raw)
+            if 0 <= idx < len(d.enum_values):
+                return d.enum_values[idx]
+        except ValueError:
+            pass
+    return raw
+
+
 # ------------------------------------------------------------
-#  序列化（供合并另存）
+#  Serialize (merge / save-as)
 # ------------------------------------------------------------
 
 def _fmt_num(v):
@@ -392,7 +519,9 @@ def _fmt_num(v):
 
 
 def serialize(db):
-    lines = ['VERSION ""', "", "NS_ :", "", "BS_:", ""]
+    db.ensure_default_attr_defs()
+    lines = ['VERSION "%s"' % (db.version or "").replace('"', '\\"'),
+             "", "NS_ :", "", "BS_:", ""]
     nodes = list(db.nodes)
     for m in db.messages.values():
         if m.sender and m.sender not in nodes:
@@ -406,7 +535,8 @@ def serialize(db):
 
     for m in db.messages.values():
         raw_id = m.can_id | (_EXT_FLAG if m.extended else 0)
-        lines.append("BO_ %d %s: %d %s" % (raw_id, m.name, m.dlc, m.sender or "Vector__XXX"))
+        lines.append("BO_ %d %s: %d %s" % (
+            raw_id, m.name, m.dlc, m.sender or "Vector__XXX"))
         for s in m.signals:
             mux = ""
             if s.mux_type == "multiplexor":
@@ -425,23 +555,105 @@ def serialize(db):
 
     for m in db.messages.values():
         if m.comment:
-            lines.append('CM_ BO_ %d "%s";' % (m.can_id, m.comment.replace('"', '\\"')))
+            lines.append('CM_ BO_ %d "%s";' % (
+                m.can_id, m.comment.replace('"', '\\"')))
         for s in m.signals:
             if s.comment:
-                lines.append('CM_ SG_ %d %s "%s";'
-                             % (m.can_id, s.name, s.comment.replace('"', '\\"')))
+                lines.append('CM_ SG_ %d %s "%s";' % (
+                    m.can_id, s.name, s.comment.replace('"', '\\"')))
+
+    for tname, table in sorted(db.value_tables.items()):
+        if not table:
+            continue
+        pairs = " ".join(
+            '%d "%s"' % (v, d.replace('"', '\\"'))
+            for v, d in sorted(table.items()))
+        lines.append("VAL_TABLE_ %s %s ;" % (tname, pairs))
+
     for m in db.messages.values():
         for s in m.signals:
             if s.value_table:
-                pairs = " ".join('%d "%s"' % (v, d.replace('"', '\\"'))
-                                 for v, d in sorted(s.value_table.items()))
+                pairs = " ".join(
+                    '%d "%s"' % (v, d.replace('"', '\\"'))
+                    for v, d in sorted(s.value_table.items()))
                 lines.append("VAL_ %d %s %s ;" % (m.can_id, s.name, pairs))
 
-    lines.append('')
-    lines.append('BA_DEF_ BO_ "GenMsgCycleTime" INT 0 65535;')
-    lines.append('BA_DEF_ BO_ "GenMsgSendType" ENUM "Cyclic","Event","NotUsed";')
+    lines.append("")
+    for d in db.attribute_defs:
+        obj = (d.object_type + " ") if d.object_type else ""
+        if d.value_type == "ENUM":
+            enums = ",".join('"%s"' % e.replace('"', '\\"') for e in d.enum_values)
+            lines.append('BA_DEF_ %s"%s" ENUM %s;' % (obj, d.name, enums))
+        elif d.value_type in ("INT", "HEX"):
+            lo = 0 if d.minimum is None else int(d.minimum)
+            hi = 0 if d.maximum is None else int(d.maximum)
+            lines.append('BA_DEF_ %s"%s" %s %d %d;' % (
+                obj, d.name, d.value_type, lo, hi))
+        elif d.value_type == "FLOAT":
+            lo = 0.0 if d.minimum is None else float(d.minimum)
+            hi = 0.0 if d.maximum is None else float(d.maximum)
+            lines.append('BA_DEF_ %s"%s" FLOAT %s %s;' % (
+                obj, d.name, _fmt_num(lo), _fmt_num(hi)))
+        else:
+            lines.append('BA_DEF_ %s"%s" STRING ;' % (obj, d.name))
+
+    for d in db.attribute_defs:
+        if d.default is None:
+            continue
+        dv = d.default
+        if d.value_type == "STRING" or (
+                isinstance(dv, str) and not str(dv).lstrip("-").replace(".", "", 1).isdigit()):
+            if d.value_type == "ENUM" and dv in (d.enum_values or []):
+                lines.append('BA_DEF_DEF_ "%s" "%s";' % (
+                    d.name, str(dv).replace('"', '\\"')))
+            elif d.value_type == "ENUM":
+                lines.append('BA_DEF_DEF_ "%s" "%s";' % (
+                    d.name, str(dv).replace('"', '\\"')))
+            else:
+                lines.append('BA_DEF_DEF_ "%s" "%s";' % (
+                    d.name, str(dv).replace('"', '\\"')))
+        else:
+            lines.append('BA_DEF_DEF_ "%s" %s;' % (d.name, dv))
+
+    for name, val in sorted(db.network_attributes.items()):
+        lines.append(_fmt_ba_line(db, name, val))
+
+    for node, attrs in sorted(db.node_attributes.items()):
+        for name, val in sorted(attrs.items()):
+            lines.append(_fmt_ba_line(db, name, val, "BU_", node))
+
     for m in db.messages.values():
-        if m.cycle_time:
-            lines.append('BA_ "GenMsgCycleTime" BO_ %d %d;' % (m.can_id, m.cycle_time))
+        attrs = dict(m.attributes or {})
+        if m.cycle_time and "GenMsgCycleTime" not in attrs:
+            attrs["GenMsgCycleTime"] = m.cycle_time
+        for name, val in sorted(attrs.items()):
+            lines.append(_fmt_ba_line(db, name, val, "BO_", m.can_id))
+        for s in m.signals:
+            for name, val in sorted((s.attributes or {}).items()):
+                lines.append(_fmt_ba_line(
+                    db, name, val, "SG_", m.can_id, s.name))
+
     lines.append("")
     return "\n".join(lines)
+
+
+def _fmt_ba_line(db, name, val, obj=None, key=None, sig=None):
+    d = db.attr_def(name)
+    encoded = val
+    if d and d.value_type == "ENUM" and d.enum_values:
+        if isinstance(val, str) and val in d.enum_values:
+            encoded = d.enum_values.index(val)
+        elif isinstance(val, int):
+            encoded = val
+    if isinstance(encoded, str) and not (
+            str(encoded).lstrip("-").replace(".", "", 1).isdigit()):
+        lit = '"%s"' % encoded.replace('"', '\\"')
+    else:
+        lit = str(encoded)
+    if obj == "SG_":
+        return 'BA_ "%s" SG_ %d %s %s;' % (name, int(key), sig, lit)
+    if obj == "BO_":
+        return 'BA_ "%s" BO_ %d %s;' % (name, int(key), lit)
+    if obj == "BU_":
+        return 'BA_ "%s" BU_ %s %s;' % (name, key, lit)
+    return 'BA_ "%s" %s;' % (name, lit)

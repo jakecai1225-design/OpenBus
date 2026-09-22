@@ -79,6 +79,7 @@ def activate(context):
 def deactivate():
     global _shell, _context
     if _shell is not None:
+        _shell._sin_suppress_close_notify = True
         try:
             _shell.shutdown()
         except Exception:

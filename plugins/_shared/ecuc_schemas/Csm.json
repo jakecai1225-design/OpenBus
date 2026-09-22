@@ -1,0 +1,78 @@
+{
+  "module": "Csm",
+  "definition": "/AUTOSAR/EcucDefs/Csm",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "CsmJobs",
+      "definition": "/AUTOSAR/EcucDefs/Csm/CsmJobs",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CsmJob",
+          "kind": "string",
+          "default": "",
+          "summary": "CsmJob",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Csm/CsmJobs/CsmJob"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CsmKeys",
+      "definition": "/AUTOSAR/EcucDefs/Csm/CsmKeys",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CsmKey",
+          "kind": "string",
+          "default": "",
+          "summary": "CsmKey",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Csm/CsmKeys/CsmKey"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CsmGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Csm/CsmGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CsmDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CsmDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Csm/CsmGeneral/CsmDevErrorDetect"
+        },
+        {
+          "shortName": "CsmMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "CsmMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Csm/CsmGeneral/CsmMainFunctionPeriod"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

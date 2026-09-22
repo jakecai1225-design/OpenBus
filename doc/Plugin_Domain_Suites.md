@@ -191,6 +191,7 @@
 | 工作区 | 能力 |
 |--------|------|
 | **Editor** | 树 + 属性检视/编辑 + 保存/另存 |
+| **Matrix** | 通信矩阵（信号×节点，Tx/Rx，双击跳 Editor） |
 | **Validate** | Lint 规则、SARIF/JSON CI 输出 |
 | **Compare** | A/B diff |
 | **Merge** | 多文件合并 + 冲突报告 |

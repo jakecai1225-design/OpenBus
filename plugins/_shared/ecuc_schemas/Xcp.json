@@ -1,0 +1,36 @@
+{
+  "module": "Xcp",
+  "definition": "/AUTOSAR/EcucDefs/Xcp",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "XcpConfig",
+      "definition": "/AUTOSAR/EcucDefs/Xcp/XcpConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "XcpEventChannel",
+          "kind": "string",
+          "default": "",
+          "summary": "XcpEventChannel",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Xcp/XcpConfig/XcpEventChannel"
+        },
+        {
+          "shortName": "XcpDao",
+          "kind": "string",
+          "default": "",
+          "summary": "XcpDao",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Xcp/XcpConfig/XcpDao"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

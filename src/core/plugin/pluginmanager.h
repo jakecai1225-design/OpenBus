@@ -182,6 +182,9 @@ private:
     void startHostIfNeeded();   ///< 无插件时跳过；安装首个插件后可补启
     void onHostStarted();       ///< 崩溃自愈：重启后重激活已激活插件（首启无操作）
 
+    /// True when plugin dir has app_shell.py (shared import names across domains).
+    bool usesSharedSuiteModules(const QString &name) const;
+
     // 处理来自 Python 宿主的消息
     void handleHostMessage(const QString &method, const QJsonObject &params, const QJsonValue &id);
 

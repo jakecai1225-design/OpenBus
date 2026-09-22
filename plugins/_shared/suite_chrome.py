@@ -31,6 +31,41 @@ from PyQt6.QtWidgets import (
 from _shared import codicons, plugin_shell, vscode_theme
 
 
+# Activity-bar tooltips (Ctrl+N appended when buttons are built).
+ACTIVITY_TIPS = {
+    "diagnose": "Diagnose — send UDS services, DID, DTC, flash",
+    "scan": "Scan — discover responding ECUs on the bus",
+    "batch": "Batch — run a scripted request sequence",
+    "security": "Security — observational SecurityAccess audit",
+    "profiles": "Profiles — save / load ECU connection presets",
+    "setup": "Setup — TX/RX IDs, timing, identify",
+    "com": "COM — I-PDU layout, live decode, pack and send",
+    "project": "Project — workspace files, library starters",
+    "config": "Config — BSW modules, editor, spec, SWC",
+    "bus": "Bus — System extract, NM, E2E, SecOC",
+    "system": "System — ARXML editor: tree, validate, export DBC",
+    "secoc": "SecOC — freshness value and truncated MAC",
+    "topology": "Topology — slaves and AL state",
+    "coe": "CoE — object dictionary and SDO mailbox",
+    "esi": "ESI — EtherCAT slave description editor",
+    "dc": "DC — cycle, shift and cable delay",
+    "frames": "Frames — EtherCAT datagram and mailbox decode",
+    "od": "OD — live object dictionary and SDO",
+    "eds": "EDS — Dictionary / Device / Check (CANeds)",
+    "library": "Library — starters, profiles, recent files",
+    "editor": "Editor — object dictionary and device info",
+    "matrix": "Matrix — communications Tx/Rx grid",
+    "valuetables": "Value Tables — named VAL_TABLE_ library",
+    "attributes": "Attributes — BA_DEF_ / BA_ values",
+    "validate": "Validate — findings, analysis, compare, merge, export",
+    "timing": "Analysis — coverage and PDO load estimate",
+    "compare": "Compare — diff two description files",
+    "merge": "Merge — combine DBC files",
+    "export": "Export — EDS / DCF / HTML / CSV / XDD",
+    "pdo": "PDO Map — file-layer RPDO / TPDO mapping",
+}
+
+
 @dataclass
 class WorkbenchParts:
     """Handles returned by build_workbench()."""
@@ -153,26 +188,6 @@ def build_workbench(
 
     stack = QStackedWidget()
     stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-
-    ACTIVITY_TIPS = {
-        "diagnose": "Diagnose — send UDS services, DID, DTC, flash",
-        "scan": "Scan — discover responding ECUs on the bus",
-        "batch": "Batch — run a scripted request sequence",
-        "security": "Security — observational SecurityAccess audit",
-        "profiles": "Profiles — save / load ECU connection presets",
-        "setup": "Setup — TX/RX IDs, timing, identify",
-        "com": "COM — I-PDU layout, live decode, pack and send",
-        "system": "System — ARXML editor: tree, validate, export DBC",
-        "secoc": "SecOC — freshness value and truncated MAC",
-        "topology": "Topology — slaves and AL state",
-        "coe": "CoE — object dictionary and SDO mailbox",
-        "esi": "ESI — EtherCAT slave description editor",
-        "dc": "DC — cycle, shift and cable delay",
-        "frames": "Frames — EtherCAT datagram and mailbox decode",
-        "od": "OD — live object dictionary and SDO",
-        "eds": "EDS — Dictionary / Device / Check (CANeds)",
-        "library": "Library — CiA 301 and CiA 402 stubs",
-    }
 
     def _select_page(key: str):
         idx = page_index.get(key)
@@ -330,11 +345,11 @@ def build_workbench(
     panel_head.setObjectName("SuiteLogHeader")
     panel_head.setFixedHeight(26)
     ph = QHBoxLayout(panel_head)
-    ph.setContentsMargins(8, 0, 4, 0)
-    ph.setSpacing(8)
+    ph.setContentsMargins(6, 0, 2, 0)
+    ph.setSpacing(4)
     panel_title_lab = QLabel(panel_title)
     panel_title_lab.setObjectName("SuiteToolbarTitle")
-    panel_title_lab.setToolTip("Double-click to collapse / expand")
+    panel_title_lab.setToolTip("OUTPUT — double-click to collapse (Ctrl+J)")
     ph.addWidget(panel_title_lab)
 
     # Single-row tools slot (ISO-TP / Export / Clear …) — keeps list tall
@@ -564,3 +579,61 @@ def make_output_table(parent=None):
     hdr.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
     table.verticalHeader().setDefaultSectionSize(22)
     return table
+
+
+def mount_compact_output(wb: WorkbenchHandles):
+    """Icon-only Pause/Clear + plain-text terminal — maximize log space.
+
+    Returns (pause_btn, clear_btn, terminal) where pause_btn.isChecked()
+    means hold new lines.
+    """
+    from PyQt6.QtGui import QFont
+    from PyQt6.QtWidgets import QFrame, QPlainTextEdit
+
+    pause = QToolButton()
+    pause.setObjectName("LayoutToggleBtn")
+    pause.setCheckable(True)
+    pause.setAutoRaise(True)
+    pause.setCursor(Qt.CursorShape.PointingHandCursor)
+    pause.setFixedSize(22, 22)
+    pause.setIconSize(QSize(12, 12))
+    pause.setToolTip("Pause log")
+    try:
+        codicons.set_button(
+            pause, "stop", color=vscode_theme.TEXT_DIM, size=12)
+    except Exception:
+        pause.setText("||")
+
+    clear = QToolButton()
+    clear.setObjectName("LayoutToggleBtn")
+    clear.setAutoRaise(True)
+    clear.setCursor(Qt.CursorShape.PointingHandCursor)
+    clear.setFixedSize(22, 22)
+    clear.setIconSize(QSize(12, 12))
+    clear.setToolTip("Clear")
+    try:
+        codicons.set_button(
+            clear, "clear", color=vscode_theme.TEXT_DIM, size=12)
+    except Exception:
+        clear.setText("×")
+
+    wb.panel_tools.addStretch(1)
+    wb.panel_tools.addWidget(pause)
+    wb.panel_tools.addWidget(clear)
+
+    term = QPlainTextEdit()
+    term.setObjectName("SuiteOutputTerminal")
+    term.setReadOnly(True)
+    term.setUndoRedoEnabled(False)
+    term.setFrameShape(QFrame.Shape.NoFrame)
+    term.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+    term.setMaximumBlockCount(8000)
+    term.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    term.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    font = QFont("Consolas", 10)
+    if not font.exactMatch():
+        font = QFont("Courier New", 10)
+    term.setFont(font)
+    term.document().setDocumentMargin(4)
+    wb.panel_body.addWidget(term, 1)
+    return pause, clear, term

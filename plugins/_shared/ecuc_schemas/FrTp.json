@@ -1,0 +1,47 @@
+{
+  "module": "FrTp",
+  "definition": "/AUTOSAR/EcucDefs/FrTp",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "FrTpGlobalConfig",
+      "definition": "/AUTOSAR/EcucDefs/FrTp/FrTpGlobalConfig",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "FrTpConnection",
+          "kind": "string",
+          "default": "",
+          "summary": "FrTpConnection",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrTp/FrTpGlobalConfig/FrTpConnection"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "FrTpGeneral",
+      "definition": "/AUTOSAR/EcucDefs/FrTp/FrTpGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "FrTpDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "FrTpDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrTp/FrTpGeneral/FrTpDevErrorDetect"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

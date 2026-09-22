@@ -723,6 +723,13 @@ QWidget#SuiteLogHeader {{
     background: {EDITOR};
     border: none;
 }}
+QPlainTextEdit#SuiteOutputTerminal {{
+    background: {EDITOR};
+    color: {TEXT};
+    border: none;
+    padding: 2px 6px;
+    selection-background-color: {ACCENT_SOFT};
+}}
 QHeaderView::section {{
     background: {EDITOR};
     color: {TEXT_MUTED};

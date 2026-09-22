@@ -1,0 +1,38 @@
+{
+  "module": "Tm",
+  "definition": "/AUTOSAR/EcucDefs/Tm",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "TmGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Tm/TmGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "TmMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "TmMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Tm/TmGeneral/TmMainFunctionPeriod"
+        },
+        {
+          "shortName": "TmDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TmDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Tm/TmGeneral/TmDevErrorDetect"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

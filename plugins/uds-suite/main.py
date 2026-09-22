@@ -126,6 +126,7 @@ def deactivate():
     except Exception:
         pass
     if _shell is not None:
+        _shell._sin_suppress_close_notify = True
         try:
             _shell.shutdown()
         except Exception:

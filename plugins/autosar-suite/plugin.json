@@ -1,18 +1,24 @@
 {
     "name": "autosar-suite",
-    "version": "1.0.0",
+    "displayName": "AUTOSAR Studio",
+    "version": "1.2.0",
     "author": "sin",
-    "description": "AUTOSAR Suite: COM I-PDU layout, ARXML extract, CanNm, E2E Profile 1 and SecOC in one window.",
+    "description": "AUTOSAR CP Studio: BSW module configurator (Os/Com/PduR/Dcm/...), live COM/NM/E2E/SecOC, project ARXML (no stack codegen).",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [
-        "onCommand:autosarSuite.open"
+        "onCommand:autosarSuite.open",
+        "onCommand:arxmlStudio.open"
     ],
     "contributes": {
         "commands": [
             {
                 "id": "autosarSuite.open",
-                "title": "AUTOSAR Suite"
+                "title": "AUTOSAR Studio"
+            },
+            {
+                "id": "arxmlStudio.open",
+                "title": "AUTOSAR Studio"
             }
         ]
     }

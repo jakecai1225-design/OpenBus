@@ -359,10 +359,7 @@ private:
 };
 
 // ============================================================
-//  扩展面板 — 迷你市场（与插件市场页同数据源同行风格，方案 §13.10）
-//  搜索栏 + 右上角 "…" 菜单（离线安装 .odp/.opk / 打开市场页 / 刷新）
-//  + 三分组条目（已安装 = 驱动+插件 / 驱动市场 / 插件市场，点击跳
-//  市场页定位详情）+ 行内齿轮菜单（启停/启禁/卸载）+ 命令列表
+//  Extensions panel — mini market (Installed / Running sections)
 // ============================================================
 class ExtensionsPanel : public SidePanel
 {
@@ -371,42 +368,37 @@ public:
     explicit ExtensionsPanel(QWidget *parent = nullptr);
 
 public slots:
-    /// 重新聚合四源并重建三分组（数据源信号已自动连接；DEF-08 字符串槽）
     void refreshEntries();
 
 public:
+    /// Legacy no-ops (commands moved to gear menu / market tab).
     void addCommand(const QString &id, const QString &title);
     void clearCommands();
 
 signals:
-    void commandTriggered(const QString &id);
-    /// 行点击 → 请求打开插件市场页并定位该条目详情
+    void commandTriggered(const QString &id);  // unused; kept for signal ABI
     void itemActivated(const MarketItem &item);
-    void pluginToggleRequested(const QString &name, bool enable);  // 启用/禁用
-    void pluginActivated(const QString &name);                     // 启动（重启）
-    void pluginDeactivateRequested(const QString &name);           // 停止
-    void pluginUninstallRequested(const QString &name);            // 卸载
-    void driverToggleRequested(const QString &driverId, bool enable);  // 禁用/启用
-    void driverUninstallRequested(const QString &driverId);            // 卸载
-    void installFromFileRequested();   // "…" 菜单：离线安装 .odp / .opk
-    void openMarketRequested();        // "…" 菜单：打开插件市场页
+    void pluginToggleRequested(const QString &name, bool enable);
+    void pluginActivated(const QString &name);
+    void pluginDeactivateRequested(const QString &name);
+    void pluginUninstallRequested(const QString &name);
+    void driverToggleRequested(const QString &driverId, bool enable);
+    void driverUninstallRequested(const QString &driverId);
+    void installFromFileRequested();
+    void openMarketRequested();
 
 private slots:
     void onSearchChanged();
-    void onMenuClicked();   // "…" 按钮
-    void onCommandClicked(QListWidgetItem *item);
+    void onMenuClicked();
 
 private:
     QLineEdit *m_searchEdit;
     QToolButton *m_menuBtn;
     QScrollArea *m_listArea = nullptr;
-    QVBoxLayout *m_listLay = nullptr;    // 三分组条目（尾 stretch）
-    QLabel *m_cmdHeader = nullptr;       // 命令分组标题（无命令时隐藏）
-    QListWidget *m_cmdList = nullptr;    // 插件命令入口
+    QVBoxLayout *m_listLay = nullptr;
 
-    void rebuild();                      // 依据搜索词 + 四源重建三分组
+    void rebuild();
     FrameRow *makeRow(const MarketEntryData &e);
-    void addSectionLabel(const QString &title);
     void showGearMenu(const MarketEntryData &e, const QPoint &globalPos);
 };
 

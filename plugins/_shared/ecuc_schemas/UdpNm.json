@@ -1,0 +1,82 @@
+{
+  "module": "UdpNm",
+  "definition": "/AUTOSAR/EcucDefs/UdpNm",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "UdpNmGlobalConfig",
+      "definition": "/AUTOSAR/EcucDefs/UdpNm/UdpNmGlobalConfig",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "UdpNmChannelConfig",
+          "kind": "string",
+          "default": "",
+          "summary": "UdpNmChannelConfig",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/UdpNm/UdpNmGlobalConfig/UdpNmChannelConfig"
+        },
+        {
+          "shortName": "UdpNmMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "UdpNmMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/UdpNm/UdpNmGlobalConfig/UdpNmMainFunctionPeriod"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "UdpNmChannelConfig",
+      "definition": "/AUTOSAR/EcucDefs/UdpNm/UdpNmChannelConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "UdpNmChannelId",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "UdpNmChannelId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/UdpNm/UdpNmChannelConfig/UdpNmChannelId"
+        },
+        {
+          "shortName": "UdpNmMsgCycleTime",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "UdpNmMsgCycleTime",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/UdpNm/UdpNmChannelConfig/UdpNmMsgCycleTime"
+        },
+        {
+          "shortName": "UdpNmNetworkTimeout",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "UdpNmNetworkTimeout",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/UdpNm/UdpNmChannelConfig/UdpNmNetworkTimeout"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

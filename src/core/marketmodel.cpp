@@ -162,15 +162,15 @@ QVector<MarketEntryData> MarketModel::collectInstalledPlugins()
     for (const auto &p : plugins) {
         MarketEntryData d;
         d.item = { MarketItem::InstalledPlugin, p.name };
-        d.title = p.name;
+        d.title = p.title();
         d.meta = QStringLiteral("v%1 · %2").arg(p.version, p.author);
         const bool enabled = pm->isPluginEnabled(p.name);
         const bool activated = pm->isPluginActivated(p.name);
-        d.status = !enabled ? QStringLiteral("已禁用")
-                  : activated ? QStringLiteral("运行中")
-                              : QStringLiteral("已就绪");
+        d.status = !enabled ? QStringLiteral("Disabled")
+                  : activated ? QStringLiteral("Running")
+                              : QStringLiteral("Ready");
         d.marketIcon = MarketIndex::instance()->pluginById(p.name).icon;
-        d.searchFields = { p.name, p.version, p.author, p.description };
+        d.searchFields = { p.title(), p.name, p.version, p.author, p.description };
         out.append(d);
     }
     return out;

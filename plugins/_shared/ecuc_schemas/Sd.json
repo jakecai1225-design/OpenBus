@@ -1,0 +1,65 @@
+{
+  "module": "Sd",
+  "definition": "/AUTOSAR/EcucDefs/Sd",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "SdConfig",
+      "definition": "/AUTOSAR/EcucDefs/Sd/SdConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "SdInstance",
+          "kind": "string",
+          "default": "",
+          "summary": "SdInstance",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Sd/SdConfig/SdInstance"
+        },
+        {
+          "shortName": "SdClientService",
+          "kind": "string",
+          "default": "",
+          "summary": "SdClientService",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Sd/SdConfig/SdClientService"
+        },
+        {
+          "shortName": "SdServerService",
+          "kind": "string",
+          "default": "",
+          "summary": "SdServerService",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Sd/SdConfig/SdServerService"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "SdGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Sd/SdGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "SdDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SdDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Sd/SdGeneral/SdDevErrorDetect"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

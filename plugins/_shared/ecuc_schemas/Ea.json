@@ -1,0 +1,71 @@
+{
+  "module": "Ea",
+  "definition": "/AUTOSAR/EcucDefs/Ea",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "EaGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Ea/EaGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EaDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EaDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Ea/EaGeneral/EaDevErrorDetect"
+        },
+        {
+          "shortName": "EaVirtualPageSize",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "EaVirtualPageSize",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Ea/EaGeneral/EaVirtualPageSize"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EaBlockConfiguration",
+      "definition": "/AUTOSAR/EcucDefs/Ea/EaBlockConfiguration",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "EaBlockNumber",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "EaBlockNumber",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Ea/EaBlockConfiguration/EaBlockNumber"
+        },
+        {
+          "shortName": "EaBlockSize",
+          "kind": "numerical",
+          "default": "64",
+          "summary": "EaBlockSize",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Ea/EaBlockConfiguration/EaBlockSize"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

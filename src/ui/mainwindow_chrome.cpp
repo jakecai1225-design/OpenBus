@@ -545,9 +545,10 @@ void MainWindow::showCommandPalette(const QString &initialQuery)
         for (const PluginInfo &pi : m_pluginManager->discoveredPlugins()) {
             Item it;
             it.kind = Kind::Plugin;
-            it.label = pi.name;
+            it.label = pi.title();
             it.detail = pi.description;
-            it.filterText = (QStringLiteral("plugin ") + pi.name + QLatin1Char(' ')
+            it.filterText = (QStringLiteral("plugin ") + pi.title() + QLatin1Char(' ')
+                             + pi.name + QLatin1Char(' ')
                              + pi.description).toLower();
             const QString name = pi.name;
             it.run = [this, name]() {

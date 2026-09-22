@@ -1,0 +1,81 @@
+{
+  "module": "EthIf",
+  "definition": "/AUTOSAR/EcucDefs/EthIf",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "EthIfGeneral",
+      "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EthIfDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EthIfDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfGeneral/EthIfDevErrorDetect"
+        },
+        {
+          "shortName": "EthIfMaxTrcvsTotal",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "EthIfMaxTrcvsTotal",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfGeneral/EthIfMaxTrcvsTotal"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EthIfConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": []
+    },
+    {
+      "shortName": "EthIfController",
+      "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfConfigSet/EthIfController",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": "*",
+      "parent": "EthIfConfigSet",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "EthIfCtrlIdx",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "EthIfCtrlIdx",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfController/EthIfCtrlIdx"
+        },
+        {
+          "shortName": "EthIfCtrlMtu",
+          "kind": "numerical",
+          "default": "1500",
+          "summary": "EthIfCtrlMtu",
+          "detail": "",
+          "range": "",
+          "min": 64,
+          "max": 9000,
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfController/EthIfCtrlMtu"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

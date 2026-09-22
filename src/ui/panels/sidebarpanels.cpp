@@ -1706,33 +1706,30 @@ void MeasurementSetupPanel::onOpenedClicked(QListWidgetItem *item)
 // ============================================================
 
 ExtensionsPanel::ExtensionsPanel(QWidget *parent)
-    : SidePanel("插件市场", parent)
+    : SidePanel("Extensions", parent)
 {
     auto *cl = contentLayout();
 
-    // 搜索栏 + 右上角 "…" 菜单（与市场页工具栏同构）
     auto *searchRow = new QHBoxLayout;
     searchRow->setContentsMargins(8, 8, 4, 8);
     searchRow->setSpacing(4);
     m_searchEdit = new QLineEdit(this);
     m_searchEdit->setObjectName("ExtensionSearch");
-    m_searchEdit->setPlaceholderText("在驱动与插件中搜索...");
+    m_searchEdit->setPlaceholderText("Search drivers and plugins…");
     m_searchEdit->setClearButtonEnabled(true);
-    // 原生清除按钮 × 不随主题（深色下不可见）→ 换主题色 SVG 图标
     applyClearButtonIcon(m_searchEdit, ThemeManager::instance()->currentTheme().text);
     searchRow->addWidget(m_searchEdit, 1);
 
     m_menuBtn = new QToolButton(this);
     m_menuBtn->setIcon(svgIcon(":/icons/kebab.svg",
                                ThemeManager::instance()->currentTheme().text, 16));
-    m_menuBtn->setToolTip("视图和更多操作");
+    m_menuBtn->setToolTip("More actions");
     m_menuBtn->setAutoRaise(true);
     connect(m_menuBtn, &QToolButton::clicked,
             this, &ExtensionsPanel::onMenuClicked);
     searchRow->addWidget(m_menuBtn);
     cl->addLayout(searchRow);
 
-    // 主题切换 → 重刷菜单图标颜色
     auto *menuRelay = new SignalRelay(this);
     menuRelay->fire0 = [this]() {
         const QString c = ThemeManager::instance()->currentTheme().text;
@@ -1741,7 +1738,6 @@ ExtensionsPanel::ExtensionsPanel(QWidget *parent)
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             menuRelay, SLOT(fire()));
 
-    // 已装条目列表（FrameRow，与市场页同行风格；市场分组已移至标签页）
     auto *listHost = new QWidget(this);
     m_listLay = new QVBoxLayout(listHost);
     m_listLay->setContentsMargins(0, 0, 0, 0);
@@ -1753,24 +1749,9 @@ ExtensionsPanel::ExtensionsPanel(QWidget *parent)
     m_listArea->setFrameShape(QFrame::NoFrame);
     cl->addWidget(m_listArea, 1);
 
-    // 命令分组（插件命令入口，无命令时隐藏）
-    m_cmdHeader = new QLabel(QString::fromUtf8("命令"), this);
-    m_cmdHeader->setStyleSheet(
-        QStringLiteral("color: %1; font-weight: bold; padding: 6px 4px 2px 4px;")
-            .arg(ThemeManager::instance()->currentTheme().textDim));
-    m_cmdHeader->setHidden(true);
-    cl->addWidget(m_cmdHeader);
-    m_cmdList = new QListWidget(this);
-    m_cmdList->setHidden(true);
-    m_cmdList->setMaximumHeight(200);
-    cl->addWidget(m_cmdList);
-
     connect(m_searchEdit, &QLineEdit::textChanged,
             this, &ExtensionsPanel::onSearchChanged);
-    connect(m_cmdList, &QListWidget::itemClicked,
-            this, &ExtensionsPanel::onCommandClicked);
 
-    // 四数据源变化自动刷新（与市场页一致：安装/卸载/启停/索引加载）
     connect(DriverRegistry::instance(), SIGNAL(driversChanged()),
             this, SLOT(refreshEntries()));
     connect(PluginManager::instance(), SIGNAL(pluginListChanged()),
@@ -1795,7 +1776,6 @@ void ExtensionsPanel::onSearchChanged()
 
 void ExtensionsPanel::rebuild()
 {
-    // 清空旧行（尾部重新补 stretch）
     while (m_listLay->count()) {
         QLayoutItem *child = m_listLay->takeAt(0);
         if (child->widget())
@@ -1808,47 +1788,50 @@ void ExtensionsPanel::rebuild()
     };
 
     const QString text = m_searchEdit->text();
-    int shown = 0;
+    auto *pm = PluginManager::instance();
 
-    // ---- 分组：已安装（驱动 + 插件混合） ----
-    int installed = 0;
+    auto *secInstalled = new ExplorerSection(QStringLiteral("Installed"), this);
+    auto *secRunning = new ExplorerSection(QStringLiteral("Running"), this);
+    secInstalled->setExpanded(true);
+    secRunning->setExpanded(true);
+
+    int nInstalled = 0;
+    int nRunning = 0;
+
     for (const auto &e : MarketModel::collectInstalledDrivers()) {
         if (!MarketIndex::matchWords(text, e.searchFields))
             continue;
-        if (installed == 0)
-            addSectionLabel(QStringLiteral("已安装"));
-        insertBeforeStretch(makeRow(e));
-        ++installed;
-        ++shown;
+        secInstalled->bodyLayout()->addWidget(makeRow(e));
+        ++nInstalled;
     }
     for (const auto &e : MarketModel::collectInstalledPlugins()) {
         if (!MarketIndex::matchWords(text, e.searchFields))
             continue;
-        if (installed == 0)
-            addSectionLabel(QStringLiteral("已安装"));
-        insertBeforeStretch(makeRow(e));
-        ++installed;
-        ++shown;
+        secInstalled->bodyLayout()->addWidget(makeRow(e));
+        ++nInstalled;
+        if (pm && pm->isPluginActivated(e.item.id)) {
+            secRunning->bodyLayout()->addWidget(makeRow(e));
+            ++nRunning;
+        }
     }
 
-    // 「驱动市场」「插件市场」分组已移至标签页 MarketTab（v2.2 市场入口分工）：
-    // sidebar 仅保留已装启停管理，发现与安装归标签页，避免与标签页市场重复。
-
-    if (shown == 0) {
-        auto *empty = new QLabel(QStringLiteral("没有匹配的条目"), this);
+    if (nInstalled == 0) {
+        auto *empty = new QLabel(QStringLiteral("No installed items"), this);
         empty->setStyleSheet(QStringLiteral("color: %1; padding: 8px;")
             .arg(ThemeManager::instance()->currentTheme().textDim));
-        insertBeforeStretch(empty);
+        secInstalled->bodyLayout()->addWidget(empty);
     }
-}
-
-void ExtensionsPanel::addSectionLabel(const QString &title)
-{
-    auto *label = new QLabel(title, this);
-    label->setStyleSheet(
-        QStringLiteral("color: %1; font-weight: bold; padding: 6px 4px 2px 4px;")
+    if (nRunning == 0) {
+        auto *empty = new QLabel(QStringLiteral("No running plugins"), this);
+        empty->setStyleSheet(QStringLiteral("color: %1; padding: 8px;")
             .arg(ThemeManager::instance()->currentTheme().textDim));
-    m_listLay->insertWidget(m_listLay->count() - 1, label);
+        secRunning->bodyLayout()->addWidget(empty);
+    }
+    secInstalled->bodyLayout()->addStretch(1);
+    secRunning->bodyLayout()->addStretch(1);
+
+    insertBeforeStretch(secInstalled);
+    insertBeforeStretch(secRunning);
 }
 
 FrameRow *ExtensionsPanel::makeRow(const MarketEntryData &e)
@@ -1946,35 +1929,15 @@ FrameRow *ExtensionsPanel::makeRow(const MarketEntryData &e)
     return row;
 }
 
-void ExtensionsPanel::addCommand(const QString &id, const QString &title)
+void ExtensionsPanel::addCommand(const QString &, const QString &)
 {
-    // 避免重复
-    for (int i = 0; i < m_cmdList->count(); ++i) {
-        if (m_cmdList->item(i)->data(Qt::UserRole).toString() == id)
-            return;
-    }
-    auto *item = new QListWidgetItem(title);
-    item->setData(Qt::UserRole, id);
-    m_cmdList->addItem(item);
-    m_cmdHeader->setHidden(false);
-    m_cmdList->setHidden(false);
 }
 
 void ExtensionsPanel::clearCommands()
 {
-    m_cmdList->clear();
-    m_cmdHeader->setHidden(true);
-    m_cmdList->setHidden(true);
 }
 
-void ExtensionsPanel::onCommandClicked(QListWidgetItem *item)
-{
-    if (!item)
-        return;
-    const QString cmdId = item->data(Qt::UserRole).toString();
-    if (!cmdId.isEmpty())
-        emit commandTriggered(cmdId);
-}
+
 
 void ExtensionsPanel::onMenuClicked()
 {

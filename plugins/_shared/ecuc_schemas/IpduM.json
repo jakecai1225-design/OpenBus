@@ -1,0 +1,36 @@
+{
+  "module": "IpduM",
+  "definition": "/AUTOSAR/EcucDefs/IpduM",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "IpduMConfig",
+      "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "IpduMTxPathway",
+          "kind": "string",
+          "default": "",
+          "summary": "IpduMTxPathway",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMConfig/IpduMTxPathway"
+        },
+        {
+          "shortName": "IpduMRxPathway",
+          "kind": "string",
+          "default": "",
+          "summary": "IpduMRxPathway",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMConfig/IpduMRxPathway"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

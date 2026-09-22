@@ -1,0 +1,67 @@
+{
+  "module": "LinSM",
+  "definition": "/AUTOSAR/EcucDefs/LinSM",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "LinSMConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/LinSM/LinSMConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "LinSMChannel",
+          "kind": "string",
+          "default": "",
+          "summary": "LinSMChannel",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinSM/LinSMConfigSet/LinSMChannel"
+        },
+        {
+          "shortName": "LinSMScheduleTable",
+          "kind": "string",
+          "default": "",
+          "summary": "LinSMScheduleTable",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinSM/LinSMConfigSet/LinSMScheduleTable"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "LinSMGeneral",
+      "definition": "/AUTOSAR/EcucDefs/LinSM/LinSMGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "LinSMDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "LinSMDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinSM/LinSMGeneral/LinSMDevErrorDetect"
+        },
+        {
+          "shortName": "LinSMMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "LinSMMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/LinSM/LinSMGeneral/LinSMMainFunctionPeriod"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

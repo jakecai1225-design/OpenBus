@@ -1,0 +1,71 @@
+{
+  "module": "StbM",
+  "definition": "/AUTOSAR/EcucDefs/StbM",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "StbMSynchronizedTimeBase",
+      "definition": "/AUTOSAR/EcucDefs/StbM/StbMSynchronizedTimeBase",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "StbMTimeBaseId",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "StbMTimeBaseId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/StbM/StbMSynchronizedTimeBase/StbMTimeBaseId"
+        },
+        {
+          "shortName": "StbMIsSystemWideGlobalTimeMaster",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "StbMIsSystemWideGlobalTimeMaster",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/StbM/StbMSynchronizedTimeBase/StbMIsSystemWideGlobalTimeMaster"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "StbMGeneral",
+      "definition": "/AUTOSAR/EcucDefs/StbM/StbMGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "StbMDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "StbMDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/StbM/StbMGeneral/StbMDevErrorDetect"
+        },
+        {
+          "shortName": "StbMMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "StbMMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/StbM/StbMGeneral/StbMMainFunctionPeriod"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

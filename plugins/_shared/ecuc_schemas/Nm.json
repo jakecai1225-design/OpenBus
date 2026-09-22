@@ -1,0 +1,77 @@
+{
+  "module": "Nm",
+  "definition": "/AUTOSAR/EcucDefs/Nm",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "NmGlobalConfig",
+      "definition": "/AUTOSAR/EcucDefs/Nm/NmGlobalConfig",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "NmCycleTimeMainFunction",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "NmCycleTimeMainFunction",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmGlobalConfig/NmCycleTimeMainFunction"
+        },
+        {
+          "shortName": "NmDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "NmDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmGlobalConfig/NmDevErrorDetect"
+        },
+        {
+          "shortName": "NmCoordinatorSupportEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "NmCoordinatorSupportEnabled",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmGlobalConfig/NmCoordinatorSupportEnabled"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "NmChannelConfig",
+      "definition": "/AUTOSAR/EcucDefs/Nm/NmChannelConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "NmComMChannelRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "NmComMChannelRef",
+          "detail": "",
+          "range": "",
+          "destination": "container",
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmChannelConfig/NmComMChannelRef"
+        },
+        {
+          "shortName": "NmPassiveModeEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "NmPassiveModeEnabled",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmChannelConfig/NmPassiveModeEnabled"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

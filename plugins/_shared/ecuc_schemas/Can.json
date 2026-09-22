@@ -1,0 +1,136 @@
+{
+  "module": "Can",
+  "definition": "/AUTOSAR/EcucDefs/Can",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "CanGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CanDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanDevErrorDetect"
+        },
+        {
+          "shortName": "CanVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CanVersionInfoApi",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanVersionInfoApi"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/Can/CanConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanController",
+      "definition": "/AUTOSAR/EcucDefs/Can/CanConfigSet/CanController",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": "*",
+      "parent": "CanConfigSet",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "CanControllerId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanControllerId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanControllerId"
+        },
+        {
+          "shortName": "CanControllerBaudRate",
+          "kind": "numerical",
+          "default": "500",
+          "summary": "kbit/s",
+          "detail": "",
+          "range": "",
+          "min": 1,
+          "max": 1000,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanControllerBaudRate"
+        },
+        {
+          "shortName": "CanControllerBaseAddress",
+          "kind": "string",
+          "default": "0x0",
+          "summary": "CanControllerBaseAddress",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanControllerBaseAddress"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanHardwareObject",
+      "definition": "/AUTOSAR/EcucDefs/Can/CanConfigSet/CanHardwareObject",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "CanConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanObjectId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanObjectId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanHardwareObject/CanObjectId"
+        },
+        {
+          "shortName": "CanIdType",
+          "kind": "enumeration",
+          "default": "STANDARD",
+          "summary": "CanIdType",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "STANDARD",
+            "EXTENDED"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Can/CanHardwareObject/CanIdType"
+        },
+        {
+          "shortName": "CanObjectType",
+          "kind": "enumeration",
+          "default": "TRANSMIT",
+          "summary": "CanObjectType",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "RECEIVE",
+            "TRANSMIT"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Can/CanHardwareObject/CanObjectType"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

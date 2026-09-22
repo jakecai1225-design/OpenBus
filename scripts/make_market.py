@@ -41,6 +41,20 @@ SUITE_CATALOG = [
         "keywords": "dbc lint diff merge export codegen",
     },
     {
+        "id": "eds-studio",
+        "name": "EDS Studio",
+        "description": "Edit, validate, compare and export CANopen EDS/DCF files.",
+        "tags": ["canopen", "eds", "dcf"],
+        "keywords": "eds dcf canopen validate export pdo",
+    },
+    {
+        "id": "autosar-suite",
+        "name": "AUTOSAR Studio",
+        "description": "Unified AUTOSAR CP workbench: BSW module config (Os/Com/PduR/Dcm/…), live COM/NM/E2E/SecOC, project ARXML (no stack codegen).",
+        "tags": ["autosar", "arxml", "bsw", "com"],
+        "keywords": "autosar arxml bsw dbc validate com nm e2e secoc extract ecuc studio",
+    },
+    {
         "id": "canopen-suite",
         "name": "CANopen Suite",
         "description": "Network scan, SDO, EDS/OD, NMT and CiA 301/402 profiles.",
@@ -95,13 +109,6 @@ SUITE_CATALOG = [
         "description": "Bit timing calculator and CAN gateway rules.",
         "tags": ["tools"],
         "keywords": "bit timing gateway",
-    },
-    {
-        "id": "autosar-suite",
-        "name": "AUTOSAR Suite",
-        "description": "COM I-PDU layout, ARXML extract, CanNm, E2E Profile 1 and SecOC.",
-        "tags": ["autosar", "com", "e2e"],
-        "keywords": "autosar com arxml cannm e2e secoc ipdu",
     },
     {
         "id": "ethercat-suite",

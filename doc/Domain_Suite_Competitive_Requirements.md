@@ -12,6 +12,7 @@
 |-------|------------------|-------------|--------|
 | uds-suite | Softing DTS / CANoe Diag / TSMaster UDS | Design system reference | Done (chrome) |
 | dbc-studio | Vector CANdb++ / TSMaster DB / Kvaser DB Editor | P0 shell + bit layout | P1 in progress |
+| eds-studio | Vector CANeds / emotas DeviceExplorer / CANopenEditor | DBC Studio chrome | Phase 0–3 shipped |
 | canopen-suite | CANoe.CANopen / emotas DeviceExplorer / port CCM | P0 shell + PDO page | P2 in progress |
 | j1939-suite | CANalyzer.J1939 / Vehicle Spy / PEAK PCAN-Diag | Live / Transport / DM / Network | P2 in progress |
 | obd-suite | Vector Indigo / RA DiagRA / Noregon JPRO | Setup + Scanner + Readiness | P2 in progress |
@@ -20,7 +21,7 @@
 | protocol-hub | CANoe options / Vehicle Spy / TSMaster | P0 shell + Setup | P3 in progress |
 | log-analysis | vSignalyzer / CANalyzer offline / CANtrace | Open / Trace / Report | P3 in progress |
 | bus-utilities | CANoe+VH6501 / IVNT-03 / PEAK Bit Rate Tool | Scanner + Quality | P3 in progress |
-| autosar-suite | CANoe option AUTOSAR / DaVinci / TSMaster COM | UDS chrome | ARXML editor P0 |
+| autosar-suite | DaVinci Configurator / EB tresos / ISOLAR + CANoe COM | DBC/EDS chrome | **AUTOSAR Studio** (BSW + live COM) |
 | ethercat-suite | TwinCAT / EC-Engineer / SOEM | UDS chrome | ESI editor P0 |
 | ai-agent | (platform agent — see aiagent.md) | P0 theme | Done (P0) |
 
@@ -32,25 +33,101 @@ Master plan: [Domain_Suite_Rollout_Plan.md](Domain_Suite_Rollout_Plan.md)
 
 ## 1. DBC Studio (`dbc-studio`)
 
+> **Product goal:** surpass Vector CANdb++ on daily DBC workflows (features + UX + bus/AI integration).  
+> Full inventory, gap matrix, and phase checklist: [`DBC_Studio_vs_CANdb.md`](DBC_Studio_vs_CANdb.md).
+
 ### Competitors
 1. **Vector CANdb++ Admin** — matrix + tree, merge/diff, J1939 attributes, Vector toolchain handoff  
 2. **TSMaster Database Editor + File Converter** — DBC/ARXML/LDF/FIBEX, codegen, encrypted DB  
 3. **Kvaser Database Editor** — lightweight tree edit + append merge  
 
-### Must-have (P0)
+### Must-have (P0) — done
 - Editor: nodes / messages / signals tree; signal bit layout preview  
 - Validate / lint with navigable findings  
 - Compare + merge two DBC files  
 - Export subset / CSV / C structs (codegen)  
 - Library / recent files; Setup-free (file-centric)  
 
+### Phase 1 (parity with CANdb++ daily path) — done
+- Interactive communications matrix (signal × node)  
+- Value tables manager + attribute definitions/values UI  
+- Save-gate lint with Review → Validate  
+- Tx/Rx linking polish  
+
 ### UI / UX
-- Nav: Editor | Validate | Compare | Merge | Export | Library  
-- Flat VS Code chrome; document strip for open file path  
+- Workbench: activity bar + one chrome row (page title + document actions + layout toggles) + OUTPUT  
+- Nav pages: Editor | Matrix | Value Tables | Attributes | Validate | Timing | Compare | Merge | Export | Library  
+- Ctrl+B sidebar · Ctrl+J OUTPUT · Ctrl+O/S/N/Z/Y document  
+- Flat VS Code chrome; elided path in chrome; lint-on-save gate  
 - Diff view like CANdb++ (side-by-side or unified)  
 
 ### Out of scope (P2+)
 - Full ARXML authoring; Vector MDC proprietary store  
+
+---
+
+## 1b. EDS Studio (`eds-studio`)
+
+> **Product goal:** match Vector CANeds + emotas DeviceExplorer at the EDS/DCF file layer, and surpass them on one-window Edit→Lint→Diff→Export, CI SARIF, and openbus host/AI loops.  
+> Full inventory: [`EDS_Studio_vs_CANeds.md`](EDS_Studio_vs_CANeds.md).
+
+### Competitors
+1. **Vector CANeds** — free EDS editor; tree OD; CiA-CODB; consistency check; scan-to-EDS  
+2. **emotas CANopen DeviceExplorer** — DCF ParameterValue / DeviceCommissioning; PDO config  
+3. **CANopenEditor** (open source) — EDS/DCF/XDD depth reference  
+
+### Must-have (shipped)
+- Editor: OD tree + definition form + FileInfo / DeviceInfo / Commissioning; undo/redo  
+- Validate (deep) + lint-on-save + double-click → Editor; CSV/JSON/SARIF  
+- PDO Map (file-layer); Library 301/402 + RPDO templates  
+- Compare + merge-added; Export EDS/DCF/HTML/CSV/XDD lite  
+- Analysis coverage / PDO bit estimate; AI Attach; host notify; scan import  
+
+### Boundary
+- Live SDO / NMT / LSS / Trace stay in **canopen-suite**  
+- Shared parser: `plugins/_shared/edsparse.py`  
+
+### UI / UX
+- Same workbench as DBC Studio; OUTPUT collapsed by default (Ctrl+J)  
+- Nav: Editor | PDO Map | Validate | Compare | Export | Library | Analysis  
+
+---
+
+## 1c. AUTOSAR Studio (`autosar-suite`)
+
+> **Product goal:** match DaVinci Configurator / EB tresos / ISOLAR at the ARXML *configuration & validation* layer for Classic Platform COM extracts — without BSW/RTE codegen. ARXML is the handoff artifact to third-party stacks.  
+> Full inventory: [`ARXML_Studio_vs_DaVinci.md`](ARXML_Studio_vs_DaVinci.md).
+
+### Competitors
+1. **Vector DaVinci Configurator** — BSW param + ARXML round-trip + generate  
+2. **EB tresos Studio** — module config + ARXML  
+3. **ETAS ISOLAR-A** — system description / extract  
+
+### Must-have (shipped Phase 0–5)
+- Editor: I-PDU / I-Signal tree + property form; undo/redo; lint-before-save  
+- Spec glossary tips under fields; Validate deep + suggested fixes → Editor  
+- Compare + Merge lite; Library starters; Export DBC / HTML / Extract  
+- Analysis coverage; AI Attach; host notify  
+- autosar-suite System → “AUTOSAR Studio” handoff  
+- **Project** workspace: `project.json` + role-tagged ARXML (System / Extract / COM / ECUC)  
+- ECUC-lite intermediates (Com / CanIf / PduR / CanNm) derived from COM; write under `work/` + `out/`  
+- BSWMD-lite tips + import; cross-artifact Validate + recipe packs + SARIF  
+- SWC / port mapping lite (no RTE codegen)  
+- Full menubar: File / Edit / Import / Project / BSW / Validate / View / Help  
+- **Import DBC** → COM I-PDUs/signals; sync Com / CanIf / PduR / CanNm / EcuC; retain `input/network.dbc`  
+- Deep BSW ECUC starters (~40 modules) + `validate_bsw_set` cross-module checks  
+- **Schema-driven BSW configurator**: curated EcucDefs JSON packs; Add/Remove/Duplicate containers; typed params; export `work/bsw/<Module>.arxml`  
+
+### Boundary
+- Live COM / NM / E2E / SecOC live inside **AUTOSAR Studio** (former autosar-suite merged)  
+- No BSW/RTE/stack codegen — configure & validate only; intermediates are ARXML  
+- Shared: `arxmlparse` + `arxml_project` + `arxml_bsw` + `arxml_dbc` + `arxml_ecuc_schema` + `ecuc_schemas/`  
+
+### UI / UX
+- Same workbench as DBC/EDS Studio; OUTPUT collapsed by default (Ctrl+J)  
+- Nav: Project | Editor | BSW | Spec | Library | Validate | Compare | Merge | Export | SWC | Analysis  
+- Full menu bar: File / Edit / Import / Project / BSW / Validate / View / Help  
+- BSW: schema instance tree per module; one ARXML each under `work/bsw/`  
 
 ---
 
@@ -248,6 +325,11 @@ UDS remains the quality bar for chrome. Feature depth per domain follows the tab
 | 2026-09-20 | P3: Log Analysis Trace/Report on shared corpus; Protocol Hub Setup; Bus Utilities Scanner/Quality; Bus Security Findings. |
 | 2026-09-20 | Protocol description editors: ARXML (System Tree/Validate/Export) + ESI (Tree/Validate/Save) + EDS FileInfo round-trip/Validate/Save. DBC Studio already full. LDF/FIBEX/ODX deferred. |
 | 2026-09-20 | CANopen Suite workbench rewrite: activity bar + one chrome tab row (Network Scan|NMT, EDS Dictionary|Device|Check, Library CiA301|402). Session strip removed; Setup owns Node/EDS. Log is OUTPUT only. |
+| 2026-09-22 | ARXML Studio Phase 0–2 shipped (`plugins/arxml-studio`): Spec/Validate/Compare/Merge/Export/Library/Analysis; shared `arxmlparse`; autosar System handoff. |
+| 2026-09-22 | ARXML Studio Phase 3: project engineering (`project.json` roles), ECUC-lite intermediates, BSWMD-lite tips, cross-artifact validate + `out/` SARIF. |
+| 2026-09-22 | ARXML Studio Phase 4: BSWMD import, fix recipe packs, SWC/port mapping lite (no codegen). |
+| 2026-09-22 | ARXML Studio Phase 5: full menubar + DBC→COM/BSW sync; deep ECUC schemas; `validate_bsw_set`; still no stack codegen. |
+| 2026-09-22 | AUTOSAR Studio schema-driven BSW configurator: `ecuc_schemas/*.json`, multiplicity UI, typed ECUC ARXML export. |
 
 ---
 
@@ -256,8 +338,8 @@ UDS remains the quality bar for chrome. Feature depth per domain follows the tab
 | Format | Suite | Top-3 references | Status |
 |--------|-------|------------------|--------|
 | **DBC** | `dbc-studio` | CANdb++ / TSMaster DB / Kvaser | Full create/edit/save/validate/compare/merge/export |
-| **EDS/DCF** | `canopen-suite` EDS | CANeds / emotas / port | Dictionary tree by index range, object definition (type/access/PDO/limits), Device FileInfo, Check, Apply to OD, Save |
-| **ARXML (COM subset)** | `autosar-suite` System | DaVinci / CANoe.AUTOSAR / TSMaster COM | Tree edit + Validate + Save ARXML + Export DBC (not full Classic project) |
+| **EDS/DCF** | `eds-studio` (+ canopen-suite live) | CANeds / emotas / CANopenEditor | Full file studio; live OD stays in canopen-suite |
+| **ARXML / BSW config + live COM** | `autosar-suite` (AUTOSAR Studio) | DaVinci / tresos / ISOLAR | Project roles + BSW ECUC + live COM; no stack codegen |
 | **ESI** | `ethercat-suite` ESI | TwinCAT / EC-Engineer / SOEM tools | Tree edit PDO/Objects + Validate + Save XML (no ENI) |
 | **LDF / FIBEX / A2L / ODX** | — | — | Out of scope until dedicated LIN / measurement / UDS-ODX track |
 

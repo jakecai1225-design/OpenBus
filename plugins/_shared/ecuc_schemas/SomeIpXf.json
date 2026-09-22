@@ -1,0 +1,36 @@
+{
+  "module": "SomeIpXf",
+  "definition": "/AUTOSAR/EcucDefs/SomeIpXf",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "SomeIpXfTransformation",
+      "definition": "/AUTOSAR/EcucDefs/SomeIpXf/SomeIpXfTransformation",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "SomeIpXfDeployment",
+          "kind": "string",
+          "default": "",
+          "summary": "SomeIpXfDeployment",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SomeIpXf/SomeIpXfTransformation/SomeIpXfDeployment"
+        },
+        {
+          "shortName": "SomeIpXfISignalProps",
+          "kind": "string",
+          "default": "",
+          "summary": "SomeIpXfISignalProps",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SomeIpXf/SomeIpXfTransformation/SomeIpXfISignalProps"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "module": "PduR",
+  "definition": "/AUTOSAR/EcucDefs/PduR",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "PduRGeneral",
+      "definition": "/AUTOSAR/EcucDefs/PduR/PduRGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "PduRDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PduRDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRGeneral/PduRDevErrorDetect"
+        },
+        {
+          "shortName": "PduRVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PduRVersionInfoApi",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRGeneral/PduRVersionInfoApi"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "PduRRoutingTables",
+      "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTables",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "PduRMaxRoutingTableEntries",
+          "kind": "numerical",
+          "default": "16",
+          "summary": "PduRMaxRoutingTableEntries",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTables/PduRMaxRoutingTableEntries"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "PduRRoutingTable",
+      "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTables/PduRRoutingTable",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "PduRRoutingTables",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "PduRSrcPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "PduRSrcPduRef",
+          "detail": "",
+          "range": "",
+          "destination": "pdu",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTable/PduRSrcPduRef"
+        },
+        {
+          "shortName": "PduRDestPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "PduRDestPduRef",
+          "detail": "",
+          "range": "",
+          "destination": "pdu",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTable/PduRDestPduRef"
+        },
+        {
+          "shortName": "PduRDestPduDataProvision",
+          "kind": "enumeration",
+          "default": "DIRECT",
+          "summary": "PduRDestPduDataProvision",
+          "detail": "",
+          "range": "",
+          "literals": [
+            "TRIGGER_TRANSMIT",
+            "DIRECT"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTable/PduRDestPduDataProvision"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

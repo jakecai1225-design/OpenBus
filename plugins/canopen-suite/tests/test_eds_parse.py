@@ -8,8 +8,10 @@ import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _SUITE = os.path.dirname(_HERE)
-if _SUITE not in sys.path:
-    sys.path.insert(0, _SUITE)
+_PLUGINS = os.path.dirname(_SUITE)
+for p in (_SUITE, _PLUGINS):
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 from core.eds_parse import (  # noqa: E402
     export_eds_text,

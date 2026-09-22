@@ -1,0 +1,67 @@
+{
+  "module": "WdgM",
+  "definition": "/AUTOSAR/EcucDefs/WdgM",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "WdgMConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "WdgMMode",
+          "kind": "string",
+          "default": "",
+          "summary": "WdgMMode",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMConfigSet/WdgMMode"
+        },
+        {
+          "shortName": "WdgMSupervisedEntity",
+          "kind": "string",
+          "default": "",
+          "summary": "WdgMSupervisedEntity",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMConfigSet/WdgMSupervisedEntity"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "WdgMGeneral",
+      "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "WdgMDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "WdgMDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMGeneral/WdgMDevErrorDetect"
+        },
+        {
+          "shortName": "WdgMMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "WdgMMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMGeneral/WdgMMainFunctionPeriod"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

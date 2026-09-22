@@ -23,6 +23,15 @@ bool PluginInfo::activatesOnStartup() const
     return hasActivationEvent("onStartup");
 }
 
+QString PluginInfo::title() const
+{
+    if (!displayName.isEmpty())
+        return displayName;
+    if (!commands.isEmpty() && !commands.first().title.isEmpty())
+        return commands.first().title;
+    return name;
+}
+
 bool PluginInfo::loadFromDirectory(const QString &dir)
 {
     QString manifestPath = dir + "/plugin.json";
@@ -46,6 +55,7 @@ bool PluginInfo::loadFromDirectory(const QString &dir)
     QJsonObject obj = doc.object();
 
     name = obj.value("name").toString();
+    displayName = obj.value("displayName").toString();
     version = obj.value("version").toString();
     author = obj.value("author").toString();
     description = obj.value("description").toString();

@@ -1,0 +1,104 @@
+{
+  "module": "CanNm",
+  "definition": "/AUTOSAR/EcucDefs/CanNm",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "CanNmGlobalConfig",
+      "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanNmMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "CanNmMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmMainFunctionPeriod"
+        },
+        {
+          "shortName": "CanNmTimeoutTime",
+          "kind": "numerical",
+          "default": "100",
+          "summary": "CanNmTimeoutTime",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmTimeoutTime"
+        },
+        {
+          "shortName": "CanNmEcuName",
+          "kind": "string",
+          "default": "Ecu",
+          "summary": "CanNmEcuName",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmEcuName"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanNmChannelConfig",
+      "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "CanNmChannelId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanNmChannelId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmChannelId"
+        },
+        {
+          "shortName": "CanNmMsgCycleTime",
+          "kind": "numerical",
+          "default": "20",
+          "summary": "CanNmMsgCycleTime",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmMsgCycleTime"
+        },
+        {
+          "shortName": "CanNmNodeId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanNmNodeId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmNodeId"
+        },
+        {
+          "shortName": "CanNmWaitBusSleepTime",
+          "kind": "numerical",
+          "default": "50",
+          "summary": "CanNmWaitBusSleepTime",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmWaitBusSleepTime"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "module": "LinIf",
+  "definition": "/AUTOSAR/EcucDefs/LinIf",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "LinIfGlobalConfig",
+      "definition": "/AUTOSAR/EcucDefs/LinIf/LinIfGlobalConfig",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "LinIfChannel",
+          "kind": "string",
+          "default": "",
+          "summary": "LinIfChannel",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinIf/LinIfGlobalConfig/LinIfChannel"
+        },
+        {
+          "shortName": "LinIfFrame",
+          "kind": "string",
+          "default": "",
+          "summary": "LinIfFrame",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinIf/LinIfGlobalConfig/LinIfFrame"
+        },
+        {
+          "shortName": "LinIfScheduleTable",
+          "kind": "string",
+          "default": "",
+          "summary": "LinIfScheduleTable",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinIf/LinIfGlobalConfig/LinIfScheduleTable"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "LinIfGeneral",
+      "definition": "/AUTOSAR/EcucDefs/LinIf/LinIfGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "LinIfDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "LinIfDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinIf/LinIfGeneral/LinIfDevErrorDetect"
+        },
+        {
+          "shortName": "LinIfMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "LinIfMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/LinIf/LinIfGeneral/LinIfMainFunctionPeriod"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "LinIfChannel",
+      "definition": "/AUTOSAR/EcucDefs/LinIf/LinIfChannel",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "LinIfChannelId",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "LinIfChannelId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/LinIf/LinIfChannel/LinIfChannelId"
+        },
+        {
+          "shortName": "LinIfBaudRate",
+          "kind": "string",
+          "default": "",
+          "summary": "LinIfBaudRate",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinIf/LinIfChannel/LinIfBaudRate"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

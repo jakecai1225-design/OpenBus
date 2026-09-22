@@ -1,0 +1,65 @@
+{
+  "module": "DoIP",
+  "definition": "/AUTOSAR/EcucDefs/DoIP",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "DoIPConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DoIPConnections",
+          "kind": "string",
+          "default": "",
+          "summary": "DoIPConnections",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPConfigSet/DoIPConnections"
+        },
+        {
+          "shortName": "DoIPChannel",
+          "kind": "string",
+          "default": "",
+          "summary": "DoIPChannel",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPConfigSet/DoIPChannel"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DoIPGeneral",
+      "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DoIPDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DoIPDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPGeneral/DoIPDevErrorDetect"
+        },
+        {
+          "shortName": "DoIPVin",
+          "kind": "string",
+          "default": "",
+          "summary": "DoIPVin",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPGeneral/DoIPVin"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

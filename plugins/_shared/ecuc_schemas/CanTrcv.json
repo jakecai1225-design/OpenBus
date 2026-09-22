@@ -1,0 +1,48 @@
+{
+  "module": "CanTrcv",
+  "definition": "/AUTOSAR/EcucDefs/CanTrcv",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "CanTrcvConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanTrcvChannel",
+      "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvConfigSet/CanTrcvChannel",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": "*",
+      "parent": "CanTrcvConfigSet",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "CanTrcvChannelId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanTrcvChannelId",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvChannel/CanTrcvChannelId"
+        },
+        {
+          "shortName": "CanTrcvControlUsed",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CanTrcvControlUsed",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvChannel/CanTrcvControlUsed"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

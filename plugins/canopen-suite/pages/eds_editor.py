@@ -129,6 +129,7 @@ def build(parent, session, log_fn) -> QWidget:
     apply_od.setToolTip("Copy this draft into the live object dictionary")
     save_btn = _ghost("Save", "Overwrite the loaded EDS")
     save_as = _ghost("Save As", "Write an EDS file")
+    studio_btn = _ghost("EDS Studio", "Open full EDS Studio workbench")
     ai_btn = _ghost("Add to AI Chat", "Attach this EDS summary to the AI Agent")
     tools.addWidget(filt)
     tools.addWidget(add_obj)
@@ -138,6 +139,7 @@ def build(parent, session, log_fn) -> QWidget:
     tools.addWidget(apply_od)
     tools.addWidget(save_btn)
     tools.addWidget(save_as)
+    tools.addWidget(studio_btn)
     tools.addWidget(ai_btn)
     dlay.addWidget(tools_host)
 
@@ -564,6 +566,25 @@ def build(parent, session, log_fn) -> QWidget:
                     parent, "AI Agent",
                     "Could not attach EDS (%s). Is AI Agent available?" % exc)
 
+    def _open_studio():
+        """Hand off to file-centric EDS Studio (full validate / compare / export)."""
+        path = session.eds_path or ""
+        try:
+            from _shared import state_store
+            if path:
+                state_store.save_state("eds-studio", {
+                    "last_path": path,
+                    "from_canopen": True,
+                })
+            import sin
+            sin.commands.execute("edsStudio.open")
+            plugin_shell.set_status(parent, "Opening EDS Studio…", 2500)
+        except Exception as exc:
+            QMessageBox.information(
+                parent, "EDS Studio",
+                "Could not open EDS Studio (%s).\n"
+                "Install the eds-studio plugin from the marketplace." % exc)
+
     def _check():
         grid.setRowCount(0)
         for finding in validate_eds(session.draft_entries):
@@ -592,6 +613,7 @@ def build(parent, session, log_fn) -> QWidget:
     apply_od.clicked.connect(_apply_od)
     save_btn.clicked.connect(_save)
     save_as.clicked.connect(_save_as)
+    studio_btn.clicked.connect(_open_studio)
     ai_btn.clicked.connect(_attach_ai)
     filt.textChanged.connect(lambda _t: _rebuild())
     run_check.clicked.connect(_check)

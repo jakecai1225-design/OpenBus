@@ -278,6 +278,11 @@ QString marketBadgeText(const CardData &d)
             return QStringLiteral("GS");
     }
 
+    // AUTOSAR family (Suite + Studio) — one badge before token initials
+    if (id.contains(QLatin1String("autosar"))
+        || id.contains(QLatin1String("arxml")))
+        return QStringLiteral("ASR");
+
     // id tokens → initials (dashboard-live → DL, autosar-nm → AN)
     const QStringList parts =
         id.split(QRegularExpression(QStringLiteral("[-_.\\s]+")),
@@ -344,12 +349,14 @@ QString marketCategory(const CardData &d)
                 QStringLiteral("iso14229"), QStringLiteral("isotp"),
                 QStringLiteral("doip"), QStringLiteral("obd")}))
         return QStringLiteral("Diagnostics & Protocol");
-    if (hasAny({QStringLiteral("autosar"), QStringLiteral("someip"),
+    if (hasAny({QStringLiteral("autosar"), QStringLiteral("arxml"),
+                QStringLiteral("someip"),
                 QStringLiteral("network management"),
                 QStringLiteral("ethernet")})
         || d.item.id.compare(QLatin1String("nm"), Qt::CaseInsensitive) == 0
         || d.item.id.contains(QLatin1String("-nm"), Qt::CaseInsensitive)
-        || d.item.id.startsWith(QLatin1String("nm-"), Qt::CaseInsensitive))
+        || d.item.id.startsWith(QLatin1String("nm-"), Qt::CaseInsensitive)
+        || d.item.id.contains(QLatin1String("arxml"), Qt::CaseInsensitive))
         return QStringLiteral("Network & AUTOSAR");
     if (hasAny({QStringLiteral("dashboard"), QStringLiteral("meter"),
                 QStringLiteral("gauge"), QStringLiteral("plot"),
@@ -1004,12 +1011,12 @@ void MarketTab::rebuildList()
             for (const auto &p : PluginManager::instance()->discoveredPlugins()) {
                 CardData d;
                 d.item = { MarketItem::InstalledPlugin, p.name };
-                d.title = p.name;
+                d.title = p.title();
                 d.vendor = p.author;
                 d.version = p.version;
                 d.summary = p.description;
                 d.isDriver = false;
-                d.searchFields = { p.name, p.author, p.description };
+                d.searchFields = { p.title(), p.name, p.author, p.description };
                 if (MarketIndex::matchWords(text, d.searchFields))
                     installed.append(d);
             }

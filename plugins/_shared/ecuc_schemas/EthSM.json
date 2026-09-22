@@ -1,0 +1,58 @@
+{
+  "module": "EthSM",
+  "definition": "/AUTOSAR/EcucDefs/EthSM",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "EthSMConfiguration",
+      "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMConfiguration",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EthSMNetwork",
+          "kind": "string",
+          "default": "",
+          "summary": "EthSMNetwork",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMConfiguration/EthSMNetwork"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EthSMGeneral",
+      "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EthSMDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EthSMDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMGeneral/EthSMDevErrorDetect"
+        },
+        {
+          "shortName": "EthSMMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "EthSMMainFunctionPeriod",
+          "detail": "",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMGeneral/EthSMMainFunctionPeriod"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

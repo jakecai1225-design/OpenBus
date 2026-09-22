@@ -1,0 +1,65 @@
+{
+  "module": "SoAd",
+  "definition": "/AUTOSAR/EcucDefs/SoAd",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "SoAdConfig",
+      "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "SoAdSocketConnection",
+          "kind": "string",
+          "default": "",
+          "summary": "SoAdSocketConnection",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdConfig/SoAdSocketConnection"
+        },
+        {
+          "shortName": "SoAdPduRoute",
+          "kind": "string",
+          "default": "",
+          "summary": "SoAdPduRoute",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdConfig/SoAdPduRoute"
+        },
+        {
+          "shortName": "SoAdRoutingGroup",
+          "kind": "string",
+          "default": "",
+          "summary": "SoAdRoutingGroup",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdConfig/SoAdRoutingGroup"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "SoAdGeneral",
+      "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "SoAdDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SoAdDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdGeneral/SoAdDevErrorDetect"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

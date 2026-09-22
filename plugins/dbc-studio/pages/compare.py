@@ -7,57 +7,105 @@ import os
 
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
-    QFileDialog, QFormLayout, QHBoxLayout, QLabel,
-    QLineEdit, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QFileDialog,
+    QHBoxLayout,
     QHeaderView,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
-from _shared import dbcparse, dbc_picker, plugin_shell, vscode_theme
+from _shared import codicons, dbc_picker, dbcparse, plugin_shell, suite_chrome
 from core import diff_engine
 
 
 def build(shell, document, log_fn) -> QWidget:
     root = QWidget()
     layout = QVBoxLayout(root)
-    layout.setContentsMargins(16, 12, 16, 12)
-    layout.setSpacing(12)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
 
-    cfg, form_host = vscode_theme.block(
-        "Compare", "Diff two DBC files (A vs B). Use current document as A when needed.")
-    form = QFormLayout()
-    vscode_theme.tune_form(form)
+    chrome, crow = suite_chrome.make_toolbar()
     path_a = QLineEdit()
-    path_a.setPlaceholderText("Current document or pick file A")
+    path_a.setPlaceholderText("A — empty uses current document")
+    path_a.setFixedHeight(28)
+    path_a.setClearButtonEnabled(True)
     path_b = QLineEdit()
-    path_b.setPlaceholderText("Pick file B")
-    form.addRow("A:", path_a)
-    form.addRow("B:", path_b)
-    form_host.addLayout(form)
-    layout.addWidget(cfg)
+    path_b.setPlaceholderText("B — pick a DBC to compare")
+    path_b.setFixedHeight(28)
+    path_b.setClearButtonEnabled(True)
+    crow.addWidget(QLabel("A"), 0)
+    crow.addWidget(path_a, 1)
+    crow.addWidget(QLabel("B"), 0)
+    crow.addWidget(path_b, 1)
 
-    row = QHBoxLayout()
-    use_doc_btn = QPushButton("A = current document")
-    pick_a = QPushButton("Browse A…")
-    pick_b = QPushButton("Browse B…")
-    ws_b = QPushButton("Workspace B…")
+    use_doc_btn = QPushButton("Use current")
+    use_doc_btn.setObjectName("GhostButton")
+    use_doc_btn.setFixedHeight(28)
+    use_doc_btn.setToolTip("Clear A so Compare uses the open document")
+    pick_a = QPushButton("Browse A")
+    pick_a.setObjectName("GhostButton")
+    pick_a.setFixedHeight(28)
+    codicons.set_button(pick_a, "browse")
+    pick_b = QPushButton("Browse B")
+    pick_b.setObjectName("GhostButton")
+    pick_b.setFixedHeight(28)
+    codicons.set_button(pick_b, "browse")
+    ws_b = QPushButton("Workspace B")
+    ws_b.setObjectName("GhostButton")
+    ws_b.setFixedHeight(28)
+    codicons.set_button(ws_b, "database")
     run_btn = QPushButton("Compare")
-    export_csv = QPushButton("Export CSV")
-    export_html = QPushButton("Export HTML")
+    run_btn.setFixedHeight(28)
+    codicons.set_button(run_btn, "compare", primary=True)
     for w in (use_doc_btn, pick_a, pick_b, ws_b, run_btn):
-        row.addWidget(w)
-    row.addStretch()
-    row.addWidget(export_csv)
-    row.addWidget(export_html)
-    layout.addLayout(row)
+        crow.addWidget(w)
+    layout.addWidget(chrome)
 
-    summary = QLabel("Select two DBC files to compare")
-    layout.addWidget(summary)
+    body = QWidget()
+    body.setObjectName("SuiteContent")
+    bl = QVBoxLayout(body)
+    suite_chrome.page_margins(bl)
+    bl.setSpacing(10)
+
+    hint = QLabel(
+        "Diff two DBC files — message and signal level, export for review.")
+    hint.setWordWrap(True)
+    hint.setStyleSheet("color:#78909c;font-size:12px;")
+    bl.addWidget(hint)
+
+    meta = QHBoxLayout()
+    summary = QLabel("Select file B to compare")
+    summary.setStyleSheet("color:#90A4AE;font-size:11px;")
+    meta.addWidget(summary, 1)
+    export_csv = QPushButton("CSV")
+    export_csv.setObjectName("GhostButton")
+    export_csv.setFixedHeight(28)
+    codicons.set_button(export_csv, "export")
+    export_html = QPushButton("HTML")
+    export_html.setObjectName("GhostButton")
+    export_html.setFixedHeight(28)
+    codicons.set_button(export_html, "export")
+    meta.addWidget(export_csv)
+    meta.addWidget(export_html)
+    bl.addLayout(meta)
 
     tree = QTreeWidget()
+    tree.setObjectName("SuiteMatrix")
     tree.setHeaderLabels(["Kind", "ID", "Name", "Detail"])
     tree.setAlternatingRowColors(True)
     tree.header().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-    layout.addWidget(tree, 1)
+    tree.setStyleSheet(
+        "QTreeWidget#SuiteMatrix { border: 1px solid #EEEEEE; }"
+        "QTreeWidget#SuiteMatrix::item:selected {"
+        " background: #E3F2FD; color: #0D47A1; }"
+    )
+    bl.addWidget(tree, 1)
+    layout.addWidget(body, 1)
 
     last = {"rows": [], "stats": {}, "a": "", "b": ""}
 
@@ -106,13 +154,14 @@ def build(shell, document, log_fn) -> QWidget:
                 item.addChild(child)
             tree.addTopLevelItem(item)
         summary.setText(
-            "msg +%d/-%d/~%d · sig +%d/-%d/~%d"
+            "msg +%d / −%d / ~%d   ·   sig +%d / −%d / ~%d"
             % (stats["msg_new"], stats["msg_del"], stats["msg_mod"],
                stats["sig_new"], stats["sig_del"], stats["sig_mod"]))
         log_fn("Compare", "%s vs %s — %s" % (
             os.path.basename(pa), os.path.basename(pb), summary.text()))
         document.compare_db = db_b
         document.compare_path = pb
+        plugin_shell.set_status(shell, summary.text(), 4000)
 
     def _on_csv():
         flat = diff_engine.flatten_rows(last["rows"])

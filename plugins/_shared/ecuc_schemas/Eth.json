@@ -1,0 +1,56 @@
+{
+  "module": "Eth",
+  "definition": "/AUTOSAR/EcucDefs/Eth",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "EthConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/Eth/EthConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EthCtrlConfig",
+          "kind": "string",
+          "default": "",
+          "summary": "EthCtrlConfig",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Eth/EthConfigSet/EthCtrlConfig"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EthGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Eth/EthGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EthDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EthDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Eth/EthGeneral/EthDevErrorDetect"
+        },
+        {
+          "shortName": "EthIndex",
+          "kind": "string",
+          "default": "",
+          "summary": "EthIndex",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Eth/EthGeneral/EthIndex"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

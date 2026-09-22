@@ -1,0 +1,65 @@
+{
+  "module": "FrIf",
+  "definition": "/AUTOSAR/EcucDefs/FrIf",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "FrIfConfig",
+      "definition": "/AUTOSAR/EcucDefs/FrIf/FrIfConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "FrIfCluster",
+          "kind": "string",
+          "default": "",
+          "summary": "FrIfCluster",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrIf/FrIfConfig/FrIfCluster"
+        },
+        {
+          "shortName": "FrIfController",
+          "kind": "string",
+          "default": "",
+          "summary": "FrIfController",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrIf/FrIfConfig/FrIfController"
+        },
+        {
+          "shortName": "FrIfPdu",
+          "kind": "string",
+          "default": "",
+          "summary": "FrIfPdu",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrIf/FrIfConfig/FrIfPdu"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "FrIfGeneral",
+      "definition": "/AUTOSAR/EcucDefs/FrIf/FrIfGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "FrIfDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "FrIfDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrIf/FrIfGeneral/FrIfDevErrorDetect"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

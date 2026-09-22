@@ -1,0 +1,56 @@
+{
+  "module": "LinTp",
+  "definition": "/AUTOSAR/EcucDefs/LinTp",
+  "autosarRelease": "R20-11",
+  "containers": [
+    {
+      "shortName": "LinTpGlobalConfig",
+      "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGlobalConfig",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "LinTpChannel",
+          "kind": "string",
+          "default": "",
+          "summary": "LinTpChannel",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGlobalConfig/LinTpChannel"
+        },
+        {
+          "shortName": "LinTpNSdu",
+          "kind": "string",
+          "default": "",
+          "summary": "LinTpNSdu",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGlobalConfig/LinTpNSdu"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "LinTpGeneral",
+      "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "LinTpDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "LinTpDevErrorDetect",
+          "detail": "",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGeneral/LinTpDevErrorDetect"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}
