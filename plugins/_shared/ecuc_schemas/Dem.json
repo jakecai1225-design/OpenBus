@@ -1,7 +1,7 @@
 {
   "module": "Dem",
   "definition": "/AUTOSAR/EcucDefs/Dem",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "DemGeneral",
@@ -15,8 +15,8 @@
           "shortName": "DemDevErrorDetect",
           "kind": "boolean",
           "default": "false",
-          "summary": "DemDevErrorDetect",
-          "detail": "",
+          "summary": "DET",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemDevErrorDetect"
         },
@@ -25,11 +25,137 @@
           "kind": "numerical",
           "default": "40",
           "summary": "DemAgingCycleCounterThreshold",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DemAgingCycleCounterThreshold parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemAgingCycleCounterThreshold"
+        },
+        {
+          "shortName": "DemVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemVersionInfoApi"
+        },
+        {
+          "shortName": "DemStatusBitStorageTestFailed",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "StatusBitStorageTestFailed",
+          "detail": "StatusBitStorageTestFailed",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemStatusBitStorageTestFailed"
+        },
+        {
+          "shortName": "DemStatusBitHandlingTestFailedSinceLastClear",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "StatusBitHandlingTestFailedSinceLastClear",
+          "detail": "StatusBitHandlingTestFailedSinceLastClear",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemStatusBitHandlingTestFailedSinceLastClear"
+        },
+        {
+          "shortName": "DemClearDTCBehavior",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ClearDTCBehavior",
+          "detail": "ClearDTCBehavior",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemClearDTCBehavior",
+          "literals": [
+            "DEM_CLRRESP_VOLATILE",
+            "DEM_CLRRESP_NONVOLATILE_TRIGGER",
+            "DEM_CLRRESP_NONVOLATILE_FINISH"
+          ]
+        },
+        {
+          "shortName": "DemOBDSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "OBDSupport",
+          "detail": "OBDSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemOBDSupport",
+          "literals": [
+            "DEM_OBD_NO_OBD_SUPPORT",
+            "DEM_OBD_PRIMARY_ECU",
+            "DEM_OBD_DEP_SEC_ECU",
+            "DEM_OBD_MASTER_ECU"
+          ]
+        },
+        {
+          "shortName": "DemTriggerFiMReports",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TriggerFiMReports",
+          "detail": "TriggerFiMReports",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemTriggerFiMReports"
+        },
+        {
+          "shortName": "DemTriggerMonitorInitBeforeClear",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TriggerMonitorInitBeforeClear",
+          "detail": "TriggerMonitorInitBeforeClear",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemTriggerMonitorInitBeforeClear"
+        },
+        {
+          "shortName": "DemEventCombinationSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EventCombinationSupport",
+          "detail": "EventCombinationSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemEventCombinationSupport"
+        },
+        {
+          "shortName": "DemMaxNumberEventEntryPrimary",
+          "kind": "numerical",
+          "default": "20",
+          "summary": "Primary event entries",
+          "detail": "Primary event entries",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemMaxNumberEventEntryPrimary"
+        },
+        {
+          "shortName": "DemMaxNumberEventEntrySecondary",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Secondary entries",
+          "detail": "Secondary entries",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemMaxNumberEventEntrySecondary"
+        },
+        {
+          "shortName": "DemTaskTime",
+          "kind": "numerical",
+          "default": "0.01",
+          "summary": "Task time",
+          "detail": "Task time",
+          "range": "",
+          "min": 0.001,
+          "max": 1,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemTaskTime"
+        },
+        {
+          "shortName": "DemEventMemoryEntryCount",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "Event memory entries",
+          "detail": "Event memory entries",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemGeneral/DemEventMemoryEntryCount",
+          "min": 1
         }
       ],
       "subContainers": []
@@ -42,7 +168,14 @@
       "parent": "",
       "seed": false,
       "params": [],
-      "subContainers": []
+      "subContainers": [
+        "DemEventParameter",
+        "DemOperationCycle",
+        "DemDTCClass",
+        "DemDTC",
+        "DemDebounceCounterBased",
+        "DemDebounceTimeBased"
+      ]
     },
     {
       "shortName": "DemEventParameter",
@@ -56,8 +189,8 @@
           "shortName": "DemEventId",
           "kind": "numerical",
           "default": "1",
-          "summary": "DemEventId",
-          "detail": "",
+          "summary": "Event id",
+          "detail": "Event Id",
           "range": "",
           "min": 1,
           "max": 65535,
@@ -67,8 +200,8 @@
           "shortName": "DemEventKind",
           "kind": "enumeration",
           "default": "BSW",
-          "summary": "DemEventKind",
-          "detail": "",
+          "summary": "Kind",
+          "detail": "Event kind",
           "range": "",
           "literals": [
             "BSW",
@@ -81,7 +214,7 @@
           "kind": "reference",
           "default": "",
           "summary": "DemDTCClassRef",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DemDTCClassRef parameter.",
           "range": "",
           "destination": "container",
           "definition": "/AUTOSAR/EcucDefs/Dem/DemEventParameter/DemDTCClassRef"
@@ -91,11 +224,101 @@
           "kind": "numerical",
           "default": "1",
           "summary": "DemEventFailureCycleCounterThreshold",
-          "detail": "",
+          "detail": "Failure threshold",
           "range": "",
-          "min": 0,
+          "min": 1,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/Dem/DemEventParameter/DemEventFailureCycleCounterThreshold"
+        },
+        {
+          "shortName": "DemEventPriority",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Priority",
+          "detail": "Priority",
+          "range": "",
+          "min": 1,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemEventParameter/DemEventPriority"
+        },
+        {
+          "shortName": "DemEventConfirmationThreshold",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Confirm threshold",
+          "detail": "Confirm threshold",
+          "range": "",
+          "min": 1,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemEventParameter/DemEventConfirmationThreshold"
+        },
+        {
+          "shortName": "DemEventSignificance",
+          "kind": "enumeration",
+          "default": "OCCURRENCE",
+          "summary": "Significance",
+          "detail": "Significance",
+          "range": "",
+          "literals": [
+            "FAULT",
+            "OCCURRENCE"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemEventParameter/DemEventSignificance"
+        },
+        {
+          "shortName": "DemDTCRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "DTC ref",
+          "detail": "Reference to DemDTC",
+          "range": "",
+          "destination": "DemDTC",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemEventParameter/DemDTCRef"
+        },
+        {
+          "shortName": "DemDebounceAlgorithmClass",
+          "kind": "enumeration",
+          "default": "DEM_DEBOUNCE_COUNTER",
+          "summary": "Debounce",
+          "detail": "Debounce",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemConfigSet/DemEventParameter/DemDebounceAlgorithmClass",
+          "literals": [
+            "DEM_DEBOUNCE_COUNTER",
+            "DEM_DEBOUNCE_TIME",
+            "DEM_DEBOUNCE_MONITOR_INTERNAL"
+          ]
+        },
+        {
+          "shortName": "DemEventAvailable",
+          "kind": "boolean",
+          "default": "true",
+          "summary": "Available",
+          "detail": "Available",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemConfigSet/DemEventParameter/DemEventAvailable"
+        },
+        {
+          "shortName": "DemFFPrestorageSupported",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "FF prestorage",
+          "detail": "FF prestorage",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemConfigSet/DemEventParameter/DemFFPrestorageSupported"
+        },
+        {
+          "shortName": "DemReportBehavior",
+          "kind": "enumeration",
+          "default": "REPORT_BEFORE_INIT",
+          "summary": "Report behavior",
+          "detail": "Report behavior",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemConfigSet/DemEventParameter/DemReportBehavior",
+          "literals": [
+            "REPORT_BEFORE_INIT",
+            "REPORT_AFTER_INIT"
+          ]
         }
       ],
       "subContainers": []
@@ -113,7 +336,7 @@
           "kind": "numerical",
           "default": "0",
           "summary": "DemOperationCycleId",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DemOperationCycleId parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -124,7 +347,7 @@
           "kind": "enumeration",
           "default": "POWER",
           "summary": "DemOperationCycleType",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DemOperationCycleType parameter.",
           "range": "",
           "literals": [
             "POWER",
@@ -149,8 +372,8 @@
           "shortName": "DemDtcValue",
           "kind": "numerical",
           "default": "0",
-          "summary": "DemDtcValue",
-          "detail": "",
+          "summary": "DTC value",
+          "detail": "DTC value",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -160,8 +383,8 @@
           "shortName": "DemDTCSeverity",
           "kind": "enumeration",
           "default": "NO_SEVERITY",
-          "summary": "DemDTCSeverity",
-          "detail": "",
+          "summary": "Severity",
+          "detail": "Severity",
           "range": "",
           "literals": [
             "NO_SEVERITY",
@@ -169,6 +392,145 @@
             "CHECK_NOW"
           ],
           "definition": "/AUTOSAR/EcucDefs/Dem/DemDTCClass/DemDTCSeverity"
+        },
+        {
+          "shortName": "DemDTCFunctionalUnit",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Functional unit",
+          "detail": "Functional unit",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemConfigSet/DemDTCClass/DemDTCFunctionalUnit"
+        },
+        {
+          "shortName": "DemImmediateNvStorage",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Immediate NV",
+          "detail": "Immediate NV",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemConfigSet/DemDTCClass/DemImmediateNvStorage"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DemDTC",
+      "definition": "/AUTOSAR/EcucDefs/Dem/DemConfigSet/DemDTC",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "DemConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DemDtcValue",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "DTC value",
+          "detail": "DTC value",
+          "range": "",
+          "min": 0,
+          "max": 16777215,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemDTC/DemDtcValue"
+        },
+        {
+          "shortName": "DemDtcSeverity",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Severity",
+          "detail": "Severity",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemDTC/DemDtcSeverity"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DemDebounceCounterBased",
+      "definition": "/AUTOSAR/EcucDefs/Dem/DemConfigSet/DemDebounceCounterBased",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "DemConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DemDebounceCounterFailedThreshold",
+          "kind": "numerical",
+          "default": "127",
+          "summary": "Failed threshold",
+          "detail": "Failed threshold",
+          "range": "",
+          "min": 1,
+          "max": 32767,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemDebounceCounterBased/DemDebounceCounterFailedThreshold"
+        },
+        {
+          "shortName": "DemDebounceCounterPassedThreshold",
+          "kind": "numerical",
+          "default": "-128",
+          "summary": "Passed threshold",
+          "detail": "Passed threshold",
+          "range": "",
+          "min": -32768,
+          "max": -1,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemDebounceCounterBased/DemDebounceCounterPassedThreshold"
+        },
+        {
+          "shortName": "DemDebounceCounterIncrementStepSize",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Increment step",
+          "detail": "Increment step",
+          "range": "",
+          "min": 1,
+          "max": 32767,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemDebounceCounterBased/DemDebounceCounterIncrementStepSize"
+        },
+        {
+          "shortName": "DemDebounceCounterDecrementStepSize",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Decrement step",
+          "detail": "Decrement step",
+          "range": "",
+          "min": 1,
+          "max": 32767,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemDebounceCounterBased/DemDebounceCounterDecrementStepSize"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DemDebounceTimeBased",
+      "definition": "/AUTOSAR/EcucDefs/Dem/DemConfigSet/DemDebounceTimeBased",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "DemConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DemDebounceTimeFailedThreshold",
+          "kind": "numerical",
+          "default": "0.5",
+          "summary": "Failed threshold",
+          "detail": "Failed threshold",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemDebounceTimeBased/DemDebounceTimeFailedThreshold"
+        },
+        {
+          "shortName": "DemDebounceTimePassedThreshold",
+          "kind": "numerical",
+          "default": "0.5",
+          "summary": "Passed threshold",
+          "detail": "Passed threshold",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dem/DemDebounceTimeBased/DemDebounceTimePassedThreshold"
         }
       ],
       "subContainers": []

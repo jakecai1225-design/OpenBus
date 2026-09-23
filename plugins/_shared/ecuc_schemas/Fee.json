@@ -1,7 +1,7 @@
 {
   "module": "Fee",
   "definition": "/AUTOSAR/EcucDefs/Fee",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "FeeGeneral",
@@ -16,7 +16,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "FeeDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Fee/FeeGeneral/FeeDevErrorDetect"
         },
@@ -25,7 +25,7 @@
           "kind": "numerical",
           "default": "8",
           "summary": "FeeVirtualPageSize",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs FeeVirtualPageSize parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -36,21 +36,51 @@
           "kind": "numerical",
           "default": "10",
           "summary": "FeeMainFunctionPeriod",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs FeeMainFunctionPeriod parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/Fee/FeeGeneral/FeeMainFunctionPeriod"
+        },
+        {
+          "shortName": "FeeVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeGeneral/FeeVersionInfoApi"
+        },
+        {
+          "shortName": "FeePollingMode",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PollingMode",
+          "detail": "PollingMode",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeGeneral/FeePollingMode"
+        },
+        {
+          "shortName": "FeeSetModeSupported",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SetModeSupported",
+          "detail": "SetModeSupported",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeGeneral/FeeSetModeSupported"
         }
       ],
-      "subContainers": []
+      "subContainers": [
+        "FeeBlockConfiguration",
+        "FeeClusterGroup"
+      ]
     },
     {
       "shortName": "FeeBlockConfiguration",
-      "definition": "/AUTOSAR/EcucDefs/Fee/FeeBlockConfiguration",
+      "definition": "/AUTOSAR/EcucDefs/Fee/FeeGeneral/FeeBlockConfiguration",
       "lowerMultiplicity": 0,
       "upperMultiplicity": "*",
-      "parent": "",
+      "parent": "FeeGeneral",
       "seed": true,
       "params": [
         {
@@ -58,9 +88,9 @@
           "kind": "numerical",
           "default": "1",
           "summary": "FeeBlockNumber",
-          "detail": "",
+          "detail": "Block number",
           "range": "",
-          "min": 0,
+          "min": 1,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/Fee/FeeBlockConfiguration/FeeBlockNumber"
         },
@@ -69,9 +99,9 @@
           "kind": "numerical",
           "default": "64",
           "summary": "FeeBlockSize",
-          "detail": "",
+          "detail": "Block size",
           "range": "",
-          "min": 0,
+          "min": 1,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/Fee/FeeBlockConfiguration/FeeBlockSize"
         },
@@ -80,9 +110,73 @@
           "kind": "boolean",
           "default": "false",
           "summary": "FeeImmediateData",
-          "detail": "",
+          "detail": "Immediate data",
           "range": "",
-          "definition": "/AUTOSAR/EcucDefs/Fee/FeeBlockConfiguration/FeeImmediateData"
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeBlockConfiguration/FeeImmediateData",
+          "min": 0,
+          "max": 1
+        },
+        {
+          "shortName": "FeeNumberOfWriteCycles",
+          "kind": "numerical",
+          "default": "100000",
+          "summary": "Write cycles",
+          "detail": "Write cycles",
+          "range": "",
+          "min": 1,
+          "max": 10000000,
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeBlockConfiguration/FeeNumberOfWriteCycles"
+        },
+        {
+          "shortName": "FeeBlockAssignment",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "BlockAssignment",
+          "detail": "BlockAssignment",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeBlockConfiguration/FeeBlockAssignment"
+        },
+        {
+          "shortName": "FeeClusterGroup",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ClusterGroup",
+          "detail": "ClusterGroup",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeBlockConfiguration/FeeClusterGroup"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "FeeClusterGroup",
+      "definition": "/AUTOSAR/EcucDefs/Fee/FeeGeneral/FeeClusterGroup",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "FeeGeneral",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "FeeNumberOfClusters",
+          "kind": "numerical",
+          "default": "2",
+          "summary": "Cluster count",
+          "detail": "Cluster count",
+          "range": "",
+          "min": 1,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeClusterGroup/FeeNumberOfClusters"
+        },
+        {
+          "shortName": "FeeVirtualPageSize",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "Virtual page size",
+          "detail": "Virtual page size",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Fee/FeeClusterGroup/FeeVirtualPageSize"
         }
       ],
       "subContainers": []

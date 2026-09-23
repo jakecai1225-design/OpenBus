@@ -1,7 +1,7 @@
 {
   "module": "Eth",
   "definition": "/AUTOSAR/EcucDefs/Eth",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "EthConfigSet",
@@ -16,9 +16,20 @@
           "kind": "string",
           "default": "",
           "summary": "EthCtrlConfig",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs EthCtrlConfig parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Eth/EthConfigSet/EthCtrlConfig"
+        },
+        {
+          "shortName": "EthCtrlIdx",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Controller index",
+          "detail": "Controller index",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Eth/EthConfigSet/EthCtrlIdx"
         }
       ],
       "subContainers": []
@@ -36,7 +47,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "EthDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Eth/EthGeneral/EthDevErrorDetect"
         },
@@ -45,9 +56,36 @@
           "kind": "string",
           "default": "",
           "summary": "EthIndex",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs EthIndex parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Eth/EthGeneral/EthIndex"
+        },
+        {
+          "shortName": "EthVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Eth/EthGeneral/EthVersionInfoApi"
+        },
+        {
+          "shortName": "EthGetCounterStateApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "GetCounterStateApi",
+          "detail": "GetCounterStateApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Eth/EthGeneral/EthGetCounterStateApi"
+        },
+        {
+          "shortName": "EthGlobalTimeSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "GlobalTimeSupport",
+          "detail": "GlobalTimeSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Eth/EthGeneral/EthGlobalTimeSupport"
         }
       ],
       "subContainers": []

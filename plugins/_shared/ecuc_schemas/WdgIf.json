@@ -1,7 +1,7 @@
 {
   "module": "WdgIf",
   "definition": "/AUTOSAR/EcucDefs/WdgIf",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "WdgIfConfigSet",
@@ -16,7 +16,7 @@
           "kind": "string",
           "default": "",
           "summary": "WdgIfDevice",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs WdgIfDevice parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/WdgIf/WdgIfConfigSet/WdgIfDevice"
         }
@@ -36,9 +36,42 @@
           "kind": "boolean",
           "default": "false",
           "summary": "WdgIfDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/WdgIf/WdgIfGeneral/WdgIfDevErrorDetect"
+        },
+        {
+          "shortName": "WdgIfVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/WdgIf/WdgIfGeneral/WdgIfVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "WdgIfDevice"
+      ]
+    },
+    {
+      "shortName": "WdgIfDevice",
+      "definition": "/AUTOSAR/EcucDefs/WdgIf/WdgIfGeneral/WdgIfDevice",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "WdgIfGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "WdgIfDeviceIndex",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Device index",
+          "detail": "Device index",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/WdgIf/WdgIfDevice/WdgIfDeviceIndex"
         }
       ],
       "subContainers": []

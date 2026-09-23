@@ -30,6 +30,10 @@ public:
 
     bool isPlaying() const { return m_playing; }
     bool isLoaded() const { return !m_frames.isEmpty(); }
+    /// True after the last frame was emitted (currentIndex == size).
+    bool isAtEnd() const {
+        return !m_frames.isEmpty() && m_currentIndex >= m_frames.size();
+    }
 
     int totalFrames() const { return m_frames.size(); }
     int currentFrameIndex() const { return m_currentIndex; }
@@ -48,6 +52,8 @@ public slots:
     void pause();
     void stop();
     void seekTo(double seconds);
+    /// Offline bulk-ingest done: jump cursor to file end (no wall-clock play-out).
+    void jumpToEnd();
     void setSpeed(double speed);
     void setLoop(bool on) { m_loop = on; }
 

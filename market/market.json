@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "version": "2026.09.22",
-  "updated": "2026-09-22",
+  "version": "2026.09.23",
+  "updated": "2026-09-23",
   "base": ".",
   "drivers": [
     {
@@ -350,7 +350,7 @@
       ],
       "keywords": "uds diagnose scan batch security flash",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-22"
+      "updatedAt": "2026-09-23"
     },
     {
       "id": "dbc-studio",
@@ -369,7 +369,7 @@
       ],
       "keywords": "dbc lint diff merge export codegen",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-22"
+      "updatedAt": "2026-09-23"
     },
     {
       "id": "eds-studio",
@@ -389,7 +389,7 @@
       ],
       "keywords": "eds dcf canopen validate export pdo",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-22"
+      "updatedAt": "2026-09-23"
     },
     {
       "id": "autosar-suite",
@@ -399,8 +399,8 @@
       "description": "Unified AUTOSAR CP workbench: BSW module config (Os/Com/PduR/Dcm/…), live COM/NM/E2E/SecOC, project ARXML (no stack codegen).",
       "icon": "assets/autosar-suite.svg",
       "package": "opk/autosar-suite_1.2.0.opk",
-      "sha256": "862ee3c964591ad5e77ccc4838f2a944e3c1c658b4dc37cd81f1a95f9c4a0218",
-      "size": 67980,
+      "sha256": "04927c8c6868e113b22fc81bb846da5d8c912663b63c1d1501f46bbdb7ec7ef7",
+      "size": 99968,
       "readme": "## AUTOSAR Studio\n\nUnified AUTOSAR CP workbench: BSW module config (Os/Com/PduR/Dcm/…), live COM/NM/E2E/SecOC, project ARXML (no stack codegen).\n",
       "tags": [
         "autosar",
@@ -410,25 +410,25 @@
       ],
       "keywords": "autosar arxml bsw dbc validate com nm e2e secoc extract ecuc studio",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-22"
+      "updatedAt": "2026-09-23"
     },
     {
       "id": "canopen-suite",
       "name": "CANopen Suite",
       "publisher": "sin",
-      "version": "2.0.1",
+      "version": "2.1.0",
       "description": "Network scan, SDO, EDS/OD, NMT and CiA 301/402 profiles.",
       "icon": "assets/canopen-suite.svg",
-      "package": "opk/canopen-suite_2.0.1.opk",
-      "sha256": "d2a48c096f7070f21fb6e962fc562ae934e6eff99751c8f7a4fa050ae79db712",
-      "size": 35652,
+      "package": "opk/canopen-suite_2.1.0.opk",
+      "sha256": "7421f2592db641166a488ab08b2af9f0bea9360628d30fa5f5ca47dcd3dbf0e2",
+      "size": 41625,
       "readme": "## CANopen Suite\n\nNetwork scan, SDO, EDS/OD, NMT and CiA 301/402 profiles.\n",
       "tags": [
         "canopen"
       ],
       "keywords": "canopen eds od sdo nmt",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-22"
+      "updatedAt": "2026-09-23"
     },
     {
       "id": "j1939-suite",
@@ -446,7 +446,7 @@
       ],
       "keywords": "j1939 pgn spn dm1 tp",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-22"
+      "updatedAt": "2026-09-23"
     },
     {
       "id": "obd-suite",
@@ -465,7 +465,7 @@
       ],
       "keywords": "obd obd2 pid dtc",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-22"
+      "updatedAt": "2026-09-23"
     },
     {
       "id": "tx-lab",
@@ -484,7 +484,7 @@
       ],
       "keywords": "frame generator simulator dashboard restbus",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-22"
+      "updatedAt": "2026-09-23"
     },
     {
       "id": "bus-security",
@@ -502,7 +502,7 @@
       ],
       "keywords": "fuzzer ids stress e2e",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-22"
+      "updatedAt": "2026-09-23"
     },
     {
       "id": "protocol-hub",
@@ -520,7 +520,7 @@
       ],
       "keywords": "nm isotp isobus nmea2000 gbt27930 xcp",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-22"
+      "updatedAt": "2026-09-23"
     },
     {
       "id": "log-analysis",
@@ -539,7 +539,7 @@
       ],
       "keywords": "log compare trigger quality reverse id-scan",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-22"
+      "updatedAt": "2026-09-23"
     },
     {
       "id": "bus-utilities",
@@ -557,7 +557,7 @@
       ],
       "keywords": "bit timing gateway",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-22"
+      "updatedAt": "2026-09-23"
     },
     {
       "id": "ethercat-suite",
@@ -577,7 +577,7 @@
       ],
       "keywords": "ethercat esi coe pdo dc mailbox datagram",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-22"
+      "updatedAt": "2026-09-23"
     },
     {
       "id": "ai-agent",
@@ -596,7 +596,7 @@
       ],
       "keywords": "ai agent llm ollama frames stats",
       "minAppVersion": "0.1.0",
-      "updatedAt": "2026-09-22"
+      "updatedAt": "2026-09-23"
     }
   ]
 }

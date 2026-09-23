@@ -117,6 +117,7 @@ Master plan: [Domain_Suite_Rollout_Plan.md](Domain_Suite_Rollout_Plan.md)
 - **Import DBC** → COM I-PDUs/signals; sync Com / CanIf / PduR / CanNm / EcuC; retain `input/network.dbc`  
 - Deep BSW ECUC starters (~40 modules) + `validate_bsw_set` cross-module checks  
 - **Schema-driven BSW configurator**: curated EcucDefs JSON packs; Add/Remove/Duplicate containers; typed params; export `work/bsw/<Module>.arxml`  
+- **Phase 8–12:** EcucDefs depth (Com≥200 / CanIf≥120); BSWMD-as-structure; preserve-unknown ARXML; Document↔Live sync; BSW undo; findings ack + release gate; wizards + DaVinci handoff report; multi-PDU Live; golden fixture CI  
 
 ### Boundary
 - Live COM / NM / E2E / SecOC live inside **AUTOSAR Studio** (former autosar-suite merged)  
@@ -125,9 +126,10 @@ Master plan: [Domain_Suite_Rollout_Plan.md](Domain_Suite_Rollout_Plan.md)
 
 ### UI / UX
 - Same workbench as DBC/EDS Studio; OUTPUT collapsed by default (Ctrl+J)  
-- Nav: Project | Editor | BSW | Spec | Library | Validate | Compare | Merge | Export | SWC | Analysis  
-- Full menu bar: File / Edit / Import / Project / BSW / Validate / View / Help  
+- Activity workspaces + Side Bar sections (Config / Project / COM / Bus / Validate / Setup); Ctrl+B  
+- Full menu bar: File / Edit / Import / Project / BSW / Validate / View / Help (+ Wizards)  
 - BSW: schema instance tree per module; one ARXML each under `work/bsw/`  
+- Validate + OUTPUT Findings: ack/filter/badges; Live multi-PDU monitor  
 
 ---
 
@@ -330,6 +332,7 @@ UDS remains the quality bar for chrome. Feature depth per domain follows the tab
 | 2026-09-22 | ARXML Studio Phase 4: BSWMD import, fix recipe packs, SWC/port mapping lite (no codegen). |
 | 2026-09-22 | ARXML Studio Phase 5: full menubar + DBC→COM/BSW sync; deep ECUC schemas; `validate_bsw_set`; still no stack codegen. |
 | 2026-09-22 | AUTOSAR Studio schema-driven BSW configurator: `ecuc_schemas/*.json`, multiplicity UI, typed ECUC ARXML export. |
+| 2026-09-23 | AUTOSAR Studio Phase 8–12: EcucDefs depth + BSWMD structure; preserve-unknown ARXML; Live sync; findings ack/release; wizards/handoff; multi-PDU Live; golden fixtures. Still no codegen. |
 
 ---
 

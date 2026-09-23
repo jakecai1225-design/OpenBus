@@ -15,7 +15,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QStackedWidget,
-    QTabBar,
     QTableWidgetItem,
     QTreeWidget,
     QTreeWidgetItem,
@@ -311,25 +310,32 @@ def _export_tab(session):
 
 
 def build(parent, session, _log):
-    """System page — Tree / Validate / Export as in-page tabs (Bus chrome owns System/NM/E2E/SecOC)."""
+    """System page — Tree / Validate / Export via Side Bar (Bus → System)."""
     if not hasattr(session, "arxml_path"):
         session.arxml_path = ""
     root = QWidget()
     layout = QVBoxLayout(root)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
-    bar = QTabBar()
-    bar.setObjectName("SuiteInnerTabs")
-    bar.setDrawBase(False)
-    bar.setExpanding(False)
-    bar.setDocumentMode(True)
-    for name in ("Tree", "Validate", "Export"):
-        bar.addTab(name)
     stack = QStackedWidget()
     stack.addWidget(_tree_tab(session, parent))
     stack.addWidget(_validate_tab(session))
     stack.addWidget(_export_tab(session))
-    bar.currentChanged.connect(stack.setCurrentIndex)
-    layout.addWidget(bar)
     layout.addWidget(stack, 1)
+
+    view_keys = ("system_tree", "system_validate", "system_export")
+
+    def select_view(key_or_index):
+        if isinstance(key_or_index, int):
+            idx = key_or_index
+        else:
+            try:
+                idx = view_keys.index(key_or_index)
+            except ValueError:
+                idx = 0
+        if 0 <= idx < stack.count():
+            stack.setCurrentIndex(idx)
+
+    root.select_view = select_view
+    root._system_stack = stack
     return root

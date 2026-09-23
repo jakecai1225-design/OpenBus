@@ -576,14 +576,62 @@ def validate_bsw_set(
                     fix="Enable %s or Sync BSW from COM" % req,
                     location=req)
 
+    # ComM <-> CanSM <-> Nm stack presence
+    if "ComM" in bsw:
+        if "CanSM" not in bsw and "Can" in bsw:
+            add("warn", "comm_cansm_missing",
+                "ComM present but CanSM not enabled for CAN channels",
+                fix="Enable CanSM", location="CanSM")
+        if "Nm" not in bsw and "CanNm" not in bsw:
+            add("info", "comm_nm_missing",
+                "ComM present without Nm/CanNm — NM optional for some ECUs",
+                fix="Enable CanNm if network management is required",
+                location="CanNm")
+
+    # Dem <-> Dcm pairing
+    if "Dem" in bsw and "Dcm" not in bsw:
+        add("warn", "dem_without_dcm",
+            "Dem enabled without Dcm — diagnostic path incomplete",
+            fix="Enable Dcm or Project wizard Add diagnostic path",
+            location="Dcm")
+    if "Dcm" in bsw and "Dem" not in bsw:
+        add("warn", "dcm_without_dem",
+            "Dcm enabled without Dem — DTC storage path incomplete",
+            fix="Enable Dem", location="Dem")
+
+    # NvM <-> Fee / Ea memory stack
+    if "NvM" in bsw:
+        if "Fee" not in bsw and "Ea" not in bsw:
+            add("warn", "nvm_no_backend",
+                "NvM enabled without Fee or Ea backend",
+                fix="Enable Fee (flash) or Ea (EEPROM)",
+                location="Fee")
+        if "MemIf" not in bsw:
+            add("info", "nvm_memif_missing",
+                "NvM usually routes through MemIf",
+                fix="Enable MemIf", location="MemIf")
+
+    # EthIf <-> SoAd stubs
+    if "EthIf" in bsw and "SoAd" not in bsw:
+        add("info", "ethif_soad_missing",
+            "EthIf without SoAd — socket adaptor often required for SOME/IP",
+            fix="Enable SoAd when using Ethernet services",
+            location="SoAd")
+    if "SoAd" in bsw and "TcpIp" not in bsw:
+        add("warn", "soad_tcpip_missing",
+            "SoAd enabled without TcpIp",
+            fix="Enable TcpIp", location="TcpIp")
+
     # Schema multiplicity / enum / range / refs
     try:
         from _shared import arxml_ecuc_schema
         for name, model in bsw.items():
             findings.extend(
                 arxml_ecuc_schema.schema_validate_module(name, model, com))
-    except Exception:
-        pass
+    except Exception as exc:
+        add("warn", "schema_validate_failed",
+            "Schema validate skipped: %s" % exc,
+            fix="Check ecuc_schemas packs", location="schema")
 
     if not findings:
         add("info", "ok", "No BSW issues")

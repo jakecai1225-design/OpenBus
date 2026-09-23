@@ -1,7 +1,7 @@
 {
   "module": "EthIf",
   "definition": "/AUTOSAR/EcucDefs/EthIf",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "EthIfGeneral",
@@ -16,7 +16,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "EthIfDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfGeneral/EthIfDevErrorDetect"
         },
@@ -25,11 +25,65 @@
           "kind": "numerical",
           "default": "1",
           "summary": "EthIfMaxTrcvsTotal",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs EthIfMaxTrcvsTotal parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfGeneral/EthIfMaxTrcvsTotal"
+        },
+        {
+          "shortName": "EthIfVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfGeneral/EthIfVersionInfoApi"
+        },
+        {
+          "shortName": "EthIfGetBaudRateApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "GetBaudRateApi",
+          "detail": "GetBaudRateApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfGeneral/EthIfGetBaudRateApi"
+        },
+        {
+          "shortName": "EthIfGetCounterStateApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "GetCounterStateApi",
+          "detail": "GetCounterStateApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfGeneral/EthIfGetCounterStateApi"
+        },
+        {
+          "shortName": "EthIfGlobalTimeSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "GlobalTimeSupport",
+          "detail": "GlobalTimeSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfGeneral/EthIfGlobalTimeSupport"
+        },
+        {
+          "shortName": "EthIfEnableSignalQualityApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EnableSignalQualityApi",
+          "detail": "EnableSignalQualityApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfGeneral/EthIfEnableSignalQualityApi"
+        },
+        {
+          "shortName": "EthIfSwitchManagementSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SwitchManagementSupport",
+          "detail": "SwitchManagementSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfGeneral/EthIfSwitchManagementSupport"
         }
       ],
       "subContainers": []
@@ -42,12 +96,17 @@
       "parent": "",
       "seed": false,
       "params": [],
-      "subContainers": []
+      "subContainers": [
+        "EthIfController",
+        "EthIfFrameOwnerConfig",
+        "EthIfPhysController",
+        "EthIfSwitch"
+      ]
     },
     {
       "shortName": "EthIfController",
       "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfConfigSet/EthIfController",
-      "lowerMultiplicity": 1,
+      "lowerMultiplicity": 0,
       "upperMultiplicity": "*",
       "parent": "EthIfConfigSet",
       "seed": true,
@@ -57,7 +116,7 @@
           "kind": "numerical",
           "default": "0",
           "summary": "EthIfCtrlIdx",
-          "detail": "",
+          "detail": "Controller index",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -68,11 +127,97 @@
           "kind": "numerical",
           "default": "1500",
           "summary": "EthIfCtrlMtu",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs EthIfCtrlMtu parameter.",
           "range": "",
           "min": 64,
           "max": 9000,
           "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfController/EthIfCtrlMtu"
+        },
+        {
+          "shortName": "EthIfMaxTxBufsTotal",
+          "kind": "numerical",
+          "default": "32",
+          "summary": "Max Tx buffers",
+          "detail": "Max Tx buffers",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfController/EthIfMaxTxBufsTotal"
+        },
+        {
+          "shortName": "EthIfPhysControllerRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "EthIfPhysControllerRef",
+          "detail": "Reference to EthController",
+          "range": "",
+          "destination": "EthController",
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfController/EthIfPhysControllerRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EthIfFrameOwnerConfig",
+      "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfConfigSet/EthIfFrameOwnerConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "EthIfConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EthIfFrameOwner",
+          "kind": "reference",
+          "default": "",
+          "summary": "EthIfFrameOwner",
+          "detail": "Reference to EcucModule",
+          "range": "",
+          "destination": "EcucModule",
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfFrameOwnerConfig/EthIfFrameOwner"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EthIfPhysController",
+      "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfConfigSet/EthIfPhysController",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "EthIfConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EthIfPhysControllerId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Phys controller Id",
+          "detail": "Phys controller Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfPhysController/EthIfPhysControllerId"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EthIfSwitch",
+      "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfConfigSet/EthIfSwitch",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "EthIfConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EthIfSwitchIdx",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Switch index",
+          "detail": "Switch index",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/EthIf/EthIfSwitch/EthIfSwitchIdx"
         }
       ],
       "subContainers": []

@@ -100,6 +100,13 @@ public:
     /// Latest sample tip (for time cursor without full pull).
     bool latestSample(const SampleKey &key, SignalSample *out, quint64 *seqOut = nullptr) const;
 
+    /**
+     * Decode frames on the calling thread with no ingest-queue soft-drop.
+     * Used for offline file analysis bulk load (preserve continuous file timestamps).
+     * Live bus path should keep using ingestFrames().
+     */
+    void ingestFramesDirect(const QVector<CanFrame> &frames);
+
     /// Interpolate value at time (cursors); short lock, O(log n).
     bool valueAtTime(const SampleKey &key, double t, double *outVal) const;
 

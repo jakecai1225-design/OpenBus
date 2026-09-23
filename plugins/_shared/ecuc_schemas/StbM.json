@@ -1,14 +1,14 @@
 {
   "module": "StbM",
   "definition": "/AUTOSAR/EcucDefs/StbM",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "StbMSynchronizedTimeBase",
-      "definition": "/AUTOSAR/EcucDefs/StbM/StbMSynchronizedTimeBase",
+      "definition": "/AUTOSAR/EcucDefs/StbM/StbMGeneral/StbMSynchronizedTimeBase",
       "lowerMultiplicity": 0,
       "upperMultiplicity": "*",
-      "parent": "",
+      "parent": "StbMGeneral",
       "seed": true,
       "params": [
         {
@@ -16,7 +16,7 @@
           "kind": "numerical",
           "default": "10",
           "summary": "StbMTimeBaseId",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs StbMTimeBaseId parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -27,11 +27,22 @@
           "kind": "numerical",
           "default": "10",
           "summary": "StbMIsSystemWideGlobalTimeMaster",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs StbMIsSystemWideGlobalTimeMaster parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/StbM/StbMSynchronizedTimeBase/StbMIsSystemWideGlobalTimeMaster"
+        },
+        {
+          "shortName": "StbMSynchronizedTimeBaseId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Time base Id",
+          "detail": "Time base Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/StbM/StbMSynchronizedTimeBase/StbMSynchronizedTimeBaseId"
         }
       ],
       "subContainers": []
@@ -49,7 +60,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "StbMDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/StbM/StbMGeneral/StbMDevErrorDetect"
         },
@@ -58,14 +69,34 @@
           "kind": "numerical",
           "default": "10",
           "summary": "StbMMainFunctionPeriod",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs StbMMainFunctionPeriod parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/StbM/StbMGeneral/StbMMainFunctionPeriod"
+        },
+        {
+          "shortName": "StbMVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/StbM/StbMGeneral/StbMVersionInfoApi"
+        },
+        {
+          "shortName": "StbMTimeValidationSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TimeValidationSupport",
+          "detail": "TimeValidationSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/StbM/StbMGeneral/StbMTimeValidationSupport"
         }
       ],
-      "subContainers": []
+      "subContainers": [
+        "StbMSynchronizedTimeBase"
+      ]
     }
   ]
 }

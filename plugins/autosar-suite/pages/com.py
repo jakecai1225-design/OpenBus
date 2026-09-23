@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
-"""COM workspace — Layout / Live / Pack as editor tabs."""
+"""COM workspace — Layout / Live / Pack (Side Bar switches views)."""
 
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QStackedWidget,
-    QTabBar,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -82,12 +82,16 @@ class _Layout(QWidget):
         self._fill()
 
     def _fill(self):
-        pdu = self.session.active_pdu()
         self.grid.setRowCount(0)
+        pdu = self.session.active_pdu()
         if pdu is None:
             return
-        self.can_id.setValue(pdu.can_id)
-        self.dlc.setValue(pdu.dlc)
+        self.can_id.blockSignals(True)
+        self.dlc.blockSignals(True)
+        self.can_id.setValue(int(pdu.can_id))
+        self.dlc.setValue(int(pdu.dlc))
+        self.can_id.blockSignals(False)
+        self.dlc.blockSignals(False)
         for sig in pdu.signals:
             row = self.grid.rowCount()
             self.grid.insertRow(row)
@@ -95,93 +99,142 @@ class _Layout(QWidget):
             self.grid.setItem(row, 1, QTableWidgetItem(str(sig.start_bit)))
             self.grid.setItem(row, 2, QTableWidgetItem(str(sig.length)))
             self.grid.setCellWidget(row, 3, _endian_box(sig.endian))
-            self.grid.setItem(row, 4, QTableWidgetItem("%s" % sig.factor))
-            self.grid.setItem(row, 5, QTableWidgetItem("%s" % sig.offset))
+            self.grid.setItem(row, 4, QTableWidgetItem(str(sig.factor)))
+            self.grid.setItem(row, 5, QTableWidgetItem(str(sig.offset)))
             self.grid.setItem(row, 6, QTableWidgetItem(sig.unit))
 
     def _add(self):
         pdu = self.session.active_pdu()
         if pdu is None:
             return
-        pdu.signals.append(Signal("NewSignal", 0, 8, "intel", 1.0, 0.0, ""))
+        pdu.signals.append(Signal("Signal%d" % (len(pdu.signals) + 1), 0, 8))
         self._fill()
 
     def _remove(self):
         pdu = self.session.active_pdu()
-        row = self.grid.currentRow()
-        if pdu is None or row < 0 or row >= len(pdu.signals):
+        if pdu is None:
             return
-        del pdu.signals[row]
-        self._fill()
-
-    def _cell(self, row: int, col: int, default: str = "") -> str:
-        item = self.grid.item(row, col)
-        return item.text().strip() if item and item.text() else default
+        row = self.grid.currentRow()
+        if 0 <= row < len(pdu.signals):
+            del pdu.signals[row]
+            self._fill()
 
     def _apply(self):
         pdu = self.session.active_pdu()
         if pdu is None:
             return
-        pdu.can_id = self.can_id.value()
-        pdu.dlc = self.dlc.value()
+        pdu.can_id = int(self.can_id.value())
+        pdu.dlc = int(self.dlc.value())
         sigs = []
         for row in range(self.grid.rowCount()):
-            endian = "intel"
-            box = self.grid.cellWidget(row, 3)
-            if isinstance(box, QComboBox):
-                endian = box.currentText()
+            name = (self.grid.item(row, 0).text()
+                    if self.grid.item(row, 0) else "Signal")
             try:
-                sigs.append(Signal(
-                    self._cell(row, 0, "Signal"),
-                    int(self._cell(row, 1, "0")),
-                    max(1, int(self._cell(row, 2, "1"))),
-                    endian,
-                    float(self._cell(row, 4, "1")),
-                    float(self._cell(row, 5, "0")),
-                    self._cell(row, 6, ""),
-                ))
-            except ValueError:
-                self.session.log("ERR", "-", b"", "Layout row %d is not numeric" % (row + 1))
+                start = int(self.grid.item(row, 1).text() or "0")
+                length = int(self.grid.item(row, 2).text() or "1")
+                factor = float(self.grid.item(row, 4).text() or "1")
+                offset = float(self.grid.item(row, 5).text() or "0")
+            except (TypeError, ValueError):
+                self.session.log("ERR", "-", b"", "Bad layout row %d" % row)
                 return
+            box = self.grid.cellWidget(row, 3)
+            endian = box.currentText() if box else "intel"
+            unit = (self.grid.item(row, 6).text()
+                    if self.grid.item(row, 6) else "")
+            sigs.append(Signal(name, start, length, endian, factor, offset, unit))
         pdu.signals = sigs
         self.session.notify()
-        self.session.log("SYS", pdu.can_id, b"", "Layout applied: %s" % pdu.name)
+        self.session.log("OK", pdu.can_id, b"", "Layout applied %s" % pdu.name)
 
 
 class _Live(QWidget):
+    """Multi-PDU Live monitor — tracks all session I-PDUs (not only active)."""
+
     def __init__(self, session):
         super().__init__()
         self.session = session
+        self._last: dict = {}  # can_id -> (data, ts note)
+        self._group_on = True
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 8, 12, 8)
-        self.hint = QLabel("Waiting for the active I-PDU")
+        root.setSpacing(6)
+        row = QHBoxLayout()
+        self.hint = QLabel("Waiting for bus frames matching project I-PDUs")
         self.hint.setObjectName("SuiteHint")
-        root.addWidget(self.hint)
-        self.grid = table(["Signal", "Raw", "Physical", "Unit"])
+        row.addWidget(self.hint, 1)
+        self.multi = QCheckBox("All PDUs")
+        self.multi.setChecked(True)
+        self.multi.setToolTip(
+            "Monitor every I-PDU in the session (not only the active one)")
+        self.group = QCheckBox("I-PDU group")
+        self.group.setChecked(True)
+        self.group.setToolTip(
+            "When off, Live ignores frames (start/stop simulation lite)")
+        row.addWidget(self.multi)
+        row.addWidget(self.group)
+        root.addLayout(row)
+        self.grid = table([
+            "PDU", "CAN ID", "Signal", "Raw", "Physical", "Unit", "Status"])
         root.addWidget(self.grid, 1)
         session.on_bus(self._on_bus)
         session.on_changed(self._reset)
+        self.group.toggled.connect(self._on_group)
+        self.multi.toggled.connect(lambda _c: self._paint())
+
+    def _on_group(self, on: bool):
+        self._group_on = bool(on)
+        self.hint.setText(
+            "I-PDU group stopped — Live paused"
+            if not on else "Waiting for bus frames matching project I-PDUs")
 
     def _reset(self):
-        self.grid.setRowCount(0)
-        pdu = self.session.active_pdu()
-        self.hint.setText(
-            "Live  0x%X  %s" % (pdu.can_id, pdu.name) if pdu else "No I-PDU")
+        self._last.clear()
+        self._paint()
 
     def _on_bus(self, cid, data):
-        pdu = self.session.active_pdu()
-        if pdu is None or cid != pdu.can_id:
+        if not self._group_on:
             return
-        self.hint.setText("Live  0x%X  %s  (%d B)" % (cid, pdu.name, len(data)))
+        matched = [p for p in (self.session.ipdus or []) if p.can_id == cid]
+        if not matched:
+            return
+        self._last[cid] = bytes(data)
+        self._paint()
+
+    def _paint(self):
         self.grid.setRowCount(0)
-        for sig in pdu.signals:
-            raw, phys = unpack_signal(data, sig)
-            row = self.grid.rowCount()
-            self.grid.insertRow(row)
-            self.grid.setItem(row, 0, _item(sig.name))
-            self.grid.setItem(row, 1, _item(str(raw)))
-            self.grid.setItem(row, 2, _item("%.6g" % phys))
-            self.grid.setItem(row, 3, _item(sig.unit))
+        pdus = list(self.session.ipdus or [])
+        if not self.multi.isChecked():
+            active = self.session.active_pdu()
+            pdus = [active] if active else []
+        seen = 0
+        for pdu in pdus:
+            data = self._last.get(pdu.can_id)
+            status_pdu = "live" if data is not None else "timeout"
+            if data is None:
+                data = blank_pdu(pdu)
+            else:
+                seen += 1
+            for sig in pdu.signals:
+                raw, phys = unpack_signal(data, sig)
+                # Timeout lite: no frame yet for this CAN id
+                status = status_pdu
+                if status_pdu == "live" and getattr(sig, "length", 0):
+                    # Update-bit lite: if signal is 1-bit named *Update* show raw
+                    if "update" in (sig.name or "").lower() and sig.length == 1:
+                        status = "ub=%s" % raw
+                row = self.grid.rowCount()
+                self.grid.insertRow(row)
+                self.grid.setItem(row, 0, _item(pdu.name))
+                self.grid.setItem(row, 1, _item("0x%X" % pdu.can_id))
+                self.grid.setItem(row, 2, _item(sig.name))
+                self.grid.setItem(row, 3, _item(str(raw)))
+                self.grid.setItem(row, 4, _item("%.6g" % phys))
+                self.grid.setItem(row, 5, _item(sig.unit))
+                self.grid.setItem(row, 6, _item(status))
+        n = len(pdus)
+        self.hint.setText(
+            "Live  %d/%d PDU(s) with frames" % (seen, n)
+            if n else "No I-PDU")
 
 
 class _Pack(QWidget):
@@ -235,18 +288,20 @@ class _Pack(QWidget):
 
 
 def build(parent, session, _log):
-    bar = QTabBar()
-    bar.setObjectName("SuiteEditorTabs")
-    bar.setDrawBase(False)
-    bar.setExpanding(False)
-    bar.setDocumentMode(True)
-    for name in ("Layout", "Live", "Pack"):
-        bar.addTab(name)
+    """COM workspace — Layout / Live / Pack (Side Bar switches the stack)."""
     stack = QStackedWidget()
+    stack.setObjectName("SuiteEditorStack")
     stack.addWidget(_Layout(session))
     stack.addWidget(_Live(session))
     stack.addWidget(_Pack(session))
-    bar.currentChanged.connect(stack.setCurrentIndex)
-    bar.setCurrentIndex(1)
-    parent._com_tabs = bar
+    stack.setCurrentIndex(1)  # Live default
+    parent._com_stack = stack
+    parent._com_tabs = None
+    parent._com_feature_keys = ["com_layout", "com_live", "com_pack"]
+
+    def select_com_view(index: int):
+        if 0 <= index < stack.count():
+            stack.setCurrentIndex(index)
+
+    stack.select_com_view = select_com_view  # type: ignore[attr-defined]
     return stack

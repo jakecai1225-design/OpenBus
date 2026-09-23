@@ -45,6 +45,11 @@
 // core/triggerrecorder.h 已移除 — 触发录制随录制页迁入 transceive 模块（拆分方案 B2）
 #include "utils/canutils.h"
 
+#include <QCoreApplication>
+#include <QEventLoop>
+#include <QFileInfo>
+#include <QMessageBox>
+
 namespace {
 
 QVector<CanFrame> filterPlaybackFrames(const QVector<CanFrame> &frames,
@@ -225,9 +230,18 @@ void MainWindow::onFramesPlayed(const QVector<CanFrame> &frames)
     if (filtered.isEmpty())
         return;
 
-    // Playback to bus (device running): send each frame, then feed Trace with
-    // Tx echoes only — same hub as Transceive / plugin send. Do not also inject
-    // the original file frames (those keep Rx and would double-count).
+    // Offline Flow file source FIRST — never mix PC/device wall-clock echoes into
+    // SampleStore while analyzing a BLF/ASC (that produced dual time clusters).
+    if (flowQuery(QStringLiteral("currentSource")).toString()
+            == QStringLiteral("file")) {
+        // Full file already bulk-ingested at measurement start (file timestamps).
+        if (m_offlineBulkIngested)
+            return;
+        onFramesReceived(filtered);
+        return;
+    }
+
+    // Playback to bus (device running, hardware Flow source): Tx echoes only.
     if (m_deviceManager && m_deviceManager->isRunning()) {
         QVector<CanFrame> echoes;
         echoes.reserve(filtered.size());
@@ -250,13 +264,6 @@ void MainWindow::onFramesPlayed(const QVector<CanFrame> &frames)
                         .arg(echoes.size()));
             }
         }
-        return;
-    }
-
-    // Offline Flow file source: keep log Rx/Tx for analysis.
-    if (flowQuery(QStringLiteral("currentSource")).toString()
-            == QStringLiteral("file")) {
-        onFramesReceived(filtered);
         return;
     }
 
@@ -347,29 +354,32 @@ void MainWindow::onPlayerProgress(int cur, int total, double curTime, double tot
 {
     transceiveInvoke(QStringLiteral("setProgress"),
                      QVariantList{ cur, total, curTime, totalTime });
+    // Offline / playback: always file timestamp ratio (never wall-clock elapsed).
     if (totalTime > 0)
-        m_timeLabel->setText(QString::number(curTime, 'f', 3) + "s / " +
-                              QString::number(totalTime, 'f', 3) + "s");
+        m_timeLabel->setText(
+            QStringLiteral("%1s / %2s")
+                .arg(curTime, 0, 'f', 3)
+                .arg(totalTime, 0, 'f', 3));
     else
-        m_timeLabel->setText(QString::number(curTime, 'f', 3) + "s");
+        m_timeLabel->setText(QStringLiteral("%1s").arg(curTime, 0, 'f', 3));
 }
 
 void MainWindow::onPlayerStateChanged(bool playing)
 {
     updateActions();
-    m_statusLabel->setText(playing ? "回放中..." : "已暂停");
+    m_statusLabel->setText(playing ? QStringLiteral("Playing...")
+                                   : QStringLiteral("Paused"));
 }
 
 void MainWindow::onPlayerFinished()
 {
-    m_statusLabel->setText("回放完成");
+    m_statusLabel->setText(QStringLiteral("Playback finished"));
     updateActions();
-    // 离线测量经 Player 回放：文件分析完毕后复位 Flow 页启停按钮，
-    // 「开始」恢复可点（再次点击即重新回放）——否则按钮停留在运行态
+    // Offline measurement via Player: reset Flow Start/Stop when the file ends.
     if (m_measurementRunning && flowQuery(QStringLiteral("currentSource"))
                                      .toString() == QStringLiteral("file")) {
         m_measurementRunning = false;
-        m_bottomPanel->appendOutput("离线分析完成");
+        m_bottomPanel->appendOutput(QStringLiteral("Offline analysis finished"));
         flowInvoke(QStringLiteral("setMeasurementRunning"), false);
     }
 }
@@ -476,127 +486,207 @@ void MainWindow::onSignalAddToTrace(quint32 canId, const QString &signalName)
 
 void MainWindow::onMeasurementToggled(bool running)
 {
-    m_measurementRunning = running;
-    if (running) {
-        m_receivedFrameCount = 0;  // reset frame counter
-        // CaptureLog is the live Trace history (tabs are cameras; B5)
-        const int captureCap = qBound(
-            10000,
-            AppConfig::instance()->getInt(QStringLiteral("capture.maxFrames"), 500000),
-            2000000);
-        CaptureLog::instance()->setCapacity(captureCap);
-        traceInvoke(QStringLiteral("resetCaptureCursor"));
-
-        const int sampleCap = qBound(
-            8192,
-            AppConfig::instance()->getInt(QStringLiteral("graphic.maxSamples"), 200000),
-            1000000);
-        SampleStore::instance()->setCapacity(sampleCap);
-        SampleStore::instance()->clear();
-
-        // New measurement session: bus stats + Watcher reset
-        if (m_busStats)
-            m_busStats->clear();
-        if (m_watcherView)
-            m_watcherView->clearData();
-        m_bottomPanel->appendOutput(" 测量开始");
-        const bool hardware = flowQuery(QStringLiteral("currentSource"))
-                                  .toString() == QStringLiteral("hardware");
-        if (hardware) {
-            // 硬件模式：数据源 = 已连接的真实硬件设备
-            if (m_deviceManager->isRunning()) {
-                // 真实硬件已连接，无需重复启动
-            } else if (!m_simulator->isRunning()) {
-                // 不隐式启动模拟器（防混淆）：数据源就绪前测量空转，
-                // 设备连接后帧自动流入（onFrameReceived 仅门控测量状态）
-                m_bottomPanel->appendOutput(
-                    QStringLiteral("数据源未就绪：未检测到已连接设备。"
-                                   "请到设备连接页连接硬件，或显式连接 openbus 模拟器"));
-            }
-        } else {
-            // 离线分析模式：从离线分析标签页加载所有文件，合并后送入 Player
+    if (!running) {
+        m_measurementRunning = false;
+        m_bottomPanel->appendOutput(QStringLiteral("Measurement stopped"));
+        m_simulator->stop();
+        // Keep real hardware open across measurement stop.
+        if (m_deviceManager && !m_deviceManager->isRealDevice())
+            m_deviceManager->stop();
+        // Offline: pause (keep index) so Start can continue; do not reset to 0.
+        if (flowQuery(QStringLiteral("currentSource")).toString()
+                == QStringLiteral("file") && m_player->isLoaded())
+            m_player->pause();
+        else
             m_player->stop();
-            // 文件列表经 transceive 模块查询（拆分方案 B2）
-            QStringList paths = transceiveQuery(
-                QStringLiteral("offlineFiles")).toStringList();
+        traceInvoke(QStringLiteral("setRunningAll"), false);
+        return;
+    }
 
-            if (paths.isEmpty()) {
-                // 无文件 → 回退到文件选择框
-                onOpenFile();
-                if (!m_player->isLoaded()) {
-                    // 用户取消选择：测量未真正启动，复位 Flow 页按钮状态
-                    m_measurementRunning = false;
-                    flowInvoke(QStringLiteral("setMeasurementRunning"), false);
-                    return;
-                }
-            } else {
-                // Multi-file: keep absolute file timestamps, then rebase once so
-                // Trace and Graphic share one axis (not per-file t=0 collisions).
-                QVector<CanFrame> allFrames;
-                QStringList loadedNames;
-                const bool multiFile = paths.size() > 1;
-                for (const auto &path : paths) {
-                    auto reader = CanFileIOFactory::createReader(path);
-                    if (!reader || !reader->open(path)) {
-                        m_bottomPanel->appendOutput(
-                            QStringLiteral("Parse failed: %1").arg(QFileInfo(path).fileName()));
-                        continue;
-                    }
-                    if (multiFile)
-                        reader->setKeepAbsoluteTimestamps(true);
-                    QVector<CanFrame> frames;
-                    int count = reader->readAll(frames);
-                    reader->close();
-                    if (count > 0) {
-                        allFrames += frames;
-                        loadedNames << QFileInfo(path).fileName();
-                        m_bottomPanel->appendOutput(
-                            QStringLiteral("Loaded: %1 (%2 frames)")
-                                .arg(QFileInfo(path).fileName()).arg(count));
-                    }
-                }
-                if (allFrames.isEmpty()) {
-                    QMessageBox::warning(this, QStringLiteral("Offline analysis"),
-                        QStringLiteral("All files failed to parse or were empty"));
-                    m_measurementRunning = false;
-                    flowInvoke(QStringLiteral("setMeasurementRunning"), false);
-                    return;
-                }
-                std::sort(allFrames.begin(), allFrames.end(),
-                          [](const CanFrame &a, const CanFrame &b) {
-                              return a.timestamp < b.timestamp;
-                          });
-                if (multiFile)
-                    CanUtils::makeRelativeToFirst(allFrames);
-                m_player->loadFrames(allFrames);
-                m_bottomPanel->appendOutput(
-                    QStringLiteral("Loaded %1 file(s), %2 frames")
-                        .arg(loadedNames.size()).arg(allFrames.size()));
-            }
+    const bool fileSource = flowQuery(QStringLiteral("currentSource"))
+                                .toString() == QStringLiteral("file");
 
-            // 清除所有 Trace 和 Graphic 视图（经模块，拆分方案 B5）
-            graphicInvoke(QStringLiteral("clearDataAll"));
-            traceInvoke(QStringLiteral("clearTraceAll"));
-            m_player->play();
+    // ---- Continue / resume (offline file already loaded) ----
+    if (fileSource && m_player->isLoaded()) {
+        if (m_player->isAtEnd()) {
+            m_measurementRunning = false;
+            flowInvoke(QStringLiteral("setMeasurementRunning"), false);
+            QMessageBox::information(
+                this,
+                QStringLiteral("Playback"),
+                QStringLiteral("Playback finished. Click Replay to clear Trace/Graphic "
+                               "and start from the beginning."));
+            return;
         }
-        // 所有已启用的 Trace 实例自动开始接收数据（遵循 Flow 块使能状态；
-        // 经 trace 模块按 id 门控，拆分方案 B5）
+        // Resume from current index — do not clear Trace/Graphic.
+        m_measurementRunning = true;
+        m_bottomPanel->appendOutput(QStringLiteral("Playback continued"));
         const auto traceIds = m_traceInstances.keys();
         for (const QString &traceId : traceIds) {
             traceInvoke(QStringLiteral("setRunning"),
                         QVariantList{ traceId,
                                       flowQuery(QStringLiteral("isBlockEnabled"), traceId).toBool() });
         }
+        m_player->play();
+        return;
+    }
+
+    // ---- First start (or hardware) ----
+    startMeasurementSession(/*replay=*/false);
+}
+
+void MainWindow::onMeasurementReplay()
+{
+    // Always clear Trace/Graphic and restart from the beginning.
+    startMeasurementSession(/*replay=*/true);
+}
+
+void MainWindow::startMeasurementSession(bool replay)
+{
+    m_measurementRunning = true;
+    m_offlineBulkIngested = false;
+    m_receivedFrameCount = 0;
+
+    const int captureCap = qBound(
+        10000,
+        AppConfig::instance()->getInt(QStringLiteral("capture.maxFrames"), 500000),
+        2000000);
+    CaptureLog::instance()->setCapacity(captureCap);
+    CaptureLog::instance()->clear();
+    traceInvoke(QStringLiteral("resetCaptureCursor"));
+
+    const int sampleCap = qBound(
+        8192,
+        AppConfig::instance()->getInt(QStringLiteral("graphic.maxSamples"), 200000),
+        1000000);
+    SampleStore::instance()->setCapacity(sampleCap);
+    SampleStore::instance()->clear();
+
+    if (m_busStats)
+        m_busStats->clear();
+    if (m_watcherView)
+        m_watcherView->clearData();
+
+    graphicInvoke(QStringLiteral("clearDataAll"));
+    traceInvoke(QStringLiteral("clearTraceAll"));
+
+    m_bottomPanel->appendOutput(
+        replay ? QStringLiteral("Replay: cleared Trace/Graphic, starting from beginning")
+               : QStringLiteral("Measurement started"));
+
+    const bool hardware = flowQuery(QStringLiteral("currentSource"))
+                              .toString() == QStringLiteral("hardware");
+    if (hardware) {
+        if (m_deviceManager->isRunning()) {
+            // Real hardware already connected
+        } else if (!m_simulator->isRunning()) {
+            m_bottomPanel->appendOutput(
+                QStringLiteral("Data source not ready: no connected device. "
+                               "Connect hardware on the device page, or connect "
+                               "the openbus simulator explicitly."));
+        }
     } else {
-        m_bottomPanel->appendOutput(QStringLiteral("Measurement stopped"));
-        m_simulator->stop();
-        // Keep real hardware (e.g. PCAN-USB) open across measurement stop so
-        // UDS / Transceive can resume after Flow Start without reconnect.
-        // Trace / plugin fan-out stays gated by m_measurementRunning.
-        if (m_deviceManager && !m_deviceManager->isRealDevice())
-            m_deviceManager->stop();
-        m_player->stop();
-        traceInvoke(QStringLiteral("setRunningAll"), false);
+        m_player->stop();  // reset index to 0
+        QStringList paths = transceiveQuery(
+            QStringLiteral("offlineFiles")).toStringList();
+
+        if (paths.isEmpty()) {
+            // Keep existing player frames on replay if user already loaded once.
+            if (!m_player->isLoaded()) {
+                onOpenFile();
+                if (!m_player->isLoaded()) {
+                    m_measurementRunning = false;
+                    flowInvoke(QStringLiteral("setMeasurementRunning"), false);
+                    return;
+                }
+            }
+        } else {
+            QVector<CanFrame> allFrames;
+            QStringList loadedNames;
+            const bool multiFile = paths.size() > 1;
+            for (const auto &path : paths) {
+                auto reader = CanFileIOFactory::createReader(path);
+                if (!reader || !reader->open(path)) {
+                    m_bottomPanel->appendOutput(
+                        QStringLiteral("Parse failed: %1").arg(QFileInfo(path).fileName()));
+                    continue;
+                }
+                if (multiFile)
+                    reader->setKeepAbsoluteTimestamps(true);
+                QVector<CanFrame> frames;
+                int count = reader->readAll(frames);
+                reader->close();
+                if (count > 0) {
+                    allFrames += frames;
+                    loadedNames << QFileInfo(path).fileName();
+                    m_bottomPanel->appendOutput(
+                        QStringLiteral("Loaded: %1 (%2 frames)")
+                            .arg(QFileInfo(path).fileName()).arg(count));
+                }
+            }
+            if (allFrames.isEmpty()) {
+                QMessageBox::warning(this, QStringLiteral("Offline analysis"),
+                    QStringLiteral("All files failed to parse or were empty"));
+                m_measurementRunning = false;
+                flowInvoke(QStringLiteral("setMeasurementRunning"), false);
+                return;
+            }
+            std::sort(allFrames.begin(), allFrames.end(),
+                      [](const CanFrame &a, const CanFrame &b) {
+                          return a.timestamp < b.timestamp;
+                      });
+            if (multiFile)
+                CanUtils::makeRelativeToFirst(allFrames);
+            m_player->loadFrames(allFrames);
+            m_bottomPanel->appendOutput(
+                QStringLiteral("Loaded %1 file(s), %2 frames")
+                    .arg(loadedNames.size()).arg(allFrames.size()));
+        }
+
+        // One-shot ingest with file timestamps (no stream soft-drop gaps).
+        if (m_player->isLoaded()) {
+            const QVector<CanFrame> &all = m_player->frames();
+            const int n = all.size();
+            if (n > CaptureLog::instance()->capacity()) {
+                CaptureLog::instance()->setCapacity(
+                    qBound(captureCap, n, 2000000));
+            }
+            constexpr int kChunk = 8192;
+            for (int i = 0; i < n; i += kChunk) {
+                const QVector<CanFrame> chunk = all.mid(i, kChunk);
+                CaptureLog::instance()->appendBatch(chunk);
+                SampleStore::instance()->ingestFramesDirect(chunk);
+                m_receivedFrameCount += chunk.size();
+                if ((i & 0x7FFF) == 0)
+                    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+            }
+            m_offlineBulkIngested = true;
+            m_bottomPanel->appendOutput(
+                QStringLiteral("Offline bulk ingest: %1 frames (file timestamps)")
+                    .arg(n));
+            if (m_frameCountLabel) {
+                m_frameCountLabel->setText(
+                    QStringLiteral("%1 / %2 frames").arg(n).arg(n));
+            }
+            // Trace/Graphic already have full file data — show it immediately.
+            graphicInvoke(QStringLiteral("resyncFromSampleStoreAll"));
+            // Jump file cursor to end: status shows fileTime/totalTime at 100%.
+            // Do not wall-clock play-out (that looked like a live stopwatch).
+            m_player->jumpToEnd();
+        }
+    }
+
+    const auto traceIds = m_traceInstances.keys();
+    for (const QString &traceId : traceIds) {
+        traceInvoke(QStringLiteral("setRunning"),
+                    QVariantList{ traceId,
+                                  flowQuery(QStringLiteral("isBlockEnabled"), traceId).toBool() });
+    }
+    flowInvoke(QStringLiteral("setMeasurementRunning"), true);
+
+    // Offline bulk: analysis already complete — freeze progress at file end.
+    if (m_offlineBulkIngested) {
+        onPlayerFinished();
     }
 }
 

@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Profile library — CiA 301 / 402 stubs for the EDS draft.
-
-Tabs live in the suite chrome row (not inside the page).
-"""
+"""Profile library — CiA 301 / 402 (Side Bar switches views)."""
 
 from __future__ import annotations
 
@@ -13,7 +10,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QStackedWidget,
-    QTabBar,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -40,26 +36,21 @@ def _make_tree() -> QTreeWidget:
     tree.setHeaderLabels(["Index", "Name", "Access", "DataType", "Default"])
     tree.setSelectionMode(QTreeWidget.SelectionMode.ExtendedSelection)
     tree.setAlternatingRowColors(True)
+    tree.setMinimumWidth(240)
     tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
     return tree
 
 
 def build(parent, session, log_fn) -> QWidget:
-    bar = QTabBar()
-    bar.setObjectName("SuiteEditorTabs")
-    bar.setDrawBase(False)
-    bar.setExpanding(False)
-    bar.setDocumentMode(True)
-    bar.addTab("CiA 301")
-    bar.addTab("CiA 402")
-    parent._library_tabs = bar
-
     stack = QStackedWidget()
+    stack.setObjectName("SuiteEditorStack")
+    parent._library_tabs = None
+    parent._library_feature_keys = ["lib_301", "lib_402"]
+
     tree301 = _make_tree()
     tree402 = _make_tree()
     stack.addWidget(tree301)
     stack.addWidget(tree402)
-    bar.currentChanged.connect(stack.setCurrentIndex)
 
     root = QWidget(parent)
     layout = QVBoxLayout(root)
@@ -99,8 +90,6 @@ def build(parent, session, log_fn) -> QWidget:
         q = search.text()
         _fill(tree301, search_cia301(q))
         _fill(tree402, search_cia402(q))
-        bar.setTabText(0, "CiA 301 (%d)" % tree301.topLevelItemCount())
-        bar.setTabText(1, "CiA 402 (%d)" % tree402.topLevelItemCount())
 
     def _active_tree():
         return tree301 if stack.currentIndex() == 0 else tree402
@@ -139,11 +128,22 @@ def build(parent, session, log_fn) -> QWidget:
         log_fn("RX", "-", b"", "Inserted %d visible objects" % len(entries))
         plugin_shell.set_status(parent, "Inserted %d" % len(entries), 3000)
 
+    def select_library_view(index: int):
+        if 0 <= index < stack.count():
+            stack.setCurrentIndex(index)
+
+    def select_view(key: str):
+        idx = {"lib_301": 0, "library": 0, "lib_402": 1}.get(key, 0)
+        select_library_view(idx)
+
     search.textChanged.connect(lambda _=None: refresh())
     insert.clicked.connect(on_insert)
     insert_all.clicked.connect(on_insert_all)
-    goto.clicked.connect(lambda: parent.goto_page("eds") if hasattr(parent, "goto_page") else None)
-    bar.setTabText(0, "CiA 301 (%d)" % len(CIA301_OBJECTS))
-    bar.setTabText(1, "CiA 402 (%d)" % len(CIA402_OBJECTS))
+    goto.clicked.connect(
+        lambda: parent.goto_page("eds_dict")
+        if hasattr(parent, "goto_page") else None)
     refresh()
+    root.select_library_view = select_library_view  # type: ignore[attr-defined]
+    root.select_view = select_view  # type: ignore[attr-defined]
+    root._lib_stack = stack
     return root

@@ -1,7 +1,7 @@
 {
   "module": "FrNm",
   "definition": "/AUTOSAR/EcucDefs/FrNm",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "FrNmGlobalConfig",
@@ -16,12 +16,50 @@
           "kind": "string",
           "default": "",
           "summary": "FrNmChannelConfig",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs FrNmChannelConfig parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/FrNm/FrNmGlobalConfig/FrNmChannelConfig"
+        },
+        {
+          "shortName": "FrNmDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrNm/FrNmGlobalConfig/FrNmDevErrorDetect"
+        },
+        {
+          "shortName": "FrNmVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrNm/FrNmGlobalConfig/FrNmVersionInfoApi"
+        },
+        {
+          "shortName": "FrNmPassiveModeEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PassiveModeEnabled",
+          "detail": "PassiveModeEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrNm/FrNmGlobalConfig/FrNmPassiveModeEnabled"
+        },
+        {
+          "shortName": "FrNmUserDataEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "UserDataEnabled",
+          "detail": "UserDataEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrNm/FrNmGlobalConfig/FrNmUserDataEnabled"
         }
       ],
-      "subContainers": []
+      "subContainers": [
+        "FrNmChannelConfig"
+      ]
     },
     {
       "shortName": "FrNmGeneral",
@@ -36,11 +74,33 @@
           "kind": "numerical",
           "default": "10",
           "summary": "FrNmMainFunctionPeriod",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs FrNmMainFunctionPeriod parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/FrNm/FrNmGeneral/FrNmMainFunctionPeriod"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "FrNmChannelConfig",
+      "definition": "/AUTOSAR/EcucDefs/FrNm/FrNmGlobalConfig/FrNmChannelConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "FrNmGlobalConfig",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "FrNmNodeId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Node Id",
+          "detail": "Node Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/FrNm/FrNmChannelConfig/FrNmNodeId"
         }
       ],
       "subContainers": []

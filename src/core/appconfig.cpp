@@ -180,7 +180,7 @@ json AppConfig::defaultConfig()
         {"capture.maxFrames", 500000},
 
         // ---- Graphic ----
-        {"graphic.timeWindow", 30.0},
+        {"graphic.timeWindow", 120.0},
         {"graphic.antialiasing", true},
         {"graphic.fps", 30},
         {"graphic.maxSamples", 200000},

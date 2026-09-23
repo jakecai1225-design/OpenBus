@@ -82,6 +82,8 @@ signals:
     void sourceChanged(int source);
     void fileBrowseRequested();
     void measurementToggled(bool running);
+    /// Clear Trace/Graphic and restart offline (or hardware) measurement from the beginning.
+    void measurementReplayRequested();
     void moduleToggled(const QString &blockId, const QString &moduleName, bool enabled);
     /// 请求打开/跳转模块实例（instanceId 为空表示新建）
     void moduleOpened(const QString &moduleName, const QString &instanceId);
@@ -122,8 +124,13 @@ private:
     // 工具栏控件
     QToolButton *m_hwBtn = nullptr;
     QToolButton *m_fileBtn = nullptr;
+    // Action / button pointers for Start / Replay / Stop (canvas overlay)
     QAction *m_startAct = nullptr;
+    QAction *m_replayAct = nullptr;
     QAction *m_stopAct = nullptr;
+    QToolButton *m_startBtn = nullptr;
+    QToolButton *m_replayBtn = nullptr;
+    QToolButton *m_stopBtn = nullptr;
     QAction *m_browseAct = nullptr;
 
     // ---- 状态 ----
@@ -212,6 +219,7 @@ private:
 
     // ---- 工具栏按钮槽 ----
     void onStartClicked();
+    void onReplayClicked();
     void onStopClicked();
     void onBrowseClicked();
 

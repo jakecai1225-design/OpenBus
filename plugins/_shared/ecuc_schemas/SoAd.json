@@ -1,22 +1,22 @@
 {
   "module": "SoAd",
   "definition": "/AUTOSAR/EcucDefs/SoAd",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "SoAdConfig",
       "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdConfig",
-      "lowerMultiplicity": 0,
-      "upperMultiplicity": "*",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
       "parent": "",
-      "seed": true,
+      "seed": false,
       "params": [
         {
           "shortName": "SoAdSocketConnection",
           "kind": "string",
           "default": "",
           "summary": "SoAdSocketConnection",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs SoAdSocketConnection parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdConfig/SoAdSocketConnection"
         },
@@ -25,7 +25,7 @@
           "kind": "string",
           "default": "",
           "summary": "SoAdPduRoute",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs SoAdPduRoute parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdConfig/SoAdPduRoute"
         },
@@ -34,12 +34,16 @@
           "kind": "string",
           "default": "",
           "summary": "SoAdRoutingGroup",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs SoAdRoutingGroup parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdConfig/SoAdRoutingGroup"
         }
       ],
-      "subContainers": []
+      "subContainers": [
+        "SoAdSocketConnection",
+        "SoAdPduRoute",
+        "SoAdRoutingGroup"
+      ]
     },
     {
       "shortName": "SoAdGeneral",
@@ -54,9 +58,146 @@
           "kind": "boolean",
           "default": "false",
           "summary": "SoAdDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdGeneral/SoAdDevErrorDetect"
+        },
+        {
+          "shortName": "SoAdVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdGeneral/SoAdVersionInfoApi"
+        },
+        {
+          "shortName": "SoAdRoutingGroupEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "RoutingGroupEnabled",
+          "detail": "RoutingGroupEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdGeneral/SoAdRoutingGroupEnabled"
+        },
+        {
+          "shortName": "SoAdSocketMsgAcceptanceFilterEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SocketMsgAcceptanceFilterEnabled",
+          "detail": "SocketMsgAcceptanceFilterEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdGeneral/SoAdSocketMsgAcceptanceFilterEnabled"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "SoAdSocketConnection",
+      "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdConfig/SoAdSocketConnection",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "SoAdConfig",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "SoAdSocketId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Socket Id",
+          "detail": "Socket Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdSocketConnection/SoAdSocketId"
+        },
+        {
+          "shortName": "SoAdSocketLocalPort",
+          "kind": "numerical",
+          "default": "13400",
+          "summary": "Local port",
+          "detail": "Local port",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdSocketConnection/SoAdSocketLocalPort"
+        },
+        {
+          "shortName": "SoAdSocketRemotePort",
+          "kind": "numerical",
+          "default": "13400",
+          "summary": "Remote port",
+          "detail": "Remote port",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdSocketConnection/SoAdSocketRemotePort"
+        },
+        {
+          "shortName": "SoAdSocketProtocol",
+          "kind": "enumeration",
+          "default": "UDP",
+          "summary": "Protocol",
+          "detail": "Protocol",
+          "range": "",
+          "literals": [
+            "UDP",
+            "TCP"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdSocketConnection/SoAdSocketProtocol"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "SoAdPduRoute",
+      "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdConfig/SoAdPduRoute",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "SoAdConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "SoAdTxPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "SoAdTxPduRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdPduRoute/SoAdTxPduRef"
+        },
+        {
+          "shortName": "SoAdRxPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "SoAdRxPduRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdPduRoute/SoAdRxPduRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "SoAdRoutingGroup",
+      "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdConfig/SoAdRoutingGroup",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "SoAdConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "SoAdRoutingGroupId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Routing group Id",
+          "detail": "Routing group Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/SoAd/SoAdRoutingGroup/SoAdRoutingGroupId"
         }
       ],
       "subContainers": []

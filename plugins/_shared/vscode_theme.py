@@ -267,15 +267,91 @@ QWidget#SuiteToolbar QLabel {{
 QWidget#SuiteToolbar QLabel#SuiteToolbarTitle {{
     color: {TEXT_MUTED};
     font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.6px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
     padding-right: 4px;
 }}
 QLabel#SuiteToolbarTitle {{
     color: {TEXT_MUTED};
     font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+}}
+
+/* ===== Side Bar explorer (VS Code) ===== */
+QWidget#SuiteSideBar, QWidget#WorkspaceSideBar, QWidget#ConfigSideBar {{
+    background: {SIDEBAR};
+    border: none;
+}}
+QWidget#SuiteSideBarHeader {{
+    background: {SIDEBAR};
+    border-bottom: 1px solid {BORDER_SOFT};
+}}
+QLabel#SuiteDocPath {{
+    color: {TEXT_MUTED};
+    font-size: 12px;
+    font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+    padding: 0 6px;
+}}
+QLabel#SuiteDirtyDot {{
+    color: {ACCENT};
+    font-size: 14px;
     font-weight: 700;
-    letter-spacing: 0.6px;
+    padding: 0 2px;
+}}
+QTreeWidget#SuiteMatrix {{
+    background: transparent;
+    border: none;
+    outline: 0;
+    font-size: 13px;
+}}
+QTreeWidget#SuiteMatrix::item {{
+    padding: 2px 4px;
+    min-height: 22px;
+}}
+QTreeWidget#SuiteMatrix::item:hover {{
+    background: {SIDEBAR_HOVER};
+}}
+QTreeWidget#SuiteMatrix::item:selected {{
+    background: {ACCENT_SOFT};
+    color: {TEXT};
+}}
+QTableWidget#SuiteMatrix {{
+    border: none;
+    gridline-color: {BORDER_SOFT};
+    outline: 0;
+}}
+QTableWidget#SuiteMatrix::item:selected {{
+    background: {ACCENT_SOFT};
+    color: {TEXT};
+}}
+QPlainTextEdit#BswSpecPane {{
+    background: {EDITOR};
+    color: {TEXT_MUTED};
+    font-size: 12px;
+    border: none;
+    border-top: 1px solid {BORDER_SOFT};
+    padding: 6px 8px;
+}}
+QToolButton#SuitePanelTab {{
+    background: transparent;
+    color: {TEXT_MUTED};
+    border: none;
+    border-bottom: 1px solid transparent;
+    border-radius: 0;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+}}
+QToolButton#SuitePanelTab:hover {{
+    color: {TEXT};
+}}
+QToolButton#SuitePanelTab:checked {{
+    color: {TEXT};
+    border-bottom: 1px solid {ACCENT};
+}}
+QWidget#SuiteMenubarTrailing {{
+    background: transparent;
 }}
 QLabel#SessionBadge {{
     color: {ACCENT};
@@ -525,7 +601,7 @@ QLabel#SuiteEditorTitle {{
     color: {TEXT};
     font-size: 13px;
     font-weight: 600;
-    padding: 0 12px;
+    padding: 0 10px;
 }}
 QWidget#SuiteEditorTabHost {{
     background: {SIDEBAR};
@@ -533,7 +609,7 @@ QWidget#SuiteEditorTabHost {{
 QTabBar#SuiteEditorTabs {{
     background: {SIDEBAR};
     border: none;
-    min-height: 35px;
+    min-height: 32px;
 }}
 QTabBar#SuiteEditorTabs::tab {{
     background: {SIDEBAR};
@@ -541,9 +617,9 @@ QTabBar#SuiteEditorTabs::tab {{
     border: none;
     border-right: 1px solid {BORDER};
     border-radius: 0;
-    padding: 8px 14px;
+    padding: 6px 12px;
     margin: 0;
-    min-height: 35px;
+    min-height: 32px;
     font-size: 13px;
 }}
 QTabBar#SuiteEditorTabs::tab:selected {{
@@ -551,6 +627,17 @@ QTabBar#SuiteEditorTabs::tab:selected {{
     color: {TEXT};
     font-weight: 600;
     border-top: 1px solid {ACCENT};
+}}
+QTabBar#SuiteEditorTabs::tab:hover:!selected {{
+    color: {TEXT};
+}}
+QWidget#SuiteLogHeader {{
+    background: {EDITOR};
+    border: none;
+}}
+QWidget#SuiteLogHeader QLabel#SuiteToolbarTitle {{
+    font-weight: 600;
+    letter-spacing: 0.2px;
 }}
 QTabBar#SuiteEditorTabs::tab:hover:!selected {{
     background: {SIDEBAR_HOVER};
@@ -718,10 +805,6 @@ QWidget#SuiteLogPanel {{
 QWidget#SuiteLogHost {{
     background: {EDITOR};
     border-top: 1px solid {BORDER_SOFT};
-}}
-QWidget#SuiteLogHeader {{
-    background: {EDITOR};
-    border: none;
 }}
 QPlainTextEdit#SuiteOutputTerminal {{
     background: {EDITOR};

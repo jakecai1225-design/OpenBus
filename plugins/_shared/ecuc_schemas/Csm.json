@@ -1,7 +1,7 @@
 {
   "module": "Csm",
   "definition": "/AUTOSAR/EcucDefs/Csm",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "CsmJobs",
@@ -16,7 +16,7 @@
           "kind": "string",
           "default": "",
           "summary": "CsmJob",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CsmJob parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Csm/CsmJobs/CsmJob"
         }
@@ -36,7 +36,7 @@
           "kind": "string",
           "default": "",
           "summary": "CsmKey",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CsmKey parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Csm/CsmKeys/CsmKey"
         }
@@ -56,7 +56,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "CsmDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Csm/CsmGeneral/CsmDevErrorDetect"
         },
@@ -65,11 +65,68 @@
           "kind": "numerical",
           "default": "10",
           "summary": "CsmMainFunctionPeriod",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CsmMainFunctionPeriod parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/Csm/CsmGeneral/CsmMainFunctionPeriod"
+        },
+        {
+          "shortName": "CsmVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Csm/CsmGeneral/CsmVersionInfoApi"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CsmJob",
+      "definition": "/AUTOSAR/EcucDefs/Csm/CsmJob",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CsmJobPriority",
+          "kind": "enumeration",
+          "default": "0",
+          "summary": "Priority",
+          "detail": "Priority",
+          "range": "",
+          "literals": [
+            "0",
+            "1",
+            "2",
+            "3"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Csm/CsmJob/CsmJobPriority"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CsmKey",
+      "definition": "/AUTOSAR/EcucDefs/Csm/CsmKey",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CsmKeyId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Key Id",
+          "detail": "Key Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Csm/CsmKey/CsmKeyId"
         }
       ],
       "subContainers": []

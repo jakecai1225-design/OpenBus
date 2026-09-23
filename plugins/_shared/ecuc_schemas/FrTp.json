@@ -1,7 +1,7 @@
 {
   "module": "FrTp",
   "definition": "/AUTOSAR/EcucDefs/FrTp",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "FrTpGlobalConfig",
@@ -16,7 +16,7 @@
           "kind": "string",
           "default": "",
           "summary": "FrTpConnection",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs FrTpConnection parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/FrTp/FrTpGlobalConfig/FrTpConnection"
         }
@@ -36,9 +36,42 @@
           "kind": "boolean",
           "default": "false",
           "summary": "FrTpDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/FrTp/FrTpGeneral/FrTpDevErrorDetect"
+        },
+        {
+          "shortName": "FrTpVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrTp/FrTpGeneral/FrTpVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "FrTpConnection"
+      ]
+    },
+    {
+      "shortName": "FrTpConnection",
+      "definition": "/AUTOSAR/EcucDefs/FrTp/FrTpGeneral/FrTpConnection",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "FrTpGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "FrTpConnectionId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Connection Id",
+          "detail": "Connection Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/FrTp/FrTpConnection/FrTpConnectionId"
         }
       ],
       "subContainers": []

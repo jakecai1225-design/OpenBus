@@ -1,7 +1,7 @@
 {
   "module": "Mirror",
   "definition": "/AUTOSAR/EcucDefs/Mirror",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "MirrorConfig",
@@ -16,7 +16,7 @@
           "kind": "string",
           "default": "",
           "summary": "MirrorNetwork",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs MirrorNetwork parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorConfig/MirrorNetwork"
         },
@@ -25,7 +25,7 @@
           "kind": "string",
           "default": "",
           "summary": "MirrorSourceNetwork",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs MirrorSourceNetwork parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorConfig/MirrorSourceNetwork"
         }
@@ -45,9 +45,41 @@
           "kind": "boolean",
           "default": "false",
           "summary": "MirrorDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorGeneral/MirrorDevErrorDetect"
+        },
+        {
+          "shortName": "MirrorVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorGeneral/MirrorVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "MirrorSourceNetwork"
+      ]
+    },
+    {
+      "shortName": "MirrorSourceNetwork",
+      "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorGeneral/MirrorSourceNetwork",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "MirrorGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "MirrorNetworkRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "MirrorNetworkRef",
+          "detail": "Reference to ComMChannel",
+          "range": "",
+          "destination": "ComMChannel",
+          "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorSourceNetwork/MirrorNetworkRef"
         }
       ],
       "subContainers": []

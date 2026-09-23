@@ -1,7 +1,7 @@
 {
   "module": "CanIf",
   "definition": "/AUTOSAR/EcucDefs/CanIf",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "CanIfPublicCfg",
@@ -15,8 +15,8 @@
           "shortName": "CanIfPublicDevErrorDetect",
           "kind": "boolean",
           "default": "false",
-          "summary": "CanIfPublicDevErrorDetect",
-          "detail": "",
+          "summary": "DET",
+          "detail": "PublicDevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicDevErrorDetect"
         },
@@ -24,10 +24,433 @@
           "shortName": "CanIfPublicMultipleDrvSupport",
           "kind": "boolean",
           "default": "false",
-          "summary": "CanIfPublicMultipleDrvSupport",
-          "detail": "",
+          "summary": "Multiple drivers",
+          "detail": "PublicMultipleDrvSupport",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicMultipleDrvSupport"
+        },
+        {
+          "shortName": "CanIfPublicPnSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PublicPnSupport",
+          "detail": "PublicPnSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicPnSupport"
+        },
+        {
+          "shortName": "CanIfPublicTxBuffering",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PublicTxBuffering",
+          "detail": "PublicTxBuffering",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicTxBuffering"
+        },
+        {
+          "shortName": "CanIfPublicWakeupCheckValidSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PublicWakeupCheckValidSupport",
+          "detail": "PublicWakeupCheckValidSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicWakeupCheckValidSupport"
+        },
+        {
+          "shortName": "CanIfPublicCancelTransmitSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PublicCancelTransmitSupport",
+          "detail": "PublicCancelTransmitSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicCancelTransmitSupport"
+        },
+        {
+          "shortName": "CanIfPublicReadRxPduDataApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PublicReadRxPduDataApi",
+          "detail": "PublicReadRxPduDataApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicReadRxPduDataApi"
+        },
+        {
+          "shortName": "CanIfPublicReadRxPduNotifyStatusApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PublicReadRxPduNotifyStatusApi",
+          "detail": "PublicReadRxPduNotifyStatusApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicReadRxPduNotifyStatusApi"
+        },
+        {
+          "shortName": "CanIfPublicReadTxPduNotifyStatusApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PublicReadTxPduNotifyStatusApi",
+          "detail": "PublicReadTxPduNotifyStatusApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicReadTxPduNotifyStatusApi"
+        },
+        {
+          "shortName": "CanIfPublicSetDynamicTxIdApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PublicSetDynamicTxIdApi",
+          "detail": "PublicSetDynamicTxIdApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicSetDynamicTxIdApi"
+        },
+        {
+          "shortName": "CanIfPublicTxConfirmPollingSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PublicTxConfirmPollingSupport",
+          "detail": "PublicTxConfirmPollingSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicTxConfirmPollingSupport"
+        },
+        {
+          "shortName": "CanIfPublicVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PublicVersionInfoApi",
+          "detail": "PublicVersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicVersionInfoApi"
+        },
+        {
+          "shortName": "CanIfPublicIcomSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PublicIcomSupport",
+          "detail": "PublicIcomSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicIcomSupport"
+        },
+        {
+          "shortName": "CanIfPublicTrcvPnEnable",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PublicTrcvPnEnable",
+          "detail": "PublicTrcvPnEnable",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicTrcvPnEnable"
+        },
+        {
+          "shortName": "CanIfPublicNumberOfCanHwUnits",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "CAN HW units",
+          "detail": "CAN HW units",
+          "range": "",
+          "min": 1,
+          "max": 16,
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicNumberOfCanHwUnits"
+        },
+        {
+          "shortName": "CanIfPublicNumberOfDynamicCanTxPduIds",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Dynamic Tx IDs",
+          "detail": "Dynamic Tx IDs",
+          "range": "",
+          "min": 0,
+          "max": 256,
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicNumberOfDynamicCanTxPduIds"
+        },
+        {
+          "shortName": "CanIfPublicReadTxNotifStatusApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Read TX notif",
+          "detail": "Read TX notif",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicReadTxNotifStatusApi"
+        },
+        {
+          "shortName": "CanIfPublicReadRxNotifStatusApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Read RX notif",
+          "detail": "Read RX notif",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfPublicReadRxNotifStatusApi"
+        },
+        {
+          "shortName": "CanIfCfgParam1",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 1",
+          "detail": "CanIf cfg 1 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam1",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam2",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 2",
+          "detail": "CanIf cfg 2 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam2",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam3",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 3",
+          "detail": "CanIf cfg 3 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam3",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam4",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 4",
+          "detail": "CanIf cfg 4 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam4",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam5",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 5",
+          "detail": "CanIf cfg 5 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam5",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam6",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 6",
+          "detail": "CanIf cfg 6 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam6",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam7",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 7",
+          "detail": "CanIf cfg 7 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam7",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam8",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 8",
+          "detail": "CanIf cfg 8 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam8",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam9",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 9",
+          "detail": "CanIf cfg 9 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam9",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam10",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 10",
+          "detail": "CanIf cfg 10 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam10",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam11",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 11",
+          "detail": "CanIf cfg 11 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam11",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam12",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 12",
+          "detail": "CanIf cfg 12 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam12",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam13",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 13",
+          "detail": "CanIf cfg 13 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam13",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam14",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 14",
+          "detail": "CanIf cfg 14 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam14",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam15",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 15",
+          "detail": "CanIf cfg 15 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam15",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam16",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 16",
+          "detail": "CanIf cfg 16 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam16",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam17",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 17",
+          "detail": "CanIf cfg 17 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam17",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam18",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 18",
+          "detail": "CanIf cfg 18 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam18",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam19",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 19",
+          "detail": "CanIf cfg 19 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam19",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam20",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 20",
+          "detail": "CanIf cfg 20 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam20",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam21",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 21",
+          "detail": "CanIf cfg 21 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam21",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam22",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 22",
+          "detail": "CanIf cfg 22 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam22",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam23",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 23",
+          "detail": "CanIf cfg 23 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam23",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam24",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 24",
+          "detail": "CanIf cfg 24 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam24",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam25",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 25",
+          "detail": "CanIf cfg 25 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfPublicCfg/CanIfCfgParam25",
+          "min": 0,
+          "max": 65535
         }
       ],
       "subContainers": []
@@ -39,8 +462,320 @@
       "upperMultiplicity": 1,
       "parent": "",
       "seed": false,
-      "params": [],
-      "subContainers": []
+      "params": [
+        {
+          "shortName": "CanIfMaxTrcvBaseAddr",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Max trcv base",
+          "detail": "Max trcv base",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfMaxTrcvBaseAddr"
+        },
+        {
+          "shortName": "CanIfMaxBufferSize",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "Max buffer size",
+          "detail": "Max buffer size",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfMaxBufferSize",
+          "min": 1
+        },
+        {
+          "shortName": "CanIfMaxRxPduCfg",
+          "kind": "numerical",
+          "default": "64",
+          "summary": "Max RX PDUs",
+          "detail": "Max RX PDUs",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfMaxRxPduCfg",
+          "min": 1
+        },
+        {
+          "shortName": "CanIfMaxTxPduCfg",
+          "kind": "numerical",
+          "default": "64",
+          "summary": "Max TX PDUs",
+          "detail": "Max TX PDUs",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfMaxTxPduCfg",
+          "min": 1
+        },
+        {
+          "shortName": "CanIfCfgParam26",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 26",
+          "detail": "CanIf cfg 26 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam26",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam27",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 27",
+          "detail": "CanIf cfg 27 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam27",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam28",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 28",
+          "detail": "CanIf cfg 28 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam28",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam29",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 29",
+          "detail": "CanIf cfg 29 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam29",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam30",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 30",
+          "detail": "CanIf cfg 30 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam30",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam31",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 31",
+          "detail": "CanIf cfg 31 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam31",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam32",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 32",
+          "detail": "CanIf cfg 32 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam32",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam33",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 33",
+          "detail": "CanIf cfg 33 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam33",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam34",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 34",
+          "detail": "CanIf cfg 34 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam34",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam35",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 35",
+          "detail": "CanIf cfg 35 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam35",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam36",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 36",
+          "detail": "CanIf cfg 36 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam36",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam37",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 37",
+          "detail": "CanIf cfg 37 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam37",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam38",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 38",
+          "detail": "CanIf cfg 38 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam38",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam39",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 39",
+          "detail": "CanIf cfg 39 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam39",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam40",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 40",
+          "detail": "CanIf cfg 40 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam40",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam41",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 41",
+          "detail": "CanIf cfg 41 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam41",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam42",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 42",
+          "detail": "CanIf cfg 42 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam42",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam43",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 43",
+          "detail": "CanIf cfg 43 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam43",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam44",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 44",
+          "detail": "CanIf cfg 44 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam44",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam45",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 45",
+          "detail": "CanIf cfg 45 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam45",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam46",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 46",
+          "detail": "CanIf cfg 46 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam46",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam47",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 47",
+          "detail": "CanIf cfg 47 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam47",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam48",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 48",
+          "detail": "CanIf cfg 48 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam48",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "CanIfCfgParam49",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanIf cfg 49",
+          "detail": "CanIf cfg 49 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCfgParam49",
+          "min": 0,
+          "max": 65535
+        }
+      ],
+      "subContainers": [
+        "CanIfTxPduCfg",
+        "CanIfRxPduCfg",
+        "CanIfCtrlCfg",
+        "CanIfHthCfg",
+        "CanIfHrhCfg",
+        "CanIfDispatchCfg",
+        "CanIfTrcvCfg"
+      ]
     },
     {
       "shortName": "CanIfTxPduCfg",
@@ -54,8 +789,8 @@
           "shortName": "CanIfTxPduCanId",
           "kind": "numerical",
           "default": "0",
-          "summary": "CanIfTxPduCanId",
-          "detail": "",
+          "summary": "CAN id",
+          "detail": "CAN id",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -65,8 +800,8 @@
           "shortName": "CanIfTxPduDlc",
           "kind": "numerical",
           "default": "8",
-          "summary": "CanIfTxPduDlc",
-          "detail": "",
+          "summary": "DLC",
+          "detail": "DLC",
           "range": "",
           "min": 0,
           "max": 64,
@@ -76,8 +811,8 @@
           "shortName": "CanIfTxPduRef",
           "kind": "reference",
           "default": "",
-          "summary": "CanIfTxPduRef",
-          "detail": "",
+          "summary": "PDU ref",
+          "detail": "PDU ref",
           "range": "",
           "destination": "pdu",
           "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfTxPduCfg/CanIfTxPduRef"
@@ -86,14 +821,114 @@
           "shortName": "CanIfTxPduType",
           "kind": "enumeration",
           "default": "STATIC",
-          "summary": "CanIfTxPduType",
-          "detail": "",
+          "summary": "Type",
+          "detail": "Type",
           "range": "",
           "literals": [
             "STATIC",
             "DYNAMIC"
           ],
           "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfTxPduCfg/CanIfTxPduType"
+        },
+        {
+          "shortName": "CanIfTxPduCanIdType",
+          "kind": "enumeration",
+          "default": "STANDARD_CAN",
+          "summary": "CAN Id type",
+          "detail": "CAN Id type",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfTxPduCfg/CanIfTxPduCanIdType",
+          "literals": [
+            "STANDARD_CAN",
+            "EXTENDED_CAN",
+            "STANDARD_FD_CAN",
+            "EXTENDED_FD_CAN"
+          ]
+        },
+        {
+          "shortName": "CanIfTxPduBufferRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "HTH buffer",
+          "detail": "Transmit hardware object",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfTxPduCfg/CanIfTxPduBufferRef",
+          "destination": "CanIfHthCfg"
+        },
+        {
+          "shortName": "CanIfTxPduId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Pdu Id",
+          "detail": "Pdu Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfTxPduCfg/CanIfTxPduId",
+          "postBuild": true
+        },
+        {
+          "shortName": "CanIfTxPduCtrlRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanIfTxPduCtrlRef",
+          "detail": "Reference to CanIfCtrlCfg",
+          "range": "",
+          "destination": "CanIfCtrlCfg",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfTxPduCfg/CanIfTxPduCtrlRef"
+        },
+        {
+          "shortName": "CanIfTxPduTruncation",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TxPduTruncation",
+          "detail": "TxPduTruncation",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfTxPduCfg/CanIfTxPduTruncation"
+        },
+        {
+          "shortName": "CanIfTxPduReadNotifyStatus",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TxPduReadNotifyStatus",
+          "detail": "TxPduReadNotifyStatus",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfTxPduCfg/CanIfTxPduReadNotifyStatus"
+        },
+        {
+          "shortName": "CanIfTxPduUserTxConfirmationUL",
+          "kind": "enumeration",
+          "default": "PDUR",
+          "summary": "UL confirmation",
+          "detail": "UL confirmation",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfTxPduCfg/CanIfTxPduUserTxConfirmationUL",
+          "literals": [
+            "CAN_TP",
+            "CAN_NM",
+            "PDUR",
+            "XCP",
+            "CDD",
+            "J1939TP"
+          ]
+        },
+        {
+          "shortName": "CanIfTxPduUserTxConfirmationName",
+          "kind": "string",
+          "default": "",
+          "summary": "Confirmation name",
+          "detail": "Confirmation name",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfTxPduCfg/CanIfTxPduUserTxConfirmationName"
+        },
+        {
+          "shortName": "CanIfTxPduPnFilterPdu",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PN filter PDU",
+          "detail": "PN filter PDU",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfTxPduCfg/CanIfTxPduPnFilterPdu"
         }
       ],
       "subContainers": []
@@ -110,8 +945,8 @@
           "shortName": "CanIfRxPduCanId",
           "kind": "numerical",
           "default": "0",
-          "summary": "CanIfRxPduCanId",
-          "detail": "",
+          "summary": "CAN id",
+          "detail": "CAN Id",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -121,8 +956,8 @@
           "shortName": "CanIfRxPduDlc",
           "kind": "numerical",
           "default": "8",
-          "summary": "CanIfRxPduDlc",
-          "detail": "",
+          "summary": "DLC",
+          "detail": "DLC",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -132,11 +967,470 @@
           "shortName": "CanIfRxPduRef",
           "kind": "reference",
           "default": "",
-          "summary": "CanIfRxPduRef",
-          "detail": "",
+          "summary": "PDU ref",
+          "detail": "Reference to Pdu",
           "range": "",
           "destination": "pdu",
           "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfRxPduCfg/CanIfRxPduRef"
+        },
+        {
+          "shortName": "CanIfRxPduCanIdType",
+          "kind": "enumeration",
+          "default": "STANDARD_CAN",
+          "summary": "CAN Id type",
+          "detail": "CAN Id type",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfRxPduCfg/CanIfRxPduCanIdType",
+          "literals": [
+            "STANDARD_CAN",
+            "EXTENDED_CAN",
+            "STANDARD_FD_CAN",
+            "EXTENDED_FD_CAN"
+          ]
+        },
+        {
+          "shortName": "CanIfRxPduHrhIdRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "HRH ref",
+          "detail": "Receive hardware object",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfRxPduCfg/CanIfRxPduHrhIdRef",
+          "destination": "CanIfHrhCfg"
+        },
+        {
+          "shortName": "CanIfRxPduId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Pdu Id",
+          "detail": "Pdu Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfRxPduCfg/CanIfRxPduId",
+          "postBuild": true
+        },
+        {
+          "shortName": "CanIfRxPduCanIdMask",
+          "kind": "numerical",
+          "default": "2047",
+          "summary": "Id mask",
+          "detail": "Id mask",
+          "range": "",
+          "min": 0,
+          "max": 536870911,
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfRxPduCfg/CanIfRxPduCanIdMask"
+        },
+        {
+          "shortName": "CanIfRxPduHrhRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanIfRxPduHrhRef",
+          "detail": "Reference to CanIfHrhCfg",
+          "range": "",
+          "destination": "CanIfHrhCfg",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfRxPduCfg/CanIfRxPduHrhRef"
+        },
+        {
+          "shortName": "CanIfRxPduCtrlRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanIfRxPduCtrlRef",
+          "detail": "Reference to CanIfCtrlCfg",
+          "range": "",
+          "destination": "CanIfCtrlCfg",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfRxPduCfg/CanIfRxPduCtrlRef"
+        },
+        {
+          "shortName": "CanIfRxPduReadData",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "RxPduReadData",
+          "detail": "RxPduReadData",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfRxPduCfg/CanIfRxPduReadData"
+        },
+        {
+          "shortName": "CanIfRxPduReadNotifyStatus",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "RxPduReadNotifyStatus",
+          "detail": "RxPduReadNotifyStatus",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfRxPduCfg/CanIfRxPduReadNotifyStatus"
+        },
+        {
+          "shortName": "CanIfRxPduUserRxIndicationUL",
+          "kind": "enumeration",
+          "default": "PDUR",
+          "summary": "UL indication",
+          "detail": "UL indication",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfRxPduCfg/CanIfRxPduUserRxIndicationUL",
+          "literals": [
+            "CAN_TP",
+            "CAN_NM",
+            "PDUR",
+            "XCP",
+            "CDD",
+            "J1939TP"
+          ]
+        },
+        {
+          "shortName": "CanIfRxPduUserRxIndicationName",
+          "kind": "string",
+          "default": "",
+          "summary": "Indication name",
+          "detail": "Indication name",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfRxPduCfg/CanIfRxPduUserRxIndicationName"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanIfCtrlCfg",
+      "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCtrlCfg",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "CanIfInitCfg",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "CanIfCtrlId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Controller Id",
+          "detail": "CanIf controller index",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfCtrlCfg/CanIfCtrlId",
+          "min": 0,
+          "max": 255
+        },
+        {
+          "shortName": "CanIfCtrlCanCtrlRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CAN driver Ctrl",
+          "detail": "Reference to CanController",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfCtrlCfg/CanIfCtrlCanCtrlRef",
+          "destination": "CanController"
+        },
+        {
+          "shortName": "CanIfCtrlWakeupSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Wakeup support",
+          "detail": "CtrlWakeupSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfCtrlCfg/CanIfCtrlWakeupSupport"
+        },
+        {
+          "shortName": "CanIfCtrlPnEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CtrlPnEnabled",
+          "detail": "CtrlPnEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfCtrlCfg/CanIfCtrlPnEnabled"
+        },
+        {
+          "shortName": "CanIfCtrlWakeupSourceRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Wakeup source",
+          "detail": "Wakeup source",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfCtrlCfg/CanIfCtrlWakeupSourceRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanIfHthCfg",
+      "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfHthCfg",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "CanIfInitCfg",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanIfHthIdSymbolName",
+          "kind": "string",
+          "default": "Hth_0",
+          "summary": "HTH symbol",
+          "detail": "Hardware transmit handle name",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfHthCfg/CanIfHthIdSymbolName"
+        },
+        {
+          "shortName": "CanIfHthCanCtrlIdRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Ctrl ref",
+          "detail": "Owning CanIfCtrlCfg",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfHthCfg/CanIfHthCanCtrlIdRef",
+          "destination": "CanIfCtrlCfg"
+        },
+        {
+          "shortName": "CanIfHthIdSymRef",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "HTH Id",
+          "detail": "HTH Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfHthCfg/CanIfHthIdSymRef"
+        },
+        {
+          "shortName": "CanIfHthCanCtrlRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanIfHthCanCtrlRef",
+          "detail": "Reference to CanIfCtrlCfg",
+          "range": "",
+          "destination": "CanIfCtrlCfg",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfHthCfg/CanIfHthCanCtrlRef"
+        },
+        {
+          "shortName": "CanIfHthCanHardwareObjectRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanIfHthCanHardwareObjectRef",
+          "detail": "Reference to CanHardwareObject",
+          "range": "",
+          "destination": "CanHardwareObject",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfHthCfg/CanIfHthCanHardwareObjectRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanIfHrhCfg",
+      "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfHrhCfg",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "CanIfInitCfg",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanIfHrhIdSymbolName",
+          "kind": "string",
+          "default": "Hrh_0",
+          "summary": "HRH symbol",
+          "detail": "Hardware receive handle name",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfHrhCfg/CanIfHrhIdSymbolName"
+        },
+        {
+          "shortName": "CanIfHrhSoftwareFilter",
+          "kind": "boolean",
+          "default": "true",
+          "summary": "SW filter",
+          "detail": "Software acceptance filter",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfHrhCfg/CanIfHrhSoftwareFilter"
+        },
+        {
+          "shortName": "CanIfHrhCanCtrlIdRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Ctrl ref",
+          "detail": "Owning CanIfCtrlCfg",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfHrhCfg/CanIfHrhCanCtrlIdRef",
+          "destination": "CanIfCtrlCfg"
+        },
+        {
+          "shortName": "CanIfHrhIdSymRef",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "HRH Id",
+          "detail": "HRH Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfHrhCfg/CanIfHrhIdSymRef"
+        },
+        {
+          "shortName": "CanIfHrhCanCtrlRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanIfHrhCanCtrlRef",
+          "detail": "Reference to CanIfCtrlCfg",
+          "range": "",
+          "destination": "CanIfCtrlCfg",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfHrhCfg/CanIfHrhCanCtrlRef"
+        },
+        {
+          "shortName": "CanIfHrhCanHardwareObjectRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanIfHrhCanHardwareObjectRef",
+          "detail": "Reference to CanHardwareObject",
+          "range": "",
+          "destination": "CanHardwareObject",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfHrhCfg/CanIfHrhCanHardwareObjectRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanIfDispatchCfg",
+      "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfDispatchCfg",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "CanIfInitCfg",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanIfDispatchUserCheckTrcvWakeFlagIndicationUL",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DispatchUserCheckTrcvWakeFlagIndicationUL",
+          "detail": "DispatchUserCheckTrcvWakeFlagIndicationUL",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfDispatchCfg/CanIfDispatchUserCheckTrcvWakeFlagIndicationUL"
+        },
+        {
+          "shortName": "CanIfDispatchUserClearTrcvWufFlagIndicationUL",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DispatchUserClearTrcvWufFlagIndicationUL",
+          "detail": "DispatchUserClearTrcvWufFlagIndicationUL",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfDispatchCfg/CanIfDispatchUserClearTrcvWufFlagIndicationUL"
+        },
+        {
+          "shortName": "CanIfDispatchUserConfirmPnAvailabilityUL",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DispatchUserConfirmPnAvailabilityUL",
+          "detail": "DispatchUserConfirmPnAvailabilityUL",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfDispatchCfg/CanIfDispatchUserConfirmPnAvailabilityUL"
+        },
+        {
+          "shortName": "CanIfDispatchUserCtrlBusOffUL",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DispatchUserCtrlBusOffUL",
+          "detail": "DispatchUserCtrlBusOffUL",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfDispatchCfg/CanIfDispatchUserCtrlBusOffUL"
+        },
+        {
+          "shortName": "CanIfDispatchUserCtrlModeIndicationUL",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DispatchUserCtrlModeIndicationUL",
+          "detail": "DispatchUserCtrlModeIndicationUL",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfDispatchCfg/CanIfDispatchUserCtrlModeIndicationUL"
+        },
+        {
+          "shortName": "CanIfDispatchUserTrcvModeIndicationUL",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DispatchUserTrcvModeIndicationUL",
+          "detail": "DispatchUserTrcvModeIndicationUL",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfDispatchCfg/CanIfDispatchUserTrcvModeIndicationUL"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanIfTrcvCfg",
+      "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitCfg/CanIfTrcvCfg",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "CanIfInitCfg",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanIfTrcvCanTrcvRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanIfTrcvCanTrcvRef",
+          "detail": "Reference to CanTrcvChannel",
+          "range": "",
+          "destination": "CanTrcvChannel",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfTrcvCfg/CanIfTrcvCanTrcvRef"
+        },
+        {
+          "shortName": "CanIfTrcvId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Transceiver Id",
+          "detail": "Transceiver Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfTrcvCfg/CanIfTrcvId"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanIfInitHohCfg",
+      "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitHohCfg",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanIfHohType",
+          "kind": "enumeration",
+          "default": "RECEIVE",
+          "summary": "HOH type",
+          "detail": "HOH type",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitHohCfg/CanIfHohType",
+          "literals": [
+            "RECEIVE",
+            "TRANSMIT"
+          ]
+        },
+        {
+          "shortName": "CanIfCanControllerIdRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Controller ref",
+          "detail": "Controller ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitHohCfg/CanIfCanControllerIdRef"
+        },
+        {
+          "shortName": "CanIfHthIdSymRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "HTH ref",
+          "detail": "HTH ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitHohCfg/CanIfHthIdSymRef"
+        },
+        {
+          "shortName": "CanIfHrhIdSymRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "HRH ref",
+          "detail": "HRH ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitHohCfg/CanIfHrhIdSymRef"
+        },
+        {
+          "shortName": "CanIfHrhSoftwareFilter",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SW filter",
+          "detail": "SW filter",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanIf/CanIfInitHohCfg/CanIfHrhSoftwareFilter"
         }
       ],
       "subContainers": []

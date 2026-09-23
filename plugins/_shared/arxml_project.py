@@ -36,6 +36,8 @@ class ProjectManifest:
     modules: Dict[str, str] = field(default_factory=dict)
     derived_dirty: bool = False
     lint_before_save: bool = True
+    autosar_release: str = "R22-11"
+    finding_acks: List[str] = field(default_factory=list)
     root: str = ""
 
     def __post_init__(self):
@@ -54,12 +56,15 @@ class ProjectManifest:
             "modules": dict(self.modules),
             "derived_dirty": bool(self.derived_dirty),
             "lint_before_save": bool(self.lint_before_save),
+            "autosarRelease": self.autosar_release or "R22-11",
+            "findingAcks": list(self.finding_acks or []),
         }
 
     @staticmethod
     def from_dict(d: dict, root: str = "") -> "ProjectManifest":
         roles = dict(DEFAULT_REL)
         roles.update(d.get("roles") or {})
+        acks = d.get("findingAcks") or d.get("finding_acks") or []
         return ProjectManifest(
             id=str(d.get("id") or ""),
             name=str(d.get("name") or "UntitledEcu"),
@@ -70,6 +75,10 @@ class ProjectManifest:
             derived_dirty=bool(d.get("derived_dirty")),
             lint_before_save=bool(
                 d["lint_before_save"] if "lint_before_save" in d else True),
+            autosar_release=str(
+                d.get("autosarRelease") or d.get("autosar_release")
+                or "R22-11"),
+            finding_acks=[str(x) for x in acks if x],
             root=root or "",
         )
 

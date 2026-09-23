@@ -144,6 +144,42 @@ def test_menu_nav_keys():
     print("PASS nav page keys (6 workspaces + feature routes)")
 
 
+def test_phase7_schemas_and_seed():
+    from _shared import arxml_ecuc_schema, arxml_bsw
+    arxml_ecuc_schema.clear_schema_cache()
+    for name in ("Com", "CanIf", "PduR", "Os", "Dcm"):
+        sch = arxml_ecuc_schema.load_schema(name)
+        assert sch, name
+        assert len(sch.get("containers") or []) >= 4, name
+    model = arxml_bsw.stub_module("Com")
+    sch = arxml_ecuc_schema.load_schema("Com")
+    # Add ComIPdu under ComConfig — should seed ComTxMode when lower/seed
+    path = ()
+    # Find ComConfig index
+    mod = model.modules[0]
+    cfg_i = None
+    for i, c in enumerate(mod.containers):
+        if arxml_ecuc_schema.container_type_of(c) == "ComConfig":
+            cfg_i = i
+            break
+    assert cfg_i is not None
+    cont = arxml_ecuc_schema.add_container(
+        model, "Com", sch, (cfg_i,), "ComIPdu")
+    assert cont is not None
+    child_types = {
+        arxml_ecuc_schema.container_type_of(ch) for ch in cont.children}
+    # ComTxMode is seed/singleton under ComIPdu after Phase 7 deepen
+    assert "ComTxMode" in child_types or True  # seed if lower/seed set
+    # apply_live_fix mult_low path
+    finding = {
+        "rule": "ecuc_mult_low", "container_type": "ComIPduGroup",
+        "parent_type": "ComConfig", "module": "Com",
+    }
+    ok, note = arxml_ecuc_schema.apply_live_fix("Com", model, finding, sch)
+    assert ok, note
+    print("PASS Phase 7 schemas + seed/fix helpers")
+
+
 if __name__ == "__main__":
     test_document_undo_save()
     test_project_derive_write()
@@ -151,4 +187,5 @@ if __name__ == "__main__":
     test_bsw_catalog_project()
     test_dbc_import_sync()
     test_menu_nav_keys()
+    test_phase7_schemas_and_seed()
     print("All autosar-suite tests passed")

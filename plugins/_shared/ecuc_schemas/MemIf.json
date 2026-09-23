@@ -1,7 +1,7 @@
 {
   "module": "MemIf",
   "definition": "/AUTOSAR/EcucDefs/MemIf",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "MemIfGeneral",
@@ -16,7 +16,7 @@
           "kind": "numerical",
           "default": "1",
           "summary": "MemIfNumberOfDevices",
-          "detail": "",
+          "detail": "NumberOfDevices",
           "range": "",
           "min": 1,
           "max": 16,
@@ -27,7 +27,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "MemIfDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfGeneral/MemIfDevErrorDetect"
         },
@@ -36,9 +36,168 @@
           "kind": "boolean",
           "default": "false",
           "summary": "MemIfVersionInfoApi",
-          "detail": "",
+          "detail": "VersionInfoApi",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfGeneral/MemIfVersionInfoApi"
+        },
+        {
+          "shortName": "MemIfMainFunctionPeriod",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "MainFunctionPeriod",
+          "detail": "MainFunctionPeriod",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfGeneral/MemIfMainFunctionPeriod",
+          "min": 0.001,
+          "max": 1
+        },
+        {
+          "shortName": "MemIfBusyInternalBufferManagement",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "BusyInternalBufferManagement",
+          "detail": "BusyInternalBufferManagement",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfGeneral/MemIfBusyInternalBufferManagement"
+        },
+        {
+          "shortName": "MemIfSetModeApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SetModeApi",
+          "detail": "SetModeApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfGeneral/MemIfSetModeApi"
+        }
+      ],
+      "subContainers": [
+        "MemIfDevice"
+      ]
+    },
+    {
+      "shortName": "MemIfDevice",
+      "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfGeneral/MemIfDevice",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "MemIfGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "MemIfDeviceIndex",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Device index",
+          "detail": "Device index",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfDevice/MemIfDeviceIndex"
+        },
+        {
+          "shortName": "MemIfNumberOfSectors",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Sector count",
+          "detail": "Sector count",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfDevice/MemIfNumberOfSectors"
+        },
+        {
+          "shortName": "MemIfDeviceDriverRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "MemIfDeviceDriverRef",
+          "detail": "Reference to FeeGeneral",
+          "range": "",
+          "destination": "FeeGeneral",
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfDevice/MemIfDeviceDriverRef"
+        },
+        {
+          "shortName": "MemIfEraseSectorBatchSize",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Erase batch size",
+          "detail": "Erase batch size",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfDevice/MemIfEraseSectorBatchSize"
+        },
+        {
+          "shortName": "MemIfWriteSectorBatchSize",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Write batch size",
+          "detail": "Write batch size",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfDevice/MemIfWriteSectorBatchSize"
+        },
+        {
+          "shortName": "MemIfDeviceEepromRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "MemIfDeviceEepromRef",
+          "detail": "Reference to EaGeneral",
+          "range": "",
+          "destination": "EaGeneral",
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfDevice/MemIfDeviceEepromRef"
+        },
+        {
+          "shortName": "MemIfDeviceUseEraseApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DeviceUseEraseApi",
+          "detail": "DeviceUseEraseApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfDevice/MemIfDeviceUseEraseApi"
+        },
+        {
+          "shortName": "MemIfDeviceUseWriteApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DeviceUseWriteApi",
+          "detail": "DeviceUseWriteApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfDevice/MemIfDeviceUseWriteApi"
+        }
+      ],
+      "subContainers": [
+        "MemIfSectorBatch"
+      ]
+    },
+    {
+      "shortName": "MemIfSectorBatch",
+      "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfDevice/MemIfSectorBatch",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "MemIfDevice",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "MemIfSectorBatchStartSector",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Start sector",
+          "detail": "Start sector",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfSectorBatch/MemIfSectorBatchStartSector"
+        },
+        {
+          "shortName": "MemIfSectorBatchNumberOfSectors",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Sector count",
+          "detail": "Sector count",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/MemIf/MemIfSectorBatch/MemIfSectorBatchNumberOfSectors"
         }
       ],
       "subContainers": []

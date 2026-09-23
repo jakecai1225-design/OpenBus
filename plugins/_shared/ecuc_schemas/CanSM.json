@@ -1,7 +1,7 @@
 {
   "module": "CanSM",
   "definition": "/AUTOSAR/EcucDefs/CanSM",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "CanSMGeneral",
@@ -16,7 +16,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "CanSMDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMGeneral/CanSMDevErrorDetect"
         },
@@ -25,11 +25,38 @@
           "kind": "numerical",
           "default": "10",
           "summary": "CanSMMainFunctionTimePeriod",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CanSMMainFunctionTimePeriod parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMGeneral/CanSMMainFunctionTimePeriod"
+        },
+        {
+          "shortName": "CanSMVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMGeneral/CanSMVersionInfoApi"
+        },
+        {
+          "shortName": "CanSMPncSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PncSupport",
+          "detail": "PncSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMGeneral/CanSMPncSupport"
+        },
+        {
+          "shortName": "CanSMSetBaudrateApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SetBaudrateApi",
+          "detail": "SetBaudrateApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMGeneral/CanSMSetBaudrateApi"
         }
       ],
       "subContainers": []
@@ -42,12 +69,14 @@
       "parent": "",
       "seed": false,
       "params": [],
-      "subContainers": []
+      "subContainers": [
+        "CanSMManagerNetwork"
+      ]
     },
     {
       "shortName": "CanSMManagerNetwork",
       "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMConfiguration/CanSMManagerNetwork",
-      "lowerMultiplicity": 1,
+      "lowerMultiplicity": 0,
       "upperMultiplicity": "*",
       "parent": "CanSMConfiguration",
       "seed": true,
@@ -57,7 +86,7 @@
           "kind": "reference",
           "default": "",
           "summary": "CanSMComMNetworkHandleRef",
-          "detail": "",
+          "detail": "Reference to ComMChannel",
           "range": "",
           "destination": "container",
           "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMManagerNetwork/CanSMComMNetworkHandleRef"
@@ -67,7 +96,7 @@
           "kind": "numerical",
           "default": "100",
           "summary": "CanSMBorTimeL1",
-          "detail": "",
+          "detail": "BOR time L1",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -78,11 +107,90 @@
           "kind": "numerical",
           "default": "200",
           "summary": "CanSMBorTimeL2",
-          "detail": "",
+          "detail": "BOR time L2",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMManagerNetwork/CanSMBorTimeL2"
+        },
+        {
+          "shortName": "CanSMModeRequestRepetitionMax",
+          "kind": "numerical",
+          "default": "3",
+          "summary": "Mode req max",
+          "detail": "Mode req max",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMManagerNetwork/CanSMModeRequestRepetitionMax"
+        },
+        {
+          "shortName": "CanSMModeRequestRepetitionTime",
+          "kind": "numerical",
+          "default": "0.05",
+          "summary": "Mode req time",
+          "detail": "Mode req time",
+          "range": "",
+          "min": 0,
+          "max": 65,
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMManagerNetwork/CanSMModeRequestRepetitionTime"
+        },
+        {
+          "shortName": "CanSMControllerId",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanSMControllerId",
+          "detail": "Reference to CanController",
+          "range": "",
+          "destination": "CanController",
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMManagerNetwork/CanSMControllerId"
+        },
+        {
+          "shortName": "CanSMBorCounterL1ToL2",
+          "kind": "enumeration",
+          "default": "3",
+          "summary": "BOR L1 to L2",
+          "detail": "BOR L1 to L2",
+          "range": "",
+          "literals": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMManagerNetwork/CanSMBorCounterL1ToL2",
+          "min": 1,
+          "max": 255
+        },
+        {
+          "shortName": "CanSMBorTimeTxEnsured",
+          "kind": "numerical",
+          "default": "0.5",
+          "summary": "BOR Tx ensured",
+          "detail": "BOR Tx ensured",
+          "range": "",
+          "min": 0,
+          "max": 65,
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMManagerNetwork/CanSMBorTimeTxEnsured"
+        },
+        {
+          "shortName": "CanSMEnableBusOffDelay",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EnableBusOffDelay",
+          "detail": "EnableBusOffDelay",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMManagerNetwork/CanSMEnableBusOffDelay"
+        },
+        {
+          "shortName": "CanSMTransceiverIdRefPresent",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TransceiverIdRefPresent",
+          "detail": "TransceiverIdRefPresent",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanSM/CanSMManagerNetwork/CanSMTransceiverIdRefPresent"
         }
       ],
       "subContainers": []

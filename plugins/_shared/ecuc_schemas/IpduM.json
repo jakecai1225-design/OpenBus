@@ -1,22 +1,22 @@
 {
   "module": "IpduM",
   "definition": "/AUTOSAR/EcucDefs/IpduM",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "IpduMConfig",
       "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMConfig",
-      "lowerMultiplicity": 0,
-      "upperMultiplicity": "*",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
       "parent": "",
-      "seed": true,
+      "seed": false,
       "params": [
         {
           "shortName": "IpduMTxPathway",
           "kind": "string",
           "default": "",
           "summary": "IpduMTxPathway",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs IpduMTxPathway parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMConfig/IpduMTxPathway"
         },
@@ -25,9 +25,251 @@
           "kind": "string",
           "default": "",
           "summary": "IpduMRxPathway",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs IpduMRxPathway parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMConfig/IpduMRxPathway"
+        }
+      ],
+      "subContainers": [
+        "IpduMTxPathway",
+        "IpduMRxPathway",
+        "IpduMContainerTxPdu",
+        "IpduMContainerRxPdu",
+        "IpduMMainFunction"
+      ]
+    },
+    {
+      "shortName": "IpduMGeneral",
+      "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "IpduMDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMGeneral/IpduMDevErrorDetect"
+        },
+        {
+          "shortName": "IpduMVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMGeneral/IpduMVersionInfoApi"
+        },
+        {
+          "shortName": "IpduMStaticPartExists",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "StaticPartExists",
+          "detail": "StaticPartExists",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMGeneral/IpduMStaticPartExists"
+        },
+        {
+          "shortName": "IpduMContainedTxPdu",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ContainedTxPdu",
+          "detail": "ContainedTxPdu",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMGeneral/IpduMContainedTxPdu"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "IpduMTxPathway",
+      "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMConfig/IpduMTxPathway",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "IpduMConfig",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "IpduMTxRequestRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "IpduMTxRequestRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMTxPathway/IpduMTxRequestRef"
+        },
+        {
+          "shortName": "IpduMTxConfirmationRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "IpduMTxConfirmationRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMTxPathway/IpduMTxConfirmationRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "IpduMRxPathway",
+      "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMConfig/IpduMRxPathway",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "IpduMConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "IpduMRxIndicationRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "IpduMRxIndicationRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMRxPathway/IpduMRxIndicationRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "IpduMContainerTxPdu",
+      "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMConfig/IpduMContainerTxPdu",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "IpduMConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "IpduMContainerTxHandleId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Handle Id",
+          "detail": "Handle Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMContainerTxPdu/IpduMContainerTxHandleId"
+        },
+        {
+          "shortName": "IpduMContainerTxSizeThreshold",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Size threshold",
+          "detail": "Size threshold",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMContainerTxPdu/IpduMContainerTxSizeThreshold"
+        },
+        {
+          "shortName": "IpduMContainerTxTimeOut",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Timeout",
+          "detail": "Timeout",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMContainerTxPdu/IpduMContainerTxTimeOut"
+        },
+        {
+          "shortName": "IpduMContainerTxPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "IpduMContainerTxPduRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMContainerTxPdu/IpduMContainerTxPduRef"
+        },
+        {
+          "shortName": "IpduMContainerTxFirstContainedPduTrigger",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "First trigger",
+          "detail": "First trigger",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMContainerTxPdu/IpduMContainerTxFirstContainedPduTrigger"
+        },
+        {
+          "shortName": "IpduMContainerTxSendTimeout",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ContainerTxSendTimeout",
+          "detail": "ContainerTxSendTimeout",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMContainerTxPdu/IpduMContainerTxSendTimeout"
+        },
+        {
+          "shortName": "IpduMContainerTxMetaDataSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ContainerTxMetaDataSupport",
+          "detail": "ContainerTxMetaDataSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMContainerTxPdu/IpduMContainerTxMetaDataSupport"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "IpduMContainerRxPdu",
+      "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMConfig/IpduMContainerRxPdu",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "IpduMConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "IpduMContainerRxHandleId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Handle Id",
+          "detail": "Handle Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMContainerRxPdu/IpduMContainerRxHandleId"
+        },
+        {
+          "shortName": "IpduMContainerRxPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "IpduMContainerRxPduRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMContainerRxPdu/IpduMContainerRxPduRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "IpduMMainFunction",
+      "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMConfig/IpduMMainFunction",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "IpduMConfig",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "IpduMMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "0.01",
+          "summary": "MainFunction period",
+          "detail": "MainFunction period",
+          "range": "",
+          "min": 0.001,
+          "max": 1,
+          "definition": "/AUTOSAR/EcucDefs/IpduM/IpduMMainFunction/IpduMMainFunctionPeriod"
         }
       ],
       "subContainers": []

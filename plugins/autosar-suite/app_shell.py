@@ -10,24 +10,26 @@ from typing import Optional
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QFontMetrics, QKeySequence
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QFileDialog,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QMainWindow,
-    QMenu,
+    QMenuBar,
     QMessageBox,
     QPushButton,
     QSizePolicy,
     QStackedWidget,
-    QTabBar,
     QToolButton,
+    QTreeWidget,
     QWidget,
 )
 
 from _shared import (
-    ai_attach, arxml_bsw, arxml_project, arxmlparse, codicons, plugin_shell,
-    state_store, suite_chrome,
+    ai_attach, arxml_bsw, arxml_ecuc_schema, arxml_project, arxmlparse,
+    codicons, plugin_shell, state_store, suite_chrome, vscode_theme,
 )
 
 from document import ArxmlDocument
@@ -35,7 +37,7 @@ from document import ArxmlDocument
 PLUGIN_ID = "autosar-suite"
 MAX_RECENT = 12
 
-# Activity bar — major workspaces only (sub-features live in SuiteEditorTabs).
+# Activity bar — major workspaces; sub-features live in the Side Bar.
 NAV_PAGES = [
     ("project", "Project"),
     ("config", "Config"),
@@ -45,7 +47,7 @@ NAV_PAGES = [
     ("setup", "Setup"),
 ]
 
-# Feature / legacy keys → (workspace, tab index or None to keep current tab).
+# Feature / legacy keys → (workspace, stack index or None).
 FEATURE_ROUTE: dict[str, tuple[str, Optional[int]]] = {
     "project": ("project", 0),
     "library": ("project", 1),
@@ -54,9 +56,15 @@ FEATURE_ROUTE: dict[str, tuple[str, Optional[int]]] = {
     "editor": ("config", 1),
     "spec": ("config", 2),
     "swc": ("config", 3),
-    "com": ("com", None),
+    "com": ("com", 1),
+    "com_layout": ("com", 0),
+    "com_live": ("com", 1),
+    "com_pack": ("com", 2),
     "bus": ("bus", None),
     "system": ("bus", 0),
+    "system_tree": ("bus", 0),
+    "system_validate": ("bus", 0),
+    "system_export": ("bus", 0),
     "nm": ("bus", 1),
     "e2e": ("bus", 2),
     "secoc": ("bus", 3),
@@ -66,15 +74,35 @@ FEATURE_ROUTE: dict[str, tuple[str, Optional[int]]] = {
     "compare": ("validate", 2),
     "merge": ("validate", 3),
     "export": ("validate", 4),
-    "setup": ("setup", None),
+    "setup": ("setup", 0),
 }
 
-_WORKSPACE_TAB_ATTR = {
-    "project": "_project_tabs",
-    "config": "_config_tabs",
-    "com": "_com_tabs",
-    "bus": "_bus_tabs",
-    "validate": "_validate_tabs",
+# Chrome title for the active feature (Side Bar owns navigation).
+FEATURE_TITLES: dict[str, str] = {
+    "project": "Workspace",
+    "library": "Library",
+    "bsw": "BSW",
+    "editor": "Editor",
+    "spec": "Spec",
+    "swc": "SWC",
+    "com": "Live",
+    "com_layout": "Layout",
+    "com_live": "Live",
+    "com_pack": "Pack",
+    "system": "System",
+    "system_tree": "System · Tree",
+    "system_validate": "System · Validate",
+    "system_export": "System · Export",
+    "nm": "NM",
+    "e2e": "E2E",
+    "secoc": "SecOC",
+    "validate": "Findings",
+    "timing": "Analysis",
+    "analysis": "Analysis",
+    "compare": "Compare",
+    "merge": "Merge",
+    "export": "Export",
+    "setup": "Setup",
 }
 
 
@@ -83,17 +111,13 @@ class AppShell(QMainWindow):
         super().__init__()
         self.setWindowTitle("AUTOSAR Studio")
         self.setMinimumSize(1100, 720)
-        self.resize(1200, 800)
+        # Sensible default before showMaximized(); restoreGeometry may shrink.
+        self.resize(1400, 900)
 
         app = QApplication.instance()
         if app is not None:
             app.setApplicationName("AUTOSAR Studio")
             app.setApplicationDisplayName("AUTOSAR Studio")
-
-        mb = self.menuBar()
-        if mb is not None:
-            mb.hide()
-            mb.setVisible(False)
 
         self._context = context
         self.document = ArxmlDocument()
@@ -110,21 +134,38 @@ class AppShell(QMainWindow):
         self._com_tabs = None
         self._bus_tabs = None
         self._validate_tabs = None
+        self._workspace_stacks: dict = {}
+        self._workspace_features: dict = {}
+        self._sidebars: dict = {}
         self._active_feature = "bsw"
+        self._lint_action = None
+        self._recent_proj_menu = None
+        self._persist_timer = None
+        # Hidden hold for SuiteEditorTabs / doc chrome between remounts.
+        # Must NOT parent onto QMainWindow itself — floating children paint at
+        # (0,0) and cover the native menubar / activity bar.
+        self._chrome_park = QWidget(self)
+        self._chrome_park.hide()
+        self._chrome_park.setAttribute(
+            Qt.WidgetAttribute.WA_DontShowOnScreen, True)
 
         self._wb = suite_chrome.build_workbench(
             self, NAV_PAGES, title="AUTOSAR Studio", panel_title="OUTPUT",
-            panel_visible=True, sidebar_visible=True)
+            panel_visible=True, sidebar_visible=True,
+            side_bar_enabled=True, side_bar_visible=True, lock_activity=True)
         self.stack = self._wb.stack
 
         self._init_document_controls()
+        self._build_menubar()
+        self._mount_menubar_trailing()
         self._build_output_panel()
         self.session.set_log_fn(self._session_log)
         plugin_shell.wire_close_deactivates(self, PLUGIN_ID)
 
         from pages import (
-            analysis, bsw, com, compare, e2e, editor, export, library, merge,
-            nm, project, secoc, setup, spec, swc, system, validate,
+            analysis, bsw, com, compare, config_sidebar, e2e, editor, export,
+            library, merge, nm, project, secoc, setup, spec, swc, system,
+            validate, workspace_sidebar,
         )
 
         def _doc(builder):
@@ -136,11 +177,12 @@ class AppShell(QMainWindow):
         # Feature pages (API targets) — not activity-bar entries.
         self._pages["project"] = _doc(project.build)
         self._pages["library"] = _doc(library.build)
-        self._pages["bsw"] = _doc(bsw.build)
+        self._pages["bsw"] = bsw.build(
+            self, self.document, self.log, nav_in_sidebar=True)
         self._pages["editor"] = _doc(editor.build)
         self._pages["spec"] = _doc(spec.build)
         self._pages["swc"] = _doc(swc.build)
-        self._pages["com"] = _live(com.build)  # also sets self._com_tabs
+        self._pages["com"] = _live(com.build)
         self._pages["system"] = _live(system.build)
         self._pages["nm"] = _live(nm.build)
         self._pages["e2e"] = _live(e2e.build)
@@ -152,41 +194,53 @@ class AppShell(QMainWindow):
         self._pages["export"] = _doc(export.build)
         self._pages["setup"] = _live(setup.build)
 
+        # Side Bars (VS Code Explorer) — one per activity workspace.
+        self._sidebars["config"] = config_sidebar.build_config_sidebar(
+            self, self.document)
+        self._sidebars["project"] = workspace_sidebar.build_section_sidebar(
+            self, "Project", workspace_sidebar.PROJECT_SECTIONS)
+        self._sidebars["com"] = workspace_sidebar.build_section_sidebar(
+            self, "COM", workspace_sidebar.COM_SECTIONS)
+        self._sidebars["bus"] = workspace_sidebar.build_section_sidebar(
+            self, "Bus", workspace_sidebar.BUS_SECTIONS,
+            nested=workspace_sidebar.BUS_NESTED)
+        self._sidebars["validate"] = workspace_sidebar.build_section_sidebar(
+            self, "Validate", workspace_sidebar.VALIDATE_SECTIONS)
+        self._sidebars["setup"] = workspace_sidebar.build_section_sidebar(
+            self, "Setup", workspace_sidebar.SETUP_SECTIONS)
+        self._config_sidebar = self._sidebars["config"]
+
         # Stack order must match NAV_PAGES.
-        self.stack.addWidget(self._build_tab_workspace("_project_tabs", [
-            ("Workspace", self._pages["project"],
-             "Project files, derive ECUC, write intermediates"),
-            ("Library", self._pages["library"],
-             "Starters, templates, recent files"),
+        self.stack.addWidget(self._build_feature_workspace("project", [
+            ("project", self._pages["project"]),
+            ("library", self._pages["library"]),
         ]))
-        self.stack.addWidget(self._build_tab_workspace("_config_tabs", [
-            ("BSW", self._pages["bsw"],
-             "Schema-driven BSW module configurator"),
-            ("Editor", self._pages["editor"],
-             "COM / ECUC extract editor"),
-            ("Spec", self._pages["spec"],
-             "AUTOSAR encyclopedia and BSWMD tips"),
-            ("SWC", self._pages["swc"],
-             "SWC-lite ports and runnables"),
+        self.stack.addWidget(self._build_feature_workspace("config", [
+            ("bsw", self._pages["bsw"]),
+            ("editor", self._pages["editor"]),
+            ("spec", self._pages["spec"]),
+            ("swc", self._pages["swc"]),
         ]))
         self.stack.addWidget(self._pages["com"])
-        self.stack.addWidget(self._build_tab_workspace("_bus_tabs", [
-            ("System", self._pages["system"],
-             "Live COM extract tree, validate, export"),
-            ("NM", self._pages["nm"], "Network management"),
-            ("E2E", self._pages["e2e"], "End-to-end protection"),
-            ("SecOC", self._pages["secoc"], "Secured onboard communication"),
+        self._workspace_stacks["com"] = self._pages["com"]
+        self._workspace_features["com"] = [
+            "com_layout", "com_live", "com_pack"]
+        self.stack.addWidget(self._build_feature_workspace("bus", [
+            ("system", self._pages["system"]),
+            ("nm", self._pages["nm"]),
+            ("e2e", self._pages["e2e"]),
+            ("secoc", self._pages["secoc"]),
         ]))
-        self.stack.addWidget(self._build_tab_workspace("_validate_tabs", [
-            ("Findings", self._pages["validate"],
-             "Lint and consistency findings"),
-            ("Analysis", self._pages["timing"],
-             "Coverage and load analysis"),
-            ("Compare", self._pages["compare"], "Diff two ARXML files"),
-            ("Merge", self._pages["merge"], "Combine ARXML files"),
-            ("Export", self._pages["export"], "Export handoff artifacts"),
+        self.stack.addWidget(self._build_feature_workspace("validate", [
+            ("validate", self._pages["validate"]),
+            ("timing", self._pages["timing"]),
+            ("compare", self._pages["compare"]),
+            ("merge", self._pages["merge"]),
+            ("export", self._pages["export"]),
         ]))
-        self.stack.addWidget(self._pages["setup"])
+        self.stack.addWidget(self._build_feature_workspace("setup", [
+            ("setup", self._pages["setup"]),
+        ]))
 
         self.document.on_changed(self._on_document_changed)
         saved = state_store.load_state(PLUGIN_ID, default={}) or {}
@@ -230,37 +284,63 @@ class AppShell(QMainWindow):
         self._on_document_changed()
 
     # ------------------------------------------------------------------
-    def _build_tab_workspace(
-            self, attr: str,
-            tabs: list[tuple[str, QWidget, str]]) -> QStackedWidget:
-        """Stack of feature pages; SuiteEditorTabs bar is remounted in chrome."""
-        bar = QTabBar()
-        bar.setObjectName("SuiteEditorTabs")
-        bar.setDrawBase(False)
-        bar.setExpanding(False)
-        bar.setDocumentMode(True)
-        bar.setUsesScrollButtons(True)
-        bar.setElideMode(Qt.TextElideMode.ElideRight)
+    def _build_feature_workspace(
+            self, workspace: str,
+            features: list[tuple[str, QWidget]]) -> QStackedWidget:
+        """Stack of feature pages — Side Bar switches index (no top tabs)."""
         stack = QStackedWidget()
         stack.setObjectName("SuiteEditorStack")
-        for title, page, tip in tabs:
+        keys = []
+        for key, page in features:
             stack.addWidget(page)
-            idx = bar.addTab(title)
-            if tip:
-                bar.setTabToolTip(idx, tip)
-        bar.currentChanged.connect(stack.setCurrentIndex)
-        setattr(self, attr, bar)
+            keys.append(key)
+        self._workspace_stacks[workspace] = stack
+        self._workspace_features[workspace] = keys
+        if workspace == "config":
+            self._config_stack = stack
+            self._config_feature_keys = keys
+            self._config_tabs = None
         return stack
 
     def _select_workspace_tab(self, workspace: str, index: int):
-        attr = _WORKSPACE_TAB_ATTR.get(workspace)
-        if not attr:
+        stack = self._workspace_stacks.get(workspace)
+        if stack is None or index < 0 or index >= stack.count():
             return
-        bar = getattr(self, attr, None)
-        if bar is None or index < 0 or index >= bar.count():
+        if stack.currentIndex() != index:
+            stack.setCurrentIndex(index)
+        self._apply_nested_feature(self._active_feature)
+        sb = self._sidebars.get(workspace)
+        if sb is not None and hasattr(sb, "select_section"):
+            try:
+                feat = self._active_feature
+                if workspace == "config":
+                    # Config sidebar highlights BSW/Editor/… not modules.
+                    if feat not in ("bsw", "editor", "spec", "swc"):
+                        feat = "bsw"
+                    sb.select_section(feat, expand_bsw=True)
+                else:
+                    sb.select_section(feat)
+            except Exception:
+                pass
+
+    def _apply_nested_feature(self, key: str):
+        """COM / System nested Side Bar leaves."""
+        if key in ("com_layout", "com_live", "com_pack", "com"):
+            stack = self._workspace_stacks.get("com")
+            idx = {"com_layout": 0, "com_live": 1, "com": 1,
+                   "com_pack": 2}.get(key, 1)
+            if stack is not None and 0 <= idx < stack.count():
+                stack.setCurrentIndex(idx)
             return
-        if bar.currentIndex() != index:
-            bar.setCurrentIndex(index)
+        if key in ("system_tree", "system_validate", "system_export",
+                   "system"):
+            sys_page = self._pages.get("system")
+            if sys_page is not None and hasattr(sys_page, "select_view"):
+                view = key if key != "system" else "system_tree"
+                try:
+                    sys_page.select_view(view)
+                except Exception:
+                    pass
 
     def _open_recent_project(self, path: str):
         if not path or not arxml_project.is_project_dir(path):
@@ -306,12 +386,16 @@ class AppShell(QMainWindow):
 
     def _menu_import_bswmd(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Import BSWMD-lite JSON", "", "JSON (*.json);;All (*)")
+            self, "Import BSWMD JSON", "", "JSON (*.json);;All (*)")
         if not path:
             return
         try:
             rows = arxmlparse.load_bswmd_lite(path)
-            self.log("OK", "Imported %d BSWMD tips" % len(rows))
+            mod, n = arxml_ecuc_schema.import_bswmd_schema(path, write=True)
+            self.log(
+                "OK",
+                "Imported BSWMD tips (%d) + schema structure %s (+%d params)"
+                % (len(rows), mod or "—", n))
             self.goto_page("spec")
         except (OSError, ValueError, KeyError) as e:
             self.log("ERR", str(e))
@@ -390,6 +474,14 @@ class AppShell(QMainWindow):
         if page is not None and hasattr(page, "select_module"):
             page.select_module(name)
 
+    def _menu_export_bsw_module(self):
+        self.goto_page("bsw")
+        page = self._pages.get("bsw")
+        if page is not None and hasattr(page, "export_active_module"):
+            page.export_active_module()
+        else:
+            self.log("WARN", "BSW page unavailable")
+
     def _menu_apply_editor(self):
         """Apply focused editor/BSW form when those pages are active."""
         for key in ("editor", "bsw", "swc"):
@@ -430,12 +522,10 @@ class AppShell(QMainWindow):
         self.path_label.setMinimumWidth(120)
         self.path_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self.path_label.setStyleSheet(
-            "color:#546E7A;font-size:12px;padding:0 4px;")
 
         self.dirty_label = QLabel("")
-        self.dirty_label.setStyleSheet(
-            "color:#C62828;font-size:11px;font-weight:600;padding:0 4px;")
+        self.dirty_label.setObjectName("SuiteDirtyDot")
+        self.dirty_label.setToolTip("Unsaved changes")
 
         self._doc_btns = []
         specs = (
@@ -459,64 +549,72 @@ class AppShell(QMainWindow):
             btn.clicked.connect(slot)
             self._doc_btns.append(btn)
 
-        self._overflow_btn = QToolButton()
-        self._overflow_btn.setObjectName("GhostButton")
-        self._overflow_btn.setText("⋯")
-        self._overflow_btn.setFixedSize(28, 26)
-        self._overflow_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._overflow_btn.setToolTip("More actions")
-        self._overflow_btn.setPopupMode(
-            QToolButton.ToolButtonPopupMode.InstantPopup)
-        self._overflow_menu = QMenu(self)
-        self._build_overflow_menu()
-        self._overflow_btn.setMenu(self._overflow_menu)
+    def _build_menubar(self):
+        """Native File/Edit/Import/Project/BSW/Validate/View/Help menubar."""
+        bar = self.menuBar()
+        if bar is None:
+            bar = QMenuBar(self)
+            self.setMenuBar(bar)
+        bar.clear()
+        bar.setVisible(True)
 
-    def _build_overflow_menu(self):
-        m = self._overflow_menu
-        m.clear()
-
-        def _act(label, slot, shortcut=None):
-            a = m.addAction(label)
+        def _act(menu, label, slot, shortcut=None):
+            a = menu.addAction(label)
             a.triggered.connect(slot)
             if shortcut:
                 a.setShortcut(QKeySequence(shortcut))
             return a
 
-        _act("New project…", self.new_project, "Ctrl+Shift+N")
-        _act("Open project…", self.open_project, "Ctrl+Shift+O")
-        self._recent_proj_menu = m.addMenu("Recent projects")
+        m_file = bar.addMenu("&File")
+        _act(m_file, "New &Project…", self.new_project, "Ctrl+Shift+N")
+        _act(m_file, "&Open Project…", self.open_project, "Ctrl+Shift+O")
+        self._recent_proj_menu = m_file.addMenu("Recent &Projects")
         self._fill_recent_projects_menu()
-        m.addSeparator()
-        _act("Save As…", self.save_arxml_as, "Ctrl+Shift+S")
-        _act("New file", self.new_arxml)
-        m.addSeparator()
-        _act("Import DBC…", self._menu_import_dbc)
-        _act("Import ARXML as COM…", self._menu_import_arxml_com)
-        _act("Import BSWMD JSON…", self._menu_import_bswmd)
-        m.addSeparator()
-        _act("Write intermediates", self._menu_write_intermediates)
-        _act("Derive ECUC from COM", self._menu_derive_ecuc)
-        _act("Init all BSW modules", self._menu_init_bsw)
-        _act("Sync BSW from COM", self._menu_sync_bsw)
-        _act("Enable / Disable module…", self._menu_toggle_module)
-        m.addSeparator()
-        _act("Run validate", self._menu_run_validate, "F7")
-        _act("Apply recipe pack", self._menu_recipe_pack)
-        _act("Write out/ reports", self._menu_write_out)
-        m.addSeparator()
-        lint = QAction("Lint on save", self)
-        lint.setCheckable(True)
-        lint.setChecked(self._lint_before_save)
-        lint.setToolTip("Ask before saving when Validate reports errors")
-        lint.toggled.connect(self._on_lint_gate_toggled)
-        self._lint_action = lint
-        m.addAction(lint)
-        _act("Attach to AI Chat", self.attach_ai)
-        m.addSeparator()
-        _act("Boundary (no codegen)", self._menu_boundary)
-        _act("About AUTOSAR Studio", self._menu_about)
+        m_file.addSeparator()
+        _act(m_file, "Open &ARXML…", self.open_arxml, "Ctrl+O")
+        _act(m_file, "&Save", self.save_arxml, "Ctrl+S")
+        _act(m_file, "Save &As…", self.save_arxml_as, "Ctrl+Shift+S")
+        _act(m_file, "&New file", self.new_arxml, "Ctrl+N")
+        m_file.addSeparator()
+        _act(m_file, "&Write Intermediates", self._menu_write_intermediates)
+        m_file.addSeparator()
+        _act(m_file, "Attach to AI Chat", self.attach_ai)
+        m_file.addSeparator()
+        _act(m_file, "E&xit", self.close)
 
-        m_bsw = m.addMenu("BSW modules")
+        m_edit = bar.addMenu("&Edit")
+        _act(m_edit, "&Undo", self.undo_edit, "Ctrl+Z")
+        _act(m_edit, "&Redo", self.redo_edit, "Ctrl+Y")
+        m_edit.addSeparator()
+        _act(m_edit, "&Apply", self._menu_apply_editor, "Ctrl+Return")
+
+        m_imp = bar.addMenu("&Import")
+        _act(m_imp, "Import &DBC…", self._menu_import_dbc, "Ctrl+Shift+D")
+        _act(m_imp, "Import ARXML as &COM…", self._menu_import_arxml_com)
+        _act(m_imp, "Import &BSWMD JSON…", self._menu_import_bswmd)
+
+        m_proj = bar.addMenu("&Project")
+        _act(m_proj, "&Project Page", lambda: self.goto_page("project"))
+        _act(m_proj, "&Derive ECUC from COM", self._menu_derive_ecuc)
+        _act(m_proj, "Init &All BSW Modules", self._menu_init_bsw)
+        _act(m_proj, "&Sync BSW from COM", self._menu_sync_bsw)
+        _act(m_proj, "&Enable / Disable Module…", self._menu_toggle_module)
+        m_wiz = m_proj.addMenu("&Wizards")
+        _act(m_wiz, "Init &communication stack",
+             self._menu_wizard_comm)
+        _act(m_wiz, "Add &diagnostic path",
+             self._menu_wizard_diag)
+        _act(m_wiz, "&Os tasks from I-PDUs (lite)",
+             self._menu_wizard_os)
+
+        m_bsw = bar.addMenu("&BSW")
+        _act(m_bsw, "&BSW Configurator", lambda: self.goto_page("bsw"))
+        m_bsw.addSeparator()
+        _act(m_bsw, "&Init All Modules", self._menu_init_bsw)
+        _act(m_bsw, "&Sync from COM", self._menu_sync_bsw)
+        _act(m_bsw, "&Write Module ARXMLs", self._menu_write_intermediates)
+        _act(m_bsw, "&Export Active Module…", self._menu_export_bsw_module)
+        m_bsw.addSeparator()
         for group, rows in arxml_bsw.catalog_by_group().items():
             sub = m_bsw.addMenu(group)
             for name, summary in rows:
@@ -524,6 +622,114 @@ class AppShell(QMainWindow):
                 a.setToolTip(summary)
                 a.triggered.connect(
                     lambda _c=False, n=name: self._menu_goto_bsw(n))
+
+        m_val = bar.addMenu("&Validate")
+        _act(m_val, "&Run Validate", self._menu_run_validate, "F7")
+        _act(m_val, "Apply &Recipe Pack", self._menu_recipe_pack)
+        _act(m_val, "Write &out/ Reports", self._menu_write_out)
+        m_val.addSeparator()
+        lint = QAction("Lint on save", self)
+        lint.setCheckable(True)
+        lint.setChecked(self._lint_before_save)
+        lint.setToolTip("Ask before saving when Validate reports errors")
+        lint.toggled.connect(self._on_lint_gate_toggled)
+        self._lint_action = lint
+        m_val.addAction(lint)
+
+        m_view = bar.addMenu("&View")
+        for key, title in NAV_PAGES:
+            _act(m_view, title, lambda _c=False, k=key: self.goto_page(k))
+        m_view.addSeparator()
+        _act(m_view, "Toggle &Side Bar",
+             lambda: self._wb.set_sidebar_visible(
+                 not self._wb.is_sidebar_visible()), "Ctrl+B")
+        _act(m_view, "Toggle &OUTPUT",
+             lambda: self._wb.set_panel_visible(
+                 not self._wb.is_panel_visible()), "Ctrl+J")
+
+        m_help = bar.addMenu("&Help")
+        _act(m_help, "&Spec Encyclopedia", lambda: self.goto_page("spec"))
+        _act(m_help, "&Handoff report…", self._menu_handoff_report)
+        _act(m_help, "&Boundary (no codegen)", self._menu_boundary)
+        _act(m_help, "&About AUTOSAR Studio", self._menu_about)
+
+    def _menu_wizard_comm(self):
+        log = self.document.wizard_init_comm_stack()
+        for line in log:
+            self.log("OK", line)
+        self.goto_page("bsw")
+
+    def _menu_wizard_diag(self):
+        log = self.document.wizard_add_diag_path()
+        for line in log:
+            self.log("OK", line)
+        self.goto_page("bsw")
+
+    def _menu_wizard_os(self):
+        log = self.document.wizard_os_tasks_lite()
+        for line in log:
+            self.log("OK", line)
+        self.goto_page("bsw")
+
+    def _menu_handoff_report(self):
+        self.goto_page("export")
+        try:
+            root = ""
+            if self.document.has_project() and self.document.manifest:
+                root = self.document.manifest.root
+            path = os.path.join(root or ".", "out", "handoff_davinci.html")
+            if root:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(self.document.handoff_html_report())
+            self.log("OK", "Handoff report %s" % path)
+            try:
+                os.startfile(path)
+            except OSError as exc:
+                self.log("WARN", "Open report: %s" % exc)
+        except OSError as e:
+            self.log("ERR", str(e))
+
+    def set_workspace_badges(self, counts: dict):
+        """Update Side Bar section labels with error counts (e.g. Findings (3))."""
+        self._sidebar_badges = dict(counts or {})
+        for ws, sidebar in (getattr(self, "_workspace_sidebars", {}) or {}).items():
+            update = getattr(sidebar, "set_badges", None)
+            if callable(update):
+                update(self._sidebar_badges)
+            # Also refresh validate section text if present
+            tree = getattr(sidebar, "tree", None)
+            if tree is None:
+                continue
+            for i in range(tree.topLevelItemCount()):
+                it = tree.topLevelItem(i)
+                data = it.data(0, Qt.ItemDataRole.UserRole) or ()
+                if len(data) >= 2 and data[1] == "validate":
+                    n = int(self._sidebar_badges.get("validate") or 0)
+                    base = "Findings"
+                    it.setText(0, "%s (%d)" % (base, n) if n else base)
+
+    def _mount_menubar_trailing(self):
+        """Dirty + doc actions + layout toggles on the native menubar row."""
+        host = QWidget()
+        host.setObjectName("SuiteMenubarTrailing")
+        row = QHBoxLayout(host)
+        row.setContentsMargins(4, 0, 6, 0)
+        row.setSpacing(2)
+        row.addWidget(self.dirty_label)
+        for btn in self._doc_btns:
+            row.addWidget(btn)
+        for btn in (
+            self._wb.btn_sidebar,
+            self._wb.btn_panel,
+            self._wb.btn_maximize,
+        ):
+            btn.setParent(None)
+            row.addWidget(btn)
+        self._menubar_trailing = host
+        bar = self.menuBar()
+        if bar is not None:
+            bar.setCornerWidget(host, Qt.Corner.TopRightCorner)
 
     def _fill_recent_projects_menu(self):
         menu = getattr(self, "_recent_proj_menu", None)
@@ -540,33 +746,71 @@ class AppShell(QMainWindow):
             a.triggered.connect(
                 lambda _c=False, p=path: self._open_recent_project(p))
 
+    def _park_chrome_widgets(self):
+        """Park path label before chrome remount (no durable tab bars)."""
+        park = self._chrome_park
+        if getattr(self, "path_label", None) is not None:
+            self.path_label.setParent(park)
+        # dirty_label / _doc_btns / layout toggles live on menubar trailing.
+
     def _mount_chrome(self, page_key: str):
-        """Single chrome remount path — tabs + path + slim actions."""
+        """Chrome row: feature title + path (Side Bar owns navigation)."""
+        self._park_chrome_widgets()
+        old = self._chrome_host
         host = QWidget()
         host.setObjectName("SuiteEditorTabHost")
         row = QHBoxLayout(host)
         row.setContentsMargins(10, 0, 6, 0)
         row.setSpacing(6)
-        attr = _WORKSPACE_TAB_ATTR.get(page_key)
-        tabs = getattr(self, attr, None) if attr else None
-        if tabs is not None:
-            tabs.setParent(None)
-            row.addWidget(tabs)
-        else:
-            title = QLabel(dict(NAV_PAGES).get(page_key, page_key))
-            title.setObjectName("SuiteEditorTitle")
-            row.addWidget(title)
+        feat = getattr(self, "_active_feature", "") or page_key
+        title_text = FEATURE_TITLES.get(
+            feat, dict(NAV_PAGES).get(page_key, page_key))
+        title = QLabel(title_text)
+        title.setObjectName("SuiteEditorTitle")
+        row.addWidget(title)
         row.addWidget(self.path_label, 1)
-        row.addWidget(self.dirty_label)
-        for btn in self._doc_btns:
-            row.addWidget(btn)
-        row.addWidget(self._overflow_btn)
         self._chrome_host = host
         self._wb.set_editor_tabs(host)
+        if old is not None and old is not host:
+            old.deleteLater()
+        mb = self.menuBar()
+        if mb is not None:
+            mb.setVisible(True)
+            trailing = getattr(self, "_menubar_trailing", None)
+            if trailing is not None:
+                mb.setCornerWidget(trailing, Qt.Corner.TopRightCorner)
 
     def _on_workbench_page(self, key: str):
-        """Sole chrome remounter (called from suite_chrome.goto_page)."""
+        """Chrome remount + Side Bar body for the active workspace."""
         self._mount_chrome(key)
+        setter = getattr(self._wb, "set_side_bar_widget", None)
+        if callable(setter):
+            setter(self._sidebars.get(key))
+        if key == "config":
+            bsw = self._pages.get("bsw")
+            if bsw is not None and hasattr(bsw, "refresh_view"):
+                try:
+                    bsw.refresh_view()
+                except Exception:
+                    pass
+            if bsw is not None and hasattr(bsw, "_apply_bsw_split"):
+                try:
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(0, bsw._apply_bsw_split)
+                except Exception:
+                    pass
+        sb = self._sidebars.get(key)
+        if sb is not None and hasattr(sb, "select_section"):
+            try:
+                feat = getattr(self, "_active_feature", "") or key
+                if key == "config":
+                    if feat not in ("bsw", "editor", "spec", "swc"):
+                        feat = "bsw"
+                    sb.select_section(feat, expand_bsw=True)
+                else:
+                    sb.select_section(feat)
+            except Exception:
+                pass
         try:
             from _shared import activity_snapshot
             activity_snapshot.update(
@@ -575,10 +819,92 @@ class AppShell(QMainWindow):
             pass
 
     def _build_output_panel(self):
+        """OUTPUT = Log terminal + BSW Live Findings (one collapsible panel)."""
+        from pages import _ui
+
         pause, clear_btn, term = suite_chrome.mount_compact_output(self._wb)
         self.log_pause = pause
         self.log_term = term
         clear_btn.clicked.connect(self.clear_log)
+
+        tools = self._wb.panel_tools
+        mode_log = QToolButton()
+        mode_log.setObjectName("SuitePanelTab")
+        mode_log.setText("Log")
+        mode_log.setCheckable(True)
+        mode_log.setChecked(True)
+        mode_log.setAutoRaise(True)
+        mode_log.setCursor(Qt.CursorShape.PointingHandCursor)
+        mode_log.setToolTip("Session / plugin log")
+        mode_find = QToolButton()
+        mode_find.setObjectName("SuitePanelTab")
+        mode_find.setText("Findings")
+        mode_find.setCheckable(True)
+        mode_find.setAutoRaise(True)
+        mode_find.setCursor(Qt.CursorShape.PointingHandCursor)
+        mode_find.setToolTip("BSW live schema findings")
+        find_summary = _ui.quiet_label("")
+        find_summary.setVisible(False)
+        fix_btn = _ui.ghost_btn("", "Apply fix for selected finding", "apply")
+        fix_btn.setFixedWidth(28)
+        recheck_btn = _ui.ghost_btn("", "Re-run live schema checks", "refresh")
+        recheck_btn.setFixedWidth(28)
+        fix_btn.setVisible(False)
+        recheck_btn.setVisible(False)
+        # Mode + findings actions before the stretch / pause / clear.
+        tools.insertWidget(0, mode_log)
+        tools.insertWidget(1, mode_find)
+        tools.insertWidget(2, find_summary)
+        tools.insertWidget(3, fix_btn)
+        tools.insertWidget(4, recheck_btn)
+
+        find_tree = QTreeWidget()
+        find_tree.setHeaderLabels(
+            ["Sev", "Rule", "Location", "Message", "Fix"])
+        _ui.style_tree(find_tree)
+        find_tree.setRootIsDecorated(False)
+        find_tree.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows)
+        find_tree.setToolTip("Double-click to jump to container / module")
+        find_tree.header().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.Stretch)
+
+        stack = QStackedWidget()
+        body = self._wb.panel_body
+        body.removeWidget(term)
+        stack.addWidget(term)
+        stack.addWidget(find_tree)
+        body.addWidget(stack, 1)
+
+        self._output_stack = stack
+        self._out_mode_log = mode_log
+        self._out_mode_find = mode_find
+        self._findings_tree = find_tree
+        self._findings_summary = find_summary
+        self._findings_fix_btn = fix_btn
+        self._findings_recheck_btn = recheck_btn
+
+        def _set_mode(idx: int):
+            stack.setCurrentIndex(idx)
+            mode_log.setChecked(idx == 0)
+            mode_find.setChecked(idx == 1)
+            pause.setVisible(idx == 0)
+            clear_btn.setVisible(idx == 0)
+            find_summary.setVisible(idx == 1)
+            fix_btn.setVisible(idx == 1)
+            recheck_btn.setVisible(idx == 1)
+
+        mode_log.clicked.connect(lambda: _set_mode(0))
+        mode_find.clicked.connect(lambda: _set_mode(1))
+        self._set_output_mode = _set_mode
+
+    def show_findings_panel(self):
+        """Reveal OUTPUT and switch to Findings (used after live check)."""
+        if self._wb is not None:
+            self._wb.set_panel_visible(True)
+        setter = getattr(self, "_set_output_mode", None)
+        if callable(setter):
+            setter(1)
 
     def log(self, source: str, message: str, color: str | None = None):
         plugin_shell.set_status(
@@ -589,10 +915,10 @@ class AppShell(QMainWindow):
         tstr = (time.strftime("%H:%M:%S", time.localtime(ts))
                 + ".%03d" % int(ts % 1 * 1000))
         colors = {
-            "ERR": "#C62828", "WARN": "#EF6C00",
-            "OK": "#2E7D32", "SYS": "#1565C0",
+            "ERR": vscode_theme.ERR, "WARN": vscode_theme.WARN_FG,
+            "OK": vscode_theme.OK, "SYS": vscode_theme.ACCENT,
         }
-        hex_c = colors.get(color or source, "#546E7A")
+        hex_c = colors.get(color or source, vscode_theme.TEXT_MUTED)
         line = "%s  %s  %s" % (tstr, source, message or "")
         from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor
         fmt = QTextCharFormat()
@@ -635,10 +961,68 @@ class AppShell(QMainWindow):
         label = self.document.strip_label()
         self.path_label.setText(self._elide_path(label))
         self.path_label.setToolTip(label)
-        self.dirty_label.setText("Modified" if self.document.dirty else "")
+        self.dirty_label.setText("●" if self.document.dirty else "")
         # Fixed OS caption — path/dirty stay on the chrome row only.
         self.setWindowTitle("AUTOSAR Studio")
-        self._persist()
+        self._sync_session_from_document()
+        self._schedule_persist()
+
+    def _sync_session_from_document(self):
+        """Keep Live COM PDUs aligned with the Config document model."""
+        try:
+            from core.ipdu import Ipdu as CoreIpdu, Signal as CoreSig
+            src = list(self.document.model.ipdus or [])
+            out = []
+            for p in src:
+                sigs = []
+                for s in (p.signals or []):
+                    sigs.append(CoreSig(
+                        name=s.name,
+                        start_bit=int(s.start_bit),
+                        length=int(s.length),
+                        endian=getattr(s, "endian", "intel") or "intel",
+                        factor=float(getattr(s, "factor", 1.0) or 1.0),
+                        offset=float(getattr(s, "offset", 0.0) or 0.0),
+                        unit=str(getattr(s, "unit", "") or ""),
+                    ))
+                out.append(CoreIpdu(
+                    name=p.name,
+                    can_id=int(p.can_id),
+                    dlc=int(p.dlc),
+                    signals=sigs,
+                ))
+            # Avoid notify loops — replace without SYS log spam when identical.
+            cur_names = [x.name for x in (self.session.ipdus or [])]
+            new_names = [x.name for x in out]
+            if cur_names == new_names and len(cur_names) == len(out):
+                same = True
+                for a, b in zip(self.session.ipdus or [], out):
+                    if a.can_id != b.can_id or a.dlc != b.dlc:
+                        same = False
+                        break
+                    if len(a.signals) != len(b.signals):
+                        same = False
+                        break
+                if same:
+                    return
+            self.session.ipdus = out
+            if self.session.active >= len(out):
+                self.session.active = 0
+            self.session.notify()
+        except Exception as exc:
+            self.log("WARN", "Session sync: %s" % exc)
+
+    def _schedule_persist(self):
+        """Debounce disk writes — every document notify used to sync-write JSON."""
+        from PyQt6.QtCore import QTimer
+        timer = getattr(self, "_persist_timer", None)
+        if timer is None:
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.setInterval(500)
+            timer.timeout.connect(self._persist)
+            self._persist_timer = timer
+        timer.start()
 
     def _remember_path(self, path: str):
         if not path:
@@ -685,6 +1069,13 @@ class AppShell(QMainWindow):
         except OSError as e:
             QMessageBox.warning(self, "AUTOSAR Studio", "Failed:\n%s" % e)
             return
+        diag = getattr(self.document, "_open_diag", "") or ""
+        if diag:
+            self.document._open_diag = ""
+            self.log("WARN", diag)
+            QMessageBox.warning(
+                self, "AUTOSAR Studio",
+                "Project opened with parse issues:\n\n%s" % diag)
         self._remember_project(path)
         self.log("OK", "Opened project %s" % path)
         self.goto_page("project")
@@ -836,8 +1227,9 @@ class AppShell(QMainWindow):
         if not self._lint_before_save:
             return True
         try:
-            findings = self.document.lint()
-            n_err = sum(1 for f in findings if f.get("level") == "error")
+            findings = self.document.validate_all()
+            n_err = sum(1 for f in findings if f.get("level") == "error"
+                        or f.get("severity") == "error")
             if n_err <= 0:
                 return True
             box = QMessageBox(self)
@@ -880,7 +1272,7 @@ class AppShell(QMainWindow):
             api.select_target(pdu, signal)
 
     def goto_page(self, key: str):
-        """Resolve feature keys to workspace + tab; chrome remounts via wb."""
+        """Resolve feature keys to workspace + stack index; chrome via Side Bar."""
         if not key:
             key = "bsw"
         route = FEATURE_ROUTE.get(key)
@@ -892,12 +1284,53 @@ class AppShell(QMainWindow):
                 key = "bsw"
         else:
             workspace, tab = route
-        self._active_feature = key if key in self._pages else workspace
+        # Prefer the requested feature key for chrome / Side Bar highlight.
+        self._active_feature = key
+        # Normalize activity / parent keys to a leaf Side Bar feature.
+        leaf_alias = {
+            "com": "com_live",
+            "bus": "system_tree",
+            "config": "bsw",
+            "system": "system_tree",
+            "setup": "setup",
+            "project": "project",
+            "validate": "validate",
+        }
+        if key in leaf_alias:
+            self._active_feature = leaf_alias[key]
+        if key in dict(NAV_PAGES) and tab is None:
+            keys = self._workspace_features.get(workspace) or []
+            feat = self._active_feature
+            if feat in keys:
+                tab = keys.index(feat)
+            elif workspace == "com":
+                tab = 1
+            else:
+                tab = 0
         if tab is not None:
             self._select_workspace_tab(workspace, tab)
-        # suite_chrome.goto_page → _on_workbench_page → _mount_chrome only
-        self._wb.goto_page(workspace)
-        self._persist()
+        else:
+            self._apply_nested_feature(self._active_feature)
+        cur = self._wb.current_page() if self._wb else None
+        if cur != workspace:
+            self._wb.goto_page(workspace)
+        else:
+            # Same workspace — refresh chrome title + Side Bar highlight.
+            self._mount_chrome(workspace)
+            sb = self._sidebars.get(workspace)
+            if sb is not None and hasattr(sb, "select_section"):
+                try:
+                    feat = self._active_feature
+                    if workspace == "config":
+                        if feat not in ("bsw", "editor", "spec", "swc"):
+                            feat = "bsw"
+                        sb.select_section(feat, expand_bsw=True)
+                    else:
+                        sb.select_section(feat)
+                except Exception:
+                    pass
+            self._apply_nested_feature(self._active_feature)
+        self._schedule_persist()
 
     def _persist(self):
         geo = self.saveGeometry().toHex().data().decode("ascii")
@@ -932,10 +1365,8 @@ class AppShell(QMainWindow):
                 p for p in (saved.get("recent") or []) if p][:MAX_RECENT]
             self._recent_projects = [
                 p for p in (saved.get("recent_projects") or []) if p][:MAX_RECENT]
-            geo = saved.get("geometry_hex")
-            if geo:
-                from PyQt6.QtCore import QByteArray
-                self.restoreGeometry(QByteArray.fromHex(geo.encode("ascii")))
+            # Geometry restore skipped — suite always opens maximized (showMaximized).
+            # Persisting a tiny last-session size was crushing the BSW split layout.
             last_proj = saved.get("last_project") or ""
             last = saved.get("last_path") or ""
             from_suite = bool(saved.get("from_autosar"))

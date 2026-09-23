@@ -90,6 +90,8 @@ class ArxmlModel:
     package: str = "OpenBus"
     path: str = ""
     notes: str = ""
+    # Unknown AR-PACKAGE XML fragments preserved across rewrite serialize.
+    foreign_packages: List[str] = field(default_factory=list)
 
     def clone(self) -> "ArxmlModel":
         return copy.deepcopy(self)
@@ -149,15 +151,46 @@ def _all(root, name: str):
             yield el
 
 
+def parse_arxml_model(path: str) -> ArxmlModel:
+    tree = ET.parse(path)
+    root = tree.getroot()
+    model = ArxmlModel(path=path)
+    model.ipdus = parse_root(root)
+    model.foreign_packages = _collect_foreign_packages(root)
+    return model
+
+
+# Packages we rewrite from the COM model — everything else is preserved.
+_COM_PACKAGE_NAMES = {
+    "OpenBus", "Signals", "Pdus", "Frames", "Communication",
+    "ECUC", "Ecuc", "ActiveEcuC",
+}
+
+
+def _collect_foreign_packages(root) -> List[str]:
+    """Serialize AR-PACKAGE nodes that are not part of the COM rewrite set."""
+    out: List[str] = []
+    for pkg in _all(root, "AR-PACKAGE"):
+        name = _text(pkg, "SHORT-NAME")
+        if not name or name in _COM_PACKAGE_NAMES:
+            continue
+        # Skip nested packages already covered by parent walk? Keep top-level
+        # under AR-PACKAGES only.
+        parent = None
+        # ElementTree has no getparent in stdlib — keep all named packages
+        # not in COM set; duplicates on nested are acceptable for handoff.
+        try:
+            xml = ET.tostring(pkg, encoding="unicode")
+        except Exception:
+            continue
+        if xml and xml not in out:
+            out.append(xml)
+    return out
+
+
 def parse_arxml(path: str) -> List[Ipdu]:
     tree = ET.parse(path)
     return parse_root(tree.getroot())
-
-
-def parse_arxml_model(path: str) -> ArxmlModel:
-    model = ArxmlModel(path=path)
-    model.ipdus = parse_arxml(path)
-    return model
 
 
 def parse_root(root) -> List[Ipdu]:
@@ -309,7 +342,31 @@ def serialize_arxml(ipdus: list, package: str = "OpenBus") -> str:
 
 
 def serialize_model(model: ArxmlModel) -> str:
-    return serialize_arxml(model.ipdus, package=model.package or "OpenBus")
+    """Serialize COM extract and re-attach preserved foreign AR-PACKAGE XML."""
+    body = serialize_arxml(model.ipdus, package=model.package or "OpenBus")
+    foreign = list(getattr(model, "foreign_packages", None) or [])
+    if not foreign:
+        return body
+    try:
+        root = ET.fromstring(body)
+    except ET.ParseError:
+        return body
+    pkgs = None
+    for el in root:
+        if _ln(el.tag) == "AR-PACKAGES":
+            pkgs = el
+            break
+    if pkgs is None:
+        pkgs = ET.SubElement(root, "AR-PACKAGES")
+    for frag in foreign:
+        try:
+            node = ET.fromstring(frag)
+        except ET.ParseError:
+            continue
+        pkgs.append(node)
+    ET.indent(root, space="  ")
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
+        root, encoding="unicode")
 
 
 def validate_ipdus(ipdus: list, deep: bool = True) -> List[dict]:
@@ -1172,6 +1229,8 @@ def findings_to_sarif(
             "properties": {
                 "artifact": f.get("artifact", ""),
                 "location": f.get("location", ""),
+                "acked": bool(f.get("acked")),
+                "ackKey": f.get("ack_key") or "",
             },
         })
     return {
@@ -1223,11 +1282,43 @@ def load_bswmd_lite(path: str) -> List[dict]:
         {"modules": [{"name": "Com", "params": [
             {"name": "ComIPduSize", "summary": "...", "detail": "...",
              "range": "...", "definition": "/AUTOSAR/..."}]}]}
+
+    Also accepts EcucDefs-shaped packs with ``containers[].params[]``
+    (same as ``ecuc_schemas/*.json``) — those are converted to tips and
+    optionally imported as schema structure via
+    ``arxml_ecuc_schema.import_bswmd_schema``.
     """
     import json
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     rows = []
+    # EcucDefs-shaped single module file
+    if data.get("module") and data.get("containers"):
+        mname = str(data.get("module") or "Module")
+        for c in data.get("containers") or []:
+            cname = str(c.get("shortName") or c.get("name") or "Container")
+            rows.append({
+                "id": "ecuc.%s.%s" % (mname.lower(), cname),
+                "title": "%s / %s" % (mname, cname),
+                "category": "BSWMD %s" % mname,
+                "summary": str(c.get("summary") or cname),
+                "detail": str(c.get("detail") or ""),
+                "range": "container",
+                "definition": str(c.get("definition") or ""),
+            })
+            for p in c.get("params") or []:
+                pname = str(p.get("shortName") or p.get("name") or "Param")
+                rows.append({
+                    "id": "ecuc.%s.%s" % (mname.lower(), pname),
+                    "title": "%s / %s" % (mname, pname),
+                    "category": "BSWMD %s" % mname,
+                    "summary": str(p.get("summary") or pname),
+                    "detail": str(p.get("detail") or ""),
+                    "range": str(p.get("range") or ""),
+                    "definition": str(p.get("definition") or ""),
+                })
+        merge_bswmd_tips(rows)
+        return rows
     for mod in data.get("modules") or []:
         mname = str(mod.get("name") or "Module")
         for p in mod.get("params") or []:
@@ -1254,6 +1345,18 @@ def load_bswmd_lite(path: str) -> List[dict]:
                 "range": str(c.get("range") or "container"),
                 "definition": str(c.get("definition") or ""),
             })
+            # Nested params under container (structure import shape)
+            for p in c.get("params") or []:
+                pname = str(p.get("name") or p.get("shortName") or "Param")
+                rows.append({
+                    "id": "ecuc.%s.%s" % (mname.lower(), pname),
+                    "title": "%s / %s" % (mname, pname),
+                    "category": "BSWMD %s" % mname,
+                    "summary": str(p.get("summary") or pname),
+                    "detail": str(p.get("detail") or ""),
+                    "range": str(p.get("range") or ""),
+                    "definition": str(p.get("definition") or ""),
+                })
     merge_bswmd_tips(rows)
     return rows
 

@@ -1,7 +1,7 @@
 {
   "module": "FrIf",
   "definition": "/AUTOSAR/EcucDefs/FrIf",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "FrIfConfig",
@@ -16,7 +16,7 @@
           "kind": "string",
           "default": "",
           "summary": "FrIfCluster",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs FrIfCluster parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/FrIf/FrIfConfig/FrIfCluster"
         },
@@ -25,7 +25,7 @@
           "kind": "string",
           "default": "",
           "summary": "FrIfController",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs FrIfController parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/FrIf/FrIfConfig/FrIfController"
         },
@@ -34,7 +34,7 @@
           "kind": "string",
           "default": "",
           "summary": "FrIfPdu",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs FrIfPdu parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/FrIf/FrIfConfig/FrIfPdu"
         }
@@ -54,9 +54,53 @@
           "kind": "boolean",
           "default": "false",
           "summary": "FrIfDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/FrIf/FrIfGeneral/FrIfDevErrorDetect"
+        },
+        {
+          "shortName": "FrIfVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrIf/FrIfGeneral/FrIfVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "FrIfCluster"
+      ]
+    },
+    {
+      "shortName": "FrIfCluster",
+      "definition": "/AUTOSAR/EcucDefs/FrIf/FrIfGeneral/FrIfCluster",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "FrIfGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "FrIfClusterId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Cluster Id",
+          "detail": "Cluster Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/FrIf/FrIfCluster/FrIfClusterId"
+        },
+        {
+          "shortName": "FrIfGMacroPerCycle",
+          "kind": "numerical",
+          "default": "3636",
+          "summary": "Macro per cycle",
+          "detail": "Macro per cycle",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/FrIf/FrIfCluster/FrIfGMacroPerCycle"
         }
       ],
       "subContainers": []

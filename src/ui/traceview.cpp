@@ -2571,6 +2571,18 @@ TraceTab::TraceTab(QWidget *parent)
     connect(m_capturePullTimer, &QTimer::timeout, this, &TraceTab::onCapturePullTimer);
     m_capturePullTimer->start();
 
+    // Shared CaptureLog cleared (this tab or sibling Trace Clear list) → reset camera view.
+    connect(CaptureLog::instance(), &CaptureLog::cleared, this, [this]() {
+        m_captureSeq = 0;
+        if (m_traceModel && m_traceModel->isCaptureLogCamera())
+            m_traceModel->clear();
+        m_packetCountDirty = true;
+        m_autoScrollViewport = true;
+        syncFollowUi();
+        refreshFilterChips();
+        updateViewportOverview();
+    });
+
     // Filter change → refresh counts immediately (DEF-08 string signal)
     auto *filterCountRelay = new SignalRelay(this);
     filterCountRelay->fnIntInt = [this](int captured, int displayed) {
@@ -2674,6 +2686,17 @@ void TraceTab::pullFromCaptureLog()
     }
 
     if (m_traceModel->isCaptureLogCamera()) {
+        // Offline bulk / catch-up: adopt the full CaptureLog window instead of
+        // trickling 256 rows/tick (list stayed empty for a long time after Replay).
+        int logSize = 0;
+        quint64 tip = 0;
+        CaptureLog::instance()->snapshot(&logSize, &tip, nullptr);
+        if (tip > m_captureSeq && (tip - m_captureSeq) > 2048) {
+            m_captureSeq = tip;
+            m_traceModel->adoptCaptureLogSnapshot(logSize, tip);
+            m_packetCountDirty = true;
+            return;
+        }
         const int n = m_traceModel->syncFromCaptureLog(&m_captureSeq, 256);
         if (n > 0)
             m_packetCountDirty = true;
@@ -2987,7 +3010,15 @@ void TraceTab::refreshStatusStrip(int captured, int displayed)
 
 void TraceTab::clearTrace()
 {
-    m_traceModel->clear();
+    // Live path is CaptureLog camera (B5): clearing only the model viewRows is
+    // undone on the next syncFromCaptureLog. Delete the shared log, then reset
+    // the camera cursor/view (sibling tabs listen to CaptureLog::cleared).
+    m_captureSeq = 0;
+    if (m_traceModel && m_traceModel->isCaptureLogCamera()) {
+        CaptureLog::instance()->clear();
+    } else if (m_traceModel) {
+        m_traceModel->clear();
+    }
     m_packetCountDirty = true;
     m_autoScrollViewport = true;
     syncFollowUi();

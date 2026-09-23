@@ -147,6 +147,13 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
             if (gv)
                 gv->clearData();
         }
+    } else if (action == QStringLiteral("resyncFromSampleStoreAll")) {
+        const auto views = m_viewList;
+        for (const auto &gvPtr : views) {
+            GraphicView *gv = gvPtr.data();
+            if (gv)
+                gv->resyncFromSampleStore();
+        }
     } else if (action == QStringLiteral("addSignal")) {
         // Add single signal to target view (from shell forwarding onFrameDoubleClicked/onSignalDoubleClicked)
         // Arg: variant map with "target"(QWidget*) + "sig"(QVariantMap) or standalone sig + resolve target
@@ -240,7 +247,7 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
                                 gs.name = smap.value("name").toString();
                                 gs.canId = smap.value("canId").toUInt();
                                 gs.extended = smap.value("extended").toBool();
-                                gs.displayMode = smap.value("displayMode", 1).toInt();
+                                gs.displayMode = smap.value("displayMode", 0).toInt();
                                 if (smap.contains(QStringLiteral("color"))) {
                                     const QColor c(smap.value(QStringLiteral("color")).toString());
                                     if (c.isValid())
@@ -314,10 +321,11 @@ const QVector<CanFrame> *GraphicModule::replayHistory(int *count) const
 {
     if (count)
         *count = -1;
-    // Prefer Player (file timestamps, never PC-now). Prefix = already played.
+    // Prefer Player: file timestamps (never PC-now). For offline analysis the
+    // whole file is the working set — backfill all frames so Graphic is continuous.
     if (m_ctx.player && m_ctx.player->isLoaded()) {
         if (count)
-            *count = m_ctx.player->currentFrameIndex();
+            *count = m_ctx.player->frames().size();
         return &m_ctx.player->frames();
     }
     // Measurement path: CaptureLog is the same source Trace cameras read —

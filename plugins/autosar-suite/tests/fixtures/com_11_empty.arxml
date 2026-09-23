@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<AUTOSAR>
+  <AR-PACKAGES>
+    <AR-PACKAGE>
+      <SHORT-NAME>EmptyPkg</SHORT-NAME>
+      <ELEMENTS>
+        <I-SIGNAL>
+          <SHORT-NAME>DemoSignal</SHORT-NAME>
+          <LENGTH>16</LENGTH>
+          <FACTOR>1.0</FACTOR>
+          <OFFSET>0.0</OFFSET>
+        </I-SIGNAL>
+        <I-SIGNAL-I-PDU>
+          <SHORT-NAME>DemoPdu</SHORT-NAME>
+          <LENGTH>8</LENGTH>
+          <I-SIGNAL-TO-PDU-MAPPINGS>
+            <I-SIGNAL-TO-PDU-MAPPING>
+              <SHORT-NAME>DemoSignalMap0</SHORT-NAME>
+              <I-SIGNAL-REF>/Signals/DemoSignal</I-SIGNAL-REF>
+              <START-POSITION>0</START-POSITION>
+              <PACKING-BYTE-ORDER>MOST-SIGNIFICANT-BYTE-LAST</PACKING-BYTE-ORDER>
+            </I-SIGNAL-TO-PDU-MAPPING>
+          </I-SIGNAL-TO-PDU-MAPPINGS>
+        </I-SIGNAL-I-PDU>
+        <CAN-FRAME>
+          <SHORT-NAME>DemoPduFrame</SHORT-NAME>
+          <FRAME-LENGTH>8</FRAME-LENGTH>
+          <PDU-TO-FRAME-MAPPINGS>
+            <PDU-TO-FRAME-MAPPING>
+              <PDU-REF>/Pdus/DemoPdu</PDU-REF>
+              <START-POSITION>0</START-POSITION>
+            </PDU-TO-FRAME-MAPPING>
+          </PDU-TO-FRAME-MAPPINGS>
+        </CAN-FRAME>
+        <CAN-FRAME-TRIGGERING>
+          <SHORT-NAME>DemoPduTrig</SHORT-NAME>
+          <IDENTIFIER>256</IDENTIFIER>
+          <FRAME-REF>/Frames/DemoPduFrame</FRAME-REF>
+        </CAN-FRAME-TRIGGERING>
+      </ELEMENTS>
+    </AR-PACKAGE>
+  </AR-PACKAGES>
+</AUTOSAR>

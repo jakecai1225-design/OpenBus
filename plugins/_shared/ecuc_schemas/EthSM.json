@@ -1,7 +1,7 @@
 {
   "module": "EthSM",
   "definition": "/AUTOSAR/EcucDefs/EthSM",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "EthSMConfiguration",
@@ -16,7 +16,7 @@
           "kind": "string",
           "default": "",
           "summary": "EthSMNetwork",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs EthSMNetwork parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMConfiguration/EthSMNetwork"
         }
@@ -36,7 +36,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "EthSMDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMGeneral/EthSMDevErrorDetect"
         },
@@ -45,11 +45,43 @@
           "kind": "numerical",
           "default": "10",
           "summary": "EthSMMainFunctionPeriod",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs EthSMMainFunctionPeriod parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMGeneral/EthSMMainFunctionPeriod"
+        },
+        {
+          "shortName": "EthSMVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMGeneral/EthSMVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "EthSMNetwork"
+      ]
+    },
+    {
+      "shortName": "EthSMNetwork",
+      "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMGeneral/EthSMNetwork",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "EthSMGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "EthSMComMNetworkHandleRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "EthSMComMNetworkHandleRef",
+          "detail": "Reference to ComMChannel",
+          "range": "",
+          "destination": "ComMChannel",
+          "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMNetwork/EthSMComMNetworkHandleRef"
         }
       ],
       "subContainers": []

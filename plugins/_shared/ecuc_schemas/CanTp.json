@@ -1,7 +1,7 @@
 {
   "module": "CanTp",
   "definition": "/AUTOSAR/EcucDefs/CanTp",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "CanTpGeneral",
@@ -15,8 +15,8 @@
           "shortName": "CanTpDevErrorDetect",
           "kind": "boolean",
           "default": "false",
-          "summary": "CanTpDevErrorDetect",
-          "detail": "",
+          "summary": "DET",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpGeneral/CanTpDevErrorDetect"
         },
@@ -24,12 +24,66 @@
           "shortName": "CanTpMainFunctionPeriod",
           "kind": "numerical",
           "default": "5",
-          "summary": "CanTpMainFunctionPeriod",
-          "detail": "",
+          "summary": "Main period (ms)",
+          "detail": "Main period (ms)",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpGeneral/CanTpMainFunctionPeriod"
+        },
+        {
+          "shortName": "CanTpVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpGeneral/CanTpVersionInfoApi"
+        },
+        {
+          "shortName": "CanTpChangeParameterApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ChangeParameterApi",
+          "detail": "ChangeParameterApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpGeneral/CanTpChangeParameterApi"
+        },
+        {
+          "shortName": "CanTpReadParameterApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ReadParameterApi",
+          "detail": "ReadParameterApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpGeneral/CanTpReadParameterApi"
+        },
+        {
+          "shortName": "CanTpCancelTransmitApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CancelTransmitApi",
+          "detail": "CancelTransmitApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpGeneral/CanTpCancelTransmitApi"
+        },
+        {
+          "shortName": "CanTpCancelReceiveApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CancelReceiveApi",
+          "detail": "CancelReceiveApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpGeneral/CanTpCancelReceiveApi"
+        },
+        {
+          "shortName": "CanTpFlexibleDataRateSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "FD support",
+          "detail": "FD support",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpGeneral/CanTpFlexibleDataRateSupport"
         }
       ],
       "subContainers": []
@@ -42,7 +96,12 @@
       "parent": "",
       "seed": false,
       "params": [],
-      "subContainers": []
+      "subContainers": [
+        "CanTpChannel",
+        "CanTpNSdu",
+        "CanTpRxNSdu",
+        "CanTpTxNSdu"
+      ]
     },
     {
       "shortName": "CanTpChannel",
@@ -56,8 +115,8 @@
           "shortName": "CanTpChannelId",
           "kind": "numerical",
           "default": "0",
-          "summary": "CanTpChannelId",
-          "detail": "",
+          "summary": "Channel id",
+          "detail": "Channel Id",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -67,8 +126,8 @@
           "shortName": "CanTpChannelMode",
           "kind": "enumeration",
           "default": "FULL_DUPLEX",
-          "summary": "CanTpChannelMode",
-          "detail": "",
+          "summary": "Channel mode",
+          "detail": "Channel mode",
           "range": "",
           "literals": [
             "FULL_DUPLEX",
@@ -81,7 +140,7 @@
           "kind": "numerical",
           "default": "8",
           "summary": "CanTpBs",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CanTpBs parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -92,11 +151,31 @@
           "kind": "numerical",
           "default": "0",
           "summary": "CanTpSTmin",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CanTpSTmin parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpChannel/CanTpSTmin"
+        },
+        {
+          "shortName": "CanTpRxNSduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanTpRxNSduRef",
+          "detail": "Reference to CanTpRxNSdu",
+          "range": "",
+          "destination": "CanTpRxNSdu",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpChannel/CanTpRxNSduRef"
+        },
+        {
+          "shortName": "CanTpTxNSduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanTpTxNSduRef",
+          "detail": "Reference to CanTpTxNSdu",
+          "range": "",
+          "destination": "CanTpTxNSdu",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpChannel/CanTpTxNSduRef"
         }
       ],
       "subContainers": []
@@ -114,7 +193,7 @@
           "kind": "numerical",
           "default": "0",
           "summary": "CanTpNSduId",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CanTpNSduId parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -125,7 +204,7 @@
           "kind": "enumeration",
           "default": "TX",
           "summary": "CanTpNSduDirection",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CanTpNSduDirection parameter.",
           "range": "",
           "literals": [
             "TX",
@@ -138,7 +217,7 @@
           "kind": "reference",
           "default": "",
           "summary": "CanTpTxNSduRef",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CanTpTxNSduRef parameter.",
           "range": "",
           "destination": "pdu",
           "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpNSdu/CanTpTxNSduRef"
@@ -148,11 +227,353 @@
           "kind": "numerical",
           "default": "100",
           "summary": "CanTpNas",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CanTpNas parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpNSdu/CanTpNas"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanTpRxNSdu",
+      "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpConfig/CanTpRxNSdu",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "CanTpConfig",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "CanTpRxNSduId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "NSdu Id",
+          "detail": "NSdu Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpRxNSdu/CanTpRxNSduId"
+        },
+        {
+          "shortName": "CanTpRxTaType",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Ta type",
+          "detail": "Ta type",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpRxNSdu/CanTpRxTaType",
+          "literals": [
+            "PHYSICAL",
+            "FUNCTIONAL"
+          ]
+        },
+        {
+          "shortName": "CanTpRxNSduRef",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Ref Id",
+          "detail": "Ref Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpRxNSdu/CanTpRxNSduRef",
+          "destination": "pdu"
+        },
+        {
+          "shortName": "CanTpBs",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "Block size",
+          "detail": "Block size",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpRxNSdu/CanTpBs"
+        },
+        {
+          "shortName": "CanTpSTmin",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "STmin",
+          "detail": "STmin",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpRxNSdu/CanTpSTmin"
+        },
+        {
+          "shortName": "CanTpNar",
+          "kind": "numerical",
+          "default": "0.001",
+          "summary": "N_Ar",
+          "detail": "N_Ar",
+          "range": "",
+          "min": 0,
+          "max": 65,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpRxNSdu/CanTpNar"
+        },
+        {
+          "shortName": "CanTpNbr",
+          "kind": "numerical",
+          "default": "0.001",
+          "summary": "N_Br",
+          "detail": "N_Br",
+          "range": "",
+          "min": 0,
+          "max": 65,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpRxNSdu/CanTpNbr"
+        },
+        {
+          "shortName": "CanTpNcr",
+          "kind": "numerical",
+          "default": "0.001",
+          "summary": "N_Cr",
+          "detail": "N_Cr",
+          "range": "",
+          "min": 0,
+          "max": 65,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpRxNSdu/CanTpNcr"
+        },
+        {
+          "shortName": "CanTpWftMax",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "WFT max",
+          "detail": "WFT max",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpRxNSdu/CanTpWftMax"
+        },
+        {
+          "shortName": "CanTpRxNPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanTpRxNPduRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpRxNSdu/CanTpRxNPduRef"
+        },
+        {
+          "shortName": "CanTpRxFcNPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanTpRxFcNPduRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpRxNSdu/CanTpRxFcNPduRef"
+        },
+        {
+          "shortName": "CanTpRxWftMax",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "WFT max",
+          "detail": "WFT max",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpConfig/CanTpRxNSdu/CanTpRxWftMax",
+          "min": 0
+        },
+        {
+          "shortName": "CanTpRxPaddingActivation",
+          "kind": "enumeration",
+          "default": "OFF",
+          "summary": "Padding",
+          "detail": "Padding",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpConfig/CanTpRxNSdu/CanTpRxPaddingActivation",
+          "literals": [
+            "ON",
+            "OFF"
+          ]
+        },
+        {
+          "shortName": "CanTpRxAddressingFormat",
+          "kind": "enumeration",
+          "default": "STANDARD",
+          "summary": "Addressing",
+          "detail": "Addressing",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpConfig/CanTpRxNSdu/CanTpRxAddressingFormat",
+          "literals": [
+            "STANDARD",
+            "EXTENDED",
+            "MIXED",
+            "NORMALFIXED"
+          ]
+        },
+        {
+          "shortName": "CanTpRxNSduMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "5",
+          "summary": "RX main period",
+          "detail": "RX main period",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpConfig/CanTpRxNSdu/CanTpRxNSduMainFunctionPeriod",
+          "min": 1
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanTpTxNSdu",
+      "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpConfig/CanTpTxNSdu",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "CanTpConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanTpTxNSduId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "NSdu Id",
+          "detail": "NSdu Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpTxNSdu/CanTpTxNSduId"
+        },
+        {
+          "shortName": "CanTpTxTaType",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Ta type",
+          "detail": "Ta type",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpTxNSdu/CanTpTxTaType",
+          "literals": [
+            "PHYSICAL",
+            "FUNCTIONAL"
+          ]
+        },
+        {
+          "shortName": "CanTpBs",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "Block size",
+          "detail": "Block size",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpTxNSdu/CanTpBs"
+        },
+        {
+          "shortName": "CanTpSTmin",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "STmin",
+          "detail": "STmin",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpTxNSdu/CanTpSTmin"
+        },
+        {
+          "shortName": "CanTpNas",
+          "kind": "numerical",
+          "default": "0.001",
+          "summary": "N_As",
+          "detail": "N_As",
+          "range": "",
+          "min": 0,
+          "max": 65,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpTxNSdu/CanTpNas"
+        },
+        {
+          "shortName": "CanTpNbs",
+          "kind": "numerical",
+          "default": "0.001",
+          "summary": "N_Bs",
+          "detail": "N_Bs",
+          "range": "",
+          "min": 0,
+          "max": 65,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpTxNSdu/CanTpNbs"
+        },
+        {
+          "shortName": "CanTpNcs",
+          "kind": "numerical",
+          "default": "0.001",
+          "summary": "N_Cs",
+          "detail": "N_Cs",
+          "range": "",
+          "min": 0,
+          "max": 65,
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpTxNSdu/CanTpNcs"
+        },
+        {
+          "shortName": "CanTpTxNPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanTpTxNPduRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpTxNSdu/CanTpTxNPduRef"
+        },
+        {
+          "shortName": "CanTpTxFcNPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanTpTxFcNPduRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpTxNSdu/CanTpTxFcNPduRef"
+        },
+        {
+          "shortName": "CanTpTxNSduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "N-SDU ref",
+          "detail": "N-SDU ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpConfig/CanTpTxNSdu/CanTpTxNSduRef",
+          "destination": "pdu"
+        },
+        {
+          "shortName": "CanTpTc",
+          "kind": "boolean",
+          "default": "true",
+          "summary": "Transmit cancellation",
+          "detail": "Transmit cancellation",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpConfig/CanTpTxNSdu/CanTpTc"
+        },
+        {
+          "shortName": "CanTpTxPaddingActivation",
+          "kind": "enumeration",
+          "default": "OFF",
+          "summary": "Padding",
+          "detail": "Padding",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpConfig/CanTpTxNSdu/CanTpTxPaddingActivation",
+          "literals": [
+            "ON",
+            "OFF"
+          ]
+        },
+        {
+          "shortName": "CanTpTxAddressingFormat",
+          "kind": "enumeration",
+          "default": "STANDARD",
+          "summary": "Addressing",
+          "detail": "Addressing",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTp/CanTpConfig/CanTpTxNSdu/CanTpTxAddressingFormat",
+          "literals": [
+            "STANDARD",
+            "EXTENDED",
+            "MIXED",
+            "NORMALFIXED"
+          ]
         }
       ],
       "subContainers": []

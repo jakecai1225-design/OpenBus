@@ -6,8 +6,8 @@ Vertical layers (keep to two above the editor):
   2. Editor body
   3. Collapsible OUTPUT (optional)
 
-Horizontal: Activity bar (hideable) | editor column.
-No separate title bar — tabs own the top of the main window.
+Horizontal: Activity bar (icon strip) | optional Side Bar | editor column.
+When side_bar_enabled: activity stays visible; Ctrl+B toggles the Side Bar.
 """
 
 from __future__ import annotations
@@ -95,6 +95,11 @@ class WorkbenchParts:
     set_editor_tabs: Callable[[QWidget], None]
     set_editor_title: Callable[[str], None]
     editor_layout: QVBoxLayout
+    # Optional Side Bar (between activity and editor) — VS Code Explorer style.
+    side_bar: Optional[QWidget] = None
+    set_side_bar_widget: Optional[Callable[[Optional[QWidget]], None]] = None
+    set_side_bar_visible: Optional[Callable[[bool], None]] = None
+    is_side_bar_visible: Optional[Callable[[], bool]] = None
     # Compat
     title_bar: Optional[QWidget] = None
     title_trailing: Optional[QHBoxLayout] = None
@@ -152,19 +157,31 @@ def build_workbench(
     panel_title: str = "OUTPUT",
     panel_visible: bool = True,
     sidebar_visible: bool = True,
+    side_bar_enabled: bool = False,
+    side_bar_visible: bool = True,
+    side_bar_width: int = 260,
+    lock_activity: bool = False,
 ) -> WorkbenchParts:
-    """Attach a VS Code–style workbench — one chrome row, not stacked shells."""
+    """Attach a VS Code–style workbench — one chrome row, not stacked shells.
+
+    *side_bar_enabled*: insert a collapsible Side Bar between the activity
+    strip and the editor (Explorer-style). Ctrl+B / btn_sidebar toggles it.
+    *lock_activity*: keep the activity icon strip always visible (never hide).
+    """
     vscode_theme.apply(window)
     plugin_shell.attach_status_bar(window, "Ready")
 
     state = {
-        "sidebar": sidebar_visible,
+        "sidebar": (
+            side_bar_visible if side_bar_enabled else sidebar_visible),
         "panel": panel_visible,
         "maximized": False,
         "panel_height": 160,
-        "saved_sidebar": sidebar_visible,
+        "saved_sidebar": (
+            side_bar_visible if side_bar_enabled else sidebar_visible),
         "saved_panel": panel_visible,
         "page": nav_pages[0][0] if nav_pages else "",
+        "side_bar_width": max(180, int(side_bar_width)),
     }
 
     central = QWidget()
@@ -173,7 +190,6 @@ def build_workbench(
     root.setContentsMargins(0, 0, 0, 0)
     root.setSpacing(0)
 
-    # ---- Activity bar ----
     activity = QWidget()
     activity.setObjectName("SuiteActivityBar")
     activity.setFixedWidth(max(40, int(nav_width)))
@@ -204,15 +220,14 @@ def build_workbench(
                 color = vscode_theme.ACCENT if k == key else vscode_theme.TEXT_DIM
                 icon_key = nav_pages[page_index[k]][0]
                 codicons.set_button(b, icon_key, color=color, size=20)
-        # Default chrome title when page has no custom tabs.
-        # Window._on_workbench_page remounts SuiteEditorTabs when the page owns them.
-        title_map = dict(nav_pages)
-        tab_pages = {
-            "diagnose", "com", "system", "topology", "frames", "esi",
-            "network", "eds", "library",
-        }
-        if key not in tab_pages:
-            set_editor_title(title_map.get(key, key))
+        if not callable(getattr(window, "_on_workbench_page", None)):
+            title_map = dict(nav_pages)
+            tab_pages = {
+                "diagnose", "com", "system", "topology", "frames", "esi",
+                "network", "eds", "library",
+            }
+            if key not in tab_pages:
+                set_editor_title(title_map.get(key, key))
 
     footer_keys = {"setup", "settings"}
     main_pages = [(k, t) for k, t in nav_pages if k not in footer_keys]
@@ -225,7 +240,7 @@ def build_workbench(
         b.setCheckable(True)
         b.setAutoRaise(True)
         b.setCursor(Qt.CursorShape.PointingHandCursor)
-        b.setFixedSize(40, 40)
+        b.setFixedSize(36, 36)
         b.setIconSize(QSize(20, 20))
         tip = ACTIVITY_TIPS.get(key, page_title)
         tip = "%s  (Ctrl+%d)" % (tip, i + 1)
@@ -236,7 +251,9 @@ def build_workbench(
 
         def _on_click(_checked=False, k=key, btn=b):
             if state["page"] == k and btn.isChecked():
-                if state["panel"]:
+                if side_bar_enabled:
+                    set_side_bar_visible(not state["sidebar"])
+                elif state["panel"]:
                     set_panel_visible(False)
                 return
             goto = getattr(window, "goto_page", None)
@@ -250,14 +267,43 @@ def build_workbench(
 
     for key, page_title in main_pages:
         idx = next(j for j, (k, _) in enumerate(nav_pages) if k == key)
-        act_l.addWidget(_add_activity_btn(idx, key, page_title), 0, Qt.AlignmentFlag.AlignHCenter)
+        act_l.addWidget(
+            _add_activity_btn(idx, key, page_title),
+            0, Qt.AlignmentFlag.AlignHCenter)
     act_l.addStretch(1)
     for key, page_title in foot_pages:
         idx = next(j for j, (k, _) in enumerate(nav_pages) if k == key)
-        act_l.addWidget(_add_activity_btn(idx, key, page_title), 0, Qt.AlignmentFlag.AlignHCenter)
+        act_l.addWidget(
+            _add_activity_btn(idx, key, page_title),
+            0, Qt.AlignmentFlag.AlignHCenter)
     root.addWidget(activity)
 
-    # ---- Editor column: ONE chrome row + body/panel ----
+    side_bar_host = QWidget()
+    side_bar_host.setObjectName("SuiteSideBar")
+    side_bar_host.setMinimumWidth(0)
+    sb_outer = QVBoxLayout(side_bar_host)
+    sb_outer.setContentsMargins(0, 0, 0, 0)
+    sb_outer.setSpacing(0)
+    side_bar_body = QVBoxLayout()
+    side_bar_body.setContentsMargins(0, 0, 0, 0)
+    side_bar_body.setSpacing(0)
+    sb_body_host = QWidget()
+    sb_body_host.setLayout(side_bar_body)
+    sb_outer.addWidget(sb_body_host, 1)
+    _side_bar_widget: list = [None]
+
+    def set_side_bar_widget(widget: Optional[QWidget]):
+        while side_bar_body.count():
+            item = side_bar_body.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+        _side_bar_widget[0] = widget
+        if widget is not None:
+            side_bar_body.addWidget(widget, 1)
+
+    h_splitter = None
+
     right = QWidget()
     right.setObjectName("SuiteContent")
     right_l = QVBoxLayout(right)
@@ -266,7 +312,7 @@ def build_workbench(
 
     chrome = QWidget()
     chrome.setObjectName("SuiteEditorChrome")
-    chrome.setFixedHeight(35)
+    chrome.setFixedHeight(32)
     ch = QHBoxLayout(chrome)
     ch.setContentsMargins(0, 0, 4, 0)
     ch.setSpacing(0)
@@ -291,18 +337,16 @@ def build_workbench(
                 w.setParent(None)
 
     def set_editor_tabs(tab_bar: QWidget):
-        """Mount a QTabBar into the single top chrome row (Diagnose etc.)."""
         _clear_chrome_slot()
         _chrome_tabs[:] = [tab_bar]
         chrome_slot.addWidget(tab_bar, 1)
 
     def set_editor_title(text: str):
-        """Show a plain page title when the page has no editor tabs."""
         _clear_chrome_slot()
         _chrome_tabs.clear()
-        _chrome_title = QLabel(text)
-        _chrome_title.setObjectName("SuiteEditorTitle")
-        chrome_slot.addWidget(_chrome_title)
+        title_lab = QLabel(text)
+        title_lab.setObjectName("SuiteEditorTitle")
+        chrome_slot.addWidget(title_lab)
         chrome_slot.addStretch(1)
 
     def _make_toggle(icon_name: str, tip: str) -> QToolButton:
@@ -319,11 +363,16 @@ def build_workbench(
         ch.addWidget(btn, 0, Qt.AlignmentFlag.AlignVCenter)
         return btn
 
-    btn_sidebar = _make_toggle(
-        "layout-sidebar-left", "Toggle Activity Bar (Ctrl+B)")
+    if side_bar_enabled or lock_activity:
+        btn_sidebar = _make_toggle(
+            "layout-sidebar-left", "Toggle Side Bar (Ctrl+B)")
+        max_tip = "Maximize Editor — hide side bar & panel"
+    else:
+        btn_sidebar = _make_toggle(
+            "layout-sidebar-left", "Toggle Activity Bar (Ctrl+B)")
+        max_tip = "Maximize Editor — hide activity bar & panel"
     btn_panel = _make_toggle("layout-panel", "Toggle Panel (Ctrl+J)")
-    btn_maximize = _make_toggle(
-        "layout-maximize", "Maximize Editor — hide activity bar & panel")
+    btn_maximize = _make_toggle("layout-maximize", max_tip)
     btn_maximize.setChecked(False)
 
     right_l.addWidget(chrome)
@@ -343,7 +392,7 @@ def build_workbench(
 
     panel_head = QWidget()
     panel_head.setObjectName("SuiteLogHeader")
-    panel_head.setFixedHeight(26)
+    panel_head.setFixedHeight(24)
     ph = QHBoxLayout(panel_head)
     ph.setContentsMargins(6, 0, 2, 0)
     ph.setSpacing(4)
@@ -352,7 +401,6 @@ def build_workbench(
     panel_title_lab.setToolTip("OUTPUT — double-click to collapse (Ctrl+J)")
     ph.addWidget(panel_title_lab)
 
-    # Single-row tools slot (ISO-TP / Export / Clear …) — keeps list tall
     panel_tools_host = QWidget()
     panel_tools = QHBoxLayout(panel_tools_host)
     panel_tools.setContentsMargins(0, 0, 0, 0)
@@ -366,7 +414,8 @@ def build_workbench(
     collapse_btn.setFixedSize(22, 22)
     collapse_btn.setIconSize(QSize(12, 12))
     collapse_btn.setToolTip("Collapse Panel")
-    codicons.set_button(collapse_btn, "chevron-down", color=vscode_theme.TEXT_DIM, size=12)
+    codicons.set_button(
+        collapse_btn, "chevron-down", color=vscode_theme.TEXT_DIM, size=12)
     ph.addWidget(collapse_btn)
     pv.addWidget(panel_head)
 
@@ -381,15 +430,59 @@ def build_workbench(
     v_splitter.setStretchFactor(0, 5)
     v_splitter.setStretchFactor(1, 1)
     right_l.addWidget(v_splitter, 1)
-    root.addWidget(right, 1)
 
-    # ---- Visibility ----
-    def _apply_sidebar(visible: bool):
-        state["sidebar"] = visible
+    if side_bar_enabled:
+        h_splitter = QSplitter(Qt.Orientation.Horizontal)
+        h_splitter.setObjectName("SuiteHSplitter")
+        h_splitter.setHandleWidth(1)
+        h_splitter.setChildrenCollapsible(True)
+        h_splitter.addWidget(side_bar_host)
+        h_splitter.addWidget(right)
+        h_splitter.setStretchFactor(0, 0)
+        h_splitter.setStretchFactor(1, 1)
+        h_splitter.setSizes([state["side_bar_width"], 1000])
+        root.addWidget(h_splitter, 1)
+    else:
+        side_bar_host.hide()
+        root.addWidget(right, 1)
+
+    def _apply_activity(visible: bool):
+        if lock_activity or side_bar_enabled:
+            activity.setVisible(True)
+            return
         activity.setVisible(visible)
+
+    def _apply_side_bar(visible: bool):
+        if not side_bar_enabled:
+            return
+        state["sidebar"] = visible
+        if visible:
+            side_bar_host.show()
+            if h_splitter is not None:
+                sizes = h_splitter.sizes()
+                total = sum(sizes) or 1200
+                w = max(state["side_bar_width"], 200)
+                h_splitter.setSizes([w, max(400, total - w)])
+        else:
+            if h_splitter is not None:
+                sizes = h_splitter.sizes()
+                if sizes and sizes[0] > 40:
+                    state["side_bar_width"] = sizes[0]
+                h_splitter.setSizes([0, max(sum(sizes), 1000)])
+            side_bar_host.hide()
         btn_sidebar.blockSignals(True)
         btn_sidebar.setChecked(visible)
         btn_sidebar.blockSignals(False)
+
+    def _apply_sidebar(visible: bool):
+        if side_bar_enabled:
+            _apply_side_bar(visible)
+        else:
+            state["sidebar"] = visible
+            _apply_activity(visible)
+            btn_sidebar.blockSignals(True)
+            btn_sidebar.setChecked(visible)
+            btn_sidebar.blockSignals(False)
 
     def _apply_panel(visible: bool):
         state["panel"] = visible
@@ -401,7 +494,8 @@ def build_workbench(
                 h = state["panel_height"]
                 v_splitter.setSizes([max(200, total - h), h])
             codicons.set_button(
-                collapse_btn, "chevron-down", color=vscode_theme.TEXT_DIM, size=12)
+                collapse_btn, "chevron-down",
+                color=vscode_theme.TEXT_DIM, size=12)
             collapse_btn.setToolTip("Collapse Panel")
         else:
             sizes = v_splitter.sizes()
@@ -409,7 +503,8 @@ def build_workbench(
                 state["panel_height"] = sizes[1]
             panel.hide()
             codicons.set_button(
-                collapse_btn, "chevron-up", color=vscode_theme.TEXT_DIM, size=12)
+                collapse_btn, "chevron-up",
+                color=vscode_theme.TEXT_DIM, size=12)
             collapse_btn.setToolTip("Expand Panel")
         btn_panel.blockSignals(True)
         btn_panel.setChecked(visible)
@@ -423,10 +518,13 @@ def build_workbench(
             state["maximized"] = True
             _apply_sidebar(False)
             _apply_panel(False)
+            _apply_activity(
+                True if (lock_activity or side_bar_enabled) else False)
         else:
             state["maximized"] = False
             _apply_sidebar(state["saved_sidebar"])
             _apply_panel(state["saved_panel"])
+            _apply_activity(True)
         btn_maximize.blockSignals(True)
         btn_maximize.setChecked(maximized)
         btn_maximize.blockSignals(False)
@@ -441,6 +539,9 @@ def build_workbench(
             btn_maximize.blockSignals(True)
             btn_maximize.setChecked(False)
             btn_maximize.blockSignals(False)
+
+    def set_side_bar_visible(visible: bool):
+        set_sidebar_visible(visible)
 
     def set_panel_visible(visible: bool):
         if state["maximized"] and visible:
@@ -478,7 +579,11 @@ def build_workbench(
     panel_title_lab.mouseDoubleClickEvent = (  # type: ignore[method-assign]
         lambda _e: set_panel_visible(not state["panel"]))
 
-    _apply_sidebar(sidebar_visible)
+    activity.setVisible(True)
+    if side_bar_enabled:
+        _apply_side_bar(side_bar_visible)
+    else:
+        _apply_sidebar(sidebar_visible)
     _apply_panel(panel_visible)
     if nav_pages:
         _select_page(nav_pages[0][0])
@@ -509,12 +614,21 @@ def build_workbench(
         set_editor_tabs=set_editor_tabs,
         set_editor_title=set_editor_title,
         editor_layout=right_l,
+        side_bar=side_bar_host if side_bar_enabled else None,
+        set_side_bar_widget=set_side_bar_widget if side_bar_enabled else None,
+        set_side_bar_visible=set_side_bar_visible if side_bar_enabled else None,
+        is_side_bar_visible=(
+            (lambda: state["sidebar"]) if side_bar_enabled else None),
         title_bar=chrome,
         title_trailing=chrome_slot,
         nav=activity,
-        h_splitter=None,
+        h_splitter=h_splitter,
         _activity_btns=activity_btns,
     )
+
+
+
+WorkbenchHandles = WorkbenchParts  # compat alias for mount helpers
 
 
 def page_margins(layout, *, top: int = 12) -> None:
@@ -533,7 +647,8 @@ def make_toolbar(title: str | None = None):
     bar = QWidget()
     bar.setObjectName("SuiteToolbar")
     row = QHBoxLayout(bar)
-    row.setContentsMargins(12, 6, 12, 6)
+    row.setContentsMargins(8, 4, 8, 4)
+    row.setSpacing(4)
     row.setSpacing(8)
     if title:
         lab = QLabel(title.upper())

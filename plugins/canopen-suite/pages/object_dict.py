@@ -32,10 +32,13 @@ def build(parent, session, log_fn) -> QWidget:
     tree = QTreeWidget()
     tree.setHeaderLabels(["Index", "Name", "Access", "Default"])
     tree.setAlternatingRowColors(True)
+    tree.setMinimumWidth(240)
+    tree.setMaximumWidth(480)
     tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
     layout.addWidget(tree, 3)
 
     right = QWidget()
+    right.setMinimumWidth(240)
     right.setMaximumWidth(320)
     rv = QVBoxLayout(right)
     rv.setContentsMargins(0, 0, 0, 0)

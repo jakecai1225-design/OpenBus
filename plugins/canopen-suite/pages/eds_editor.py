@@ -24,7 +24,6 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QSplitter,
     QStackedWidget,
-    QTabBar,
     QTableWidget,
     QTableWidgetItem,
     QTreeWidget,
@@ -91,17 +90,10 @@ def _code(table, label):
 
 
 def build(parent, session, log_fn) -> QWidget:
-    bar = QTabBar()
-    bar.setObjectName("SuiteEditorTabs")
-    bar.setDrawBase(False)
-    bar.setExpanding(False)
-    bar.setDocumentMode(True)
-    for name in ("Dictionary", "Device", "Check"):
-        bar.addTab(name)
-    parent._eds_tabs = bar
-
     stack = QStackedWidget()
-    bar.currentChanged.connect(stack.setCurrentIndex)
+    stack.setObjectName("SuiteEditorStack")
+    parent._eds_tabs = None
+    parent._eds_feature_keys = ["eds_dict", "eds_device", "eds_check"]
     selected = {"key": None}
     mute = {"on": False}
     last_tab = {"i": 0}
@@ -151,12 +143,13 @@ def build(parent, session, log_fn) -> QWidget:
     tree.setHeaderLabels(["Index", "Name", "Access"])
     tree.setAlternatingRowColors(True)
     tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-    tree.setMinimumWidth(280)
+    tree.setMinimumWidth(240)
+    tree.setMaximumWidth(420)
     split.addWidget(tree)
 
     form_host = QWidget()
-    form_host.setMinimumWidth(300)
-    form_host.setMaximumWidth(380)
+    form_host.setMinimumWidth(280)
+    form_host.setMaximumWidth(360)
     form = QFormLayout(form_host)
     form.setSpacing(8)
     form.setContentsMargins(10, 8, 10, 8)
@@ -606,6 +599,18 @@ def build(parent, session, log_fn) -> QWidget:
             _check()
         last_tab["i"] = index
 
+    def select_eds_view(index: int):
+        if 0 <= index < stack.count():
+            _on_tab(index)
+
+    def select_view(key: str):
+        idx = {
+            "eds_dict": 0, "eds": 0, "dictionary": 0,
+            "eds_device": 1, "device": 1,
+            "eds_check": 2, "check": 2,
+        }.get(key, 0)
+        select_eds_view(idx)
+
     tree.itemSelectionChanged.connect(_on_select)
     add_obj.clicked.connect(_add_object)
     add_sub.clicked.connect(_add_sub)
@@ -617,7 +622,6 @@ def build(parent, session, log_fn) -> QWidget:
     ai_btn.clicked.connect(_attach_ai)
     filt.textChanged.connect(lambda _t: _rebuild())
     run_check.clicked.connect(_check)
-    bar.currentChanged.connect(_on_tab)
     name_edit.editingFinished.connect(_apply_fields)
     default_edit.editingFinished.connect(_apply_fields)
     low_edit.editingFinished.connect(_apply_fields)
@@ -633,4 +637,6 @@ def build(parent, session, log_fn) -> QWidget:
 
     session.on_od_changed(_refresh)
     _refresh()
+    stack.select_eds_view = select_eds_view  # type: ignore[attr-defined]
+    stack.select_view = select_view  # type: ignore[attr-defined]
     return stack

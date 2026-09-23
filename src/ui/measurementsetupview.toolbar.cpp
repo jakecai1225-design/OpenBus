@@ -58,13 +58,19 @@ void MeasurementSetupView::onFrame(const CanFrame &)
 
 void MeasurementSetupView::setRunning(bool running)
 {
-    // Pure status reset (offline playback end/not actually started called by shell via flow module):
-    // Only sync button states, emit measurementToggled—start/stop coordination歸shell side, avoid secondary stop
+    // Pure status reset (offline playback end / cancel): sync button states only.
     m_running = running;
     m_startAct->setEnabled(!running);
     m_stopAct->setEnabled(running);
-    // Measurement stopped: data flow state reset (lights return to ready solid/熄灭; error markers retained—
-    // unremoved red blink continues to prompt)
+    if (m_startBtn)
+        m_startBtn->setEnabled(!running);
+    if (m_stopBtn)
+        m_stopBtn->setEnabled(running);
+    // Replay stays available to restart from the beginning at any time.
+    if (m_replayAct)
+        m_replayAct->setEnabled(true);
+    if (m_replayBtn)
+        m_replayBtn->setEnabled(true);
     m_lastFrameMs = 0;
     updateBlockLamps();
 }
@@ -73,6 +79,12 @@ void MeasurementSetupView::onStartClicked()
 {
     setRunning(true);
     emit measurementToggled(true);
+}
+
+void MeasurementSetupView::onReplayClicked()
+{
+    setRunning(true);
+    emit measurementReplayRequested();
 }
 
 void MeasurementSetupView::onStopClicked()

@@ -194,6 +194,49 @@ Workbench = `suite_chrome.build_workbench` (DBC/EDS parity).
 - [x] Rich packs: Os, Com, ComM, PduR, BswM, Can*, Dcm, Dem, EthIf, Fee, FiM, MemIf, Nm, NvM, …  
 - [x] ECUC-lite serialize by param kind; schema validate; export `work/bsw/<Module>.arxml`  
 
+### Phase 7 — Menubar + DaVinci-slice BSW UX
+
+- [x] Native File / Edit / Import / Project / BSW / Validate / View / Help menubar (overflow removed)  
+- [x] BSW page: filter, live findings strip, one-click fixes, finding → module/container  
+- [x] `add_container` seeds required child containers; richer COM/CanIf/PduR/Os/Dcm packs  
+- [x] Validate findings with BSW artifact → Config BSW + `select_module`  
+- [x] Still **no** BSW/RTE codegen  
+
+### Phase 8 — EcucDefs / BSWMD depth
+
+- [x] Curated EcucDefs packs deepened (Com ≥200, CanIf ≥120 params; R22-11)  
+- [x] `import_bswmd_schema(module)` — BSWMD JSON/ARXML drives container+param structure  
+- [x] Conditional params + richer `summary`/`detail`/`range` in schema packs  
+- [x] Maintainer deepen script under `ecuc_schemas/_phase8_deepen.py`  
+
+### Phase 9 — ARXML fidelity + single config DB
+
+- [x] Preserve-unknown: `foreign_packages` on parse; re-attach on `serialize_model`  
+- [x] ECUC round-trip for `work/bsw/*.arxml` (typed containers, not stub-only on load)  
+- [x] Document ↔ Live session sync (`_sync_session_from_document`)  
+- [x] Undo/redo for `apply_bsw_module` (`_bsw_undo` / `_bsw_redo`)  
+
+### Phase 10 — Consistency engine
+
+- [x] Cross-module rules: ComM↔CanSM↔Nm, Dem↔Dcm, NvM↔Fee, EthIf↔SoAd  
+- [x] Finding acknowledge/suppress persisted in `project.json` (`findingAcks`)  
+- [x] Release gate: `autosarRelease` vs schema packs  
+- [x] Validate filters (severity / ack) + SARIF includes ack state; Side Bar badges  
+
+### Phase 11 — UX / wizards / polish
+
+- [x] Wizards: Init communication stack, Add diagnostic path, Os tasks lite  
+- [x] Property sheet: condition graying, searchable enum/ref pickers, sticky Spec  
+- [x] Compare: BSW module value diff mode  
+- [x] HTML handoff report + Open-in-DaVinci checklist (Export / Help)  
+
+### Phase 12 — Live bus depth + stability
+
+- [x] Multi-PDU Live monitor + I-PDU group start/stop + update-bit/timeout lite  
+- [x] Golden ARXML corpus under `tests/fixtures/` (≥10) + parse/serialize/validate tests  
+- [x] Open diagnostics surfaced (no silent stub-only on parse fail)  
+- [x] Still **no** BSW/RTE codegen  
+
 ---
 
 ## 6. Decision log
@@ -207,6 +250,9 @@ Workbench = `suite_chrome.build_workbench` (DBC/EDS parity).
 - 2026-09-22: Phase 4 — BSWMD import, fix recipe packs, SWC/port mapping lite (still no stack codegen).  
 - 2026-09-22: Phase 5 — full menu + DBC import → COM/BSW sync; deep ECUC starters; cross-module validate; still no codegen.  
 - 2026-09-22: Phase 6 — schema-driven BSW configurator (`arxml_ecuc_schema` + multiplicity UI); curated CP EcucDefs packs; still no codegen.  
+- 2026-09-23: Phase 7 — restore native menubar; BSW live consistency + fixes; deepen Com/CanIf/PduR/Os/Dcm; Validate → BSW jump; still no codegen.  
+- 2026-09-23: All activity workspaces use Side Bar sections (Project/COM/Bus/Validate/Setup + Config); Bus→System nests Tree/Validate/Export; COM Layout/Live/Pack in Side Bar; no top editor tab strips. Still no codegen.  
+- 2026-09-23: Phase 8–12 — EcucDefs depth + BSWMD-as-structure; preserve-unknown ARXML; Document↔Live sync; BSW undo; project-wide findings/ack/release gate; wizards + handoff report; multi-PDU Live; golden fixture CI. Still no codegen — marketed as handoff advantage.  
 
 ---
 
@@ -217,3 +263,4 @@ Workbench = `suite_chrome.build_workbench` (DBC/EDS parity).
 - Shared: `_shared/arxmlparse.py` + `_shared/arxml_project.py` + `_shared/arxml_bsw.py` + `_shared/arxml_dbc.py` + `_shared/arxml_ecuc_schema.py` + `ecuc_schemas/*.json`.  
 - Preserve English-only in non-`.md` sources.  
 - After each phase: update this checklist and `Domain_Suite_Competitive_Requirements.md` §1c.  
+- New-user path (SUS checklist): Import DBC → Wizard Init communication stack → Validate (0 errors) → Write Intermediates → Help → Handoff report → open in DaVinci. Target &lt;15 min.  

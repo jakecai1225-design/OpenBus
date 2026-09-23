@@ -1,22 +1,22 @@
 {
   "module": "Xcp",
   "definition": "/AUTOSAR/EcucDefs/Xcp",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "XcpConfig",
       "definition": "/AUTOSAR/EcucDefs/Xcp/XcpConfig",
-      "lowerMultiplicity": 0,
-      "upperMultiplicity": "*",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
       "parent": "",
-      "seed": true,
+      "seed": false,
       "params": [
         {
           "shortName": "XcpEventChannel",
           "kind": "string",
           "default": "",
           "summary": "XcpEventChannel",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs XcpEventChannel parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Xcp/XcpConfig/XcpEventChannel"
         },
@@ -25,9 +25,78 @@
           "kind": "string",
           "default": "",
           "summary": "XcpDao",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs XcpDao parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Xcp/XcpConfig/XcpDao"
+        },
+        {
+          "shortName": "XcpMaxDto",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "Max DTO",
+          "detail": "Max DTO",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Xcp/XcpConfig/XcpMaxDto"
+        },
+        {
+          "shortName": "XcpMaxCto",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "Max CTO",
+          "detail": "Max CTO",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Xcp/XcpConfig/XcpMaxCto"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "XcpGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Xcp/XcpGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "XcpDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Xcp/XcpGeneral/XcpDevErrorDetect"
+        },
+        {
+          "shortName": "XcpVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Xcp/XcpGeneral/XcpVersionInfoApi"
+        },
+        {
+          "shortName": "XcpOnCanEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "OnCanEnabled",
+          "detail": "OnCanEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Xcp/XcpGeneral/XcpOnCanEnabled"
+        },
+        {
+          "shortName": "XcpOnEthEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "OnEthEnabled",
+          "detail": "OnEthEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Xcp/XcpGeneral/XcpOnEthEnabled"
         }
       ],
       "subContainers": []

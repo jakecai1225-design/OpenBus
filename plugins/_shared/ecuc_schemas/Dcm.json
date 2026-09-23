@@ -1,7 +1,7 @@
 {
   "module": "Dcm",
   "definition": "/AUTOSAR/EcucDefs/Dcm",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "DcmGeneral",
@@ -15,8 +15,8 @@
           "shortName": "DcmDevErrorDetect",
           "kind": "boolean",
           "default": "false",
-          "summary": "DcmDevErrorDetect",
-          "detail": "",
+          "summary": "DET",
+          "detail": "DET",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Dcm/DcmGeneral/DcmDevErrorDetect"
         },
@@ -24,8 +24,8 @@
           "shortName": "DcmVersionInfoApi",
           "kind": "boolean",
           "default": "false",
-          "summary": "DcmVersionInfoApi",
-          "detail": "",
+          "summary": "Version info",
+          "detail": "Version info",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Dcm/DcmGeneral/DcmVersionInfoApi"
         },
@@ -33,10 +33,56 @@
           "shortName": "DcmRespondAllRequest",
           "kind": "boolean",
           "default": "false",
-          "summary": "DcmRespondAllRequest",
-          "detail": "",
+          "summary": "Respond all",
+          "detail": "Respond all",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Dcm/DcmGeneral/DcmRespondAllRequest"
+        },
+        {
+          "shortName": "DcmRequestManufacturerNotificationEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "RequestManufacturerNotificationEnabled",
+          "detail": "RequestManufacturerNotificationEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmGeneral/DcmRequestManufacturerNotificationEnabled"
+        },
+        {
+          "shortName": "DcmRequestSupplierNotificationEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "RequestSupplierNotificationEnabled",
+          "detail": "RequestSupplierNotificationEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmGeneral/DcmRequestSupplierNotificationEnabled"
+        },
+        {
+          "shortName": "DcmTaskTime",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "Task time (ms)",
+          "detail": "Task time (ms)",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmGeneral/DcmTaskTime",
+          "min": 1
+        },
+        {
+          "shortName": "DcmRequestManufacturerNotification",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Manufacturer notification",
+          "detail": "Manufacturer notification",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmGeneral/DcmRequestManufacturerNotification"
+        },
+        {
+          "shortName": "DcmRequestSupplierNotification",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Supplier notification",
+          "detail": "Supplier notification",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmGeneral/DcmRequestSupplierNotification"
         }
       ],
       "subContainers": []
@@ -49,7 +95,14 @@
       "parent": "",
       "seed": false,
       "params": [],
-      "subContainers": []
+      "subContainers": [
+        "DcmDslProtocol",
+        "DcmDsdServiceTable",
+        "DcmDslBuffer",
+        "DcmDsl",
+        "DcmDsd",
+        "DcmDsp"
+      ]
     },
     {
       "shortName": "DcmDslProtocol",
@@ -64,7 +117,7 @@
           "kind": "numerical",
           "default": "0",
           "summary": "DcmDslProtocolID",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DcmDslProtocolID parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -75,7 +128,7 @@
           "kind": "string",
           "default": "",
           "summary": "DcmDslProtocolBuffer",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DcmDslProtocolBuffer parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocol/DcmDslProtocolBuffer"
         },
@@ -84,7 +137,7 @@
           "kind": "numerical",
           "default": "0",
           "summary": "DcmDslProtocolPriority",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DcmDslProtocolPriority parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -95,7 +148,7 @@
           "kind": "reference",
           "default": "",
           "summary": "DcmDslProtocolRxPduRef",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DcmDslProtocolRxPduRef parameter.",
           "range": "",
           "destination": "pdu",
           "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocol/DcmDslProtocolRxPduRef"
@@ -105,10 +158,43 @@
           "kind": "reference",
           "default": "",
           "summary": "DcmDslProtocolTxPduRef",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DcmDslProtocolTxPduRef parameter.",
           "range": "",
           "destination": "pdu",
           "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocol/DcmDslProtocolTxPduRef"
+        },
+        {
+          "shortName": "DcmDslProtocolPreemptTimeout",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Preempt timeout",
+          "detail": "0 = disabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocol/DcmDslProtocolPreemptTimeout",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "DcmTimStrP2ServerAdjust",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "P2 adjust (ms)",
+          "detail": "Server P2 timing adjust",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocol/DcmTimStrP2ServerAdjust",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "DcmTimStrP2StarServerAdjust",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "P2* adjust (ms)",
+          "detail": "Server P2* timing adjust",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocol/DcmTimStrP2StarServerAdjust",
+          "min": 0,
+          "max": 65535
         }
       ],
       "subContainers": []
@@ -126,7 +212,7 @@
           "kind": "numerical",
           "default": "0x22",
           "summary": "DcmDsdSidTabServiceId",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DcmDsdSidTabServiceId parameter.",
           "range": "",
           "min": 0,
           "max": 255,
@@ -137,19 +223,21 @@
           "kind": "boolean",
           "default": "false",
           "summary": "DcmDsdSidTabSubfuncAvail",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DcmDsdSidTabSubfuncAvail parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsdServiceTable/DcmDsdSidTabSubfuncAvail"
         }
       ],
-      "subContainers": []
+      "subContainers": [
+        "DcmDsdService"
+      ]
     },
     {
       "shortName": "DcmDspSession",
-      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmConfigSet/DcmDspSession",
-      "lowerMultiplicity": 1,
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsp/DcmDspSession",
+      "lowerMultiplicity": 0,
       "upperMultiplicity": "*",
-      "parent": "DcmConfigSet",
+      "parent": "DcmDsp",
       "seed": true,
       "params": [
         {
@@ -157,9 +245,9 @@
           "kind": "numerical",
           "default": "1",
           "summary": "DcmDspSessionLevel",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DcmDspSessionLevel parameter.",
           "range": "",
-          "min": 0,
+          "min": 1,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSession/DcmDspSessionLevel"
         },
@@ -168,21 +256,32 @@
           "kind": "numerical",
           "default": "50",
           "summary": "DcmDspSessionP2ServerMax",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DcmDspSessionP2ServerMax parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSession/DcmDspSessionP2ServerMax"
+        },
+        {
+          "shortName": "DcmDspSessionP2StarServerMax",
+          "kind": "numerical",
+          "default": "5000",
+          "summary": "P2* max",
+          "detail": "P2* max",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSession/DcmDspSessionP2StarServerMax"
         }
       ],
       "subContainers": []
     },
     {
       "shortName": "DcmDspSecurity",
-      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmConfigSet/DcmDspSecurity",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsp/DcmDspSecurity",
       "lowerMultiplicity": 0,
       "upperMultiplicity": "*",
-      "parent": "DcmConfigSet",
+      "parent": "DcmDsp",
       "seed": false,
       "params": [
         {
@@ -190,9 +289,9 @@
           "kind": "numerical",
           "default": "1",
           "summary": "DcmDspSecurityLevel",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DcmDspSecurityLevel parameter.",
           "range": "",
-          "min": 0,
+          "min": 1,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurity/DcmDspSecurityLevel"
         },
@@ -201,11 +300,730 @@
           "kind": "numerical",
           "default": "0",
           "summary": "DcmDspSecurityADRSize",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs DcmDspSecurityADRSize parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurity/DcmDspSecurityADRSize"
+        },
+        {
+          "shortName": "DcmDspSecurityDelayTime",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Delay time",
+          "detail": "Delay time",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurity/DcmDspSecurityDelayTime"
+        },
+        {
+          "shortName": "DcmDspSecurityNumAttDelay",
+          "kind": "numerical",
+          "default": "3",
+          "summary": "Attempt delay",
+          "detail": "Attempt delay",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurity/DcmDspSecurityNumAttDelay"
+        },
+        {
+          "shortName": "DcmDspSecurityNumAttLock",
+          "kind": "numerical",
+          "default": "3",
+          "summary": "Attempt lock",
+          "detail": "Attempt lock",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurity/DcmDspSecurityNumAttLock"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmDslBuffer",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmConfigSet/DcmDslBuffer",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": "*",
+      "parent": "DcmConfigSet",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "DcmDslBufferSize",
+          "kind": "numerical",
+          "default": "4095",
+          "summary": "Buffer size",
+          "detail": "Diagnostic buffer bytes",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslBuffer/DcmDslBufferSize",
+          "min": 8,
+          "max": 65535
+        },
+        {
+          "shortName": "DcmDslBufferUsePage",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Paged buffer",
+          "detail": "AUTOSAR EcucDefs DcmDslBufferUsePage parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslBuffer/DcmDslBufferUsePage"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmDsdService",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsdServiceTable/DcmDsdService",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "DcmDsdServiceTable",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "DcmDsdSidTabServiceId",
+          "kind": "numerical",
+          "default": "0x22",
+          "summary": "SID",
+          "detail": "UDS service id",
+          "range": "0x10..0x3E typical",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsdService/DcmDsdSidTabServiceId",
+          "min": 0,
+          "max": 255
+        },
+        {
+          "shortName": "DcmDsdSidTabSubfuncAvail",
+          "kind": "boolean",
+          "default": "true",
+          "summary": "Subfunction available",
+          "detail": "AUTOSAR EcucDefs DcmDsdSidTabSubfuncAvail parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsdService/DcmDsdSidTabSubfuncAvail"
+        },
+        {
+          "shortName": "DcmDsdSidTabFncSecurityLevelRef",
+          "kind": "string",
+          "default": "",
+          "summary": "Security level",
+          "detail": "Optional DcmDspSecurityRow",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsdService/DcmDsdSidTabFncSecurityLevelRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmDspDid",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsp/DcmDspDid",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "DcmDsp",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DcmDspDidIdentifier",
+          "kind": "numerical",
+          "default": "0xF190",
+          "summary": "DID",
+          "detail": "Data identifier",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspDid/DcmDspDidIdentifier",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "DcmDspDidSize",
+          "kind": "numerical",
+          "default": "17",
+          "summary": "DID size",
+          "detail": "Payload length",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspDid/DcmDspDidSize",
+          "min": 1,
+          "max": 4095
+        },
+        {
+          "shortName": "DcmDspDidUsed",
+          "kind": "boolean",
+          "default": "true",
+          "summary": "Enabled",
+          "detail": "Used",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspDid/DcmDspDidUsed"
+        },
+        {
+          "shortName": "DcmDspDidDataRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "DcmDspDidDataRef",
+          "detail": "Reference to DcmDspData",
+          "range": "",
+          "destination": "DcmDspData",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspDid/DcmDspDidDataRef"
+        },
+        {
+          "shortName": "DcmDspDidInfoRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "DID info ref",
+          "detail": "DID info ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsp/DcmDspDid/DcmDspDidInfoRef"
+        },
+        {
+          "shortName": "DcmDspDidAccess",
+          "kind": "enumeration",
+          "default": "RO",
+          "summary": "Access",
+          "detail": "Access",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsp/DcmDspDid/DcmDspDidAccess",
+          "literals": [
+            "RO",
+            "WO",
+            "RW"
+          ]
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmDsl",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmConfigSet/DcmDsl",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "DcmConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DcmDslProtocolRowTimeOut",
+          "kind": "numerical",
+          "default": "5",
+          "summary": "Protocol timeout",
+          "detail": "Protocol timeout",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsl/DcmDslProtocolRowTimeOut"
+        },
+        {
+          "shortName": "DcmDslPeriodicTransmissionSlowRate",
+          "kind": "numerical",
+          "default": "1000",
+          "summary": "Slow rate",
+          "detail": "Slow rate",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsl/DcmDslPeriodicTransmissionSlowRate"
+        },
+        {
+          "shortName": "DcmDslPeriodicTransmissionMediumRate",
+          "kind": "numerical",
+          "default": "500",
+          "summary": "Medium rate",
+          "detail": "Medium rate",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsl/DcmDslPeriodicTransmissionMediumRate"
+        },
+        {
+          "shortName": "DcmDslPeriodicTransmissionFastRate",
+          "kind": "numerical",
+          "default": "100",
+          "summary": "Fast rate",
+          "detail": "Fast rate",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsl/DcmDslPeriodicTransmissionFastRate"
+        }
+      ],
+      "subContainers": [
+        "DcmDslProtocolRow"
+      ]
+    },
+    {
+      "shortName": "DcmDslProtocolRow",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsl/DcmDslProtocolRow",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "DcmDsl",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "DcmDslProtocolType",
+          "kind": "enumeration",
+          "default": "DCM_UDS_ON_CAN",
+          "summary": "Protocol type",
+          "detail": "Protocol type",
+          "range": "",
+          "literals": [
+            "DCM_UDS_ON_CAN",
+            "DCM_UDS_ON_FLEXRAY",
+            "DCM_UDS_ON_IP",
+            "DCM_OBD_ON_CAN"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocolRow/DcmDslProtocolType"
+        },
+        {
+          "shortName": "DcmDslProtocolRowPriority",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Priority",
+          "detail": "Priority",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocolRow/DcmDslProtocolRowPriority"
+        },
+        {
+          "shortName": "DcmTimStrP2ServerAdjust",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "P2 adjust",
+          "detail": "P2 adjust",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocolRow/DcmTimStrP2ServerAdjust"
+        },
+        {
+          "shortName": "DcmTimStrP2StarServerAdjust",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "P2* adjust",
+          "detail": "P2* adjust",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslProtocolRow/DcmTimStrP2StarServerAdjust"
+        },
+        {
+          "shortName": "DcmDslProtocolID",
+          "kind": "enumeration",
+          "default": "UDS_ON_CAN",
+          "summary": "Protocol",
+          "detail": "Protocol",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsl/DcmDslProtocolRow/DcmDslProtocolID",
+          "literals": [
+            "UDS_ON_CAN",
+            "UDS_ON_FLEXRAY",
+            "UDS_ON_IP",
+            "OBD_ON_CAN",
+            "OBD_ON_FLEXRAY",
+            "OBD_ON_IP"
+          ]
+        },
+        {
+          "shortName": "DcmDslProtocolPriority",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Priority",
+          "detail": "Priority",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsl/DcmDslProtocolRow/DcmDslProtocolPriority",
+          "min": 0
+        },
+        {
+          "shortName": "DcmDslProtocolTransType",
+          "kind": "enumeration",
+          "default": "TYPE1",
+          "summary": "Trans type",
+          "detail": "Trans type",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsl/DcmDslProtocolRow/DcmDslProtocolTransType",
+          "literals": [
+            "TYPE1",
+            "TYPE2"
+          ]
+        },
+        {
+          "shortName": "DcmDslProtocolPreemptTimeout",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Preempt timeout",
+          "detail": "Preempt timeout",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsl/DcmDslProtocolRow/DcmDslProtocolPreemptTimeout"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmDsd",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmConfigSet/DcmDsd",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "DcmConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DcmDsdRequestManufacturerNotificationEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DsdRequestManufacturerNotificationEnabled",
+          "detail": "DsdRequestManufacturerNotificationEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsd/DcmDsdRequestManufacturerNotificationEnabled"
+        },
+        {
+          "shortName": "DcmDsdRequestSupplierNotificationEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DsdRequestSupplierNotificationEnabled",
+          "detail": "DsdRequestSupplierNotificationEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsd/DcmDsdRequestSupplierNotificationEnabled"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmDsp",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmConfigSet/DcmDsp",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "DcmConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DcmDspMaxDidToRead",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Max DID read",
+          "detail": "Max DID read",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsp/DcmDspMaxDidToRead"
+        },
+        {
+          "shortName": "DcmDspMaxDidToWrite",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Max DID write",
+          "detail": "Max DID write",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsp/DcmDspMaxDidToWrite"
+        },
+        {
+          "shortName": "DcmDspPowerDownTime",
+          "kind": "numerical",
+          "default": "5",
+          "summary": "Power down time",
+          "detail": "Power down time",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsp/DcmDspPowerDownTime"
+        },
+        {
+          "shortName": "DcmDspSessionP2ServerMax",
+          "kind": "numerical",
+          "default": "50",
+          "summary": "P2 max ms",
+          "detail": "P2 max ms",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsp/DcmDspSessionP2ServerMax"
+        },
+        {
+          "shortName": "DcmDspSessionP2StarServerMax",
+          "kind": "numerical",
+          "default": "5000",
+          "summary": "P2* max ms",
+          "detail": "P2* max ms",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsp/DcmDspSessionP2StarServerMax"
+        }
+      ],
+      "subContainers": [
+        "DcmDspSession",
+        "DcmDspSecurity",
+        "DcmDspDid",
+        "DcmDspData"
+      ]
+    },
+    {
+      "shortName": "DcmDspData",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDsp/DcmDspData",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "DcmDsp",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DcmDspDataType",
+          "kind": "enumeration",
+          "default": "UINT8",
+          "summary": "Data type",
+          "detail": "Data type",
+          "range": "",
+          "literals": [
+            "BOOLEAN",
+            "UINT8",
+            "UINT16",
+            "UINT32",
+            "SINT8",
+            "SINT16",
+            "SINT32",
+            "FLOAT",
+            "ASCII"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspData/DcmDspDataType"
+        },
+        {
+          "shortName": "DcmDspDataEndianness",
+          "kind": "enumeration",
+          "default": "OPAQUE",
+          "summary": "Endianness",
+          "detail": "Endianness",
+          "range": "",
+          "literals": [
+            "OPAQUE",
+            "BIG_ENDIAN",
+            "LITTLE_ENDIAN"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspData/DcmDspDataEndianness"
+        },
+        {
+          "shortName": "DcmDspDataSize",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Data size",
+          "detail": "Data size",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspData/DcmDspDataSize"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmDslConnection",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslConnection",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DcmDslProtocolRxPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "RX PDU",
+          "detail": "RX PDU",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslConnection/DcmDslProtocolRxPduRef",
+          "destination": "pdu"
+        },
+        {
+          "shortName": "DcmDslProtocolTxPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "TX PDU",
+          "detail": "TX PDU",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslConnection/DcmDslProtocolTxPduRef",
+          "destination": "pdu"
+        },
+        {
+          "shortName": "DcmDslProtocolRxTesterSourceAddr",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Tester source addr",
+          "detail": "Tester source addr",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslConnection/DcmDslProtocolRxTesterSourceAddr"
+        },
+        {
+          "shortName": "DcmDslProtocolComMChannelRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "ComM channel",
+          "detail": "ComM channel",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDslConnection/DcmDslProtocolComMChannelRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmDspSessionRow",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSessionRow",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DcmDspSessionLevel",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Session level",
+          "detail": "Session level",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSessionRow/DcmDspSessionLevel",
+          "min": 1
+        },
+        {
+          "shortName": "DcmDspSessionP2ServerMax",
+          "kind": "numerical",
+          "default": "50",
+          "summary": "P2 server max",
+          "detail": "P2 server max",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSessionRow/DcmDspSessionP2ServerMax"
+        },
+        {
+          "shortName": "DcmDspSessionP2StarServerMax",
+          "kind": "numerical",
+          "default": "5000",
+          "summary": "P2* max",
+          "detail": "P2* max",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSessionRow/DcmDspSessionP2StarServerMax"
+        },
+        {
+          "shortName": "DcmDspSessionForBoot",
+          "kind": "enumeration",
+          "default": "OTA",
+          "summary": "For boot",
+          "detail": "For boot",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSessionRow/DcmDspSessionForBoot",
+          "literals": [
+            "OTA",
+            "SYS_BOOT",
+            "SYS_BOOT_RESPAPP"
+          ]
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmDspSecurityRow",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurityRow",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DcmDspSecurityLevel",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Security level",
+          "detail": "Security level",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurityRow/DcmDspSecurityLevel",
+          "min": 1
+        },
+        {
+          "shortName": "DcmDspSecuritySeedSize",
+          "kind": "numerical",
+          "default": "4",
+          "summary": "Seed size",
+          "detail": "Seed size",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurityRow/DcmDspSecuritySeedSize",
+          "min": 1
+        },
+        {
+          "shortName": "DcmDspSecurityKeySize",
+          "kind": "numerical",
+          "default": "4",
+          "summary": "Key size",
+          "detail": "Key size",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurityRow/DcmDspSecurityKeySize",
+          "min": 1
+        },
+        {
+          "shortName": "DcmDspSecurityADRSize",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "ADR size",
+          "detail": "ADR size",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurityRow/DcmDspSecurityADRSize"
+        },
+        {
+          "shortName": "DcmDspSecurityDelayTime",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Delay time",
+          "detail": "Delay time",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurityRow/DcmDspSecurityDelayTime"
+        },
+        {
+          "shortName": "DcmDspSecurityNumAttDelay",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Attempts delay",
+          "detail": "Attempts delay",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurityRow/DcmDspSecurityNumAttDelay"
+        },
+        {
+          "shortName": "DcmDspSecurityDelayTimeOnBoot",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Delay on boot",
+          "detail": "Delay on boot",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspSecurityRow/DcmDspSecurityDelayTimeOnBoot"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DcmDspRoutine",
+      "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspRoutine",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DcmDspRoutineIdentifier",
+          "kind": "numerical",
+          "default": "0xFF00",
+          "summary": "RID",
+          "detail": "RID",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspRoutine/DcmDspRoutineIdentifier",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "DcmDspRoutineUsed",
+          "kind": "boolean",
+          "default": "true",
+          "summary": "Used",
+          "detail": "Used",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspRoutine/DcmDspRoutineUsed"
+        },
+        {
+          "shortName": "DcmDspRoutineInfoRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Routine info",
+          "detail": "Routine info",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Dcm/DcmDspRoutine/DcmDspRoutineInfoRef"
         }
       ],
       "subContainers": []

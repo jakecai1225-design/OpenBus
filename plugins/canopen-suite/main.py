@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """CANopen Suite — domain suite for CiA 301/402 network, OD, EDS, SDO.
 
-Workspaces: Network | Monitor | Object Dictionary | Profiles | EDS Editor | Log
-Shared Node-ID / EDS / activity log; bus TX/RX via sin.frames.
+Workbench: activity bar + Side Bar + closable editor tabs + OUTPUT + status.
 """
 
 from __future__ import annotations
@@ -43,7 +42,7 @@ def _open_suite(start_page: str | None = None):
         return
     if start_page:
         _shell.goto_page(start_page)
-    _shell.show()
+    _shell.showMaximized()
     _shell.raise_()
     _shell.activateWindow()
 
@@ -71,9 +70,9 @@ def activate(context):
     context.register_command("canopenSuite.open", on_open, "CANopen Suite")
 
     _register_ai_caps()
-    _shell.show()
+    _shell.showMaximized()
     sin.output.append(
-        "CANopen Suite ready (Network / Monitor / OD / Profiles / EDS / Log)")
+        "CANopen Suite ready (Side Bar · Network / Device / EDS / Library)")
 
 
 def _register_ai_caps():

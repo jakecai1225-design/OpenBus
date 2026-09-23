@@ -1,7 +1,7 @@
 {
   "module": "Sd",
   "definition": "/AUTOSAR/EcucDefs/Sd",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "SdConfig",
@@ -16,7 +16,7 @@
           "kind": "string",
           "default": "",
           "summary": "SdInstance",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs SdInstance parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Sd/SdConfig/SdInstance"
         },
@@ -25,7 +25,7 @@
           "kind": "string",
           "default": "",
           "summary": "SdClientService",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs SdClientService parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Sd/SdConfig/SdClientService"
         },
@@ -34,7 +34,7 @@
           "kind": "string",
           "default": "",
           "summary": "SdServerService",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs SdServerService parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Sd/SdConfig/SdServerService"
         }
@@ -54,9 +54,53 @@
           "kind": "boolean",
           "default": "false",
           "summary": "SdDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Sd/SdGeneral/SdDevErrorDetect"
+        },
+        {
+          "shortName": "SdVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Sd/SdGeneral/SdVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "SdInstance"
+      ]
+    },
+    {
+      "shortName": "SdInstance",
+      "definition": "/AUTOSAR/EcucDefs/Sd/SdGeneral/SdInstance",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "SdGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "SdInstanceId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Instance Id",
+          "detail": "Instance Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Sd/SdInstance/SdInstanceId"
+        },
+        {
+          "shortName": "SdInstanceHostname",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Hostname",
+          "detail": "Hostname",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Sd/SdInstance/SdInstanceHostname"
         }
       ],
       "subContainers": []

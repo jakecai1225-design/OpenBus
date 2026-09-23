@@ -1,7 +1,7 @@
 {
   "module": "Tm",
   "definition": "/AUTOSAR/EcucDefs/Tm",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "TmGeneral",
@@ -16,7 +16,7 @@
           "kind": "numerical",
           "default": "10",
           "summary": "TmMainFunctionPeriod",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs TmMainFunctionPeriod parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -27,9 +27,42 @@
           "kind": "boolean",
           "default": "false",
           "summary": "TmDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Tm/TmGeneral/TmDevErrorDetect"
+        },
+        {
+          "shortName": "TmVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Tm/TmGeneral/TmVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "TmPredefTimer"
+      ]
+    },
+    {
+      "shortName": "TmPredefTimer",
+      "definition": "/AUTOSAR/EcucDefs/Tm/TmGeneral/TmPredefTimer",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "TmGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "TmTimerId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Timer Id",
+          "detail": "Timer Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Tm/TmPredefTimer/TmTimerId"
         }
       ],
       "subContainers": []

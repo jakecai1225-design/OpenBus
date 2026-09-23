@@ -1,7 +1,7 @@
 {
   "module": "NvM",
   "definition": "/AUTOSAR/EcucDefs/NvM",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "NvMCommon",
@@ -15,8 +15,8 @@
           "shortName": "NvMDevErrorDetect",
           "kind": "boolean",
           "default": "false",
-          "summary": "NvMDevErrorDetect",
-          "detail": "",
+          "summary": "DET",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMDevErrorDetect"
         },
@@ -24,10 +24,10 @@
           "shortName": "NvMMainFunctionPeriod",
           "kind": "numerical",
           "default": "10",
-          "summary": "NvMMainFunctionPeriod",
-          "detail": "",
+          "summary": "Main period (ms)",
+          "detail": "MainFunction period",
           "range": "",
-          "min": 0,
+          "min": 0.001,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMMainFunctionPeriod"
         },
@@ -35,8 +35,8 @@
           "shortName": "NvMApiConfigClass",
           "kind": "enumeration",
           "default": "2",
-          "summary": "NvMApiConfigClass",
-          "detail": "",
+          "summary": "API class",
+          "detail": "API class",
           "range": "",
           "literals": [
             "1",
@@ -44,24 +44,140 @@
             "3"
           ],
           "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMApiConfigClass"
+        },
+        {
+          "shortName": "NvMVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMVersionInfoApi"
+        },
+        {
+          "shortName": "NvMDynamicConfiguration",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DynamicConfiguration",
+          "detail": "DynamicConfiguration",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMDynamicConfiguration"
+        },
+        {
+          "shortName": "NvMPollingMode",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PollingMode",
+          "detail": "PollingMode",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMPollingMode"
+        },
+        {
+          "shortName": "NvMSetRamBlockStatusApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SetRamBlockStatusApi",
+          "detail": "SetRamBlockStatusApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMSetRamBlockStatusApi"
+        },
+        {
+          "shortName": "NvMDrvModeSwitch",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DrvModeSwitch",
+          "detail": "DrvModeSwitch",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMDrvModeSwitch"
+        },
+        {
+          "shortName": "NvMJobPrioritization",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "JobPrioritization",
+          "detail": "JobPrioritization",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMJobPrioritization"
+        },
+        {
+          "shortName": "NvMBswMMultiBlockJobStatusInformation",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "BswMMultiBlockJobStatusInformation",
+          "detail": "BswMMultiBlockJobStatusInformation",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMBswMMultiBlockJobStatusInformation"
+        },
+        {
+          "shortName": "NvMCrcNumOfBytes",
+          "kind": "numerical",
+          "default": "65535",
+          "summary": "CRC bytes",
+          "detail": "CRC bytes",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMCrcNumOfBytes"
+        },
+        {
+          "shortName": "NvMSizeStandardJobQueue",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Job queue size",
+          "detail": "Job queue size",
+          "range": "",
+          "min": 1,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMSizeStandardJobQueue"
+        },
+        {
+          "shortName": "NvMCompressedEncryption",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Compressed",
+          "detail": "Compressed",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMCompressedEncryption"
+        },
+        {
+          "shortName": "NvMRepeatMirrorOperations",
+          "kind": "numerical",
+          "default": "3",
+          "summary": "Repeat mirror ops",
+          "detail": "Repeat mirror ops",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMRepeatMirrorOperations",
+          "min": 0
+        },
+        {
+          "shortName": "NvMSizeImmediateJobQueue",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Immediate queue",
+          "detail": "Immediate queue",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMSizeImmediateJobQueue",
+          "min": 1
         }
       ],
-      "subContainers": []
+      "subContainers": [
+        "NvMBlockDescriptor"
+      ]
     },
     {
       "shortName": "NvMBlockDescriptor",
-      "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor",
+      "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMBlockDescriptor",
       "lowerMultiplicity": 0,
       "upperMultiplicity": "*",
-      "parent": "",
+      "parent": "NvMCommon",
       "seed": true,
       "params": [
         {
           "shortName": "NvMNvramBlockIdentifier",
           "kind": "numerical",
           "default": "1",
-          "summary": "NvMNvramBlockIdentifier",
-          "detail": "",
+          "summary": "Block id",
+          "detail": "Block id",
           "range": "",
           "min": 1,
           "max": 65535,
@@ -71,8 +187,8 @@
           "shortName": "NvMBlockJobPriority",
           "kind": "numerical",
           "default": "0",
-          "summary": "NvMBlockJobPriority",
-          "detail": "",
+          "summary": "Job priority",
+          "detail": "Job priority",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -83,7 +199,7 @@
           "kind": "numerical",
           "default": "4",
           "summary": "NvMBlockLength",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs NvMBlockLength parameter.",
           "range": "",
           "min": 1,
           "max": 65535,
@@ -93,8 +209,8 @@
           "shortName": "NvMBlockManagementType",
           "kind": "enumeration",
           "default": "NATIVE",
-          "summary": "NvMBlockManagementType",
-          "detail": "",
+          "summary": "Management",
+          "detail": "Mgmt type",
           "range": "",
           "literals": [
             "NATIVE",
@@ -102,6 +218,203 @@
             "DATASET"
           ],
           "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMBlockManagementType"
+        },
+        {
+          "shortName": "NvMNvBlockLength",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Block length",
+          "detail": "Block length",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMNvBlockLength"
+        },
+        {
+          "shortName": "NvMNvBlockNum",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Block number",
+          "detail": "Block number",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMNvBlockNum"
+        },
+        {
+          "shortName": "NvMNvramDeviceId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Device Id",
+          "detail": "Device Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMNvramDeviceId"
+        },
+        {
+          "shortName": "NvMMaxNumOfReadRetries",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Read retries",
+          "detail": "Read retries",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMMaxNumOfReadRetries"
+        },
+        {
+          "shortName": "NvMMaxNumOfWriteRetries",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Write retries",
+          "detail": "Write retries",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMMaxNumOfWriteRetries"
+        },
+        {
+          "shortName": "NvMWriteVerificationDataSize",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Verify data size",
+          "detail": "Verify data size",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMWriteVerificationDataSize"
+        },
+        {
+          "shortName": "NvMBlockUseCrc",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "BlockUseCrc",
+          "detail": "BlockUseCrc",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMBlockUseCrc"
+        },
+        {
+          "shortName": "NvMBlockUseSyncMechanism",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "BlockUseSyncMechanism",
+          "detail": "BlockUseSyncMechanism",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMBlockUseSyncMechanism"
+        },
+        {
+          "shortName": "NvMBlockWriteProt",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "BlockWriteProt",
+          "detail": "BlockWriteProt",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMBlockWriteProt"
+        },
+        {
+          "shortName": "NvMCalcRamBlockCrc",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CalcRamBlockCrc",
+          "detail": "CalcRamBlockCrc",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMCalcRamBlockCrc"
+        },
+        {
+          "shortName": "NvMResistantToChangedSw",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ResistantToChangedSw",
+          "detail": "ResistantToChangedSw",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMResistantToChangedSw"
+        },
+        {
+          "shortName": "NvMSelectBlockForReadAll",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SelectBlockForReadAll",
+          "detail": "SelectBlockForReadAll",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMSelectBlockForReadAll"
+        },
+        {
+          "shortName": "NvMSelectBlockForWriteAll",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SelectBlockForWriteAll",
+          "detail": "SelectBlockForWriteAll",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMSelectBlockForWriteAll"
+        },
+        {
+          "shortName": "NvMStaticBlockIDCheck",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "StaticBlockIDCheck",
+          "detail": "StaticBlockIDCheck",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMStaticBlockIDCheck"
+        },
+        {
+          "shortName": "NvMWriteBlockOnce",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "WriteBlockOnce",
+          "detail": "WriteBlockOnce",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMWriteBlockOnce"
+        },
+        {
+          "shortName": "NvMWriteVerification",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "WriteVerification",
+          "detail": "WriteVerification",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMBlockDescriptor/NvMWriteVerification"
+        },
+        {
+          "shortName": "NvMBlockCrcType",
+          "kind": "enumeration",
+          "default": "NVM_CRC16",
+          "summary": "CRC type",
+          "detail": "CRC type",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMBlockDescriptor/NvMBlockCrcType",
+          "literals": [
+            "NVM_CRC8",
+            "NVM_CRC16",
+            "NVM_CRC32"
+          ]
+        },
+        {
+          "shortName": "NvMRamBlockDataAddress",
+          "kind": "string",
+          "default": "",
+          "summary": "RAM address",
+          "detail": "RAM address",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMBlockDescriptor/NvMRamBlockDataAddress"
+        },
+        {
+          "shortName": "NvMRomBlockDataAddress",
+          "kind": "string",
+          "default": "",
+          "summary": "ROM address",
+          "detail": "ROM address",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMBlockDescriptor/NvMRomBlockDataAddress"
+        },
+        {
+          "shortName": "NvMNvBlockBaseNumber",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "NV base number",
+          "detail": "NV base number",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/NvM/NvMCommon/NvMBlockDescriptor/NvMNvBlockBaseNumber"
         }
       ],
       "subContainers": []

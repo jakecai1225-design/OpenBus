@@ -79,7 +79,7 @@ public:
         bool extended = false;
         QColor color;
         DbcSignal dbcSig;
-        int displayMode = 1;   ///< DisplayMode 枚举值（保持可序列化）
+        int displayMode = 0;   ///< DisplayMode (0=Linear default)
     };
 
     /// 卡尺模式
@@ -140,6 +140,8 @@ public slots:
     void onFrame(const CanFrame &frame);
     void onFrames(const QVector<CanFrame> &frames);
     void clearData();
+    /// After offline bulk ingest: reset cursors, pull SampleStore, rebuild display.
+    void resyncFromSampleStore();
 
     /// 从外部文件加载帧数据（BLF/ASC/CSV）
     void loadFile(const QString &path);
@@ -236,7 +238,7 @@ private:
 
     // --- 信号数据 ---
     QVector<SignalData> m_signals;
-    double m_timeWindow = 30.0;
+    double m_timeWindow = 120.0;
     double m_currentTime = 0.0;
 
     // --- 性能节流 ---
@@ -257,7 +259,7 @@ private:
     graphic::Strategy m_dsStrategy = graphic::Strategy::MinMax;  ///< 抽稀策略
 
     // --- 采样点 ---
-    bool m_showPoints = false;
+    bool m_showPoints = true;
 
     // --- 暂停 ---
     bool m_paused = false;
@@ -265,10 +267,10 @@ private:
     // --- G7 配色与主题 ---
     GraphicPalette m_palette;
 
-    // --- G7 显示/Y 轴/缩放轴/聚焦 模式 ---
-    DisplayMode m_displayMode = DisplayMode::Step;  ///< 新信号默认线型
-    YAxisMode m_yAxisMode = YAxisMode::OverlaySelected;  ///< P1-3: overlay default
-    bool m_yAxisModeUserLocked = false;  ///< user changed Y-mode combo; skip auto-overlay
+    // --- G7 display / Y-axis / zoom / focus defaults (match toolbar screenshot) ---
+    DisplayMode m_displayMode = DisplayMode::Linear;
+    YAxisMode m_yAxisMode = YAxisMode::Separate;
+    bool m_yAxisModeUserLocked = true;  ///< keep Separate unless user picks overlay
     ZoomAxisMode m_zoomAxis = ZoomAxisMode::XY;
     FocusMode m_focusMode = FocusMode::AllColor;
     int m_selectedSignal = -1;                       ///< 信号列表当前选中行

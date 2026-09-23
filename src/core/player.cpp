@@ -67,7 +67,12 @@ double Player::totalTime() const
 
 double Player::currentTime() const
 {
-    if (m_currentIndex < 0 || m_currentIndex >= m_frames.size())
+    if (m_frames.isEmpty())
+        return 0.0;
+    // Past-the-end (finished / jumpToEnd): report file end time.
+    if (m_currentIndex >= m_frames.size())
+        return m_frames.last().timestamp;
+    if (m_currentIndex < 0)
         return 0.0;
     return m_frames.at(m_currentIndex).timestamp;
 }
@@ -101,6 +106,17 @@ void Player::stop()
     m_playing = false;
     m_timer.stop();
     m_currentIndex = 0;
+    emit stateChanged(false);
+    emitProgress(true);
+}
+
+void Player::jumpToEnd()
+{
+    if (m_frames.isEmpty())
+        return;
+    m_playing = false;
+    m_timer.stop();
+    m_currentIndex = m_frames.size(); // isAtEnd()
     emit stateChanged(false);
     emitProgress(true);
 }

@@ -8,6 +8,7 @@
 #include "utils/canutils.h"
 #include "utils/svg_icon.h"
 #include <QMessageBox>
+#include <QtMath>
 #include <spdlog/spdlog.h>
 
 #include <QSplitter>
@@ -201,6 +202,11 @@ GraphicView::GraphicView(QWidget *parent)
     const int fps = qBound(10, cfg->getInt(QStringLiteral("graphic.fps"), 30), 60);
     m_replotIntervalMs = qMax(16, 1000 / fps);
     m_rawMaxCapacity = qBound(8192, cfg->getInt(QStringLiteral("graphic.maxSamples"), 200000), 1000000);
+    {
+        const double tw = cfg->getDouble(QStringLiteral("graphic.timeWindow"), 120.0);
+        if (tw > 0.0)
+            m_timeWindow = tw;
+    }
 
     m_replotTimer.setInterval(m_replotIntervalMs);
     m_replotTimer.setSingleShot(true);
@@ -390,7 +396,10 @@ void GraphicView::setupUi()
     m_timeWindowCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     for (int sec : {1, 2, 5, 10, 30, 60, 120, 300, 600})
         m_timeWindowCombo->addItem(QString("%1s").arg(sec), sec);
-    m_timeWindowCombo->setCurrentIndex(4); // 默认 30s
+    {
+        const int twIdx = m_timeWindowCombo->findData(static_cast<int>(m_timeWindow));
+        m_timeWindowCombo->setCurrentIndex(twIdx >= 0 ? twIdx : 6); // default 120s
+    }
 
     // 曲线显示模式（折线/阶梯/仅点）
     m_displayModeCombo = new QComboBox(m_toolbar);
@@ -408,15 +417,16 @@ void GraphicView::setupUi()
     m_focusCombo->addItem("全部彩色");
     m_focusCombo->addItem("选中彩色");
     m_focusCombo->addItem("仅选中");
+    m_focusCombo->setCurrentIndex(static_cast<int>(m_focusMode));
 
-    // Y-axis layout (CANoe-style three modes); P1-3 default = OverlaySelected
+    // Y-axis layout (CANoe-style); default Separate
     m_yAxisModeCombo = new QComboBox(m_toolbar);
     m_yAxisModeCombo->setToolTip(QStringLiteral("Y-axis layout: separate / overlay"));
     m_yAxisModeCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     m_yAxisModeCombo->addItem(QStringLiteral("Separate"));
     m_yAxisModeCombo->addItem(QStringLiteral("Overlay · selected"));
     m_yAxisModeCombo->addItem(QStringLiteral("Overlay · all"));
-    m_yAxisModeCombo->setCurrentIndex(1);
+    m_yAxisModeCombo->setCurrentIndex(static_cast<int>(m_yAxisMode));
 
     m_pointsToggle = new QCheckBox("采样点", m_toolbar);
     m_pointsToggle->setToolTip("显示/隐藏采样点");
@@ -1874,8 +1884,9 @@ void GraphicView::applyYAxisMode()
 
 void GraphicView::maybeAutoOverlay()
 {
-    // B7 / P1-3: separate AxisRects are expensive — prefer overlay above threshold
-    // (default mode is already OverlaySelected; this recovers if user is still Separate).
+    // B7: separate AxisRects are expensive — prefer overlay above threshold.
+    // Default Y mode is Separate with userLocked=true so this stays off unless
+    // the user picks an overlay mode then switches back to Separate without lock.
     const int thr = AppConfig::instance()->getInt(
         QStringLiteral("graphic.overlayAutoThreshold"), 2);
     if (thr <= 0 || m_yAxisModeUserLocked)
@@ -2755,6 +2766,47 @@ void GraphicView::clearData()
     updateStatusBar();
 }
 
+void GraphicView::resyncFromSampleStore()
+{
+    for (auto &sd : m_signals) {
+        sd.sampleSeq = 0;
+        sd.cacheValid = false;
+        sd.displayDirty = true;
+        sd.hasMinMax = false;
+        sd.minMaxDirty = true;
+    }
+    m_dataDirty = true;
+    pullFromSampleStore();
+    // Expand X to full store range when data is already fully ingested (offline).
+    double tMin = 0.0, tMax = 0.0;
+    bool any = false;
+    SampleStore *store = SampleStore::instance();
+    for (const auto &sd : m_signals) {
+        if (!sd.storeSubscribed)
+            continue;
+        double a = 0.0, b = 0.0;
+        if (!store->timeRange(sd.storeKey, &a, &b))
+            continue;
+        if (!any) {
+            tMin = a;
+            tMax = b;
+            any = true;
+        } else {
+            tMin = std::min(tMin, a);
+            tMax = std::max(tMax, b);
+        }
+    }
+    if (any) {
+        m_currentTime = tMax;
+        const double tStart = std::max(tMin, tMax - m_timeWindow);
+        setXRangeAll(QCPRange(tStart, tMax), false);
+    }
+    refreshDisplayData();
+    if (m_plot)
+        m_plot->replot();
+    updateStatusBar();
+}
+
 // ============================================================
 //  环形缓冲写入 / min/max 维护 / 视口降采样重建
 // ============================================================
@@ -2856,28 +2908,38 @@ void GraphicView::refreshDisplayData()
         QVector<QCPGraphData> graphData;
 
         // Prefer store: raw when viewport sample count ≤ budget, else MinMax LOD.
+        // X = SignalSample.t = CanFrame::timestamp from BLF/ASC (file HW time), never PC-now.
         bool usedStore = false;
+        QVector<SignalSample> disp;
         if (sd.storeSubscribed) {
-            QVector<SignalSample> disp;
             const int n = store->copyDownsampled(
                 sd.storeKey, vp.lower, vp.upper, targetPoints, &disp);
-            if (n > 0) {
-                graphData.reserve(disp.size());
-                for (const auto &s : disp)
-                    graphData.append(QCPGraphData(s.t, s.v));
+            if (n > 0)
                 usedStore = true;
-            }
         }
 
         if (!usedStore) {
-            const QVector<graphic::Sample> disp =
+            const QVector<graphic::Sample> rawDisp =
                 graphic::downsample(sd.rawData, vp.lower, vp.upper, targetPoints, m_dsStrategy);
-            graphData.reserve(disp.size());
-            for (const auto &s : disp)
-                graphData.append(QCPGraphData(s.t, s.v));
+            disp.clear();
+            disp.reserve(rawDisp.size());
+            for (const auto &s : rawDisp)
+                disp.append({s.t, s.v});
+        }
+
+        // Break polylines across large time gaps so a logging pause does not
+        // draw a misleading diagonal (QCP treats NaN as a segment break).
+        graphData.reserve(disp.size() * 2);
+        constexpr double kGapBreakSec = 0.5;
+        for (int i = 0; i < disp.size(); ++i) {
+            if (i > 0 && (disp.at(i).t - disp.at(i - 1).t) > kGapBreakSec)
+                graphData.append(QCPGraphData(qQNaN(), qQNaN()));
+            graphData.append(QCPGraphData(disp.at(i).t, disp.at(i).v));
         }
 
         sd.graph->data()->set(graphData, true);
+        if (sd.graph)
+            sd.graph->setAdaptiveSampling(false);
         sd.cachedT1 = vp.lower;
         sd.cachedT2 = vp.upper;
         sd.cachedShowPoints = m_showPoints;
@@ -2961,11 +3023,11 @@ void GraphicView::subscribeStore(SignalData &sd,
     if (history && !history->isEmpty()) {
         const int count = historyCount < 0 ? history->size()
                                            : qMin(historyCount, history->size());
-        // Cap backfill on GUI thread (full CaptureLog dump can freeze / OOM)
-        constexpr int kMaxHistoryBackfill = 50000;
-        const int start = qMax(0, count - kMaxHistoryBackfill);
+        // Cap to SampleStore ring capacity (newest kept); use file timestamps.
+        const int cap = SampleStore::instance()->capacity();
+        const int start = qMax(0, count - cap);
         QVector<SignalSample> samples;
-        samples.reserve(qMin(count - start, kMaxHistoryBackfill));
+        samples.reserve(qMin(count - start, cap));
         for (int i = start; i < count; ++i) {
             const CanFrame &f = history->at(i);
             if ((f.id & 0x1FFFFFFF) != (sd.config.canId & 0x1FFFFFFF) ||
@@ -3916,7 +3978,33 @@ void GraphicView::updateStatusBar()
             totalPoints += sd.rawData.size();
     }
     parts << QStringLiteral("Samples: %1").arg(totalPoints);
-    parts << QStringLiteral("Time: %1").arg(formatTime(m_currentTime));
+
+    // File / measurement time as current / span (file HW timestamps), not a wall clock.
+    double tMin = 0.0, tMax = 0.0;
+    bool hasSpan = false;
+    for (const auto &sd : m_signals) {
+        if (!sd.storeSubscribed)
+            continue;
+        double a = 0.0, b = 0.0;
+        if (!store->timeRange(sd.storeKey, &a, &b))
+            continue;
+        if (!hasSpan) {
+            tMin = a;
+            tMax = b;
+            hasSpan = true;
+        } else {
+            tMin = std::min(tMin, a);
+            tMax = std::max(tMax, b);
+        }
+    }
+    if (hasSpan && tMax > tMin) {
+        const double cur = std::clamp(m_currentTime, tMin, tMax);
+        parts << QStringLiteral("Time: %1s / %2s")
+                     .arg(cur, 0, 'f', 3)
+                     .arg(tMax, 0, 'f', 3);
+    } else {
+        parts << QStringLiteral("Time: %1s").arg(m_currentTime, 0, 'f', 3);
+    }
     parts << QStringLiteral("Window: %1s").arg(m_timeWindow);
 
     if (m_paused)

@@ -1,7 +1,7 @@
 {
   "module": "LinTp",
   "definition": "/AUTOSAR/EcucDefs/LinTp",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "LinTpGlobalConfig",
@@ -16,7 +16,7 @@
           "kind": "string",
           "default": "",
           "summary": "LinTpChannel",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs LinTpChannel parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGlobalConfig/LinTpChannel"
         },
@@ -25,7 +25,7 @@
           "kind": "string",
           "default": "",
           "summary": "LinTpNSdu",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs LinTpNSdu parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGlobalConfig/LinTpNSdu"
         }
@@ -45,9 +45,42 @@
           "kind": "boolean",
           "default": "false",
           "summary": "LinTpDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGeneral/LinTpDevErrorDetect"
+        },
+        {
+          "shortName": "LinTpVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGeneral/LinTpVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "LinTpChannel"
+      ]
+    },
+    {
+      "shortName": "LinTpChannel",
+      "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGeneral/LinTpChannel",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "LinTpGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "LinTpChannelId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Channel Id",
+          "detail": "Channel Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpChannel/LinTpChannelId"
         }
       ],
       "subContainers": []

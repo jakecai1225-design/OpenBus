@@ -18,8 +18,9 @@ def _open_path(path: str) -> None:
         return
     try:
         os.startfile(path)
-    except Exception:
-        pass
+    except OSError as exc:
+        import sys
+        print("open failed: %s (%s)" % (path, exc), file=sys.stderr)
 
 
 def _html(model: arxmlparse.ArxmlModel) -> str:
@@ -57,7 +58,8 @@ def build(shell, document, log_fn) -> QWidget:
     fmt = QComboBox()
     fmt.addItems([
         "ARXML", "DBC", "HTML", "CSV", "ECUC-lite",
-        "BSW module ARXML", "Project intermediates"])
+        "BSW module ARXML", "Project intermediates",
+        "Handoff report (HTML)"])
     fmt.setFixedHeight(26)
     fmt.setToolTip("Export format — never generates BSW/RTE source")
     open_after = QCheckBox("Open after")
@@ -75,8 +77,8 @@ def build(shell, document, log_fn) -> QWidget:
     suite_chrome.page_margins(bl, top=20)
     tip = _ui.quiet_label(
         "ARXML / ECUC-lite / BSW module ARXML are the handoff to DaVinci / "
-        "tresos / ISOLAR. Project intermediates write work/com.arxml, "
-        "work/bsw/<Module>.arxml, and out/ reports. No stack codegen.")
+        "tresos / ISOLAR. Handoff report includes an Open-in-DaVinci checklist. "
+        "No stack codegen.")
     tip.setWordWrap(True)
     tip.setMaximumWidth(560)
     bl.addWidget(tip)
@@ -85,6 +87,28 @@ def build(shell, document, log_fn) -> QWidget:
 
     def _do():
         kind = fmt.currentText()
+        if kind == "Handoff report (HTML)":
+            default = "handoff_davinci.html"
+            if document.has_project() and document.manifest:
+                default = os.path.join(
+                    document.manifest.root, "out", "handoff_davinci.html")
+            path, _ = QFileDialog.getSaveFileName(
+                shell, "Handoff report", default, "HTML (*.html)")
+            if not path:
+                return
+            if not path.lower().endswith(".html"):
+                path += ".html"
+            try:
+                os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(document.handoff_html_report())
+                log_fn("OK", "Handoff report %s" % path)
+                if open_after.isChecked():
+                    _open_path(path)
+            except OSError as e:
+                log_fn("ERR", str(e))
+            return
+
         if kind == "Project intermediates":
             if not document.has_project():
                 log_fn("WARN", "Open or create a project first")

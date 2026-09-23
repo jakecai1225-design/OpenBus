@@ -264,6 +264,8 @@ ShellContext MainWindow::makeShellContext()
             onOpenPlaybackTab();
         } else if (action == QStringLiteral("measurementToggled")) {
             onMeasurementToggled(arg.toBool());
+        } else if (action == QStringLiteral("measurementReplay")) {
+            onMeasurementReplay();
         } else if (action == QStringLiteral("moduleToggled")) {
             const QVariantList l = arg.toList();
             if (l.size() == 3)

@@ -1,13 +1,13 @@
 {
   "module": "SomeIpXf",
   "definition": "/AUTOSAR/EcucDefs/SomeIpXf",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "SomeIpXfTransformation",
       "definition": "/AUTOSAR/EcucDefs/SomeIpXf/SomeIpXfTransformation",
-      "lowerMultiplicity": 1,
-      "upperMultiplicity": 1,
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
       "parent": "",
       "seed": false,
       "params": [
@@ -16,7 +16,7 @@
           "kind": "string",
           "default": "",
           "summary": "SomeIpXfDeployment",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs SomeIpXfDeployment parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/SomeIpXf/SomeIpXfTransformation/SomeIpXfDeployment"
         },
@@ -25,9 +25,49 @@
           "kind": "string",
           "default": "",
           "summary": "SomeIpXfISignalProps",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs SomeIpXfISignalProps parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/SomeIpXf/SomeIpXfTransformation/SomeIpXfISignalProps"
+        },
+        {
+          "shortName": "SomeIpXfAlignment",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Alignment",
+          "detail": "Alignment",
+          "range": "",
+          "min": 1,
+          "max": 8,
+          "definition": "/AUTOSAR/EcucDefs/SomeIpXf/SomeIpXfTransformation/SomeIpXfAlignment"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "SomeIpXfGeneral",
+      "definition": "/AUTOSAR/EcucDefs/SomeIpXf/SomeIpXfGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "SomeIpXfDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SomeIpXf/SomeIpXfGeneral/SomeIpXfDevErrorDetect"
+        },
+        {
+          "shortName": "SomeIpXfVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SomeIpXf/SomeIpXfGeneral/SomeIpXfVersionInfoApi"
         }
       ],
       "subContainers": []

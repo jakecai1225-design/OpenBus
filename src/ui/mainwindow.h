@@ -145,6 +145,10 @@ private slots:
     // 测量启停编排（离线加载 + Trace/Graphic 门控；flow 经 invoke("measurementToggled")
     // 直调——slot 声明保证元对象可达（L2 UI 驱动测试经 invokeMethod 驱动，DEF-09）
     void onMeasurementToggled(bool running);
+    /// Clear Trace/Graphic and restart from the beginning (Flow Replay button).
+    void onMeasurementReplay();
+    /// Shared start path for first Play and Replay (replay=true clears then reloads).
+    void startMeasurementSession(bool replay);
 
     // Flow 页面回调：Filter/DBC（双击块时由 Shell 触发）
     void onMeasurementViewFilterRequested();
@@ -313,6 +317,9 @@ private:
     bool m_autoScroll = true;
     bool m_recording = false;
     bool m_measurementRunning = false;  ///< 全局测量运行状态（由 flow 标签页控制）
+    /// Offline file analysis: CaptureLog/SampleStore already hold the full file
+    /// (file timestamps). Player ticks only advance progress — do not re-ingest.
+    bool m_offlineBulkIngested = false;
     bool m_sideBarVisible = true;
     int m_savedDockWidth = 300;
     int m_traceCount = 0;

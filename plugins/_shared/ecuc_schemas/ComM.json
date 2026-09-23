@@ -1,7 +1,7 @@
 {
   "module": "ComM",
   "definition": "/AUTOSAR/EcucDefs/ComM",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "ComMGeneral",
@@ -16,7 +16,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "ComMModeLimitationEnabled",
-          "detail": "",
+          "detail": "ModeLimitationEnabled",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/ComM/ComMGeneral/ComMModeLimitationEnabled"
         },
@@ -25,7 +25,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "ComMPncSupport",
-          "detail": "",
+          "detail": "PncSupport",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/ComM/ComMGeneral/ComMPncSupport"
         },
@@ -34,11 +34,65 @@
           "kind": "numerical",
           "default": "10",
           "summary": "ComMMainFunctionPeriod",
-          "detail": "",
+          "detail": "MainFunction period",
           "range": "",
-          "min": 0,
+          "min": 0.001,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/ComM/ComMGeneral/ComMMainFunctionPeriod"
+        },
+        {
+          "shortName": "ComMDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMGeneral/ComMDevErrorDetect"
+        },
+        {
+          "shortName": "ComMVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMGeneral/ComMVersionInfoApi"
+        },
+        {
+          "shortName": "ComMWakeupInhibitionEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "WakeupInhibitionEnabled",
+          "detail": "WakeupInhibitionEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMGeneral/ComMWakeupInhibitionEnabled"
+        },
+        {
+          "shortName": "ComMResetAfterForcingNoComm",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ResetAfterForcingNoComm",
+          "detail": "ResetAfterForcingNoComm",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMGeneral/ComMResetAfterForcingNoComm"
+        },
+        {
+          "shortName": "ComMSynchronousWakeUp",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SynchronousWakeUp",
+          "detail": "SynchronousWakeUp",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMGeneral/ComMSynchronousWakeUp"
+        },
+        {
+          "shortName": "ComMTMinFullComModeDuration",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TMinFullComModeDuration",
+          "detail": "TMinFullComModeDuration",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMGeneral/ComMTMinFullComModeDuration"
         }
       ],
       "subContainers": []
@@ -51,12 +105,16 @@
       "parent": "",
       "seed": false,
       "params": [],
-      "subContainers": []
+      "subContainers": [
+        "ComMChannel",
+        "ComMUser",
+        "ComMPnc"
+      ]
     },
     {
       "shortName": "ComMChannel",
       "definition": "/AUTOSAR/EcucDefs/ComM/ComMConfigSet/ComMChannel",
-      "lowerMultiplicity": 1,
+      "lowerMultiplicity": 0,
       "upperMultiplicity": "*",
       "parent": "ComMConfigSet",
       "seed": true,
@@ -66,7 +124,7 @@
           "kind": "numerical",
           "default": "0",
           "summary": "ComMChannelId",
-          "detail": "",
+          "detail": "Channel Id",
           "range": "",
           "min": 0,
           "max": 255,
@@ -77,7 +135,7 @@
           "kind": "enumeration",
           "default": "CAN",
           "summary": "ComMBusType",
-          "detail": "",
+          "detail": "Bus type",
           "range": "",
           "literals": [
             "CAN",
@@ -92,7 +150,7 @@
           "kind": "numerical",
           "default": "10",
           "summary": "ComMMainFunctionPeriod",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs ComMMainFunctionPeriod parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -103,7 +161,7 @@
           "kind": "enumeration",
           "default": "FULL",
           "summary": "ComMNmVariant",
-          "detail": "",
+          "detail": "Nm variant",
           "range": "",
           "literals": [
             "FULL",
@@ -111,7 +169,69 @@
             "NONE",
             "PASSIVE"
           ],
-          "definition": "/AUTOSAR/EcucDefs/ComM/ComMChannel/ComMNmVariant"
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMChannel/ComMNmVariant",
+          "min": 0,
+          "max": 255
+        },
+        {
+          "shortName": "ComMFullComNetworkRequestedDuration",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "FullCom duration",
+          "detail": "FullCom duration",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMChannel/ComMFullComNetworkRequestedDuration"
+        },
+        {
+          "shortName": "ComMMinFullComModeDuration",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Min FullCom duration",
+          "detail": "Min FullCom duration",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMChannel/ComMMinFullComModeDuration"
+        },
+        {
+          "shortName": "ComMNmLightTimeout",
+          "kind": "numerical",
+          "default": "1000",
+          "summary": "NmLight timeout",
+          "detail": "NmLight timeout",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMChannel/ComMNmLightTimeout"
+        },
+        {
+          "shortName": "ComMNoCom",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "NoCom",
+          "detail": "NoCom",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMChannel/ComMNoCom"
+        },
+        {
+          "shortName": "ComMNoWakeup",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "NoWakeup",
+          "detail": "NoWakeup",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMChannel/ComMNoWakeup"
+        },
+        {
+          "shortName": "ComMFullCommRequestNotificationEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "FullCommRequestNotificationEnabled",
+          "detail": "FullCommRequestNotificationEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMChannel/ComMFullCommRequestNotificationEnabled"
         }
       ],
       "subContainers": []
@@ -129,7 +249,7 @@
           "kind": "numerical",
           "default": "0",
           "summary": "ComMUserIdentifier",
-          "detail": "",
+          "detail": "User Id",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -140,10 +260,42 @@
           "kind": "reference",
           "default": "",
           "summary": "ComMUserChannel",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs ComMUserChannel parameter.",
           "range": "",
           "destination": "container",
           "definition": "/AUTOSAR/EcucDefs/ComM/ComMUser/ComMUserChannel"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComMPnc",
+      "definition": "/AUTOSAR/EcucDefs/ComM/ComMConfigSet/ComMPnc",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "ComMConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "ComMPncId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Pnc Id",
+          "detail": "Pnc Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMPnc/ComMPncId"
+        },
+        {
+          "shortName": "ComMPncComSignalRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "ComMPncComSignalRef",
+          "detail": "Reference to ComSignal",
+          "range": "",
+          "destination": "ComSignal",
+          "definition": "/AUTOSAR/EcucDefs/ComM/ComMPnc/ComMPncComSignalRef"
         }
       ],
       "subContainers": []

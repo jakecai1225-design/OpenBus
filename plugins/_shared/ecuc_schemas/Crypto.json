@@ -1,7 +1,7 @@
 {
   "module": "Crypto",
   "definition": "/AUTOSAR/EcucDefs/Crypto",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "CryptoGeneral",
@@ -16,9 +16,18 @@
           "kind": "boolean",
           "default": "false",
           "summary": "CryptoDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Crypto/CryptoGeneral/CryptoDevErrorDetect"
+        },
+        {
+          "shortName": "CryptoVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Crypto/CryptoGeneral/CryptoVersionInfoApi"
         }
       ],
       "subContainers": []
@@ -36,7 +45,7 @@
           "kind": "string",
           "default": "",
           "summary": "CryptoDriverObject",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CryptoDriverObject parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Crypto/CryptoDriverObjects/CryptoDriverObject"
         }
@@ -56,9 +65,53 @@
           "kind": "string",
           "default": "",
           "summary": "CryptoKeyElement",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CryptoKeyElement parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Crypto/CryptoKeyElements/CryptoKeyElement"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CryptoDriverObject",
+      "definition": "/AUTOSAR/EcucDefs/Crypto/CryptoDriverObject",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CryptoDriverObjectId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Object Id",
+          "detail": "Object Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Crypto/CryptoDriverObject/CryptoDriverObjectId"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CryptoKey",
+      "definition": "/AUTOSAR/EcucDefs/Crypto/CryptoKey",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CryptoKeyId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Key Id",
+          "detail": "Key Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Crypto/CryptoKey/CryptoKeyId"
         }
       ],
       "subContainers": []

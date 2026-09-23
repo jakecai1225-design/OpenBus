@@ -1,7 +1,7 @@
 {
   "module": "Nm",
   "definition": "/AUTOSAR/EcucDefs/Nm",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "NmGlobalConfig",
@@ -16,7 +16,7 @@
           "kind": "numerical",
           "default": "10",
           "summary": "NmCycleTimeMainFunction",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs NmCycleTimeMainFunction parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -27,7 +27,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "NmDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Nm/NmGlobalConfig/NmDevErrorDetect"
         },
@@ -36,19 +36,86 @@
           "kind": "boolean",
           "default": "false",
           "summary": "NmCoordinatorSupportEnabled",
-          "detail": "",
+          "detail": "CoordinatorSupportEnabled",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Nm/NmGlobalConfig/NmCoordinatorSupportEnabled"
+        },
+        {
+          "shortName": "NmVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmGlobalConfig/NmVersionInfoApi"
+        },
+        {
+          "shortName": "NmRemoteSleepIndEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "RemoteSleepIndEnabled",
+          "detail": "RemoteSleepIndEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmGlobalConfig/NmRemoteSleepIndEnabled"
+        },
+        {
+          "shortName": "NmStateChangeIndEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "StateChangeIndEnabled",
+          "detail": "StateChangeIndEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmGlobalConfig/NmStateChangeIndEnabled"
+        },
+        {
+          "shortName": "NmUserDataEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "UserDataEnabled",
+          "detail": "UserDataEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmGlobalConfig/NmUserDataEnabled"
+        },
+        {
+          "shortName": "NmPduRxIndicationEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PduRxIndicationEnabled",
+          "detail": "PduRxIndicationEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmGlobalConfig/NmPduRxIndicationEnabled"
+        },
+        {
+          "shortName": "NmCarWakeUpRxEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CarWakeUpRxEnabled",
+          "detail": "CarWakeUpRxEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmGlobalConfig/NmCarWakeUpRxEnabled"
+        },
+        {
+          "shortName": "NmMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "0.01",
+          "summary": "MainFunction period",
+          "detail": "MainFunction period",
+          "range": "",
+          "min": 0.001,
+          "max": 1,
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmGlobalConfig/NmMainFunctionPeriod"
         }
       ],
-      "subContainers": []
+      "subContainers": [
+        "NmChannelConfig"
+      ]
     },
     {
       "shortName": "NmChannelConfig",
-      "definition": "/AUTOSAR/EcucDefs/Nm/NmChannelConfig",
+      "definition": "/AUTOSAR/EcucDefs/Nm/NmGlobalConfig/NmChannelConfig",
       "lowerMultiplicity": 0,
       "upperMultiplicity": "*",
-      "parent": "",
+      "parent": "NmGlobalConfig",
       "seed": true,
       "params": [
         {
@@ -56,7 +123,7 @@
           "kind": "reference",
           "default": "",
           "summary": "NmComMChannelRef",
-          "detail": "",
+          "detail": "Reference to ComMChannel",
           "range": "",
           "destination": "container",
           "definition": "/AUTOSAR/EcucDefs/Nm/NmChannelConfig/NmComMChannelRef"
@@ -66,9 +133,53 @@
           "kind": "boolean",
           "default": "false",
           "summary": "NmPassiveModeEnabled",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs NmPassiveModeEnabled parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Nm/NmChannelConfig/NmPassiveModeEnabled"
+        },
+        {
+          "shortName": "NmChannelId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Channel Id",
+          "detail": "Channel Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmChannelConfig/NmChannelId"
+        },
+        {
+          "shortName": "NmTimeoutTime",
+          "kind": "numerical",
+          "default": "2000",
+          "summary": "Timeout ms",
+          "detail": "Timeout ms",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmChannelConfig/NmTimeoutTime"
+        },
+        {
+          "shortName": "NmRepeatMessageTime",
+          "kind": "numerical",
+          "default": "1500",
+          "summary": "Repeat msg time",
+          "detail": "Repeat msg time",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmChannelConfig/NmRepeatMessageTime"
+        },
+        {
+          "shortName": "NmWaitBusSleepTime",
+          "kind": "numerical",
+          "default": "1500",
+          "summary": "Wait bus sleep",
+          "detail": "Wait bus sleep",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Nm/NmChannelConfig/NmWaitBusSleepTime"
         }
       ],
       "subContainers": []

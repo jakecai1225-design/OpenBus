@@ -67,6 +67,7 @@ struct ShellContext {
      *  - "openOfflineAnalysis" / "openDevicePage"
      *      Flow 页跳转请求（B4）→ 壳打开对应标签页
      *  - "measurementToggled" (arg = bool)
+     *  - "measurementReplay"  (no arg) — clear Trace/Graphic and restart from beginning
      *      Flow 测量启停（B4）→ 壳离线加载 + Trace/Graphic 实例门控
      *  - "moduleToggled" (arg = QVariantList{blockId, name, enabled})
      *  - "moduleOpened"   (arg = QVariantList{moduleId, instanceId})

@@ -145,6 +145,11 @@ QWidget *FlowModule::createSetupPage(ShellContext &ctx)
         if (m_ctx.shellInvoke)
             m_ctx.shellInvoke(QStringLiteral("measurementToggled"), running);
     });
+    QObject::connect(view, &MeasurementSetupView::measurementReplayRequested, view,
+                     [this]() {
+        if (m_ctx.shellInvoke)
+            m_ctx.shellInvoke(QStringLiteral("measurementReplay"), {});
+    });
     QObject::connect(view, &MeasurementSetupView::moduleToggled, view,
                      [this](const QString &blockId, const QString &name, bool enabled) {
         if (m_ctx.shellInvoke)

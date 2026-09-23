@@ -1,7 +1,7 @@
 {
   "module": "BswM",
   "definition": "/AUTOSAR/EcucDefs/BswM",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "BswMGeneral",
@@ -16,7 +16,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "BswMDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/BswM/BswMGeneral/BswMDevErrorDetect"
         },
@@ -25,11 +25,20 @@
           "kind": "numerical",
           "default": "10",
           "summary": "BswMMainFunctionPeriod",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs BswMMainFunctionPeriod parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/BswM/BswMGeneral/BswMMainFunctionPeriod"
+        },
+        {
+          "shortName": "BswMVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMGeneral/BswMVersionInfoApi"
         }
       ],
       "subContainers": []
@@ -42,7 +51,15 @@
       "parent": "",
       "seed": false,
       "params": [],
-      "subContainers": []
+      "subContainers": [
+        "BswMModeRequestPort",
+        "BswMActionList",
+        "BswMArbitration",
+        "BswMAction",
+        "BswMModeRequestSource",
+        "BswMModeSwitchPort",
+        "BswMEventRequestPort"
+      ]
     },
     {
       "shortName": "BswMModeRequestPort",
@@ -57,21 +74,22 @@
           "kind": "enumeration",
           "default": "BSW",
           "summary": "BswMModeRequestSource",
-          "detail": "",
+          "detail": "Reference to BswMModeRequestSource",
           "range": "",
           "literals": [
             "SWC",
             "BSW",
             "CDM"
           ],
-          "definition": "/AUTOSAR/EcucDefs/BswM/BswMModeRequestPort/BswMModeRequestSource"
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMModeRequestPort/BswMModeRequestSource",
+          "destination": "BswMModeRequestSource"
         },
         {
           "shortName": "BswMRequestProcessing",
           "kind": "enumeration",
           "default": "IMMEDIATE",
           "summary": "BswMRequestProcessing",
-          "detail": "",
+          "detail": "Processing",
           "range": "",
           "literals": [
             "IMMEDIATE",
@@ -84,7 +102,7 @@
           "kind": "numerical",
           "default": "1",
           "summary": "BswMModeRequestMaxQueueSize",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs BswMModeRequestMaxQueueSize parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -106,7 +124,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "BswMAbortOnFail",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs BswMAbortOnFail parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/BswM/BswMActionList/BswMAbortOnFail"
         },
@@ -115,7 +133,7 @@
           "kind": "enumeration",
           "default": "TRIGGER",
           "summary": "BswMExecution",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs BswMExecution parameter.",
           "range": "",
           "literals": [
             "TRIGGER",
@@ -128,7 +146,7 @@
           "kind": "numerical",
           "default": "0",
           "summary": "BswMActionListPriority",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs BswMActionListPriority parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -139,18 +157,18 @@
     },
     {
       "shortName": "BswMRule",
-      "definition": "/AUTOSAR/EcucDefs/BswM/BswMConfig/BswMRule",
+      "definition": "/AUTOSAR/EcucDefs/BswM/BswMArbitration/BswMRule",
       "lowerMultiplicity": 0,
       "upperMultiplicity": "*",
-      "parent": "BswMConfig",
-      "seed": false,
+      "parent": "BswMArbitration",
+      "seed": true,
       "params": [
         {
           "shortName": "BswMNestedExecutionOnly",
           "kind": "boolean",
           "default": "false",
           "summary": "BswMNestedExecutionOnly",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs BswMNestedExecutionOnly parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/BswM/BswMRule/BswMNestedExecutionOnly"
         },
@@ -159,9 +177,153 @@
           "kind": "string",
           "default": "",
           "summary": "BswMRuleExpression",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs BswMRuleExpression parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/BswM/BswMRule/BswMRuleExpression"
+        },
+        {
+          "shortName": "BswMRuleExpressionRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "BswMRuleExpressionRef",
+          "detail": "Reference to BswMLogicalExpression",
+          "range": "",
+          "destination": "BswMLogicalExpression",
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMRule/BswMRuleExpressionRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "BswMArbitration",
+      "definition": "/AUTOSAR/EcucDefs/BswM/BswMConfig/BswMArbitration",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "BswMConfig",
+      "seed": false,
+      "params": [],
+      "subContainers": [
+        "BswMRule",
+        "BswMLogicalExpression"
+      ]
+    },
+    {
+      "shortName": "BswMLogicalExpression",
+      "definition": "/AUTOSAR/EcucDefs/BswM/BswMArbitration/BswMLogicalExpression",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "BswMArbitration",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "BswMLogicalOperator",
+          "kind": "enumeration",
+          "default": "AND",
+          "summary": "Operator",
+          "detail": "Operator",
+          "range": "",
+          "literals": [
+            "AND",
+            "OR",
+            "NOT",
+            "NAND",
+            "XOR"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMLogicalExpression/BswMLogicalOperator"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "BswMAction",
+      "definition": "/AUTOSAR/EcucDefs/BswM/BswMConfig/BswMAction",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "BswMConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "BswMActionType",
+          "kind": "enumeration",
+          "default": "BSWM_ACTION_COMM_MODE",
+          "summary": "Action type",
+          "detail": "Action type",
+          "range": "",
+          "literals": [
+            "BSWM_ACTION_COMM_MODE",
+            "BSWM_ACTION_PDU_GROUP_SWITCH",
+            "BSWM_ACTION_ECUM_STATE",
+            "BSWM_ACTION_USER"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMAction/BswMActionType"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "BswMModeRequestSource",
+      "definition": "/AUTOSAR/EcucDefs/BswM/BswMConfig/BswMModeRequestSource",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "BswMConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "BswMModeRequestSourceType",
+          "kind": "enumeration",
+          "default": "BSWM_COMM",
+          "summary": "Request source type",
+          "detail": "Request source type",
+          "range": "",
+          "literals": [
+            "BSWM_COMM",
+            "BSWM_ECUM",
+            "BSWM_DCM",
+            "BSWM_NM",
+            "BSWM_GENERIC"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMModeRequestSource/BswMModeRequestSourceType"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "BswMModeSwitchPort",
+      "definition": "/AUTOSAR/EcucDefs/BswM/BswMConfig/BswMModeSwitchPort",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "BswMConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "BswMModeSwitchPortRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "BswMModeSwitchPortRef",
+          "detail": "Reference to BswMModeRequestPort",
+          "range": "",
+          "destination": "BswMModeRequestPort",
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMModeSwitchPort/BswMModeSwitchPortRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "BswMEventRequestPort",
+      "definition": "/AUTOSAR/EcucDefs/BswM/BswMConfig/BswMEventRequestPort",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "BswMConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "BswMEventRequestPortImmediateProcessing",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EventRequestPortImmediateProcessing",
+          "detail": "EventRequestPortImmediateProcessing",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/BswM/BswMEventRequestPort/BswMEventRequestPortImmediateProcessing"
         }
       ],
       "subContainers": []

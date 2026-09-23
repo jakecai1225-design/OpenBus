@@ -42,7 +42,7 @@ def _open_suite(start_page: str | None = None):
         return
     if start_page:
         _shell.goto_page(start_page)
-    _shell.show()
+    _shell.showMaximized()
     _shell.raise_()
     _shell.activateWindow()
 
@@ -76,7 +76,7 @@ def activate(context):
     context.register_command("autosarSuite.open", on_open, "AUTOSAR Studio")
     # Legacy command id from former arxml-studio
     context.register_command("arxmlStudio.open", on_open, "AUTOSAR Studio")
-    _shell.show()
+    _shell.showMaximized()
     _shell.raise_()
     _shell.activateWindow()
     sin.output.append(

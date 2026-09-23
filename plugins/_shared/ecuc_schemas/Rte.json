@@ -1,13 +1,13 @@
 {
   "module": "Rte",
   "definition": "/AUTOSAR/EcucDefs/Rte",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "RteGeneration",
       "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneration",
-      "lowerMultiplicity": 1,
-      "upperMultiplicity": 1,
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
       "parent": "",
       "seed": false,
       "params": [
@@ -16,7 +16,7 @@
           "kind": "enumeration",
           "default": "RUNTIME",
           "summary": "RteOptimizationMode",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs RteOptimizationMode parameter.",
           "range": "",
           "literals": [
             "SIZE",
@@ -30,7 +30,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "RteDevErrorDetect",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs RteDevErrorDetect parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneration/RteDevErrorDetect"
         },
@@ -39,9 +39,36 @@
           "kind": "boolean",
           "default": "false",
           "summary": "RteVfbTraceEnabled",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs RteVfbTraceEnabled parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneration/RteVfbTraceEnabled"
+        },
+        {
+          "shortName": "RteGenerationMode",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "GenerationMode",
+          "detail": "GenerationMode",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneration/RteGenerationMode"
+        },
+        {
+          "shortName": "RteGenerationVfbTraceEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "GenerationVfbTraceEnabled",
+          "detail": "GenerationVfbTraceEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneration/RteGenerationVfbTraceEnabled"
+        },
+        {
+          "shortName": "RteGenerationIocEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "GenerationIocEnabled",
+          "detail": "GenerationIocEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneration/RteGenerationIocEnabled"
         }
       ],
       "subContainers": []
@@ -59,9 +86,192 @@
           "kind": "string",
           "default": "",
           "summary": "RteSoftwareComponentInstanceRef",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs RteSoftwareComponentInstanceRef parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/Rte/RteSwComponentInstance/RteSoftwareComponentInstanceRef"
+        },
+        {
+          "shortName": "RteSwComponentTypeRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "RteSwComponentTypeRef",
+          "detail": "Reference to SwComponentType",
+          "range": "",
+          "destination": "SwComponentType",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteSwComponentInstance/RteSwComponentTypeRef"
+        }
+      ],
+      "subContainers": [
+        "RteEventToTaskMapping",
+        "RteDataMapping",
+        "RteTimingMapping"
+      ]
+    },
+    {
+      "shortName": "RteGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "RteDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneral/RteDevErrorDetect"
+        },
+        {
+          "shortName": "RteVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneral/RteVersionInfoApi"
+        },
+        {
+          "shortName": "RteSchMSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SchMSupport",
+          "detail": "SchMSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneral/RteSchMSupport"
+        },
+        {
+          "shortName": "RteMeasurementSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "MeasurementSupport",
+          "detail": "MeasurementSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteGeneral/RteMeasurementSupport"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "RteEventToTaskMapping",
+      "definition": "/AUTOSAR/EcucDefs/Rte/RteSwComponentInstance/RteEventToTaskMapping",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "RteSwComponentInstance",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "RteEventRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "RteEventRef",
+          "detail": "Reference to RteEvent",
+          "range": "",
+          "destination": "RteEvent",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteEventToTaskMapping/RteEventRef"
+        },
+        {
+          "shortName": "RteMappedToTaskRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "RteMappedToTaskRef",
+          "detail": "Reference to OsTask",
+          "range": "",
+          "destination": "OsTask",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteEventToTaskMapping/RteMappedToTaskRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "RteOsInteraction",
+      "definition": "/AUTOSAR/EcucDefs/Rte/RteOsInteraction",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "RteUseOsAlarm",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "UseOsAlarm",
+          "detail": "UseOsAlarm",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteOsInteraction/RteUseOsAlarm"
+        },
+        {
+          "shortName": "RteUseOsScheduleTable",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "UseOsScheduleTable",
+          "detail": "UseOsScheduleTable",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteOsInteraction/RteUseOsScheduleTable"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "RteDataMapping",
+      "definition": "/AUTOSAR/EcucDefs/Rte/RteSwComponentInstance/RteDataMapping",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "RteSwComponentInstance",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "RteDataElementRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "RteDataElementRef",
+          "detail": "Reference to RteDataElement",
+          "range": "",
+          "destination": "RteDataElement",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteDataMapping/RteDataElementRef"
+        },
+        {
+          "shortName": "RtePortPrototypeRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "RtePortPrototypeRef",
+          "detail": "Reference to RtePortPrototype",
+          "range": "",
+          "destination": "RtePortPrototype",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteDataMapping/RtePortPrototypeRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "RteTimingMapping",
+      "definition": "/AUTOSAR/EcucDefs/Rte/RteSwComponentInstance/RteTimingMapping",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "RteSwComponentInstance",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "RteTimingEventRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "RteTimingEventRef",
+          "detail": "Reference to RteEvent",
+          "range": "",
+          "destination": "RteEvent",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteTimingMapping/RteTimingEventRef"
+        },
+        {
+          "shortName": "RteMappedToTaskRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "RteMappedToTaskRef",
+          "detail": "Reference to OsTask",
+          "range": "",
+          "destination": "OsTask",
+          "definition": "/AUTOSAR/EcucDefs/Rte/RteTimingMapping/RteMappedToTaskRef"
         }
       ],
       "subContainers": []

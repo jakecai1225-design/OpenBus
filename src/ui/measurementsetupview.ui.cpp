@@ -1,11 +1,12 @@
 #include "measurementsetupview.h"
 #include "ui/measurementsetupview.gfx.h"
-#include "ui/thememanager.h"
 #include "utils/svg_icon.h"
 #include <QToolBar>
 #include <QAction>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QGridLayout>
 #include <QApplication>
 #include <QPainter>
 #include <QScrollBar>
@@ -37,23 +38,15 @@ void MeasurementSetupView::setupUi()
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
-    
-    // ---- Toolbar ----
-    m_toolbar = new QToolBar(this);
-    m_toolbar->setMovable(false);
-    m_toolbar->setIconSize(QSize(20, 20));
-    
-    const QString iconCol = ThemeManager::instance()->currentTheme().text;
-    m_startAct = m_toolbar->addAction(svgIcon(":/icons/play.svg", iconCol, 20), "开始");
-    
-    m_stopAct = m_toolbar->addAction(svgIcon(":/icons/stop.svg", iconCol, 20), "停止");
+
+    // Keep QActions for setRunning / shortcuts; no top toolbar strip.
+    m_toolbar = nullptr;
+    m_startAct = new QAction(tr("Start"), this);
+    m_replayAct = new QAction(tr("Replay"), this);
+    m_stopAct = new QAction(tr("Stop"), this);
     m_stopAct->setEnabled(false);
-    
-    m_toolbar->addSeparator();
-    
-    layout->addWidget(m_toolbar);
-    
-    // ---- Canvas ----
+
+    // ---- Canvas with Start / Replay / Stop overlay ----
     auto *scene = new SetupScene(this);
     m_scene = scene;
     m_view = new QGraphicsView(m_scene, this);
@@ -63,13 +56,97 @@ void MeasurementSetupView::setupUi()
     m_view->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_view->setDragMode(QGraphicsView::ScrollHandDrag);
     m_view->setFocusPolicy(Qt::NoFocus);
-    
-    layout->addWidget(m_view);
-    
-    // ---- Signal connections ----
+
+    auto *canvasHost = new QWidget(this);
+    auto *grid = new QGridLayout(canvasHost);
+    grid->setContentsMargins(0, 0, 0, 0);
+    grid->setSpacing(0);
+    grid->addWidget(m_view, 0, 0);
+
+    auto *ctrl = new QWidget(canvasHost);
+    ctrl->setObjectName(QStringLiteral("FlowCanvasControls"));
+    auto *ctrlLay = new QHBoxLayout(ctrl);
+    ctrlLay->setContentsMargins(12, 12, 12, 12);
+    ctrlLay->setSpacing(8);
+
+    const QString playCol = QStringLiteral("#FFFFFF");
+    const QString stopCol = QStringLiteral("#FFFFFF");
+
+    m_startBtn = new QToolButton(ctrl);
+    m_startBtn->setObjectName(QStringLiteral("FlowStartBtn"));
+    m_startBtn->setIcon(svgIcon(QStringLiteral(":/icons/play.svg"), playCol, 18));
+    m_startBtn->setIconSize(QSize(18, 18));
+    m_startBtn->setFixedSize(36, 36);
+    m_startBtn->setCursor(Qt::PointingHandCursor);
+    m_startBtn->setToolTip(tr("Start / continue measurement"));
+    m_startBtn->setAutoRaise(false);
+    m_startBtn->setStyleSheet(QStringLiteral(
+        "QToolButton#FlowStartBtn {"
+        "  background: %1; border: none; border-radius: 6px; }"
+        "QToolButton#FlowStartBtn:hover { background: %2; }"
+        "QToolButton#FlowStartBtn:pressed { background: %3; }"
+        "QToolButton#FlowStartBtn:disabled {"
+        "  background: %4; }")
+        .arg(QStringLiteral("#388A34"),
+             QStringLiteral("#2E7D32"),
+             QStringLiteral("#1B5E20"),
+             QStringLiteral("#A5D6A7")));
+
+    m_replayBtn = new QToolButton(ctrl);
+    m_replayBtn->setObjectName(QStringLiteral("FlowReplayBtn"));
+    m_replayBtn->setIcon(svgIcon(QStringLiteral(":/icons/refresh.svg"), playCol, 18));
+    m_replayBtn->setIconSize(QSize(18, 18));
+    m_replayBtn->setFixedSize(36, 36);
+    m_replayBtn->setCursor(Qt::PointingHandCursor);
+    m_replayBtn->setToolTip(tr("Replay: clear Trace/Graphic and start from the beginning"));
+    m_replayBtn->setAutoRaise(false);
+    m_replayBtn->setStyleSheet(QStringLiteral(
+        "QToolButton#FlowReplayBtn {"
+        "  background: %1; border: none; border-radius: 6px; }"
+        "QToolButton#FlowReplayBtn:hover { background: %2; }"
+        "QToolButton#FlowReplayBtn:pressed { background: %3; }"
+        "QToolButton#FlowReplayBtn:disabled {"
+        "  background: %4; }")
+        .arg(QStringLiteral("#007ACC"),   // VS Code blue
+             QStringLiteral("#005A9E"),
+             QStringLiteral("#004578"),
+             QStringLiteral("#9CDCFE")));
+
+    m_stopBtn = new QToolButton(ctrl);
+    m_stopBtn->setObjectName(QStringLiteral("FlowStopBtn"));
+    m_stopBtn->setIcon(svgIcon(QStringLiteral(":/icons/stop.svg"), stopCol, 16));
+    m_stopBtn->setIconSize(QSize(16, 16));
+    m_stopBtn->setFixedSize(36, 36);
+    m_stopBtn->setCursor(Qt::PointingHandCursor);
+    m_stopBtn->setToolTip(tr("Stop measurement"));
+    m_stopBtn->setEnabled(false);
+    m_stopBtn->setAutoRaise(false);
+    m_stopBtn->setStyleSheet(QStringLiteral(
+        "QToolButton#FlowStopBtn {"
+        "  background: %1; border: none; border-radius: 6px; }"
+        "QToolButton#FlowStopBtn:hover { background: %2; }"
+        "QToolButton#FlowStopBtn:pressed { background: %3; }"
+        "QToolButton#FlowStopBtn:disabled {"
+        "  background: %4; }")
+        .arg(QStringLiteral("#C72E0F"),
+             QStringLiteral("#B71C1C"),
+             QStringLiteral("#8B0000"),
+             QStringLiteral("#CFCFCF")));
+
+    ctrlLay->addWidget(m_startBtn);
+    ctrlLay->addWidget(m_replayBtn);
+    ctrlLay->addWidget(m_stopBtn);
+    grid->addWidget(ctrl, 0, 0, Qt::AlignTop | Qt::AlignLeft);
+
+    layout->addWidget(canvasHost, 1);
+
     connect(m_startAct, &QAction::triggered, this, &MeasurementSetupView::onStartClicked);
+    connect(m_replayAct, &QAction::triggered, this, &MeasurementSetupView::onReplayClicked);
     connect(m_stopAct, &QAction::triggered, this, &MeasurementSetupView::onStopClicked);
-    
+    connect(m_startBtn, &QToolButton::clicked, m_startAct, &QAction::trigger);
+    connect(m_replayBtn, &QToolButton::clicked, m_replayAct, &QAction::trigger);
+    connect(m_stopBtn, &QToolButton::clicked, m_stopAct, &QAction::trigger);
+
     connect(scene, &SetupScene::sceneClicked, this, &MeasurementSetupView::onSceneClicked);
     connect(scene, &SetupScene::sceneDoubleClicked, this, &MeasurementSetupView::onSceneDoubleClicked);
     connect(scene, &SetupScene::sceneRightClicked, this, &MeasurementSetupView::onSceneRightClicked);

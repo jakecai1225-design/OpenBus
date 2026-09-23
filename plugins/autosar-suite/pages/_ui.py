@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
-"""Shared quiet UI helpers for AUTOSAR Studio."""
+"""Shared quiet UI helpers for AUTOSAR Studio (VS Code theme tokens)."""
 
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QPushButton, QTreeWidget
 
-from _shared import codicons
+from _shared import codicons, vscode_theme
 
 TREE_STYLE = (
     "QTreeWidget#SuiteMatrix { border: none; outline: 0; }"
     "QTreeWidget#SuiteMatrix::item:selected {"
-    " background: #E3F2FD; color: #0D47A1; }"
-)
+    " background: %s; color: %s; }"
+) % (vscode_theme.ACCENT_SOFT, vscode_theme.TEXT)
 
 
 def ghost_btn(text, tip, icon=""):
@@ -37,7 +37,9 @@ def primary_btn(text, tip, icon="apply"):
 
 def quiet_label(text=""):
     lab = QLabel(text)
-    lab.setStyleSheet("color:#90A4AE;font-size:11px;")
+    lab.setObjectName("SuiteHint")
+    lab.setStyleSheet(
+        "color:%s;font-size:11px;" % vscode_theme.TEXT_MUTED)
     lab.setWordWrap(True)
     return lab
 
@@ -46,14 +48,15 @@ def tip_panel():
     lab = QLabel("")
     lab.setWordWrap(True)
     lab.setStyleSheet(
-        "color:#546E7A;font-size:12px;padding:8px;"
-        "background:#FAFAFA;border-left:3px solid #90CAF9;")
-    lab.setMinimumHeight(72)
+        "color:%s;font-size:12px;padding:6px 8px;"
+        "background:transparent;border-top:1px solid %s;" % (
+            vscode_theme.TEXT_MUTED, vscode_theme.BORDER_SOFT))
+    lab.setMinimumHeight(48)
     return lab
 
 
 def style_tree(tree: QTreeWidget):
     tree.setObjectName("SuiteMatrix")
-    tree.setAlternatingRowColors(True)
+    tree.setAlternatingRowColors(False)
     tree.setUniformRowHeights(True)
     tree.setStyleSheet(TREE_STYLE)

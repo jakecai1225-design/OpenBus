@@ -177,7 +177,8 @@ void SampleStore::ingestFrames(const QVector<CanFrame> &frames)
         return;
     {
         QMutexLocker lock(&m_queueMutex);
-        // Soft-cap: avoid unbounded QVector growth (crash after long runs)
+        // Soft-cap: avoid unbounded QVector growth (crash after long runs).
+        // Live bus only — offline bulk must use ingestFramesDirect() (no drop).
         constexpr int kMaxQueuedBatches = 32;
         constexpr int kMaxQueuedFrames = 65536;
         if (m_queuedFrames >= kMaxQueuedFrames && !m_ingestQueue.isEmpty()) {
@@ -194,6 +195,16 @@ void SampleStore::ingestFrames(const QVector<CanFrame> &frames)
         m_queuedFrames += frames.size();
     }
     emit ingestWake();
+}
+
+void SampleStore::ingestFramesDirect(const QVector<CanFrame> &frames)
+{
+    if (frames.isEmpty() || m_stopping.load())
+        return;
+    QVector<QPair<SampleKey, int>> touched;
+    ingestFramesLocked(frames, &touched);
+    for (const auto &t : touched)
+        emit seriesUpdated(t.first, t.second);
 }
 
 void SampleStore::processIngestQueue()
@@ -407,18 +418,22 @@ int SampleStore::downsampleFromBuckets(const QVector<LodBucket> &buckets,
         return out->size();
     }
 
+    // Bucket each display time-group independently. A single LOD bucket may span
+    // many groups — do NOT consume it on the first hit (that left middle gaps).
     out->reserve(bucketTarget * 2 + 2);
     const double span = (t2 - t1) / bucketTarget;
     int i = 0;
-    for (int g = 0; g < bucketTarget && i < buckets.size(); ++g) {
+    for (int g = 0; g < bucketTarget; ++g) {
         const double gStart = t1 + g * span;
         const double gEnd = gStart + span;
-        LodBucket merged;
-        bool has = false;
         while (i < buckets.size() && buckets.at(i).tLast < gStart)
             ++i;
-        while (i < buckets.size() && buckets.at(i).tFirst < gEnd) {
-            const LodBucket &b = buckets.at(i);
+        LodBucket merged;
+        bool has = false;
+        for (int j = i; j < buckets.size() && buckets.at(j).tFirst < gEnd; ++j) {
+            const LodBucket &b = buckets.at(j);
+            if (b.tLast < gStart)
+                continue;
             if (!has) {
                 merged = b;
                 has = true;
@@ -436,8 +451,11 @@ int SampleStore::downsampleFromBuckets(const QVector<LodBucket> &buckets,
                     merged.tAtMax = b.tAtMax;
                 }
             }
-            ++i;
         }
+        // Advance past buckets that end before this group ends; keep those that
+        // still overlap later groups.
+        while (i < buckets.size() && buckets.at(i).tLast < gEnd)
+            ++i;
         if (has)
             appendBucketPoints(out, merged.tAtMin, merged.vMin, merged.tAtMax, merged.vMax);
     }
@@ -536,7 +554,6 @@ int SampleStore::copyDownsampled(const SampleKey &key, double t1, double t2, int
     // Snapshot under lock. Prefer raw when viewport density is low enough that
     // every sample fits the display budget (zoom-in → true points; zoom-out → LOD).
     QVector<LodBucket> window;
-    int ringSize = 0;
     {
         QMutexLocker lock(&m_mutex);
         const Series *s = findSeries(key);
@@ -544,10 +561,9 @@ int SampleStore::copyDownsampled(const SampleKey &key, double t1, double t2, int
             out->clear();
             return 0;
         }
-        ringSize = s->ring.size();
 
         // Binary-search raw span in viewport (+1 bracketing sample each side).
-        const int n = ringSize;
+        const int n = s->ring.size();
         auto lowerBound = [&](double keyT) {
             int lo = 0, hi = n;
             while (lo < hi) {
@@ -574,6 +590,13 @@ int SampleStore::copyDownsampled(const SampleKey &key, double t1, double t2, int
             return out->size();
         }
 
+        // Prefer raw MinMax for the viewport: LOD display buckets previously
+        // skipped mid-span groups (visual holes while data was continuous).
+        // Raw path is O(inRange) with binary-searched bounds — fine for replot.
+        constexpr int kRawDownsampleMax = 400000;
+        if (inRange > 0 && inRange <= kRawDownsampleMax)
+            return downsampleRaw(s, t1, t2, targetPoints, out);
+
         window.reserve(s->lod.size() + 1);
         for (int i = 0; i < s->lod.size(); ++i) {
             const LodBucket &b = s->lod.at(i);
@@ -587,9 +610,13 @@ int SampleStore::copyDownsampled(const SampleKey &key, double t1, double t2, int
                 window.append(b);
         }
 
-        // Sparse / cold LOD: short raw MinMax while still holding lock
-        constexpr int kRawFallbackMax = 8192;
-        if (window.size() < 2 && ringSize <= kRawFallbackMax)
+        // LOD missing / sparse for this viewport → raw MinMax
+        if (window.size() < 2)
+            return downsampleRaw(s, t1, t2, targetPoints, out);
+        const double coverLo = window.first().tFirst;
+        const double coverHi = window.last().tLast;
+        const double pad = (t2 - t1) * 0.02;
+        if (coverLo > t1 + pad || coverHi < t2 - pad)
             return downsampleRaw(s, t1, t2, targetPoints, out);
     }
 

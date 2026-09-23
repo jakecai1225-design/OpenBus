@@ -1,7 +1,7 @@
 {
   "module": "CanNm",
   "definition": "/AUTOSAR/EcucDefs/CanNm",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "CanNmGlobalConfig",
@@ -16,9 +16,9 @@
           "kind": "numerical",
           "default": "10",
           "summary": "CanNmMainFunctionPeriod",
-          "detail": "",
+          "detail": "MainFunction period",
           "range": "",
-          "min": 0,
+          "min": 0.001,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmMainFunctionPeriod"
         },
@@ -27,7 +27,7 @@
           "kind": "numerical",
           "default": "100",
           "summary": "CanNmTimeoutTime",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CanNmTimeoutTime parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -38,19 +38,165 @@
           "kind": "string",
           "default": "Ecu",
           "summary": "CanNmEcuName",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CanNmEcuName parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmEcuName"
+        },
+        {
+          "shortName": "CanNmBusSynchronizationEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "BusSynchronizationEnabled",
+          "detail": "BusSynchronizationEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmBusSynchronizationEnabled"
+        },
+        {
+          "shortName": "CanNmBusLoadReductionEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "BusLoadReductionEnabled",
+          "detail": "BusLoadReductionEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmBusLoadReductionEnabled"
+        },
+        {
+          "shortName": "CanNmComControlEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ComControlEnabled",
+          "detail": "ComControlEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmComControlEnabled"
+        },
+        {
+          "shortName": "CanNmComUserDataSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ComUserDataSupport",
+          "detail": "ComUserDataSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmComUserDataSupport"
+        },
+        {
+          "shortName": "CanNmCoordinatorSyncSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CoordinatorSyncSupport",
+          "detail": "CoordinatorSyncSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmCoordinatorSyncSupport"
+        },
+        {
+          "shortName": "CanNmDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmDevErrorDetect"
+        },
+        {
+          "shortName": "CanNmImmediateRestartEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ImmediateRestartEnabled",
+          "detail": "ImmediateRestartEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmImmediateRestartEnabled"
+        },
+        {
+          "shortName": "CanNmImmediateTxConfEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ImmediateTxConfEnabled",
+          "detail": "ImmediateTxConfEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmImmediateTxConfEnabled"
+        },
+        {
+          "shortName": "CanNmNodeDetectionEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "NodeDetectionEnabled",
+          "detail": "NodeDetectionEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmNodeDetectionEnabled"
+        },
+        {
+          "shortName": "CanNmNodeIdEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "NodeIdEnabled",
+          "detail": "NodeIdEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmNodeIdEnabled"
+        },
+        {
+          "shortName": "CanNmPassiveModeEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PassiveModeEnabled",
+          "detail": "PassiveModeEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmPassiveModeEnabled"
+        },
+        {
+          "shortName": "CanNmPduRxIndicationEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PduRxIndicationEnabled",
+          "detail": "PduRxIndicationEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmPduRxIndicationEnabled"
+        },
+        {
+          "shortName": "CanNmRemoteSleepIndEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "RemoteSleepIndEnabled",
+          "detail": "RemoteSleepIndEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmRemoteSleepIndEnabled"
+        },
+        {
+          "shortName": "CanNmStateChangeIndEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "StateChangeIndEnabled",
+          "detail": "StateChangeIndEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmStateChangeIndEnabled"
+        },
+        {
+          "shortName": "CanNmUserDataEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "UserDataEnabled",
+          "detail": "UserDataEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmUserDataEnabled"
+        },
+        {
+          "shortName": "CanNmVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmVersionInfoApi"
         }
       ],
-      "subContainers": []
+      "subContainers": [
+        "CanNmChannelConfig"
+      ]
     },
     {
       "shortName": "CanNmChannelConfig",
-      "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig",
+      "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmGlobalConfig/CanNmChannelConfig",
       "lowerMultiplicity": 0,
       "upperMultiplicity": "*",
-      "parent": "",
+      "parent": "CanNmGlobalConfig",
       "seed": true,
       "params": [
         {
@@ -58,7 +204,7 @@
           "kind": "numerical",
           "default": "0",
           "summary": "CanNmChannelId",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs CanNmChannelId parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
@@ -69,9 +215,9 @@
           "kind": "numerical",
           "default": "20",
           "summary": "CanNmMsgCycleTime",
-          "detail": "",
+          "detail": "Msg cycle time ms",
           "range": "",
-          "min": 0,
+          "min": 1,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmMsgCycleTime"
         },
@@ -80,7 +226,7 @@
           "kind": "numerical",
           "default": "0",
           "summary": "CanNmNodeId",
-          "detail": "",
+          "detail": "Node Id",
           "range": "",
           "min": 0,
           "max": 255,
@@ -91,11 +237,111 @@
           "kind": "numerical",
           "default": "50",
           "summary": "CanNmWaitBusSleepTime",
-          "detail": "",
+          "detail": "Wait bus sleep",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmWaitBusSleepTime"
+        },
+        {
+          "shortName": "CanNmMsgCycleOffset",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Msg cycle offset",
+          "detail": "Msg cycle offset",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmMsgCycleOffset"
+        },
+        {
+          "shortName": "CanNmMsgTimeoutTime",
+          "kind": "numerical",
+          "default": "1000",
+          "summary": "Msg timeout ms",
+          "detail": "Msg timeout ms",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmMsgTimeoutTime"
+        },
+        {
+          "shortName": "CanNmRepeatMessageTime",
+          "kind": "numerical",
+          "default": "1500",
+          "summary": "Repeat msg time",
+          "detail": "Repeat msg time",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmRepeatMessageTime"
+        },
+        {
+          "shortName": "CanNmTimeoutTime",
+          "kind": "numerical",
+          "default": "2000",
+          "summary": "Timeout time",
+          "detail": "Timeout time",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmTimeoutTime"
+        },
+        {
+          "shortName": "CanNmComMNetworkHandleRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanNmComMNetworkHandleRef",
+          "detail": "Reference to ComMChannel",
+          "range": "",
+          "destination": "ComMChannel",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmComMNetworkHandleRef"
+        },
+        {
+          "shortName": "CanNmTxPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "CanNmTxPduRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmTxPduRef"
+        },
+        {
+          "shortName": "CanNmActiveWakeupBitEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ActiveWakeupBitEnabled",
+          "detail": "ActiveWakeupBitEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmActiveWakeupBitEnabled"
+        },
+        {
+          "shortName": "CanNmNodeDetectionEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "NodeDetectionEnabled",
+          "detail": "NodeDetectionEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmNodeDetectionEnabled"
+        },
+        {
+          "shortName": "CanNmPnEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PnEnabled",
+          "detail": "PnEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmPnEnabled"
+        },
+        {
+          "shortName": "CanNmPnHandleMultipleNetworkRequests",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PnHandleMultipleNetworkRequests",
+          "detail": "PnHandleMultipleNetworkRequests",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanNm/CanNmChannelConfig/CanNmPnHandleMultipleNetworkRequests"
         }
       ],
       "subContainers": []

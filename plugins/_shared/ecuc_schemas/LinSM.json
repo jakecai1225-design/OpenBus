@@ -1,7 +1,7 @@
 {
   "module": "LinSM",
   "definition": "/AUTOSAR/EcucDefs/LinSM",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "LinSMConfigSet",
@@ -16,7 +16,7 @@
           "kind": "string",
           "default": "",
           "summary": "LinSMChannel",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs LinSMChannel parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/LinSM/LinSMConfigSet/LinSMChannel"
         },
@@ -25,7 +25,7 @@
           "kind": "string",
           "default": "",
           "summary": "LinSMScheduleTable",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs LinSMScheduleTable parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/LinSM/LinSMConfigSet/LinSMScheduleTable"
         }
@@ -45,7 +45,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "LinSMDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/LinSM/LinSMGeneral/LinSMDevErrorDetect"
         },
@@ -54,11 +54,43 @@
           "kind": "numerical",
           "default": "10",
           "summary": "LinSMMainFunctionPeriod",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs LinSMMainFunctionPeriod parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/LinSM/LinSMGeneral/LinSMMainFunctionPeriod"
+        },
+        {
+          "shortName": "LinSMVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinSM/LinSMGeneral/LinSMVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "LinSMChannel"
+      ]
+    },
+    {
+      "shortName": "LinSMChannel",
+      "definition": "/AUTOSAR/EcucDefs/LinSM/LinSMGeneral/LinSMChannel",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "LinSMGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "LinSMComMNetworkHandleRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "LinSMComMNetworkHandleRef",
+          "detail": "Reference to ComMChannel",
+          "range": "",
+          "destination": "ComMChannel",
+          "definition": "/AUTOSAR/EcucDefs/LinSM/LinSMChannel/LinSMComMNetworkHandleRef"
         }
       ],
       "subContainers": []

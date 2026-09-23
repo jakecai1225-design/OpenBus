@@ -1,7 +1,7 @@
 {
   "module": "WdgM",
   "definition": "/AUTOSAR/EcucDefs/WdgM",
-  "autosarRelease": "R20-11",
+  "autosarRelease": "R22-11",
   "containers": [
     {
       "shortName": "WdgMConfigSet",
@@ -14,18 +14,20 @@
         {
           "shortName": "WdgMMode",
           "kind": "string",
-          "default": "",
+          "default": "0",
           "summary": "WdgMMode",
-          "detail": "",
+          "detail": "Mode",
           "range": "",
-          "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMConfigSet/WdgMMode"
+          "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMConfigSet/WdgMMode",
+          "min": 0,
+          "max": 255
         },
         {
           "shortName": "WdgMSupervisedEntity",
           "kind": "string",
           "default": "",
           "summary": "WdgMSupervisedEntity",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs WdgMSupervisedEntity parameter.",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMConfigSet/WdgMSupervisedEntity"
         }
@@ -45,7 +47,7 @@
           "kind": "boolean",
           "default": "false",
           "summary": "WdgMDevErrorDetect",
-          "detail": "",
+          "detail": "DevErrorDetect",
           "range": "",
           "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMGeneral/WdgMDevErrorDetect"
         },
@@ -54,11 +56,20 @@
           "kind": "numerical",
           "default": "10",
           "summary": "WdgMMainFunctionPeriod",
-          "detail": "",
+          "detail": "AUTOSAR EcucDefs WdgMMainFunctionPeriod parameter.",
           "range": "",
           "min": 0,
           "max": 65535,
           "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMGeneral/WdgMMainFunctionPeriod"
+        },
+        {
+          "shortName": "WdgMVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMGeneral/WdgMVersionInfoApi"
         }
       ],
       "subContainers": []
