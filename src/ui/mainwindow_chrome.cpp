@@ -41,6 +41,7 @@
 #include "utils/canutils.h"
 #include "core/appconfig.h"
 #include "core/projectmanager.h"
+#include "core/translationmanager.h"
 #include "utils/svg_icon.h"
 #include "ui/settingspage.h"
 #include "ui/shortcutspage.h"
@@ -81,10 +82,10 @@
 #include <QSlider>
 #include <QComboBox>
 #include <QProgressDialog>
+#include <QEvent>
 #include <QPointer>
 #include <QRegularExpression>
 #include <functional>
-#include <QRegularExpression>
 #include <algorithm>
 
 #ifdef Q_OS_WIN
@@ -104,105 +105,101 @@
 
 void MainWindow::createMenuBar()
 {
-    // ---- 文件 ----
-    auto *fileMenu = menuBar()->addMenu("文件(&F)");
+    m_fileMenu = menuBar()->addMenu(tr("File(&F)"));
 
-    m_openAction = new QAction("打开文件...", this);
+    m_openAction = new QAction(tr("Open File..."), this);
     m_openAction->setShortcut(QKeySequence::Open);
-    m_openAction->setToolTip("打开报文文件 (BLF/ASC/CSV/PCAP/TRC) 或 DBC 文件");
-    fileMenu->addAction(m_openAction);
+    m_openAction->setToolTip(tr("Open message file (BLF/ASC/CSV/PCAP/TRC) or DBC file"));
+    m_fileMenu->addAction(m_openAction);
     connect(m_openAction, &QAction::triggered, this, &MainWindow::onOpenFile);
 
-    auto *openProj = new QAction("打开工程...", this);
-    openProj->setShortcut(QKeySequence("Ctrl+Shift+O"));
-    fileMenu->addAction(openProj);
-    connect(openProj, &QAction::triggered, this, &MainWindow::onOpenProject);
+    m_openProjectAction = new QAction(tr("Open Project..."), this);
+    m_openProjectAction->setShortcut(QKeySequence("Ctrl+Shift+O"));
+    m_fileMenu->addAction(m_openProjectAction);
+    connect(m_openProjectAction, &QAction::triggered, this, &MainWindow::onOpenProject);
 
-    auto *saveProj = new QAction("保存工程", this);
-    saveProj->setShortcut(QKeySequence("Ctrl+Shift+S"));
-    fileMenu->addAction(saveProj);
-    connect(saveProj, &QAction::triggered, this, &MainWindow::onSaveProject);
+    m_saveProjectAction = new QAction(tr("Save Project"), this);
+    m_saveProjectAction->setShortcut(QKeySequence("Ctrl+Shift+S"));
+    m_fileMenu->addAction(m_saveProjectAction);
+    connect(m_saveProjectAction, &QAction::triggered, this, &MainWindow::onSaveProject);
 
-    fileMenu->addSeparator();
+    m_fileMenu->addSeparator();
 
-    m_importAction = new QAction("导入日志文件...", this);
+    m_importAction = new QAction(tr("Import Log File..."), this);
     m_importAction->setShortcut(QKeySequence("Ctrl+I"));
-    m_importAction->setToolTip("导入 BLF/ASC/CSV 日志文件到 Trace");
-    fileMenu->addAction(m_importAction);
+    m_importAction->setToolTip(tr("Import BLF/ASC/CSV log into Trace"));
+    m_fileMenu->addAction(m_importAction);
     connect(m_importAction, &QAction::triggered, this, &MainWindow::onImportLog);
 
-    fileMenu->addSeparator();
-    fileMenu->addAction("退出(&Q)", QKeySequence("Alt+F4"), this, &QApplication::quit);
+    m_fileMenu->addSeparator();
+    m_quitAction = m_fileMenu->addAction(tr("E&xit"), QKeySequence("Alt+F4"),
+                                         this, &QApplication::quit);
 
-    // ---- 视图 ----
-    auto *viewMenu = menuBar()->addMenu("视图(&V)");
+    m_viewMenu = menuBar()->addMenu(tr("View(&V)"));
 
-    auto *toggleLeft = new QAction("左侧栏", this);
-    toggleLeft->setCheckable(true);
-    toggleLeft->setChecked(true);
-    viewMenu->addAction(toggleLeft);
-    connect(toggleLeft, &QAction::triggered, this, &MainWindow::toggleLeftDock);
+    m_toggleLeftAction = new QAction(tr("Left Sidebar"), this);
+    m_toggleLeftAction->setCheckable(true);
+    m_toggleLeftAction->setChecked(true);
+    m_viewMenu->addAction(m_toggleLeftAction);
+    connect(m_toggleLeftAction, &QAction::triggered, this, &MainWindow::toggleLeftDock);
 
-    auto *toggleBottom = new QAction("底部栏", this);
-    toggleBottom->setCheckable(true);
-    toggleBottom->setChecked(false);
-    viewMenu->addAction(toggleBottom);
-    connect(toggleBottom, &QAction::triggered, this, &MainWindow::toggleBottomDock);
+    m_toggleBottomAction = new QAction(tr("Bottom Panel"), this);
+    m_toggleBottomAction->setCheckable(true);
+    m_toggleBottomAction->setChecked(false);
+    m_viewMenu->addAction(m_toggleBottomAction);
+    connect(m_toggleBottomAction, &QAction::triggered, this, &MainWindow::toggleBottomDock);
 
-    auto *toggleRight = new QAction("右侧栏", this);
-    toggleRight->setCheckable(true);
-    toggleRight->setChecked(false);
-    viewMenu->addAction(toggleRight);
-    connect(toggleRight, &QAction::triggered, this, &MainWindow::toggleRightDock);
+    m_toggleRightAction = new QAction(tr("Right Sidebar"), this);
+    m_toggleRightAction->setCheckable(true);
+    m_toggleRightAction->setChecked(false);
+    m_viewMenu->addAction(m_toggleRightAction);
+    connect(m_toggleRightAction, &QAction::triggered, this, &MainWindow::toggleRightDock);
 
-    viewMenu->addSeparator();
-    viewMenu->addAction(QStringLiteral("Welcome"), this, &MainWindow::onOpenWelcomeTab);
-    viewMenu->addAction("重置布局", this, &MainWindow::resetLayout);
+    m_viewMenu->addSeparator();
+    m_welcomeAction = m_viewMenu->addAction(tr("Welcome"), this, &MainWindow::onOpenWelcomeTab);
+    m_resetLayoutAction = m_viewMenu->addAction(tr("Reset Layout"), this, &MainWindow::resetLayout);
 
-    // ---- 工具 ----
-    // 原“工具集/协议”侧边栏功能已插件化（blf-converter / dbc-tool / bus-statistics /
-    // uds-diagnostic / canopen-explorer），在「插件市场」安装使用；内置工具保留在此菜单
-    auto *toolsMenu = menuBar()->addMenu("工具(&T)");
-    toolsMenu->addAction("Data Window", QKeySequence("Ctrl+Shift+D"),
+    m_toolsMenu = menuBar()->addMenu(tr("Tools(&T)"));
+    m_dataWindowAction = m_toolsMenu->addAction(tr("Data Window"), QKeySequence("Ctrl+Shift+D"),
                          this, &MainWindow::onOpenDataWindow);
-    toolsMenu->addAction("I/O Graph", QKeySequence("Ctrl+Shift+G"),
+    m_ioGraphAction = m_toolsMenu->addAction(tr("I/O Graph"), QKeySequence("Ctrl+Shift+G"),
                          this, &MainWindow::onOpenIOGraph);
-    toolsMenu->addAction("Watcher 观测", QKeySequence("Ctrl+Shift+W"),
+    m_watcherAction = m_toolsMenu->addAction(tr("Watcher"), QKeySequence("Ctrl+Shift+W"),
                          this, &MainWindow::onOpenWatcher);
-    toolsMenu->addSeparator();
-    toolsMenu->addAction("着色规则编辑器...", this, &MainWindow::onOpenColorRuleEditor);
+    m_toolsMenu->addSeparator();
+    m_colorRuleAction = m_toolsMenu->addAction(tr("Color Rule Editor..."), this,
+                                               &MainWindow::onOpenColorRuleEditor);
 
-    // ---- 工具操作 (不创建菜单, QAction 挂到主窗口, 快捷键仍然生效) ----
-    m_recordAction = new QAction("录制", this);
+    m_recordAction = new QAction(tr("Record"), this);
     m_recordAction->setCheckable(true);
     m_recordAction->setShortcut(QKeySequence("Ctrl+R"));
     addAction(m_recordAction);
     connect(m_recordAction, &QAction::triggered, this, &MainWindow::onRecord);
 
-    m_playAction = new QAction("播放", this);
+    m_playAction = new QAction(tr("Play"), this);
     m_playAction->setShortcut(QKeySequence(Qt::Key_Space));
     addAction(m_playAction);
     connect(m_playAction, &QAction::triggered, this, &MainWindow::onPlay);
 
-    m_pauseAction = new QAction("暂停", this);
+    m_pauseAction = new QAction(tr("Pause"), this);
     addAction(m_pauseAction);
     connect(m_pauseAction, &QAction::triggered, this, &MainWindow::onPause);
 
-    m_stopAction = new QAction("停止", this);
+    m_stopAction = new QAction(tr("Stop"), this);
     addAction(m_stopAction);
     connect(m_stopAction, &QAction::triggered, this, &MainWindow::onStop);
 
-    m_clearAction = new QAction("清空 Trace", this);
+    m_clearAction = new QAction(tr("Clear Trace"), this);
     addAction(m_clearAction);
     connect(m_clearAction, &QAction::triggered, this, &MainWindow::onClear);
 
-    m_autoScrollAction = new QAction("自动滚动", this);
+    m_autoScrollAction = new QAction(tr("Auto-scroll"), this);
     m_autoScrollAction->setCheckable(true);
     m_autoScrollAction->setChecked(true);
     addAction(m_autoScrollAction);
     connect(m_autoScrollAction, &QAction::toggled, this, &MainWindow::onAutoScrollToggled);
 
-    m_simAction = new QAction("模拟器开关", this);
+    m_simAction = new QAction(tr("Simulator"), this);
     m_simAction->setCheckable(true);
     addAction(m_simAction);
     connect(m_simAction, &QAction::toggled, this, [this](bool on) {
@@ -210,39 +207,99 @@ void MainWindow::createMenuBar()
         else    m_simulator->stop();
     });
 
-    // ---- 插件入口已统一至插件市场（侧边栏迷你市场 + 插件市场页，方案 §13.10） ----
-
-    // ---- 帮助 ----
-    auto *helpMenu = menuBar()->addMenu("帮助(&H)");
-
-    helpMenu->addAction(QStringLiteral("Welcome"), this, &MainWindow::onOpenWelcomeTab);
-    helpMenu->addSeparator();
-    helpMenu->addAction("关于 openbus", this, &MainWindow::showAboutDialog);
-    helpMenu->addSeparator();
-    helpMenu->addAction("文档", this, []() {
+    m_helpMenu = menuBar()->addMenu(tr("Help(&H)"));
+    m_helpMenu->addAction(tr("Welcome"), this, &MainWindow::onOpenWelcomeTab);
+    m_helpMenu->addSeparator();
+    m_aboutAction = m_helpMenu->addAction(tr("About openbus"), this, &MainWindow::showAboutDialog);
+    m_helpMenu->addSeparator();
+    m_docsAction = m_helpMenu->addAction(tr("Documentation"), this, []() {
         QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus"));
     });
-    helpMenu->addAction("官方网站", this, []() {
+    m_helpMenu->addAction(QStringLiteral("Website"), this, []() {
         QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus"));
     });
-    helpMenu->addAction("Gitee 仓库", this, []() {
+    m_helpMenu->addAction(QStringLiteral("Gitee"), this, []() {
         QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus"));
     });
-    helpMenu->addSeparator();
-    helpMenu->addAction("报告问题", this, []() {
+    m_helpMenu->addSeparator();
+    m_helpMenu->addAction(QStringLiteral("Report Issue"), this, []() {
         QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus/issues"));
     });
-    helpMenu->addAction("检查更新", this, &MainWindow::showCheckUpdate);
-    helpMenu->addAction("发版记录", this, &MainWindow::showReleaseNotes);
-    helpMenu->addSeparator();
-    helpMenu->addAction("快捷键", this, &MainWindow::showShortcuts);
-    helpMenu->addAction("许可证", this, &MainWindow::showLicenseDialog);
-    helpMenu->addSeparator();
-    helpMenu->addAction("商业合作", this, &MainWindow::showBusinessCoop);
+    m_helpMenu->addAction(QStringLiteral("Check for Updates"), this, &MainWindow::showCheckUpdate);
+    m_helpMenu->addAction(QStringLiteral("Release Notes"), this, &MainWindow::showReleaseNotes);
+    m_helpMenu->addSeparator();
+    m_helpMenu->addAction(QStringLiteral("Keyboard Shortcuts"), this, &MainWindow::showShortcuts);
+    m_helpMenu->addAction(QStringLiteral("License"), this, &MainWindow::showLicenseDialog);
+    m_helpMenu->addSeparator();
+    m_helpMenu->addAction(QStringLiteral("Business"), this, &MainWindow::showBusinessCoop);
+}
+
+void MainWindow::retranslateUi()
+{
+    if (m_fileMenu) m_fileMenu->setTitle(tr("File(&F)"));
+    if (m_viewMenu) m_viewMenu->setTitle(tr("View(&V)"));
+    if (m_toolsMenu) m_toolsMenu->setTitle(tr("Tools(&T)"));
+    if (m_helpMenu) m_helpMenu->setTitle(tr("Help(&H)"));
+
+    if (m_openAction) {
+        m_openAction->setText(tr("Open File..."));
+        m_openAction->setToolTip(tr("Open message file (BLF/ASC/CSV/PCAP/TRC) or DBC file"));
+    }
+    if (m_openProjectAction) m_openProjectAction->setText(tr("Open Project..."));
+    if (m_saveProjectAction) m_saveProjectAction->setText(tr("Save Project"));
+    if (m_importAction) {
+        m_importAction->setText(tr("Import Log File..."));
+        m_importAction->setToolTip(tr("Import BLF/ASC/CSV log into Trace"));
+    }
+    if (m_quitAction) m_quitAction->setText(tr("E&xit"));
+    if (m_toggleLeftAction) m_toggleLeftAction->setText(tr("Left Sidebar"));
+    if (m_toggleBottomAction) m_toggleBottomAction->setText(tr("Bottom Panel"));
+    if (m_toggleRightAction) m_toggleRightAction->setText(tr("Right Sidebar"));
+    if (m_welcomeAction) m_welcomeAction->setText(tr("Welcome"));
+    if (m_resetLayoutAction) m_resetLayoutAction->setText(tr("Reset Layout"));
+    if (m_dataWindowAction) m_dataWindowAction->setText(tr("Data Window"));
+    if (m_ioGraphAction) m_ioGraphAction->setText(tr("I/O Graph"));
+    if (m_watcherAction) m_watcherAction->setText(tr("Watcher"));
+    if (m_colorRuleAction) m_colorRuleAction->setText(tr("Color Rule Editor..."));
+    if (m_recordAction) m_recordAction->setText(tr("Record"));
+    if (m_playAction) m_playAction->setText(tr("Play"));
+    if (m_pauseAction) m_pauseAction->setText(tr("Pause"));
+    if (m_stopAction) m_stopAction->setText(tr("Stop"));
+    if (m_clearAction) m_clearAction->setText(tr("Clear Trace"));
+    if (m_autoScrollAction) m_autoScrollAction->setText(tr("Auto-scroll"));
+    if (m_simAction) m_simAction->setText(tr("Simulator"));
+    if (m_aboutAction) m_aboutAction->setText(tr("About openbus"));
+    if (m_docsAction) m_docsAction->setText(tr("Documentation"));
+
+    if (m_statusLabel && m_statusLabel->text() == QStringLiteral("Ready"))
+        m_statusLabel->setText(tr("Ready"));
+    else if (m_statusLabel) {
+        // Keep dynamic status; only refresh the idle default if it matches known keys
+        const QString t = m_statusLabel->text();
+        if (t == QLatin1String("就绪") || t == QLatin1String("Ready"))
+            m_statusLabel->setText(tr("Ready"));
+    }
+
+    if (m_activityBar)
+        m_activityBar->retranslateUi();
+    if (m_settingsPage)
+        m_settingsPage->retranslateUi();
+}
+
+void MainWindow::onLanguageChanged(const QString &locale)
+{
+    retranslateUi();
+    flowInvoke(QStringLiteral("retranslate"));
+    traceInvoke(QStringLiteral("retranslate"));
+    graphicInvoke(QStringLiteral("retranslate"));
+    transceiveInvoke(QStringLiteral("retranslate"));
+    marketInvoke(QStringLiteral("retranslate"));
+    if (m_pluginManager)
+        m_pluginManager->notifyLanguageChanged(locale);
 }
 
 // ============================================================
-//  窗口控制按钮
+//  Window control buttons
 // ============================================================
 
 void MainWindow::createWindowButtons()
@@ -627,8 +684,9 @@ void MainWindow::refreshWindowButtonIcons()
 
 void MainWindow::syncLayoutToggleButtons()
 {
-    if (m_layoutLeftBtn && m_leftDock)
-        m_layoutLeftBtn->setChecked(m_leftDock->isVisible());
+    // Left toggle reflects SideBar panel, not the ActivityBar dock strip.
+    if (m_layoutLeftBtn)
+        m_layoutLeftBtn->setChecked(m_sideBarVisible);
     if (m_layoutBottomBtn && m_bottomDock)
         m_layoutBottomBtn->setChecked(m_bottomDock->isVisible());
     if (m_layoutRightBtn && m_rightDock)
@@ -638,7 +696,9 @@ void MainWindow::syncLayoutToggleButtons()
 void MainWindow::changeEvent(QEvent *event)
 {
     QMainWindow::changeEvent(event);
-    // Aero Snap / 双击标题栏等途径也会切换最大化状态 → 同步最大化/还原图标
+    if (event->type() == QEvent::LanguageChange)
+        retranslateUi();
+    // Aero Snap / title-bar double-click also toggles maximize → sync icon
     if (event->type() == QEvent::WindowStateChange && m_maxBtn)
         refreshWindowButtonIcons();
 }
@@ -649,7 +709,14 @@ void MainWindow::changeEvent(QEvent *event)
 
 void MainWindow::createLayout()
 {
-    // ---- 左侧 Dock ----
+    // VS Code dock corners: side bars own full height; bottom/right panels
+    // only meet the editor — they do not run under the left sidebar.
+    setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
+    setCorner(Qt::BottomRightCorner, Qt::RightDockWidgetArea);
+    setCorner(Qt::TopLeftCorner, Qt::LeftDockWidgetArea);
+    setCorner(Qt::TopRightCorner, Qt::RightDockWidgetArea);
+
+    // ---- Left dock ----
     auto *leftContainer = new QWidget(this);
     leftContainer->setObjectName("LeftContainer");
     leftContainer->setAttribute(Qt::WA_StyledBackground, true);
@@ -756,7 +823,7 @@ void MainWindow::createLayout()
 
 void MainWindow::createStatusBar()
 {
-    m_statusLabel = new QLabel(QStringLiteral("Ready"), this);
+    m_statusLabel = new QLabel(tr("Ready"), this);
     m_connLabel = new QLabel(QStringLiteral("Disconnected"), this);
     m_errorLabel = new QLabel(QString(), this);
     m_tabLabel = new QLabel(QStringLiteral("Trace"), this);
@@ -787,16 +854,10 @@ void MainWindow::createStatusBar()
 void MainWindow::onActivityChanged(int activity)
 {
     m_sideBar->showPanel(activity);
-    if (!m_sideBarVisible) {
-        // 从收起状态展开：恢复 dock 宽度
-        m_sideBar->setVisible(true);
-        m_leftDock->setMinimumWidth(0);
-        m_leftDock->setMaximumWidth(QWIDGETSIZE_MAX);
-        m_leftDock->resize(m_savedDockWidth, m_leftDock->height());
-        m_sideBarVisible = true;
-    }
+    if (!m_sideBarVisible)
+        setSideBarExpanded(true);
 
-    // 联动主标签页
+    // Link editor tabs to activity
     if (activity == ActivityBar::Trace) {
         // 在所有拆分组中查找 Trace 标签页
         const auto allTabs = m_editorArea->allTabWidgets();
@@ -882,30 +943,43 @@ void MainWindow::onActivityChanged(int activity)
 
 void MainWindow::onActivityToggled(int)
 {
-    if (m_sideBarVisible) {
-        // 收起：保存当前宽度，将 dock 缩小到仅 ActivityBar 宽度
-        m_savedDockWidth = m_leftDock->width();
+    setSideBarExpanded(!m_sideBarVisible);
+}
+
+void MainWindow::setSideBarExpanded(bool expanded)
+{
+    if (!m_leftDock || !m_sideBar || !m_activityBar)
+        return;
+
+    // ActivityBar strip always stays; only the SideBar panel collapses.
+    m_leftDock->setVisible(true);
+
+    if (!expanded) {
+        if (m_sideBarVisible)
+            m_savedDockWidth = qMax(200, m_leftDock->width());
         m_sideBar->setVisible(false);
-        m_leftDock->setFixedWidth(m_activityBar->width());
+        const int w = qMax(48, m_activityBar->sizeHint().width());
+        m_leftDock->setMinimumWidth(w);
+        m_leftDock->setMaximumWidth(w);
+        resizeDocks({m_leftDock}, {w}, Qt::Horizontal);
     } else {
-        // 展开：恢复保存的宽度
         m_sideBar->setVisible(true);
         m_leftDock->setMinimumWidth(0);
         m_leftDock->setMaximumWidth(QWIDGETSIZE_MAX);
-        m_leftDock->resize(m_savedDockWidth, m_leftDock->height());
+        const int w = m_savedDockWidth > 48 ? m_savedDockWidth : 280;
+        resizeDocks({m_leftDock}, {w}, Qt::Horizontal);
     }
-    m_sideBarVisible = !m_sideBarVisible;
+    m_sideBarVisible = expanded;
+    syncLayoutToggleButtons();
 }
 
-
 // ============================================================
-//  视图菜单
+//  View menu / layout toggles
 // ============================================================
 
 void MainWindow::toggleLeftDock()
 {
-    m_leftDock->setVisible(!m_leftDock->isVisible());
-    syncLayoutToggleButtons();
+    setSideBarExpanded(!m_sideBarVisible);
 }
 
 void MainWindow::toggleRightDock()
@@ -923,6 +997,7 @@ void MainWindow::toggleBottomDock()
 void MainWindow::resetLayout()
 {
     m_leftDock->setVisible(true);
+    setSideBarExpanded(true);
     m_rightDock->setVisible(true);
     m_bottomDock->setVisible(true);
     resizeDocks({m_leftDock}, {280}, Qt::Horizontal);

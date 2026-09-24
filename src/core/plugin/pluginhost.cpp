@@ -1,6 +1,7 @@
 #include "pluginhost.h"
 #include "pluginzmq.h"
 #include "core/logging.h"
+#include "core/appconfig.h"
 
 #include <QProcess>
 #include <QJsonObject>
@@ -119,6 +120,10 @@ bool PluginHost::start(const QString &pythonExe, const QString &hostScript,
         env.insert(QStringLiteral("SIN_PLUGINS_DIR"), pluginsDir);
     env.insert(QStringLiteral("SIN_ZMQ_CTRL"), m_zmq->ctrlEndpoint());
     env.insert(QStringLiteral("SIN_ZMQ_DATA"), m_zmq->dataEndpoint());
+    const QString lang = AppConfig::instance()->getString(
+        QStringLiteral("ui.language"), QStringLiteral("en"));
+    if (!lang.isEmpty())
+        env.insert(QStringLiteral("SIN_UI_LANGUAGE"), lang);
     m_process->setProcessEnvironment(env);
 
     connect(m_process, &QProcess::readyReadStandardError, this, [this]() {

@@ -51,7 +51,8 @@ void MeasurementSetupView::setupUi()
     m_scene = scene;
     m_view = new QGraphicsView(m_scene, this);
     m_view->setRenderHint(QPainter::Antialiasing);
-    m_view->setBackgroundBrush(QColor(0xf5, 0xf5, 0xf5));
+    m_view->setBackgroundBrush(QColor(0xff, 0xff, 0xff));
+    m_view->setFrameShape(QFrame::NoFrame);
     m_view->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_view->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_view->setDragMode(QGraphicsView::ScrollHandDrag);
@@ -152,8 +153,24 @@ void MeasurementSetupView::setupUi()
     connect(scene, &SetupScene::sceneRightClicked, this, &MeasurementSetupView::onSceneRightClicked);
 }
 
+void MeasurementSetupView::retranslateUi()
+{
+    if (m_startAct)
+        m_startAct->setText(tr("Start"));
+    if (m_replayAct)
+        m_replayAct->setText(tr("Replay"));
+    if (m_stopAct)
+        m_stopAct->setText(tr("Stop"));
+    if (m_startBtn)
+        m_startBtn->setToolTip(tr("Start / continue measurement"));
+    if (m_replayBtn)
+        m_replayBtn->setToolTip(tr("Replay: clear Trace/Graphic and start from the beginning"));
+    if (m_stopBtn)
+        m_stopBtn->setToolTip(tr("Stop measurement"));
+}
+
 // ============================================================
-//  buildTopology — 拓扑构建（块 + 连线定义）
+//  buildTopology — topology (blocks + connections)
 // ============================================================
 
 void MeasurementSetupView::buildTopology()

@@ -127,6 +127,13 @@ void TransceiveModule::invoke(const QString &action, const QVariant &arg)
         if (QWidget *w = m_pages.value(QStringLiteral("playback")))
             if (auto *tab = qobject_cast<PlaybackTab *>(w))
                 tab->loadConfig(arg.toMap());
+    } else if (action == QStringLiteral("retranslate")) {
+        for (auto it = m_pages.constBegin(); it != m_pages.constEnd(); ++it) {
+            if (auto *tab = qobject_cast<PlaybackTab *>(it.value()))
+                tab->retranslateUi();
+            else if (auto *tab = qobject_cast<OfflineAnalysisTab *>(it.value()))
+                tab->retranslateUi();
+        }
     }
 }
 

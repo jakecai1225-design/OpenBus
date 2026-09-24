@@ -91,6 +91,8 @@ set(SRC_CORE
     core/filter_engine.cpp
     core/appconfig.h
     core/appconfig.cpp
+    core/translationmanager.h
+    core/translationmanager.cpp
     core/file_import/file_importer.h
     core/file_import/file_importer.cpp
     core/file_import/asc_importer.h
@@ -877,6 +879,55 @@ if(DEFINED OPENBUS_ZMQ_DLL AND EXISTS "${OPENBUS_ZMQ_DLL}")
         COMMENT "Copying libzmq.dll next to openbus.exe"
     )
 endif()
+
+# ============================================================
+#  UI translations (.ts -> .qm next to exe)
+#  Source language is English in code; catalogs under translations/
+#  Refresh strings: run scripts/update_translations.py then rebuild
+# ============================================================
+set(OPENBUS_TS_FILES
+    ${CMAKE_SOURCE_DIR}/translations/openbus_zh_CN.ts
+    ${CMAKE_SOURCE_DIR}/translations/openbus_zh_TW.ts
+    ${CMAKE_SOURCE_DIR}/translations/openbus_es.ts
+    ${CMAKE_SOURCE_DIR}/translations/openbus_fr.ts
+    ${CMAKE_SOURCE_DIR}/translations/openbus_de.ts
+    ${CMAKE_SOURCE_DIR}/translations/openbus_ja.ts
+    ${CMAKE_SOURCE_DIR}/translations/openbus_pt_BR.ts
+    ${CMAKE_SOURCE_DIR}/translations/openbus_ru.ts
+    ${CMAKE_SOURCE_DIR}/translations/openbus_ko.ts
+)
+
+if(Qt6LinguistTools_FOUND)
+    set_source_files_properties(${OPENBUS_TS_FILES} PROPERTIES
+        OUTPUT_LOCATION "${CMAKE_BINARY_DIR}/translations")
+    qt6_add_translation(OPENBUS_QM_FILES ${OPENBUS_TS_FILES})
+    add_custom_target(openbus_qm ALL DEPENDS ${OPENBUS_QM_FILES})
+    add_dependencies(openbus openbus_qm)
+    add_custom_command(TARGET openbus POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:openbus>/translations"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${OPENBUS_QM_FILES}
+                "$<TARGET_FILE_DIR:openbus>/translations/"
+        COMMENT "Copying openbus_*.qm to output translations/"
+    )
+    install(FILES ${OPENBUS_QM_FILES} DESTINATION bin/translations)
+else()
+    message(STATUS "Qt6 LinguistTools not found — skip .qm build; place openbus_*.qm under translations/")
+    # Still copy any prebuilt .qm from source tree if present
+    add_custom_command(TARGET openbus POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:openbus>/translations"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/translations"
+                "$<TARGET_FILE_DIR:openbus>/translations"
+        COMMENT "Copying translations/ (ts and any qm) to output"
+    )
+endif()
+
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/plugins/_shared/locales"
+        DESTINATION bin/plugins/_shared
+        OPTIONAL)
 
 # ============================================================
 #  Windows: GUI subsystem (no console window)

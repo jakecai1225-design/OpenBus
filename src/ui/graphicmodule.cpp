@@ -266,6 +266,11 @@ void GraphicModule::invoke(const QString &action, const QVariant &arg)
     } else if (action == QStringLiteral("removeSelectedSignals")) {
         if (auto *gv = qobject_cast<GraphicView *>(arg.value<QWidget *>()))
             gv->removeSelectedSignals();
+    } else if (action == QStringLiteral("retranslate")) {
+        for (int i = 0; i < m_viewList.size(); ++i) {
+            if (GraphicView *gv = m_viewList.at(i).data())
+                gv->retranslateUi();
+        }
     }
 }
 

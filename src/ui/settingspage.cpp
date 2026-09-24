@@ -1,6 +1,7 @@
 #include "settingspage.h"
 #include "core/appconfig.h"
 #include "core/logging.h"
+#include "core/translationmanager.h"
 #include "thememanager.h"
 #include "utils/svg_icon.h"
 
@@ -23,15 +24,16 @@
 #include <QJsonDocument>
 #include <QFont>
 #include <QFrame>
+#include <QSignalBlocker>
 
 SettingsPage::SettingsPage(QWidget *parent)
     : QWidget(parent)
 {
-    setWindowTitle("设置");
     setupUi();
     setupMetas();
     populateCategoryTree();
     populateSettingsTree(QString(), QString());
+    retranslateUi();
 }
 
 void SettingsPage::setupUi()
@@ -40,7 +42,6 @@ void SettingsPage::setupUi()
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
 
-    // ---- 顶部搜索栏 ----
     auto *searchBar = new QFrame(this);
     searchBar->setObjectName("SettingsSearchBar");
     searchBar->setFrameShape(QFrame::NoFrame);
@@ -48,9 +49,7 @@ void SettingsPage::setupUi()
     searchLayout->setContentsMargins(8, 6, 8, 6);
 
     m_searchEdit = new QLineEdit(searchBar);
-    m_searchEdit->setPlaceholderText("搜索设置...");
     m_searchEdit->setClearButtonEnabled(true);
-    // 原生清除按钮 × 不随主题（深色下不可见）→ 换主题色 SVG 图标
     applyClearButtonIcon(m_searchEdit, ThemeManager::instance()->currentTheme().text);
     auto *searchIcon = new QLabel(searchBar);
     searchIcon->setPixmap(renderSvgPixmap(
@@ -59,26 +58,21 @@ void SettingsPage::setupUi()
     searchLayout->addWidget(searchIcon);
     searchLayout->addWidget(m_searchEdit, 1);
 
-    // JSON 编辑切换按钮
-    auto *jsonBtn = new QPushButton("编辑 JSON", searchBar);
-    jsonBtn->setCheckable(true);
-    searchLayout->addWidget(jsonBtn);
+    m_jsonBtn = new QPushButton(searchBar);
+    m_jsonBtn->setCheckable(true);
+    searchLayout->addWidget(m_jsonBtn);
 
     root->addWidget(searchBar);
 
-    // ---- 主体: 左分类树 + 右内容栈 ----
     auto *splitter = new QSplitter(Qt::Horizontal, this);
 
-    // 左侧分类
     m_categoryTree = new QTreeWidget(splitter);
     m_categoryTree->setHeaderHidden(true);
     m_categoryTree->setMinimumWidth(160);
     m_categoryTree->setMaximumWidth(240);
 
-    // 右侧栈
     m_rightStack = new QStackedWidget(splitter);
 
-    // -- 设置列表页 --
     m_settingsListPage = new QWidget(m_rightStack);
     auto *listLayout = new QVBoxLayout(m_settingsListPage);
     listLayout->setContentsMargins(0, 0, 0, 0);
@@ -86,7 +80,6 @@ void SettingsPage::setupUi()
 
     m_settingsTree = new QTreeWidget(m_settingsListPage);
     m_settingsTree->setColumnCount(2);
-    m_settingsTree->setHeaderLabels({"设置项", "值"});
     m_settingsTree->header()->setStretchLastSection(false);
     m_settingsTree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_settingsTree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
@@ -96,12 +89,11 @@ void SettingsPage::setupUi()
 
     m_rightStack->addWidget(m_settingsListPage);
 
-    // -- JSON 编辑页 --
     m_jsonPage = new QWidget(m_rightStack);
     auto *jsonLayout = new QVBoxLayout(m_jsonPage);
     jsonLayout->setContentsMargins(4, 4, 4, 4);
 
-    auto *jsonLabel = new QLabel("settings.json", m_jsonPage);
+    auto *jsonLabel = new QLabel(QStringLiteral("settings.json"), m_jsonPage);
     jsonLabel->setObjectName("SidePanelSubTitle");
     jsonLayout->addWidget(jsonLabel);
 
@@ -122,7 +114,6 @@ void SettingsPage::setupUi()
 
     root->addWidget(splitter, 1);
 
-    // ---- 底部状态栏 + 按钮 ----
     auto *bottomBar = new QFrame(this);
     auto *bottomLayout = new QHBoxLayout(bottomBar);
     bottomLayout->setContentsMargins(8, 4, 8, 4);
@@ -133,24 +124,23 @@ void SettingsPage::setupUi()
 
     bottomLayout->addStretch();
 
-    m_resetBtn = new QPushButton("重置为默认", bottomBar);
-    m_saveBtn = new QPushButton("保存", bottomBar);
+    m_resetBtn = new QPushButton(bottomBar);
+    m_saveBtn = new QPushButton(bottomBar);
     bottomLayout->addWidget(m_resetBtn);
     bottomLayout->addWidget(m_saveBtn);
 
     root->addWidget(bottomBar);
 
-    // ---- 连接 ----
     connect(m_searchEdit, &QLineEdit::textChanged, this, &SettingsPage::onSearchChanged);
     connect(m_categoryTree, &QTreeWidget::itemClicked, this, &SettingsPage::onCategorySelected);
-    connect(jsonBtn, &QPushButton::toggled, this, [this, jsonBtn](bool checked) {
+    connect(m_jsonBtn, &QPushButton::toggled, this, [this](bool checked) {
         if (checked) {
             m_jsonEdit->setPlainText(AppConfig::instance()->toJsonString());
             switchToJsonPage();
-            jsonBtn->setText("设置列表");
+            m_jsonBtn->setText(tr("Settings list"));
         } else {
             switchToSettingsPage();
-            jsonBtn->setText("编辑 JSON");
+            m_jsonBtn->setText(tr("Edit JSON"));
         }
     });
     connect(m_jsonEdit, &QPlainTextEdit::textChanged, this, &SettingsPage::onJsonEdited);
@@ -160,7 +150,6 @@ void SettingsPage::setupUi()
 
 void SettingsPage::setupMetas()
 {
-    // 定义所有设置项的元数据
     m_metas.clear();
 
     auto add = [this](const QString &key, const QString &label,
@@ -176,53 +165,127 @@ void SettingsPage::setupMetas()
         m_metas.append(m);
     };
 
-    // ---- General ----
-    add("font.family", "Font family", "General", "string", "UI font family");
-    add("font.size", "Font size", "General", "int", "UI font size (px)");
-    add("window.rememberGeometry", "Remember window size", "General", "bool",
-        "Restore last window size on next launch");
-    add("window.width", "Window width", "General", "int", "Initial window width");
-    add("window.height", "Window height", "General", "int", "Initial window height");
+    add(QStringLiteral("ui.language"), tr("Language"), tr("General"),
+        QStringLiteral("language"), tr("UI language (applies immediately)"));
+    add(QStringLiteral("font.family"), QStringLiteral("Font family"), QStringLiteral("General"),
+        QStringLiteral("string"), QStringLiteral("UI font family"));
+    add(QStringLiteral("font.size"), QStringLiteral("Font size"), QStringLiteral("General"),
+        QStringLiteral("int"), QStringLiteral("UI font size (px)"));
+    add(QStringLiteral("window.rememberGeometry"), QStringLiteral("Remember window size"),
+        QStringLiteral("General"), QStringLiteral("bool"),
+        QStringLiteral("Restore last window size on next launch"));
+    add(QStringLiteral("window.width"), QStringLiteral("Window width"), QStringLiteral("General"),
+        QStringLiteral("int"), QStringLiteral("Initial window width"));
+    add(QStringLiteral("window.height"), QStringLiteral("Window height"), QStringLiteral("General"),
+        QStringLiteral("int"), QStringLiteral("Initial window height"));
 
-    // ---- Trace ----
-    add("trace.maxFrames", "Max frames (local ring)", "Trace", "int",
-        "Local Trace ring capacity for offline/overwrite (live uses CaptureLog)");
-    add("trace.cacheRows", "Viewport cache rows", "Trace", "int",
-        "QTableView window size (T3); display cost ≈ this many rows");
-    add("trace.visibleRows", "Visible rows hint", "Trace", "int",
-        "Typical on-screen rows; cacheRows should be ~2x this");
-    add("trace.overwriteMode", "Overwrite mode", "Trace", "bool",
-        "One row per CAN ID; new frames refresh that row");
-    add("trace.autoScroll", "Auto-scroll", "Trace", "bool",
-        "Scroll to newest frames on arrival");
-    add("trace.showGrid", "Show grid", "Trace", "bool",
-        "Draw grid lines in the Trace table");
-    add("trace.alternatingRowColors", "Alternating row colors", "Trace", "bool",
-        "Alternate row background colors");
-    add("capture.maxFrames", "Capture ring size", "Trace", "int",
-        "Process-wide CaptureLog capacity (Trace display ring is trace.maxFrames)");
+    add(QStringLiteral("trace.maxFrames"), QStringLiteral("Max frames (local ring)"),
+        QStringLiteral("Trace"), QStringLiteral("int"),
+        QStringLiteral("Local Trace ring capacity for offline/overwrite (live uses CaptureLog)"));
+    add(QStringLiteral("trace.cacheRows"), QStringLiteral("Viewport cache rows"),
+        QStringLiteral("Trace"), QStringLiteral("int"),
+        QStringLiteral("QTableView window size (T3); display cost ≈ this many rows"));
+    add(QStringLiteral("trace.visibleRows"), QStringLiteral("Visible rows hint"),
+        QStringLiteral("Trace"), QStringLiteral("int"),
+        QStringLiteral("Typical on-screen rows; cacheRows should be ~2x this"));
+    add(QStringLiteral("trace.overwriteMode"), QStringLiteral("Overwrite mode"),
+        QStringLiteral("Trace"), QStringLiteral("bool"),
+        QStringLiteral("One row per CAN ID; new frames refresh that row"));
+    add(QStringLiteral("trace.autoScroll"), QStringLiteral("Auto-scroll"),
+        QStringLiteral("Trace"), QStringLiteral("bool"),
+        QStringLiteral("Scroll to newest frames on arrival"));
+    add(QStringLiteral("trace.showGrid"), QStringLiteral("Show grid"),
+        QStringLiteral("Trace"), QStringLiteral("bool"),
+        QStringLiteral("Draw grid lines in the Trace table"));
+    add(QStringLiteral("trace.alternatingRowColors"), QStringLiteral("Alternating row colors"),
+        QStringLiteral("Trace"), QStringLiteral("bool"),
+        QStringLiteral("Alternate row background colors"));
+    add(QStringLiteral("capture.maxFrames"), QStringLiteral("Capture ring size"),
+        QStringLiteral("Trace"), QStringLiteral("int"),
+        QStringLiteral("Process-wide CaptureLog capacity (Trace display ring is trace.maxFrames)"));
 
-    // ---- Graphic ----
-    add("graphic.timeWindow", "时间窗口 (秒)", "Graphic", "double", "波形图显示最近 N 秒数据");
-    add("graphic.antialiasing", "抗锯齿", "Graphic", "bool", "波形图启用抗锯齿渲染");
-    add("graphic.fps", "刷新率 (FPS)", "Graphic", "int", "波形图刷新帧率");
-    add("graphic.maxSamples", "每信号最大点数", "Graphic", "int", "环形缓冲上限，超出后覆盖最旧点");
-    add("graphic.overlayAutoThreshold", "Auto overlay threshold", "Graphic", "int",
-        "Switch to overlay Y-axis when signal count reaches this (default 2; 0=disable)");
+    add(QStringLiteral("graphic.timeWindow"), QStringLiteral("Time window (s)"),
+        QStringLiteral("Graphic"), QStringLiteral("double"),
+        QStringLiteral("Show the most recent N seconds of waveform data"));
+    add(QStringLiteral("graphic.antialiasing"), QStringLiteral("Antialiasing"),
+        QStringLiteral("Graphic"), QStringLiteral("bool"),
+        QStringLiteral("Enable antialiased waveform rendering"));
+    add(QStringLiteral("graphic.fps"), QStringLiteral("Refresh rate (FPS)"),
+        QStringLiteral("Graphic"), QStringLiteral("int"),
+        QStringLiteral("Waveform refresh frame rate"));
+    add(QStringLiteral("graphic.maxSamples"), QStringLiteral("Max samples per signal"),
+        QStringLiteral("Graphic"), QStringLiteral("int"),
+        QStringLiteral("Ring buffer cap; oldest points overwritten when full"));
+    add(QStringLiteral("graphic.overlayAutoThreshold"), QStringLiteral("Auto overlay threshold"),
+        QStringLiteral("Graphic"), QStringLiteral("int"),
+        QStringLiteral("Switch to overlay Y-axis when signal count reaches this (default 2; 0=disable)"));
 
-    // ---- Record ----
-    add("record.defaultFormat", "默认录制格式", "Record", "combo", "新录制文件的默认格式", {"openbus", "asc", "blf"});
-    add("record.autoSave", "自动保存", "Record", "bool", "停止录制时自动保存文件");
+    add(QStringLiteral("record.defaultFormat"), QStringLiteral("Default record format"),
+        QStringLiteral("Record"), QStringLiteral("combo"),
+        QStringLiteral("Default format for new recordings"),
+        {QStringLiteral("openbus"), QStringLiteral("asc"), QStringLiteral("blf")});
+    add(QStringLiteral("record.autoSave"), QStringLiteral("Auto-save"),
+        QStringLiteral("Record"), QStringLiteral("bool"),
+        QStringLiteral("Save automatically when recording stops"));
 
-    // ---- 日志 ----
-    add("log.level", "日志级别", "日志", "combo", "spdlog 输出级别", {"trace", "debug", "info", "warn", "error", "critical"});
-    add("log.maxFileSize", "日志文件最大字节", "日志", "int", "单个日志文件最大字节数");
-    add("log.maxFiles", "日志文件最大数量", "日志", "int", "轮转保留的日志文件数");
+    add(QStringLiteral("log.level"), QStringLiteral("Log level"), QStringLiteral("Log"),
+        QStringLiteral("combo"), QStringLiteral("spdlog output level"),
+        {QStringLiteral("trace"), QStringLiteral("debug"), QStringLiteral("info"),
+         QStringLiteral("warn"), QStringLiteral("error"), QStringLiteral("critical")});
+    add(QStringLiteral("log.maxFileSize"), QStringLiteral("Max log file bytes"),
+        QStringLiteral("Log"), QStringLiteral("int"),
+        QStringLiteral("Maximum bytes per log file"));
+    add(QStringLiteral("log.maxFiles"), QStringLiteral("Max log files"),
+        QStringLiteral("Log"), QStringLiteral("int"),
+        QStringLiteral("Rotated log file retention count"));
+}
+
+void SettingsPage::fillLanguageCombo()
+{
+    if (!m_languageCombo)
+        return;
+    m_updatingLanguageCombo = true;
+    m_languageCombo->clear();
+    const QString cur = TranslationManager::instance()->language();
+    int sel = 0;
+    const auto infos = TranslationManager::instance()->availableLanguageInfos();
+    for (int i = 0; i < infos.size(); ++i) {
+        m_languageCombo->addItem(infos[i].nativeName, infos[i].code);
+        if (infos[i].code == cur)
+            sel = i;
+    }
+    m_languageCombo->setCurrentIndex(sel);
+    m_updatingLanguageCombo = false;
+}
+
+void SettingsPage::retranslateUi()
+{
+    setWindowTitle(tr("Settings"));
+    if (m_searchEdit)
+        m_searchEdit->setPlaceholderText(tr("Search settings..."));
+    if (m_jsonBtn) {
+        m_jsonBtn->setText(m_jsonBtn->isChecked() ? tr("Settings list") : tr("Edit JSON"));
+    }
+    if (m_settingsTree)
+        m_settingsTree->setHeaderLabels({tr("Setting"), tr("Value")});
+    if (m_resetBtn)
+        m_resetBtn->setText(tr("Reset to defaults"));
+    if (m_saveBtn)
+        m_saveBtn->setText(tr("Save"));
+
+    setupMetas();
+    const QString cat = m_categoryTree && m_categoryTree->currentItem()
+        ? m_categoryTree->currentItem()->data(0, Qt::UserRole).toString()
+        : QString();
+    populateCategoryTree();
+    if (!cat.isEmpty())
+        setCategory(cat);
+    else
+        populateSettingsTree(QString(), m_searchEdit ? m_searchEdit->text() : QString());
 }
 
 void SettingsPage::populateCategoryTree()
 {
-    // 收集去重分类
     QStringList categories;
     for (const auto &m : m_metas) {
         if (!categories.contains(m.category))
@@ -230,8 +293,7 @@ void SettingsPage::populateCategoryTree()
     }
 
     m_categoryTree->clear();
-    // "全部" 项
-    auto *allItem = new QTreeWidgetItem({"全部设置"});
+    auto *allItem = new QTreeWidgetItem({tr("All Settings")});
     allItem->setData(0, Qt::UserRole, QString());
     m_categoryTree->addTopLevelItem(allItem);
 
@@ -247,14 +309,13 @@ void SettingsPage::populateCategoryTree()
 void SettingsPage::populateSettingsTree(const QString &categoryFilter, const QString &textFilter)
 {
     m_settingsTree->clear();
+    m_languageCombo = nullptr;
 
     auto *cfg = AppConfig::instance();
 
     for (const auto &m : m_metas) {
-        // 分类过滤
         if (!categoryFilter.isEmpty() && m.category != categoryFilter)
             continue;
-        // 文本过滤
         if (!textFilter.isEmpty()) {
             if (!m.key.contains(textFilter, Qt::CaseInsensitive) &&
                 !m.label.contains(textFilter, Qt::CaseInsensitive) &&
@@ -264,21 +325,29 @@ void SettingsPage::populateSettingsTree(const QString &categoryFilter, const QSt
 
         auto *item = new QTreeWidgetItem();
         item->setText(0, m.label);
-        item->setToolTip(0, m.key + "\n" + m.desc);
+        item->setToolTip(0, m.key + QLatin1Char('\n') + m.desc);
         item->setData(0, Qt::UserRole, m.key);
 
-        // 根据类型创建编辑器
         QWidget *editor = nullptr;
 
-        if (m.type == "bool") {
+        if (m.type == QLatin1String("language")) {
+            auto *combo = new QComboBox();
+            m_languageCombo = combo;
+            fillLanguageCombo();
+            connect(combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                    this, &SettingsPage::onLanguageComboChanged);
+            editor = combo;
+            item->setText(1, combo->currentText());
+        } else if (m.type == QLatin1String("bool")) {
             auto *chk = new QCheckBox();
             chk->setChecked(cfg->getBool(m.key, false));
             connect(chk, &QCheckBox::toggled, this, [cfg, key = m.key](bool v) {
                 cfg->set(key, v);
             });
             editor = chk;
-            item->setText(1, cfg->getBool(m.key, false) ? "true" : "false");
-        } else if (m.type == "int") {
+            item->setText(1, cfg->getBool(m.key, false) ? QStringLiteral("true")
+                                                        : QStringLiteral("false"));
+        } else if (m.type == QLatin1String("int")) {
             auto *spin = new QSpinBox();
             spin->setRange(0, 9999999);
             spin->setValue(cfg->getInt(m.key, 0));
@@ -289,7 +358,7 @@ void SettingsPage::populateSettingsTree(const QString &categoryFilter, const QSt
                 });
             editor = spin;
             item->setText(1, QString::number(cfg->getInt(m.key, 0)));
-        } else if (m.type == "double") {
+        } else if (m.type == QLatin1String("double")) {
             auto *spin = new QDoubleSpinBox();
             spin->setRange(0.0, 999999.0);
             spin->setDecimals(1);
@@ -301,7 +370,7 @@ void SettingsPage::populateSettingsTree(const QString &categoryFilter, const QSt
                 });
             editor = spin;
             item->setText(1, QString::number(cfg->getDouble(m.key, 0.0), 'f', 1));
-        } else if (m.type == "combo") {
+        } else if (m.type == QLatin1String("combo")) {
             auto *combo = new QComboBox();
             for (const auto &c : m.comboChoices)
                 combo->addItem(c);
@@ -315,7 +384,7 @@ void SettingsPage::populateSettingsTree(const QString &categoryFilter, const QSt
                 });
             editor = combo;
             item->setText(1, cur);
-        } else { // string
+        } else {
             auto *edit = new QLineEdit();
             edit->setText(cfg->getString(m.key));
             connect(edit, &QLineEdit::textChanged, this,
@@ -328,19 +397,28 @@ void SettingsPage::populateSettingsTree(const QString &categoryFilter, const QSt
         }
 
         if (editor) {
-            editor->setToolTip(m.key + "\n" + m.desc);
+            editor->setToolTip(m.key + QLatin1Char('\n') + m.desc);
             m_settingsTree->setItemWidget(item, 1, editor);
         }
 
         m_settingsTree->addTopLevelItem(item);
     }
 
-    m_statusLabel->setText(QString("共 %1 项设置").arg(m_settingsTree->topLevelItemCount()));
+    m_statusLabel->setText(tr("%1 settings").arg(m_settingsTree->topLevelItemCount()));
+}
+
+void SettingsPage::onLanguageComboChanged(int index)
+{
+    if (m_updatingLanguageCombo || !m_languageCombo || index < 0)
+        return;
+    const QString code = m_languageCombo->itemData(index).toString();
+    if (code.isEmpty())
+        return;
+    TranslationManager::instance()->setLanguage(code);
 }
 
 void SettingsPage::setCategory(const QString &category)
 {
-    // 侧栏设置面板条目 → 定位分类树（"通用设置"→"通用" 映射在壳侧完成）
     for (int i = 0; i < m_categoryTree->topLevelItemCount(); ++i) {
         auto *item = m_categoryTree->topLevelItem(i);
         if (item->data(0, Qt::UserRole).toString() == category) {
@@ -349,7 +427,6 @@ void SettingsPage::setCategory(const QString &category)
             return;
         }
     }
-    // 未匹配（含空串）→ 回到"全部设置"
     if (auto *all = m_categoryTree->topLevelItem(0)) {
         m_categoryTree->setCurrentItem(all);
         populateSettingsTree(QString(), m_searchEdit->text());
@@ -358,7 +435,6 @@ void SettingsPage::setCategory(const QString &category)
 
 void SettingsPage::onSearchChanged(const QString &text)
 {
-    // 获取当前分类
     auto *catItem = m_categoryTree->currentItem();
     QString cat = catItem ? catItem->data(0, Qt::UserRole).toString() : QString();
     populateSettingsTree(cat, text);
@@ -373,22 +449,21 @@ void SettingsPage::onCategorySelected(QTreeWidgetItem *item)
 
 void SettingsPage::onJsonEdited()
 {
-    m_statusLabel->setText("JSON 已修改 — 点击保存生效");
+    m_statusLabel->setText(tr("JSON modified — click Save to apply"));
 }
 
 void SettingsPage::onSave()
 {
-    // 如果当前在 JSON 页面，先解析 JSON
     if (m_rightStack->currentIndex() == 1) {
         QString jsonStr = m_jsonEdit->toPlainText();
         if (!AppConfig::instance()->fromJsonString(jsonStr)) {
-            m_statusLabel->setText("JSON 解析失败，请检查语法");
+            m_statusLabel->setText(tr("JSON parse failed — check syntax"));
             return;
         }
     }
     AppConfig::instance()->save();
-    m_statusLabel->setText("已保存");
-    spdlog::info("SettingsPage: 配置已保存");
+    m_statusLabel->setText(tr("Saved"));
+    spdlog::info("SettingsPage: config saved");
 }
 
 void SettingsPage::onReset()
@@ -397,7 +472,7 @@ void SettingsPage::onReset()
         QString::fromStdString(AppConfig::defaultConfig().dump(4)));
     populateSettingsTree(QString(), m_searchEdit->text());
     m_jsonEdit->setPlainText(AppConfig::instance()->toJsonString());
-    m_statusLabel->setText("已重置为默认值");
+    m_statusLabel->setText(tr("Reset to defaults"));
 }
 
 void SettingsPage::switchToJsonPage()

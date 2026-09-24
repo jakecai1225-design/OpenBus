@@ -33,6 +33,12 @@ public:
     {
         setObjectName(QStringLiteral("marketRow"));
         setProperty("marketRow", true);
+        setFrameShape(QFrame::NoFrame);
+        setLineWidth(0);
+        setAttribute(Qt::WA_Hover, true);
+        setFixedHeight(22);
+        setStyleSheet(QStringLiteral(
+            "QFrame#marketRow { background-color: transparent; border: none; }"));
     }
     using ClickCb = std::function<void()>;
     void setOnClick(ClickCb cb) { m_cb = std::move(cb); }
@@ -40,9 +46,10 @@ public:
     void setSelected(bool sel)
     {
         setStyleSheet(sel
-            ? QStringLiteral("QFrame#marketRow { background-color: rgba(86,156,214,0.22);"
-                             " border-radius: 4px; }")
-            : QStringLiteral("QFrame#marketRow { background-color: transparent; }"));
+            ? QStringLiteral("QFrame#marketRow { background-color: rgba(204,232,255,1);"
+                             " border: none; border-radius: 0; }")
+            : QStringLiteral("QFrame#marketRow { background-color: transparent;"
+                             " border: none; }"));
     }
 
     MarketItem item;

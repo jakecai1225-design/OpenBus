@@ -412,6 +412,11 @@ void FlowModule::invoke(const QString &action, const QVariant &arg)
         if (auto *msv = qobject_cast<MeasurementSetupView *>(
                 m_pages.value(QStringLiteral("setup"))))
             msv->setFilterRules(arg.toStringList());
+    } else if (action == QStringLiteral("retranslate")) {
+        for (auto it = m_pages.constBegin(); it != m_pages.constEnd(); ++it) {
+            if (auto *msv = qobject_cast<MeasurementSetupView *>(it.value()))
+                msv->retranslateUi();
+        }
     }
 }
 

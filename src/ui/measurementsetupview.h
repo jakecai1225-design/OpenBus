@@ -70,6 +70,8 @@ public:
     /// Applies to source_real and function blocks)
     void setBlockError(const QString &blockId, bool on);
 
+    void retranslateUi();
+
 public slots:
     void setSource(Source src);
     void setFilePath(const QString &path);
@@ -192,7 +194,7 @@ private:
     };
     QList<Connection> m_connections;
 
-    // ---- 方法 ----
+    // ---- methods ----
     void setupUi();
     void buildTopology();
     void updateBlockVisual(const QString &id);

@@ -51,11 +51,11 @@ FilterBar::FilterBar(QWidget *parent)
     m_statusIcon = new QLabel(this);
     m_statusIcon->setFixedSize(20, 20);
     m_statusIcon->setPixmap(renderSvgPixmap(":/icons/check.svg", "#888888", 16));
-    m_statusIcon->setToolTip(QStringLiteral("Filter syntax OK"));
+    m_statusIcon->setToolTip(tr("Filter syntax OK"));
 
     m_edit = new QLineEdit(this);
     m_edit->setPlaceholderText(
-        QStringLiteral("Display filter (e.g. id == 0x123 and fd)..."));
+        tr("Display filter (e.g. id == 0x123 and fd)..."));
     m_edit->setClearButtonEnabled(true);
     m_edit->setMinimumWidth(360);
     m_edit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -63,23 +63,23 @@ FilterBar::FilterBar(QWidget *parent)
 
     // Filter apply / clear — icon-only, next to the edit
     m_applyBtn = makeIconToolButton(this, QStringLiteral(":/icons/apply.svg"), iconCol,
-                                    QStringLiteral("Apply display filter (Enter)"));
+                                    tr("Apply display filter (Enter)"));
     m_clearBtn = makeIconToolButton(this, QStringLiteral(":/icons/close.svg"), iconCol,
-                                    QStringLiteral("Clear display filter expression"));
+                                    tr("Clear display filter expression"));
 
     m_helpBtn = makeIconToolButton(this, QStringLiteral(":/icons/help.svg"), iconCol,
-                                   QStringLiteral("Filter syntax help"));
+                                   tr("Filter syntax help"));
 
     m_presetBtn = makeIconToolButton(this, QStringLiteral(":/icons/list.svg"), iconCol,
-                                     QStringLiteral("Filter presets"));
+                                     tr("Filter presets"));
     m_presetBtn->setPopupMode(QToolButton::InstantPopup);
 
     m_settingsBtn = makeIconToolButton(this, QStringLiteral(":/icons/gear.svg"), iconCol,
-                                       QStringLiteral("Trace settings (time format, overwrite, colors)"));
+                                       tr("Trace settings (time format, overwrite, colors)"));
     m_settingsBtn->setPopupMode(QToolButton::InstantPopup);
 
     m_clearListBtn = makeIconToolButton(this, QStringLiteral(":/icons/clear-all.svg"), iconCol,
-                                        QStringLiteral("Clear list (delete all frames)"));
+                                        tr("Clear list (delete all frames)"));
 
     m_packetCountLabel = new QLabel(this);
     m_packetCountLabel->setVisible(false);
@@ -303,13 +303,13 @@ void FilterChipBar::rebuild(const QVector<QPair<QString, QString>> &chips)
         btn->setToolTip(QStringLiteral("Clear filter: %1").arg(chip.second));
         btn->setStyleSheet(QStringLiteral(
             "QToolButton {"
-            "  background: palette(mid);"
-            "  border: 1px solid palette(mid);"
+            "  background: transparent;"
+            "  border: 1px solid palette(shadow);"
             "  border-radius: 9px;"
             "  padding: 1px 8px;"
             "  font-size: 11px;"
             "}"
-            "QToolButton:hover { background: palette(light); }"));
+            "QToolButton:hover { background: palette(midlight); }"));
         const QString id = chip.first;
         connect(btn, &QToolButton::clicked, this, [this, id]() {
             emit chipDismissed(id);
@@ -321,4 +321,22 @@ void FilterChipBar::rebuild(const QVector<QPair<QString, QString>> &chips)
     m_clearAllBtn->setVisible(m_chipCount > 0);
     setVisible(m_chipCount > 0);
     setFixedHeight(m_chipCount > 0 ? 32 : 0);
+}
+
+void FilterBar::retranslateUi()
+{
+    if (m_edit)
+        m_edit->setPlaceholderText(tr("Display filter (e.g. id == 0x123 and fd)..."));
+    if (m_applyBtn)
+        m_applyBtn->setToolTip(tr("Apply display filter (Enter)"));
+    if (m_clearBtn)
+        m_clearBtn->setToolTip(tr("Clear display filter expression"));
+    if (m_helpBtn)
+        m_helpBtn->setToolTip(tr("Filter syntax help"));
+    if (m_presetBtn)
+        m_presetBtn->setToolTip(tr("Filter presets"));
+    if (m_settingsBtn)
+        m_settingsBtn->setToolTip(tr("Trace settings (time format, overwrite, colors)"));
+    if (m_clearListBtn)
+        m_clearListBtn->setToolTip(tr("Clear list (delete all frames)"));
 }

@@ -990,6 +990,24 @@ def cmd_deploy(env, args):
     fonts_dir = out_dir / "lib" / "fonts"
     fonts_dir.mkdir(parents=True, exist_ok=True)
 
+    # UI translations (.qm) + Python locale JSON (for portable packages)
+    dst_tr = out_dir / "translations"
+    dst_tr.mkdir(parents=True, exist_ok=True)
+    build_qm = BUILD_DIR / "translations"
+    if build_qm.is_dir():
+        for qm in build_qm.glob("openbus_*.qm"):
+            shutil.copy2(qm, dst_tr / qm.name)
+    if not any(dst_tr.glob("openbus_*.qm")):
+        for qm in (PROJECT_ROOT / "translations").glob("openbus_*.qm"):
+            shutil.copy2(qm, dst_tr / qm.name)
+            info(f"  + translations/{qm.name}")
+    src_loc = PROJECT_ROOT / "plugins" / "_shared" / "locales"
+    dst_loc = out_dir / "plugins" / "_shared" / "locales"
+    if src_loc.is_dir():
+        dst_loc.mkdir(parents=True, exist_ok=True)
+        for jf in src_loc.glob("*.json"):
+            shutil.copy2(jf, dst_loc / jf.name)
+
     ok("Deploy done")
 
 

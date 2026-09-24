@@ -11,8 +11,8 @@ struct Theme
     // Core backgrounds
     QString windowBg;    // Main window / dialog background
     QString contentBg;   // Editor / table / content area
-    QString sidebarBg;   // Sidebar list / tree background
-    QString panelBg;     // Panel title / toolbar / tab bar background
+    QString sidebarBg;   // Side / bottom / right chrome — match windowBg
+    QString panelBg;     // Idle panel chrome — match windowBg
 
     // Menu & Activity bar
     QString barBg;       // Menu bar background

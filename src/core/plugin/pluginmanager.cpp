@@ -595,6 +595,14 @@ void PluginManager::executeCommand(const QString &commandId)
     onCommandExecuted(commandId);
 }
 
+void PluginManager::notifyLanguageChanged(const QString &locale)
+{
+    if (!m_host || !m_host->isRunning())
+        return;
+    m_host->sendNotification(QStringLiteral("setLanguage"),
+                             QJsonObject{{QStringLiteral("locale"), locale}});
+}
+
 void PluginManager::onFileOpened(const QString &path, const QString &extension)
 {
     if (!m_host || !m_host->isRunning())

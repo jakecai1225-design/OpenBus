@@ -83,8 +83,11 @@ public:
     /// 停用指定插件
     void deactivatePlugin(const QString &name);
 
-    /// 执行插件命令
+    /// Execute plugin command
     void executeCommand(const QString &commandId);
+
+    /// Notify Python host of UI language change (live switch)
+    void notifyLanguageChanged(const QString &locale);
 
 signals:
     // ---- 插件 → 主程序（由 PluginHost 转发）----

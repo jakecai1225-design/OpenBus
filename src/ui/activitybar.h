@@ -37,6 +37,7 @@ public:
 
 public slots:
     void refreshIcons();
+    void retranslateUi();
 
 signals:
     void activityChanged(int activity);

@@ -32,6 +32,7 @@ public:
 
     /// 追加文件到列表（不经文件对话框；工程恢复用）
     void addFiles(const QStringList &paths);
+    void retranslateUi();
 
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override;

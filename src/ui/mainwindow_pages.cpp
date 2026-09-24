@@ -467,19 +467,21 @@ void MainWindow::onGraphicPageSelected(int row)
 
 void MainWindow::onSettingsRequested(const QString &section)
 {
-    // 侧栏设置面板条目 → 统一以标签页打开（不再弹模态对话框）：
-    //   "快捷键"   → 快捷键参考页（ShortcutsPage，单实例）
-    //   "通用设置" → 设置页（SettingsPage，定位"通用"分类；"设置"后缀剥离）
-    //   其他条目   → 设置页（分类未匹配时页内回落"全部设置"）
-    // 标签页关闭即销毁（SplitEditorArea::closeTab → deleteLater），destroyed 回调置空单例指针。
-    if (section == QStringLiteral("快捷键")) {
+    // Sidebar settings entries open as editor tabs (not modal dialogs).
+    // Stable keys: "shortcuts" | "general" | category name (English).
+    // Legacy Chinese labels still accepted for older sessions.
+    const bool isShortcuts =
+        section == QStringLiteral("shortcuts")
+        || section == QStringLiteral("Keyboard Shortcuts")
+        || section == QStringLiteral("快捷键");
+    if (isShortcuts) {
         if (!m_shortcutsPage) {
             m_shortcutsPage = new ShortcutsPage(this);
             connect(m_shortcutsPage, &QObject::destroyed, this, [this]() {
                 m_shortcutsPage = nullptr;
             });
         }
-        openTab(m_shortcutsPage, QStringLiteral("快捷键"));
+        openTab(m_shortcutsPage, tr("Keyboard Shortcuts"));
         return;
     }
 
@@ -489,11 +491,14 @@ void MainWindow::onSettingsRequested(const QString &section)
             m_settingsPage = nullptr;
         });
     }
-    openTab(m_settingsPage, QStringLiteral("设置"));
+    openTab(m_settingsPage, tr("Settings"));
 
-    // "通用设置" → "通用"；其余去尾"设置"后按分类名匹配（未匹配回落"全部设置"）
     QString category = section;
-    if (category.endsWith(QStringLiteral("设置")))
+    if (category == QStringLiteral("general")
+        || category == QStringLiteral("通用设置")
+        || category == QStringLiteral("通用"))
+        category = QStringLiteral("General");
+    else if (category.endsWith(QStringLiteral("设置")))
         category.chop(2);
     m_settingsPage->setCategory(category);
 }

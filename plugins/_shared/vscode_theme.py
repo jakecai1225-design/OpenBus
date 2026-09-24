@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """VS Code–inspired theme for domain suite windows.
 
-Goals: calm contrast, hairline dividers, soft radius, shared chrome look.
-Light editor + dark activity bar (classic VS Code desktop).
+Flat light surface matching the host window: idle chrome has no gray fills;
+selection and hover carry emphasis; hairline dividers separate major panes.
 """
 
 from __future__ import annotations
@@ -18,24 +18,23 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-# Soft / eye-friendly palette — one light theme (VS Code Light).
-# Sidebar is a slightly darker panel, NOT a black activity bar.
-BG = "#F3F3F3"
+# Soft palette — flat light theme (match main window; selection / hover only tint).
+BG = "#FFFFFF"
 EDITOR = "#FFFFFF"
-SIDEBAR = "#F3F3F3"
-SIDEBAR_HOVER = "#E8E8E8"
+SIDEBAR = "#FFFFFF"
+SIDEBAR_HOVER = "#F0F0F0"
 SIDEBAR_ACTIVE = "#FFFFFF"
-BORDER = "#E5E5E5"
-BORDER_SOFT = "#EEEEEE"
-BLOCK_BORDER = "#E5E5E5"  # kept for compat; sections are borderless now
+BORDER = "#D0D0D0"
+BORDER_SOFT = "#E0E0E0"
+BLOCK_BORDER = "#D0D0D0"  # kept for compat; sections are borderless now
 
-TEXT = "#333333"
-TEXT_DIM = "#616161"
+TEXT = "#3B3B3B"
+TEXT_DIM = "#6C6C6C"
 TEXT_MUTED = "#8A8A8A"
-TEXT_SIDE = "#333333"
-ACCENT = "#007ACC"
-ACCENT_SOFT = "#E8F4FC"
-ACCENT_HOVER = "#0062A3"
+TEXT_SIDE = "#3B3B3B"
+ACCENT = "#005FB8"
+ACCENT_SOFT = "#CCE8FF"
+ACCENT_HOVER = "#1F7AD3"
 WARN_BG = "#FFF8E8"
 WARN_FG = "#8A6D1D"
 WARN_BORDER = "#F0E0A8"
@@ -234,25 +233,27 @@ QListWidget#SuiteNav {{
     border: none;
     border-right: 1px solid {BORDER};
     outline: none;
-    padding: 6px 0;
+    padding: 0;
     font-size: 13px;
 }}
 QListWidget#SuiteNav::item {{
-    padding: 7px 10px 7px 10px;
-    margin: 2px 6px;
-    border: 1px solid transparent;
-    border-radius: 3px;
+    padding: 0 12px;
+    margin: 0;
+    min-height: 22px;
+    max-height: 22px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
 }}
 QListWidget#SuiteNav::item:hover {{
     background: {SIDEBAR_HOVER};
-    border: 1px solid {BORDER};
+    border: none;
 }}
 QListWidget#SuiteNav::item:selected {{
-    background: {EDITOR};
+    background: {ACCENT_SOFT};
     color: {TEXT};
     font-weight: 600;
-    border: 1px solid {BORDER};
-    border-left: 2px solid {ACCENT};
+    border: none;
 }}
 
 /* ===== Shared connection toolbar ===== */
@@ -285,7 +286,9 @@ QWidget#SuiteSideBar, QWidget#WorkspaceSideBar, QWidget#ConfigSideBar {{
 }}
 QWidget#SuiteSideBarHeader {{
     background: {SIDEBAR};
-    border-bottom: 1px solid {BORDER_SOFT};
+    border: none;
+    min-height: 22px;
+    max-height: 22px;
 }}
 QLabel#SuiteDocPath {{
     color: {TEXT_MUTED};
@@ -471,7 +474,7 @@ QPushButton#SegmentBtn[segment="mid"] {{
     margin-left: -1px;
 }}
 QPushButton#SegmentBtn:hover {{
-    background: #F0F0F0;
+    background: {SIDEBAR_HOVER};
     color: {TEXT};
 }}
 QPushButton#SegmentBtn:checked {{
@@ -530,13 +533,13 @@ QPushButton {{
     font-size: 12px;
 }}
 QPushButton:hover {{
-    background: #F3F3F3;
+    background: {SIDEBAR_HOVER};
     border-color: #B8B8B8;
 }}
 QPushButton:pressed {{ background: #E8E8E8; }}
 QPushButton:disabled {{
     color: #A0A0A0;
-    background: {BG};
+    background: {EDITOR};
 }}
 QPushButton#PrimaryButton {{
     background: {ACCENT};
@@ -556,7 +559,7 @@ QPushButton#SecondaryButton {{
     font-weight: 500;
 }}
 QPushButton#SecondaryButton:hover {{
-    background: #F3F3F3;
+    background: {SIDEBAR_HOVER};
     border-color: #B8B8B8;
 }}
 QPushButton#GhostButton {{
@@ -688,7 +691,7 @@ QTreeWidget, QListWidget, QTableWidget, QTextEdit, QPlainTextEdit {{
     border-radius: 0;
     outline: none;
     color: {TEXT};
-    selection-background-color: #CDE8F6;
+    selection-background-color: {ACCENT_SOFT};
     selection-color: {TEXT};
 }}
 QTreeWidget, QListWidget {{
@@ -699,14 +702,14 @@ QTableWidget {{
     gridline-color: transparent;
     font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
     font-size: 12px;
-    alternate-background-color: #FAFAFA;
+    alternate-background-color: {EDITOR};
 }}
 QTableWidget#OutputTable {{
     border: none;
     alternate-background-color: {EDITOR};
 }}
 QHeaderView::section {{
-    background: transparent;
+    background: {EDITOR};
     color: {TEXT_MUTED};
     border: none;
     border-bottom: 1px solid {BORDER};
@@ -721,7 +724,7 @@ QTreeWidget::item, QListWidget::item {{
     min-height: 22px;
 }}
 QTreeWidget::item:selected, QListWidget::item:selected {{
-    background: #CDE8F6;
+    background: {ACCENT_SOFT};
     color: {TEXT};
 }}
 
@@ -827,7 +830,7 @@ QHeaderView::section {{
 QProgressBar {{
     border: none;
     border-radius: 2px;
-    background: {BG};
+    background: {EDITOR};
     text-align: center;
     height: 4px;
     max-height: 4px;

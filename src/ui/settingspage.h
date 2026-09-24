@@ -11,14 +11,13 @@ class QStackedWidget;
 class QPlainTextEdit;
 class QPushButton;
 class QLabel;
+class QComboBox;
 
 /**
- * @brief VS Code 风格设置页（标签页形态）
+ * @brief VS Code-style settings page (tab, not modal dialog).
  *
- * 左侧分类树 + 右侧设置项列表，顶部搜索栏。
- * 支持直接编辑 JSON（类似 VS Code 的 settings.json 编辑器）。
- * 原为模态 SettingsDialog（弹窗）；侧栏设置面板条目改为统一以
- * 标签页打开后重构为 QWidget 页面，编辑区即所见即所得。
+ * Left category tree + right settings list, top search bar.
+ * Supports direct JSON editing. Language changes apply immediately.
  */
 class SettingsPage : public QWidget
 {
@@ -27,8 +26,10 @@ class SettingsPage : public QWidget
 public:
     explicit SettingsPage(QWidget *parent = nullptr);
 
-    /// 定位到指定分类（如"通用"/"Trace"；空或未匹配则回到"全部设置"）
+    /// Jump to a category (e.g. "General"); empty → All Settings
     void setCategory(const QString &category);
+
+    void retranslateUi();
 
 private slots:
     void onSearchChanged(const QString &text);
@@ -36,34 +37,34 @@ private slots:
     void onJsonEdited();
     void onSave();
     void onReset();
+    void onLanguageComboChanged(int index);
 
 private:
-    // 设置项元数据
     struct SettingMeta {
         QString key;
         QString label;
         QString category;
-        QString type;     // "string", "int", "bool", "double", "combo"
+        QString type;     // "string", "int", "bool", "double", "combo", "language"
         QString desc;
         QStringList comboChoices;
     };
 
     QLineEdit *m_searchEdit = nullptr;
+    QPushButton *m_jsonBtn = nullptr;
     QTreeWidget *m_categoryTree = nullptr;
     QStackedWidget *m_rightStack = nullptr;
     QPlainTextEdit *m_jsonEdit = nullptr;
     QPushButton *m_saveBtn = nullptr;
     QPushButton *m_resetBtn = nullptr;
     QLabel *m_statusLabel = nullptr;
+    QComboBox *m_languageCombo = nullptr;
 
-    // 右侧 "设置列表" 页
     QWidget *m_settingsListPage = nullptr;
     QTreeWidget *m_settingsTree = nullptr;
-
-    // 右侧 "JSON 编辑" 页
     QWidget *m_jsonPage = nullptr;
 
     QList<SettingMeta> m_metas;
+    bool m_updatingLanguageCombo = false;
 
     void setupUi();
     void setupMetas();
@@ -71,6 +72,7 @@ private:
     void populateSettingsTree(const QString &categoryFilter, const QString &textFilter);
     void switchToJsonPage();
     void switchToSettingsPage();
+    void fillLanguageCombo();
 };
 
 #endif // SETTINGSPAGE_H

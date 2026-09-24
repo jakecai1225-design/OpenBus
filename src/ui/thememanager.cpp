@@ -24,51 +24,50 @@ ThemeManager::ThemeManager(QObject *parent)
 
 void ThemeManager::initThemes()
 {
-    // Light only — unified surfaces so Trace / Graphic / chrome share one palette
+    // Light — flat workbench: every region matches the main window.
+    // Only selection (and brief hover) may tint; idle chrome stays window white.
     Theme light;
     light.name = "Light";
     light.windowBg = "#ffffff";
     light.contentBg = "#ffffff";
-    light.sidebarBg = "#f8f8f8";
-    light.panelBg = "#f3f3f3";
-    light.barBg = "#f3f3f3";
+    light.sidebarBg = "#ffffff";
+    light.panelBg = "#ffffff";
+    light.barBg = "#ffffff";
     light.barFg = "#3b3b3b";
-    light.barHover = "#e8e8e8";
+    light.barHover = "#f0f0f0";
     light.barBorder = "#d0d0d0";
-    light.activityBarBg = "#f3f3f3";
+    light.activityBarBg = "#ffffff";
     light.activityBarFg = "#616161";
-    light.activityBarHover = "#e8e8e8";
+    light.activityBarHover = "#f0f0f0";
     light.text = "#3b3b3b";
     light.textDim = "#6c6c6c";
     light.accent = "#005fb8";
     light.accentHover = "#1f7ad3";
     light.accentBorder = "#005a9e";
-    // VS Code-like panel borders: visible on #f3/#f8 surfaces (was too faint at #e5)
     light.border = "#d0d0d0";
     light.borderDim = "#e0e0e0";
     light.selectionBg = "#cce8ff";
     light.hoverBg = "#f0f0f0";
-    light.buttonBg = "#e8e8e8";
-    light.buttonHover = "#dadada";
-    light.buttonPress = "#cccccc";
-    light.buttonDisabledBg = "#f0f0f0";
+    light.buttonBg = "#ffffff";
+    light.buttonHover = "#f0f0f0";
+    light.buttonPress = "#e8e8e8";
+    light.buttonDisabledBg = "#ffffff";
     light.buttonDisabledText = "#b0b0b0";
-    light.statusBg = "#f3f3f3";
+    light.statusBg = "#ffffff";
     light.statusFg = "#3b3b3b";
-    // Match workbench (no dark terminal island in light UI)
     light.terminalBg = "#ffffff";
     light.terminalFg = "#3b3b3b";
-    light.tabBg = "#f3f3f3";
+    light.tabBg = "#ffffff";
     light.tabActiveBg = "#ffffff";
-    light.tabHoverBg = "#e8e8e8";
-    light.scrollBg = "#f8f8f8";
+    light.tabHoverBg = "#f5f5f5";
+    light.scrollBg = "#ffffff";
     light.scrollHandle = "#c8c8c8";
     light.scrollHandleHover = "#a0a0a0";
     light.closeBtnHover = "#e81123";
     light.closeBtnPress = "#f1707a";
-    light.headerBg = "#f0f0f0";
-    light.headerHover = "#e8e8e8";
-    light.altRowBg = "#fafafa";
+    light.headerBg = "#ffffff";
+    light.headerHover = "#f5f5f5";
+    light.altRowBg = "#ffffff";
     m_themes.append({light.name, light});
 
     m_currentName = "Light";

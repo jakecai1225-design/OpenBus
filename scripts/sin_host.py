@@ -304,6 +304,54 @@ def handle_file_opened(params):
                 )
 
 
+def handle_set_language(params):
+    locale = params.get("locale") or params.get("language") or "en"
+    try:
+        from _shared import i18n
+        i18n.set_language(locale)
+        log_info(f"setLanguage: {locale}")
+    except Exception:
+        log_error(f"setLanguage failed:\n{traceback.format_exc()}")
+        return
+    for name, entry in list(_plugins.items()):
+        module = entry.get("module")
+        context = entry.get("context")
+        for target in (module, context):
+            if target is None:
+                continue
+            for attr in ("retranslate", "on_language_changed", "set_language"):
+                fn = getattr(target, attr, None)
+                if callable(fn):
+                    try:
+                        if attr == "set_language":
+                            fn(locale)
+                        else:
+                            fn()
+                    except TypeError:
+                        try:
+                            fn(locale)
+                        except Exception:
+                            log_error(
+                                f"plugin {name} {attr} error:\n{traceback.format_exc()}"
+                            )
+                    except Exception:
+                        log_error(
+                            f"plugin {name} {attr} error:\n{traceback.format_exc()}"
+                        )
+                    break
+        # Open suite shells often live on the context
+        shell = getattr(context, "shell", None) if context else None
+        if shell is None and context is not None:
+            shell = getattr(context, "_shell", None)
+        if shell is not None and hasattr(shell, "retranslate"):
+            try:
+                shell.retranslate()
+            except Exception:
+                log_error(
+                    f"plugin {name} shell.retranslate error:\n{traceback.format_exc()}"
+                )
+
+
 def handle_message(msg):
     method = msg.get("method")
     params = msg.get("params") or {}
@@ -327,6 +375,10 @@ def handle_message(msg):
         execute_command(params)
     elif method == "fileOpened":
         handle_file_opened(params)
+    elif method in ("setLanguage", "set_language"):
+        handle_set_language(params)
+        if msg_id is not None:
+            send_response(msg_id, {"success": True})
     elif method == "ai.attach":
         try:
             from _shared import ai_attach

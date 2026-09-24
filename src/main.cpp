@@ -6,6 +6,7 @@
 #include "core/canframe.h"
 #include "core/logging.h"
 #include "core/appconfig.h"
+#include "core/translationmanager.h"
 #include "core/sessionmanager.h"
 #include "core/module/moduleregistry.h"
 
@@ -33,10 +34,14 @@ int main(int argc, char *argv[])
     logging::init();
 
     try {
-    // 加载应用配置
+    // Load application config
     AppConfig::instance()->load();
 
-    // 加载会话状态（含从 AppConfig 迁移 project.recent）
+    // Install UI translators before widgets are created
+    TranslationManager::instance()->setLanguage(
+        TranslationManager::resolveStartupLanguage());
+
+    // Load session state (includes migration of project.recent from AppConfig)
     SessionManager::instance()->load();
 
     // 注册业务模块（拆分方案 B1/B2/B3/B4/B5：market、transceive、dbc、flow、
@@ -66,16 +71,16 @@ int main(int argc, char *argv[])
     logging::shutdown();
     return ret;
     } catch (const std::exception &e) {
-        QString msg = QStringLiteral("致命错误: %1").arg(e.what());
+        QString msg = QStringLiteral("Fatal error: %1").arg(e.what());
         OPENBUS_LOG_ERROR("main", "uncaught exception: {}", e.what());
         logging::shutdown();
-        QMessageBox::critical(nullptr, QStringLiteral("致命错误"), msg);
+        QMessageBox::critical(nullptr, QStringLiteral("Fatal error"), msg);
         return 1;
     } catch (...) {
         OPENBUS_LOG_ERROR("main", "unknown uncaught exception");
         logging::shutdown();
-        QMessageBox::critical(nullptr, QStringLiteral("致命错误"),
-                             QStringLiteral("程序发生未知异常"));
+        QMessageBox::critical(nullptr, QStringLiteral("Fatal error"),
+                             QStringLiteral("An unknown exception occurred"));
         return 1;
     }
 }

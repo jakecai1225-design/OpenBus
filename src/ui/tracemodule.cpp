@@ -356,6 +356,12 @@ void TraceModule::invoke(const QString &action, const QVariant &arg)
                 }
             }
         }
+    } else if (action == QStringLiteral("retranslate")) {
+        const auto tabs = m_tabList;
+        for (const auto &tabPtr : tabs) {
+            if (TraceTab *tab = tabPtr.data())
+                tab->retranslateUi();
+        }
     }
 }
 

@@ -101,9 +101,10 @@ ExplorerItemRow::ExplorerItemRow(const QString &text, QWidget *parent)
     setObjectName(QStringLiteral("ExplorerItemRow"));
     setAttribute(Qt::WA_Hover, true);
     setCursor(Qt::PointingHandCursor);
+    setFixedHeight(22);
 
     auto *lay = new QHBoxLayout(this);
-    lay->setContentsMargins(8, 1, 4, 1);
+    lay->setContentsMargins(8, 0, 4, 0);
     lay->setSpacing(4);
 
     m_iconLabel = new QLabel(this);
@@ -152,9 +153,11 @@ QToolButton *ExplorerItemRow::addAction(const QString &iconPath,
     btn->setFocusPolicy(Qt::NoFocus);
     btn->setCursor(Qt::PointingHandCursor);
     btn->setToolTip(tooltip);
-    btn->setFixedSize(20, 20);
-    btn->setIconSize(QSize(iconSize, iconSize));
-    btn->setIcon(svgIcon(iconPath, ThemeManager::instance()->currentTheme().text, iconSize));
+    btn->setFixedSize(16, 16);
+    btn->setIconSize(QSize(iconSize > 0 ? qMin(iconSize, 12) : 12,
+                           iconSize > 0 ? qMin(iconSize, 12) : 12));
+    btn->setIcon(svgIcon(iconPath, ThemeManager::instance()->currentTheme().text,
+                         iconSize > 0 ? qMin(iconSize, 12) : 12));
     m_actionsLay->addWidget(btn, 0, Qt::AlignVCenter);
     m_actions.append(btn);
     m_actionIconPaths.append(iconPath);
@@ -294,13 +297,9 @@ ExplorerSection::ExplorerSection(const QString &title, QWidget *parent)
     lay->setContentsMargins(0, 0, 0, 0);
     lay->setSpacing(0);
 
-    setAttribute(Qt::WA_Hover, true);
-    installEventFilter(this);
-
     m_headerRow = new QWidget(this);
     m_headerRow->setObjectName(QStringLiteral("ExplorerSectionHeaderRow"));
-    m_headerRow->setAttribute(Qt::WA_Hover, true);
-    m_headerRow->installEventFilter(this);
+    m_headerRow->setFixedHeight(22);
     m_headerLay = new QHBoxLayout(m_headerRow);
     m_headerLay->setContentsMargins(0, 0, 4, 0);
     m_headerLay->setSpacing(2);
@@ -309,6 +308,7 @@ ExplorerSection::ExplorerSection(const QString &title, QWidget *parent)
     m_header->setObjectName(QStringLiteral("ExplorerSectionHeader"));
     m_header->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_header->setAutoRaise(true);
+    m_header->setFixedHeight(22);
     m_header->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_header->setCursor(Qt::PointingHandCursor);
     m_header->setFocusPolicy(Qt::NoFocus);
@@ -334,8 +334,6 @@ ExplorerSection::ExplorerSection(const QString &title, QWidget *parent)
 
     m_body = new QWidget(this);
     m_body->setObjectName(QStringLiteral("ExplorerSectionBody"));
-    m_body->setAttribute(Qt::WA_Hover, true);
-    m_body->installEventFilter(this);
     m_bodyLayout = new QVBoxLayout(m_body);
     m_bodyLayout->setContentsMargins(0, 0, 0, 0);
     m_bodyLayout->setSpacing(0);
@@ -344,7 +342,7 @@ ExplorerSection::ExplorerSection(const QString &title, QWidget *parent)
     setTitle(title);
     applyExpandPolicy();
     updateHeaderChrome();
-    setHeaderActionsHovered(false);
+    updateHeaderActionsVisibility();
     // Parent layout may not be ready yet; rebalance once shown / next tick.
     QTimer::singleShot(0, this, &ExplorerSection::rebalanceSiblings);
 }
@@ -368,6 +366,7 @@ void ExplorerSection::setExpanded(bool expanded)
     m_body->setVisible(m_expanded);
     applyExpandPolicy();
     updateHeaderChrome();
+    updateHeaderActionsVisibility();
     rebalanceSiblings();
     emit expandedChanged(m_expanded);
 }
@@ -473,22 +472,15 @@ QToolButton *ExplorerSection::addHeaderAction(const QString &iconPath,
     btn->setFocusPolicy(Qt::NoFocus);
     btn->setCursor(Qt::PointingHandCursor);
     btn->setToolTip(tooltip);
-    btn->setFixedSize(22, 22);
-    btn->setIconSize(QSize(iconSize, iconSize));
-    btn->setIcon(svgIcon(iconPath, ThemeManager::instance()->currentTheme().text, iconSize));
-    connect(btn, &QToolButton::pressed, this, [this]() {
-        setHeaderActionsHovered(true);
-    });
-    connect(btn, &QToolButton::released, this, [this]() {
-        const QPoint g = QCursor::pos();
-        const bool over = m_headerRow
-            && m_headerRow->rect().contains(m_headerRow->mapFromGlobal(g));
-        setHeaderActionsHovered(over);
-    });
+    btn->setFixedSize(16, 16);
+    btn->setIconSize(QSize(iconSize > 0 ? qMin(iconSize, 12) : 12,
+                           iconSize > 0 ? qMin(iconSize, 12) : 12));
+    btn->setIcon(svgIcon(iconPath, ThemeManager::instance()->currentTheme().text,
+                         iconSize > 0 ? qMin(iconSize, 12) : 12));
     m_actionsLay->addWidget(btn, 0, Qt::AlignVCenter);
     m_actions.append(btn);
     m_actionIconPaths.append(iconPath);
-    setHeaderActionsHovered(m_headerHovered);
+    updateHeaderActionsVisibility();
     return btn;
 }
 
@@ -509,19 +501,14 @@ void ExplorerSection::applyExpandPolicy()
         parentWidget()->updateGeometry();
 }
 
-void ExplorerSection::setHeaderActionsHovered(bool hovered)
+void ExplorerSection::updateHeaderActionsVisibility()
 {
-    m_headerHovered = hovered;
-    bool force = false;
-    for (auto *b : m_actions) {
-        if (b->isDown()) {
-            force = true;
-            break;
-        }
-    }
-    const bool show = hovered || force;
+    // Expanded section = active: keep trailing actions visible.
+    // Collapsed: hide them.
     for (auto *b : m_actions)
-        b->setVisible(show);
+        b->setVisible(m_expanded);
+    if (m_actionsHost)
+        m_actionsHost->setVisible(m_expanded && !m_actions.isEmpty());
 }
 
 void ExplorerSection::refreshActionIcons()
@@ -531,35 +518,6 @@ void ExplorerSection::refreshActionIcons()
         const int sz = m_actions[i]->iconSize().width();
         m_actions[i]->setIcon(svgIcon(m_actionIconPaths.value(i), c, sz > 0 ? sz : 14));
     }
-}
-
-bool ExplorerSection::eventFilter(QObject *watched, QEvent *event)
-{
-    const bool onSection = (watched == this || watched == m_headerRow
-                            || watched == m_body || watched == m_actionsHost);
-    if (onSection) {
-        switch (event->type()) {
-        case QEvent::Enter:
-        case QEvent::HoverEnter:
-            setHeaderActionsHovered(true);
-            break;
-        case QEvent::Leave:
-        case QEvent::HoverLeave: {
-            const QPoint g = QCursor::pos();
-            if (!rect().contains(mapFromGlobal(g)))
-                setHeaderActionsHovered(false);
-            break;
-        }
-        default:
-            break;
-        }
-    } else if (auto *btn = qobject_cast<QToolButton *>(watched)) {
-        if (m_actions.contains(btn)) {
-            if (event->type() == QEvent::Enter || event->type() == QEvent::HoverEnter)
-                setHeaderActionsHovered(true);
-        }
-    }
-    return QWidget::eventFilter(watched, event);
 }
 
 void ExplorerSection::updateHeaderChrome()
@@ -678,6 +636,7 @@ ProjectPanel::ProjectPanel(QWidget *parent)
     });
     m_recentList = new QListWidget(m_recentSection->bodyWidget());
     m_recentList->setObjectName(QStringLiteral("ExplorerRecentList"));
+    m_recentList->setFrameShape(QFrame::NoFrame);
     m_recentList->setContextMenuPolicy(Qt::CustomContextMenu);
     m_recentList->setMouseTracking(true);
     m_recentSection->bodyLayout()->addWidget(m_recentList, 1);
@@ -1646,6 +1605,8 @@ TracePanel::TracePanel(QWidget *parent)
         QStringLiteral(":/icons/dash.svg"),
         QStringLiteral("Close selected Trace"));
     m_traceList = new QListWidget(m_openedSection->bodyWidget());
+    m_traceList->setObjectName(QStringLiteral("ExplorerRecentList"));
+    m_traceList->setFrameShape(QFrame::NoFrame);
     m_traceList->setContextMenuPolicy(Qt::CustomContextMenu);
     m_traceList->setMouseTracking(true);
     m_openedSection->bodyLayout()->addWidget(m_traceList, 1);
@@ -1653,6 +1614,8 @@ TracePanel::TracePanel(QWidget *parent)
 
     m_newSection = new ExplorerSection(QStringLiteral("New Trace"), this);
     m_templateList = new QListWidget(m_newSection->bodyWidget());
+    m_templateList->setObjectName(QStringLiteral("ExplorerRecentList"));
+    m_templateList->setFrameShape(QFrame::NoFrame);
     const QString tmplIconCol = ThemeManager::instance()->currentTheme().text;
     auto addTemplate = [this, tmplIconCol](const QString &name,
                                            const QString &formId,
@@ -1794,6 +1757,8 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
         QStringLiteral(":/icons/dash.svg"),
         QStringLiteral("Close selected Graphic"));
     m_pageList = new QListWidget(m_openedSection->bodyWidget());
+    m_pageList->setObjectName(QStringLiteral("ExplorerRecentList"));
+    m_pageList->setFrameShape(QFrame::NoFrame);
     m_pageList->setContextMenuPolicy(Qt::CustomContextMenu);
     m_pageList->setMouseTracking(true);
     m_openedSection->bodyLayout()->addWidget(m_pageList, 1);
@@ -1801,6 +1766,8 @@ GraphicConfigPanel::GraphicConfigPanel(QWidget *parent)
 
     m_newSection = new ExplorerSection(QStringLiteral("New Graphic"), this);
     m_templateList = new QListWidget(m_newSection->bodyWidget());
+    m_templateList->setObjectName(QStringLiteral("ExplorerRecentList"));
+    m_templateList->setFrameShape(QFrame::NoFrame);
     const QString tmplIconCol = ThemeManager::instance()->currentTheme().text;
     auto addTemplate = [this, tmplIconCol](const QString &name,
                                            const QString &formId,
@@ -2155,13 +2122,19 @@ void TransceivePanel::onRecordClicked()
 // ============================================================
 
 SettingsPanel::SettingsPanel(QWidget *parent)
-    : SidePanel("设置", parent)
+    : SidePanel(tr("Settings"), parent)
 {
     auto *cl = contentLayout();
 
     m_list = new QListWidget(this);
-    m_list->addItem("通用设置");
-    m_list->addItem("快捷键");
+    m_list->setObjectName(QStringLiteral("ExplorerRecentList"));
+    m_list->setFrameShape(QFrame::NoFrame);
+    auto *general = new QListWidgetItem(tr("General"), m_list);
+    general->setData(Qt::UserRole, QStringLiteral("general"));
+    general->setSizeHint(QSize(0, 22));
+    auto *shortcuts = new QListWidgetItem(tr("Keyboard Shortcuts"), m_list);
+    shortcuts->setData(Qt::UserRole, QStringLiteral("shortcuts"));
+    shortcuts->setSizeHint(QSize(0, 22));
     cl->addWidget(m_list, 1);
 
     connect(m_list, &QListWidget::itemClicked,
@@ -2170,8 +2143,11 @@ SettingsPanel::SettingsPanel(QWidget *parent)
 
 void SettingsPanel::onItemClicked(QListWidgetItem *item)
 {
-    if (item)
-        emit settingsRequested(item->text());
+    if (!item)
+        return;
+    // Prefer stable role keys so language changes do not break navigation
+    const QString key = item->data(Qt::UserRole).toString();
+    emit settingsRequested(key.isEmpty() ? item->text() : key);
 }
 
 // ============================================================
@@ -2185,6 +2161,8 @@ MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
 
     m_openedSection = new ExplorerSection(QStringLiteral("Open Editors"), this);
     m_openedList = new QListWidget(m_openedSection->bodyWidget());
+    m_openedList->setObjectName(QStringLiteral("ExplorerRecentList"));
+    m_openedList->setFrameShape(QFrame::NoFrame);
     m_openedList->setMouseTracking(true);
     connect(m_openedList, &QListWidget::itemClicked,
             this, &MeasurementSetupPanel::onOpenedClicked);
@@ -2193,6 +2171,8 @@ MeasurementSetupPanel::MeasurementSetupPanel(QWidget *parent)
 
     m_newSection = new ExplorerSection(QStringLiteral("New Protocol Flow"), this);
     m_templateList = new QListWidget(m_newSection->bodyWidget());
+    m_templateList->setObjectName(QStringLiteral("ExplorerRecentList"));
+    m_templateList->setFrameShape(QFrame::NoFrame);
     m_newSection->bodyLayout()->addWidget(m_templateList, 1);
     cl->addWidget(m_newSection, 1);
     rebuildTemplates();
@@ -2406,7 +2386,7 @@ void ExtensionsPanel::rebuild()
     auto *installedHost = new QWidget(installedScroll);
     auto *installedLay = new QVBoxLayout(installedHost);
     installedLay->setContentsMargins(0, 0, 0, 0);
-    installedLay->setSpacing(2);
+    installedLay->setSpacing(0);
     installedScroll->setWidget(installedHost);
     m_installedSection->bodyLayout()->addWidget(installedScroll, 1);
 
@@ -2416,7 +2396,7 @@ void ExtensionsPanel::rebuild()
     auto *runningHost = new QWidget(runningScroll);
     auto *runningLay = new QVBoxLayout(runningHost);
     runningLay->setContentsMargins(0, 0, 0, 0);
-    runningLay->setSpacing(2);
+    runningLay->setSpacing(0);
     runningScroll->setWidget(runningHost);
     m_runningSection->bodyLayout()->addWidget(runningScroll, 1);
 
@@ -2464,91 +2444,81 @@ FrameRow *ExtensionsPanel::makeRow(const MarketEntryData &e)
     row->item = e.item;
 
     auto *lay = new QHBoxLayout(row);
-    lay->setContentsMargins(8, 4, 4, 4);
-    lay->setSpacing(8);
+    lay->setContentsMargins(8, 0, 4, 0);
+    lay->setSpacing(4);
+    row->setFixedHeight(22);
 
-    // 图标：已装插件本地优先，其余市场 icon 异步兑底，最终首字母头像
+    // Icon: local installed plugin first, then market icon, else letter avatar
     auto *icon = new QLabel;
-    icon->setFixedSize(24, 24);
+    icon->setFixedSize(16, 16);
     icon->setAlignment(Qt::AlignCenter);
     row->iconLabel = icon;
     if (e.item.kind == MarketItem::InstalledPlugin) {
         const QPixmap local = MarketModel::pluginIconLocal(e.item.id);
         if (!local.isNull())
-            icon->setPixmap(local.scaled(24, 24, Qt::KeepAspectRatio,
+            icon->setPixmap(local.scaled(16, 16, Qt::KeepAspectRatio,
                                          Qt::SmoothTransformation));
     }
-    if (icon->pixmap().isNull() && !e.marketIcon.isEmpty()) {
+    if (icon->pixmap(Qt::ReturnByValue).isNull() && !e.marketIcon.isEmpty()) {
         MarketModel::fetchMarketPixmap(
             MarketIndex::instance()->resolveUrl(e.marketIcon),
             [icon](const QPixmap &pm) {
                 QPointer<QLabel> g(icon);
                 if (g)
-                    g->setPixmap(pm.scaled(24, 24, Qt::KeepAspectRatio,
+                    g->setPixmap(pm.scaled(16, 16, Qt::KeepAspectRatio,
                                            Qt::SmoothTransformation));
             });
     }
-    if (icon->pixmap().isNull())
-        icon->setPixmap(PluginUi::pluginIconPixmap(QString(), e.title, 24));
-    lay->addWidget(icon);
+    if (icon->pixmap(Qt::ReturnByValue).isNull())
+        icon->setPixmap(PluginUi::pluginIconPixmap(QString(), e.title, 16));
+    lay->addWidget(icon, 0, Qt::AlignVCenter);
 
-    auto *tbox = new QVBoxLayout;
-    tbox->setSpacing(0);
     auto *titleLabel = new QLabel(e.title);
-    QFont bold = titleLabel->font();
-    bold.setBold(true);
-    titleLabel->setFont(bold);
-    // Ignored 策略：允许压缩到内容以下，避免挤占右侧状态词/齿轮按钮的空间
-    // （窄面板下 QLabel 默认最小宽度会把尾部控件推出可视区）
     titleLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    auto *metaLabel = new QLabel(e.meta);
-    QFont small = metaLabel->font();
-    small.setPointSize(qMax(small.pointSize() - 1, 1));
-    metaLabel->setFont(small);
-    metaLabel->setStyleSheet(QStringLiteral("color: %1;")
-        .arg(ThemeManager::instance()->currentTheme().textDim));
-    metaLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    // 单行截断（窄面板）
-    const QFontMetrics fm(metaLabel->font());
-    metaLabel->setText(fm.elidedText(e.meta, Qt::ElideRight, 120));
-    tbox->addWidget(titleLabel);
-    tbox->addWidget(metaLabel);
-    lay->addLayout(tbox, 1);
+    QString tip = e.meta.isEmpty()
+        ? e.title
+        : QStringLiteral("%1\n%2").arg(e.title, e.meta);
+    if (e.item.kind == MarketItem::InstalledPlugin)
+        tip += QStringLiteral("\nDouble-click to run; gear for more actions");
+    titleLabel->setToolTip(tip);
+    row->setToolTip(tip);
+    lay->addWidget(titleLabel, 1);
 
     if (!e.status.isEmpty()) {
         auto *statusLabel = new QLabel(e.status);
-        statusLabel->setStyleSheet(QStringLiteral("color: %1;")
+        statusLabel->setStyleSheet(QStringLiteral(
+            "color: %1; background: transparent; border: none;")
             .arg(ThemeManager::instance()->currentTheme().textDim));
         lay->addWidget(statusLabel, 0, Qt::AlignVCenter);
     }
 
-    // 齿轮菜单（已装驱动/已装插件；市场条目点击行跳市场页操作）
+    // Gear menu (installed driver / plugin)
     if (e.item.kind == MarketItem::InstalledPlugin
         || e.item.kind == MarketItem::InstalledDriver) {
         auto *gear = new QToolButton;
+        gear->setObjectName(QStringLiteral("ExplorerSectionAction"));
         gear->setIcon(svgIcon(":/icons/gear.svg",
-                              ThemeManager::instance()->currentTheme().text, 14));
+                              ThemeManager::instance()->currentTheme().text, 12));
         gear->setToolTip(QStringLiteral("More actions"));
         gear->setAutoRaise(true);
+        gear->setFixedSize(16, 16);
         MarketEntryData entry = e;
         connect(gear, &QToolButton::clicked, this, [this, gear, entry]() {
             showGearMenu(entry, gear->mapToGlobal(QPoint(0, gear->height())));
         });
-        lay->addWidget(gear, 0, Qt::AlignTop);
+        lay->addWidget(gear, 0, Qt::AlignVCenter);
     }
 
-    // 非按钮子控件鼠标事件穿透 → 行点击
+    // Non-button children: pass clicks through to the row
     icon->setAttribute(Qt::WA_TransparentForMouseEvents, true);
     for (QLabel *l : row->findChildren<QLabel *>())
         l->setAttribute(Qt::WA_TransparentForMouseEvents, true);
 
     row->setOnClick([this, item = e.item]() { emit itemActivated(item); });
-    // Double-click installed plugin → start / restart (control channel activate)
     if (e.item.kind == MarketItem::InstalledPlugin) {
         row->setOnDoubleClick([this, id = e.item.id]() {
             emit pluginActivated(id);
         });
-        row->setToolTip(QStringLiteral("Double-click to run; gear for more actions"));
     }
     return row;
 }

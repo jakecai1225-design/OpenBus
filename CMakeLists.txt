@@ -68,6 +68,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 #  Find Qt6
 # ============================================================
 find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport Svg Network)
+find_package(Qt6 QUIET COMPONENTS LinguistTools)
 
 qt_standard_project_setup()
 

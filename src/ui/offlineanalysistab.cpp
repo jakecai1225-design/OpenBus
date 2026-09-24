@@ -20,6 +20,7 @@
 #include <QMimeData>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QAbstractItemView>
 
 // ---- 工具函数 ----
 
@@ -48,19 +49,18 @@ static QString formatDuration(double seconds)
 OfflineAnalysisTab::OfflineAnalysisTab(QWidget *parent)
     : QWidget(parent)
 {
-    setAcceptDrops(true);  // ✅ 启用拖放
+    setAcceptDrops(true);
 
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(20, 20, 20, 20);
     mainLayout->setSpacing(12);
 
-    // ---- 工具栏 ----
     auto *toolbarLayout = new QHBoxLayout;
     const QString iconCol = ThemeManager::instance()->currentTheme().text;
-    m_addFileBtn = new QPushButton(svgIcon(":/icons/plus.svg", iconCol, 14), "添加文件", this);
-    m_removeFileBtn = new QPushButton(svgIcon(":/icons/dash.svg", iconCol, 14), "删除文件", this);
-    m_moveUpBtn = new QPushButton(svgIcon(":/icons/chevron-up.svg", iconCol, 14), "上移", this);
-    m_moveDownBtn = new QPushButton(svgIcon(":/icons/chevron-down.svg", iconCol, 14), "下移", this);
+    m_addFileBtn = new QPushButton(svgIcon(":/icons/plus.svg", iconCol, 14), tr("Add File"), this);
+    m_removeFileBtn = new QPushButton(svgIcon(":/icons/dash.svg", iconCol, 14), tr("Remove"), this);
+    m_moveUpBtn = new QPushButton(svgIcon(":/icons/chevron-up.svg", iconCol, 14), tr("Move Up"), this);
+    m_moveDownBtn = new QPushButton(svgIcon(":/icons/chevron-down.svg", iconCol, 14), tr("Move Down"), this);
     toolbarLayout->addWidget(m_addFileBtn);
     toolbarLayout->addWidget(m_removeFileBtn);
     toolbarLayout->addSpacing(10);
@@ -68,18 +68,18 @@ OfflineAnalysisTab::OfflineAnalysisTab(QWidget *parent)
     toolbarLayout->addWidget(m_moveDownBtn);
     toolbarLayout->addStretch();
 
-    m_statusLabel = new QLabel("就绪", this);
+    m_statusLabel = new QLabel(tr("Ready"), this);
     m_statusLabel->setObjectName("DimLabel");
     toolbarLayout->addWidget(m_statusLabel);
     mainLayout->addLayout(toolbarLayout);
 
-    // ---- 文件列表 ----
-    auto *listGroup = new QGroupBox("分析文件列表", this);
+    auto *listGroup = new QGroupBox(tr("Analysis files"), this);
+    listGroup->setObjectName(QStringLiteral("OfflineListGroup"));
     auto *listLayout = new QVBoxLayout(listGroup);
 
     m_fileList = new QTableWidget(0, 5, listGroup);
     m_fileList->setHorizontalHeaderLabels(
-        {"#", "文件名", "帧数", "时长", "大小"});
+        {QStringLiteral("#"), tr("File"), tr("Frames"), tr("Duration"), tr("Size")});
     m_fileList->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     m_fileList->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     m_fileList->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
@@ -90,8 +90,7 @@ OfflineAnalysisTab::OfflineAnalysisTab(QWidget *parent)
     m_fileList->setEditTriggers(QAbstractItemView::NoEditTriggers);
     listLayout->addWidget(m_fileList);
 
-    // ✅ 拖放提示标签
-    m_dropHint = new QLabel("请拖放文件到此", this);
+    m_dropHint = new QLabel(tr("Drop files here"), this);
     m_dropHint->setAlignment(Qt::AlignCenter);
     m_dropHint->setStyleSheet(QString(
         "color: %1;"
@@ -131,7 +130,7 @@ OfflineAnalysisTab::OfflineAnalysisTab(QWidget *parent)
 void OfflineAnalysisTab::onAddFile()
 {
     QStringList paths = QFileDialog::getOpenFileNames(
-        this, "添加分析文件", {},
+        this, tr("Add analysis files"), {},
         CanFileIO::allFileFilters());
     if (paths.isEmpty()) return;
 
@@ -142,7 +141,6 @@ void OfflineAnalysisTab::addFiles(const QStringList &paths)
 {
     if (paths.isEmpty()) return;
 
-    // ✅ 有文件时隐藏提示标签
     m_dropHint->hide();
 
     for (const auto &path : paths) {
@@ -159,14 +157,14 @@ void OfflineAnalysisTab::addFiles(const QStringList &paths)
         nameItem->setToolTip(path);
         m_fileList->setItem(row, 1, nameItem);
 
-        m_fileList->setItem(row, 2, new QTableWidgetItem("解析中..."));
-        m_fileList->setItem(row, 3, new QTableWidgetItem("-"));
+        m_fileList->setItem(row, 2, new QTableWidgetItem(tr("Parsing...")));
+        m_fileList->setItem(row, 3, new QTableWidgetItem(QStringLiteral("-")));
         m_fileList->setItem(row, 4, new QTableWidgetItem(formatFileSize(fi.size())));
 
         m_parseQueue.enqueue(row);
     }
 
-    m_statusLabel->setText(QString("共 %1 个文件，解析中...").arg(m_fileList->rowCount()));
+    m_statusLabel->setText(tr("%1 file(s), parsing...").arg(m_fileList->rowCount()));
     if (!m_parseTimer->isActive())
         m_parseTimer->start();
 }
@@ -184,12 +182,11 @@ void OfflineAnalysisTab::onRemoveFile()
 
     m_fileList->removeRow(row);
     renumberRows();
-    
-    // ✅ 删除所有文件后显示提示
+
     if (m_fileList->rowCount() == 0) {
         m_dropHint->show();
     } else {
-        m_statusLabel->setText(QString("剩余 %1 个文件").arg(m_fileList->rowCount()));
+        m_statusLabel->setText(tr("%1 file(s) remaining").arg(m_fileList->rowCount()));
     }
 }
 
@@ -292,7 +289,7 @@ void OfflineAnalysisTab::onParseTimer()
     if (m_parseQueue.isEmpty()) {
         m_parseTimer->stop();
         if (m_fileList->rowCount() > 0)
-            m_statusLabel->setText(QString("共 %1 个文件，解析完成").arg(m_fileList->rowCount()));
+            m_statusLabel->setText(tr("%1 file(s), parse complete").arg(m_fileList->rowCount()));
         return;
     }
 
@@ -317,7 +314,7 @@ void OfflineAnalysisTab::parseFileInfo(int row)
     auto reader = CanFileIOFactory::createReader(path);
     if (!reader || !reader->open(path)) {
         auto *framesItem = m_fileList->item(row, 2);
-        if (framesItem) framesItem->setText("解析失败");
+        if (framesItem) framesItem->setText(tr("Parse failed"));
         auto *durItem = m_fileList->item(row, 3);
         if (durItem) durItem->setText("-");
         return;
@@ -338,4 +335,26 @@ void OfflineAnalysisTab::parseFileInfo(int row)
     auto *durItem = m_fileList->item(row, 3);
     if (durItem)
         durItem->setText(formatDuration(duration));
+}
+
+void OfflineAnalysisTab::retranslateUi()
+{
+    if (m_addFileBtn)
+        m_addFileBtn->setText(tr("Add File"));
+    if (m_removeFileBtn)
+        m_removeFileBtn->setText(tr("Remove"));
+    if (m_moveUpBtn)
+        m_moveUpBtn->setText(tr("Move Up"));
+    if (m_moveDownBtn)
+        m_moveDownBtn->setText(tr("Move Down"));
+    if (m_dropHint)
+        m_dropHint->setText(tr("Drop files here"));
+    if (m_fileList) {
+        m_fileList->setHorizontalHeaderLabels(
+            {QStringLiteral("#"), tr("File"), tr("Frames"), tr("Duration"), tr("Size")});
+    }
+    for (QGroupBox *g : findChildren<QGroupBox *>()) {
+        if (g->objectName() == QLatin1String("OfflineListGroup"))
+            g->setTitle(tr("Analysis files"));
+    }
 }

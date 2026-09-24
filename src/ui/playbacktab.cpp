@@ -31,6 +31,7 @@
 #include <QMimeData>
 #include <QUrl>
 #include <QEvent>
+#include <QGroupBox>
 
 PlaybackTab::PlaybackTab(QWidget *parent)
     : QWidget(parent)
@@ -783,5 +784,28 @@ void PlaybackTab::loadConfig(const QVariantMap &map)
             wantRow = 0;
         if (m_fileList->rowCount() > 0)
             loadRowIntoPlayer(wantRow);
+    }
+}
+
+void PlaybackTab::retranslateUi()
+{
+    if (m_playBtn)
+        m_playBtn->setText(tr("Play"));
+    if (m_pauseBtn)
+        m_pauseBtn->setText(tr("Pause"));
+    if (m_stopBtn)
+        m_stopBtn->setText(tr("Stop"));
+    // Group boxes / headers: refresh via findChildren for titles set in ctor
+    const auto groups = findChildren<QGroupBox *>();
+    for (QGroupBox *g : groups) {
+        if (g->title() == QLatin1String("Playback") || g->title().contains(QStringLiteral("Playback"))
+            || g->title() == QString::fromUtf8("\xE5\x9B\x9E\xE6\x94\xBE"))
+            g->setTitle(tr("Playback"));
+    }
+    if (m_fileList) {
+        m_fileList->setHorizontalHeaderLabels({
+            QStringLiteral("#"), tr("File"), tr("Frames"),
+            tr("Duration"), tr("Progress"), tr("Status")
+        });
     }
 }

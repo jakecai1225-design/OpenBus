@@ -348,6 +348,7 @@ public:
 
     /// Refresh capture / displayed / marked counts on the status strip
     void updatePacketCount();
+    void retranslateUi();
 
     /// M1: protocol / form identity (doc/flow.md §13) — can/framelist until multi-protocol
     QString protocolId() const { return m_protocolId; }

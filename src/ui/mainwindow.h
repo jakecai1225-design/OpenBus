@@ -162,6 +162,8 @@ private slots:
     void toggleRightDock();
     void toggleBottomDock();
     void resetLayout();
+    /// Expand/collapse the explorer SideBar only; ActivityBar stays visible (VS Code).
+    void setSideBarExpanded(bool expanded);
 
     // 帮助菜单对话框
     void showAboutDialog();
@@ -177,7 +179,8 @@ private slots:
     void onPluginSendFrame(const CanFrame &frame);
     void onPluginRequestSelectedFrames(const QJsonValue &requestId);
     void onPluginRequestRecentFrames(const QJsonValue &requestId, int count);
-    void refreshWindowButtonIcons();   // 窗口按钮 SVG 图标（主题色 + 最大化/还原切换，DEF-08 字符串槽）
+    void refreshWindowButtonIcons();   // window button SVG icons (theme + max/restore)
+    void onLanguageChanged(const QString &locale);
 
 private:
     // ---- 构造分阶段装配（mainwindow_setup.cpp；原构造函数直排代码按阶段拆出）----
@@ -188,6 +191,7 @@ private:
     void connectProjectPanel();      // 工程面板接线 + 上次工程加载 + 默认实例兜底
 
     void createMenuBar();
+    void retranslateUi();
     void createLayout();
     void createStatusBar();
     void createWindowButtons();
@@ -292,7 +296,25 @@ private:
 
     // 周期发送定时器（m_periodicSenders）随发送页迁入 transceive 模块（B2）
 
-    // ---- 菜单 Action ----
+    // ---- Menu actions ----
+    QMenu *m_fileMenu = nullptr;
+    QMenu *m_viewMenu = nullptr;
+    QMenu *m_toolsMenu = nullptr;
+    QMenu *m_helpMenu = nullptr;
+    QAction *m_openProjectAction = nullptr;
+    QAction *m_saveProjectAction = nullptr;
+    QAction *m_quitAction = nullptr;
+    QAction *m_toggleLeftAction = nullptr;
+    QAction *m_toggleBottomAction = nullptr;
+    QAction *m_toggleRightAction = nullptr;
+    QAction *m_welcomeAction = nullptr;
+    QAction *m_resetLayoutAction = nullptr;
+    QAction *m_dataWindowAction = nullptr;
+    QAction *m_ioGraphAction = nullptr;
+    QAction *m_watcherAction = nullptr;
+    QAction *m_colorRuleAction = nullptr;
+    QAction *m_aboutAction = nullptr;
+    QAction *m_docsAction = nullptr;
     QAction *m_recordAction = nullptr;
     QAction *m_playAction = nullptr;
     QAction *m_pauseAction = nullptr;

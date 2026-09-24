@@ -73,5 +73,7 @@ void MarketModule::invoke(const QString &action, const QVariant &arg)
         m_tab->installLocalFile(arg.toString());
     } else if (action == QStringLiteral("revealItem")) {
         m_tab->revealItem(arg.value<MarketItem>());
+    } else if (action == QStringLiteral("retranslate")) {
+        // Market strings stay English for now
     }
 }

@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import (
 
 from _shared import (
     ai_attach, arxml_bsw, arxml_ecuc_schema, arxml_project, arxmlparse,
-    codicons, plugin_shell, state_store, suite_chrome, vscode_theme,
+    codicons, i18n, plugin_shell, state_store, suite_chrome, vscode_theme,
 )
 
 from document import ArxmlDocument
@@ -154,6 +154,8 @@ class AppShell(QMainWindow):
             panel_visible=True, sidebar_visible=True,
             side_bar_enabled=True, side_bar_visible=True, lock_activity=True)
         self.stack = self._wb.stack
+        i18n.on_language_changed(lambda _loc: self.retranslate())
+        self.retranslate()
 
         self._init_document_controls()
         self._build_menubar()
@@ -1270,6 +1272,11 @@ class AppShell(QMainWindow):
         api = self._pages.get("editor")
         if api is not None and hasattr(api, "select_target"):
             api.select_target(pdu, signal)
+
+    def retranslate(self):
+        self.setWindowTitle(i18n.t("AUTOSAR Studio"))
+        if self._wb is not None and callable(getattr(self._wb, "retranslate", None)):
+            self._wb.retranslate()
 
     def goto_page(self, key: str):
         """Resolve feature keys to workspace + stack index; chrome via Side Bar."""

@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import codicons, plugin_shell, state_store, suite_chrome, vscode_theme
+from _shared import codicons, i18n, plugin_shell, state_store, suite_chrome, vscode_theme
 
 from session import SharedSession
 
@@ -124,6 +124,8 @@ class AppShell(QMainWindow):
             side_bar_enabled=True, side_bar_visible=True, lock_activity=True,
             side_bar_width=220)
         self.stack = self._wb.stack
+        i18n.on_language_changed(lambda _loc: self.retranslate())
+        self.retranslate()
         # Side Bar column: moderate width, do not collapse to zero.
         hs = getattr(self._wb, "h_splitter", None)
         if hs is not None:
@@ -529,6 +531,11 @@ class AppShell(QMainWindow):
             "canopen_suite_log.csv")
         if path:
             plugin_shell.set_status(self, "Exported %s" % path, 4000)
+
+    def retranslate(self):
+        self.setWindowTitle(i18n.t("CANopen Suite"))
+        if self._wb is not None and callable(getattr(self._wb, "retranslate", None)):
+            self._wb.retranslate()
 
     def goto_page(self, key: str):
         if key == "log":

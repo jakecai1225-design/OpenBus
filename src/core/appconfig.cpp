@@ -159,8 +159,9 @@ bool AppConfig::fromJsonString(const QString &jsonStr)
 json AppConfig::defaultConfig()
 {
     return {
-        // ---- 通用 ----
+        // ---- General ----
         {"theme", "Light"},
+        {"ui.language", "en"},
         {"font.family", "Consolas"},
         {"font.size", 10},
         {"window.rememberGeometry", true},

@@ -48,6 +48,7 @@
 #include "core/file_import/file_importer.h"
 #include "core/plugin/pluginmanager.h"
 #include "core/plugin/plugininfo.h"
+#include "core/translationmanager.h"
 #include "models/viewportproxy.h"
 
 #include <QMenuBar>
@@ -99,7 +100,7 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
-    setWindowTitle("openbus - CAN/CAN FD 报文分析工具");
+    setWindowTitle(QStringLiteral("openbus"));
     resize(1400, 900);
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
 
@@ -121,11 +122,15 @@ MainWindow::MainWindow(QWidget *parent)
     connectDataPipeline();
     connectSidePanels();
 
-    m_bottomPanel->appendOutput("openbus 启动完成");
+    m_bottomPanel->appendOutput(QStringLiteral("openbus started"));
     updateActions();
     refreshPanelLists();
 
     connectProjectPanel();
+
+    // Live UI language switch (Settings → TranslationManager)
+    connect(TranslationManager::instance(), SIGNAL(languageChanged(QString)),
+            this, SLOT(onLanguageChanged(QString)));
 }
 
 MainWindow::~MainWindow()

@@ -2,11 +2,10 @@
 #include "thememanager.h"
 #include "utils/svg_icon.h"
 
+#include <QCoreApplication>
 #include <QToolButton>
 #include <QVBoxLayout>
 
-// 为 ActivityBar 按钮创建主题感知图标
-// 未选中 → textDim 色 / 悬停 → text 色 / 选中 → accent 色
 static QIcon makeActivityIcon(const QString &resourcePath)
 {
     const Theme &t = ThemeManager::instance()->currentTheme();
@@ -28,40 +27,60 @@ ActivityBar::ActivityBar(QWidget *parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    // 顶部按钮 — 顺序与 Activity 枚举一致
-    // 0=Project 1=Analysis(Flow) 2=Device 3=Trace 4=Graphic
-    // 5=Dbc 6=Transceive(收发) 7=Extensions
-    m_buttons.append({createButton(":/icons/project.svg", "工程管理", Project), Project, "工程管理", "工程管理", ":/icons/project.svg"});
+    // Top buttons — order matches Activity enum
+    m_buttons.append({createButton(":/icons/project.svg", tr("Project"), Project),
+                      Project, QStringLiteral("Project"), QStringLiteral("Project"),
+                      ":/icons/project.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/flow.svg", "Flow", Analysis), Analysis, "Flow", "flow — CANoe Measurement Setup 风格", ":/icons/flow.svg"});
+    m_buttons.append({createButton(":/icons/flow.svg", tr("Flow"), Analysis),
+                      Analysis, QStringLiteral("Flow"),
+                      QStringLiteral("flow — CANoe Measurement Setup style"),
+                      ":/icons/flow.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/device.svg", "设备连接", Device), Device, "设备连接", "设备连接", ":/icons/device.svg"});
+    m_buttons.append({createButton(":/icons/device.svg", tr("Devices"), Device),
+                      Device, QStringLiteral("Devices"), QStringLiteral("Devices"),
+                      ":/icons/device.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/trace.svg", "Trace", Trace), Trace, "Trace", "Trace", ":/icons/trace.svg"});
+    m_buttons.append({createButton(":/icons/trace.svg", tr("Trace"), Trace),
+                      Trace, QStringLiteral("Trace"), QStringLiteral("Trace"),
+                      ":/icons/trace.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/graphic.svg", "Graphic", Graphic), Graphic, "Graphic", "Graphic", ":/icons/graphic.svg"});
+    m_buttons.append({createButton(":/icons/graphic.svg", tr("Graphic"), Graphic),
+                      Graphic, QStringLiteral("Graphic"), QStringLiteral("Graphic"),
+                      ":/icons/graphic.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/database.svg", "数据库", Dbc), Dbc, "数据库", "数据库 — 多协议解析文件管理", ":/icons/database.svg"});
+    m_buttons.append({createButton(":/icons/database.svg", tr("Database"), Dbc),
+                      Dbc, QStringLiteral("Database"),
+                      QStringLiteral("Database — multi-protocol parse file management"),
+                      ":/icons/database.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/send.svg", "收发", Transceive), Transceive, "收发", "收发 — 发送 / 回放 / 录制", ":/icons/send.svg"});
+    m_buttons.append({createButton(":/icons/send.svg", tr("Transceive"), Transceive),
+                      Transceive, QStringLiteral("Transceive"),
+                      QStringLiteral("Transceive — send / playback / record"),
+                      ":/icons/send.svg"});
     layout->addWidget(m_buttons.last().btn);
 
-    m_buttons.append({createButton(":/icons/extensions.svg", "插件市场 — 驱动与插件的安装 / 管理 / 搜索", Extensions), Extensions, "插件市场", "插件市场 — 驱动与插件的安装 / 管理 / 搜索", ":/icons/extensions.svg"});
+    m_buttons.append({
+        createButton(":/icons/extensions.svg",
+                     tr("Extensions — install / manage / search drivers and plugins"),
+                     Extensions),
+        Extensions, QStringLiteral("Extensions"),
+        QStringLiteral("Extensions — install / manage / search drivers and plugins"),
+        ":/icons/extensions.svg"});
     layout->addWidget(m_buttons.last().btn);
 
     layout->addStretch();
 
-    // Bottom: account + settings (VS Code Activity Bar footer icons)
     auto *accountBtn = new QToolButton(this);
     accountBtn->setIcon(makeActivityIcon(":/icons/account.svg"));
     accountBtn->setIconSize(QSize(24, 24));
-    accountBtn->setToolTip(QStringLiteral("Account"));
+    accountBtn->setToolTip(tr("Account"));
     accountBtn->setCheckable(false);
     accountBtn->setAutoRaise(true);
     accountBtn->setFixedSize(48, 48);
@@ -71,17 +90,15 @@ ActivityBar::ActivityBar(QWidget *parent)
         emit activityChanged(static_cast<int>(Settings));
     });
     layout->addWidget(accountBtn);
-    // Keep path so refreshIcons can update account too
     m_buttons.append({accountBtn, None, QStringLiteral("Account"),
                       QStringLiteral("Account"), ":/icons/account.svg"});
 
     auto *settingsBtn = createButton(":/icons/settings.svg",
-                                     QStringLiteral("Settings"), Settings, true);
+                                     tr("Settings"), Settings, true);
     layout->addWidget(settingsBtn);
     m_buttons.append({settingsBtn, Settings, QStringLiteral("Settings"),
                       QStringLiteral("Settings"), ":/icons/settings.svg"});
 
-    // Default: Project selected
     m_buttons[0].btn->setChecked(true);
     m_current = Project;
 }
@@ -89,6 +106,7 @@ ActivityBar::ActivityBar(QWidget *parent)
 QToolButton *ActivityBar::createButton(const QString &iconPath, const QString &tooltip,
                                        Activity act, bool atBottom)
 {
+    Q_UNUSED(atBottom);
     auto *btn = new QToolButton(this);
     btn->setIcon(makeActivityIcon(iconPath));
     btn->setIconSize(QSize(24, 24));
@@ -120,12 +138,10 @@ void ActivityBar::onButtonClicked()
     Activity clicked = static_cast<Activity>(btn->property("activity").toInt());
 
     if (m_current == clicked) {
-        // 同一按钮再次点击 → 隐藏 SideBar
         btn->setChecked(false);
         m_current = None;
         emit activityToggled(static_cast<int>(clicked));
     } else {
-        // 切换
         for (auto &info : m_buttons)
             info.btn->setChecked(info.activity == clicked);
         m_current = clicked;
@@ -137,4 +153,13 @@ void ActivityBar::refreshIcons()
 {
     for (const auto &info : m_buttons)
         info.btn->setIcon(makeActivityIcon(info.iconPath));
+}
+
+void ActivityBar::retranslateUi()
+{
+    for (auto &info : m_buttons) {
+        const QString src = info.tooltip.isEmpty() ? info.text : info.tooltip;
+        info.btn->setToolTip(QCoreApplication::translate("ActivityBar",
+                                                         src.toUtf8().constData()));
+    }
 }

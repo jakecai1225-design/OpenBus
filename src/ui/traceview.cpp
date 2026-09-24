@@ -2610,6 +2610,12 @@ TraceTab::~TraceTab()
         m_traceView->saveColumnLayout();
 }
 
+void TraceTab::retranslateUi()
+{
+    if (m_filterBar)
+        m_filterBar->retranslateUi();
+}
+
 void TraceTab::setDbcManager(DbcManager *mgr)
 {
     m_signalDecode->setDbcManager(mgr);

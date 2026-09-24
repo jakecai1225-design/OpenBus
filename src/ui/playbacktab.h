@@ -41,6 +41,7 @@ public:
     /// Full UI config for project save/restore
     QVariantMap configMap() const;
     void loadConfig(const QVariantMap &map);
+    void retranslateUi();
 
 signals:
     void playRequested();

@@ -123,6 +123,7 @@ public:
     int rawSampleCount(int index) const;
     /// 批量加载信号配置（清除原有后添加）
     void loadSignalConfigs(const QVector<Signal> &configs);
+    void retranslateUi();
 
     void setTimeWindow(double seconds) { m_timeWindow = seconds; refreshTimeAxis(); }
     double timeWindow() const { return m_timeWindow; }

@@ -404,7 +404,8 @@ void MeasurementSetupView::setupUi()
     m_scene = scene;
     m_view = new QGraphicsView(m_scene, this);
     m_view->setRenderHint(QPainter::Antialiasing);
-    m_view->setBackgroundBrush(QColor(0xf5, 0xf5, 0xf5));
+    m_view->setBackgroundBrush(QColor(0xff, 0xff, 0xff));
+    m_view->setFrameShape(QFrame::NoFrame);
     m_view->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_view->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_view->setDragMode(QGraphicsView::ScrollHandDrag);

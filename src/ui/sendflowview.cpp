@@ -35,10 +35,11 @@ void SendFlowView::setupUi()
 
     // 画布区域
     m_scene = new QGraphicsScene(this);
-    m_scene->setBackgroundBrush(QColor("#f5f5f5"));
+    m_scene->setBackgroundBrush(QColor("#ffffff"));
 
     m_view = new QGraphicsView(m_scene, this);
     m_view->setRenderHint(QPainter::Antialiasing);
+    m_view->setFrameShape(QFrame::NoFrame);
     m_view->setDragMode(QGraphicsView::NoDrag);
     m_view->setViewportUpdateMode(QGraphicsView::MinimalViewportUpdate);
 

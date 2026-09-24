@@ -34,6 +34,7 @@ public:
     void setPresetManager(FilterPresetManager *mgr);
     QToolButton *settingsButton() const { return m_settingsBtn; }
     void setPacketCountText(const QString &text);
+    void retranslateUi();
 
     /// Slot for Trace action icons (Find / Follow / …) — after apply/clear
     QHBoxLayout *actionsLayout() const { return m_actionsLay; }

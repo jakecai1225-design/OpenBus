@@ -29,6 +29,7 @@ from PyQt6.QtWidgets import (
 )
 
 from _shared import codicons, plugin_shell, vscode_theme
+from _shared import i18n
 
 
 # Activity-bar tooltips (Ctrl+N appended when buttons are built).
@@ -95,6 +96,7 @@ class WorkbenchParts:
     set_editor_tabs: Callable[[QWidget], None]
     set_editor_title: Callable[[str], None]
     editor_layout: QVBoxLayout
+    retranslate: Callable[[], None] = field(default=lambda: None)
     # Optional Side Bar (between activity and editor) — VS Code Explorer style.
     side_bar: Optional[QWidget] = None
     set_side_bar_widget: Optional[Callable[[Optional[QWidget]], None]] = None
@@ -243,6 +245,7 @@ def build_workbench(
         b.setFixedSize(36, 36)
         b.setIconSize(QSize(20, 20))
         tip = ACTIVITY_TIPS.get(key, page_title)
+        tip = i18n.t(tip, tip)
         tip = "%s  (Ctrl+%d)" % (tip, i + 1)
         b.setToolTip(tip)
         codicons.set_button(b, key, color=vscode_theme.TEXT_DIM, size=20)
@@ -365,13 +368,13 @@ def build_workbench(
 
     if side_bar_enabled or lock_activity:
         btn_sidebar = _make_toggle(
-            "layout-sidebar-left", "Toggle Side Bar (Ctrl+B)")
-        max_tip = "Maximize Editor — hide side bar & panel"
+            "layout-sidebar-left", i18n.t("Toggle Side Bar (Ctrl+B)"))
+        max_tip = i18n.t("Maximize Editor — hide side bar & panel")
     else:
         btn_sidebar = _make_toggle(
-            "layout-sidebar-left", "Toggle Activity Bar (Ctrl+B)")
-        max_tip = "Maximize Editor — hide activity bar & panel"
-    btn_panel = _make_toggle("layout-panel", "Toggle Panel (Ctrl+J)")
+            "layout-sidebar-left", i18n.t("Toggle Activity Bar (Ctrl+B)"))
+        max_tip = i18n.t("Maximize Editor — hide activity bar & panel")
+    btn_panel = _make_toggle("layout-panel", i18n.t("Toggle Panel (Ctrl+J)"))
     btn_maximize = _make_toggle("layout-maximize", max_tip)
     btn_maximize.setChecked(False)
 
@@ -396,9 +399,9 @@ def build_workbench(
     ph = QHBoxLayout(panel_head)
     ph.setContentsMargins(6, 0, 2, 0)
     ph.setSpacing(4)
-    panel_title_lab = QLabel(panel_title)
+    panel_title_lab = QLabel(i18n.t(panel_title, panel_title))
     panel_title_lab.setObjectName("SuiteToolbarTitle")
-    panel_title_lab.setToolTip("OUTPUT — double-click to collapse (Ctrl+J)")
+    panel_title_lab.setToolTip(i18n.t("OUTPUT — double-click to collapse (Ctrl+J)"))
     ph.addWidget(panel_title_lab)
 
     panel_tools_host = QWidget()
@@ -588,6 +591,23 @@ def build_workbench(
     if nav_pages:
         _select_page(nav_pages[0][0])
 
+    def retranslate():
+        for key, page_title in nav_pages:
+            b = activity_btns.get(key)
+            if b is None:
+                continue
+            tip = ACTIVITY_TIPS.get(key, page_title)
+            tip = i18n.t(tip, tip)
+            idx = page_index.get(key, 0)
+            b.setToolTip("%s  (Ctrl+%d)" % (tip, idx + 1))
+        btn_sidebar.setToolTip(
+            i18n.t("Toggle Side Bar (Ctrl+B)") if (side_bar_enabled or lock_activity)
+            else i18n.t("Toggle Activity Bar (Ctrl+B)"))
+        btn_panel.setToolTip(i18n.t("Toggle Panel (Ctrl+J)"))
+        panel_title_lab.setText(i18n.t(panel_title, panel_title))
+        panel_title_lab.setToolTip(
+            i18n.t("OUTPUT — double-click to collapse (Ctrl+J)"))
+
     return WorkbenchParts(
         activity=activity,
         stack=stack,
@@ -614,6 +634,7 @@ def build_workbench(
         set_editor_tabs=set_editor_tabs,
         set_editor_title=set_editor_title,
         editor_layout=right_l,
+        retranslate=retranslate,
         side_bar=side_bar_host if side_bar_enabled else None,
         set_side_bar_widget=set_side_bar_widget if side_bar_enabled else None,
         set_side_bar_visible=set_side_bar_visible if side_bar_enabled else None,
@@ -712,7 +733,7 @@ def mount_compact_output(wb: WorkbenchHandles):
     pause.setCursor(Qt.CursorShape.PointingHandCursor)
     pause.setFixedSize(22, 22)
     pause.setIconSize(QSize(12, 12))
-    pause.setToolTip("Pause log")
+    pause.setToolTip(i18n.t("Pause"))
     try:
         codicons.set_button(
             pause, "stop", color=vscode_theme.TEXT_DIM, size=12)
@@ -725,7 +746,7 @@ def mount_compact_output(wb: WorkbenchHandles):
     clear.setCursor(Qt.CursorShape.PointingHandCursor)
     clear.setFixedSize(22, 22)
     clear.setIconSize(QSize(12, 12))
-    clear.setToolTip("Clear")
+    clear.setToolTip(i18n.t("Clear"))
     try:
         codicons.set_button(
             clear, "clear", color=vscode_theme.TEXT_DIM, size=12)

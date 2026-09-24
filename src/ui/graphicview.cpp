@@ -276,43 +276,53 @@ bool GraphicView::isLightTheme()
 
 QString GraphicView::toolbarQss() const
 {
+    // VS Code-like flat chrome: same surface as the editor; borders only
+    // (no panelBg / buttonBg gray islands).
     const Theme &t = ThemeManager::instance()->currentTheme();
     return QString(
-        "QToolBar { background: %1; border: none; border-bottom: 1px solid %2; spacing: 2px; padding: 2px; }"
+        "QToolBar { background: %1; border: none; border-bottom: 1px solid %2; "
+        "spacing: 2px; padding: 2px 4px; }"
         "QToolButton { background: transparent; border: 1px solid transparent; border-radius: 3px; "
         "padding: 1px 2px; color: %3; font-size: 13px; }"
-        "QToolButton:hover { background: %4; border-color: %5; }"
-        "QToolButton:checked { background: %6; border-color: %7; color: #fff; }"
-        "QCheckBox { color: %3; font-size: 12px; padding: 2px 4px; }"
-        "QCheckBox::indicator { width: 14px; height: 14px; border: 1px solid %5; "
-        "border-radius: 3px; background: transparent; }"
-        "QCheckBox::indicator:checked { background: %6; border-color: %7; "
+        "QToolButton:hover { background: %4; }"
+        "QToolButton:checked { background: %7; border-color: %5; color: %3; }"
+        "QToolButton:checked:hover { background: %7; }"
+        "QCheckBox { color: %3; font-size: 12px; padding: 2px 4px; background: transparent; }"
+        "QCheckBox::indicator { width: 14px; height: 14px; border: 1px solid %2; "
+        "border-radius: 2px; background: %1; }"
+        "QCheckBox::indicator:checked { background: %5; border-color: %5; "
         "image: url(:/icons/check.svg); }"
-        "QComboBox { background: %4; border: 1px solid %5; border-radius: 3px; "
-        "padding: 2px 6px; color: %3; font-size: 12px; min-width: 56px; min-height: 20px; }"
-        "QComboBox:hover { border-color: %5; }"
-        "QComboBox QAbstractItemView { background: %1; border: 1px solid %5; "
-        "selection-background-color: %6; color: %3; }"
-        "QLabel { color: %8; font-size: 12px; padding-left: 4px; }"
+        "QComboBox { background: %1; border: 1px solid %2; border-radius: 2px; "
+        "padding: 1px 6px; color: %3; font-size: 12px; min-width: 56px; min-height: 20px; }"
+        "QComboBox:hover { border-color: %6; }"
+        "QComboBox::drop-down { border: none; width: 16px; background: transparent; }"
+        "QComboBox QAbstractItemView { background: %1; border: 1px solid %2; "
+        "selection-background-color: %7; color: %3; outline: none; }"
+        "QLabel { color: %8; font-size: 12px; padding-left: 4px; background: transparent; }"
+        "QToolBar::separator { background: %2; width: 1px; margin: 4px 3px; }"
     )
-    .arg(t.panelBg, t.border, t.text, t.buttonBg, t.border, t.accent, t.accentBorder, t.textDim);
+    .arg(t.contentBg, t.borderDim, t.text, t.hoverBg, t.accent, t.border,
+         t.selectionBg, t.textDim);
 }
 
 QString GraphicView::treeQss() const
 {
+    // Flat list surface: contentBg throughout; header separated by a hairline only.
     const Theme &t = ThemeManager::instance()->currentTheme();
     return QString(
-        "QTreeWidget { background: %1; color: %2; border: 1px solid %7; "
-        "border-radius: 4px; font-size: 12px; }"
-        "QTreeWidget::item { padding: 3px 4px; min-height: 22px; border-radius: 4px; }"
-        "QTreeWidget::item:hover { background: %8; }"
-        "QTreeWidget::item:alternate { background: %3; }"
-        "QTreeWidget::item:selected { background: %4; color: %2; }"
-        "QHeaderView::section { background: %5; color: %6; border: none; "
-        "border-bottom: 1px solid %7; padding: 3px 4px; font-size: 11px; }"
+        "QTreeWidget { background: %1; color: %2; border: none; "
+        "border-right: 1px solid %3; font-size: 12px; outline: none; }"
+        "QTreeWidget::item { padding: 2px 4px; min-height: 22px; border: none; }"
+        "QTreeWidget::item:hover { background: %4; }"
+        "QTreeWidget::item:alternate { background: transparent; }"
+        "QTreeWidget::item:selected { background: %5; color: %2; }"
+        "QHeaderView::section { background: %1; color: %6; "
+        "border: none; border-bottom: 1px solid %3; border-right: 1px solid %3; "
+        "padding: 3px 4px; font-size: 11px; }"
+        "QHeaderView::section:hover { background: %4; color: %2; }"
+        "QHeaderView::section:last { border-right: none; }"
     )
-    .arg(t.contentBg, t.text, t.altRowBg, t.selectionBg, t.headerBg, t.textDim, t.border,
-         t.hoverBg);
+    .arg(t.contentBg, t.text, t.borderDim, t.hoverBg, t.selectionBg, t.textDim);
 }
 
 QString GraphicView::infoLabelQss() const
@@ -320,25 +330,34 @@ QString GraphicView::infoLabelQss() const
     const Theme &t = ThemeManager::instance()->currentTheme();
     return QString(
         "QLabel { padding: 4px 8px; background: %1; color: %2; "
-        "border-top: 1px solid %3; font-family: Consolas, monospace; font-size: 12px; }"
+        "border: none; border-top: 1px solid %3; "
+        "font-family: Consolas, monospace; font-size: 12px; }"
     )
-    .arg(t.panelBg, t.text, t.border);
+    .arg(t.contentBg, t.text, t.borderDim);
 }
 
 void GraphicView::setupUi()
 {
+    setObjectName(QStringLiteral("GraphicView"));
+    const Theme &th = ThemeManager::instance()->currentTheme();
+    // Flat page surface matches the main window.
+    setStyleSheet(QStringLiteral("#GraphicView { background: %1; }").arg(th.contentBg));
+
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
-    const Theme &th = ThemeManager::instance()->currentTheme();
-    auto buttonQss = [&th](const QString &bg, const QString &border) {
-        return QString("QPushButton { background: %1; color: %2; border: 1px solid %3; "
-                       "border-radius: 3px; padding: 4px 8px; font-size: 12px; }")
-               .arg(bg, th.text, border);
+    // Flat buttons: window fill + hairline; hover / press only tint.
+    auto flatBtnQss = [&th](const QString &border) {
+        return QStringLiteral(
+            "QPushButton { background: %1; color: %2; border: 1px solid %3; "
+            "border-radius: 2px; padding: 4px 8px; font-size: 12px; }"
+            "QPushButton:hover { background: %4; border-color: %5; }"
+            "QPushButton:pressed { background: %4; }")
+            .arg(th.contentBg, th.text, border, th.hoverBg, th.border);
     };
 
-    // ---- 工具栏（对标 CANoe 分组，主题化 QSS） ----
+    // ---- Toolbar (themed QSS; flat contentBg) ----
     m_toolbar = new QToolBar(this);
     m_toolbar->setMovable(false);
     m_toolbar->setIconSize(QSize(16, 16));
@@ -384,15 +403,15 @@ void GraphicView::setupUi()
 
     // 缩放轴模式（对标 CANoe X/Y/XY 独立缩放）
     m_zoomAxisCombo = new QComboBox(m_toolbar);
-    m_zoomAxisCombo->setToolTip("缩放轴模式（滚轮/框选/±受其约束）");
+    m_zoomAxisCombo->setToolTip(tr("Zoom axis mode (wheel / rubber / ±)"));
     m_zoomAxisCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    m_zoomAxisCombo->addItem("XY");
-    m_zoomAxisCombo->addItem("仅X");
-    m_zoomAxisCombo->addItem("仅Y");
+    m_zoomAxisCombo->addItem(tr("XY"));
+    m_zoomAxisCombo->addItem(tr("X only"));
+    m_zoomAxisCombo->addItem(tr("Y only"));
 
-    // 时间窗口选择
+    // Time window
     m_timeWindowCombo = new QComboBox(m_toolbar);
-    m_timeWindowCombo->setToolTip("时间窗口宽度");
+    m_timeWindowCombo->setToolTip(tr("Time window width"));
     m_timeWindowCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     for (int sec : {1, 2, 5, 10, 30, 60, 120, 300, 600})
         m_timeWindowCombo->addItem(QString("%1s").arg(sec), sec);
@@ -401,35 +420,35 @@ void GraphicView::setupUi()
         m_timeWindowCombo->setCurrentIndex(twIdx >= 0 ? twIdx : 6); // default 120s
     }
 
-    // 曲线显示模式（折线/阶梯/仅点）
+    // Curve display mode
     m_displayModeCombo = new QComboBox(m_toolbar);
-    m_displayModeCombo->setToolTip("曲线显示模式：折线/阶梯/仅点");
+    m_displayModeCombo->setToolTip(tr("Curve mode: polyline / step / points"));
     m_displayModeCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    m_displayModeCombo->addItem("折线");
-    m_displayModeCombo->addItem("阶梯");
-    m_displayModeCombo->addItem("仅点");
+    m_displayModeCombo->addItem(tr("Polyline"));
+    m_displayModeCombo->addItem(tr("Step"));
+    m_displayModeCombo->addItem(tr("Points only"));
     m_displayModeCombo->setCurrentIndex(static_cast<int>(m_displayMode));
 
-    // 聚焦模式（对标 CANoe 全部彩色/选中彩色/仅选中显示）
+    // Focus mode
     m_focusCombo = new QComboBox(m_toolbar);
-    m_focusCombo->setToolTip("显示模式：全部彩色 / 选中彩色 / 仅显示选中");
+    m_focusCombo->setToolTip(tr("Display: all colored / selected colored / selected only"));
     m_focusCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    m_focusCombo->addItem("全部彩色");
-    m_focusCombo->addItem("选中彩色");
-    m_focusCombo->addItem("仅选中");
+    m_focusCombo->addItem(tr("All colored"));
+    m_focusCombo->addItem(tr("Selected colored"));
+    m_focusCombo->addItem(tr("Selected only"));
     m_focusCombo->setCurrentIndex(static_cast<int>(m_focusMode));
 
     // Y-axis layout (CANoe-style); default Separate
     m_yAxisModeCombo = new QComboBox(m_toolbar);
     m_yAxisModeCombo->setToolTip(QStringLiteral("Y-axis layout: separate / overlay"));
     m_yAxisModeCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    m_yAxisModeCombo->addItem(QStringLiteral("Separate"));
-    m_yAxisModeCombo->addItem(QStringLiteral("Overlay · selected"));
-    m_yAxisModeCombo->addItem(QStringLiteral("Overlay · all"));
+    m_yAxisModeCombo->addItem(tr("Separate"));
+    m_yAxisModeCombo->addItem(tr("Overlay · selected"));
+    m_yAxisModeCombo->addItem(tr("Overlay · all"));
     m_yAxisModeCombo->setCurrentIndex(static_cast<int>(m_yAxisMode));
 
-    m_pointsToggle = new QCheckBox("采样点", m_toolbar);
-    m_pointsToggle->setToolTip("显示/隐藏采样点");
+    m_pointsToggle = new QCheckBox(tr("Samples"), m_toolbar);
+    m_pointsToggle->setToolTip(tr("Show/hide sample points"));
     m_pointsToggle->setChecked(m_showPoints);
 
     m_cursorSingleBtn = makeBtn("cursor-single", "Single ruler (C): click plot to place a full-height dashed line");
@@ -438,8 +457,8 @@ void GraphicView::setupUi()
     m_cursorDoubleBtn->setCheckable(true);
     m_cursorClearBtn = makeBtn("close", "Clear rulers (Esc)");
 
-    m_cursorLinkToggle = new QCheckBox("联动", m_toolbar);
-    m_cursorLinkToggle->setToolTip("多视图游标联动");
+    m_cursorLinkToggle = new QCheckBox(tr("Link"), m_toolbar);
+    m_cursorLinkToggle->setToolTip(tr("Link cursors across views"));
     m_cursorLinkToggle->setChecked(m_cursorLink);
 
     // 分组排列（§10.5：所有下拉带前缀标签 + tooltip，分隔符分组，全部图标钮）：
@@ -509,11 +528,15 @@ void GraphicView::setupUi()
     m_toolbar->addWidget(spacer);
     mainLayout->addWidget(m_toolbar);
 
-    // ---- 分割器: 信号列表 | 波形区 ----
+    // ---- Splitter: signal list | plot ----
     m_splitter = new QSplitter(Qt::Horizontal, this);
 
-    // 左侧: 信号列表 (QTreeWidget，首列色块，对标 CANoe)
+    // Left: signal list (QTreeWidget, color swatch in col 0)
     auto *leftWidget = new QWidget(m_splitter);
+    leftWidget->setObjectName(QStringLiteral("GraphicSignalPane"));
+    leftWidget->setStyleSheet(
+        QStringLiteral("#GraphicSignalPane { background: %1; border: none; }")
+            .arg(th.contentBg));
     auto *leftLayout = new QVBoxLayout(leftWidget);
     leftLayout->setContentsMargins(0, 0, 0, 0);
     leftLayout->setSpacing(0);
@@ -522,7 +545,8 @@ void GraphicView::setupUi()
     m_signalTree->setColumnCount(9);
     m_signalTree->setHeaderLabels({"", "信号", "物理值", "原始值", "单位", "Min", "Max", "ID", "点数"});
     m_signalTree->setRootIsDecorated(false);
-    m_signalTree->setAlternatingRowColors(true);
+    // Flat list: no alt-row gray band (selection/hover only).
+    m_signalTree->setAlternatingRowColors(false);
     m_signalTree->setMinimumWidth(320);
     m_signalTree->setSelectionMode(QAbstractItemView::ExtendedSelection);   // G13：Ctrl/Shift 多选
     // Sibling-only reorder: items must NOT be drop targets (otherwise InternalMove
@@ -552,17 +576,24 @@ void GraphicView::setupUi()
     btnBar->setSpacing(4);
     auto *addBtn = new QPushButton(
             svgIcon(":/icons/plus.svg", th.text, 14), QStringLiteral("Add Signal"), leftWidget);
-    addBtn->setStyleSheet(buttonQss(th.buttonBg, th.accentBorder));
+    addBtn->setStyleSheet(flatBtnQss(th.borderDim));
     auto *removeBtn = new QPushButton(
             svgIcon(":/icons/dash.svg", th.text, 14), QStringLiteral("Delete Signal"), leftWidget);
-    removeBtn->setStyleSheet(buttonQss(th.buttonBg, th.border));
-    // 主题切换 → 重刷按钮图标颜色
-    // DEF-08 字符串信号（同上）
+    removeBtn->setStyleSheet(flatBtnQss(th.borderDim));
+    // Theme change → refresh icon colors + flat button chrome
     auto *signalBtnRelay = new SignalRelay(leftWidget);
     signalBtnRelay->fire0 = [addBtn, removeBtn]() {
-        const QString &c = ThemeManager::instance()->currentTheme().text;
-        addBtn->setIcon(svgIcon(":/icons/plus.svg", c, 14));
-        removeBtn->setIcon(svgIcon(":/icons/dash.svg", c, 14));
+        const Theme &t = ThemeManager::instance()->currentTheme();
+        addBtn->setIcon(svgIcon(":/icons/plus.svg", t.text, 14));
+        removeBtn->setIcon(svgIcon(":/icons/dash.svg", t.text, 14));
+        const QString qss = QStringLiteral(
+            "QPushButton { background: %1; color: %2; border: 1px solid %3; "
+            "border-radius: 2px; padding: 4px 8px; font-size: 12px; }"
+            "QPushButton:hover { background: %4; border-color: %5; }"
+            "QPushButton:pressed { background: %4; }")
+            .arg(t.contentBg, t.text, t.borderDim, t.hoverBg, t.border);
+        addBtn->setStyleSheet(qss);
+        removeBtn->setStyleSheet(qss);
     };
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             signalBtnRelay, SLOT(fire()));
@@ -1607,6 +1638,12 @@ void GraphicView::applyPalette()
     m_palette = GraphicPalette::canoeLight();
     const Theme &th = ThemeManager::instance()->currentTheme();
 
+    setStyleSheet(QStringLiteral("#GraphicView { background: %1; }").arg(th.contentBg));
+    if (auto *pane = findChild<QWidget *>(QStringLiteral("GraphicSignalPane"))) {
+        pane->setStyleSheet(
+            QStringLiteral("#GraphicSignalPane { background: %1; border: none; }")
+                .arg(th.contentBg));
+    }
     m_plot->setBackground(m_palette.canvas);
     m_toolbar->setStyleSheet(toolbarQss());
     updateToolbarIcons();
@@ -4106,6 +4143,49 @@ void GraphicView::restoreColumnConfig()
 
 void GraphicView::saveColumnConfig()
 {
-    // TODO: 保存到 settings.json（预留扩展接口）
-    // 示例：QSettings().setValue("graphic.signalList.columns", m_columnVisibility);
+    // TODO: save to settings.json (extension hook)
+    // Example: QSettings().setValue("graphic.signalList.columns", m_columnVisibility);
+}
+
+void GraphicView::retranslateUi()
+{
+    auto refill = [](QComboBox *combo, const QStringList &labels) {
+        if (!combo || labels.size() != combo->count())
+            return;
+        const int idx = combo->currentIndex();
+        for (int i = 0; i < labels.size(); ++i)
+            combo->setItemText(i, labels.at(i));
+        combo->setCurrentIndex(idx);
+    };
+    if (m_zoomAxisCombo) {
+        m_zoomAxisCombo->setToolTip(tr("Zoom axis mode (wheel / rubber / ±)"));
+        refill(m_zoomAxisCombo, {tr("XY"), tr("X only"), tr("Y only")});
+    }
+    if (m_timeWindowCombo)
+        m_timeWindowCombo->setToolTip(tr("Time window width"));
+    if (m_displayModeCombo) {
+        m_displayModeCombo->setToolTip(tr("Curve mode: polyline / step / points"));
+        refill(m_displayModeCombo, {tr("Polyline"), tr("Step"), tr("Points only")});
+    }
+    if (m_focusCombo) {
+        m_focusCombo->setToolTip(tr("Display: all colored / selected colored / selected only"));
+        refill(m_focusCombo, {tr("All colored"), tr("Selected colored"), tr("Selected only")});
+    }
+    if (m_yAxisModeCombo) {
+        m_yAxisModeCombo->setToolTip(tr("Y-axis layout: separate / overlay"));
+        refill(m_yAxisModeCombo,
+               {tr("Separate"), tr("Overlay · selected"), tr("Overlay · all")});
+    }
+    if (m_pointsToggle) {
+        m_pointsToggle->setText(tr("Samples"));
+        m_pointsToggle->setToolTip(tr("Show/hide sample points"));
+    }
+    if (m_cursorLinkToggle) {
+        m_cursorLinkToggle->setText(tr("Link"));
+        m_cursorLinkToggle->setToolTip(tr("Link cursors across views"));
+    }
+    if (m_pauseBtn) {
+        const bool paused = m_pauseBtn->isChecked();
+        m_pauseBtn->setToolTip(paused ? tr("Resume capture") : tr("Pause capture"));
+    }
 }

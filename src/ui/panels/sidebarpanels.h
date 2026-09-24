@@ -128,8 +128,8 @@ public:
     /// Trailing green status dot (plain title + green ● only)
     void setStatusDotVisible(bool on);
 
-    /// Icon-only action on the header trailing edge (VS Code view actions).
-    /// Buttons show on header hover; stay visible while pressed / menu open.
+    /// Icon-only action on the header trailing edge.
+    /// Visible while the section is expanded; hidden when collapsed.
     QToolButton *addHeaderAction(const QString &iconPath, const QString &tooltip,
                                  int iconSize = 14);
 
@@ -144,13 +144,12 @@ public slots:
     void toggle();
 
 protected:
-    bool eventFilter(QObject *watched, QEvent *event) override;
     void showEvent(QShowEvent *event) override;
 
 private:
     void updateHeaderChrome();
     void applyExpandPolicy();
-    void setHeaderActionsHovered(bool hovered);
+    void updateHeaderActionsVisibility();
     void refreshActionIcons();
 
     QWidget *m_headerRow = nullptr;
@@ -164,7 +163,6 @@ private:
     QWidget *m_body = nullptr;
     QVBoxLayout *m_bodyLayout = nullptr;
     bool m_expanded = true;
-    bool m_headerHovered = false;
 };
 
 // ============================================================
