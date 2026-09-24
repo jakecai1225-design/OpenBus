@@ -48,8 +48,8 @@ QUrl MarketIndex::defaultMarketUrl()
         if (QFileInfo::exists(p))
             return QUrl::fromLocalFile(QDir::cleanPath(p));
     }
-    // 官方市场占位（发布后替换为实际 OSS 地址）
-    return QUrl(QStringLiteral("https://market.openbus.local/market.json"));
+    // 官方静态市场（VS Code 式分发：market.json + .opk/.odp）
+    return QUrl(QStringLiteral("http://sin.org.cn/market/market.json"));
 }
 
 void MarketIndex::refresh()

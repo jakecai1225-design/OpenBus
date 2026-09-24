@@ -96,7 +96,7 @@ public:
     /// 多词 AND 文本匹配（空词/空文本返回 true；不区分大小写）— 列表过滤工具
     static bool matchWords(const QString &text, const QStringList &fields);
 
-    /// 市场源定位：build/market（开发）→ market/（发布布局）→ 官方占位 URL
+    /// 市场源定位：本地 market/ → 官方 http://sin.org.cn/market/market.json
     static QUrl defaultMarketUrl();
 
 signals:
