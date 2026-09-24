@@ -83,7 +83,7 @@ TraceStatisticsWidget::TraceStatisticsWidget(QWidget *parent)
 
     m_summary = new QLabel(QStringLiteral("未选中帧 — 在 Trace 列表中选择帧后显示统计"), this);
     m_summary->setContentsMargins(6, 3, 6, 3);
-    m_summary->setStyleSheet(QStringLiteral("color: gray;"));
+    m_summary->setObjectName(QStringLiteral("DimLabel"));
     layout->addWidget(m_summary);
 
     m_tree = new QTreeWidget(this);

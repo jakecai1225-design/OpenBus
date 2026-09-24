@@ -23,8 +23,16 @@ RecordTab::RecordTab(QWidget *parent)
     : QWidget(parent)
 {
     auto *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(20, 20, 20, 20);
-    mainLayout->setSpacing(12);
+    mainLayout->setContentsMargins(20, 16, 20, 16);
+    mainLayout->setSpacing(8);
+    setObjectName(QStringLiteral("FormPage"));
+
+    auto *formHost = new QWidget(this);
+    formHost->setObjectName(QStringLiteral("FormHost"));
+    formHost->setMaximumWidth(640);
+    auto *formLayout = new QVBoxLayout(formHost);
+    formLayout->setContentsMargins(0, 0, 0, 0);
+    formLayout->setSpacing(8);
 
     // ---- 录制按钮 ----
     auto *btnLayout = new QHBoxLayout;
@@ -42,12 +50,13 @@ RecordTab::RecordTab(QWidget *parent)
     btnLayout->addWidget(m_pauseBtn);
     btnLayout->addWidget(m_stopBtn);
     btnLayout->addStretch();
-    mainLayout->addLayout(btnLayout);
+    formLayout->addLayout(btnLayout);
 
     // ---- 文件设置 ----
-    auto *fileGroup = new QGroupBox("文件设置", this);
+    auto *fileGroup = new QGroupBox("文件设置", formHost);
     auto *fileLayout = new QGridLayout(fileGroup);
-    fileLayout->setSpacing(6);
+    fileLayout->setContentsMargins(0, 4, 0, 0);
+    fileLayout->setSpacing(8);
 
     fileLayout->addWidget(new QLabel("文件目录:", fileGroup), 0, 0);
     m_dirEdit = new QLineEdit("D:/recordings", fileGroup);
@@ -70,12 +79,13 @@ RecordTab::RecordTab(QWidget *parent)
     m_formatCombo->setCurrentIndex(0);
     fileLayout->addWidget(m_formatCombo, 2, 1, 1, 2);
 
-    mainLayout->addWidget(fileGroup);
+    formLayout->addWidget(fileGroup);
 
     // ---- 文件分割 ----
-    auto *splitGroup = new QGroupBox("文件分割", this);
+    auto *splitGroup = new QGroupBox("文件分割", formHost);
     auto *splitLayout = new QGridLayout(splitGroup);
-    splitLayout->setSpacing(6);
+    splitLayout->setContentsMargins(0, 4, 0, 0);
+    splitLayout->setSpacing(8);
 
     m_splitBySize = new QCheckBox("按大小", splitGroup);
     m_splitBySize->setChecked(true);
@@ -103,12 +113,12 @@ RecordTab::RecordTab(QWidget *parent)
 
     connect(m_splitByTime, &QCheckBox::toggled, m_timeSpin, &QWidget::setEnabled);
 
-    mainLayout->addWidget(splitGroup);
+    formLayout->addWidget(splitGroup);
 
     // ---- 缓冲区 ----
     auto *bufLayout = new QHBoxLayout;
-    bufLayout->addWidget(new QLabel("缓冲区大小:", this));
-    m_bufferCombo = new QComboBox(this);
+    bufLayout->addWidget(new QLabel("缓冲区大小:", formHost));
+    m_bufferCombo = new QComboBox(formHost);
     m_bufferCombo->addItem("1000 帧");
     m_bufferCombo->addItem("5000 帧");
     m_bufferCombo->addItem("10000 帧");
@@ -116,11 +126,12 @@ RecordTab::RecordTab(QWidget *parent)
     m_bufferCombo->setCurrentIndex(2);
     bufLayout->addWidget(m_bufferCombo);
     bufLayout->addStretch();
-    mainLayout->addLayout(bufLayout);
+    formLayout->addLayout(bufLayout);
 
     // ---- 录制过滤 ----
-    auto *filterGroup = new QGroupBox("录制过滤", this);
+    auto *filterGroup = new QGroupBox("录制过滤", formHost);
     auto *filterLayout = new QVBoxLayout(filterGroup);
+    filterLayout->setContentsMargins(0, 4, 0, 0);
 
     auto *filterRow = new QHBoxLayout;
     m_filterAll = new QCheckBox("全部", filterGroup);
@@ -142,12 +153,13 @@ RecordTab::RecordTab(QWidget *parent)
     idRow->addWidget(m_idFilterEdit, 1);
     filterLayout->addLayout(idRow);
 
-    mainLayout->addWidget(filterGroup);
+    formLayout->addWidget(filterGroup);
 
     // ---- 触发录制 ----
-    m_triggerGroup = new QGroupBox("触发录制 (Trigger Recording)", this);
+    m_triggerGroup = new QGroupBox("触发录制 (Trigger Recording)", formHost);
     auto *triggerLayout = new QGridLayout(m_triggerGroup);
-    triggerLayout->setSpacing(6);
+    triggerLayout->setContentsMargins(0, 4, 0, 0);
+    triggerLayout->setSpacing(8);
 
     m_triggerEnable = new QCheckBox("启用触发录制", m_triggerGroup);
     triggerLayout->addWidget(m_triggerEnable, 0, 0, 1, 4);
@@ -179,13 +191,16 @@ RecordTab::RecordTab(QWidget *parent)
     m_triggerRecordBtn->setCheckable(true);
     triggerLayout->addWidget(m_triggerRecordBtn, 3, 2, 1, 2);
 
-    mainLayout->addWidget(m_triggerGroup);
+    formLayout->addWidget(m_triggerGroup);
 
     // ---- 状态 ----
-    m_statusLabel = new QLabel("状态: 未录制", this);
-    mainLayout->addWidget(m_statusLabel);
+    m_statusLabel = new QLabel("状态: 未录制", formHost);
+    m_statusLabel->setObjectName(QStringLiteral("StatusDim"));
+    formLayout->addWidget(m_statusLabel);
 
-    mainLayout->addStretch();
+    formLayout->addStretch();
+    mainLayout->addWidget(formHost, 0, Qt::AlignLeft | Qt::AlignTop);
+    mainLayout->addStretch(1);
 
     // ---- 信号连接 ----
     connect(browseBtn, &QPushButton::clicked, this, &RecordTab::onBrowse);

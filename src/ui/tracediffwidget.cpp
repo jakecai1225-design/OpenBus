@@ -74,7 +74,7 @@ TraceDiffWidget::TraceDiffWidget(QWidget *parent)
     auto *barLayout = new QHBoxLayout(bar);
     barLayout->setContentsMargins(6, 2, 6, 2);
     auto *hint = new QLabel(QStringLiteral("对比选中集合的首帧(A)与末帧(B)"), bar);
-    hint->setStyleSheet(QStringLiteral("color: gray;"));
+    hint->setObjectName(QStringLiteral("DimLabel"));
     barLayout->addWidget(hint);
     barLayout->addStretch(1);
     m_showChangedOnly = new QCheckBox(QStringLiteral("仅显示变化项"), bar);

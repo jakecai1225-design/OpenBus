@@ -69,12 +69,12 @@ SignalSendTab::SignalSendTab(QWidget *parent)
     mainLayout->setContentsMargins(4, 4, 4, 4);
     mainLayout->setSpacing(6);
 
-    // ---- 顶部工具栏 ----
+    // ---- Toolbar ----
     auto *toolbarLayout = new QHBoxLayout;
     toolbarLayout->setSpacing(4);
-    m_sendAllBtn = new QPushButton("列表发送", this);
-    m_stopAllBtn = new QPushButton("列表停止", this);
-    m_clearListBtn = new QPushButton("清空列表", this);
+    m_sendAllBtn = new QPushButton(QStringLiteral("Send All"), this);
+    m_stopAllBtn = new QPushButton(QStringLiteral("Stop All"), this);
+    m_clearListBtn = new QPushButton(QStringLiteral("Clear List"), this);
     toolbarLayout->addWidget(m_sendAllBtn);
     toolbarLayout->addWidget(m_stopAllBtn);
     toolbarLayout->addStretch();
@@ -84,81 +84,94 @@ SignalSendTab::SignalSendTab(QWidget *parent)
     // ---- Splitter: table (top) + edit area (bottom) ----
     auto *splitter = new QSplitter(Qt::Vertical, this);
 
-    // -- 发送列表表格 --
+    // -- Send list table --
     m_sendTable = new QTableWidget(0, 10, splitter);
+    m_sendTable->setObjectName(QStringLiteral("ContentTable"));
     m_sendTable->setHorizontalHeaderLabels(
-        {"启用", "#", "ID", "名称", "DLC", "数据(Hex)", "周期(ms)", "次数", "状态", "操作"});
-    m_sendTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    m_sendTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    m_sendTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    m_sendTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    m_sendTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
-    m_sendTable->horizontalHeader()->setSectionResizeMode(6, QHeaderView::ResizeToContents);
-    m_sendTable->horizontalHeader()->setSectionResizeMode(7, QHeaderView::ResizeToContents);
-    m_sendTable->horizontalHeader()->setSectionResizeMode(8, QHeaderView::ResizeToContents);
+        {QStringLiteral("On"), QStringLiteral("#"), QStringLiteral("ID"),
+         QStringLiteral("Name"), QStringLiteral("DLC"), QStringLiteral("Data (Hex)"),
+         QStringLiteral("Period (ms)"), QStringLiteral("Count"),
+         QStringLiteral("Status"), QStringLiteral("Actions")});
+    m_sendTable->horizontalHeader()->setHighlightSections(false);
+    m_sendTable->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    m_sendTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    m_sendTable->horizontalHeader()->setStretchLastSection(false);
+    m_sendTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    m_sendTable->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Stretch);
     m_sendTable->horizontalHeader()->setSectionResizeMode(9, QHeaderView::ResizeToContents);
+    m_sendTable->setColumnWidth(0, 40);
+    m_sendTable->setColumnWidth(1, 36);
+    m_sendTable->setColumnWidth(2, 72);
+    m_sendTable->setColumnWidth(4, 48);
+    m_sendTable->setColumnWidth(6, 88);
+    m_sendTable->setColumnWidth(7, 56);
+    m_sendTable->setColumnWidth(8, 72);
     m_sendTable->verticalHeader()->setVisible(false);
+    m_sendTable->setShowGrid(false);
+    m_sendTable->setAlternatingRowColors(true);
     m_sendTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_sendTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_sendTable->setStyleSheet(QString()); // use global theme QSS
 
-    // -- 底部编辑区 --
-    auto *editGroup = new QGroupBox("编辑发送帧", splitter);
+    // -- Edit frame --
+    auto *editGroup = new QGroupBox(QStringLiteral("Edit frame"), splitter);
     auto *editLayout = new QVBoxLayout(editGroup);
-    editLayout->setContentsMargins(8, 8, 8, 8);
+    editLayout->setContentsMargins(0, 4, 0, 0);
     editLayout->setSpacing(6);
 
-    // Row 1: 从DBC导入, ID, DLC, 数据(Hex)
+    // Row 1: Import from DBC, ID, DLC, Data (Hex)
     auto *row1 = new QHBoxLayout;
     row1->setSpacing(6);
-    m_importDbcBtn = new QPushButton("从DBC导入", editGroup);
+    m_importDbcBtn = new QPushButton(QStringLiteral("Import from DBC"), editGroup);
     row1->addWidget(m_importDbcBtn);
 
-    row1->addWidget(new QLabel("ID:"));
+    row1->addWidget(new QLabel(QStringLiteral("ID:")));
     m_idEdit = new QLineEdit(editGroup);
-    m_idEdit->setPlaceholderText("0x123");
+    m_idEdit->setPlaceholderText(QStringLiteral("0x123"));
     m_idEdit->setMaximumWidth(100);
     row1->addWidget(m_idEdit);
 
-    row1->addWidget(new QLabel("DLC:"));
+    row1->addWidget(new QLabel(QStringLiteral("DLC:")));
     m_dlcSpin = new QSpinBox(editGroup);
     m_dlcSpin->setRange(0, 64);
     m_dlcSpin->setValue(8);
     m_dlcSpin->setMaximumWidth(50);
     row1->addWidget(m_dlcSpin);
 
-    row1->addWidget(new QLabel("数据(Hex):"));
+    row1->addWidget(new QLabel(QStringLiteral("Data (Hex):")));
     m_dataEdit = new QLineEdit(editGroup);
-    m_dataEdit->setPlaceholderText("AA BB CC DD EE FF 00 11");
+    m_dataEdit->setPlaceholderText(QStringLiteral("AA BB CC DD EE FF 00 11"));
     row1->addWidget(m_dataEdit, 1);
     editLayout->addLayout(row1);
 
-    // Row 2: 周期, 次数, 按钮
+    // Row 2: Period, Count, buttons
     auto *row2 = new QHBoxLayout;
     row2->setSpacing(6);
-    row2->addWidget(new QLabel("周期(ms):"));
+    row2->addWidget(new QLabel(QStringLiteral("Period (ms):")));
     m_periodSpin = new QSpinBox(editGroup);
     m_periodSpin->setRange(0, 100000);
     m_periodSpin->setValue(100);
     m_periodSpin->setMaximumWidth(80);
     row2->addWidget(m_periodSpin);
 
-    row2->addWidget(new QLabel("次数:"));
+    row2->addWidget(new QLabel(QStringLiteral("Count:")));
     m_countSpin = new QSpinBox(editGroup);
     m_countSpin->setRange(0, 999999);
     m_countSpin->setValue(0);
-    m_countSpin->setSpecialValueText("∞");
+    m_countSpin->setSpecialValueText(QStringLiteral("∞"));
     m_countSpin->setMaximumWidth(60);
     row2->addWidget(m_countSpin);
 
     row2->addStretch();
-    m_addToListBtn = new QPushButton("添加到列表", editGroup);
-    m_sendSingleBtn = new QPushButton("发送单帧", editGroup);
+    m_addToListBtn = new QPushButton(QStringLiteral("Add to List"), editGroup);
+    m_sendSingleBtn = new QPushButton(QStringLiteral("Send Once"), editGroup);
     row2->addWidget(m_addToListBtn);
     row2->addWidget(m_sendSingleBtn);
     editLayout->addLayout(row2);
 
-    // 信号级编辑区域
-    m_signalHintLabel = new QLabel("输入 CAN ID 或从发送列表选择一行，自动显示信号编辑器", editGroup);
+    // Signal-level editor
+    m_signalHintLabel = new QLabel(
+        QStringLiteral("Enter a CAN ID or select a row to edit signals"), editGroup);
     m_signalHintLabel->setObjectName("DbcDetailComment");
     editLayout->addWidget(m_signalHintLabel);
 
@@ -289,11 +302,11 @@ void SignalSendTab::rebuildSignalEditors()
     m_signalWidgets.clear();
 
     if (!m_dbcManager || !m_currentDbcMsg) {
-        m_signalHintLabel->setText("输入 CAN ID 或从发送列表选择一行，自动显示信号编辑器");
+        m_signalHintLabel->setText(QStringLiteral("Enter a CAN ID or select a row to edit signals"));
         return;
     }
 
-    m_signalHintLabel->setText(QString("消息: %1 (%2) — %3 个信号")
+    m_signalHintLabel->setText(QStringLiteral("Message: %1 (%2) — %3 signals")
         .arg(m_currentDbcMsg->name)
         .arg(formatIdHex(m_currentDbcMsg->id))
         .arg(m_currentDbcMsg->signalList.size()));
@@ -488,11 +501,11 @@ QWidget *SignalSendTab::createOpWidget()
     auto *downBtn = new QPushButton(widget);
     downBtn->setIcon(svgIcon(":/icons/chevron-down.svg", iconCol, 14));
 
-    sendBtn->setToolTip("发送");
-    stopBtn->setToolTip("停止");
-    delBtn->setToolTip("删除");
-    upBtn->setToolTip("上移");
-    downBtn->setToolTip("下移");
+    sendBtn->setToolTip(QStringLiteral("Send"));
+    stopBtn->setToolTip(QStringLiteral("Stop"));
+    delBtn->setToolTip(QStringLiteral("Delete"));
+    upBtn->setToolTip(QStringLiteral("Move up"));
+    downBtn->setToolTip(QStringLiteral("Move down"));
 
     for (auto *btn : {sendBtn, stopBtn, delBtn, upBtn, downBtn}) {
         btn->setFixedWidth(26);
@@ -609,7 +622,7 @@ void SignalSendTab::onAddToList()
     m_sendTable->setItem(row, 5, new QTableWidgetItem(dataHex));
     m_sendTable->setItem(row, 6, new QTableWidgetItem(QString::number(period)));
     m_sendTable->setItem(row, 7, new QTableWidgetItem(count == 0 ? "∞" : QString::number(count)));
-    m_sendTable->setItem(row, 8, new QTableWidgetItem("就绪"));
+    m_sendTable->setItem(row, 8, new QTableWidgetItem(QStringLiteral("Ready")));
 
     m_sendTable->setCellWidget(row, 9, createOpWidget());
     m_sendTable->selectRow(row);
@@ -638,7 +651,7 @@ void SignalSendTab::onStopAll()
 {
     for (int i = 0; i < m_sendTable->rowCount(); ++i) {
         auto *statusItem = m_sendTable->item(i, 8);
-        if (statusItem && statusItem->text() == "发送中")
+        if (statusItem && statusItem->text() == QStringLiteral("Sending"))
             onRowStop(i);
     }
     emit stopAllRequested();
@@ -653,7 +666,7 @@ void SignalSendTab::onClearList()
 void SignalSendTab::onImportFromDbc()
 {
     if (!m_dbcManager) {
-        m_signalHintLabel->setText("未设置 DBC 管理器");
+        m_signalHintLabel->setText(QStringLiteral("DBC manager is not set"));
         return;
     }
 
@@ -686,7 +699,7 @@ void SignalSendTab::onImportFromDbc()
         int period = msg->cycleTime > 0 ? msg->cycleTime : 100;
         m_sendTable->setItem(row, 6, new QTableWidgetItem(QString::number(period)));
         m_sendTable->setItem(row, 7, new QTableWidgetItem("∞"));
-        m_sendTable->setItem(row, 8, new QTableWidgetItem("就绪"));
+        m_sendTable->setItem(row, 8, new QTableWidgetItem(QStringLiteral("Ready")));
 
         m_sendTable->setCellWidget(row, 9, createOpWidget());
     }
@@ -717,7 +730,7 @@ void SignalSendTab::onRowSend(int row)
     QString countStr = m_sendTable->item(row, 7)->text();
     int count = (countStr == "∞") ? 0 : countStr.toInt();
 
-    m_sendTable->item(row, 8)->setText("发送中");
+    m_sendTable->item(row, 8)->setText(QStringLiteral("Sending"));
 
     emit sendRowRequested(row, id, data, period, count);
 }
@@ -727,7 +740,7 @@ void SignalSendTab::onRowStop(int row)
     if (row < 0 || row >= m_sendTable->rowCount())
         return;
 
-    m_sendTable->item(row, 8)->setText("已停止");
+    m_sendTable->item(row, 8)->setText(QStringLiteral("Stopped"));
     emit stopRowRequested(row);
 }
 
@@ -853,7 +866,7 @@ void SignalSendTab::loadEntries(const QVariantList &entries)
         m_sendTable->setItem(row, 7,
                              new QTableWidgetItem(count == 0 ? QStringLiteral("∞")
                                                              : QString::number(count)));
-        m_sendTable->setItem(row, 8, new QTableWidgetItem(QStringLiteral("就绪")));
+        m_sendTable->setItem(row, 8, new QTableWidgetItem(QStringLiteral("Ready")));
         m_sendTable->setCellWidget(row, 9, createOpWidget());
     }
     if (m_sendTable->rowCount() > 0)

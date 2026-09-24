@@ -57,7 +57,7 @@ RightPanel::RightPanel(QWidget *parent)
     auto *inspHeader = new QWidget(inspectorPage);
     inspHeader->setObjectName(QStringLiteral("RightAssistHeader"));
     auto *inspHeaderLay = new QHBoxLayout(inspHeader);
-    inspHeaderLay->setContentsMargins(8, 4, 4, 4);
+    inspHeaderLay->setContentsMargins(8, 2, 4, 2);
     inspHeaderLay->setSpacing(4);
     auto *inspTitle = new QLabel(QStringLiteral("INSPECTOR"), inspHeader);
     inspTitle->setObjectName(QStringLiteral("RightAssistTitle"));

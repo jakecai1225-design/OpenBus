@@ -112,7 +112,7 @@ QLabel *makeSubLabel(const QString &text)
     QFont small = label->font();
     small.setPointSize(qMax(small.pointSize() - 1, 1));
     label->setFont(small);
-    label->setStyleSheet(QStringLiteral("color: #9d9d9d;"));
+    label->setObjectName(QStringLiteral("MarketDim"));
     label->setWordWrap(true);
     return label;
 }
@@ -120,8 +120,11 @@ QLabel *makeSubLabel(const QString &text)
 QLabel *makeSectionLabel(const QString &text)
 {
     auto *label = new QLabel(text);
-    label->setStyleSheet(
-        QStringLiteral("color: #888888; font-weight: bold; padding: 6px 4px 2px 4px;"));
+    label->setObjectName(QStringLiteral("MarketDim"));
+    QFont f = label->font();
+    f.setBold(true);
+    label->setFont(f);
+    label->setContentsMargins(4, 6, 4, 2);
     return label;
 }
 
@@ -190,12 +193,7 @@ public:
         setObjectName(QStringLiteral("marketCard"));
         setFixedSize(kWidth, kHeight);
         setCursor(Qt::PointingHandCursor);
-        // Theme-neutral: translucent border/hover works on light and dark
-        setStyleSheet(QStringLiteral(
-            "QFrame#marketCard { background: transparent;"
-            " border: 1px solid rgba(128,128,128,0.35); border-radius: 6px; }"
-            "QFrame#marketCard:hover { background: rgba(86,156,214,0.10);"
-            " border: 1px solid rgba(86,156,214,0.75); }"));
+        setAttribute(Qt::WA_StyledBackground, true);
     }
     using ClickCb = std::function<void()>;
     void setOnClick(ClickCb cb) { m_cb = std::move(cb); }
@@ -238,14 +236,13 @@ QLabel *makeMarketSectionLabel(const QString &text)
     big.setBold(true);
     big.setPointSize(big.pointSize() + 1);
     label->setFont(big);
-    label->setStyleSheet(
-        QStringLiteral("padding: 14px 2px 6px 2px;"));
+    label->setContentsMargins(2, 14, 2, 6);
     return label;
 }
 
 /// 单行截断标签（卡片固定宽 → 按可用像素 elide，避免中英文混排溢出）
 QLabel *makeElidedLabel(const QString &text, int widthPx, bool bold = false,
-                        const QString &color = QString())
+                        bool dim = false)
 {
     auto *label = new QLabel;
     if (bold) {
@@ -253,8 +250,8 @@ QLabel *makeElidedLabel(const QString &text, int widthPx, bool bold = false,
         f.setBold(true);
         label->setFont(f);
     }
-    if (!color.isEmpty())
-        label->setStyleSheet(QStringLiteral("color: %1;").arg(color));
+    if (dim)
+        label->setObjectName(QStringLiteral("MarketDim"));
     const QFontMetrics fm(label->font());
     label->setText(fm.elidedText(text, Qt::ElideRight, widthPx));
     return label;
@@ -393,11 +390,11 @@ MarketCard *makeMarketCard(const CardData &d, const std::function<void()> &onOpe
     vbox->addWidget(card->nameLabel);
     card->vendorLabel = makeElidedLabel(
         QStringLiteral("%1 · v%2").arg(d.vendor, d.version), textWidth,
-        false, QStringLiteral("#9d9d9d"));
+        false, true);
     vbox->addWidget(card->vendorLabel);
     if (!d.summary.isEmpty()) {
         card->descLabel = makeElidedLabel(d.summary, textWidth,
-                                          false, QStringLiteral("#9d9d9d"));
+                                          false, true);
         vbox->addWidget(card->descLabel);
     }
     QStringList meta;
@@ -407,8 +404,7 @@ MarketCard *makeMarketCard(const CardData &d, const std::function<void()> &onOpe
         meta << formatBytes(d.size);
     meta << (d.isDriver ? QStringLiteral("Driver") : QStringLiteral("Plugin"));
     card->metaLabel = makeElidedLabel(meta.join(QStringLiteral(" · ")),
-                                      textWidth, false,
-                                      QStringLiteral("#9d9d9d"));
+                                      textWidth, false, true);
     vbox->addWidget(card->metaLabel);
     vbox->addStretch(1);
     lay->addLayout(vbox, 1);
@@ -417,10 +413,8 @@ MarketCard *makeMarketCard(const CardData &d, const std::function<void()> &onOpe
     auto *right = new QVBoxLayout;
     right->setSpacing(6);
     auto *badge = new QLabel(QStringLiteral("Free"));
+    badge->setObjectName(QStringLiteral("MarketBadge"));
     badge->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
-    badge->setStyleSheet(QStringLiteral(
-        "color: #9d9d9d; border: 1px solid rgba(128,128,128,0.45);"
-        " border-radius: 3px; padding: 1px 8px;"));
     right->addWidget(badge, 0, Qt::AlignRight | Qt::AlignTop);
     right->addStretch(1);
     card->actionBtn = new QPushButton;
@@ -666,21 +660,15 @@ void MarketTab::buildUi()
     QFont searchFont = m_searchEdit->font();
     searchFont.setPointSize(searchFont.pointSize() + 1);
     m_searchEdit->setFont(searchFont);
-    m_searchEdit->setFixedHeight(32);
+    m_searchEdit->setFixedHeight(28);
     m_searchEdit->setMinimumWidth(460);
     searchRow->addWidget(m_searchEdit);
 
     m_searchBtn = new QPushButton;
-    m_searchBtn->setText(QStringLiteral("搜索"));
-    m_searchBtn->setFixedHeight(32);
+    m_searchBtn->setText(QStringLiteral("Search"));
+    m_searchBtn->setObjectName(QStringLiteral("PrimaryButton"));
+    m_searchBtn->setFixedHeight(28);
     const auto applySearchBtnStyle = [this]() {
-        const Theme &t = ThemeManager::instance()->currentTheme();
-        m_searchBtn->setStyleSheet(QStringLiteral(
-            "QPushButton { background: %1; color: #ffffff; border: none;"
-            " border-radius: 3px; padding: 0 18px; font-weight: bold; }"
-            "QPushButton:hover { background: %2; }"
-            "QPushButton:pressed { background: %2; }")
-            .arg(t.accent, t.accentHover));
         m_searchBtn->setIcon(svgIcon(":/icons/search.svg",
                                      QStringLiteral("#ffffff"), 14));
     };
@@ -700,8 +688,8 @@ void MarketTab::buildUi()
     searchRow->addWidget(m_searchBtn);
     heroLay->addWidget(searchWrap, 0, Qt::AlignHCenter);
 
-    m_marketStatus = new QLabel(QStringLiteral("市场加载中…"));
-    m_marketStatus->setStyleSheet(QStringLiteral("color: #9d9d9d;"));
+    m_marketStatus = new QLabel(QStringLiteral("Loading marketplace…"));
+    m_marketStatus->setObjectName(QStringLiteral("MarketDim"));
     heroLay->addWidget(m_marketStatus, 0, Qt::AlignHCenter);
 
     auto *homePage = new QWidget;
@@ -985,10 +973,10 @@ void MarketTab::rebuildList()
         else if (sortIdx == 2)
             std::stable_sort(all.begin(), all.end(), byName);
         if (all.isEmpty()) {
-            auto *empty = new QLabel(QStringLiteral("没有匹配的条目"));
+            auto *empty = new QLabel(QStringLiteral("No matching items"));
+            empty->setObjectName(QStringLiteral("MarketDim"));
             empty->setAlignment(Qt::AlignCenter);
-            empty->setStyleSheet(
-                QStringLiteral("color: #777777; padding: 24px;"));
+            empty->setContentsMargins(24, 24, 24, 24);
             addWidget(empty);
             return;
         }
@@ -1076,8 +1064,8 @@ void MarketTab::showPlaceholder(const QString &text)
     m_stack->setCurrentIndex(1);   // 占位也属详情页（如「该驱动已卸载」）
     clearDetail();
     auto *label = new QLabel(text);
+    label->setObjectName(QStringLiteral("MarketDim"));
     label->setAlignment(Qt::AlignCenter);
-    label->setStyleSheet(QStringLiteral("color: #777777;"));
     m_detailLay->addWidget(label, 1);
 }
 
@@ -1274,10 +1262,10 @@ void MarketTab::showInstalledDriver(const QString &driverId)
                    : e.disabledReason.isEmpty()
                          ? QStringLiteral("不可用") : e.disabledReason)
             : QStringLiteral("已禁用"));
-    status->setStyleSheet(
+    status->setObjectName(
         e.enabled && e.available
-            ? QStringLiteral("color: #4ec9b0;")
-            : QStringLiteral("color: #d7ba7d;"));
+            ? QStringLiteral("MarketOk")
+            : QStringLiteral("MarketDim"));
     m_detailLay->addWidget(status);
 
     m_detailLay->addWidget(makeSubLabel(
@@ -1449,10 +1437,10 @@ void MarketTab::showInstalledPlugin(const QString &name)
     auto *status = new QLabel(
         !enabled ? QStringLiteral("已禁用")
                  : activated ? QStringLiteral("运行中") : QStringLiteral("已就绪"));
-    status->setStyleSheet(
-        !enabled ? QStringLiteral("color: #888888;")
-                 : activated ? QStringLiteral("color: #4ec9b0;")
-                             : QStringLiteral("color: #569cd6;"));
+    status->setObjectName(
+        !enabled ? QStringLiteral("MarketDim")
+                 : activated ? QStringLiteral("MarketOk")
+                             : QStringLiteral("MarketDim"));
     m_detailLay->addWidget(status);
 
     if (!p.description.isEmpty())

@@ -20,18 +20,6 @@ namespace {
 
 constexpr char kVersion[] = "1.0.0";
 
-QString tipCardQss(const QString &border, const QString &bg)
-{
-    return QStringLiteral(
-               "QFrame#WelcomeTip {"
-               "  background-color: %1;"
-               "  border: 1px solid %2;"
-               "  border-radius: 6px;"
-               "  padding: 12px;"
-               "}")
-        .arg(bg, border);
-}
-
 } // namespace
 
 WelcomePage::WelcomePage(QWidget *parent)
@@ -61,7 +49,6 @@ void WelcomePage::setupUi()
     scroll->viewport()->setObjectName(QStringLiteral("WelcomeViewport"));
     scroll->viewport()->setAutoFillBackground(false);
     scroll->viewport()->setAttribute(Qt::WA_TranslucentBackground);
-    scroll->viewport()->setStyleSheet(QStringLiteral("background: transparent;"));
 
     auto *content = new QWidget(scroll);
     content->setObjectName(QStringLiteral("WelcomeContent"));
@@ -86,9 +73,11 @@ void WelcomePage::setupUi()
 
     m_heroSub = new QLabel(
         QStringLiteral("CAN / CAN FD analysis — get started in a few clicks"), hero);
+    m_heroSub->setObjectName(QStringLiteral("WelcomeHeroSub"));
     m_heroSub->setWordWrap(true);
 
     m_versionLabel = new QLabel(QStringLiteral("Version %1").arg(QLatin1String(kVersion)), hero);
+    m_versionLabel->setObjectName(QStringLiteral("WelcomeVersion"));
 
     heroLay->addWidget(m_heroTitle);
     heroLay->addWidget(m_heroSub);
@@ -247,11 +236,9 @@ QFrame *WelcomePage::makeSection(const QString &title, QWidget *body)
 QPushButton *WelcomePage::makeLinkButton(const QString &text, const QString &tip)
 {
     auto *btn = new QPushButton(text);
+    btn->setObjectName(QStringLiteral("WelcomeLinkBtn"));
     btn->setFlat(true);
     btn->setCursor(Qt::PointingHandCursor);
-    btn->setStyleSheet(QStringLiteral(
-        "QPushButton { text-align: left; padding: 4px 2px; border: none; }"
-        "QPushButton:hover { text-decoration: underline; }"));
     if (!tip.isEmpty())
         btn->setToolTip(tip);
     return btn;
@@ -303,26 +290,6 @@ void WelcomePage::refreshRecent()
 
 void WelcomePage::applyTheme()
 {
-    const Theme &t = ThemeManager::instance()->currentTheme();
-    setStyleSheet(QStringLiteral(
-                      "#WelcomePage, #WelcomeContent, #WelcomeScroll, #WelcomeViewport {"
-                      "  background: transparent;"
-                      "}"
-                      "QLabel { color: %1; }"
-                      "QLabel#WelcomeTipBody { color: %2; }"
-                      "QPushButton { color: %3; background: transparent; }"
-                      "QPushButton:hover { color: %4; }")
-                      .arg(t.text, t.textDim, t.accent, t.accentHover));
-
-    const QList<QFrame *> tips = findChildren<QFrame *>(QStringLiteral("WelcomeTip"));
-    const QString cardQss = tipCardQss(t.border, t.panelBg);
-    for (QFrame *f : tips)
-        f->setStyleSheet(cardQss);
-
-    if (m_versionLabel)
-        m_versionLabel->setStyleSheet(QStringLiteral("color: %1;").arg(t.textDim));
-    if (m_heroSub)
-        m_heroSub->setStyleSheet(QStringLiteral("color: %1;").arg(t.textDim));
     rebuildWatermark();
 }
 

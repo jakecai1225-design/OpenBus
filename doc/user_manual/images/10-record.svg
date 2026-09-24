@@ -1,0 +1,9 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#f3f3f3"/>
+  <rect x="40" y="40" width="1200" height="640" rx="8" fill="#ffffff" stroke="#e5e5e5" stroke-width="2"/>
+  <text x="640" y="330" text-anchor="middle" font-family="Segoe UI, sans-serif" font-size="28" fill="#333333">Screenshot placeholder</text>
+  <text x="640" y="380" text-anchor="middle" font-family="Consolas, monospace" font-size="22" fill="#007acc">10-record.png</text>
+  <text x="640" y="430" text-anchor="middle" font-family="Segoe UI, sans-serif" font-size="16" fill="#616161">Replace with a real openbus capture (see images/README.md)</text>
+  <rect x="40" y="40" width="48" height="640" fill="#f3f3f3" stroke="#e5e5e5"/>
+  <rect x="88" y="40" width="220" height="640" fill="#f8f8f8" stroke="#e5e5e5"/>
+</svg>

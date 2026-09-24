@@ -39,12 +39,15 @@ PlaybackTab::PlaybackTab(QWidget *parent)
     setAcceptDrops(true);
 
     auto *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(20, 20, 20, 20);
-    mainLayout->setSpacing(12);
+    mainLayout->setContentsMargins(20, 16, 20, 16);
+    mainLayout->setSpacing(8);
+    setObjectName(QStringLiteral("FormPage"));
 
     // ---- Playback control ----
     auto *ctrlGroup = new QGroupBox(QStringLiteral("Playback"), this);
     auto *ctrlLayout = new QVBoxLayout(ctrlGroup);
+    ctrlLayout->setContentsMargins(0, 4, 0, 0);
+    ctrlLayout->setSpacing(8);
 
     // Play / Pause / Stop
     auto *btnLayout = new QHBoxLayout;
@@ -110,11 +113,18 @@ PlaybackTab::PlaybackTab(QWidget *parent)
     // ---- Playback file list ----
     auto *listGroup = new QGroupBox("Playback files", this);
     auto *listLayout = new QVBoxLayout(listGroup);
+    listLayout->setContentsMargins(0, 4, 0, 0);
+    listLayout->setSpacing(8);
 
     m_fileList = new QTableWidget(0, 6, listGroup);
+    m_fileList->setObjectName(QStringLiteral("ContentTable"));
+    m_fileList->setAlternatingRowColors(true);
+    m_fileList->setShowGrid(false);
     m_fileList->setHorizontalHeaderLabels(
         {QStringLiteral("#"), QStringLiteral("File"), QStringLiteral("Frames"),
          QStringLiteral("Duration"), QStringLiteral("Progress"), QStringLiteral("Status")});
+    m_fileList->horizontalHeader()->setHighlightSections(false);
+    m_fileList->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     m_fileList->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     m_fileList->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     m_fileList->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
@@ -150,6 +160,8 @@ PlaybackTab::PlaybackTab(QWidget *parent)
     // ---- Playback settings ----
     auto *miscGroup = new QGroupBox("Playback settings", this);
     auto *miscLayout = new QHBoxLayout(miscGroup);
+    miscLayout->setContentsMargins(0, 4, 0, 0);
+    miscLayout->setSpacing(8);
 
     miscLayout->addWidget(new QLabel("Channel:", miscGroup));
     m_channelCombo = new QComboBox(miscGroup);

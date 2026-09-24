@@ -69,7 +69,8 @@ DbcSignalPickerDialog::DbcSignalPickerDialog(DbcManager *mgr, const QString &tit
     // 空态提示（无数据库 / 搜索无命中时显示）
     m_emptyLabel = new QLabel(this);
     m_emptyLabel->setAlignment(Qt::AlignCenter);
-    m_emptyLabel->setStyleSheet(QStringLiteral("color:#888;padding:24px;"));
+    m_emptyLabel->setObjectName(QStringLiteral("DimLabel"));
+    m_emptyLabel->setContentsMargins(24, 24, 24, 24);
     m_emptyLabel->hide();
     lay->addWidget(m_emptyLabel);
 

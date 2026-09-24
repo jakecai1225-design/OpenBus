@@ -39,13 +39,7 @@ DbcDetailTab::DbcDetailTab(const QString &dbcFileName, DbcManager *mgr, QWidget 
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
-    // 标题栏
-    auto *titleBar = new QLabel("DBC: " + dbcFileName, this);
-    titleBar->setObjectName("DbcDetailTitle");
-    titleBar->setContentsMargins(8, 6, 8, 6);
-    mainLayout->addWidget(titleBar);
-
-    // 左右分割
+    // Title lives on the editor tab — avoid stacked chrome
     auto *splitter = new QSplitter(Qt::Horizontal, this);
     buildLeftPane(splitter);
     buildRightPane(splitter);
@@ -164,6 +158,9 @@ void DbcDetailTab::buildMessagePage(QWidget *page)
     auto *sigGroup = new QGroupBox("Signals", page);
     auto *sigLayout = new QVBoxLayout(sigGroup);
     m_msgSigTable = new QTableWidget(0, 9, sigGroup);
+    m_msgSigTable->setObjectName(QStringLiteral("ContentTable"));
+    m_msgSigTable->setShowGrid(false);
+    m_msgSigTable->setAlternatingRowColors(true);
     m_msgSigTable->setHorizontalHeaderLabels(
         {"名称", "起始位", "长度", "字节序", "符号", "因子", "偏移", "最小/最大", "单位"});
     m_msgSigTable->verticalHeader()->setVisible(false);
@@ -191,6 +188,8 @@ void DbcDetailTab::buildSignalPage(QWidget *page)
     auto *propGroup = new QGroupBox("属性", page);
     auto *propLayout = new QVBoxLayout(propGroup);
     m_sigPropTable = new QTableWidget(0, 2, propGroup);
+    m_sigPropTable->setObjectName(QStringLiteral("ContentTable"));
+    m_sigPropTable->setShowGrid(false);
     m_sigPropTable->setHorizontalHeaderLabels({"属性", "值"});
     m_sigPropTable->verticalHeader()->setVisible(false);
     m_sigPropTable->setEditTriggers(QAbstractItemView::NoEditTriggers);

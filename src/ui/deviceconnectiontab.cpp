@@ -10,7 +10,6 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include <QPushButton>
-#include <QFrame>
 #include <QMessageBox>
 
 namespace {
@@ -34,51 +33,56 @@ DeviceConnectionTab::DeviceConnectionTab(QWidget *parent)
 void DeviceConnectionTab::setupUi()
 {
     auto *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(20, 20, 20, 20);
-    mainLayout->setSpacing(12);
+    mainLayout->setContentsMargins(20, 16, 20, 16);
+    mainLayout->setSpacing(8);
 
-    // ---- 设备标题 ----
-    m_deviceLabel = new QLabel(QStringLiteral("设备: 未选择"), this);
+    // Readable form width — leftover space stays empty (VS Code settings feel)
+    auto *formHost = new QWidget(this);
+    formHost->setMaximumWidth(520);
+    auto *formLayout = new QVBoxLayout(formHost);
+    formLayout->setContentsMargins(0, 0, 0, 0);
+    formLayout->setSpacing(8);
+
+    m_deviceLabel = new QLabel(QStringLiteral("Device: none selected"), formHost);
     m_deviceLabel->setObjectName("SectionLabel");
-    mainLayout->addWidget(m_deviceLabel);
+    formLayout->addWidget(m_deviceLabel);
 
-    auto *sep1 = new QFrame(this);
-    sep1->setFrameShape(QFrame::HLine);
-    sep1->setFrameShadow(QFrame::Sunken);
-    mainLayout->addWidget(sep1);
-
-    // ---- 基本配置 ----
-    auto *basicGroup = new QGroupBox(QStringLiteral("基本配置"), this);
+    // ---- Basic ----
+    auto *basicGroup = new QGroupBox(QStringLiteral("Basic"), formHost);
     auto *basicLayout = new QGridLayout(basicGroup);
-    basicLayout->setSpacing(6);
+    basicLayout->setContentsMargins(0, 4, 0, 0);
+    basicLayout->setSpacing(8);
+    basicLayout->setColumnStretch(1, 1);
 
-    basicLayout->addWidget(new QLabel(QStringLiteral("CAN 模式:"), basicGroup), 0, 0);
+    basicLayout->addWidget(new QLabel(QStringLiteral("CAN mode:"), basicGroup), 0, 0);
     m_fdCombo = new QComboBox(basicGroup);
     m_fdCombo->addItem(QStringLiteral("CAN 2.0A (Classic)"));
     m_fdCombo->addItem(QStringLiteral("CAN FD (ISO 11898-1)"));
     basicLayout->addWidget(m_fdCombo, 0, 1);
 
-    basicLayout->addWidget(new QLabel(QStringLiteral("通道使能:"), basicGroup), 1, 0);
+    basicLayout->addWidget(new QLabel(QStringLiteral("Channels:"), basicGroup), 1, 0);
     auto *chLayout = new QHBoxLayout;
-    auto *ch1 = new QCheckBox(QStringLiteral("通道 1"), basicGroup);
+    auto *ch1 = new QCheckBox(QStringLiteral("Channel 1"), basicGroup);
     ch1->setChecked(true);
-    auto *ch2 = new QCheckBox(QStringLiteral("通道 2"), basicGroup);
+    auto *ch2 = new QCheckBox(QStringLiteral("Channel 2"), basicGroup);
     m_channelChecks << ch1 << ch2;
     chLayout->addWidget(ch1);
     chLayout->addWidget(ch2);
     chLayout->addStretch();
     basicLayout->addLayout(chLayout, 1, 1);
 
-    mainLayout->addWidget(basicGroup);
+    formLayout->addWidget(basicGroup);
 
-    // ---- 仲裁段配置 ----
-    auto *arbGroup = new QGroupBox(QStringLiteral("仲裁段配置"), this);
+    // ---- Arbitration ----
+    auto *arbGroup = new QGroupBox(QStringLiteral("Arbitration"), formHost);
     auto *arbLayout = new QGridLayout(arbGroup);
-    arbLayout->setSpacing(6);
+    arbLayout->setContentsMargins(0, 4, 0, 0);
+    arbLayout->setSpacing(8);
+    arbLayout->setColumnStretch(1, 1);
 
-    arbLayout->addWidget(new QLabel(QStringLiteral("波特率:"), arbGroup), 0, 0);
+    arbLayout->addWidget(new QLabel(QStringLiteral("Baud rate:"), arbGroup), 0, 0);
     m_baudCombo = new QComboBox(arbGroup);
-    m_baudCombo->setEditable(true);  // 允许手动输入自定义波特率
+    m_baudCombo->setEditable(true);
     m_baudCombo->addItem("1000000");
     m_baudCombo->addItem("800000");
     m_baudCombo->addItem("666000");
@@ -96,25 +100,27 @@ void DeviceConnectionTab::setupUi()
     m_baudCombo->setCurrentText("500000");
     arbLayout->addWidget(m_baudCombo, 0, 1);
 
-    arbLayout->addWidget(new QLabel(QStringLiteral("时序预设:"), arbGroup), 1, 0);
+    arbLayout->addWidget(new QLabel(QStringLiteral("Timing preset:"), arbGroup), 1, 0);
     m_arbTimingCombo = new QComboBox(arbGroup);
     arbLayout->addWidget(m_arbTimingCombo, 1, 1);
 
     m_arbTimingDetail = new QLabel(arbGroup);
     m_arbTimingDetail->setObjectName("DimLabel");
-    m_arbTimingDetail->setContentsMargins(8, 0, 0, 0);
+    m_arbTimingDetail->setContentsMargins(0, 0, 0, 0);
     arbLayout->addWidget(m_arbTimingDetail, 2, 0, 1, 2);
 
-    mainLayout->addWidget(arbGroup);
+    formLayout->addWidget(arbGroup);
 
-    // ---- 数据段配置 (CAN FD) ----
-    m_dataBaudGroup = new QGroupBox(QStringLiteral("数据段配置 (CAN FD)"), this);
+    // ---- Data phase (CAN FD) ----
+    m_dataBaudGroup = new QGroupBox(QStringLiteral("Data phase (CAN FD)"), formHost);
     auto *dataLayout = new QGridLayout(m_dataBaudGroup);
-    dataLayout->setSpacing(6);
+    dataLayout->setContentsMargins(0, 4, 0, 0);
+    dataLayout->setSpacing(8);
+    dataLayout->setColumnStretch(1, 1);
 
-    dataLayout->addWidget(new QLabel(QStringLiteral("数据波特率:"), m_dataBaudGroup), 0, 0);
+    dataLayout->addWidget(new QLabel(QStringLiteral("Data baud rate:"), m_dataBaudGroup), 0, 0);
     m_dataBaudCombo = new QComboBox(m_dataBaudGroup);
-    m_dataBaudCombo->setEditable(true);  // 允许手动输入自定义波特率
+    m_dataBaudCombo->setEditable(true);
     m_dataBaudCombo->addItem("500000");
     m_dataBaudCombo->addItem("1000000");
     m_dataBaudCombo->addItem("2000000");
@@ -124,37 +130,39 @@ void DeviceConnectionTab::setupUi()
     m_dataBaudCombo->setCurrentText("2000000");
     dataLayout->addWidget(m_dataBaudCombo, 0, 1);
 
-    dataLayout->addWidget(new QLabel(QStringLiteral("时序预设:"), m_dataBaudGroup), 1, 0);
+    dataLayout->addWidget(new QLabel(QStringLiteral("Timing preset:"), m_dataBaudGroup), 1, 0);
     m_dataTimingCombo = new QComboBox(m_dataBaudGroup);
     dataLayout->addWidget(m_dataTimingCombo, 1, 1);
 
     m_dataTimingDetail = new QLabel(m_dataBaudGroup);
     m_dataTimingDetail->setObjectName("DimLabel");
-    m_dataTimingDetail->setContentsMargins(8, 0, 0, 0);
+    m_dataTimingDetail->setContentsMargins(0, 0, 0, 0);
     dataLayout->addWidget(m_dataTimingDetail, 2, 0, 1, 2);
 
-    mainLayout->addWidget(m_dataBaudGroup);
+    formLayout->addWidget(m_dataBaudGroup);
 
-    mainLayout->addStretch();
+    formLayout->addStretch();
 
-    // ---- 连接控制 ----
+    // ---- Connect controls ----
     auto *btnLayout = new QHBoxLayout;
     btnLayout->setSpacing(8);
-    m_connectBtn = new QPushButton(QStringLiteral("连接"), this);
+    m_connectBtn = new QPushButton(QStringLiteral("Connect"), formHost);
     m_connectBtn->setMinimumWidth(120);
-    m_disconnectBtn = new QPushButton(QStringLiteral("断开"), this);
+    m_disconnectBtn = new QPushButton(QStringLiteral("Disconnect"), formHost);
     m_disconnectBtn->setMinimumWidth(120);
     m_disconnectBtn->setEnabled(false);
     btnLayout->addWidget(m_connectBtn);
     btnLayout->addWidget(m_disconnectBtn);
     btnLayout->addStretch();
-    mainLayout->addLayout(btnLayout);
+    formLayout->addLayout(btnLayout);
 
-    m_statusLabel = new QLabel(QStringLiteral("未连接"), this);
+    m_statusLabel = new QLabel(QStringLiteral("Disconnected"), formHost);
     m_statusLabel->setObjectName("StatusDim");
-    mainLayout->addWidget(m_statusLabel);
+    formLayout->addWidget(m_statusLabel);
 
-    // ---- 信号 ----
+    mainLayout->addWidget(formHost, 0, Qt::AlignLeft | Qt::AlignTop);
+    mainLayout->addStretch(1);
+
     connect(m_connectBtn, &QPushButton::clicked, this, &DeviceConnectionTab::onConnect);
     connect(m_disconnectBtn, &QPushButton::clicked, this, &DeviceConnectionTab::onDisconnect);
     connect(m_fdCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -171,11 +179,11 @@ void DeviceConnectionTab::populateTimingPresets()
 {
     // 仲裁段时序预设
     m_arbPresets = {
-        {QStringLiteral("CiA 推荐 — 87.5%"),  1, 13, 2, 87},
-        {QStringLiteral("标准 — 80%"),        1, 15, 3, 80},
-        {QStringLiteral("标准 — 75%"),        1, 12, 3, 75},
-        {QStringLiteral("高速 — 75% (SJW=2)"), 2, 12, 3, 75},
-        {QStringLiteral("保守 — 62.5%"),      1, 10, 5, 62},
+        {QStringLiteral("CiA recommended — 87.5%"),  1, 13, 2, 87},
+        {QStringLiteral("Standard — 80%"),           1, 15, 3, 80},
+        {QStringLiteral("Standard — 75%"),           1, 12, 3, 75},
+        {QStringLiteral("Fast — 75% (SJW=2)"),       2, 12, 3, 75},
+        {QStringLiteral("Conservative — 62.5%"),     1, 10, 5, 62},
     };
 
     for (int i = 0; i < m_arbPresets.size(); ++i) {
@@ -187,10 +195,10 @@ void DeviceConnectionTab::populateTimingPresets()
 
     // 数据段时序预设
     m_dataPresets = {
-        {QStringLiteral("CiA 推荐 — 80%"),   1, 15, 3, 80},
-        {QStringLiteral("标准 — 75%"),       1, 12, 3, 75},
-        {QStringLiteral("高速 — 75% (SJW=2)"), 2, 12, 3, 75},
-        {QStringLiteral("保守 — 62.5%"),     1, 10, 5, 62},
+        {QStringLiteral("CiA recommended — 80%"), 1, 15, 3, 80},
+        {QStringLiteral("Standard — 75%"),        1, 12, 3, 75},
+        {QStringLiteral("Fast — 75% (SJW=2)"),    2, 12, 3, 75},
+        {QStringLiteral("Conservative — 62.5%"),  1, 10, 5, 62},
     };
 
     for (int i = 0; i < m_dataPresets.size(); ++i) {
@@ -203,7 +211,7 @@ void DeviceConnectionTab::populateTimingPresets()
 
 QString DeviceConnectionTab::timingDetailText(const TimingPreset &p)
 {
-    return QStringLiteral("SJW=%1, TSEG1=%2, TSEG2=%3 (采样点 %4%, 总 %5 TQ)")
+    return QStringLiteral("SJW=%1, TSEG1=%2, TSEG2=%3 (sample %4%, %5 TQ total)")
         .arg(p.sjw).arg(p.tseg1).arg(p.tseg2)
         .arg(p.samplePoint).arg(1 + p.tseg1 + p.tseg2);
 }
@@ -225,36 +233,34 @@ void DeviceConnectionTab::setDevice(int deviceKind, int devIndex, const QString 
     m_devSubType = deviceType;
     m_deviceName = deviceName;
 
-    m_deviceLabel->setText(QStringLiteral("设备: %1").arg(deviceName));
+    m_deviceLabel->setText(QStringLiteral("Device: %1").arg(deviceName));
 
-    // ZLG(1)/PEAK(2)/Kvaser(3) 已实现(P0)；v2.2（方案 §14）新增 SLCAN(5)/Candle(6)
+    // ZLG/PEAK/Kvaser (P0); SLCAN/Candle added in v2.2
     const bool implemented = kindImplemented(deviceKind);
     m_connectBtn->setEnabled(implemented);
     if (!implemented) {
-        m_connectBtn->setText(QStringLiteral("连接 (待实现)"));
-        m_statusLabel->setText(QStringLiteral("该设备类型暂未实现"));
+        m_connectBtn->setText(QStringLiteral("Connect (not implemented)"));
+        m_statusLabel->setText(QStringLiteral("This device type is not implemented yet"));
         m_statusLabel->setObjectName("StatusWarn");
     } else {
-        m_connectBtn->setText(QStringLiteral("连接"));
-        m_statusLabel->setText(QStringLiteral("未连接"));
+        m_connectBtn->setText(QStringLiteral("Connect"));
+        m_statusLabel->setText(QStringLiteral("Disconnected"));
         m_statusLabel->setObjectName("StatusDim");
     }
 
-    // 重置按钮状态
     m_disconnectBtn->setEnabled(false);
 
-    // ---- v2.2（方案 §14）驱动能力适配 ----
+    // Driver capability adaptation (v2.2)
     const bool slcan = (deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::SLCAN));
     const bool autoTiming = slcan
         || deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::Candle)
         || deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::Busmust)
         || deviceKind == static_cast<int>(CanDeviceManager::DeviceKind::SocketCan);
-    // SLCAN 各固件 FD 方言互不兼容，仅开放经典 CAN（方案 §14.5.2）
+    // SLCAN FD dialects differ by firmware — classic CAN only
     m_fdCombo->setEnabled(!slcan);
     if (slcan)
         m_fdCombo->setCurrentIndex(0);
-    // SLCAN/Candle 位时序由驱动自动计算（S 命令查表 / GS_USB 87.5% 采样点），
-    // 预设行不适用
+    // SLCAN/Candle bit timing is driver-managed; presets do not apply
     m_arbTimingCombo->setEnabled(!autoTiming);
     m_dataTimingCombo->setEnabled(!autoTiming);
     if (autoTiming) {
@@ -270,7 +276,7 @@ void DeviceConnectionTab::setDevice(int deviceKind, int devIndex, const QString 
         onArbTimingChanged(m_arbTimingCombo->currentIndex());
         onDataTimingChanged(m_dataTimingCombo->currentIndex());
     }
-    // SLCAN 单通道
+    // SLCAN is single-channel
     if (m_channelChecks.size() > 1) {
         m_channelChecks[1]->setEnabled(!slcan);
         if (slcan)
@@ -289,8 +295,8 @@ void DeviceConnectionTab::onConnect()
             channels << i;
     }
     if (channels.isEmpty()) {
-        QMessageBox::warning(this, QStringLiteral("设备连接"),
-                              QStringLiteral("请至少选择一个通道"));
+        QMessageBox::warning(this, QStringLiteral("Device"),
+                              QStringLiteral("Select at least one channel."));
         return;
     }
 
@@ -299,22 +305,20 @@ void DeviceConnectionTab::onConnect()
     bool canFd = (m_fdCombo->currentIndex() == 1);
     int dataBaud = canFd ? m_dataBaudCombo->currentText().toInt() : 0;
 
-    // 验证波特率
     if (baudrate <= 0) {
-        QMessageBox::warning(this, QStringLiteral("设备连接"),
-                              QStringLiteral("仲裁段波特率无效"));
+        QMessageBox::warning(this, QStringLiteral("Device"),
+                              QStringLiteral("Invalid arbitration baud rate."));
         return;
     }
     if (canFd && dataBaud <= 0) {
-        QMessageBox::warning(this, QStringLiteral("设备连接"),
-                              QStringLiteral("数据段波特率无效"));
+        QMessageBox::warning(this, QStringLiteral("Device"),
+                              QStringLiteral("Invalid data-phase baud rate."));
         return;
     }
 
-    // 获取时序预设
     int arbIdx = m_arbTimingCombo->currentIndex();
     if (arbIdx >= 0 && arbIdx < m_arbPresets.size()) {
-        // 时序参数已通过预设选定，后续可传递给设备
+        // Timing selected via preset; can be forwarded to the device later.
         // const auto &tp = m_arbPresets[arbIdx];
     }
 
@@ -350,7 +354,7 @@ void DeviceConnectionTab::onConnect()
     QStringList chStrs;
     for (int ch : channels)
         chStrs << QStringLiteral("Ch%1").arg(ch + 1);
-    m_statusLabel->setText(QStringLiteral("已连接: %1 (%2, %3%4)")
+    m_statusLabel->setText(QStringLiteral("Connected: %1 (%2, %3%4)")
         .arg(m_deviceName)
         .arg(chStrs.join(", "))
         .arg(baudrate)
@@ -372,7 +376,7 @@ void DeviceConnectionTab::onDisconnect()
 
     m_connectBtn->setEnabled(kindImplemented(m_deviceKind));
     m_disconnectBtn->setEnabled(false);
-    m_statusLabel->setText(QStringLiteral("未连接"));
+    m_statusLabel->setText(QStringLiteral("Disconnected"));
     m_statusLabel->setObjectName("StatusDim");
 
     emit deviceDisconnectRequested();

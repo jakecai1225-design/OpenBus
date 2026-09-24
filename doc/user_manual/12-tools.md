@@ -1,0 +1,45 @@
+# 12. 其他工具
+
+## 12.1 Watcher 观测
+
+**Tools > Watcher**（`Ctrl+Shift+W`）
+
+- **变量观测**：从已加载 DBC 添加信号，查看当前值 / 原始值 / Min / Max。
+- **总线统计**：ID 频率、周期、抖动与错误计数摘要。
+- 工具栏：**添加变量**、移除、清空、**暂停刷新**、**清零统计**。
+
+![Watcher](images/12-watcher.png)
+
+## 12.2 Data Window
+
+**Tools > Data Window**（`Ctrl+Shift+D`）
+
+用于以数据窗口方式查看选中信号 / 变量的数值呈现（适合仪表式观察）。具体列与刷新行为以当前版本界面为准。
+
+## 12.3 I/O Graph
+
+**Tools > I/O Graph**（`Ctrl+Shift+G`）
+
+用于总线负载或收发速率类趋势图（若已启用）。可与测量同时打开，避免与 Graphic 信号波形混淆。
+
+## 12.4 着色规则
+
+**Tools > Color Rules…**
+
+为 Trace 配置按条件着色的规则列表（自上而下匹配）。用于突出错误帧、特定 ID 或方向。
+
+## 12.5 右侧辅助栏
+
+打开 Secondary Side Bar 后：
+
+- **Inspector** — 当前选中帧详情；可加入 Watch
+- **Bookmarks** — 书签
+- **Watch** — 快速监视列表
+
+## 12.6 Settings
+
+活动栏底部 **Settings**（齿轮）打开设置页，可调整通用选项；具体项以界面为准。
+
+---
+
+← [扩展](11-extensions.md) · [手册首页](README.md) · 下一章：[快捷键](13-shortcuts.md) →

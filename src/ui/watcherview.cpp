@@ -82,16 +82,20 @@ void WatcherView::setupUi()
 
     // 页 1：变量观测
     m_watchTable = new QTableWidget(0, 7, this);
+    m_watchTable->setObjectName(QStringLiteral("ContentTable"));
     m_watchTable->setHorizontalHeaderLabels({
         QStringLiteral("变量"), QStringLiteral("当前值"), QStringLiteral("原始值"),
         QStringLiteral("最小"), QStringLiteral("最大"), QStringLiteral("单位"),
         QStringLiteral("报文")
     });
     m_watchTable->setAlternatingRowColors(true);
+    m_watchTable->setShowGrid(false);
     m_watchTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_watchTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_watchTable->verticalHeader()->setVisible(false);
     m_watchTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_watchTable->horizontalHeader()->setHighlightSections(false);
+    m_watchTable->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     m_watchTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     for (int i = 1; i < 7; ++i)
         m_watchTable->horizontalHeader()->setSectionResizeMode(
@@ -101,16 +105,16 @@ void WatcherView::setupUi()
     // 页 2：总线统计
     auto *statPage = new QWidget(this);
     auto *statLay = new QVBoxLayout(statPage);
-    statLay->setContentsMargins(6, 6, 6, 6);
-    statLay->setSpacing(6);
+    statLay->setContentsMargins(8, 8, 8, 8);
+    statLay->setSpacing(8);
 
     m_summaryLabel = new QLabel(statPage);
+    m_summaryLabel->setObjectName(QStringLiteral("DimLabel"));
     m_summaryLabel->setAlignment(Qt::AlignCenter);
-    m_summaryLabel->setStyleSheet(
-        QStringLiteral("color:%1;padding:4px;").arg(iconCol));
     statLay->addWidget(m_summaryLabel);
 
     m_idTable = new QTableWidget(0, 9, statPage);
+    m_idTable->setObjectName(QStringLiteral("ContentTable"));
     m_idTable->setHorizontalHeaderLabels({
         QStringLiteral("ID"), QStringLiteral("帧数"), QStringLiteral("频率 Hz"),
         QStringLiteral("平均周期 ms"), QStringLiteral("最小周期"),
@@ -121,7 +125,9 @@ void WatcherView::setupUi()
     m_idTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_idTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_idTable->verticalHeader()->setVisible(false);
-    m_idTable->setShowGrid(true);
+    m_idTable->setShowGrid(false);
+    m_idTable->horizontalHeader()->setHighlightSections(false);
+    m_idTable->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     m_idTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     for (int i = 1; i < 9; ++i)
         m_idTable->horizontalHeader()->setSectionResizeMode(
@@ -129,6 +135,7 @@ void WatcherView::setupUi()
     statLay->addWidget(m_idTable, 3);
 
     m_errorTable = new QTableWidget(1, 7, statPage);
+    m_errorTable->setObjectName(QStringLiteral("ContentTable"));
     m_errorTable->setHorizontalHeaderLabels({
         QStringLiteral("Stuff"), QStringLiteral("Form"), QStringLiteral("ACK"),
         QStringLiteral("Bit0"), QStringLiteral("Bit1"), QStringLiteral("CRC"),
@@ -136,6 +143,7 @@ void WatcherView::setupUi()
     });
     m_errorTable->verticalHeader()->setVisible(false);
     m_errorTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_errorTable->setShowGrid(false);
     m_errorTable->setMaximumHeight(86);
     for (int c = 0; c < 7; ++c) {
         auto *it = new QTableWidgetItem(QStringLiteral("0"));
