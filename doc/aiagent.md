@@ -1,13 +1,13 @@
 # openbus AI Agent 插件 — 设计思路、功能特性与实现路径
 
-> 文档状态：Phase 1–2 已落地（见 `plugins/ai-agent/`）；向 **AI Native** 演进中  
-> **产品总纲（AI Native 定义 / 外挂对照 / 最小改动架构 / 工业约束）见 [`ai.md`](ai.md)**  
-> **实施勾选见 [`ai_implementation_plan.md`](ai_implementation_plan.md)**  
-> 编排原则：不自研多 Agent 内核；采用 OpenAI Agents SDK（handoff / as_tool），长 HITL 图可叠加 LangGraph — 详见 ai.md。  
-> 本插件角色：平台 **AI 工作台 + 编排引擎**（对标 Cursor 的聊天/配置/轨迹界面），挂在 **AI Native** 底座上；不是「可有可无的侧栏」，也不是与架构脱节的外挂问答。  
-> 全软件右键 Add to Chat / Ask **汇入本窗**；长对话与 Provider/Policy/MCP 等配置集中在此。须经 Capability Bus 操作总线对象，结论须可审计。  
-> 目标产物：重磅级 Python 插件 `plugins/ai-agent/`（id：`ai-agent`）  
-> 闭环目标：**活动上下文 + 投喂 + 知识库 → 调用能力 → 验证 → 带证据的报告；纠错与采纳沉淀，越用越懂本工程/用户**
+> 文档状态：Phase 1–2 + **WebView2/TS 栈**已落地（见 `plugins/ai-agent/`）；向 **AI Native** 演进中  
+> **产品总纲见 [`ai.md`](ai.md)** · **实施勾选见 [`ai_implementation_plan.md`](ai_implementation_plan.md)**  
+> 编排原则：不自研多 Agent 内核。**定案栈（2026-09）**：  
+> - UI：Vite + React + TypeScript（`webui/`）  
+> - 壳：真 WebView2（`pywebview` edgechromium）/ Edge `--app` 回退 / 系统浏览器  
+> - Agent：**Node sidecar + Vercel AI SDK tool-loop**（Mastra 兼容流式边；`agent-ts/`），Python Orchestrator 为 fallback  
+> - 工具：Python `tools/`（SinHost + Policy + Capability Bus）为唯一总线执行面；Node 经 `/api/tools/invoke` 代理  
+> 本插件角色：平台 **AI 工作台 + 编排引擎**（对标 Cursor）；Capability Bus + HITL；结论可审计。
 
 ---
 
@@ -239,24 +239,21 @@ flowchart TB
 plugins/ai-agent/
   plugin.json
   main.py                 # activate / ChatWindow
+  chat_window.py          # WebView2 / browser shell + Node sidecar boot
+  webview2_host.py        # WebView2 (pywebview) + Edge --app fallback
+  node_sidecar.py         # start agent-ts when Node available
+  bridge/server.py        # Python HTTP: settings/tools/approve + static UI
   agent/
-    orchestrator.py       # tool-loop
-    llm_client.py         # multi-provider
-    prompts.py            # system / role prompts
-    session_store.py      # jsonl audit
-  tools/
-    registry.py
-    bus_tools.py          # frames/dbc/workspace
-    plugin_facades.py     # uds/obd/j1939/…
-    policy.py
-  mcp/
-    server.py             # optional MCP export
-  resources/
-    system_prompt.md
-    tool_catalog.yaml
+    orchestrator.py       # Python tool-loop fallback
+    agents_runtime.py
+    llm_client.py
+    prompts.py
+    session_store.py
+  tools/                  # UNIQUE bus executor (restored; not gitignored)
+    host.py / registry.py / policy.py / bus_tools.py
+  webui/                  # Vite + React + TS → dist/
+  agent-ts/               # Node AI SDK sidecar → dist/server.js
   tests/
-    test_orchestrator_mock.py
-    test_policy.py
 ```
 
 ### 4.4 Tool-loop 伪代码
@@ -317,16 +314,27 @@ emit final report
 
 ### Phase 3 — MCP 外向与多 Agent（2 周）
 
-1. 本地 MCP Server 暴露只读工具子集。  
-2. 可选：Analyst / Diagnostics 双 Agent handoff。  
+1. 本地 MCP Server 暴露只读工具子集（同一 `ToolRegistry`；stdio / 本机 HTTP）。  
+2. 可选：Analyst / Diagnostics 双 Agent handoff（Mastra multi-agent）。  
 3. Provider 面板：多模型切换、用量统计。  
-4. 与市场 `.opk` 打包、签名策略对齐。
+4. 与市场 `.opk` 打包、签名策略对齐（须含 `tools/` + `webui/dist` + `agent-ts/dist`）。
 
 ### Phase 4 — 增强（持续）
 
+- Knowledge / Remember（本机 JSONL + 可选 Mastra memory）。  
 - RAG：索引 `doc/` 与用户手册。  
 - Graphic/Trace 深度 RPC（书签、过滤器写入）。  
-- 团队策略：企业 Key、审计上报。  
+- 团队策略：企业 Key、审计上报。
+
+### WebView2 + TS 栈（已落地 2026-09-27）
+
+| 层 | 路径 | 说明 |
+|----|------|------|
+| 工具 | `tools/` | SinHost + Policy + Registry（已从 gitignore 误伤中恢复） |
+| 壳 | `webview2_host.py` | pywebview WebView2 → Edge `--app` → 浏览器 |
+| UI | `webui/` | Vite + React + TS；HITL Approve/Reject |
+| Agent | `agent-ts/` | Node AI SDK sidecar；Python Orchestrator fallback |
+| 契约 | `GET/POST /api/tools*` | Node 与 UI 共用 |  
 - 评测集：固定总线场景 + 期望工具序列（类似 agent eval）。
 
 ---

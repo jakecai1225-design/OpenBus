@@ -67,7 +67,7 @@ QWidget *DbcModule::createPage(const QString &pageId, const QVariant &param, She
         return tab;
     }
     if (pageId == QStringLiteral("signallist"))
-        return new DbcSignalListView(ctx.mainWindow);
+        return new DbcSignalListView(ctx.dbcManager, ctx.mainWindow);
 
     return nullptr;
 }

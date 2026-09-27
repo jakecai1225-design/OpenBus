@@ -20,9 +20,16 @@ BRIDGE_HINT = (
 )
 
 WEBVIEW2_HINT = (
-    "Install Microsoft Edge or the WebView2 Evergreen Runtime for\n"
-    "in-window chat (path B). Without it, use Open in browser (path A).\n"
+    "Install Microsoft Edge / WebView2 Evergreen Runtime for in-window chat.\n"
+    "Optional: pip install pywebview  (true WebView2 via edgechromium).\n"
+    "Without them, use Open in browser (path A).\n"
     "  https://developer.microsoft.com/microsoft-edge/webview2/"
+)
+
+NODE_HINT = (
+    "Optional Node.js >= 20 for Mastra agent-ts sidecar:\n"
+    "  cd plugins/ai-agent/agent-ts && npm install && npm run build\n"
+    "Without Node, Python Orchestrator remains the agent runtime."
 )
 
 

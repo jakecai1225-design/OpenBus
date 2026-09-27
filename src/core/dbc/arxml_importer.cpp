@@ -6,18 +6,18 @@
 // pugixml for XML parsing
 #include "pugixml.hpp"
 
-/// 从 xml_node 的文本内容解析为 int（兼容 stub 版 pugixml 的 const char* text()）
+/// 从 xml_node 的文本内容解析为 int
 static int xmlToInt(const pugi::xml_node &node, int defVal)
 {
-    const char *txt = node.text();
+    const char *txt = node.child_value();
     if (!txt || !*txt) return defVal;
     return QString::fromUtf8(txt).toInt();
 }
 
-/// 从 xml_node 的文本内容解析为 unsigned（兼容 stub 版 pugixml 的 const char* text()）
+/// 从 xml_node 的文本内容解析为 unsigned
 static unsigned xmlToUInt(const pugi::xml_node &node, unsigned defVal)
 {
-    const char *txt = node.text();
+    const char *txt = node.child_value();
     if (!txt || !*txt) return defVal;
     return QString::fromUtf8(txt).toUInt();
 }

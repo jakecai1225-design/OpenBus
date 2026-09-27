@@ -13,6 +13,7 @@ CMakeUserPresets.json
 Makefile
 *.cmake
 !CMakeLists.txt
+!third_party/Dependencies.cmake
 
 # ---- Qt 自动生成 ----
 moc_*.cpp
@@ -57,8 +58,12 @@ Thumbs.db
 .DS_Store
 desktop.ini
 
-# ---- 构建加速工具 (本地下载，不入库) ----
-tools/
+# ---- 构建加速工具 (本地下载，不入库；勿匹配 plugins/*/tools/) ----
+/tools/
+/third_party/tools/
+
+# ---- Node (AI Agent webui / agent-ts) ----
+**/node_modules/
 
 # ---- 构建日志和临时文件 (编译中间产物，不跟踪) ----
 build_*.log

@@ -109,6 +109,16 @@ def _make_handler(_bridge: "BridgeServer"):
                 return self._send(200, _json_bytes({
                     "pending": get_runtime().approval.pending(),
                 }))
+            if path == "/api/tools":
+                from agent.agents_runtime import get_runtime
+                return self._send(200, _json_bytes({
+                    "tools": get_runtime().registry.list_tools(),
+                    "policy": get_runtime().policy.level,
+                }))
+            if path == "/api/tools/invoke":
+                return self._send(405, _json_bytes({
+                    "error": "use POST /api/tools/invoke",
+                }))
             return self._serve_static(path)
 
         def do_PUT(self):
@@ -159,6 +169,15 @@ def _make_handler(_bridge: "BridgeServer"):
                 }))
             if path == "/api/chat":
                 return self._chat(self._read_json())
+            if path == "/api/tools/invoke":
+                from agent.agents_runtime import get_runtime
+                body = self._read_json()
+                name = body.get("name") or body.get("tool") or ""
+                args = body.get("arguments") or body.get("args") or {}
+                if not isinstance(args, dict):
+                    args = {}
+                result = get_runtime().registry.invoke(str(name), args)
+                return self._send(200, _json_bytes(result))
             return self._send(404, _json_bytes({"error": "not found"}))
 
         def _extract_user_text(self, body: dict) -> str:

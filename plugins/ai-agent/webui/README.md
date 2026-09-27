@@ -1,30 +1,23 @@
-# AI Agent webui
+# AI Agent webui (Vite + React + TypeScript)
 
-Static chat client served by the Python stdlib bridge (`bridge/server.py`).
+Cursor-style workbench UI served by the Python bridge (`bridge/server.py`)
+or the Node Mastra sidecar (`agent-ts`).
 
-## Runtime
-
-Ship `dist/` inside the `.opk`. No Node required at runtime.
-
-Current `dist/` is a lightweight Cursor-style shell that speaks the same
-`/api/chat` AI-SDK data stream the bridge already emits. It is enough for
-path A (browser) and path B (Edge `--app` embed).
-
-## Optional: rebuild with assistant-ui (later)
-
-When MSYS2 `nodejs`/`npm` are installed:
+## Build
 
 ```bash
-# from MSYS2 UCRT64
 cd plugins/ai-agent/webui
-# scaffold Vite + @assistant-ui/react + @assistant-ui/react-ai-sdk
-# npm install && npm run build
-# output must land in dist/ (index.html + assets)
+npm install
+npm run build
+# output -> dist/ (bundled into .opk)
 ```
 
-Keep the bridge contract:
+## Bridge contract (do not break)
 
-- `GET /api/health`, `/api/settings`, `/api/snapshot`, `/api/attachments`
+- `GET /api/health`, `/api/settings`, `/api/snapshot`, `/api/attachments`, `/api/approve/pending`, `/api/tools`
 - `PUT /api/settings`
-- `POST /api/chat` → Vercel AI data stream (`0:` text, `9:` tool call, `a:` tool result)
-- `POST /api/approve`, `GET /api/approve/pending`
+- `POST /api/chat` → Vercel AI data stream (`0:` text, `9:` tool call, `a:` tool result, `3:` error, `d:` finish)
+- `POST /api/approve`, `POST /api/tools/invoke`
+- `DELETE /api/attachments/<id>`, `POST /api/attachments/clear`
+
+HITL Approve/Reject buttons poll `/api/approve/pending` and POST `/api/approve`.

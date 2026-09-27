@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""AI workbench shell — WebView2/Edge embed (B) with browser fallback (A)."""
+"""AI workbench shell — WebView2 embed (B) with browser fallback (A)."""
 
 from __future__ import annotations
 
@@ -20,11 +20,11 @@ from PyQt6.QtWidgets import (
 from _shared import activity_snapshot, plugin_shell, vscode_theme
 
 from deps import check_all, check_webview2
-from webview2_host import EdgeAppEmbedWidget, webview2_available
+from webview2_host import WebView2EmbedWidget, webview2_available
 
 
 class ChatWindow(QMainWindow):
-    """Top chrome + Edge --app embedded client (B). Browser open = path A."""
+    """Top chrome + WebView2 (or Edge) embedded client. Browser = path A."""
 
     def __init__(self):
         super().__init__()
@@ -32,8 +32,9 @@ class ChatWindow(QMainWindow):
         self.setMinimumSize(1100, 720)
         self.resize(1180, 800)
         self._bridge = None
+        self._sidecar_url = ""
         self._url = ""
-        self._embed: EdgeAppEmbedWidget | None = None
+        self._embed: WebView2EmbedWidget | None = None
         self._mode = "none"  # embed | browser | error
 
         vscode_theme.apply(self)
@@ -47,7 +48,18 @@ class ChatWindow(QMainWindow):
         try:
             from bridge.server import get_bridge
             self._bridge = get_bridge()
-            self._url = self._bridge.start()
+            bridge_url = self._bridge.start()
+            self._url = bridge_url
+            # Prefer Node Mastra sidecar when built; UI still talks HTTP
+            try:
+                from node_sidecar import get_sidecar
+                sc = get_sidecar()
+                side = sc.start(tool_bridge_url=bridge_url)
+                if side:
+                    self._sidecar_url = side
+                    self._url = side
+            except Exception:
+                pass
         except Exception as e:
             self._show_deps_error(
                 "Bridge failed to start:\n%s\n\n%s" % (e, traceback.format_exc()))
@@ -76,7 +88,7 @@ class ChatWindow(QMainWindow):
         self._btn_embed.setObjectName("GhostButton")
         self._btn_embed.setFixedHeight(28)
         self._btn_embed.setToolTip(
-            "Embed Microsoft Edge app window (WebView2 stack, path B)")
+            "Embed WebView2 (pywebview) or Edge app window (path B)")
         self._btn_embed.clicked.connect(self._open_embed)
 
         self._btn_browser = QPushButton("Open in browser")
@@ -95,19 +107,21 @@ class ChatWindow(QMainWindow):
         row.addWidget(self._btn_reload)
         root.addWidget(chrome)
 
-        self._embed = EdgeAppEmbedWidget(self)
+        self._embed = WebView2EmbedWidget(self)
         root.addWidget(self._embed, 1)
         self.setCentralWidget(central)
 
         can_embed = webview2_available()
         self._btn_embed.setEnabled(can_embed)
+        agent_tag = "Mastra" if self._sidecar_url else "Python"
         if not can_embed:
             wv = check_webview2()
-            self._mode_label.setText("Edge missing — use browser")
+            self._mode_label.setText("No WebView2/Edge — use browser · %s" % agent_tag)
             plugin_shell.set_status(
-                self, "Path A only: %s" % (wv.detail or "no Edge"), 0)
+                self, "Path A only: %s" % (wv.detail or "no WebView2"), 0)
             QTimer.singleShot(300, self._open_browser)
         else:
+            self._mode_label.setText(agent_tag)
             QTimer.singleShot(300, self._open_embed)
 
         activity_snapshot.update(active_plugin="ai-agent", active_page="chat")
@@ -153,8 +167,9 @@ class ChatWindow(QMainWindow):
             self._open_browser()
             return
         self._mode = "embed"
-        self._mode_label.setText("In-window Edge (B)")
-        plugin_shell.set_status(self, "Embedded Edge at %s" % self._url, 4000)
+        eng = getattr(self._embed, "engine", "webview2")
+        self._mode_label.setText("In-window %s (B)" % eng)
+        plugin_shell.set_status(self, "Embedded at %s" % self._url, 4000)
 
     def _reload(self) -> None:
         if self._mode == "embed":
@@ -186,6 +201,11 @@ class ChatWindow(QMainWindow):
                 self._embed.close_guest()
             except Exception:
                 pass
+        try:
+            from node_sidecar import get_sidecar
+            get_sidecar().stop()
+        except Exception:
+            pass
         if self._bridge is not None:
             try:
                 self._bridge.stop()
