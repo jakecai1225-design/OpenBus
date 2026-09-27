@@ -28,7 +28,11 @@ def build(shell, document, log_fn) -> QWidget:
 
     chrome, crow = suite_chrome.make_toolbar()
     run_btn = _ui.primary_btn(
-        "Validate", "Run deep consistency check", "validate")
+        "Validate", "Run deep check + profile coverage (CiA)", "validate")
+    profile_box = _ui.combo(
+        ["Auto-detect profile", "CiA 301", "CiA 401", "CiA 402",
+         "CiA 404", "CiA 406", "CiA 418", "CiA 419", "None"],
+        "Force a device profile coverage check (or auto from 0x1000)")
     summary = _ui.count_label()
     summary.setText("Ready")
     export_csv_btn = _ui.ghost_btn("CSV", "Export findings as CSV", "export")
@@ -36,6 +40,7 @@ def build(shell, document, log_fn) -> QWidget:
     export_sarif_btn = _ui.ghost_btn(
         "SARIF", "Export SARIF for CI pipelines", "export")
     crow.addWidget(run_btn)
+    crow.addWidget(profile_box)
     crow.addWidget(summary)
     crow.addStretch(1)
     crow.addWidget(export_csv_btn)
@@ -55,7 +60,24 @@ def build(shell, document, log_fn) -> QWidget:
 
     def run_lint():
         nonlocal findings_cache
-        findings_cache = edsparse.validate_document(document.eds, deep=True)
+        sel = profile_box.currentText()
+        profile_id = None
+        if sel.startswith("CiA "):
+            profile_id = sel.split()[-1]
+        elif sel == "None":
+            profile_id = ""  # skip profile coverage
+        if profile_id == "":
+            findings_cache = edsparse.validate_eds(
+                document.eds.entries,
+                file_info=document.eds.file_info,
+                device_info=document.eds.device_info,
+                device_commissioning=document.eds.device_commissioning or None,
+                deep=True,
+            )
+        else:
+            findings_cache = edsparse.validate_document(
+                document.eds, deep=True,
+                profile_id=profile_id if profile_id else None)
         tree.clear()
         colors = {
             "error": QColor("#C62828"),

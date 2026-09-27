@@ -37,12 +37,16 @@ MarketIndex::MarketIndex(QObject *parent)
 
 QUrl MarketIndex::defaultMarketUrl()
 {
-    // 定位顺序：开发/发布 bin 布局（exe 在 build/bin 或 bin，市场在同级 market/）
-    //   → 发布 exe 同级布局 → 官方占位
+    // Locate order (dev → shipped → official):
+    //   build/bin/../market     → <build>/market/market.json  (make_market -o)
+    //   build/bin/market        → beside exe
+    //   build/bin/../../market  → <repo>/market  (source-tree layout)
+    //   official placeholder
     const QString exeDir = QCoreApplication::applicationDirPath();
     const QStringList candidates = {
         QDir(exeDir).absoluteFilePath(QStringLiteral("../market/market.json")),
         QDir(exeDir).absoluteFilePath(QStringLiteral("market/market.json")),
+        QDir(exeDir).absoluteFilePath(QStringLiteral("../../market/market.json")),
     };
     for (const auto &p : candidates) {
         if (QFileInfo::exists(p))

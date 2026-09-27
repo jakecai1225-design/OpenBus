@@ -68,6 +68,7 @@ def build(shell, document, log_fn) -> QWidget:
     count = _ui.count_label()
     add_obj = _ui.ghost_btn("Object", "Add a new index (manufacturer area)", "add")
     add_sub = _ui.ghost_btn("Sub", "Add a sub-index under the selection", "add")
+    dup_btn = _ui.ghost_btn("Dup", "Duplicate selected object (next free index)", "add")
     remove_btn = _ui.ghost_btn("", "Remove selected object", "delete")
     apply_btn = _ui.primary_btn("Apply", "Write form into the selected entry", "apply")
     crow.addWidget(filt)
@@ -75,6 +76,7 @@ def build(shell, document, log_fn) -> QWidget:
     crow.addStretch(1)
     crow.addWidget(add_obj)
     crow.addWidget(add_sub)
+    crow.addWidget(dup_btn)
     crow.addWidget(remove_btn)
     crow.addWidget(apply_btn)
     dlay.addWidget(chrome)
@@ -84,10 +86,11 @@ def build(shell, document, log_fn) -> QWidget:
     split.setChildrenCollapsible(False)
 
     tree = QTreeWidget()
-    tree.setHeaderLabels(["Index", "Name", "Access"])
+    tree.setHeaderLabels(["Index", "Name", "Type", "Access"])
     _ui.style_tree(tree, stretch_col=1)
-    tree.setMinimumWidth(260)
-    tree.setToolTip("Object dictionary by CiA range")
+    tree.setMinimumWidth(280)
+    tree.setToolTip(
+        "Object dictionary by CiA range (CANeds-style hierarchy)")
     split.addWidget(tree)
 
     form_wrap = QWidget()
@@ -120,10 +123,13 @@ def build(shell, document, log_fn) -> QWidget:
     data_type = _ui.combo([n for _c, n in edsparse.DATA_TYPES], "DataType")
     access = _ui.combo(edsparse.ACCESS_TYPES, "AccessType")
     default_edit = _ui.line_edit("DefaultValue")
-    param_edit = _ui.line_edit("ParameterValue (DCF only)")
+    param_edit = _ui.line_edit(
+        "ParameterValue — DCF commissioning value (emotas-style)")
     pdo = _ui.combo(["No", "Yes"], "PDOMapping")
     low_edit = _ui.line_edit("LowLimit (optional)")
     high_edit = _ui.line_edit("HighLimit (optional)")
+    to_param = _ui.ghost_btn(
+        "→ Param", "Copy DefaultValue into ParameterValue (mark as DCF)", "")
     for label, w in (
         ("Index", idx_spin),
         ("Sub-index", sub_spin),
@@ -133,6 +139,7 @@ def build(shell, document, log_fn) -> QWidget:
         ("Access", access),
         ("Default", default_edit),
         ("Param value", param_edit),
+        ("", to_param),
         ("PDO map", pdo),
         ("Low", low_edit),
         ("High", high_edit),
@@ -248,14 +255,15 @@ def build(shell, document, log_fn) -> QWidget:
             n += 1
             gname = edsparse.index_group(e.index)
             if gname not in groups:
-                gitem = QTreeWidgetItem([gname, "", ""])
+                gitem = QTreeWidgetItem([gname, "", "", ""])
                 gitem.setFlags(gitem.flags() & ~Qt.ItemFlag.ItemIsSelectable)
                 tree.addTopLevelItem(gitem)
                 groups[gname] = gitem
             parent = groups[gname]
+            dtype = edsparse.data_type_label(e.data_type) if e.data_type else ""
             if e.subindex == 0:
                 item = QTreeWidgetItem([
-                    e.display_index(), e.name, e.access_type or ""])
+                    e.display_index(), e.name, dtype, e.access_type or ""])
                 item.setData(0, Qt.ItemDataRole.UserRole, (e.index, e.subindex))
                 parent.addChild(item)
             else:
@@ -268,15 +276,16 @@ def build(shell, document, log_fn) -> QWidget:
                         break
                 if idx_item is None:
                     idx_item = QTreeWidgetItem([
-                        "0x%04X" % e.index, "", ""])
+                        "0x%04X" % e.index, "", "", ""])
                     idx_item.setData(
                         0, Qt.ItemDataRole.UserRole, (e.index, 0))
                     parent.addChild(idx_item)
                 item = QTreeWidgetItem([
-                    e.display_index(), e.name, e.access_type or ""])
+                    e.display_index(), e.name, dtype, e.access_type or ""])
                 item.setData(0, Qt.ItemDataRole.UserRole, (e.index, e.subindex))
                 idx_item.addChild(item)
-        tree.expandToDepth(0)
+        # Expand CiA groups + indexes so subs are one click away (CANeds feel)
+        tree.expandToDepth(1)
         _autofit()
         tree.blockSignals(False)
         total = len(document.eds.entries)
@@ -348,6 +357,10 @@ def build(shell, document, log_fn) -> QWidget:
         entry.pdo_mapping = "1" if pdo.currentText() == "Yes" else "0"
         entry.low_limit = low_edit.text().strip()
         entry.high_limit = high_edit.text().strip()
+        # Keep SubNumber consistent after edits (CiA 306 record/array)
+        EdsDocument = type(document)
+        if hasattr(EdsDocument, "_sync_sub_numbers"):
+            EdsDocument._sync_sub_numbers(eds)
         document.apply_eds(eds)
         selected["key"] = (idx, sub)
         log_fn("OK", "Updated %s" % entry.display_index())
@@ -396,9 +409,49 @@ def build(shell, document, log_fn) -> QWidget:
             index=idx, subindex=sub, name="Sub %d" % sub,
             object_type="0x7", data_type="0x0007", access_type="rw"))
         eds.entries.sort(key=lambda e: (e.index, e.subindex))
+        type(document)._sync_sub_numbers(eds)
         document.apply_eds(eds)
         select_object(idx, sub)
         log_fn("SYS", "Added 0x%04X:%02X" % (idx, sub))
+
+    def _duplicate():
+        key = selected["key"]
+        if not key:
+            log_fn("WARN", "Select an object to duplicate")
+            return
+        eds = document.clone_eds()
+        src = edsparse.find_entry(eds.entries, key[0], key[1])
+        if src is None:
+            return
+        # Duplicate whole index group into next free manufacturer index
+        group = [e for e in eds.entries if e.index == key[0]]
+        existing = {e.index for e in eds.entries}
+        new_idx = 0x2000
+        while new_idx in existing and new_idx < 0x5FFF:
+            new_idx += 1
+        import copy as _copy
+        for e in group:
+            ne = _copy.deepcopy(e)
+            ne.index = new_idx
+            if e.subindex == 0 and e.name:
+                ne.name = e.name + " (copy)"
+            eds.entries.append(ne)
+        eds.entries.sort(key=lambda e: (e.index, e.subindex))
+        type(document)._sync_sub_numbers(eds)
+        document.apply_eds(eds)
+        select_object(new_idx, key[1])
+        log_fn("SYS", "Duplicated 0x%04X → 0x%04X" % (key[0], new_idx))
+
+    def _copy_default_to_param():
+        if mute["on"]:
+            return
+        val = default_edit.text().strip()
+        if not val:
+            log_fn("WARN", "DefaultValue is empty")
+            return
+        param_edit.setText(val)
+        _apply_form()
+        log_fn("OK", "ParameterValue ← DefaultValue (DCF)")
 
     def _remove():
         key = selected["key"]
@@ -408,6 +461,7 @@ def build(shell, document, log_fn) -> QWidget:
         eds.entries = [
             e for e in eds.entries
             if not (e.index == key[0] and e.subindex == key[1])]
+        type(document)._sync_sub_numbers(eds)
         document.apply_eds(eds)
         selected["key"] = None
         _show_form(False)
@@ -422,6 +476,8 @@ def build(shell, document, log_fn) -> QWidget:
     meta_apply.clicked.connect(_apply_meta)
     add_obj.clicked.connect(_add_object)
     add_sub.clicked.connect(_add_sub)
+    dup_btn.clicked.connect(_duplicate)
+    to_param.clicked.connect(_copy_default_to_param)
     remove_btn.clicked.connect(_remove)
     for w in (name_edit, default_edit, param_edit, low_edit, high_edit):
         w.editingFinished.connect(_apply_form)

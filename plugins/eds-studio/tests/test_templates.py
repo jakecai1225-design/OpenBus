@@ -19,11 +19,11 @@ from document import EdsDocument  # noqa: E402
 
 
 def test_catalog_coverage():
-    assert "401" in profiles._PROFILE_MAP
-    assert "406" in profiles._PROFILE_MAP
-    assert "418" in profiles._PROFILE_MAP
-    assert len(profiles.PROFILE_CATALOG) >= 10
-    assert len(profiles.CIA402_OBJECTS) >= 20
+    ids = {row[0] for row in profiles.PROFILE_CATALOG}
+    assert "401" in ids and "406" in ids and "418" in ids
+    assert "302" in ids and "437" in ids
+    assert len(profiles.PROFILE_CATALOG) >= 30
+    assert len(profiles.objects_for("402")) >= 20
     print("PASS profile catalog (%d entries)" % len(profiles.PROFILE_CATALOG))
 
 

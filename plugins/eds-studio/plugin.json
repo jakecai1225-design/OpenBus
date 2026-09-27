@@ -2,7 +2,7 @@
     "name": "eds-studio",
     "version": "1.0.0",
     "author": "sin",
-    "description": "EDS Studio: edit, validate, compare and export CANopen EDS/DCF (CANeds / emotas-style file workbench).",
+    "description": "EDS Studio: CANeds/emotas-style EDS/DCF workbench — Editor, Library (CiA profiles), Validate (profile coverage), Compare, Export.",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [

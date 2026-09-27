@@ -156,17 +156,50 @@ class EdsDocument:
         eds.entries = list(entries)
         self.apply_eds(eds)
 
-    def upsert_entries(self, new_entries: list, merge: bool = True) -> None:
+    def upsert_entries(
+            self, new_entries: list, merge: bool = True,
+            overwrite: bool = True) -> dict:
+        """Merge profile/library objects into the open document.
+
+        Returns counts: {"added", "updated", "skipped"}.
+        When overwrite=False, existing (index,sub) keys are left unchanged
+        (CANeds-style "insert missing only").
+        """
         eds = self.clone_eds()
+        added = updated = skipped = 0
         if not merge:
             eds.entries = list(new_entries)
+            added = len(new_entries)
         else:
             by_key = {(e.index, e.subindex): e for e in eds.entries}
             for e in new_entries:
-                by_key[(e.index, e.subindex)] = copy.deepcopy(e)
+                key = (e.index, e.subindex)
+                if key in by_key:
+                    if overwrite:
+                        by_key[key] = copy.deepcopy(e)
+                        updated += 1
+                    else:
+                        skipped += 1
+                else:
+                    by_key[key] = copy.deepcopy(e)
+                    added += 1
             eds.entries = sorted(
                 by_key.values(), key=lambda x: (x.index, x.subindex))
+            self._sync_sub_numbers(eds)
         self.apply_eds(eds)
+        return {"added": added, "updated": updated, "skipped": skipped}
+
+    @staticmethod
+    def _sync_sub_numbers(eds: edsparse.EdsDocument) -> None:
+        """Keep SubNumber on sub-0 records consistent with present subs."""
+        by_index: dict = {}
+        for e in eds.entries:
+            by_index.setdefault(e.index, []).append(e)
+        for _idx, group in by_index.items():
+            max_sub = max(e.subindex for e in group)
+            for e in group:
+                if e.subindex == 0 and max_sub > 0:
+                    e.extra["SubNumber"] = str(max_sub)
 
     def display_name(self) -> str:
         if self.path:

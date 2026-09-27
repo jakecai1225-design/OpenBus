@@ -1,8 +1,12 @@
-<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-  <rect x="4" y="4" width="56" height="56" rx="12" fill="#1565C0"/>
-  <rect x="14" y="16" width="36" height="8" rx="2" fill="#ffffff" opacity="0.95"/>
-  <rect x="14" y="28" width="28" height="6" rx="1.5" fill="#90CAF9"/>
-  <rect x="14" y="38" width="22" height="6" rx="1.5" fill="#90CAF9"/>
-  <circle cx="46" cy="44" r="8" fill="#FFC107"/>
-  <path d="M43 44 H49 M46 41 V47" stroke="#1565C0" stroke-width="2" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#7C3AED"/>
+  <!-- OD tree / EDS document -->
+  <rect x="14" y="12" width="36" height="40" rx="3" fill="#ffffff"/>
+  <rect x="18" y="18" width="16" height="3" rx="1" fill="#7C3AED"/>
+  <rect x="18" y="26" width="28" height="2.5" rx="1" fill="#C4B5FD"/>
+  <rect x="22" y="32" width="20" height="2.5" rx="1" fill="#C4B5FD"/>
+  <rect x="22" y="38" width="20" height="2.5" rx="1" fill="#C4B5FD"/>
+  <rect x="22" y="44" width="14" height="2.5" rx="1" fill="#C4B5FD"/>
+  <circle cx="46" cy="46" r="9" fill="#F59E0B"/>
+  <text x="46" y="50" font-family="Segoe UI, sans-serif" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">E</text>
 </svg>

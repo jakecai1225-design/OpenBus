@@ -122,18 +122,34 @@ class SharedSession(QObject):
         self._notify_od()
         self.log("RX", "-", b"", "EDS cleared")
 
-    def set_draft_from_library(self, entries: List[OdEntry], merge: bool = True):
-        """Insert library stubs into EDS editor draft."""
+    def set_draft_from_library(
+            self, entries: List[OdEntry], merge: bool = True,
+            overwrite: bool = True) -> dict:
+        """Insert library stubs into EDS editor draft.
+
+        Returns counts: added / updated / skipped.
+        """
+        stats = {"added": 0, "updated": 0, "skipped": 0}
         if not merge:
             self.draft_entries = copy.deepcopy(entries)
+            stats["added"] = len(entries)
         else:
-            existing = {(e.index, e.subindex) for e in self.draft_entries}
+            by_key = {(e.index, e.subindex): e for e in self.draft_entries}
             for e in entries:
-                if e.key not in existing:
-                    self.draft_entries.append(copy.deepcopy(e))
-                    existing.add(e.key)
-            self.draft_entries.sort(key=lambda x: (x.index, x.subindex))
+                key = (e.index, e.subindex)
+                if key in by_key:
+                    if overwrite:
+                        by_key[key] = copy.deepcopy(e)
+                        stats["updated"] += 1
+                    else:
+                        stats["skipped"] += 1
+                else:
+                    by_key[key] = copy.deepcopy(e)
+                    stats["added"] += 1
+            self.draft_entries = sorted(
+                by_key.values(), key=lambda x: (x.index, x.subindex))
         self._notify_od()
+        return stats
 
     def sync_od_from_draft(self) -> None:
         self.od_entries = copy.deepcopy(self.draft_entries)

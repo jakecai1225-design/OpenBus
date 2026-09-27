@@ -2,7 +2,7 @@
     "name": "canopen-suite",
     "version": "2.1.0",
     "author": "sin",
-    "description": "CANopen Suite — activity + Side Bar (foldable sections) + closable editor tabs + OUTPUT. EDS Dictionary/Device/Check, Network Scan/NMT, OD, PDO, CiA 301/402.",
+    "description": "CANopen Suite — activity + Side Bar + editor tabs + OUTPUT. EDS Dictionary/Device/Check, Network Scan/NMT, OD, PDO, shared CiA profile library (301/402 + device profiles).",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [

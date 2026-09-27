@@ -2453,24 +2453,24 @@ FrameRow *ExtensionsPanel::makeRow(const MarketEntryData &e)
     icon->setFixedSize(16, 16);
     icon->setAlignment(Qt::AlignCenter);
     row->iconLabel = icon;
+    // Letter badge first (instant), then replace with real SVG when ready
+    icon->setPixmap(PluginUi::pluginIconPixmap(QString(), e.title, 16));
     if (e.item.kind == MarketItem::InstalledPlugin) {
         const QPixmap local = MarketModel::pluginIconLocal(e.item.id);
         if (!local.isNull())
             icon->setPixmap(local.scaled(16, 16, Qt::KeepAspectRatio,
                                          Qt::SmoothTransformation));
     }
-    if (icon->pixmap(Qt::ReturnByValue).isNull() && !e.marketIcon.isEmpty()) {
+    if (!e.marketIcon.isEmpty()) {
+        QPointer<QLabel> g(icon);
         MarketModel::fetchMarketPixmap(
             MarketIndex::instance()->resolveUrl(e.marketIcon),
-            [icon](const QPixmap &pm) {
-                QPointer<QLabel> g(icon);
-                if (g)
+            [g](const QPixmap &pm) {
+                if (g && !pm.isNull())
                     g->setPixmap(pm.scaled(16, 16, Qt::KeepAspectRatio,
                                            Qt::SmoothTransformation));
             });
     }
-    if (icon->pixmap(Qt::ReturnByValue).isNull())
-        icon->setPixmap(PluginUi::pluginIconPixmap(QString(), e.title, 16));
     lay->addWidget(icon, 0, Qt::AlignVCenter);
 
     auto *titleLabel = new QLabel(e.title);

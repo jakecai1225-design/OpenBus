@@ -204,8 +204,11 @@ def build_market(out_dir: str, remote_url: str, opk_src: str) -> str:
         icon_src = os.path.join(plugin_dir, "icon.svg")
         icon_rel = ""
         if os.path.isfile(icon_src):
-            icon_name = "%s.svg" % sid
+            # Canonical market path matches appstore build-market.mjs
+            icon_name = "plugin-%s.svg" % sid
             shutil.copy2(icon_src, os.path.join(assets_dir, icon_name))
+            # Keep bare alias for older clients (same bytes)
+            shutil.copy2(icon_src, os.path.join(assets_dir, "%s.svg" % sid))
             icon_rel = "assets/%s" % icon_name
 
         plugins.append({

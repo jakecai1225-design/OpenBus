@@ -39,7 +39,7 @@ Open-source reference: **CANopenEditor** (EDS/DCF/XDD, PDO UI, docs/codegen).
 | OD tree + attribute form | yes | yes | yes |
 | FileInfo / DeviceInfo | yes | yes | yes |
 | Consistency check | strong | partial | Validate + save gate |
-| Profile / standard insert | CiA-CODB | profiles | Library 301/402 |
+| Profile / standard insert | CiA-CODB | profiles | Shared library: 301/302 + 20 device profiles + PDO/HB/SDO packs; Missing-only / Overwrite import |
 | DCF ParameterValue / Commissioning | weak | **strong** | first-class |
 | PDO mapping (file) | limited | strong | PDO Map page |
 | Diff / multi-file | weak | project | Compare |
@@ -72,8 +72,8 @@ Open-source reference: **CANopenEditor** (EDS/DCF/XDD, PDO UI, docs/codegen).
 
 ### Phase 1 — CANeds daily path
 
-- [x] Deep Validate (mandatory objects, types, PDO map refs, SubNumber)  
-- [x] Library 301/402 + communication templates  
+- [x] Deep Validate (mandatory objects, types, PDO map refs, SubNumber) + profile coverage  
+- [x] Library → shared CiA catalog (301/302 + device profiles + packs); Missing-only / Overwrite  
 - [x] PDO Map page (file-layer)  
 - [x] Double-click finding → Editor  
 
@@ -100,3 +100,5 @@ Open-source reference: **CANopenEditor** (EDS/DCF/XDD, PDO UI, docs/codegen).
 - 2026-09-22: Out of scope — SRDO packs, full 402 teacher, network PDO linker, HIL.  
 - 2026-09-22: Shipped Phase 0–3 in `plugins/eds-studio/` + market `eds-studio` entry.  
 - 2026-09-22: Library expanded — CiA 301/401/402/404/406/418 + PDO packs; Starter templates (generic / DIO / AIO / servo / encoder / measure / battery / custom) for beginners.  
+- 2026-09-27: Profile catalog moved to `_shared/canopen_profiles` (CiA 301/302 + 401–422/434/437 + packs). Library UX: Missing-only / Overwrite / Insert missing; Editor: Dup, → Param (DCF), SubNumber sync, Type column. Both `eds-studio` and `canopen-suite` consume the same catalog.  
+- 2026-09-27: Validate adds profile coverage (auto from 0x1000 Device type, or force CiA xxx).  

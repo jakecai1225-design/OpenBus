@@ -190,13 +190,21 @@ EDS_NESTED = {
 }
 
 LIBRARY_SECTIONS = (
-    ("library", "Profiles", "CiA profile stubs"),
+    ("library", "Profiles", "CiA profile library → EDS draft"),
 )
 
 LIBRARY_NESTED = {
     "library": (
-        ("lib_301", "CiA 301", "Communication profile objects"),
-        ("lib_402", "CiA 402", "Drive / motion profile objects"),
+        ("lib_301", "CiA 301", "Communication profile"),
+        ("lib_302", "CiA 302", "Network management"),
+        ("lib_401", "CiA 401", "Digital / analogue I/O"),
+        ("lib_402", "CiA 402", "Drives and motion"),
+        ("lib_403", "CiA 403", "HMI"),
+        ("lib_404", "CiA 404", "Measuring devices"),
+        ("lib_406", "CiA 406", "Encoders"),
+        ("lib_418", "CiA 418", "Battery modules"),
+        ("lib_419", "CiA 419", "Battery chargers"),
+        # Full catalog (20+ profiles + packs) lives in the Library page list
     ),
 }
 

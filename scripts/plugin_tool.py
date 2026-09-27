@@ -51,16 +51,47 @@ def _repo_plugins_dir():
         os.path.dirname(os.path.abspath(__file__)), "..", "plugins"))
 
 
+def _find_shared_src():
+    """Locate source plugins/_shared (repo tree or build-output copy).
+
+    plugin_tool may live in ``<repo>/scripts`` or ``build/bin/scripts``.
+    When run from the build tree, ``../plugins/_shared`` is the *destination*
+    and is often empty until the first successful install — walk up and also
+    accept an already-populated destination.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(here, "..", "plugins", "_shared"),          # repo or build/bin
+        os.path.join(here, "..", "..", "..", "plugins", "_shared"),  # build/bin/scripts → repo
+        os.path.join(here, "..", "..", "plugins", "_shared"),
+        os.environ.get("SIN_SHARED_SRC", ""),
+    ]
+    for c in candidates:
+        if not c:
+            continue
+        src = os.path.abspath(c)
+        # Require a real package marker so empty dirs are skipped.
+        if os.path.isfile(os.path.join(src, "state_store.py")) or \
+           os.path.isfile(os.path.join(src, "__init__.py")):
+            return src
+    return ""
+
+
 def _ensure_shared(plugins_dir):
     """Copy plugins/_shared next to installed suites (required import root).
 
     Domain suites do `from _shared import …`; SIN_PLUGINS_DIR must contain
     the `_shared` package. Returns True if present after this call.
     """
-    dest = os.path.join(plugins_dir, "_shared")
-    src = os.path.join(_repo_plugins_dir(), "_shared")
-    if not os.path.isdir(src):
-        return os.path.isdir(dest)
+    dest = os.path.join(os.path.abspath(plugins_dir), "_shared")
+    src = _find_shared_src()
+    # Already have a usable copy and no fresher source → keep it.
+    if not src:
+        return os.path.isfile(os.path.join(dest, "state_store.py")) or \
+               os.path.isfile(os.path.join(dest, "__init__.py"))
+    # Same path (build tree already has the only copy) — nothing to do.
+    if os.path.abspath(src) == os.path.abspath(dest):
+        return True
     try:
         if os.path.isdir(dest):
             shutil.rmtree(dest)
@@ -71,7 +102,8 @@ def _ensure_shared(plugins_dir):
         )
         return True
     except OSError:
-        return os.path.isdir(dest)
+        return os.path.isfile(os.path.join(dest, "state_store.py")) or \
+               os.path.isfile(os.path.join(dest, "__init__.py"))
 
 
 def _emit(ok, **kwargs):
@@ -221,14 +253,24 @@ def cmd_install(args):
         if not os.path.isfile(os.path.join(extract_root, main_rel)):
             return _emit(False, error=f"main entry missing in package: {main_rel}")
 
+        # Suites import _shared at load time; without it activate shows no UI.
+        if not _ensure_shared(plugins_dir):
+            return _emit(
+                False,
+                error=(
+                    "plugins/_shared is missing and could not be copied "
+                    "(rebuild openbus so POST_BUILD copies _shared, or set "
+                    "SIN_SHARED_SRC)"
+                ),
+            )
+
         dest = os.path.join(plugins_dir, name)
         if os.path.exists(dest):
             shutil.rmtree(dest)
         shutil.copytree(extract_root, dest)
-        shared_ok = _ensure_shared(plugins_dir)
         return _emit(True, name=name, path=os.path.abspath(dest),
                      version=manifest.get("version", ""),
-                     shared=shared_ok)
+                     shared=True)
     except (OSError, zipfile.BadZipFile) as e:
         return _emit(False, error=f"install failed: {e}")
     finally:

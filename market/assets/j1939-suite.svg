@@ -1,4 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect x="4" y="4" width="56" height="56" rx="12" fill="#DB2777"/>
-  <text x="32" y="38" font-family="Segoe UI, sans-serif" font-size="18" font-weight="bold" fill="#ffffff" text-anchor="middle">CO</text>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#B45309"/>
+  <!-- truck / heavy vehicle silhouette -->
+  <rect x="12" y="30" width="28" height="14" rx="2" fill="#ffffff"/>
+  <path d="M40 34 H50 L54 40 V44 H40 Z" fill="#FDE68A"/>
+  <circle cx="20" cy="46" r="4" fill="#78350F"/>
+  <circle cx="46" cy="46" r="4" fill="#78350F"/>
+  <text x="26" y="24" font-family="Segoe UI, sans-serif" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">J19</text>
 </svg>

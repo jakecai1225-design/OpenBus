@@ -1,4 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect x="4" y="4" width="56" height="56" rx="12" fill="#DB2777"/>
-  <text x="32" y="38" font-family="Segoe UI, sans-serif" font-size="18" font-weight="bold" fill="#ffffff" text-anchor="middle">CO</text>
+  <!-- CANopen network nodes -->
+  <circle cx="32" cy="20" r="6" fill="#ffffff"/>
+  <circle cx="18" cy="42" r="6" fill="#FBCFE8"/>
+  <circle cx="46" cy="42" r="6" fill="#FBCFE8"/>
+  <path d="M32 26 L18 36 M32 26 L46 36" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+  <text x="32" y="56" font-family="Segoe UI, sans-serif" font-size="8" font-weight="bold" fill="#FCE7F3" text-anchor="middle">CANopen</text>
 </svg>

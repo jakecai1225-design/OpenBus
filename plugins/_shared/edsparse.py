@@ -562,14 +562,28 @@ def validate_eds(
     return findings
 
 
-def validate_document(doc: EdsDocument, deep: bool = True) -> List[dict]:
-    return validate_eds(
+def validate_document(
+        doc: EdsDocument, deep: bool = True,
+        profile_id: Optional[str] = None) -> List[dict]:
+    findings = validate_eds(
         doc.entries,
         file_info=doc.file_info,
         device_info=doc.device_info,
         device_commissioning=doc.device_commissioning or None,
         deep=deep,
     )
+    if deep:
+        try:
+            from _shared.canopen_profiles import validate_profile_coverage
+            # Drop the lone "No issues" info if we are about to add profile notes
+            profile_findings = validate_profile_coverage(
+                doc.entries, profile_id=profile_id)
+            if profile_findings and len(findings) == 1 and findings[0].get("rule") == "ok":
+                findings = []
+            findings.extend(profile_findings)
+        except Exception:
+            pass
+    return findings
 
 
 def entries_to_dict(entries: List[OdEntry]) -> Dict[Tuple[int, int], OdEntry]:

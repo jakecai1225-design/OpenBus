@@ -378,9 +378,36 @@ MarketCard *makeMarketCard(const CardData &d, const std::function<void()> &onOpe
     lay->setContentsMargins(12, 10, 12, 10);
     lay->setSpacing(10);
 
-    // Left: unified letter badge (never replace with remote screenshots)
+    // Left: package/market SVG when available; letter badge as fallback
     card->iconLabel = makeIconPlaceholder(marketBadgeText(d), MarketCard::kIcon);
     lay->addWidget(card->iconLabel);
+    {
+        QPointer<QLabel> g(card->iconLabel);
+        const int iconSz = MarketCard::kIcon;
+        // Installed plugins: prefer local package icon (same SVG as market)
+        if (d.item.kind == MarketItem::InstalledPlugin) {
+            const QPixmap local = MarketModel::pluginIconLocal(d.item.id);
+            if (!local.isNull() && g) {
+                g->setPixmap(local.scaled(iconSz, iconSz, Qt::KeepAspectRatio,
+                                          Qt::SmoothTransformation));
+            }
+        }
+        QString iconRel = d.icon;
+        if (iconRel.isEmpty() && d.item.kind == MarketItem::InstalledPlugin) {
+            const auto mp = MarketIndex::instance()->pluginById(d.item.id);
+            iconRel = mp.icon;
+        }
+        if (!iconRel.isEmpty()) {
+            MarketModel::fetchMarketPixmap(
+                MarketIndex::instance()->resolveUrl(iconRel),
+                [g, iconSz](const QPixmap &pm) {
+                    if (!g || pm.isNull())
+                        return;
+                    g->setPixmap(pm.scaled(iconSz, iconSz, Qt::KeepAspectRatio,
+                                           Qt::SmoothTransformation));
+                });
+        }
+    }
 
     // Center: name / vendor·version / summary / size·kind
     const int textWidth = MarketCard::kWidth - 24 - MarketCard::kIcon - 10 - 74 - 10;
@@ -1335,8 +1362,19 @@ void MarketTab::showMarketPlugin(const MarketIndex::PluginInfo &plug)
     iconData.item = { MarketItem::MarketPlugin, plug.id };
     iconData.title = plug.name;
     iconData.isDriver = false;
+    iconData.icon = plug.icon;
     auto *icon = makeIconPlaceholder(marketBadgeText(iconData), 48);
     hlay->addWidget(icon);
+    if (!plug.icon.isEmpty()) {
+        QPointer<QLabel> g(icon);
+        MarketModel::fetchMarketPixmap(
+            MarketIndex::instance()->resolveUrl(plug.icon),
+            [g](const QPixmap &pm) {
+                if (g && !pm.isNull())
+                    g->setPixmap(pm.scaled(48, 48, Qt::KeepAspectRatio,
+                                           Qt::SmoothTransformation));
+            });
+    }
     auto *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->addWidget(makeTitleLabel(plug.name));

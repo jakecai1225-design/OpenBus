@@ -18,8 +18,8 @@ class QNetworkReply;
  *          plugins[] 为 Python 插件（.opk 下载描述）；顶层 devices[] 退役。
  *
  * 数据源：
- *   - 开发/演示：<源码根>/build/market/market.json（scripts/make_market.py 生成）
- *   - 发布：OSS 静态托管 market.json（URL 可配置，字段结构一致）
+ *   - 开发：build/market 或源码根 market/（从 build/bin 经 ../market、../../market 定位）
+ *   - 发布：OSS / 官方 http://sin.org.cn/market/market.json（URL 可配置）
  *
  * 列表过滤（驱动/插件名称、厂商、关键词等多词 AND 匹配）由 UI 层使用
  * matchWords() 完成，无需服务端支持。

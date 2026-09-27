@@ -27,6 +27,40 @@
 //  （迁移自 plugindetailpage.cpp，方案 §13.10）
 // ============================================================
 
+namespace {
+
+QPixmap renderSvgData(const QByteArray &data, int size)
+{
+    QSvgRenderer renderer(data);
+    if (!renderer.isValid() || size <= 0)
+        return QPixmap();
+    const qreal dpr = qApp ? qApp->devicePixelRatio() : 1.0;
+    QPixmap pm(qRound(size * dpr), qRound(size * dpr));
+    pm.setDevicePixelRatio(dpr);
+    pm.fill(Qt::transparent);
+    QPainter pt(&pm);
+    pt.setRenderHint(QPainter::Antialiasing);
+    renderer.render(&pt);
+    return pm;
+}
+
+QPixmap loadIconData(const QByteArray &data, const QString &hintPath, int size)
+{
+    const bool svg = hintPath.endsWith(QStringLiteral(".svg"), Qt::CaseInsensitive)
+                     || data.startsWith("<?xml") || data.startsWith("<svg");
+    if (svg) {
+        const QPixmap pm = renderSvgData(data, size);
+        if (!pm.isNull())
+            return pm;
+    }
+    QPixmap img;
+    if (img.loadFromData(data) && !img.isNull())
+        return img.scaled(size, size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    return QPixmap();
+}
+
+} // namespace
+
 QPixmap PluginUi::pluginIconPixmap(const QString &iconPath, const QString &name, int size)
 {
     if (!iconPath.isEmpty()) {
@@ -34,17 +68,9 @@ QPixmap PluginUi::pluginIconPixmap(const QString &iconPath, const QString &name,
             // SVG: render via QSvgRenderer (no imageformats plugin), scale by DPR
             QFile f(iconPath);
             if (f.open(QIODevice::ReadOnly)) {
-                QSvgRenderer renderer(f.readAll());
-                if (renderer.isValid()) {
-                    const qreal dpr = qApp->devicePixelRatio();
-                    QPixmap pm(qRound(size * dpr), qRound(size * dpr));
-                    pm.setDevicePixelRatio(dpr);
-                    pm.fill(Qt::transparent);
-                    QPainter pt(&pm);
-                    pt.setRenderHint(QPainter::Antialiasing);
-                    renderer.render(&pt);
+                const QPixmap pm = renderSvgData(f.readAll(), size);
+                if (!pm.isNull())
                     return pm;
-                }
             }
         } else {
             QIcon icon(iconPath);
@@ -222,7 +248,7 @@ QPixmap MarketModel::pluginIconLocal(const QString &name)
             continue;
         const QString f = p.iconFilePath();
         if (!f.isEmpty())
-            return QPixmap(f);
+            return PluginUi::pluginIconPixmap(f, name, 64);
         break;
     }
     return QPixmap();
@@ -255,12 +281,33 @@ void MarketModel::fetchMarketPixmap(const QUrl &url,
     if (!url.isValid())
         return;
 
-    // 磁盘缓存命中 → 直接回调
-    const QString cache = imageCachePath(url);
-    QPixmap pm(cache);
-    if (!pm.isNull()) {
-        cb(pm);
+    auto emitPixmap = [cb, url](const QByteArray &data) {
+        // Prefer 64px canonical; callers scale as needed
+        QPixmap img = loadIconData(data, url.path(), 64);
+        if (!img.isNull())
+            cb(img);
+    };
+
+    // Local file:// — load directly (dev market folder / file installs)
+    if (url.isLocalFile()) {
+        QFile f(url.toLocalFile());
+        if (f.open(QIODevice::ReadOnly))
+            emitPixmap(f.readAll());
         return;
+    }
+
+    // 磁盘缓存命中 → 直接回调（SVG via renderer, raster via QPixmap）
+    const QString cache = imageCachePath(url);
+    {
+        QFile f(cache);
+        if (f.open(QIODevice::ReadOnly)) {
+            const QByteArray data = f.readAll();
+            QPixmap img = loadIconData(data, cache, 64);
+            if (!img.isNull()) {
+                cb(img);
+                return;
+            }
+        }
     }
 
     static QNetworkAccessManager *nam = new QNetworkAccessManager;
@@ -268,18 +315,15 @@ void MarketModel::fetchMarketPixmap(const QUrl &url,
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                      QNetworkRequest::NoLessSafeRedirectPolicy);
     auto *reply = nam->get(req);
-    QObject::connect(reply, &QNetworkReply::finished, reply, [reply, cache, cb]() {
+    QObject::connect(reply, &QNetworkReply::finished, reply, [reply, cache, emitPixmap]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError)
             return;
         const QByteArray data = reply->readAll();
-        QPixmap img;
-        if (!img.loadFromData(data))
-            return;
         // 写入磁盘缓存（失败不影响显示）
         QFile f(cache);
         if (f.open(QIODevice::WriteOnly))
             f.write(data);
-        cb(img);
+        emitPixmap(data);
     });
 }
