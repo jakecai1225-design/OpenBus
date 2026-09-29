@@ -290,6 +290,15 @@ QWidget#SuiteSideBarHeader {{
     min-height: 22px;
     max-height: 22px;
 }}
+/* Multi-line document strip above Side Bar explorer (CANopen / suites).
+   Must NOT share SuiteSideBarHeader — that header is height-capped. */
+QWidget#SuiteDocBanner {{
+    background: {SIDEBAR};
+    border: none;
+    border-bottom: 1px solid {BORDER_SOFT};
+    min-height: 56px;
+    max-height: 120px;
+}}
 QLabel#SuiteDocPath {{
     color: {TEXT_MUTED};
     font-size: 12px;
@@ -409,26 +418,85 @@ QWidget#SuiteStarters QPushButton#GhostButton:hover {{
     background: {ACCENT_SOFT};
     color: {ACCENT_HOVER};
 }}
-QWidget#StepSpin QSpinBox,
+QWidget#StepSpin {{
+    background: {EDITOR};
+    border: 1px solid #C8C8C8;
+    border-radius: 3px;
+    min-height: 28px;
+    max-height: 28px;
+}}
+QWidget#StepSpin:hover {{
+    border-color: #A8A8A8;
+}}
+QWidget#StepSpin QSpinBox#SuiteSpin {{
+    background: transparent;
+    color: {TEXT};
+    border: none;
+    border-radius: 0;
+    padding: 2px 6px;
+    min-height: 26px;
+    max-height: 26px;
+    font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+    font-size: 12px;
+    selection-background-color: {ACCENT_SOFT};
+}}
+QWidget#StepSpin QSpinBox#SuiteSpin:focus {{
+    border: none;
+}}
+QWidget#StepSpinButtons {{
+    border-left: 1px solid #E0E0E0;
+    background: transparent;
+}}
+QToolButton#StepSpinBtn {{
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+}}
+QToolButton#StepSpinBtn:hover {{
+    background: {SIDEBAR_HOVER};
+}}
 QSpinBox#SuiteSpin {{
     background: {EDITOR};
     color: {TEXT};
     border: 1px solid #C8C8C8;
     border-radius: 3px;
-    padding: 3px 8px 4px 8px;
+    padding: 3px 20px 4px 8px;
     min-height: 28px;
     max-height: 28px;
     font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
     font-size: 12px;
     selection-background-color: {ACCENT_SOFT};
 }}
-QWidget#StepSpin QSpinBox:hover,
 QSpinBox#SuiteSpin:hover {{
     border-color: #A8A8A8;
 }}
-QWidget#StepSpin QSpinBox:focus,
 QSpinBox#SuiteSpin:focus {{
     border: 1px solid {ACCENT};
+}}
+/* Identical stepper geometry for every SuiteSpin (hex and decimal) */
+QSpinBox#SuiteSpin::up-button,
+QSpinBox#SuiteSpin::down-button {{
+    subcontrol-origin: border;
+    width: 18px;
+    border: none;
+    border-left: 1px solid #E0E0E0;
+    background: {EDITOR};
+}}
+QSpinBox#SuiteSpin::up-button {{
+    subcontrol-position: top right;
+    height: 14px;
+    border-top-right-radius: 3px;
+}}
+QSpinBox#SuiteSpin::down-button {{
+    subcontrol-position: bottom right;
+    height: 14px;
+    border-bottom-right-radius: 3px;
+}}
+QSpinBox#SuiteSpin::up-button:hover,
+QSpinBox#SuiteSpin::down-button:hover {{
+    background: {SIDEBAR_HOVER};
 }}
 QLabel#SuiteFieldLabel {{
     color: {TEXT_DIM};
@@ -612,7 +680,7 @@ QWidget#SuiteEditorTabHost {{
 QTabBar#SuiteEditorTabs {{
     background: {SIDEBAR};
     border: none;
-    min-height: 32px;
+    min-height: 35px;
 }}
 QTabBar#SuiteEditorTabs::tab {{
     background: {SIDEBAR};
@@ -620,9 +688,10 @@ QTabBar#SuiteEditorTabs::tab {{
     border: none;
     border-right: 1px solid {BORDER};
     border-radius: 0;
-    padding: 6px 12px;
+    padding: 0 4px 0 12px;
     margin: 0;
-    min-height: 32px;
+    min-height: 35px;
+    max-height: 35px;
     font-size: 13px;
 }}
 QTabBar#SuiteEditorTabs::tab:selected {{
@@ -632,7 +701,25 @@ QTabBar#SuiteEditorTabs::tab:selected {{
     border-top: 1px solid {ACCENT};
 }}
 QTabBar#SuiteEditorTabs::tab:hover:!selected {{
+    background: {SIDEBAR_HOVER};
     color: {TEXT};
+}}
+QToolButton#SuiteTabClose {{
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0 6px 0 2px;
+    min-width: 18px;
+    max-width: 18px;
+    min-height: 18px;
+    max-height: 18px;
+    border-radius: 4px;
+}}
+QToolButton#SuiteTabClose:hover {{
+    background: {SIDEBAR_HOVER};
+}}
+QToolButton#SuiteTabClose:pressed {{
+    background: {BORDER};
 }}
 QWidget#SuiteLogHeader {{
     background: {EDITOR};
@@ -641,10 +728,6 @@ QWidget#SuiteLogHeader {{
 QWidget#SuiteLogHeader QLabel#SuiteToolbarTitle {{
     font-weight: 600;
     letter-spacing: 0.2px;
-}}
-QTabBar#SuiteEditorTabs::tab:hover:!selected {{
-    background: {SIDEBAR_HOVER};
-    color: {TEXT};
 }}
 QWidget#SuiteEditorStack {{
     background: {EDITOR};
@@ -720,8 +803,8 @@ QHeaderView::section {{
     letter-spacing: 0.3px;
 }}
 QTreeWidget::item, QListWidget::item {{
-    padding: 4px 6px;
-    min-height: 22px;
+    padding: 5px 8px;
+    min-height: 26px;
 }}
 QTreeWidget::item:selected, QListWidget::item:selected {{
     background: {ACCENT_SOFT};

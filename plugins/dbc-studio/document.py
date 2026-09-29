@@ -27,6 +27,12 @@ class DbcDocument:
         self._undo: List[Tuple[dbcparse.DbcFile, bool]] = []
         self._redo: List[Tuple[dbcparse.DbcFile, bool]] = []
         self._suspend_hist: bool = False
+        # Cross-page selection + Context Next (plugin development norm).
+        self.focus_can_id = None
+        self.focus_signal = ""
+        self._validated_ok = False
+        self._lint_error_count = 0
+        self._post_hint_stage = 0
 
     @staticmethod
     def _empty_db() -> dbcparse.DbcFile:
@@ -115,10 +121,12 @@ class DbcDocument:
 
     def new(self) -> None:
         self.set_db(self._empty_db(), path="", dirty=False)
+        self.reset_next_hint()
 
     def load(self, path: str) -> dbcparse.DbcFile:
         db = dbcparse.parse_file(path)
         self.set_db(db, path=path, dirty=False)
+        self.reset_next_hint()
         return db
 
     def save(self, path: Optional[str] = None) -> str:
@@ -161,3 +169,51 @@ class DbcDocument:
     def strip_label(self) -> str:
         name = self.path or "(unsaved)"
         return "%s%s" % (name, " *" if self.dirty else "")
+
+    # ---- Focus + Context Next (plugin norm) ----------------------------
+
+    def set_focus(self, can_id=None, signal: str = "") -> None:
+        """Carry message / signal selection across pages."""
+        self.focus_can_id = can_id
+        self.focus_signal = signal or ""
+
+    def mark_validated(self, ok: bool, *, error_count: int = 0) -> None:
+        self._validated_ok = bool(ok)
+        self._lint_error_count = max(0, int(error_count))
+
+    def advance_next_hint(self) -> None:
+        if self._has_content():
+            self._post_hint_stage = min(2, int(self._post_hint_stage or 0) + 1)
+
+    def reset_next_hint(self) -> None:
+        self._post_hint_stage = 0
+        self._validated_ok = False
+        self._lint_error_count = 0
+
+    def _has_content(self) -> bool:
+        db = self.db
+        if db is None:
+            return False
+        if self.path:
+            return True
+        msgs = getattr(db, "messages", None) or []
+        nodes = getattr(db, "nodes", None) or []
+        return bool(msgs) or bool([n for n in nodes if n != "Vector__XXX"])
+
+    def next_hint(self) -> tuple:
+        """Return ``(label, action_name, kwargs)`` for Context Next."""
+        if not self._has_content():
+            return ("Open DBC…", "dbc.open", {})
+        if self.dirty or not self.path:
+            # Prefer validate before first save when not yet clean
+            if not self._validated_ok:
+                return ("Validate", "view.validate", {})
+            return ("Save", "dbc.save", {})
+        if not self._validated_ok:
+            return ("Validate", "view.validate", {})
+        if self._lint_error_count > 0:
+            return ("Validate", "view.validate", {})
+        stage = int(self._post_hint_stage or 0)
+        if stage <= 0:
+            return ("Export…", "view.export", {})
+        return ("Library", "view.library", {})

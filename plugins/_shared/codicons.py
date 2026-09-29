@@ -6,7 +6,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 
-from PyQt6.QtCore import QByteArray, QSize, Qt
+from PyQt6.QtCore import QByteArray, QRectF, QSize, Qt
 from PyQt6.QtGui import QIcon, QPainter, QPixmap
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import QAbstractButton, QListWidgetItem
@@ -25,6 +25,10 @@ ALIASES = {
     "log": "output",
     # DBC Studio
     "editor": "edit",
+    "edit": "edit",
+    "analyze": "search",
+    "integrate": "sync",
+    "deliver": "export",
     "matrix": "list",
     "valuetables": "checklist",
     "attributes": "settings",
@@ -33,17 +37,19 @@ ALIASES = {
     "compare": "search",
     "merge": "sync",
     "export": "export",
-    "library": "database",
-    # CANopen
-    "network": "device",
+    "library": "database",    # CANopen Suite activity bar — distinct glyphs per workspace
+    "network": "network",
     "monitor": "trace",
+    "trace": "trace",
+    "code": "play",
     "object_dict": "list",
     "od": "list",
     "pdo": "flow",
-    "eds_editor": "file",
-    "eds": "edit",
+    "eds_editor": "eds",
+    "eds": "eds",
     "library": "database",
     "profiles": "account",
+    "device": "device",
     # J1939 / OBD
     "analyzer": "search",
     "transport": "trace",
@@ -106,15 +112,23 @@ ALIASES = {
     "browse": "folder",
     "start": "play",
     "stop": "stop",
+    "debug-stop": "stop",
+    "debug-continue": "debug-continue",
+    "continue": "debug-continue",
+    "play": "play",
     "clear": "clear-all",
+    "close": "close",
     "add": "plus",
+    "plus": "plus",
     "delete": "trash",
     "remove": "trash",
+    "trash": "trash",
     "edit": "edit",
     "import": "folder",
     "save": "save",
     "load": "folder",
     "sync": "sync",
+    "refresh": "sync",
     "info": "info",
     "read": "info",
     "undo": "undo",
@@ -129,6 +143,10 @@ ALIASES = {
     "graphic": "graphic",
     "record": "record",
     "extensions": "extensions",
+    "search": "search",
+    "export": "export",
+    "arrow-right": "arrow-right",
+    "check": "check",
     # Workbench layout toggles (VS Code title-bar style)
     "layout-sidebar": "layout-sidebar-left",
     "layout-sidebar-left": "layout-sidebar-left",
@@ -147,10 +165,12 @@ def icon_path(name: str) -> str:
     return os.path.join(_DIR, name + ".svg")
 
 
-@lru_cache(maxsize=256)
+@lru_cache(maxsize=512)
 def pixmap(name: str, color: str = "#333333", size: int = 16) -> QPixmap:
+    """Render a crisp codicon; 2× supersample for clear edges at 16–20px."""
     path = icon_path(name)
     if not os.path.isfile(path):
+        # Visible fallback so missing aliases never look like empty holes
         pm = QPixmap(size, size)
         pm.fill(Qt.GlobalColor.transparent)
         return pm
@@ -158,13 +178,28 @@ def pixmap(name: str, color: str = "#333333", size: int = 16) -> QPixmap:
         svg = f.read()
     svg = svg.replace("currentColor", color)
     renderer = QSvgRenderer(QByteArray(svg.encode("utf-8")))
-    pm = QPixmap(size, size)
-    pm.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pm)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    renderer.render(painter)
+    # Supersample then downscale for sharper strokes on Windows DPI
+    scale = 2 if size <= 24 else 1
+    raw = size * scale
+    hi = QPixmap(raw, raw)
+    hi.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(hi)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+    pad = max(scale, raw // 16)
+    renderer.render(painter, QRectF(pad, pad, raw - 2 * pad, raw - 2 * pad))
     painter.end()
-    return pm
+    if scale == 1:
+        return hi
+    return hi.scaled(
+        size, size,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation)
+
+
+def clear_pixmap_cache() -> None:
+    """Drop cached tinted SVGs (call after replacing icon files)."""
+    pixmap.cache_clear()
 
 
 def icon(name: str, color: str = "#333333", size: int = 16) -> QIcon:
@@ -176,10 +211,10 @@ def set_button(
     name: str,
     *,
     color: str = "#333333",
-    size: int = 14,
+    size: int = 16,
     primary: bool = False,
 ) -> None:
-    """Attach a VS Code icon to a push button (no character glyphs)."""
+    """Attach a VS Code icon; iconSize matches glyph so it never clips."""
     c = "#FFFFFF" if primary else color
     btn.setIcon(icon(name, c, size))
     btn.setIconSize(QSize(size, size))

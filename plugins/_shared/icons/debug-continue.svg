@@ -1,0 +1,5 @@
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <!-- VS Code debug-continue: bar + play -->
+  <rect x="2.5" y="3.5" width="1.8" height="9" rx="0.4" fill="currentColor"/>
+  <path d="M6.2 3.5 L13.2 8 L6.2 12.5 Z" fill="currentColor"/>
+</svg>

@@ -384,28 +384,31 @@ MarketCard *makeMarketCard(const CardData &d, const std::function<void()> &onOpe
     {
         QPointer<QLabel> g(card->iconLabel);
         const int iconSz = MarketCard::kIcon;
-        // Installed plugins: prefer local package icon (same SVG as market)
-        if (d.item.kind == MarketItem::InstalledPlugin) {
-            const QPixmap local = MarketModel::pluginIconLocal(d.item.id);
-            if (!local.isNull() && g) {
-                g->setPixmap(local.scaled(iconSz, iconSz, Qt::KeepAspectRatio,
-                                          Qt::SmoothTransformation));
+        // Prefer local package SVG when installed — same bytes as market asset.
+        const QPixmap local = MarketModel::pluginIconLocal(d.item.id);
+        if (!local.isNull() && g) {
+            g->setPixmap(local.scaled(iconSz, iconSz, Qt::KeepAspectRatio,
+                                      Qt::SmoothTransformation));
+        } else {
+            QString iconRel = d.icon;
+            if (iconRel.isEmpty()) {
+                const auto mp = MarketIndex::instance()->pluginById(d.item.id);
+                iconRel = mp.icon;
             }
-        }
-        QString iconRel = d.icon;
-        if (iconRel.isEmpty() && d.item.kind == MarketItem::InstalledPlugin) {
-            const auto mp = MarketIndex::instance()->pluginById(d.item.id);
-            iconRel = mp.icon;
-        }
-        if (!iconRel.isEmpty()) {
-            MarketModel::fetchMarketPixmap(
-                MarketIndex::instance()->resolveUrl(iconRel),
-                [g, iconSz](const QPixmap &pm) {
-                    if (!g || pm.isNull())
-                        return;
-                    g->setPixmap(pm.scaled(iconSz, iconSz, Qt::KeepAspectRatio,
-                                           Qt::SmoothTransformation));
-                });
+            if (iconRel.isEmpty()) {
+                const auto md = MarketIndex::instance()->driverById(d.item.id);
+                iconRel = md.icon;
+            }
+            if (!iconRel.isEmpty()) {
+                MarketModel::fetchMarketPixmap(
+                    MarketIndex::instance()->resolveUrl(iconRel),
+                    [g, iconSz](const QPixmap &pm) {
+                        if (!g || pm.isNull())
+                            return;
+                        g->setPixmap(pm.scaled(iconSz, iconSz, Qt::KeepAspectRatio,
+                                               Qt::SmoothTransformation));
+                    });
+            }
         }
     }
 

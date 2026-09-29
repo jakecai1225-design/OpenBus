@@ -1,0 +1,42 @@
+---
+description: PDCA×2 gate — every requirement needs two full Plan-Do-Check-Act rounds with test/UX/accept roles
+alwaysApply: true
+---
+
+# PDCA × 2 requirement gate
+
+User mandate: CANopen (and later suites) must close the gap to top-tier industrial IDE UX. **No requirement is done after one patch.**
+
+## Gate
+
+A requirement is **complete** only after **two full PDCA rounds**. Each round, in order:
+
+1. **P — Plan** (design role): gaps, goals, acceptance criteria, risks, out-of-scope
+2. **D — Do** (engineering): implement only what Plan listed; English-only in non-`.md`
+3. **C — Check** (three roles, separate outputs):
+   - **Test**: automated + manual script; run results
+   - **UX eval**: vs `ui-ux-philosophy.mdc` + task success path
+   - **Accept**: pass/fail against Plan criteria
+4. **A — Act**: keep / fix / drop; feed Round 2 Plan (or close if Round 2 Accept passes)
+
+## Temp docs (mandatory)
+
+Per requirement under `tmp/pdca/<suite>-<feature>/`:
+
+| File | Owner |
+|------|--------|
+| `STATUS.md` | Orchestrator — current phase, round, blockers |
+| `R{n}-P-plan.md` | Design |
+| `R{n}-D-do.md` | Engineering (what changed + why) |
+| `R{n}-C-test.md` | Test role |
+| `R{n}-C-ux.md` | UX eval role |
+| `R{n}-C-accept.md` | Acceptance |
+| `R{n}-A-act.md` | Act / backlog for next round |
+
+Execute **strictly in order**. Do not skip Check. Do not invent Round 2 Do without Round 1 Act.
+
+## Quality bar
+
+- Designs and code aim at **top-tier** density, chrome discipline, foolproof primary path.
+- Tests cover pure logic + critical UI contracts where practical; no silent regressions.
+- Live Python suites: edit `plugins/<id>/` — no `.opk` pack for UI verify.

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Network — Scan | NMT. Tabs live in the suite chrome row."""
+"""Network — Scan | NMT via suite chrome / sidebar (no inner tab strip)."""
 
 from __future__ import annotations
 
@@ -9,12 +9,11 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QCheckBox,
-    QHBoxLayout,
-    QHeaderView,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
     QProgressBar,
-    QPushButton,
     QStackedWidget,
-    QTabBar,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -23,6 +22,7 @@ from PyQt6.QtWidgets import (
 
 import sin
 from _shared import plugin_shell
+from pages import _ui, interop
 
 from session import NMT_PREOP, NMT_RESET_NODE, NMT_START, NMT_STOP
 
@@ -59,100 +59,118 @@ def _sdo_value(data):
     return None
 
 
-def _ghost(text, tip):
-    btn = QPushButton(text)
-    btn.setObjectName("GhostButton")
-    btn.setFixedHeight(28)
-    btn.setCursor(Qt.CursorShape.PointingHandCursor)
-    btn.setToolTip(tip)
-    return btn
+def _ghost(text, tip, icon=""):
+    return _ui.ghost_btn(text, tip, icon)
 
 
 def build(parent, session, log_fn) -> QWidget:
-    bar = QTabBar()
-    bar.setObjectName("SuiteEditorTabs")
-    bar.setDrawBase(False)
-    bar.setExpanding(False)
-    bar.setDocumentMode(True)
-    bar.addTab("Scan")
-    bar.addTab("NMT")
-    parent._network_tabs = bar
-
     stack = QStackedWidget()
-    bar.currentChanged.connect(stack.setCurrentIndex)
+    parent._network_tabs = None
 
     # ---- Scan ----
     scan_page = QWidget()
     slay = QVBoxLayout(scan_page)
-    slay.setContentsMargins(8, 6, 8, 6)
-    slay.setSpacing(6)
+    slay.setContentsMargins(0, 0, 0, 0)
+    slay.setSpacing(0)
 
-    tools = QHBoxLayout()
     deep_chk = QCheckBox("Deep")
     deep_chk.setChecked(True)
     deep_chk.setToolTip("Also read product / revision / serial (0x1018:2–4)")
-    scan_btn = QPushButton("Scan")
-    scan_btn.setObjectName("PrimaryButton")
-    scan_btn.setFixedHeight(28)
-    scan_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-    scan_btn.setToolTip("Probe nodes 1–127 via expedited SDO 0x1018")
-    stop_btn = _ghost("Stop", "Stop the scan")
-    apply_btn = _ghost("Apply", "Use the selected row as the shared Node-ID")
-    export_btn = _ghost("Export", "Export the node list as CSV")
-    clear_btn = _ghost("Clear", "Clear discovered nodes")
+    scan_btn = _ui.primary_btn(
+        "Scan", "Probe nodes 1–127 via expedited SDO 0x1018", "search")
+    stop_btn = _ghost("Stop", "Stop the scan", "stop")
+    apply_btn = _ghost("Apply", "Use the selected row as the shared Node-ID", "apply")
+    export_btn = _ghost("Export", "Export the node list as CSV", "export")
+    clear_btn = _ghost("Clear", "Clear discovered nodes", "clear")
     stop_btn.setEnabled(False)
-    tools.addWidget(deep_chk)
-    tools.addStretch(1)
-    tools.addWidget(scan_btn)
-    tools.addWidget(stop_btn)
-    tools.addWidget(apply_btn)
-    tools.addWidget(export_btn)
-    tools.addWidget(clear_btn)
-    slay.addLayout(tools)
+    slay.addWidget(_ui.tool_strip(
+        deep_chk, scan_btn, stop_btn, apply_btn, export_btn, clear_btn,
+        stretch_at=1))
 
     progress = QProgressBar()
     progress.setRange(0, 127)
-    progress.setFixedHeight(4)
+    progress.setFixedHeight(2)
     progress.setTextVisible(False)
     slay.addWidget(progress)
 
-    tree = QTreeWidget()
+    tree = interop.NodeScanTree()
     tree.setHeaderLabels([
         "Node", "Vendor ID", "Vendor", "Product", "Revision", "Serial",
         "Heartbeat", "Discovery",
     ])
+    _ui.style_tree(tree, header_hidden=False)
     tree.setRootIsDecorated(False)
     tree.setAlternatingRowColors(True)
-    tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-    tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+    tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    _ui.configure_columns(tree, stretch=2)
     slay.addWidget(tree, 1)
     stack.addWidget(scan_page)
 
     # ---- NMT ----
     nmt_page = QWidget()
     nlay = QVBoxLayout(nmt_page)
-    nlay.setContentsMargins(8, 6, 8, 6)
-    nlay.setSpacing(8)
-    nrow = QHBoxLayout()
-    for text, cmd in (
-        ("Start", NMT_START),
-        ("Stop", NMT_STOP),
-        ("Pre-op", NMT_PREOP),
-        ("Reset", NMT_RESET_NODE),
+    nlay.setContentsMargins(0, 0, 0, 0)
+    nlay.setSpacing(0)
+
+    node_spin = _ui.suite_spin(
+        session.node_id, minimum=1, maximum=127,
+        tip="Target Node-ID for NMT commands", width=100)
+    node_lab = _ui.field_label("Node")
+    nmt_btns = []
+    for text, cmd, icon in (
+        ("Start", NMT_START, "play"),
+        ("Stop", NMT_STOP, "stop"),
+        ("Pre-op", NMT_PREOP, "debug-continue"),
+        ("Reset", NMT_RESET_NODE, "sync"),
     ):
-        b = QPushButton("NMT %s" % text)
-        b.setObjectName("GhostButton")
-        b.setFixedHeight(28)
-        b.setCursor(Qt.CursorShape.PointingHandCursor)
-        b.setToolTip("Send NMT %s to the shared Node-ID" % text)
-        b.clicked.connect(lambda _=False, c=cmd: session.send_nmt(c))
-        nrow.addWidget(b)
-    nrow.addStretch(1)
-    nlay.addLayout(nrow)
-    nlay.addStretch(1)
+        b = _ui.ghost_btn(
+            text, "Send NMT %s to the Node-ID above" % text, icon)
+        b.clicked.connect(
+            lambda _=False, c=cmd: session.send_nmt(c, node_spin.value()))
+        nmt_btns.append(b)
+    nlay.addWidget(_ui.tool_strip(
+        node_lab, node_spin, *nmt_btns, stretch_at=2))
+
+    run_scan_nmt = _ui.ghost_btn(
+        "Run Scan", "Discover nodes, then return here for NMT", "search")
+    nmt_list = QListWidget()
+    nmt_list.setObjectName("SuiteMatrix")
+    _ui.style_list(nmt_list)
+    nmt_list.setToolTip(
+        "Nodes from the last Scan — click to set Node-ID. "
+        "Or type a Node-ID above, then Start / Stop / Pre-op.")
+    nlay.addWidget(nmt_list, 1)
+    nmt_scan_strip = _ui.tool_strip(run_scan_nmt)
+    nlay.addWidget(nmt_scan_strip, 0)
     stack.addWidget(nmt_page)
 
     state = {"running": False, "node": 1, "nodes": {}}
+
+    def _refresh_nmt_list():
+        nmt_list.clear()
+        nodes = state["nodes"]
+        if not nodes:
+            item = QListWidgetItem("No scan results yet")
+            item.setFlags(Qt.ItemFlag.NoItemFlags)
+            nmt_list.addItem(item)
+            nmt_scan_strip.setVisible(True)
+            return
+        nmt_scan_strip.setVisible(False)
+        for node in sorted(nodes):
+            st = nodes[node]
+            vendor = st.get("vendor")
+            name = VENDOR_NAMES.get(vendor, "") if vendor is not None else ""
+            hb = st.get("hb_state", "")
+            label = "Node %d" % node
+            if name:
+                label += " · %s" % name
+            elif vendor is not None:
+                label += " · 0x%08X" % vendor
+            if hb:
+                label += " · %s" % hb
+            item = QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, node)
+            nmt_list.addItem(item)
 
     def refresh():
         nodes = state["nodes"]
@@ -175,6 +193,8 @@ def build(parent, session, log_fn) -> QWidget:
                 item.setBackground(0, QColor("#2e7d32"))
                 item.setForeground(0, QColor("white"))
             tree.addTopLevelItem(item)
+        _ui.fit_columns(tree, stretch=2)
+        _refresh_nmt_list()
 
     def on_bus_frame(frame):
         fid = frame.id
@@ -276,9 +296,44 @@ def build(parent, session, log_fn) -> QWidget:
             except ValueError:
                 return
         session.set_node_id(int(node))
+        node_spin.setValue(int(node))
         if hasattr(parent, "_persist"):
             parent._persist()
         plugin_shell.set_status(parent, "Applied Node-ID %d" % int(node), 3000)
+        if hasattr(parent, "run_action"):
+            parent.run_action("view.od")
+        elif hasattr(parent, "goto_page"):
+            parent.goto_page("od")
+
+    def on_double_click(item, _col):
+        if item is not None:
+            tree.setCurrentItem(item)
+            on_apply()
+
+    def on_nmt_pick():
+        item = nmt_list.currentItem()
+        if item is None:
+            return
+        node = item.data(Qt.ItemDataRole.UserRole)
+        if node is None:
+            return
+        node_spin.setValue(int(node))
+        session.set_node_id(int(node))
+        plugin_shell.set_status(parent, "NMT target Node-ID %d" % int(node), 2000)
+
+    def on_node_spin():
+        session.set_node_id(node_spin.value())
+
+    def start_scan():
+        on_scan()
+
+    def select_view(key: str):
+        if key in ("network_nmt", "nmt"):
+            stack.setCurrentIndex(1)
+            node_spin.setValue(session.node_id)
+            _refresh_nmt_list()
+        else:
+            stack.setCurrentIndex(0)
 
     def on_export():
         rows = []
@@ -319,4 +374,45 @@ def build(parent, session, log_fn) -> QWidget:
     apply_btn.clicked.connect(on_apply)
     export_btn.clicked.connect(on_export)
     clear_btn.clicked.connect(on_clear)
+    run_scan_nmt.clicked.connect(lambda: (select_view("network_scan"), on_scan()))
+    tree.itemDoubleClicked.connect(on_double_click)
+    nmt_list.itemClicked.connect(lambda _i: on_nmt_pick())
+    node_spin.editingFinished.connect(on_node_spin)
+    if hasattr(session, "on_node_changed"):
+        session.on_node_changed(
+            lambda: node_spin.setValue(session.node_id))
+
+    def _net_menu(pos):
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(tree)
+        item = tree.itemAt(pos)
+        if item is None:
+            menu.addAction("Scan", on_scan)
+            interop.add_bridge_actions(menu, parent, include_blank=True)
+        else:
+            node = item.data(0, Qt.ItemDataRole.UserRole)
+            if node is None:
+                try:
+                    node = int(item.text(0))
+                except ValueError:
+                    node = None
+            if node is not None:
+                menu.addAction(
+                    "Use as Node-ID + open OD",
+                    lambda n=int(node): interop.shell_action(
+                        parent, "network.use_node", node_id=n))
+                menu.addAction(
+                    "NMT Start",
+                    lambda n=int(node): session.send_nmt(NMT_START, n))
+                menu.addAction(
+                    "NMT Pre-op",
+                    lambda n=int(node): session.send_nmt(NMT_PREOP, n))
+                interop.add_bridge_actions(menu, parent, node_id=int(node))
+            menu.addSeparator()
+            menu.addAction("Scan again", on_scan)
+        menu.exec(tree.viewport().mapToGlobal(pos))
+
+    tree.customContextMenuRequested.connect(_net_menu)
+    stack.select_view = select_view  # type: ignore[attr-defined]
+    stack.start_scan = start_scan  # type: ignore[attr-defined]
     return stack

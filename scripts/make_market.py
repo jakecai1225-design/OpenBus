@@ -57,7 +57,7 @@ SUITE_CATALOG = [
     {
         "id": "canopen-suite",
         "name": "CANopen Suite",
-        "description": "Network scan, SDO, EDS/OD, NMT and CiA 301/402 profiles.",
+        "description": "Template/profile EDS workbench, live OD vs EDS, Codegen, Network/NMT/PDO, CiA profiles.",
         "tags": ["canopen"],
         "keywords": "canopen eds od sdo nmt",
     },
@@ -141,19 +141,51 @@ def load_remote(url: str) -> dict:
     return json.loads(raw.decode("utf-8"))
 
 
-def absolutize_drivers(drivers: list, remote_base: str) -> list:
-    """Rewrite relative driver package/icon paths to absolute remote URLs."""
+# Driver market tile icons (same 64×64 rounded-rect language as suite plugins).
+DRIVER_ICON_FILES = {
+    "zlg": "zlg-usbcanfd.svg",
+    "peak": "peak-pcan.svg",
+    "kvaser": "kvaser-leaf.svg",
+    "slcan": "slcan-serial.svg",
+    "candle": "candle-usb.svg",
+}
+
+
+def localize_drivers(drivers: list, remote_base: str, assets_dir: str) -> list:
+    """Keep remote package/readme URLs; ship local tile icons like plugins."""
     base = remote_base.rstrip("/") + "/"
+    src_dir = os.path.join(ROOT, "drivers", "market", "assets")
     out = []
     for d in drivers:
         item = dict(d)
-        for key in ("package", "icon", "image", "readme"):
+        sid = (item.get("id") or "").lower()
+        icon_name = DRIVER_ICON_FILES.get(sid)
+        if icon_name:
+            src = os.path.join(src_dir, icon_name)
+            if os.path.isfile(src):
+                shutil.copy2(src, os.path.join(assets_dir, icon_name))
+                # Same tile for card + detail — no 16:9 product banner.
+                item["icon"] = "assets/%s" % icon_name
+                item.pop("image", None)
+                print("driver icon", sid, icon_name)
+
+        for key in ("package", "readme"):
             val = item.get(key)
             if not val or not isinstance(val, str):
                 continue
             if val.startswith(("http://", "https://", "file:")):
                 continue
             item[key] = base + val.lstrip("./")
+        # Leave any leftover absolute icon/image alone only if we had no local tile.
+        if not icon_name or not os.path.isfile(
+                os.path.join(src_dir, icon_name or "")):
+            for key in ("icon", "image"):
+                val = item.get(key)
+                if not val or not isinstance(val, str):
+                    continue
+                if val.startswith(("http://", "https://", "file:")):
+                    continue
+                item[key] = base + val.lstrip("./")
         out.append(item)
     return out
 
@@ -244,7 +276,8 @@ def build_market(out_dir: str, remote_url: str, opk_src: str) -> str:
         "version": today.replace("-", "."),
         "updated": today,
         "base": ".",
-        "drivers": absolutize_drivers(remote.get("drivers") or [], remote_dir),
+        "drivers": localize_drivers(
+            remote.get("drivers") or [], remote_dir, assets_dir),
         "plugins": plugins,
     }
     out_json = os.path.join(market_dir, "market.json")
@@ -311,6 +344,13 @@ def main() -> int:
             shutil.rmtree(repo_market)
         shutil.copytree(args.out, repo_market)
         print("copied", repo_market)
+    # Dev layout: exe often resolves ../market first (build/market from build/bin).
+    build_market_dir = os.path.join(ROOT, "build", "market")
+    if os.path.isdir(os.path.dirname(build_market_dir)):
+        if os.path.isdir(build_market_dir):
+            shutil.rmtree(build_market_dir)
+        shutil.copytree(args.out, build_market_dir)
+        print("copied", build_market_dir)
     print("OK", path)
     return 0
 

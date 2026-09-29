@@ -20,6 +20,7 @@
 #include <QPen>
 #include <QHash>
 #include <QVariantList>
+#include <QSize>
 
 // ============================================================
 //  DockDropOverlay — top-level preview (always visible on Windows)
@@ -409,10 +410,14 @@ void SplitEditorArea::setupCloseButton(QTabWidget *tabs, int index)
     if (!tabs || index < 0 || index >= tabs->count())
         return;
     auto *btn = new QToolButton(tabs->tabBar());
+    btn->setObjectName(QStringLiteral("EditorTabClose"));
     btn->setIcon(svgIcon(QStringLiteral(":/icons/close.svg"),
-                         ThemeManager::instance()->currentTheme().text, 14));
+                         ThemeManager::instance()->currentTheme().textDim, 12));
     btn->setAutoRaise(true);
-    btn->setFixedSize(16, 16);
+    btn->setFixedSize(18, 18);
+    btn->setIconSize(QSize(12, 12));
+    btn->setCursor(Qt::PointingHandCursor);
+    btn->setFocusPolicy(Qt::NoFocus);
     btn->setToolTip(QStringLiteral("Close tab"));
     QWidget *w = tabs->widget(index);
     connect(btn, &QToolButton::clicked, this, [this, tabs, w]() {
@@ -423,7 +428,7 @@ void SplitEditorArea::setupCloseButton(QTabWidget *tabs, int index)
     auto *closeBtnRelay = new SignalRelay(btn);
     closeBtnRelay->fire0 = [btn]() {
         btn->setIcon(svgIcon(QStringLiteral(":/icons/close.svg"),
-                             ThemeManager::instance()->currentTheme().text, 14));
+                             ThemeManager::instance()->currentTheme().textDim, 12));
     };
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             closeBtnRelay, SLOT(fire()));

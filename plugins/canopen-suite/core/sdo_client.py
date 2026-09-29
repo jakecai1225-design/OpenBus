@@ -9,19 +9,7 @@ from typing import Callable, Optional, Tuple
 from PyQt6.QtCore import QObject, QTimer
 
 
-# Abort codes (common subset)
-ABORT_CODES = {
-    0x05030000: "Toggle bit not alternated",
-    0x05040000: "SDO protocol timed out",
-    0x05040001: "Client/server command specifier invalid",
-    0x06010000: "Unsupported access to an object",
-    0x06010001: "Attempt to read a write only object",
-    0x06010002: "Attempt to write a read only object",
-    0x06020000: "Object does not exist",
-    0x06070010: "Data type does not match",
-    0x06090011: "Sub-index does not exist",
-    0x08000000: "General error",
-}
+from core.cia301_codes import SDO_ABORT_CODES as ABORT_CODES  # noqa: E402
 
 
 def encode_expedited_upload(index: int, subindex: int = 0) -> bytes:

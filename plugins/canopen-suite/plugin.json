@@ -1,8 +1,8 @@
 {
     "name": "canopen-suite",
-    "version": "2.1.0",
+    "version": "2.4.0",
     "author": "sin",
-    "description": "CANopen Suite — activity + Side Bar + editor tabs + OUTPUT. EDS Dictionary/Device/Check, Network Scan/NMT, OD, PDO, shared CiA profile library (301/402 + device profiles).",
+    "description": "CANopen Suite — EDS Objects / Profiles / PDO map, Live OD + Scan/NMT, Trace, Codegen. Files under File menu.",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [

@@ -11,7 +11,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QScrollArea,
     QSizePolicy,
-    QSpinBox,
     QSplitter,
     QStackedWidget,
     QTabBar,
@@ -113,11 +112,7 @@ def build(shell, document, log_fn) -> QWidget:
     vscode_theme.tune_form(form)
 
     idx_spin = _ui.spin_hex(0, 0xFFFF, 0x2000, "Object index")
-    sub_spin = QSpinBox()
-    sub_spin.setObjectName("SuiteSpin")
-    sub_spin.setRange(0, 254)
-    sub_spin.setFixedHeight(28)
-    sub_spin.setToolTip("Sub-index (0 = object / entry count)")
+    sub_spin = _ui.spin(0, 254, 0, "Sub-index (0 = object / entry count)", width=100)
     name_edit = _ui.line_edit("ParameterName")
     obj_type = _ui.combo([n for _c, n in edsparse.OBJECT_TYPES], "ObjectType")
     data_type = _ui.combo([n for _c, n in edsparse.DATA_TYPES], "DataType")

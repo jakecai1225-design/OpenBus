@@ -72,7 +72,7 @@ def activate(context):
     _register_ai_caps()
     _shell.showMaximized()
     sin.output.append(
-        "CANopen Suite ready (Side Bar · Network / Device / EDS / Library)")
+        "CANopen Suite ready (Project · EDS · Device · Network)")
 
 
 def _register_ai_caps():

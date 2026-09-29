@@ -10,7 +10,6 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
-    QSpinBox,
     QSplitter,
     QTreeWidget,
     QTreeWidgetItem,
@@ -20,6 +19,7 @@ from PyQt6.QtWidgets import (
 
 from _shared import arxmlparse, suite_chrome, vscode_theme
 from pages import _ui
+import widgets as W
 
 
 def build(shell, document, log_fn) -> QWidget:
@@ -67,24 +67,11 @@ def build(shell, document, log_fn) -> QWidget:
     vscode_theme.tune_form(form)
     name_edit = QLineEdit()
     name_edit.setFixedHeight(28)
-    can_spin = QSpinBox()
-    can_spin.setObjectName("SuiteSpin")
-    can_spin.setRange(0, 0x1FFFFFFF)
-    can_spin.setDisplayIntegerBase(16)
-    can_spin.setPrefix("0x")
-    can_spin.setFixedHeight(28)
-    dlc_spin = QSpinBox()
-    dlc_spin.setObjectName("SuiteSpin")
-    dlc_spin.setRange(0, 64)
-    dlc_spin.setFixedHeight(28)
-    start_spin = QSpinBox()
-    start_spin.setObjectName("SuiteSpin")
-    start_spin.setRange(0, 512)
-    start_spin.setFixedHeight(28)
-    len_spin = QSpinBox()
-    len_spin.setObjectName("SuiteSpin")
-    len_spin.setRange(1, 64)
-    len_spin.setFixedHeight(28)
+    can_spin = W.spin(
+        0, 0x1FFFFFFF, 0, "CAN identifier", width=140, hex_mode=True)
+    dlc_spin = W.spin(0, 64, 8, "DLC", width=100)
+    start_spin = W.spin(0, 512, 0, "Start bit", width=100)
+    len_spin = W.spin(1, 64, 8, "Bit length", width=100)
     endian = QComboBox()
     endian.addItems(["intel", "motorola"])
     endian.setFixedHeight(28)

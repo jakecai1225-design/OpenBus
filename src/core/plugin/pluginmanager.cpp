@@ -94,6 +94,73 @@ QString PluginManager::findAppBaseDir() const
     return exeDir;
 }
 
+QString PluginManager::resolvePluginsDir(const QString &baseDir) const
+{
+    // Explicit override always wins (dev scripts / CI).
+    const QString fromEnv = qEnvironmentVariable("SIN_PLUGINS_DIR");
+    if (!fromEnv.isEmpty() && QDir(fromEnv).exists())
+        return QDir(fromEnv).absolutePath();
+
+    // Force market/.opk extract under build/bin/plugins (ignore source tree).
+    const QString useInstalled = qEnvironmentVariable("SIN_USE_INSTALLED_PLUGINS");
+    if (useInstalled == QLatin1String("1")
+        || useInstalled.compare(QLatin1String("true"), Qt::CaseInsensitive) == 0) {
+        return baseDir + QStringLiteral("/plugins");
+    }
+
+    // Dev: openbus.exe lives in build/bin → ../../plugins is the live source tree.
+    // Python suite edits under plugins/<id> then take effect on next activate
+    // without re-packing .opk into build/bin/plugins.
+    const QString exeDir = QCoreApplication::applicationDirPath();
+    QString sourceRoot = QDir(exeDir).absoluteFilePath(QStringLiteral("../.."));
+    sourceRoot = QDir(sourceRoot).canonicalPath();
+    if (sourceRoot.isEmpty())
+        sourceRoot = QDir(exeDir).absoluteFilePath(QStringLiteral("../.."));
+    const QString sourcePlugins =
+        QDir(sourceRoot).filePath(QStringLiteral("plugins"));
+    if (QDir(sourcePlugins).exists()
+        && QFileInfo(QDir(sourcePlugins).filePath(QStringLiteral("_shared")))
+               .isDir()) {
+        return QDir(sourcePlugins).absolutePath();
+    }
+
+    return baseDir + QStringLiteral("/plugins");
+}
+
+QString PluginManager::installPluginsDir() const
+{
+    // .opk install must not overwrite the git source tree.
+    return QCoreApplication::applicationDirPath() + QStringLiteral("/plugins");
+}
+
+void PluginManager::scanPluginsDirectory(const QString &pluginsDir, bool skipExisting)
+{
+    QDir dir(pluginsDir);
+    if (!dir.exists())
+        return;
+
+    const QStringList entries = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const auto &entry : entries) {
+        if (entry == QLatin1String("_shared"))
+            continue;
+        const QString pluginDir = dir.absoluteFilePath(entry);
+        PluginInfo info;
+        if (!info.loadFromDirectory(pluginDir))
+            continue;
+        if (m_plugins.contains(info.name)) {
+            if (skipExisting) {
+                spdlog::debug("PluginManager: skip installed duplicate '{}'",
+                              info.name.toStdString());
+                continue;
+            }
+            spdlog::warn("PluginManager: 重复的插件名 '{}'，跳过 {}",
+                         info.name.toStdString(), pluginDir.toStdString());
+            continue;
+        }
+        m_plugins.insert(info.name, info);
+    }
+}
+
 QString PluginManager::findPythonExecutable() const
 {
     return resolvePluginPython();
@@ -232,31 +299,28 @@ void PluginManager::discoverPlugins()
     m_plugins.clear();
 
     QString baseDir = findAppBaseDir();
-    m_pluginsDir = baseDir + "/plugins";
+    // sdk + host scripts stay beside the executable (POST_BUILD copies).
     m_sdkDir = baseDir + "/sdk";
     m_hostScriptPath = baseDir + "/scripts/sin_host.py";
+    // Python suites: prefer live source plugins/ when developing from build/bin.
+    m_pluginsDir = resolvePluginsDir(baseDir);
 
-    QDir pluginsDir(m_pluginsDir);
-    if (!pluginsDir.exists()) {
+    if (!QDir(m_pluginsDir).exists()) {
         spdlog::info("PluginManager: 插件目录不存在: {}", m_pluginsDir.toStdString());
         return;
     }
 
-    QStringList entries = pluginsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-    for (const auto &entry : entries) {
-        QString pluginDir = pluginsDir.absoluteFilePath(entry);
-        PluginInfo info;
-        if (info.loadFromDirectory(pluginDir)) {
-            if (m_plugins.contains(info.name)) {
-                spdlog::warn("PluginManager: 重复的插件名 '{}'，跳过 {}",
-                             info.name.toStdString(), pluginDir.toStdString());
-                continue;
-            }
-            m_plugins.insert(info.name, info);
-        }
+    scanPluginsDirectory(m_pluginsDir, false);
+
+    // Also pick up .opk-only installs under build/bin/plugins (source wins on name clash).
+    const QString installed = installPluginsDir();
+    if (QDir::cleanPath(installed) != QDir::cleanPath(m_pluginsDir)
+        && QDir(installed).exists()) {
+        scanPluginsDirectory(installed, true);
     }
 
-    spdlog::info("PluginManager: 发现 {} 个插件", m_plugins.size());
+    spdlog::info("PluginManager: 发现 {} 个插件 (dir={})",
+                 m_plugins.size(), m_pluginsDir.toStdString());
 
     // 重算懒激活候选集，并清理订阅表中已卸载的插件
     m_onFramePlugins.clear();
@@ -1222,7 +1286,7 @@ QString PluginManager::installPackage(const QString &opkPath)
         return QStringLiteral("打包工具不存在: %1").arg(toolPath);
 
     QProcess proc;
-    proc.start(m_pythonExe, {toolPath, "install", opkPath, m_pluginsDir});
+    proc.start(m_pythonExe, {toolPath, "install", opkPath, installPluginsDir()});
     if (!proc.waitForFinished(60000)) {
         proc.kill();
         return QStringLiteral("安装超时");
@@ -1259,7 +1323,7 @@ QString PluginManager::uninstallPlugin(const QString &name)
 
     const QString toolPath = QFileInfo(m_hostScriptPath).dir().filePath("plugin_tool.py");
     QProcess proc;
-    proc.start(m_pythonExe, {toolPath, "uninstall", name, m_pluginsDir});
+    proc.start(m_pythonExe, {toolPath, "uninstall", name, installPluginsDir()});
     if (!proc.waitForFinished(30000)) {
         proc.kill();
         return QStringLiteral("卸载超时");

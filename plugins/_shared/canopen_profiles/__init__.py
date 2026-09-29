@@ -22,13 +22,23 @@ from ._catalog import (  # noqa: F401
     search_profile,
     validate_profile_coverage,
 )
+from .templates import (  # noqa: F401
+    STARTER_TEMPLATES,
+    assemble_document,
+    build_template,
+    merge_entries,
+)
 
 __all__ = [
     "COMM_TEMPLATES",
     "PROFILE_CATALOG",
+    "STARTER_TEMPLATES",
+    "assemble_document",
+    "build_template",
     "catalog_by_category",
     "catalog_entry",
     "detect_device_profile",
+    "merge_entries",
     "missing_entries",
     "objects_for",
     "present_keys",

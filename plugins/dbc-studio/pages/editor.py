@@ -60,12 +60,9 @@ def _fmt_value_table(vt: dict) -> str:
     return "; ".join("%d=%s" % (k, v) for k, v in sorted(vt.items()))
 
 
-def _spin(lo, hi, value, tip):
-    box = QSpinBox()
-    box.setObjectName("SuiteSpin")
-    box.setRange(lo, hi)
-    box.setValue(int(value))
-    box.setFixedHeight(28)
+def _spin(lo, hi, value, tip, width=100):
+    from _shared.widgets import StepSpin
+    box = StepSpin(int(value), minimum=lo, maximum=hi, width=width)
     box.setToolTip(tip)
     return box
 

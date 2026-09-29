@@ -262,19 +262,20 @@ QTabBar::tab:selected {
 QTabBar::close-button {
     image: url(@tabClose);
     subcontrol-position: right;
-    background: transparent; border: none; border-radius: 3px;
-    margin: 2px;
+    background: transparent; border: none; border-radius: 4px;
+    width: 16px; height: 16px; margin: 0 4px 0 2px;
 }
 QTabBar::close-button:hover { image: url(@tabCloseHover); background-color: @hoverBg; }
 QTabBar::close-button:pressed { background-color: @buttonPress; }
 
-/* Custom close button (SplitEditorArea QToolButton) */
+/* Custom close button (SplitEditorArea QToolButton) — VS Code hit target */
 QTabBar QToolButton {
-    background: transparent; border: none; border-radius: 3px;
-    min-width: 16px; max-width: 16px; min-height: 16px; max-height: 16px;
-    padding: 0; margin: 0 2px;
+    background: transparent; border: none; border-radius: 4px;
+    min-width: 18px; max-width: 18px; min-height: 18px; max-height: 18px;
+    padding: 0; margin: 0 6px 0 2px;
 }
 QTabBar QToolButton:hover { background-color: @hoverBg; }
+QTabBar QToolButton:pressed { background-color: @buttonPress; }
 
 /* ---- Bottom panel: split vs editor is QMainWindow::separator only ---- */
 #BottomPanel {
@@ -512,10 +513,11 @@ QDialogButtonBox QPushButton { min-width: 80px; }
 #ColumnFilterPopup { background-color: @contentBg; border: 1px solid @border; }
 #ColumnFilterPopup QListWidget { background-color: @contentBg; border: none; }
 
-/* ---- SpinBox (加大上下箭头按钮) ---- */
+/* ---- SpinBox: fixed height + identical up/down steppers (hex and decimal) ---- */
 QSpinBox, QDoubleSpinBox {
-    border: 1px solid @borderDim; border-radius: 3px; padding: 4px 28px 4px 8px;
-    background-color: @contentBg; font-size: 13px; min-height: 22px;
+    border: 1px solid @borderDim; border-radius: 3px; padding: 2px 22px 2px 8px;
+    background-color: @contentBg; color: @text; font-size: 13px;
+    min-height: 26px; max-height: 28px;
 }
 QSpinBox:hover, QDoubleSpinBox:hover { border: 1px solid @border; }
 QSpinBox:focus, QDoubleSpinBox:focus { border: 1px solid @accent; }
@@ -523,21 +525,21 @@ QSpinBox:disabled, QDoubleSpinBox:disabled { background-color: @buttonDisabledBg
 
 QSpinBox::up-button, QDoubleSpinBox::up-button {
     subcontrol-origin: border; subcontrol-position: top right;
-    width: 24px; height: 14px; border: none; border-left: 1px solid @borderDim;
+    width: 18px; height: 14px; border: none; border-left: 1px solid @borderDim;
     border-top-right-radius: 3px; background: @contentBg;
 }
 QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover { background: @hoverBg; }
 QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed { background: @buttonPress; }
 QSpinBox::down-button, QDoubleSpinBox::down-button {
     subcontrol-origin: border; subcontrol-position: bottom right;
-    width: 24px; height: 14px; border: none; border-left: 1px solid @borderDim;
+    width: 18px; height: 14px; border: none; border-left: 1px solid @borderDim;
     border-bottom-right-radius: 3px; background: @contentBg;
 }
 QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover { background: @hoverBg; }
 QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed { background: @buttonPress; }
-QSpinBox::up-arrow, QDoubleSpinBox::up-arrow { image: url(@spinUp); width: 10px; height: 10px; }
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow { image: url(@spinUp); width: 9px; height: 9px; }
 QSpinBox::up-arrow:hover, QDoubleSpinBox::up-arrow:hover { image: url(@spinUpHover); }
-QSpinBox::down-arrow, QDoubleSpinBox::down-arrow { image: url(@spinDown); width: 10px; height: 10px; }
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow { image: url(@spinDown); width: 9px; height: 9px; }
 QSpinBox::down-arrow:hover, QDoubleSpinBox::down-arrow:hover { image: url(@spinDownHover); }
 
 /* ---- 进度条 ---- */

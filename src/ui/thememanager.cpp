@@ -193,12 +193,13 @@ static QString writeTreeIcons(const Theme &t)
     const QString spinUpHov   = smallChevron("M2.5 6.5 L5 4 L7.5 6.5", t.accent);
     const QString spinDownHov = smallChevron("M2.5 4 L5 6.5 L7.5 4",   t.accent);
 
-    // 标签页关闭 ×（QTabBar::close-button），常规 textDim / 悬停 text
+    // Tab close X (QTabBar::close-button) — textDim idle / text on hover
     const auto smallX = [](const QString &color) {
         return QStringLiteral(
-            "<svg width='10' height='10' xmlns='http://www.w3.org/2000/svg'>"
-            "<path d='M3 3 L7 7 M3 7 L7 3' fill='none' stroke='%1' stroke-width='1.4' "
-            "stroke-linecap='round' stroke-linejoin='round'/></svg>").arg(color);
+            "<svg width='12' height='12' xmlns='http://www.w3.org/2000/svg'>"
+            "<path d='M3.2 3.2 L8.8 8.8 M8.8 3.2 L3.2 8.8' fill='none' stroke='%1' "
+            "stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/>"
+            "</svg>").arg(color);
     };
     const QString tabClose    = smallX(t.textDim);
     const QString tabCloseHov = smallX(t.text);

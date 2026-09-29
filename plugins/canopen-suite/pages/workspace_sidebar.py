@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Workspace Side Bars — VS Code Explorer-style section lists for CANopen."""
+"""Side Bar — flat, short labels (one click = one job).
+
+Activities: EDS / Live / Trace / Code.
+EDS files live under File menu. Device info under Dictionary / View.
+"""
 
 from __future__ import annotations
 
+import os
 from typing import Callable, Optional, Sequence, Tuple
 
 from PyQt6.QtCore import Qt
@@ -20,18 +25,57 @@ from pages import _ui
 SectionSpec = Tuple[str, str, str]
 
 
-def _header(title: str) -> QWidget:
-    head = QWidget()
-    head.setObjectName("SuiteSideBarHeader")
-    head.setFixedHeight(28)
-    hl = QHBoxLayout(head)
-    hl.setContentsMargins(10, 0, 6, 0)
-    lab = QLabel(title.upper())
-    lab.setObjectName("SuiteToolbarTitle")
-    lab.setStyleSheet(
-        "font-size:11px;font-weight:600;letter-spacing:0.6px;color:#546E7A;")
-    hl.addWidget(lab, 1)
-    return head
+def _doc_banner(shell) -> QWidget:
+    """One row: file name + New / Open / Save / Apply."""
+    host = QWidget()
+    host.setObjectName("SuiteDocBanner")
+    host.setFixedHeight(_ui.TOOL_H + 4)
+    lay = QHBoxLayout(host)
+    lay.setContentsMargins(_ui.PAD_X, 2, 6, 2)
+    lay.setSpacing(2)
+    path_lab = QLabel("No EDS")
+    path_lab.setObjectName("SuiteDocPath")
+    path_lab.setToolTip("Current EDS file")
+    lay.addWidget(path_lab, 1, Qt.AlignmentFlag.AlignVCenter)
+    new_btn = _ui.icon_tool("add", "New EDS (Ctrl+N)")
+    open_btn = _ui.icon_tool("folder", "Open EDS (Ctrl+O)")
+    save_btn = _ui.icon_tool("save", "Save EDS (Ctrl+S)")
+    apply_btn = _ui.icon_tool("apply", "Apply EDS → Live OD (Ctrl+Return)")
+    for b in (new_btn, open_btn, save_btn, apply_btn):
+        lay.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
+
+    def refresh(_=None):
+        session = getattr(shell, "session", None)
+        p = getattr(session, "eds_path", "") or ""
+        dirty = "● " if getattr(session, "eds_dirty", False) else ""
+        nid = getattr(session, "node_id", 1)
+        if p:
+            path_lab.setText("%s%s" % (dirty, os.path.basename(p)))
+            path_lab.setToolTip("%s\nNode-ID %d · Ctrl+S" % (p, nid))
+        else:
+            n = len(getattr(session, "draft_entries", None) or [])
+            if n:
+                path_lab.setText("%sUntitled · %d" % (dirty, n))
+                path_lab.setToolTip("Unsaved draft · Node-ID %d" % nid)
+            else:
+                path_lab.setText("No EDS")
+                path_lab.setToolTip("New or Open an EDS")
+
+    def _run(name: str):
+        if hasattr(shell, "run_action"):
+            shell.run_action(name)
+
+    new_btn.clicked.connect(lambda: _run("eds.new"))
+    open_btn.clicked.connect(lambda: _run("eds.open"))
+    save_btn.clicked.connect(lambda: _run("eds.save"))
+    apply_btn.clicked.connect(lambda: _run("eds.apply_od"))
+    host.refresh_doc = refresh  # type: ignore[attr-defined]
+    refresh()
+    if hasattr(shell, "session") and hasattr(shell.session, "on_od_changed"):
+        shell.session.on_od_changed(refresh)
+    if hasattr(shell, "session") and hasattr(shell.session, "on_node_changed"):
+        shell.session.on_node_changed(refresh)
+    return host
 
 
 def build_section_sidebar(
@@ -41,35 +85,40 @@ def build_section_sidebar(
         *,
         nested: Optional[dict] = None,
         on_select: Optional[Callable[[str], None]] = None,
+        show_document: bool = False,
 ) -> QWidget:
-    """Section tree: parents fold; leaves open editor tabs via shell.goto_page."""
+    """Flat leaf list — optional compact document row above."""
     nested = nested or {}
     root = QWidget()
-    root.setObjectName("WorkspaceSideBar")
+    root.setObjectName("SuiteSideBar")
     root.setMinimumWidth(180)
-    root.setMaximumWidth(320)
+    root.setMaximumWidth(280)
     lay = QVBoxLayout(root)
     lay.setContentsMargins(0, 0, 0, 0)
     lay.setSpacing(0)
-    lay.addWidget(_header(title))
+
+    doc = None
+    if show_document:
+        doc = _doc_banner(shell)
+        lay.addWidget(doc)
+        lay.addWidget(_ui.hairline())
+
+    lay.addWidget(_ui.sidebar_header(title))
 
     tree = QTreeWidget()
-    tree.setObjectName("SuiteMatrix")
-    tree.setHeaderHidden(True)
-    tree.setIndentation(14)
-    tree.setAnimated(True)
-    tree.setExpandsOnDoubleClick(False)
-    tree.setUniformRowHeights(True)
     _ui.style_tree(tree)
-    tree.setStyleSheet(
-        tree.styleSheet()
-        + "QTreeWidget#SuiteMatrix::item { padding: 2px 4px; }"
-        + "QTreeWidget#SuiteMatrix::item:has-children {"
-        + " font-weight: 600; color: #455A64; }")
+    tree.setExpandsOnDoubleClick(False)
+    # Flat list — never show branch chrome unless nested is non-empty
+    tree.setRootIsDecorated(bool(any(nested.values())))
+    tree.setIndentation(10 if any(nested.values()) else 0)
     lay.addWidget(tree, 1)
 
     _guard = {"depth": 0}
     _keys = [s[0] for s in sections]
+    for kids in (nested or {}).values():
+        for ck, *_rest in kids:
+            if ck not in _keys:
+                _keys.append(ck)
 
     def rebuild():
         _guard["depth"] += 1
@@ -77,13 +126,12 @@ def build_section_sidebar(
             tree.blockSignals(True)
             tree.clear()
             for key, label, tip in sections:
-                it = QTreeWidgetItem([label])
-                it.setData(0, Qt.ItemDataRole.UserRole, ("section", key))
-                it.setToolTip(0, tip)
-                it.setFlags(
-                    Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
                 children = nested.get(key) or ()
                 if children:
+                    it = QTreeWidgetItem([label])
+                    it.setData(0, Qt.ItemDataRole.UserRole, ("section", key))
+                    it.setToolTip(0, tip)
+                    it.setFlags(Qt.ItemFlag.ItemIsEnabled)
                     for ck, clabel, ctip in children:
                         ch = QTreeWidgetItem([clabel])
                         ch.setData(
@@ -94,120 +142,125 @@ def build_section_sidebar(
                             | Qt.ItemFlag.ItemIsSelectable)
                         it.addChild(ch)
                     it.setExpanded(True)
+                    tree.addTopLevelItem(it)
                 else:
+                    it = QTreeWidgetItem([label])
+                    it.setData(0, Qt.ItemDataRole.UserRole, ("leaf", key))
+                    it.setToolTip(0, tip)
+                    it.setFlags(
+                        Qt.ItemFlag.ItemIsEnabled
+                        | Qt.ItemFlag.ItemIsSelectable)
                     it.setChildIndicatorPolicy(
                         QTreeWidgetItem.ChildIndicatorPolicy.DontShowIndicator)
-                tree.addTopLevelItem(it)
-            tree.blockSignals(False)
+                    tree.addTopLevelItem(it)
         finally:
+            tree.blockSignals(False)
             _guard["depth"] -= 1
 
-    def select_section(feature: str, *, expand: bool = True):
+    def select_section(feature: str):
+        def walk(item):
+            data = item.data(0, Qt.ItemDataRole.UserRole)
+            if not data:
+                return False
+            if data[0] in ("leaf", "section", "child") and data[1] == feature:
+                tree.setCurrentItem(item)
+                return True
+            for i in range(item.childCount()):
+                if walk(item.child(i)):
+                    return True
+            return False
         for i in range(tree.topLevelItemCount()):
-            it = tree.topLevelItem(i)
-            data = it.data(0, Qt.ItemDataRole.UserRole) or ()
-            if data[:2] == ("section", feature):
-                tree.blockSignals(True)
-                tree.setCurrentItem(it)
-                tree.blockSignals(False)
-                if expand:
-                    it.setExpanded(True)
+            if walk(tree.topLevelItem(i)):
                 return
-            for j in range(it.childCount()):
-                ch = it.child(j)
-                cd = ch.data(0, Qt.ItemDataRole.UserRole) or ()
-                if len(cd) >= 2 and cd[1] == feature:
-                    tree.blockSignals(True)
-                    it.setExpanded(True)
-                    tree.setCurrentItem(ch)
-                    tree.blockSignals(False)
-                    return
 
     def _activate(feature: str):
-        if callable(on_select):
+        if on_select:
             on_select(feature)
-        else:
+        elif hasattr(shell, "goto_page"):
             shell.goto_page(feature)
 
     def _on_click():
         if _guard["depth"]:
             return
         item = tree.currentItem()
-        if not item:
+        if item is None:
             return
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if not data:
             return
         kind = data[0]
-        if kind == "section":
-            key = data[1]
-            _activate(key)
-            if item.childCount():
-                item.setExpanded(True)
-        elif kind == "child":
+        if kind in ("leaf", "child"):
             _activate(data[1])
+        elif kind == "section":
+            _activate(data[1])
+            if nested.get(data[1]):
+                item.setExpanded(True)
 
     tree.itemClicked.connect(lambda *_: _on_click())
     rebuild()
 
-    root.rebuild = rebuild
-    root.select_section = select_section
-    root.feature_keys = _keys
-    root.tree = tree
-    root.setToolTip("%s explorer · Ctrl+B toggles Side Bar" % title)
+    root.rebuild = rebuild  # type: ignore[attr-defined]
+    root.select_section = select_section  # type: ignore[attr-defined]
+    root.feature_keys = _keys  # type: ignore[attr-defined]
+    root.tree = tree  # type: ignore[attr-defined]
+    root.refresh_doc = getattr(doc, "refresh_doc", None)  # type: ignore[attr-defined]
+    root.setToolTip("%s · Ctrl+B" % title)
     return root
 
 
-# Activity workspace → Side Bar sections (foldable groups + leaves)
+# ---- Flat explorers (five-pillar IA) ---------------------------------------
 
-NETWORK_SECTIONS = (
-    ("network", "Network", "Scan and NMT"),
-    ("monitor", "Monitor", "COB / frame monitor"),
+PROJECT_SECTIONS = (
+    ("eds_dict", "Objects", "Edit the object dictionary"),
 )
+PROJECT_NESTED: dict = {}
 
-NETWORK_NESTED = {
-    "network": (
-        ("network_scan", "Scan", "Probe nodes 1–127"),
-        ("network_nmt", "NMT", "Start / Stop / Pre-op / Reset"),
-    ),
-}
 
-DEVICE_SECTIONS = (
-    ("od", "Object Dictionary", "Live OD tree and SDO"),
-    ("pdo", "PDO", "PDO mapping"),
-)
+def build_eds_sidebar(shell) -> QWidget:
+    """EDS side bar — edit leaves only (files live under File menu)."""
+    return build_section_sidebar(
+        shell, "EDS", EDS_SECTIONS, nested=EDS_NESTED, show_document=True)
 
+
+# Back-compat
+build_project_sidebar = build_eds_sidebar
+
+
+# EDS edit leaves
 EDS_SECTIONS = (
-    ("eds", "EDS", "CANeds-style editor"),
+    ("eds_dict", "Objects", "Edit the object dictionary in the EDS file"),
+    ("profiles", "Profiles", "Insert CiA packs into the draft"),
+    ("eds_pdo", "PDO map", "Map objects into RPDO / TPDO in the file"),
+    ("eds_check", "Check", "Validate before save / apply"),
 )
+EDS_NESTED: dict = {}
 
-EDS_NESTED = {
-    "eds": (
-        ("eds_dict", "Dictionary", "Object tree and definitions"),
-        ("eds_device", "Device", "FileInfo / DeviceInfo"),
-        ("eds_check", "Check", "EDS validation findings"),
-    ),
-}
-
-LIBRARY_SECTIONS = (
-    ("library", "Profiles", "CiA profile library → EDS draft"),
+# Live = control (no Live PDO in primary sidebar)
+LIVE_SECTIONS = (
+    ("od", "Live OD", "SDO read / write on the selected Node-ID"),
+    ("network_scan", "Scan", "Find nodes 1-127"),
+    ("network_nmt", "NMT", "Start / Stop / Pre-op / Reset"),
 )
+LIVE_NESTED: dict = {}
+DEVICE_SECTIONS = LIVE_SECTIONS
+DEVICE_NESTED = LIVE_NESTED
 
-LIBRARY_NESTED = {
-    "library": (
-        ("lib_301", "CiA 301", "Communication profile"),
-        ("lib_302", "CiA 302", "Network management"),
-        ("lib_401", "CiA 401", "Digital / analogue I/O"),
-        ("lib_402", "CiA 402", "Drives and motion"),
-        ("lib_403", "CiA 403", "HMI"),
-        ("lib_404", "CiA 404", "Measuring devices"),
-        ("lib_406", "CiA 406", "Encoders"),
-        ("lib_418", "CiA 418", "Battery modules"),
-        ("lib_419", "CiA 419", "Battery chargers"),
-        # Full catalog (20+ profiles + packs) lives in the Library page list
-    ),
-}
-
-SETUP_SECTIONS = (
-    ("setup", "Setup", "Node-ID, EDS path, session"),
+# Trace = online + offline analysis (one leaf)
+TRACE_SECTIONS = (
+    ("monitor", "Trace", "Live decode or Import CSV"),
 )
+TRACE_NESTED: dict = {}
+NETWORK_SECTIONS = TRACE_SECTIONS
+NETWORK_NESTED = TRACE_NESTED
+
+# Code = codegen only
+CODE_SECTIONS = (
+    ("eds_codegen", "Codegen", "Emit OD C/H for firmware"),
+)
+CODE_NESTED: dict = {}
+
+# Back-compat
+SETUP_SECTIONS = PROJECT_SECTIONS
+SETUP_NESTED = PROJECT_NESTED
+LIBRARY_SECTIONS = EDS_SECTIONS
+LIBRARY_NESTED = EDS_NESTED

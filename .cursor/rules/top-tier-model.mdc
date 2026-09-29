@@ -1,0 +1,23 @@
+---
+description: User preference — always use top-tier model quality for Q&A, design, and coding
+alwaysApply: true
+---
+
+# Top-tier model preference (user choice)
+
+The user requires **top-tier model quality** for every turn: questions, design, architecture, and coding. Persist and honor this across sessions.
+
+## Chat / Agent
+
+- Prefer the highest-capability model available in Cursor for this workspace (user may pin it in the model picker).
+- Do not downgrade reasoning, skip careful design, or give “fast/cheap” shallow answers for convenience.
+- Treat design and UX decisions with the same rigor as production engineering.
+
+## Subagents
+
+When launching Task / subagents, set `model` to the strongest listed option for the job (currently prefer `grok-4.7-high-fast` over faster/lighter slugs). Use `inherit` only when the parent is already the top-tier model the user selected.
+
+## Do not
+
+- Default to speed-optimized or reduced-capability paths when quality matters.
+- Ask the user to restate this preference each session.

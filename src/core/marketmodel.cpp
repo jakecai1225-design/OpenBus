@@ -46,10 +46,14 @@ QPixmap renderSvgData(const QByteArray &data, int size)
 
 QPixmap loadIconData(const QByteArray &data, const QString &hintPath, int size)
 {
+    QByteArray trimmed = data.trimmed();
+    // Strip UTF-8 BOM if present
+    if (trimmed.startsWith("\xEF\xBB\xBF"))
+        trimmed = trimmed.mid(3);
     const bool svg = hintPath.endsWith(QStringLiteral(".svg"), Qt::CaseInsensitive)
-                     || data.startsWith("<?xml") || data.startsWith("<svg");
+                     || trimmed.startsWith("<?xml") || trimmed.startsWith("<svg");
     if (svg) {
-        const QPixmap pm = renderSvgData(data, size);
+        const QPixmap pm = renderSvgData(trimmed, size);
         if (!pm.isNull())
             return pm;
     }

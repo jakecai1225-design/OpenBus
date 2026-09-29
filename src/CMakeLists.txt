@@ -959,10 +959,11 @@ endif()
 
 # ============================================================
 #  Plugin host materials - sdk/ (+ optional host scripts) into output dir
-#  (same as package.py: do not preinstall plugins/; .opk always
-#   installs from market; with sdk/ under build/bin, PluginManager::
-#   findAppBaseDir hits exeDir; plugins install to build/bin/plugins
-#   not the source tree - no bundled plugins; market download is source of truth)
+#  Suite Python code loads from SOURCE plugins/ when openbus runs from
+#  build/bin (PluginManager::resolvePluginsDir). POST_BUILD still copies
+#  sdk + _shared for host bootstrap; do NOT rely on build/bin/plugins/<suite>
+#  for live edits — that tree is only for .opk install testing
+#  (SIN_USE_INSTALLED_PLUGINS=1).
 # ============================================================
 if(EXISTS "${CMAKE_SOURCE_DIR}/sdk")
     set(_openbus_host_scripts "")

@@ -52,8 +52,12 @@ ACTIVITY_TIPS = {
     "dc": "DC — cycle, shift and cable delay",
     "frames": "Frames — EtherCAT datagram and mailbox decode",
     "od": "OD — live object dictionary and SDO",
-    "eds": "EDS — Dictionary / Device / Check (CANeds)",
+    "eds": "EDS — Dictionary / Profiles / Validate (CANeds)",
     "library": "Library — starters, profiles, recent files",
+    "device": "Device — live OD and PDO on the bus",
+    "network": "Network — Scan, NMT, frame monitor",
+    "project": "Project — folder, main EDS, Node-ID",
+    "setup": "Setup — Node-ID and preferences",
     "editor": "Editor — object dictionary and device info",
     "matrix": "Matrix — communications Tx/Rx grid",
     "valuetables": "Value Tables — named VAL_TABLE_ library",
@@ -92,6 +96,7 @@ class WorkbenchParts:
     collapse_panel: Callable[[], None]
     expand_panel: Callable[[], None]
     goto_page: Callable[[str], None]
+    highlight_activity: Callable[[str], None]
     current_page: Callable[[], str]
     set_editor_tabs: Callable[[QWidget], None]
     set_editor_title: Callable[[str], None]
@@ -207,12 +212,13 @@ def build_workbench(
     stack = QStackedWidget()
     stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-    def _select_page(key: str):
+    def _select_page(key: str, *, switch_stack: bool = True):
         idx = page_index.get(key)
         if idx is None:
             return
         state["page"] = key
-        stack.setCurrentIndex(idx)
+        if switch_stack:
+            stack.setCurrentIndex(idx)
         btn = activity_btns.get(key)
         if btn is not None:
             btn.blockSignals(True)
@@ -230,6 +236,10 @@ def build_workbench(
             }
             if key not in tab_pages:
                 set_editor_title(title_map.get(key, key))
+
+    def highlight_activity(key: str):
+        """Update activity icon strip without switching the editor stack."""
+        _select_page(key, switch_stack=False)
 
     footer_keys = {"setup", "settings"}
     main_pages = [(k, t) for k, t in nav_pages if k not in footer_keys]
@@ -258,6 +268,10 @@ def build_workbench(
                     set_side_bar_visible(not state["sidebar"])
                 elif state["panel"]:
                     set_panel_visible(False)
+                return
+            on_activity = getattr(window, "_on_activity_clicked", None)
+            if callable(on_activity):
+                on_activity(k)
                 return
             goto = getattr(window, "goto_page", None)
             if callable(goto):
@@ -294,16 +308,23 @@ def build_workbench(
     sb_body_host.setLayout(side_bar_body)
     sb_outer.addWidget(sb_body_host, 1)
     _side_bar_widget: list = [None]
+    # Hidden park for reusable Side Bar widgets. setParent(None) on a still-visible
+    # QWidget turns it into a top-level OS window (the "tiny OD tab" popup bug).
+    _widget_park = QWidget()
+    _widget_park.hide()
+    _widget_park.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
 
     def set_side_bar_widget(widget: Optional[QWidget]):
         while side_bar_body.count():
             item = side_bar_body.takeAt(0)
             w = item.widget()
             if w is not None:
-                w.setParent(None)
+                w.hide()
+                w.setParent(_widget_park)
         _side_bar_widget[0] = widget
         if widget is not None:
             side_bar_body.addWidget(widget, 1)
+            widget.show()
 
     h_splitter = None
 
@@ -337,12 +358,18 @@ def build_workbench(
             item = chrome_slot.takeAt(0)
             w = item.widget()
             if w is not None:
+                # Tab bars are recreated each mount — hide then delete so they
+                # never become orphan top-level windows after setParent(None).
+                w.hide()
                 w.setParent(None)
+                w.deleteLater()
 
     def set_editor_tabs(tab_bar: QWidget):
         _clear_chrome_slot()
         _chrome_tabs[:] = [tab_bar]
+        tab_bar.setParent(chrome_slot_host)
         chrome_slot.addWidget(tab_bar, 1)
+        tab_bar.show()
 
     def set_editor_title(text: str):
         _clear_chrome_slot()
@@ -630,6 +657,7 @@ def build_workbench(
         collapse_panel=collapse_panel,
         expand_panel=expand_panel,
         goto_page=goto_page,
+        highlight_activity=highlight_activity,
         current_page=lambda: state["page"],
         set_editor_tabs=set_editor_tabs,
         set_editor_title=set_editor_title,

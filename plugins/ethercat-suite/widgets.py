@@ -10,7 +10,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QPushButton,
-    QSpinBox,
     QTableWidget,
     QWidget,
 )
@@ -18,12 +17,9 @@ from PyQt6.QtWidgets import (
 from _shared import codicons
 
 
-def spin(lo: int, hi: int, value: int, tip: str = "") -> QSpinBox:
-    box = QSpinBox()
-    box.setObjectName("SuiteSpin")
-    box.setRange(lo, hi)
-    box.setValue(int(value))
-    box.setFixedHeight(28)
+def spin(lo: int, hi: int, value: int, tip: str = "", width: int = 100):
+    from _shared.widgets import StepSpin
+    box = StepSpin(int(value), minimum=lo, maximum=hi, width=width)
     if tip:
         box.setToolTip(tip)
     return box

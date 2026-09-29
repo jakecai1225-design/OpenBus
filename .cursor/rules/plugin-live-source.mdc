@@ -1,0 +1,33 @@
+---
+description: Python suite plugins load from source plugins/, not build/bin .opk extracts
+alwaysApply: true
+---
+
+# Plugin live-edit path (OpenBus)
+
+## Root cause (do not forget)
+
+Running `build/bin/openbus.exe` used to load suites from **`build/bin/plugins/<id>/`** (stale `.opk` extracts). Edits under **`plugins/<id>/`** (source) did not appear until re-pack/re-install.
+
+## Correct behavior (after PluginManager fix)
+
+- **Load / activate** → prefer **source** `plugins/` (`build/bin/../../plugins`) when `_shared` exists there.
+- **`.opk` install/uninstall** → still writes to `build/bin/plugins/` (never overwrite git source).
+- Override: `SIN_PLUGINS_DIR=<path>` forces load dir; `SIN_USE_INSTALLED_PLUGINS=1` forces `build/bin/plugins`.
+
+## Agent workflow after editing a suite
+
+1. Edit files under `plugins/<suite-id>/` (e.g. `canopen-suite`).
+2. Rebuild **only if** C++ / CMake changed. Pure Python suite edits need **no pack**.
+3. Restart OpenBus (or deactivate/reactivate the suite) so `sin_host` reloads modules.
+4. Do **not** tell the user to `make_market` / reinstall `.opk` just to see Python UI fixes.
+5. Only pack `.opk` when shipping market packages.
+
+## If the binary is old (before resolvePluginsDir)
+
+- Close OpenBus, rebuild `openbus`, then relaunch — loads source `plugins/` live.
+- Interim sync (old binary only): `powershell -File scripts/sync_plugins_to_build.ps1` then restart/reactivate.
+
+## Verify
+
+Log line should look like: `PluginManager: 发现 N 个插件 (dir=.../sin/plugins)` — not `.../build/bin/plugins` for suite source of truth.

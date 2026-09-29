@@ -8,7 +8,6 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QLabel,
     QLineEdit,
-    QSpinBox,
     QStackedWidget,
     QTreeWidget,
     QTreeWidgetItem,
@@ -47,31 +46,13 @@ def build(shell, document, log_fn) -> QWidget:
     pdo_box.setFixedHeight(26)
     pdo_box.setMinimumWidth(150)
     pdo_box.setToolTip("PDO communication / mapping object")
-    sub_spin = QSpinBox()
-    sub_spin.setObjectName("SuiteSpin")
-    sub_spin.setRange(1, 64)
-    sub_spin.setFixedHeight(26)
-    sub_spin.setToolTip("Mapping entry number")
-    map_idx = QSpinBox()
-    map_idx.setObjectName("SuiteSpin")
-    map_idx.setRange(0, 0xFFFF)
-    map_idx.setDisplayIntegerBase(16)
-    map_idx.setPrefix("0x")
-    map_idx.setFixedHeight(26)
-    map_idx.setToolTip("Mapped OD index")
-    map_sub = QSpinBox()
-    map_sub.setObjectName("SuiteSpin")
-    map_sub.setRange(0, 254)
-    map_sub.setFixedHeight(26)
-    map_sub.setToolTip("Mapped sub-index")
-    map_bits = QSpinBox()
-    map_bits.setObjectName("SuiteSpin")
-    map_bits.setRange(1, 64)
-    map_bits.setValue(16)
-    map_bits.setFixedHeight(26)
-    map_bits.setToolTip("Bit length")
+    sub_spin = _ui.spin(1, 64, 1, "Mapping entry number", width=72)
+    map_idx = _ui.spin_hex(0, 0xFFFF, 0, "Mapped OD index")
+    map_idx.setFixedWidth(100)
+    map_sub = _ui.spin(0, 254, 0, "Mapped sub-index", width=72)
+    map_bits = _ui.spin(1, 64, 16, "Bit length", width=72)
     raw_edit = QLineEdit()
-    raw_edit.setFixedHeight(26)
+    raw_edit.setFixedHeight(28)
     raw_edit.setMaximumWidth(120)
     raw_edit.setPlaceholderText("0x…")
     raw_edit.setToolTip("Raw mapping dword = index|sub|bits")

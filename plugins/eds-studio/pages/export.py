@@ -120,9 +120,12 @@ def build(shell, document, log_fn) -> QWidget:
 
     chrome, crow = suite_chrome.make_toolbar()
     fmt = QComboBox()
-    fmt.addItems(["EDS", "DCF", "HTML", "CSV", "XDD lite"])
+    fmt.addItems([
+        "EDS", "DCF", "HTML", "CSV", "XDD lite",
+        "CANopenNode V4 (OD.h/c)", "CanFestival (C/H)",
+    ])
     fmt.setFixedHeight(26)
-    fmt.setMinimumWidth(120)
+    fmt.setMinimumWidth(200)
     fmt.setToolTip("Export format")
     open_after = QCheckBox("Open after")
     open_after.setChecked(True)
@@ -140,14 +143,51 @@ def build(shell, document, log_fn) -> QWidget:
     suite_chrome.page_margins(bl, top=20)
     tip = _ui.quiet_label(
         "EDS / DCF keep full OD. HTML and CSV are for review. "
-        "XDD lite is a CiA 311 subset.")
-    tip.setMaximumWidth(480)
+        "XDD lite is a CiA 311 subset. "
+        "CANopenNode V4 and CanFestival write OD C/H for firmware stacks.")
+    tip.setMaximumWidth(520)
+    tip.setWordWrap(True)
     bl.addWidget(tip)
     bl.addStretch(1)
     layout.addWidget(body, 1)
 
     def _do_export():
         kind = fmt.currentText()
+        # Stack codegen → directory with multiple files
+        if kind.startswith("CANopenNode") or kind.startswith("CanFestival"):
+            from _shared.canopen_codegen import generate
+            directory = QFileDialog.getExistingDirectory(
+                shell, "Export C/H directory", "")
+            if not directory:
+                return
+            target = (
+                "canopennode_v4" if kind.startswith("CANopenNode")
+                else "canfestival")
+            node = (document.eds.device_info.get("ProductName")
+                    or document.display_name().rsplit(".", 1)[0]
+                    or "Node")
+            node = "".join(c if c.isalnum() or c == "_" else "_" for c in node)
+            if node and node[0].isdigit():
+                node = "N" + node
+            try:
+                files = generate(
+                    document.eds, target, node_name=node or "Node",
+                    strict=True)
+                written = []
+                for name, text in files.items():
+                    path = os.path.join(directory, name)
+                    with open(path, "w", encoding="utf-8", newline="\n") as f:
+                        f.write(text)
+                    written.append(path)
+                log_fn("OK", "Exported %s" % ", ".join(written))
+                if open_after.isChecked() and written:
+                    _open_path(written[0])
+            except ValueError as e:
+                log_fn("ERR", "Codegen blocked: %s" % e)
+            except OSError as e:
+                log_fn("ERR", "Export failed: %s" % e)
+            return
+
         filters = {
             "EDS": ("EDS (*.eds)", ".eds"),
             "DCF": ("DCF (*.dcf)", ".dcf"),

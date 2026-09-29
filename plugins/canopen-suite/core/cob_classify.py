@@ -11,7 +11,7 @@ def classify_cob(can_id: int) -> Tuple[str, Optional[int], str]:
     """Return (kind, node_id|None, short label) for a CAN identifier.
 
     kind is one of: NMT, SYNC, TIME, EMCY, TPDO1..4, RPDO1..4,
-    TSDO, RSDO, HB, UNKNOWN.
+    TSDO, RSDO, HB, LSS_M, LSS_S, UNKNOWN.
     """
     cid = int(can_id) & 0x7FF
 
@@ -21,6 +21,11 @@ def classify_cob(can_id: int) -> Tuple[str, Optional[int], str]:
         return ("SYNC", None, "SYNC")
     if cid == 0x100:
         return ("TIME", None, "TIME")
+    # CiA 305 LSS
+    if cid == 0x7E5:
+        return ("LSS_M", None, "LSS master")
+    if cid == 0x7E4:
+        return ("LSS_S", None, "LSS slave")
 
     if 0x081 <= cid <= 0x0FF:
         node = cid - 0x080

@@ -2448,20 +2448,24 @@ FrameRow *ExtensionsPanel::makeRow(const MarketEntryData &e)
     lay->setSpacing(4);
     row->setFixedHeight(22);
 
-    // Icon: local installed plugin first, then market icon, else letter avatar
+    // Icon: local package SVG first (matches marketplace), else market asset,
+    // else letter avatar. Never overwrite a good local SVG with a failed fetch.
     auto *icon = new QLabel;
     icon->setFixedSize(16, 16);
     icon->setAlignment(Qt::AlignCenter);
     row->iconLabel = icon;
-    // Letter badge first (instant), then replace with real SVG when ready
-    icon->setPixmap(PluginUi::pluginIconPixmap(QString(), e.title, 16));
+    bool haveReal = false;
     if (e.item.kind == MarketItem::InstalledPlugin) {
         const QPixmap local = MarketModel::pluginIconLocal(e.item.id);
-        if (!local.isNull())
+        if (!local.isNull()) {
             icon->setPixmap(local.scaled(16, 16, Qt::KeepAspectRatio,
                                          Qt::SmoothTransformation));
+            haveReal = true;
+        }
     }
-    if (!e.marketIcon.isEmpty()) {
+    if (!haveReal)
+        icon->setPixmap(PluginUi::pluginIconPixmap(QString(), e.title, 16));
+    if (!haveReal && !e.marketIcon.isEmpty()) {
         QPointer<QLabel> g(icon);
         MarketModel::fetchMarketPixmap(
             MarketIndex::instance()->resolveUrl(e.marketIcon),

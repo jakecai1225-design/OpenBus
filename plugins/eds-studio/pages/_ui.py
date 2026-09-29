@@ -12,7 +12,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QPushButton,
-    QSpinBox,
     QTreeWidget,
 )
 
@@ -69,15 +68,19 @@ def combo(items, tip: str) -> QComboBox:
     return box
 
 
-def spin_hex(lo, hi, value, tip) -> QSpinBox:
-    box = QSpinBox()
-    box.setObjectName("SuiteSpin")
-    box.setRange(lo, hi)
-    box.setDisplayIntegerBase(16)
-    box.setPrefix("0x")
-    box.setValue(value)
-    box.setFixedHeight(28)
+def spin_hex(lo, hi, value, tip):
+    from _shared.widgets import StepSpin
+    box = StepSpin(
+        value, minimum=lo, maximum=hi, hex_mode=True, width=140)
     box.setToolTip(tip)
+    return box
+
+
+def spin(lo, hi, value, tip="", width=100):
+    from _shared.widgets import StepSpin
+    box = StepSpin(value, minimum=lo, maximum=hi, width=width)
+    if tip:
+        box.setToolTip(tip)
     return box
 
 

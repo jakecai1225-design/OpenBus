@@ -8,13 +8,9 @@ from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
-    QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
-    QListWidget,
     QListWidgetItem,
-    QPushButton,
     QSplitter,
     QTreeWidget,
     QTreeWidgetItem,
@@ -23,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from _shared import plugin_shell
+from pages import _ui, interop
 from _shared.canopen_profiles import (
     PROFILE_CATALOG,
     catalog_by_category,
@@ -40,57 +37,37 @@ def build(parent, session, log_fn) -> QWidget:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
 
-    tools = QHBoxLayout()
-    tools.setContentsMargins(8, 6, 8, 4)
     search = QLineEdit()
-    search.setPlaceholderText("Filter index or name")
-    search.setFixedHeight(28)
-    search.setMaximumWidth(180)
+    search.setPlaceholderText("Filter index or name…")
+    search.setClearButtonEnabled(True)
+    search.setFixedHeight(_ui.CTRL_H)
     search.setToolTip("Filter the active profile list")
     scope = QComboBox()
-    scope.addItems(["All objects", "Missing only", "Already in draft"])
-    scope.setFixedHeight(28)
+    scope.addItems(["All", "Missing", "In draft"])
+    scope.setFixedHeight(_ui.CTRL_H)
+    scope.setMaximumWidth(100)
     scope.setToolTip("Compare against the EDS draft")
     mode = QComboBox()
-    mode.addItems(["Overwrite existing", "Skip existing"])
-    mode.setFixedHeight(28)
+    mode.addItems(["Overwrite", "Skip existing"])
+    mode.setFixedHeight(_ui.CTRL_H)
+    mode.setMaximumWidth(110)
     mode.setToolTip("When an index already exists in the draft")
     count = QLabel("0")
     count.setObjectName("SuiteCount")
-    insert = QPushButton("Insert")
-    insert.setObjectName("PrimaryButton")
-    insert.setFixedHeight(28)
-    insert.setCursor(Qt.CursorShape.PointingHandCursor)
-    insert.setToolTip("Merge selected objects into the EDS draft")
-    insert_miss = QPushButton("Insert missing")
-    insert_miss.setObjectName("GhostButton")
-    insert_miss.setFixedHeight(28)
-    insert_miss.setCursor(Qt.CursorShape.PointingHandCursor)
-    insert_all = QPushButton("Insert list")
-    insert_all.setObjectName("GhostButton")
-    insert_all.setFixedHeight(28)
-    insert_all.setCursor(Qt.CursorShape.PointingHandCursor)
-    goto = QPushButton("EDS")
-    goto.setObjectName("GhostButton")
-    goto.setFixedHeight(28)
-    goto.setCursor(Qt.CursorShape.PointingHandCursor)
-    goto.setToolTip("Open the EDS Dictionary")
-    tools.addWidget(search)
-    tools.addWidget(scope)
-    tools.addWidget(mode)
-    tools.addWidget(count)
-    tools.addStretch(1)
-    tools.addWidget(insert_miss)
-    tools.addWidget(insert)
-    tools.addWidget(insert_all)
-    tools.addWidget(goto)
-    layout.addLayout(tools)
+    count.setFixedHeight(_ui.CTRL_H)
+    count.setAlignment(
+        Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+    insert = _ui.primary_btn(
+        "Insert", "Merge selected objects into the EDS draft", "add")
+    insert.setMaximumWidth(96)
+    insert_miss = _ui.ghost_btn(
+        "Missing", "Insert all objects not yet in the draft", "checklist")
 
     split = QSplitter(Qt.Orientation.Horizontal)
-    split.setHandleWidth(1)
-    cat_list = QListWidget()
-    cat_list.setMinimumWidth(200)
-    cat_list.setMaximumWidth(280)
+    cat_list = interop.ProfileCatalogList()
+    cat_list.setMinimumWidth(_ui.PANE_MIN_PROP)
+    cat_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    _ui.style_list(cat_list)
     for category, rows in catalog_by_category().items():
         header = QListWidgetItem("— %s —" % category)
         header.setFlags(Qt.ItemFlag.NoItemFlags)
@@ -100,27 +77,37 @@ def build(parent, session, log_fn) -> QWidget:
             short = title.replace("Pack — ", "") if kind == "pack" else title
             item = QListWidgetItem(short)
             item.setData(Qt.ItemDataRole.UserRole, pid)
-            item.setToolTip(blurb)
+            item.setToolTip(blurb + "\nDrag onto EDS Dictionary to insert")
             cat_list.addItem(item)
     split.addWidget(cat_list)
 
     right = QWidget()
     rl = QVBoxLayout(right)
-    rl.setContentsMargins(8, 4, 8, 8)
-    blurb = QLabel("")
-    blurb.setWordWrap(True)
-    blurb.setObjectName("SuiteQuiet")
+    rl.setContentsMargins(0, 0, 0, 0)
+    rl.setSpacing(0)
+    rl.addWidget(_ui.inline_filter(
+        search, scope, mode, count, insert_miss, insert))
     tree = QTreeWidget()
     tree.setHeaderLabels(["Status", "Index", "Name", "Access", "Default"])
+    _ui.style_tree(tree, header_hidden=False)
     tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
     tree.setAlternatingRowColors(True)
     tree.setRootIsDecorated(False)
-    tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-    rl.addWidget(blurb)
+    _ui.configure_columns(
+        tree, stretch=2,
+        mins={0: 72, 1: 72, 2: 120, 3: 56, 4: 64})
     rl.addWidget(tree, 1)
+    next_open = _ui.ghost_btn(
+        "Open Objects", "Open the EDS Dictionary", "eds")
+    next_map = _ui.primary_btn(
+        "Map in PDO", "Open PDO map after insert", "flow")
+    next_bar = _ui.next_step_bar(
+        "Inserted — continue:", next_open, next_map)
+    next_bar.setVisible(False)
+    rl.addWidget(next_bar)
     split.addWidget(right)
-    split.setStretchFactor(0, 2)
-    split.setStretchFactor(1, 5)
+    # Catalog (secondary) | profile matrix (primary) → golden minor : major
+    _ui.configure_splitter(split, golden=True, master_left=False)
     layout.addWidget(split, 1)
 
     state = {"pid": "301"}
@@ -141,7 +128,7 @@ def build(parent, session, log_fn) -> QWidget:
     def refresh():
         pid = state["pid"] or "301"
         meta = catalog_entry(pid)
-        blurb.setText(meta[4] if meta else "")
+        tree.setToolTip(meta[4] if meta else "")
         tree.clear()
         rows = search_profile(search.text(), pid)
         have = _draft_keys()
@@ -166,6 +153,7 @@ def build(parent, session, log_fn) -> QWidget:
             tree.addTopLevelItem(item)
             shown += 1
         count.setText("%d · %d miss" % (shown, miss))
+        _ui.fit_columns(tree, stretch=2)
 
     def _on_catalog():
         item = cat_list.currentItem()
@@ -193,30 +181,95 @@ def build(parent, session, log_fn) -> QWidget:
                 out.append(e)
         return out
 
+    def _ensure_draft() -> bool:
+        if session.draft_entries:
+            return True
+        from PyQt6.QtWidgets import QMessageBox
+        reply = QMessageBox.question(
+            parent, "No EDS draft",
+            "No EDS document is open.\nCreate one with the New EDS wizard?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes)
+        if reply == QMessageBox.StandardButton.Yes and hasattr(parent, "new_eds"):
+            parent.new_eds()
+        return bool(session.draft_entries)
+
+    def _expand_for_insert(entries):
+        """If a RECORD/ARRAY shell is selected, also insert its sub-entries."""
+        from _shared.canopen_profiles import objects_for
+        pool = objects_for(state["pid"] or "301")
+        by_idx = {}
+        for e in pool:
+            by_idx.setdefault(e.index, []).append(e)
+        out = []
+        seen = set()
+        for e in entries:
+            ot = str(getattr(e, "object_type", "") or "").lower()
+            shell = ot in ("0x8", "0x9", "array", "record") and e.subindex == 0
+            group = by_idx.get(e.index) if shell else None
+            for sib in (group or (e,)):
+                key = (sib.index, sib.subindex)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(sib)
+        return out
+
     def _do_insert(entries, overwrite=None):
         if not entries:
             plugin_shell.set_status(parent, "Select one or more rows", 2500)
             return
+        if not _ensure_draft():
+            return
         ow = _overwrite() if overwrite is None else overwrite
+        expanded = _expand_for_insert(entries)
         stats = session.set_draft_from_library(
-            entries, merge=True, overwrite=ow)
+            expanded, merge=True, overwrite=ow)
         msg = "Inserted +%d · ~%d · skip %d" % (
             stats.get("added", 0), stats.get("updated", 0),
             stats.get("skipped", 0))
         log_fn("RX", "-", b"", msg)
         plugin_shell.set_status(parent, msg, 3000)
         refresh()
+        # Focus first inserted object for carry into Objects / PDO.
+        if expanded and hasattr(session, "set_focus"):
+            e0 = expanded[0]
+            session.set_focus(e0.index, e0.subindex)
+        next_bar.setVisible(True)
+        if hasattr(parent, "goto_page"):
+            parent.goto_page("eds_dict")
+            eds = parent._pages.get("eds")
+            if eds is not None and hasattr(eds, "focus_object") and expanded:
+                e0 = expanded[0]
+                eds.focus_object(e0.index, e0.subindex)
+
+    def _use_as_new():
+        from _shared.canopen_profiles import catalog_entry
+        pid = state["pid"] or "301"
+        meta = catalog_entry(pid)
+        kind = meta[2] if meta else "profile"
+        if kind == "pack":
+            session.new_from_profile(base="301", packs=(pid,), product="New Device")
+        elif pid in ("301", "302"):
+            session.new_from_profile(base=pid, product="New Device")
+        else:
+            session.new_from_profile(
+                base="301", device=pid, packs=("Identity", "SDO server"),
+                product=meta[1] if meta else "New Device")
+        log_fn("SYS", "-", b"", "New document from profile %s" % pid)
+        if hasattr(parent, "goto_page"):
+            parent.goto_page("eds_dict")
 
     def select_view(key: str):
-        # lib_301 / lib_402 / library / lib_<id>
+        # lib_301 / lib_402 / library / profiles / lib_<id>
         pid = "301"
-        if key.startswith("lib_"):
+        if key in ("library", "profiles"):
+            pid = "301"
+        elif key.startswith("lib_"):
             pid = key[4:].replace("_", " ")
             # packs with + may be encoded
             if pid == "RPDO1 TPDO1":
                 pid = "RPDO1+TPDO1"
-        elif key == "library":
-            pid = "301"
         # Prefer exact catalog id match
         if catalog_entry(pid) is None and key.startswith("lib_"):
             raw = key[4:]
@@ -238,16 +291,65 @@ def build(parent, session, log_fn) -> QWidget:
     scope.currentIndexChanged.connect(lambda _=None: refresh())
     cat_list.currentItemChanged.connect(lambda *_: _on_catalog())
     insert.clicked.connect(lambda: _do_insert(_selected()))
-    insert_all.clicked.connect(lambda: _do_insert(_visible()))
     insert_miss.clicked.connect(
         lambda: _do_insert(
             missing_entries(state["pid"], session.draft_entries),
             overwrite=False))
-    goto.clicked.connect(
-        lambda: parent.goto_page("eds_dict")
-        if hasattr(parent, "goto_page") else None)
     tree.itemDoubleClicked.connect(
         lambda item, _c: _do_insert([item.data(0, Qt.ItemDataRole.UserRole)]))
+    next_open.clicked.connect(
+        lambda: interop.shell_action(parent, "view.eds"))
+    next_map.clicked.connect(
+        lambda: interop.shell_action(parent, "view.pdo_map"))
+
+    def _cat_menu(pos):
+        from PyQt6.QtWidgets import QMenu
+        item = cat_list.itemAt(pos)
+        menu = QMenu(cat_list)
+        pid = item.data(Qt.ItemDataRole.UserRole) if item else None
+        if pid:
+            menu.addAction(
+                "Insert into EDS",
+                lambda: interop.shell_action(
+                    parent, "profile.insert", profile_id=str(pid)))
+            menu.addAction(
+                "Insert missing only",
+                lambda: _do_insert(
+                    missing_entries(str(pid), session.draft_entries),
+                    overwrite=False))
+            menu.addAction("Open Dictionary",
+                           lambda: interop.shell_action(parent, "view.eds"))
+        else:
+            menu.addAction(
+                "Insert missing",
+                lambda: _do_insert(
+                    missing_entries(state["pid"], session.draft_entries),
+                    overwrite=False))
+            menu.addAction("Insert all visible", lambda: _do_insert(_visible()))
+            menu.addAction("Use profile as new document", _use_as_new)
+            menu.addSeparator()
+            interop.add_bridge_actions(menu, parent, include_blank=True)
+        menu.exec(cat_list.mapToGlobal(pos))
+
+    def _tree_menu(pos):
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(tree)
+        item = tree.itemAt(pos)
+        if item is None:
+            interop.add_bridge_actions(
+                menu, parent, profile_id=state.get("pid"), include_blank=True)
+        else:
+            e = item.data(0, Qt.ItemDataRole.UserRole)
+            menu.addAction("Insert selection", lambda: _do_insert(_selected()))
+            if e is not None:
+                interop.add_bridge_actions(
+                    menu, parent, index=e.index, subindex=e.subindex,
+                    profile_id=state.get("pid"))
+        menu.exec(tree.viewport().mapToGlobal(pos))
+
+    cat_list.customContextMenuRequested.connect(_cat_menu)
+    tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    tree.customContextMenuRequested.connect(_tree_menu)
 
     for i in range(cat_list.count()):
         if cat_list.item(i).data(Qt.ItemDataRole.UserRole):

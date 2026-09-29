@@ -182,6 +182,11 @@ private:
     void discoverPlugins();
     QString findPythonExecutable() const;
     QString findAppBaseDir() const;
+    /// Live source plugins/ when developing from build/bin; else exeDir/plugins.
+    QString resolvePluginsDir(const QString &baseDir) const;
+    /// Where .opk install/uninstall writes (always beside the executable).
+    QString installPluginsDir() const;
+    void scanPluginsDirectory(const QString &pluginsDir, bool skipExisting);
     void startHostIfNeeded();   ///< 无插件时跳过；安装首个插件后可补启
     void onHostStarted();       ///< 崩溃自愈：重启后重激活已激活插件（首启无操作）
 

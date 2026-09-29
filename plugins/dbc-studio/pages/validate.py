@@ -10,10 +10,8 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QFileDialog,
     QFrame,
-    QHBoxLayout,
     QHeaderView,
     QLabel,
-    QPushButton,
     QScrollArea,
     QTreeWidget,
     QTreeWidgetItem,
@@ -21,8 +19,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import codicons, plugin_shell, suite_chrome
+from _shared import plugin_shell
 from core import lint_engine
+from pages import _ui
 
 
 def build(shell, document, log_fn) -> QWidget:
@@ -31,65 +30,39 @@ def build(shell, document, log_fn) -> QWidget:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
 
-    chrome, crow = suite_chrome.make_toolbar()
-    run_btn = QPushButton("Run lint")
-    run_btn.setFixedHeight(28)
-    codicons.set_button(run_btn, "validate", primary=True)
-    save_rules_btn = QPushButton("Save rules")
-    save_rules_btn.setObjectName("GhostButton")
-    save_rules_btn.setFixedHeight(28)
-    codicons.set_button(save_rules_btn, "save")
-    crow.addWidget(run_btn)
-    crow.addWidget(save_rules_btn)
-    crow.addStretch(1)
-    for text, tip, slot_name in (
-        ("CSV", "Export findings as CSV", "csv"),
-        ("JSON", "Export findings as JSON", "json"),
-        ("SARIF", "Export SARIF for CI", "sarif"),
-    ):
-        b = QPushButton(text)
-        b.setObjectName("GhostButton")
-        b.setFixedHeight(28)
-        b.setToolTip(tip)
-        codicons.set_button(b, "export")
-        crow.addWidget(b)
-        if slot_name == "csv":
-            export_csv_btn = b
-        elif slot_name == "json":
-            export_json_btn = b
-        else:
-            export_sarif_btn = b
-    layout.addWidget(chrome)
+    run_btn = _ui.primary_btn(
+        "Run lint",
+        "Consistency check — double-click a finding to jump to Messages",
+        "validate")
+    save_rules_btn = _ui.ghost_btn("Save rules", "Persist rule enable flags", "save")
+    export_csv_btn = _ui.ghost_btn("CSV", "Export findings as CSV", "export")
+    export_json_btn = _ui.ghost_btn("JSON", "Export findings as JSON", "export")
+    export_sarif_btn = _ui.ghost_btn("SARIF", "Export SARIF for CI", "export")
+    layout.addWidget(_ui.tool_strip(
+        run_btn, save_rules_btn,
+        export_csv_btn, export_json_btn, export_sarif_btn, stretch_at=2))
 
     body = QWidget()
     body.setObjectName("SuiteContent")
     bl = QVBoxLayout(body)
-    suite_chrome.page_margins(bl)
-    bl.setSpacing(10)
-
-    hint = QLabel(
-        "Consistency check — double-click a finding to jump to Editor "
-        "(same job as CANdb++, with CSV / JSON / SARIF for CI).")
-    hint.setWordWrap(True)
-    hint.setStyleSheet("color:#78909c;font-size:12px;")
-    bl.addWidget(hint)
+    bl.setContentsMargins(0, 0, 0, 0)
+    bl.setSpacing(0)
 
     rules = lint_engine.load_rules()
     rule_checks = {}
-    rules_head = QLabel("Rules")
-    rules_head.setObjectName("SuiteSectionTitle")
-    bl.addWidget(rules_head)
+    bl.addWidget(_ui.panel_header("Rules"))
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
     scroll.setMaximumHeight(120)
     scroll.setFrameShape(QFrame.Shape.NoFrame)
     inner = QWidget()
     inner_l = QVBoxLayout(inner)
-    inner_l.setContentsMargins(0, 0, 0, 0)
+    inner_l.setContentsMargins(_ui.PAD_X, 4, _ui.PAD_X, 4)
     inner_l.setSpacing(4)
     for rid, cfg in rules.items():
         cb = QCheckBox("%s — %s" % (rid, cfg.get("title", rid)))
         cb.setChecked(bool(cfg.get("enabled", True)))
+        cb.setToolTip(cfg.get("description", ""))
         rule_checks[rid] = cb
         inner_l.addWidget(cb)
     inner_l.addStretch()
@@ -97,21 +70,27 @@ def build(shell, document, log_fn) -> QWidget:
     bl.addWidget(scroll)
 
     summary = QLabel("Run lint on the current document")
-    summary.setStyleSheet("color:#90A4AE;font-size:11px;")
+    summary.setObjectName("SuiteCount")
+    summary.setContentsMargins(_ui.PAD_X, 2, _ui.PAD_X, 2)
     bl.addWidget(summary)
 
+    save_next = _ui.primary_btn(
+        "Save", "Save the DBC after a clean lint", "save")
+    export_next = _ui.ghost_btn(
+        "Export…", "Open Export / codegen", "export")
+    next_bar = _ui.next_step_bar(
+        "Lint clean — next:", save_next, export_next)
+    next_bar.setVisible(False)
+    bl.addWidget(next_bar)
+
     tree = QTreeWidget()
-    tree.setObjectName("SuiteMatrix")
     tree.setHeaderLabels(["Severity", "Rule", "Location", "Message"])
     tree.setRootIsDecorated(False)
     tree.setAlternatingRowColors(True)
     tree.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-    tree.header().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-    tree.setStyleSheet(
-        "QTreeWidget#SuiteMatrix { border: 1px solid #EEEEEE; }"
-        "QTreeWidget#SuiteMatrix::item:selected {"
-        " background: #E3F2FD; color: #0D47A1; }"
-    )
+    tree.setToolTip("Double-click a finding to open Messages")
+    _ui.style_tree(tree, header_hidden=False)
+    _ui.configure_columns(tree, stretch=3)
     bl.addWidget(tree, 1)
     layout.addWidget(body, 1)
 
@@ -153,6 +132,10 @@ def build(shell, document, log_fn) -> QWidget:
         summary.setText(
             "%d findings · %d errors · %d warnings · %d info"
             % (len(findings_cache), n_err, n_warn, n_info))
+        document.mark_validated(n_err == 0, error_count=n_err)
+        next_bar.setVisible(n_err == 0)
+        if hasattr(shell, "_sync_next_hint"):
+            shell._sync_next_hint()
         log_fn("Validate", "Lint: %d findings" % len(findings_cache))
         plugin_shell.set_status(shell, summary.text(), 4000)
 
@@ -204,8 +187,14 @@ def build(shell, document, log_fn) -> QWidget:
     export_json_btn.clicked.connect(_export_json)
     export_sarif_btn.clicked.connect(_export_sarif)
     tree.itemDoubleClicked.connect(_on_dbl)
+    save_next.clicked.connect(
+        lambda: shell.run_action("dbc.save")
+        if hasattr(shell, "run_action") else None)
+    export_next.clicked.connect(
+        lambda: shell.run_action("view.export")
+        if hasattr(shell, "run_action") else shell.goto_page("export"))
     document.on_changed(lambda: summary.setText(
         "Document changed — re-run lint (%s)" % document.display_name()))
 
-    root.run_lint = _on_run
+    root.run_lint = _on_run  # type: ignore[attr-defined]
     return root

@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-"""AppShell — DBC Studio (VS Code workbench chrome).
+"""AppShell — DBC Studio (four pillars + File menu + Context Next).
 
-Layout:
-  Activity bar | [page title + document actions + layout toggles]
-               | editor body
-               | OUTPUT (collapsible)
+Activities: Edit / Analyze / Integrate / Deliver.
+DBC files live under File; chrome row shows the leaf title only.
 """
 
 from __future__ import annotations
@@ -14,42 +12,82 @@ import time
 from typing import Optional
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QFontMetrics
+from PyQt6.QtGui import QColor, QFontMetrics, QKeySequence
 from PyQt6.QtWidgets import (
     QCheckBox,
     QFileDialog,
-    QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMenuBar,
     QMessageBox,
-    QPushButton,
-    QSizePolicy,
+    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QWidget,
 )
 
 from _shared import (
-    codicons, dbc_picker, plugin_shell, state_store, suite_chrome, vscode_theme,
+    codicons, dbc_picker, plugin_shell, state_store, suite_chrome,
 )
-
 from document import DbcDocument
+from pages import _ui
 
 PLUGIN_ID = "dbc-studio"
 MAX_RECENT = 12
 
 NAV_PAGES = [
-    ("editor", "Editor"),
-    ("matrix", "Matrix"),
-    ("valuetables", "Value Tables"),
-    ("attributes", "Attributes"),
-    ("validate", "Validate"),
-    ("timing", "Timing"),
-    ("compare", "Compare"),
-    ("merge", "Merge"),
-    ("export", "Export"),
-    ("library", "Library"),
+    ("edit", "Edit"),
+    ("analyze", "Analyze"),
+    ("integrate", "Integrate"),
+    ("deliver", "Deliver"),
 ]
+
+FEATURE_ROUTE = {
+    "editor": ("edit", 0),
+    "valuetables": ("edit", 1),
+    "attributes": ("edit", 2),
+    "matrix": ("analyze", 0),
+    "timing": ("analyze", 1),
+    "validate": ("analyze", 2),
+    "compare": ("integrate", 0),
+    "merge": ("integrate", 1),
+    "export": ("deliver", 0),
+    "library": ("deliver", 1),
+    # Activity keys → default leaf
+    "edit": ("edit", 0),
+    "analyze": ("analyze", 0),
+    "integrate": ("integrate", 0),
+    "deliver": ("deliver", 0),
+}
+
+FEATURE_TITLES = {
+    "editor": "Messages",
+    "valuetables": "Value tables",
+    "attributes": "Attributes",
+    "matrix": "Matrix",
+    "timing": "Timing",
+    "validate": "Validate",
+    "compare": "Compare",
+    "merge": "Merge",
+    "export": "Export",
+    "library": "Library",
+}
+
+_WORKSPACE_DEFAULT = {
+    "edit": "editor",
+    "analyze": "matrix",
+    "integrate": "compare",
+    "deliver": "export",
+}
+
+_PAGE_ALIASES = {
+    "value_tables": "valuetables",
+    "value-tables": "valuetables",
+    "attr": "attributes",
+    "lint": "validate",
+    "diff": "compare",
+    "codegen": "export",
+}
 
 
 class AppShell(QMainWindow):
@@ -62,47 +100,80 @@ class AppShell(QMainWindow):
         self._context = context
         self.document = DbcDocument()
         self._log_buffer: list = []
-        self._page_index = {key: i for i, (key, _) in enumerate(NAV_PAGES)}
         self._recent: list = []
         self._favorites: list = []
         self._pages = {}
-        self._editor_api = None
+        self._workspace_stacks: dict = {}
+        self._workspace_features: dict = {}
+        self._workspace_stack_index: dict[str, int] = {}
+        self._sidebars: dict = {}
+        self._active_feature = "editor"
         self._lint_before_save = True
-        self._chrome_host: Optional[QWidget] = None
+        self._next_action = ("", "", {})
+        self._status_chrome_mounted = False
+
+        try:
+            codicons.clear_pixmap_cache()
+        except Exception:
+            pass
+
+        _ui.apply_dbc_chrome(self)
+        plugin_shell.attach_status_bar(self, "Ready")
+        plugin_shell.wire_close_deactivates(self, PLUGIN_ID)
 
         self._wb = suite_chrome.build_workbench(
             self, NAV_PAGES, title="DBC Studio", panel_title="OUTPUT",
-            panel_visible=False, sidebar_visible=True)
+            panel_visible=False, sidebar_visible=True,
+            side_bar_enabled=True, side_bar_visible=True, lock_activity=True,
+            side_bar_width=220)
         self.stack = self._wb.stack
 
         self._init_document_controls()
+        self._build_menubar()
         self._build_output_panel()
-
-        plugin_shell.wire_close_deactivates(self, PLUGIN_ID)
 
         from pages import (
             attributes, compare, editor, export, library, matrix, merge,
-            timing, validate, value_tables,
+            timing, validate, value_tables, workspace_sidebar,
         )
 
-        builders = [
-            ("editor", editor.build),
-            ("matrix", matrix.build),
-            ("valuetables", value_tables.build),
-            ("attributes", attributes.build),
-            ("validate", validate.build),
-            ("timing", timing.build),
-            ("compare", compare.build),
-            ("merge", merge.build),
-            ("export", export.build),
-            ("library", library.build),
-        ]
-        for key, builder in builders:
-            w = builder(self, self.document, self.log)
-            self._pages[key] = w
-            self.stack.addWidget(w)
-            if key == "editor" and hasattr(w, "select_target"):
-                self._editor_api = w
+        self._pages["editor"] = editor.build(self, self.document, self.log)
+        self._pages["valuetables"] = value_tables.build(
+            self, self.document, self.log)
+        self._pages["attributes"] = attributes.build(
+            self, self.document, self.log)
+        self._pages["matrix"] = matrix.build(self, self.document, self.log)
+        self._pages["timing"] = timing.build(self, self.document, self.log)
+        self._pages["validate"] = validate.build(self, self.document, self.log)
+        self._pages["compare"] = compare.build(self, self.document, self.log)
+        self._pages["merge"] = merge.build(self, self.document, self.log)
+        self._pages["export"] = export.build(self, self.document, self.log)
+        self._pages["library"] = library.build(self, self.document, self.log)
+
+        self._sidebars["edit"] = workspace_sidebar.build_edit_sidebar(self)
+        self._sidebars["analyze"] = workspace_sidebar.build_analyze_sidebar(self)
+        self._sidebars["integrate"] = workspace_sidebar.build_integrate_sidebar(
+            self)
+        self._sidebars["deliver"] = workspace_sidebar.build_deliver_sidebar(self)
+
+        self._add_workspace("edit", [
+            ("editor", self._pages["editor"]),
+            ("valuetables", self._pages["valuetables"]),
+            ("attributes", self._pages["attributes"]),
+        ])
+        self._add_workspace("analyze", [
+            ("matrix", self._pages["matrix"]),
+            ("timing", self._pages["timing"]),
+            ("validate", self._pages["validate"]),
+        ])
+        self._add_workspace("integrate", [
+            ("compare", self._pages["compare"]),
+            ("merge", self._pages["merge"]),
+        ])
+        self._add_workspace("deliver", [
+            ("export", self._pages["export"]),
+            ("library", self._pages["library"]),
+        ])
 
         self.document.on_changed(self._on_document_changed)
 
@@ -112,9 +183,20 @@ class AppShell(QMainWindow):
         page = start_page or goto.get("start_page") or saved.get("nav_page")
         if goto:
             state_store.clear_state(PLUGIN_ID, "goto.json")
-        self.goto_page(page or "editor")
+        page = _PAGE_ALIASES.get(page or "", page or "editor")
+        if page in dict(NAV_PAGES):
+            page = _WORKSPACE_DEFAULT.get(page, "editor")
+        if page not in FEATURE_ROUTE:
+            page = "editor"
+        activity = FEATURE_ROUTE[page][0]
+        self._switch_activity(activity)
+        self.goto_page(page)
 
-        suite_chrome.bind_nav_shortcuts(self, NAV_PAGES, self.goto_page)
+        self._wb.set_sidebar_visible(True)
+        self._wb.set_panel_visible(False)
+
+        suite_chrome.bind_nav_shortcuts(
+            self, NAV_PAGES, self._on_activity_clicked)
         plugin_shell.bind_shortcut(
             self, "Ctrl+J",
             lambda: self._wb.set_panel_visible(not self._wb.is_panel_visible()))
@@ -125,57 +207,45 @@ class AppShell(QMainWindow):
         plugin_shell.bind_shortcut(
             self, "Ctrl+Shift+E",
             lambda: self._wb.set_maximized(not self._wb.is_maximized()))
-        plugin_shell.bind_shortcut(self, "Ctrl+O", self.open_dbc)
-        plugin_shell.bind_shortcut(self, "Ctrl+S", self.save_dbc)
-        plugin_shell.bind_shortcut(self, "Ctrl+Shift+S", self.save_dbc_as)
-        plugin_shell.bind_shortcut(self, "Ctrl+N", self.new_dbc)
+        plugin_shell.bind_shortcut(
+            self, "Ctrl+O", lambda: self.run_action("dbc.open"))
+        plugin_shell.bind_shortcut(
+            self, "Ctrl+S", lambda: self.run_action("dbc.save"))
+        plugin_shell.bind_shortcut(
+            self, "Ctrl+Shift+S", lambda: self.run_action("dbc.save_as"))
+        plugin_shell.bind_shortcut(
+            self, "Ctrl+N", lambda: self.run_action("dbc.new"))
         plugin_shell.bind_shortcut(self, "Ctrl+Z", self.undo_edit)
         plugin_shell.bind_shortcut(self, "Ctrl+Y", self.redo_edit)
         plugin_shell.bind_shortcut(self, "Ctrl+Shift+Z", self.redo_edit)
 
         self.log("SYS", "DBC Studio ready")
         self._on_document_changed()
+        self._ensure_status_chrome()
+        self._sync_next_hint()
 
     # ------------------------------------------------------------------
     def _init_document_controls(self):
-        """Shared chrome pieces — remounted into the single editor chrome row."""
         self.path_label = QLabel("(unsaved)")
         self.path_label.setObjectName("SuiteDocPath")
-        self.path_label.setMinimumWidth(120)
-        self.path_label.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self.path_label.setStyleSheet(
-            "color:#546E7A;font-size:12px;padding:0 4px;")
+        self.path_label.setMinimumWidth(80)
+        self.path_label.setMaximumWidth(220)
         self.path_label.setToolTip("Active DBC path")
 
         self.dirty_label = QLabel("")
-        self.dirty_label.setStyleSheet(
-            "color:#C62828;font-size:11px;font-weight:600;padding:0 4px;")
+        self.dirty_label.setObjectName("SuiteDirtyDot")
+        self.dirty_label.setToolTip("Unsaved changes")
 
         self._doc_btns = []
-        specs = (
-            ("", "Undo (Ctrl+Z)", "undo", self.undo_edit, False),
-            ("", "Redo (Ctrl+Y)", "redo", self.redo_edit, False),
-            ("", "Open DBC (Ctrl+O)", "browse", self.open_dbc, False),
-            ("Save", "Save (Ctrl+S)", "save", self.save_dbc, True),
-            ("", "Save As (Ctrl+Shift+S)", "file", self.save_dbc_as, False),
-            ("", "New document (Ctrl+N)", "add", self.new_dbc, False),
-            ("", "Reload from disk", "refresh", self.reload_dbc, False),
-            ("", "Open from workspace", "database", self.open_workspace_dbc, False),
-        )
-        for text, tip, icon, slot, primary in specs:
-            btn = QPushButton(text)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setToolTip(tip)
-            if text:
-                btn.setFixedHeight(26)
-            else:
-                btn.setFixedSize(28, 26)
-            if not primary:
-                btn.setObjectName("GhostButton")
-            codicons.set_button(btn, icon, size=12, primary=primary)
-            btn.clicked.connect(slot)
-            self._doc_btns.append(btn)
+        save_btn = _ui.icon_tool("save", "Save DBC (Ctrl+S)")
+        save_btn.clicked.connect(lambda: self.run_action("dbc.save"))
+        self._doc_btns.append(save_btn)
+
+        self.next_btn = _ui.ghost_btn(
+            "Next", "Suggested next step", "arrow-right")
+        self.next_btn.setMaximumWidth(128)
+        self.next_btn.clicked.connect(self._run_next_hint)
+        self._doc_btns.append(self.next_btn)
 
         self.lint_gate_cb = QCheckBox("Lint on save")
         self.lint_gate_cb.setChecked(True)
@@ -183,84 +253,274 @@ class AppShell(QMainWindow):
             "Ask before saving when lint reports errors")
         self.lint_gate_cb.toggled.connect(self._on_lint_gate_toggled)
 
-    def _mount_chrome(self, page_key: str):
-        host = QWidget()
-        host.setObjectName("SuiteEditorTabHost")
-        row = QHBoxLayout(host)
-        row.setContentsMargins(10, 0, 6, 0)
-        row.setSpacing(6)
+    def _ensure_status_chrome(self):
+        bar = self.statusBar()
+        if bar is None:
+            return
+        widgets = (self.dirty_label, self.path_label, *self._doc_btns)
+        if self._status_chrome_mounted:
+            for w in widgets:
+                if w.parent() is not bar:
+                    bar.addPermanentWidget(w)
+            return
+        self._status_chrome_mounted = True
+        for w in widgets:
+            w.setParent(bar)
+            bar.addPermanentWidget(w)
 
-        title = QLabel(dict(NAV_PAGES).get(page_key, page_key))
-        title.setObjectName("SuiteEditorTitle")
-        row.addWidget(title)
+    def _mount_chrome(self, feature: str):
+        title = FEATURE_TITLES.get(feature, feature)
+        self._wb.set_editor_title(title)
+        self._ensure_status_chrome()
 
-        row.addWidget(self.path_label, 1)
-        row.addWidget(self.dirty_label)
-        for btn in self._doc_btns:
-            row.addWidget(btn)
-        row.addWidget(self.lint_gate_cb)
-        self._chrome_host = host
-        self._wb.set_editor_tabs(host)
+    def _build_menubar(self):
+        bar = self.menuBar()
+        if bar is None:
+            bar = QMenuBar(self)
+            self.setMenuBar(bar)
+        bar.clear()
+        bar.setVisible(True)
 
-    def _on_workbench_page(self, key: str):
-        self._mount_chrome(key)
+        def _act(menu, label, slot, shortcut=None):
+            a = menu.addAction(label)
+            a.triggered.connect(slot)
+            if shortcut:
+                a.setShortcut(QKeySequence(shortcut))
+            return a
+
+        m_file = bar.addMenu("&File")
+        _act(m_file, "&New DBC…",
+             lambda: self.run_action("dbc.new"), "Ctrl+N")
+        _act(m_file, "&Open DBC…",
+             lambda: self.run_action("dbc.open"), "Ctrl+O")
+        _act(m_file, "Open from &Workspace…",
+             lambda: self.run_action("dbc.open_workspace"))
+        _act(m_file, "&Save",
+             lambda: self.run_action("dbc.save"), "Ctrl+S")
+        _act(m_file, "Save &As…",
+             lambda: self.run_action("dbc.save_as"), "Ctrl+Shift+S")
+        _act(m_file, "&Reload",
+             lambda: self.run_action("dbc.reload"))
+        self._recent_menu = m_file.addMenu("Recent &DBCs")
+        self._fill_recent_menu()
+        m_file.addSeparator()
+        _act(m_file, "E&xit", self.close)
+
+        m_edit = bar.addMenu("&Edit")
+        _act(m_edit, "&Undo", self.undo_edit, "Ctrl+Z")
+        _act(m_edit, "&Redo", self.redo_edit, "Ctrl+Y")
+        m_edit.addSeparator()
+        act_lint = m_edit.addAction("Lint on &save")
+        act_lint.setCheckable(True)
+        act_lint.setChecked(self._lint_before_save)
+        act_lint.toggled.connect(self._on_lint_gate_toggled)
+        self._lint_menu_act = act_lint
+
+        m_view = bar.addMenu("&View")
+        for key, title in NAV_PAGES:
+            _act(m_view, title,
+                 lambda _c=False, k=key: self._on_activity_clicked(k))
+        m_view.addSeparator()
+        for feat, title in (
+                ("editor", "&Messages"),
+                ("validate", "&Validate"),
+                ("export", "&Export"),
+                ("library", "&Library")):
+            _act(m_view, title, lambda _c=False, f=feat: self.goto_page(f))
+        m_view.addSeparator()
+        _act(m_view, "Toggle &Side Bar",
+             lambda: self._wb.set_sidebar_visible(
+                 not self._wb.is_sidebar_visible()), "Ctrl+B")
+        _act(m_view, "Toggle &OUTPUT",
+             lambda: self._wb.set_panel_visible(
+                 not self._wb.is_panel_visible()), "Ctrl+J")
+
+        m_help = bar.addMenu("&Help")
+        _act(m_help, "&About DBC Studio", self._menu_about)
+
+    def _fill_recent_menu(self):
+        menu = getattr(self, "_recent_menu", None)
+        if menu is None:
+            return
+        menu.clear()
+        shown = 0
+        for path in self._recent:
+            if not path or not os.path.isfile(path):
+                continue
+            a = menu.addAction(os.path.basename(path))
+            a.setToolTip(path)
+            a.triggered.connect(
+                lambda _c=False, p=path: self._load_path(p))
+            shown += 1
+        if not shown:
+            a = menu.addAction("(empty)")
+            a.setEnabled(False)
+
+    def _menu_about(self):
+        QMessageBox.information(
+            self, "DBC Studio",
+            "DBC Studio — Edit / Analyze / Integrate / Deliver\n"
+            "CANdb++-style workbench inside OpenBus.")
+
+    def run_action(self, name: str, **kw):
+        handlers = {
+            "dbc.new": self.new_dbc,
+            "dbc.open": self.open_dbc,
+            "dbc.open_workspace": self.open_workspace_dbc,
+            "dbc.save": self.save_dbc,
+            "dbc.save_as": self.save_dbc_as,
+            "dbc.reload": self.reload_dbc,
+            "view.editor": lambda: self.goto_page("editor"),
+            "view.validate": lambda: self.goto_page("validate"),
+            "view.export": lambda: self.goto_page("export"),
+            "view.library": lambda: self.goto_page("library"),
+            "view.matrix": lambda: self.goto_page("matrix"),
+            "editor.focus": lambda: self.goto_editor_target(
+                kw.get("can_id"), kw.get("signal")),
+        }
+        fn = handlers.get(name)
+        if fn is None:
+            plugin_shell.set_status(self, "Unknown action: %s" % name, 2000)
+            return
+        fn()
+
+    def _run_next_hint(self):
+        label, action, kw = self._next_action
+        if not action:
+            return
+        self.run_action(action, **(kw or {}))
+        if action in ("view.export", "view.library", "view.validate"):
+            if action != "view.validate":
+                self.document.advance_next_hint()
+        self._sync_next_hint()
+        plugin_shell.set_status(self, label or action, 2000)
+
+    def _sync_next_hint(self):
+        btn = getattr(self, "next_btn", None)
+        if btn is None:
+            return
+        label, action, kw = self.document.next_hint()
+        self._next_action = (label, action, kw or {})
+        btn.setText(label or "Next")
+        btn.setEnabled(bool(action))
+        btn.setToolTip("Next: %s" % (label or "(none)"))
+
+    # ------------------------------------------------------------------
+    def _add_workspace(
+            self, workspace: str,
+            features: list[tuple[str, QWidget]]) -> None:
+        self._workspace_stack_index[workspace] = self.stack.count()
+        self.stack.addWidget(self._build_feature_workspace(workspace, features))
+
+    def _build_feature_workspace(
+            self, workspace: str,
+            features: list[tuple[str, QWidget]]) -> QStackedWidget:
+        stack = QStackedWidget()
+        stack.setObjectName("SuiteEditorStack")
+        fmap = {}
+        for i, (key, page) in enumerate(features):
+            stack.addWidget(page)
+            fmap[key] = i
+        self._workspace_stacks[workspace] = stack
+        self._workspace_features[workspace] = [k for k, _ in features]
+        stack._feature_index = fmap  # type: ignore[attr-defined]
+
+        def apply(key: str):
+            idx = fmap.get(key, 0)
+            stack.setCurrentIndex(idx)
+
+        stack._apply_feature = apply  # type: ignore[attr-defined]
+        return stack
+
+    def _switch_activity(self, key: str):
+        if key not in dict(NAV_PAGES):
+            return
+        wi = self._workspace_stack_index.get(key)
+        if wi is not None:
+            self.stack.setCurrentIndex(wi)
+        sb = self._sidebars.get(key)
+        if sb is not None and self._wb.set_side_bar_widget:
+            self._wb.set_side_bar_widget(sb)
         try:
-            from _shared import activity_snapshot
-            activity_snapshot.update(
-                active_plugin="dbc-studio", active_page=key)
+            self._wb.highlight_activity(key)
         except Exception:
             pass
 
+    def _on_activity_clicked(self, key: str):
+        self._switch_activity(key)
+        default = _WORKSPACE_DEFAULT.get(key, "editor")
+        self.goto_page(default)
+
+    def _activate_feature(self, feature: str):
+        route = FEATURE_ROUTE.get(feature)
+        if not route:
+            return
+        workspace, _ = route
+        self._active_feature = feature
+        wi = self._workspace_stack_index.get(workspace)
+        if wi is not None and self.stack.currentIndex() != wi:
+            self.stack.setCurrentIndex(wi)
+        outer = self._workspace_stacks.get(workspace)
+        if outer is not None:
+            apply = getattr(outer, "_apply_feature", None)
+            if callable(apply):
+                apply(feature)
+            else:
+                idx = getattr(outer, "_feature_index", {}).get(feature, 0)
+                outer.setCurrentIndex(idx)
+        self._mount_chrome(feature)
+        sb = self._sidebars.get(workspace)
+        if sb is not None and hasattr(sb, "select_section"):
+            try:
+                sb.select_section(feature)
+            except Exception:
+                pass
+        try:
+            self._wb.highlight_activity(workspace)
+        except Exception:
+            pass
+
+    def goto_page(self, key: str):
+        key = _PAGE_ALIASES.get(key, key)
+        if key in dict(NAV_PAGES):
+            key = _WORKSPACE_DEFAULT.get(key, "editor")
+        if key not in FEATURE_ROUTE:
+            key = "editor"
+        self._activate_feature(key)
+        self._sync_next_hint()
+        self._persist()
+
+    def goto_editor_target(self, can_id=None, signal=None):
+        self.document.set_focus(can_id, signal or "")
+        self.goto_page("editor")
+        api = self._pages.get("editor")
+        if api is not None and hasattr(api, "select_target"):
+            api.select_target(can_id, signal)
+
+    # ------------------------------------------------------------------
     def _build_output_panel(self):
         pause = QCheckBox("Pause")
         pause.setToolTip("Hold new log lines until unchecked")
+        pause.setFixedHeight(_ui.CTRL_H)
         self.log_pause = pause
         self._wb.panel_tools.addWidget(pause)
         self._wb.panel_tools.addStretch(1)
 
-        export_btn = QPushButton("Export")
-        export_btn.setObjectName("GhostButton")
-        export_btn.setFixedHeight(22)
-        export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        export_btn.setToolTip("Export OUTPUT as CSV")
-        codicons.set_button(export_btn, "export", size=12)
-        clear_btn = QPushButton("Clear")
-        clear_btn.setObjectName("GhostButton")
-        clear_btn.setFixedHeight(22)
-        clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        clear_btn.setToolTip("Clear OUTPUT")
-        codicons.set_button(clear_btn, "clear", size=12)
+        export_btn = _ui.ghost_btn("Export", "Export OUTPUT as CSV", "export")
+        clear_btn = _ui.ghost_btn("Clear", "Clear OUTPUT", "clear")
         self._wb.panel_tools.addWidget(export_btn)
         self._wb.panel_tools.addWidget(clear_btn)
 
-        from PyQt6.QtWidgets import QAbstractItemView, QHeaderView
-        table = QTableWidget(0, 3)
-        table.setObjectName("OutputTable")
-        table.setHorizontalHeaderLabels(["Time", "Source", "Message"])
-        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        table.verticalHeader().setVisible(False)
-        table.setShowGrid(False)
-        table.setAlternatingRowColors(True)
-        table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows)
-        table.verticalHeader().setDefaultSectionSize(22)
-        hdr = table.horizontalHeader()
-        hdr.setHighlightSections(False)
-        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        table = suite_chrome.make_output_table()
         self.log_table = table
         self._wb.panel_body.addWidget(table, 1)
-
         export_btn.clicked.connect(self._export_log)
         clear_btn.clicked.connect(self.clear_log)
 
-    # ------------------------------------------------------------------
     def log(self, source: str, message: str, color: str | None = None):
-        # Always mirror to status bar — OUTPUT is collapsed by default.
         plugin_shell.set_status(
             self, "%s  %s" % (source, (message or "")[:72]), 4000)
-        if self.log_pause.isChecked():
+        if getattr(self, "log_pause", None) is not None and self.log_pause.isChecked():
             if len(self._log_buffer) < 5000:
                 self._log_buffer.append((time.time(), source, message, color))
             return
@@ -307,11 +567,10 @@ class AppShell(QMainWindow):
     def _elide_path(self, path: str) -> str:
         text = path or "(unsaved)"
         fm = QFontMetrics(self.path_label.font())
-        width = max(180, self.path_label.width() or 320)
+        width = max(120, self.path_label.width() or 200)
         if fm.horizontalAdvance(text) <= width:
             return text
         base = os.path.basename(text) if text != "(unsaved)" else text
-        # Prefer showing the filename; elide the directory from the left
         short = "…/" + base if base and base != text else text
         return fm.elidedText(short, Qt.TextElideMode.ElideLeft, width)
 
@@ -319,11 +578,12 @@ class AppShell(QMainWindow):
         label = self.document.strip_label()
         self.path_label.setText(self._elide_path(label))
         self.path_label.setToolTip(label)
-        self.dirty_label.setText("Modified" if self.document.dirty else "")
+        self.dirty_label.setText("●" if self.document.dirty else "")
         title = "DBC Studio — %s" % self.document.display_name()
         if self.document.dirty:
             title += " *"
         self.setWindowTitle(title)
+        self._sync_next_hint()
         self._persist()
 
     def _remember_path(self, path: str):
@@ -333,6 +593,7 @@ class AppShell(QMainWindow):
         self._recent = [p for p in self._recent if os.path.normpath(p) != path]
         self._recent.insert(0, path)
         self._recent = self._recent[:MAX_RECENT]
+        self._fill_recent_menu()
         self._persist()
 
     def new_dbc(self):
@@ -341,6 +602,7 @@ class AppShell(QMainWindow):
         self.document.new()
         self.log("SYS", "New empty DBC")
         plugin_shell.set_status(self, "New document", 2000)
+        self.goto_page("editor")
 
     def open_dbc(self):
         if not self._confirm_discard():
@@ -369,6 +631,7 @@ class AppShell(QMainWindow):
         n = len(self.document.db.messages)
         self.log("OK", "Opened %s (%d messages)" % (os.path.basename(path), n))
         plugin_shell.set_status(self, "Opened %s" % os.path.basename(path), 3000)
+        self.goto_page("editor")
         return True
 
     def reload_dbc(self):
@@ -399,6 +662,7 @@ class AppShell(QMainWindow):
         self.log("OK", "Saved %s" % self.document.path)
         plugin_shell.set_status(self, "Saved", 2500)
         self._notify_host_dbc(self.document.path)
+        self._sync_next_hint()
         return True
 
     def save_dbc_as(self):
@@ -422,6 +686,7 @@ class AppShell(QMainWindow):
         self.log("OK", "Saved as %s" % path)
         plugin_shell.set_status(self, "Saved as %s" % os.path.basename(path), 3000)
         self._notify_host_dbc(path)
+        self._sync_next_hint()
         return True
 
     def undo_edit(self):
@@ -439,7 +704,6 @@ class AppShell(QMainWindow):
             plugin_shell.set_status(self, "Nothing to redo", 1500)
 
     def _notify_host_dbc(self, path: str):
-        """Ask host to reload this DBC so Trace / suites see the save."""
         if not path:
             return
         try:
@@ -455,6 +719,15 @@ class AppShell(QMainWindow):
 
     def _on_lint_gate_toggled(self, checked: bool):
         self._lint_before_save = bool(checked)
+        if hasattr(self, "lint_gate_cb"):
+            self.lint_gate_cb.blockSignals(True)
+            self.lint_gate_cb.setChecked(self._lint_before_save)
+            self.lint_gate_cb.blockSignals(False)
+        act = getattr(self, "_lint_menu_act", None)
+        if act is not None:
+            act.blockSignals(True)
+            act.setChecked(self._lint_before_save)
+            act.blockSignals(False)
         self._persist()
 
     def _warn_lint_before_save(self) -> bool:
@@ -464,6 +737,7 @@ class AppShell(QMainWindow):
             from core.lint_engine import lint_dbc, load_rules
             findings = lint_dbc(self.document.db, load_rules())
             n_err = sum(1 for f in findings if f["severity"] == "error")
+            self.document.mark_validated(n_err == 0, error_count=n_err)
             if n_err <= 0:
                 return True
             box = QMessageBox(self)
@@ -499,17 +773,6 @@ class AppShell(QMainWindow):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         return ans == QMessageBox.StandardButton.Yes
 
-    def goto_editor_target(self, can_id=None, signal=None):
-        self.goto_page("editor")
-        api = self._pages.get("editor")
-        if api is not None and hasattr(api, "select_target"):
-            api.select_target(can_id, signal)
-
-    # ------------------------------------------------------------------
-    def goto_page(self, key: str):
-        self._wb.goto_page(key)
-        self._persist()
-
     def recent_files(self) -> list:
         return list(self._recent)
 
@@ -536,17 +799,17 @@ class AppShell(QMainWindow):
 
     def clear_recent(self):
         self._recent = []
+        self._fill_recent_menu()
         self._persist()
 
-    # ------------------------------------------------------------------
     def _persist(self):
         geo = self.saveGeometry().toHex().data().decode("ascii")
-        page = self._wb.current_page() if self._wb else "editor"
+        page = self._active_feature or "editor"
         state_store.save_state(PLUGIN_ID, {
             "last_path": self.document.path,
             "recent": list(self._recent),
             "favorites": list(self._favorites),
-            "nav_page": page or "editor",
+            "nav_page": page,
             "geometry_hex": geo,
             "lint_before_save": bool(self._lint_before_save),
             "sidebar": self._wb.is_sidebar_visible() if self._wb else True,
@@ -557,7 +820,8 @@ class AppShell(QMainWindow):
         if not saved:
             return
         try:
-            self._recent = [p for p in (saved.get("recent") or []) if p][:MAX_RECENT]
+            self._recent = [
+                p for p in (saved.get("recent") or []) if p][:MAX_RECENT]
             self._favorites = [
                 p for p in (saved.get("favorites") or []) if p][:24]
             geo = saved.get("geometry_hex")
@@ -579,9 +843,8 @@ class AppShell(QMainWindow):
                 self.lint_gate_cb.blockSignals(False)
             if "sidebar" in saved:
                 self._wb.set_sidebar_visible(bool(saved["sidebar"]))
-            # OUTPUT stays collapsed by default — DBC Studio is file editing,
-            # not live TX/RX. Use Ctrl+J when a log is needed.
             self._wb.set_panel_visible(False)
+            self._fill_recent_menu()
         except (TypeError, ValueError):
             pass
 
