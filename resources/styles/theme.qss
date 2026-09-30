@@ -587,3 +587,45 @@ QToolTip { background-color: @contentBg; color: @text; border: 1px solid @border
 #WinCloseBtn { background: transparent; color: @barFg; border: none; }
 #WinCloseBtn:hover { background-color: @closeBtnHover; }
 #WinCloseBtn:pressed { background-color: @closeBtnPress; }
+
+/* ---- Marketplace hero search (full 1px border; avoid fixedHeight clip) ---- */
+#MarketSearchEdit {
+    border: 1px solid @borderDim;
+    border-radius: 3px;
+    padding: 4px 10px;
+    min-height: 0;
+    background-color: @contentBg;
+    font-size: 13px;
+}
+#MarketSearchEdit:hover { border: 1px solid @border; }
+#MarketSearchEdit:focus { border: 1px solid @accent; }
+#MarketSearchBtn {
+    background-color: @buttonBg;
+    color: @text;
+    border: 1px solid @borderDim;
+    border-radius: 3px;
+    padding: 4px 16px;
+    min-height: 0;
+    font-size: 13px;
+}
+#MarketSearchBtn:hover { background-color: @buttonHover; border: 1px solid @border; }
+#MarketSearchBtn:pressed { background-color: @buttonPress; }
+
+/* ---- Marketplace detail chrome ---- */
+#MarketDetailChrome {
+    background-color: @contentBg;
+    border: none;
+    border-bottom: 1px solid @borderDim;
+}
+#MarketBackBtn {
+    background: transparent;
+    color: @accent;
+    border: none;
+    border-radius: 3px;
+    padding: 4px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 0;
+}
+#MarketBackBtn:hover { background-color: @selectionBg; }
+#MarketBackBtn:pressed { background-color: @buttonPress; }

@@ -597,12 +597,16 @@ void MarketTab::buildUi()
     heroTitle->setFont(heroFont);
     heroLay->addWidget(heroTitle, 0, Qt::AlignHCenter);
 
-    // 居中大搜索框 + 强调色搜索按钮（marketplace 首页 hero 搜索行）
+    // Hero search: QSS border+padding must fit inside fixed height or the
+    // bottom edge of the field/button is clipped (same class of bug as suite strips).
+    constexpr int kSearchCtrlH = 32;
     auto *searchWrap = new QWidget;
+    searchWrap->setObjectName(QStringLiteral("MarketSearchWrap"));
     auto *searchRow = new QHBoxLayout(searchWrap);
-    searchRow->setContentsMargins(0, 0, 0, 0);
+    searchRow->setContentsMargins(0, 2, 0, 2);
     searchRow->setSpacing(6);
     m_searchEdit = new QLineEdit;
+    m_searchEdit->setObjectName(QStringLiteral("MarketSearchEdit"));
     m_searchEdit->setPlaceholderText(
         QStringLiteral("搜索驱动与插件（型号 / 厂商 / 关键词）"));
     m_searchEdit->setClearButtonEnabled(true);
@@ -613,17 +617,18 @@ void MarketTab::buildUi()
     QFont searchFont = m_searchEdit->font();
     searchFont.setPointSize(searchFont.pointSize() + 1);
     m_searchEdit->setFont(searchFont);
-    m_searchEdit->setFixedHeight(28);
+    m_searchEdit->setFixedHeight(kSearchCtrlH);
     m_searchEdit->setMinimumWidth(460);
     searchRow->addWidget(m_searchEdit);
 
     m_searchBtn = new QPushButton;
     m_searchBtn->setText(QStringLiteral("Search"));
-    m_searchBtn->setObjectName(QStringLiteral("PrimaryButton"));
-    m_searchBtn->setFixedHeight(28);
+    m_searchBtn->setObjectName(QStringLiteral("MarketSearchBtn"));
+    m_searchBtn->setFixedHeight(kSearchCtrlH);
+    m_searchBtn->setCursor(Qt::PointingHandCursor);
     const auto applySearchBtnStyle = [this]() {
         m_searchBtn->setIcon(svgIcon(":/icons/search.svg",
-                                     QStringLiteral("#ffffff"), 14));
+                                     ThemeManager::instance()->currentTheme().text, 14));
     };
     applySearchBtnStyle();
     const auto submitSearch = [this]() {
