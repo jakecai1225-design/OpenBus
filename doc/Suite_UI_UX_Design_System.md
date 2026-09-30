@@ -77,9 +77,10 @@ Every domain suite (`*-suite` / `*-studio`) **must** ship the same workbench as 
 
 ```
 QMainWindow
+ ├─ Menu bar              # File · Edit · View · Help; layout toggles on right corner
  ├─ Activity bar          # NAV_PAGES, ≤5, codicons
  ├─ Side Bar              # workspace leaves; Ctrl+B; default visible
- ├─ Editor chrome row     # closable tabs (suite_tabs) + layout toggles
+ ├─ Editor chrome row     # closable tabs (suite_tabs) OR page title only — no layout icons
  │    └─ page content     # tool_strip → work surface
  ├─ OUTPUT panel          # one tool row + list; Ctrl+J; default visible
  └─ Status bar            # path / dirty / session / Context Next
@@ -93,9 +94,10 @@ QMainWindow
 | Panel | OUTPUT (`panel_visible=True`) | Yes |
 | Status Bar | status + Context Next | Yes |
 | Menu | File · Edit · View · Help | Yes |
+| Layout toggles | Menubar trailing (`attach_layout_toggles_to_menubar`), not editor chrome | Yes |
 
 **Must implement:** `_on_workbench_page` so `highlight_activity` never wipes tabs via `set_editor_title`.  
-**Must not:** Log as an Activity; per-page OUTPUT copies; sidebar-only stack swap without tabs.
+**Must not:** Log as an Activity; per-page OUTPUT copies; sidebar-only stack swap without tabs; layout icons on the editor tab row (put them on the menubar right corner like VS Code).
 
 Shared helpers:
 
@@ -103,7 +105,7 @@ Shared helpers:
 |--------|------|
 | `vscode_theme.apply` | Stylesheet |
 | `codicons` | Icons |
-| `_shared/suite_chrome.py` | Activity + Side Bar + OUTPUT host |
+| `_shared/suite_chrome.py` | Activity + Side Bar + OUTPUT host; `attach_layout_toggles_to_menubar` |
 | `_shared/suite_tabs.py` | Closable editor tab strip |
 | `_shared/suite_ui.py` | Density tokens + tool_strip / polish |
 | `plugin_shell` | Status bar, CSV export |

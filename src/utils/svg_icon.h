@@ -11,9 +11,26 @@
 #include <QTreeWidget>
 #include <QAbstractItemView>
 #include <QSize>
+#include <QRectF>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QtGlobal>
 
-// Load SVG, replace currentColor, render to QPixmap
-inline QPixmap renderSvgPixmap(const QString &resourcePath, const QString &color, int size = 22)
+/**
+ * Monochrome SVG icons — VS Code Codicons look (16px grid, currentColor tint).
+ *
+ * Size tokens (match layout toggles / explorer trees):
+ *   kIconMd = 16  — default toolbar / chrome
+ *   kIconSm = 14  — compact rows, clear buttons, command-center nav
+ * Avoid rendering below 14px: glyphs look soft and low-contrast on HiDPI.
+ */
+
+inline constexpr int kIconSm = 14;
+inline constexpr int kIconMd = 16;
+inline constexpr int kIconLg = 20;
+
+// Load SVG, replace currentColor, render crisp at device pixel ratio.
+inline QPixmap renderSvgPixmap(const QString &resourcePath, const QString &color, int size = kIconMd)
 {
     QFile file(resourcePath);
     if (!file.open(QIODevice::ReadOnly))
@@ -21,16 +38,28 @@ inline QPixmap renderSvgPixmap(const QString &resourcePath, const QString &color
     QString svg = QString::fromUtf8(file.readAll());
     svg.replace(QStringLiteral("currentColor"), color);
     QSvgRenderer renderer(svg.toUtf8());
-    QPixmap pixmap(size, size);
+    if (!renderer.isValid())
+        return {};
+
+    qreal dpr = 1.0;
+    if (QScreen *screen = QGuiApplication::primaryScreen())
+        dpr = screen->devicePixelRatio();
+    if (dpr < 1.0)
+        dpr = 1.0;
+
+    const int px = qMax(1, qRound(static_cast<qreal>(size) * dpr));
+    QPixmap pixmap(px, px);
+    pixmap.setDevicePixelRatio(dpr);
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
-    renderer.render(&painter);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    renderer.render(&painter, QRectF(0, 0, px, px));
     return pixmap;
 }
 
 // Convenience wrapper: monochrome QIcon
-inline QIcon svgIcon(const QString &resourcePath, const QString &color, int size = 16)
+inline QIcon svgIcon(const QString &resourcePath, const QString &color, int size = kIconMd)
 {
     return QIcon(renderSvgPixmap(resourcePath, color, size));
 }
@@ -39,8 +68,10 @@ inline QIcon svgIcon(const QString &resourcePath, const QString &color, int size
 inline void applyClearButtonIcon(QLineEdit *edit, const QString &color)
 {
     const auto buttons = edit->findChildren<QToolButton *>();
-    for (auto *btn : buttons)
-        btn->setIcon(svgIcon(":/icons/close.svg", color, 12));
+    for (auto *btn : buttons) {
+        btn->setIcon(svgIcon(":/icons/close.svg", color, kIconSm));
+        btn->setIconSize(QSize(kIconSm, kIconSm));
+    }
 }
 
 /// Leading search glyph + themed clear button (VS Code explorer filter).
@@ -50,7 +81,7 @@ inline void applyExplorerSearch(QLineEdit *edit, const QString &iconColor, const
         return;
     edit->setClearButtonEnabled(true);
     applyClearButtonIcon(edit, iconColor);
-    edit->addAction(svgIcon(QStringLiteral(":/icons/search.svg"), dimColor, 14),
+    edit->addAction(svgIcon(QStringLiteral(":/icons/search.svg"), dimColor, kIconSm),
                     QLineEdit::LeadingPosition);
 }
 
@@ -65,7 +96,7 @@ inline void applyExplorerTree(QTreeWidget *tree,
         tree->setObjectName(objectName);
     tree->setRootIsDecorated(true);
     tree->setIndentation(12);
-    tree->setIconSize(QSize(16, 16));
+    tree->setIconSize(QSize(kIconMd, kIconMd));
     tree->setAlternatingRowColors(false);
     tree->setUniformRowHeights(true);
     tree->setAnimated(false);

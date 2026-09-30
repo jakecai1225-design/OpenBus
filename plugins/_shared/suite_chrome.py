@@ -468,11 +468,11 @@ def build_workbench(
     collapse_btn.setObjectName("LayoutToggleBtn")
     collapse_btn.setAutoRaise(True)
     collapse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-    collapse_btn.setFixedSize(22, 22)
-    collapse_btn.setIconSize(QSize(12, 12))
+    collapse_btn.setFixedSize(24, 24)
+    collapse_btn.setIconSize(QSize(14, 14))
     collapse_btn.setToolTip("Collapse Panel")
     codicons.set_button(
-        collapse_btn, "chevron-down", color=vscode_theme.TEXT_DIM, size=12)
+        collapse_btn, "chevron-down", color=vscode_theme.TEXT_DIM, size=14)
     ph.addWidget(collapse_btn)
     pv.addWidget(panel_head)
 
@@ -830,12 +830,12 @@ def mount_compact_output(wb: WorkbenchHandles):
     pause.setCheckable(True)
     pause.setAutoRaise(True)
     pause.setCursor(Qt.CursorShape.PointingHandCursor)
-    pause.setFixedSize(22, 22)
-    pause.setIconSize(QSize(12, 12))
+    pause.setFixedSize(24, 24)
+    pause.setIconSize(QSize(14, 14))
     pause.setToolTip(i18n.t("Pause"))
     try:
         codicons.set_button(
-            pause, "stop", color=vscode_theme.TEXT_DIM, size=12)
+            pause, "stop", color=vscode_theme.TEXT_DIM, size=14)
     except Exception:
         pause.setText("||")
 
@@ -843,12 +843,12 @@ def mount_compact_output(wb: WorkbenchHandles):
     clear.setObjectName("LayoutToggleBtn")
     clear.setAutoRaise(True)
     clear.setCursor(Qt.CursorShape.PointingHandCursor)
-    clear.setFixedSize(22, 22)
-    clear.setIconSize(QSize(12, 12))
+    clear.setFixedSize(24, 24)
+    clear.setIconSize(QSize(14, 14))
     clear.setToolTip(i18n.t("Clear"))
     try:
         codicons.set_button(
-            clear, "clear", color=vscode_theme.TEXT_DIM, size=12)
+            clear, "clear", color=vscode_theme.TEXT_DIM, size=14)
     except Exception:
         clear.setText("×")
 

@@ -347,24 +347,24 @@ void MainWindow::createWindowButtons()
     sep->setFixedWidth(8);
     layout->addWidget(sep);
 
-    // Window controls: SVG icons (minimize / maximize / close)
+    // Window controls: Codicon chrome-* at same 16px as layout toggles
     m_minBtn = new QToolButton(container);
     m_minBtn->setObjectName("WinMinBtn");
-    m_minBtn->setIconSize(QSize(10, 10));
+    m_minBtn->setIconSize(QSize(16, 16));
     m_minBtn->setFixedSize(46, 30);
     m_minBtn->setAutoRaise(true);
     m_minBtn->setToolTip(QStringLiteral("Minimize"));
 
     m_maxBtn = new QToolButton(container);
     m_maxBtn->setObjectName("WinMaxBtn");
-    m_maxBtn->setIconSize(QSize(10, 10));
+    m_maxBtn->setIconSize(QSize(16, 16));
     m_maxBtn->setFixedSize(46, 30);
     m_maxBtn->setAutoRaise(true);
     m_maxBtn->setToolTip(QStringLiteral("Maximize"));
 
     m_closeBtn = new QToolButton(container);
     m_closeBtn->setObjectName("WinCloseBtn");
-    m_closeBtn->setIconSize(QSize(10, 10));
+    m_closeBtn->setIconSize(QSize(16, 16));
     m_closeBtn->setFixedSize(46, 30);
     m_closeBtn->setAutoRaise(true);
     m_closeBtn->setToolTip(QStringLiteral("Close"));
@@ -676,10 +676,10 @@ void MainWindow::refreshWindowButtonIcons()
         m_layoutBottomBtn->setIcon(svgIcon(":/icons/layout-panel.svg", c, 16));
     if (m_layoutRightBtn)
         m_layoutRightBtn->setIcon(svgIcon(":/icons/layout-sidebar-right.svg", c, 16));
-    m_minBtn->setIcon(svgIcon(":/icons/win-minimize.svg", c, 10));
+    m_minBtn->setIcon(svgIcon(":/icons/win-minimize.svg", c, kIconMd));
     m_maxBtn->setIcon(svgIcon(isMaximized() ? ":/icons/win-restore.svg"
-                                             : ":/icons/win-maximize.svg", c, 10));
-    m_closeBtn->setIcon(svgIcon(":/icons/close.svg", c, 10));
+                                             : ":/icons/win-maximize.svg", c, kIconMd));
+    m_closeBtn->setIcon(svgIcon(":/icons/close.svg", c, kIconMd));
 }
 
 void MainWindow::syncLayoutToggleButtons()

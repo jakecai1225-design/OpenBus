@@ -331,13 +331,13 @@ class AppShell(QMainWindow):
             close_btn = QToolButton(bar)
             close_btn.setObjectName("SuiteTabClose")
             close_btn.setAutoRaise(True)
-            close_btn.setFixedSize(18, 18)
-            close_btn.setIconSize(QSize(12, 12))
+            close_btn.setFixedSize(20, 20)
+            close_btn.setIconSize(QSize(14, 14))
             close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             close_btn.setToolTip("Close tab")
             close_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             codicons.set_button(
-                close_btn, "close", color=vscode_theme.TEXT_DIM, size=12)
+                close_btn, "close", color=vscode_theme.TEXT_DIM, size=14)
             bar.setTabButton(idx, QTabBar.ButtonPosition.RightSide, close_btn)
 
             def _close_feat(_checked=False, key=feat):

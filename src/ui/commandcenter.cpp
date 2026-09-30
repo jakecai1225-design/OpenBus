@@ -28,8 +28,8 @@ CommandCenter::CommandCenter(QWidget *parent)
         auto *b = new QToolButton(this);
         b->setObjectName(QStringLiteral("CommandCenterNav"));
         b->setAutoRaise(true);
-        b->setIconSize(QSize(12, 12));
-        b->setFixedSize(20, 20);
+        b->setIconSize(QSize(kIconSm, kIconSm));
+        b->setFixedSize(22, 22);
         b->setToolTip(tip);
         b->setCursor(Qt::ArrowCursor);
         return b;
@@ -51,8 +51,8 @@ CommandCenter::CommandCenter(QWidget *parent)
     // Theme icons
     auto refreshIcons = [this]() {
         const QString c = ThemeManager::instance()->currentTheme().textDim;
-        m_backBtn->setIcon(svgIcon(QStringLiteral(":/icons/chevron-left.svg"), c, 12));
-        m_fwdBtn->setIcon(svgIcon(QStringLiteral(":/icons/chevron-right.svg"), c, 12));
+        m_backBtn->setIcon(svgIcon(QStringLiteral(":/icons/chevron-left.svg"), c, kIconSm));
+        m_fwdBtn->setIcon(svgIcon(QStringLiteral(":/icons/chevron-right.svg"), c, kIconSm));
     };
     refreshIcons();
     connect(ThemeManager::instance(), &ThemeManager::themeChanged, this,

@@ -412,10 +412,10 @@ void SplitEditorArea::setupCloseButton(QTabWidget *tabs, int index)
     auto *btn = new QToolButton(tabs->tabBar());
     btn->setObjectName(QStringLiteral("EditorTabClose"));
     btn->setIcon(svgIcon(QStringLiteral(":/icons/close.svg"),
-                         ThemeManager::instance()->currentTheme().textDim, 12));
+                         ThemeManager::instance()->currentTheme().textDim, kIconSm));
     btn->setAutoRaise(true);
-    btn->setFixedSize(18, 18);
-    btn->setIconSize(QSize(12, 12));
+    btn->setFixedSize(20, 20);
+    btn->setIconSize(QSize(kIconSm, kIconSm));
     btn->setCursor(Qt::PointingHandCursor);
     btn->setFocusPolicy(Qt::NoFocus);
     btn->setToolTip(QStringLiteral("Close tab"));
@@ -428,7 +428,7 @@ void SplitEditorArea::setupCloseButton(QTabWidget *tabs, int index)
     auto *closeBtnRelay = new SignalRelay(btn);
     closeBtnRelay->fire0 = [btn]() {
         btn->setIcon(svgIcon(QStringLiteral(":/icons/close.svg"),
-                             ThemeManager::instance()->currentTheme().textDim, 12));
+                             ThemeManager::instance()->currentTheme().textDim, kIconSm));
     };
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             closeBtnRelay, SLOT(fire()));

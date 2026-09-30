@@ -525,7 +525,7 @@ void ExplorerSection::updateHeaderChrome()
     const auto &th = ThemeManager::instance()->currentTheme();
     const QString icon = m_expanded ? QStringLiteral(":/icons/chevron-down.svg")
                                     : QStringLiteral(":/icons/chevron-right.svg");
-    m_header->setIcon(svgIcon(icon, th.textDim, 12));
+    m_header->setIcon(svgIcon(icon, th.textDim, kIconSm));
     m_header->setStyleSheet(QString());
 }
 
