@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.coe import parse_sdo, sdo_download_request, sdo_upload_request
-from widgets import ghost, primary, spin, table
+from widgets import ghost, primary, spin, spin_hex, table
 
 
 def build(_parent, session, _log):
@@ -21,9 +21,7 @@ def build(_parent, session, _log):
     root.setContentsMargins(12, 8, 12, 8)
     root.setSpacing(8)
 
-    index = spin(0, 0xFFFF, 0x1000, "Object index")
-    index.setDisplayIntegerBase(16)
-    index.setPrefix("0x")
+    index = spin_hex(0, 0xFFFF, 0x1000, "Object index")
     sub = spin(0, 255, 0, "Subindex")
     value = spin(0, 0x7FFFFFFF, 0, "Download value (expedited)")
     size = spin(1, 4, 4, "Expedited size: 1, 2 or 4")

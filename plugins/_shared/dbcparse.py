@@ -97,7 +97,8 @@ class AttrDef:
 
     def __init__(self, name="", object_type="", value_type="STRING"):
         self.name = name
-        self.object_type = object_type  # "" | "BU_" | "BO_" | "SG_"
+        # "" network | BO_ | SG_ | BU_ | EV_ | BU_SG_REL_ | …
+        self.object_type = object_type
         self.value_type = value_type    # INT FLOAT STRING ENUM HEX
         self.minimum = None
         self.maximum = None
@@ -139,6 +140,66 @@ class DbcFile:
             d.enum_values = ["Cyclic", "Event", "NotUsed"]
             d.default = "Cyclic"
             self.attribute_defs.append(d)
+        # Signal-scope Gen* so Attributes Values is never empty for a signal
+        # when the DBC only ships message-level BA_DEF_ (common OEM strip).
+        if not self.attr_def("GenSigStartValue"):
+            d = AttrDef("GenSigStartValue", "SG_", "INT")
+            d.minimum, d.maximum, d.default = 0, 65535, 0
+            self.attribute_defs.append(d)
+        if not self.attr_def("GenSigSendType"):
+            d = AttrDef("GenSigSendType", "SG_", "ENUM")
+            d.enum_values = [
+                "Cyclic", "OnChange", "OnWrite", "IfActive",
+                "OnChangeWithRepetition", "OnWriteWithRepetition",
+                "NoSigSendType"]
+            d.default = "Cyclic"
+            self.attribute_defs.append(d)
+
+    def sync_value_tables_from_signals(self):
+        """Promote signal inline VAL_ maps into `value_tables` for the catalog UI.
+
+        Most Vector DBCs only emit `VAL_ <id> <sig> 0 "A" 1 "B" ;` without a
+        prior `VAL_TABLE_`. Without this sync the Value tables page stays empty
+        even though Messages shows those encodings on each signal.
+        """
+        by_content = {}
+        for name, table in self.value_tables.items():
+            by_content[_value_table_key(table)] = name
+        for msg in self.messages.values():
+            for sig in msg.signals:
+                if not sig.value_table:
+                    continue
+                named = (sig.value_table_name or '').strip()
+                if named and named in self.value_tables:
+                    if not self.value_tables[named]:
+                        self.value_tables[named] = dict(sig.value_table)
+                    continue
+                key = _value_table_key(sig.value_table)
+                if key in by_content:
+                    sig.value_table_name = by_content[key]
+                    continue
+                base = 'VT_%s_%s' % (
+                    _safe_vt_token(msg.name), _safe_vt_token(sig.name))
+                name = base
+                n = 2
+                while name in self.value_tables:
+                    name = '%s_%d' % (base, n)
+                    n += 1
+                self.value_tables[name] = dict(sig.value_table)
+                sig.value_table_name = name
+                by_content[key] = name
+
+
+def _value_table_key(table):
+    if not table:
+        return ()
+    return tuple(sorted((int(k), str(v)) for k, v in table.items()))
+
+
+def _safe_vt_token(text):
+    raw = re.sub(r'[^A-Za-z0-9_]+', '_', (text or '').strip())
+    raw = raw.strip('_') or 'X'
+    return raw[:40]
 
 
 # ------------------------------------------------------------
@@ -415,14 +476,26 @@ def parse_file(path):
                         db.attribute_defs.append(d)
                     d.default = _unquote(raw) if raw.startswith('"') else raw
             elif stripped.startswith("BA_DEF_"):
-                # BA_DEF_ [BU_|BO_|SG_] "name" TYPE ...;
-                m = re.match(
-                    r'^BA_DEF_\s+(?:(BU_|BO_|SG_)\s+)?"([^"]+)"\s+(\w+)\s*(.*);\s*$',
+                # BA_DEF_ [object] "name" TYPE ...;
+                # object may be empty (network), BO_/SG_/BU_, or rare
+                # EV_ / BU_SG_REL_ / BU_BO_REL_ / SG_REL_ tokens.
+                obj, name, vtype, rest = "", "", "", ""
+                m_obj = re.match(
+                    r'^BA_DEF_\s+([A-Za-z_][A-Za-z0-9_]*)\s+"([^"]+)"\s+(\w+)\s*(.*);\s*$',
                     stripped)
-                if m:
-                    obj, name, vtype, rest = (
-                        m.group(1) or "", m.group(2), m.group(3).upper(),
-                        (m.group(4) or "").strip())
+                m_net = re.match(
+                    r'^BA_DEF_\s+"([^"]+)"\s+(\w+)\s*(.*);\s*$', stripped)
+                if m_obj and m_obj.group(1).upper() not in (
+                        "INT", "FLOAT", "STRING", "ENUM", "HEX"):
+                    obj = m_obj.group(1)
+                    name = m_obj.group(2)
+                    vtype = m_obj.group(3).upper()
+                    rest = (m_obj.group(4) or "").strip()
+                elif m_net:
+                    name = m_net.group(1)
+                    vtype = m_net.group(2).upper()
+                    rest = (m_net.group(3) or "").strip()
+                if name and vtype:
                     d = db.attr_def(name)
                     if d is None:
                         d = AttrDef(name, obj, vtype)
@@ -435,18 +508,26 @@ def parse_file(path):
                             _unquote(t) for t in
                             re.findall(r'"(?:[^"\\]|\\.)*"', rest)]
                     elif vtype in ("INT", "HEX", "FLOAT"):
-                        nums = re.findall(r'[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?', rest)
+                        nums = re.findall(
+                            r'[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?', rest)
                         if len(nums) >= 2:
                             try:
-                                d.minimum = float(nums[0]) if vtype == "FLOAT" else int(float(nums[0]))
-                                d.maximum = float(nums[1]) if vtype == "FLOAT" else int(float(nums[1]))
+                                d.minimum = (
+                                    float(nums[0]) if vtype == "FLOAT"
+                                    else int(float(nums[0])))
+                                d.maximum = (
+                                    float(nums[1]) if vtype == "FLOAT"
+                                    else int(float(nums[1])))
                             except ValueError:
                                 pass
             elif stripped.startswith("BA_ "):
+                # CAN id may be decimal or 0x-prefixed hex (Vector exports vary).
                 m_sg = re.match(
-                    r'^BA_\s+"([^"]+)"\s+SG_\s+(\d+)\s+(\S+)\s+(.+);\s*$', stripped)
+                    r'^BA_\s+"([^"]+)"\s+SG_\s+(0[xX][0-9A-Fa-f]+|\d+)\s+(\S+)\s+(.+);\s*$',
+                    stripped)
                 m_bo = re.match(
-                    r'^BA_\s+"([^"]+)"\s+BO_\s+(\d+)\s+(.+);\s*$', stripped)
+                    r'^BA_\s+"([^"]+)"\s+BO_\s+(0[xX][0-9A-Fa-f]+|\d+)\s+(.+);\s*$',
+                    stripped)
                 m_bu = re.match(
                     r'^BA_\s+"([^"]+)"\s+BU_\s+(\S+)\s+(.+);\s*$', stripped)
                 m_net = re.match(
@@ -455,7 +536,11 @@ def parse_file(path):
                     attr, mid_s, sig_name, val_s = (
                         m_sg.group(1), m_sg.group(2), m_sg.group(3),
                         m_sg.group(4).strip())
-                    msg = db.messages.get(int(mid_s) & _ID_MASK)
+                    try:
+                        mid = int(mid_s, 0) & _ID_MASK
+                    except ValueError:
+                        mid = None
+                    msg = db.messages.get(mid) if mid is not None else None
                     sig = msg.signal(sig_name) if msg else None
                     if sig is not None:
                         sig.attributes[attr] = _decode_attr_value(
@@ -463,7 +548,11 @@ def parse_file(path):
                 elif m_bo:
                     attr, mid_s, val_s = (
                         m_bo.group(1), m_bo.group(2), m_bo.group(3).strip())
-                    msg = db.messages.get(int(mid_s) & _ID_MASK)
+                    try:
+                        mid = int(mid_s, 0) & _ID_MASK
+                    except ValueError:
+                        continue
+                    msg = db.messages.get(mid)
                     if not msg:
                         continue
                     stored = _decode_attr_value(db, attr, val_s)
@@ -488,6 +577,7 @@ def parse_file(path):
         except Exception as exc:  # per-line tolerance
             db.warnings.append("%d: %s (%s)" % (lineno, stripped[:60], exc))
     db.ensure_default_attr_defs()
+    db.sync_value_tables_from_signals()
     return db
 
 
@@ -520,6 +610,7 @@ def _fmt_num(v):
 
 def serialize(db):
     db.ensure_default_attr_defs()
+    db.sync_value_tables_from_signals()
     lines = ['VERSION "%s"' % (db.version or "").replace('"', '\\"'),
              "", "NS_ :", "", "BS_:", ""]
     nodes = list(db.nodes)
@@ -572,6 +663,15 @@ def serialize(db):
 
     for m in db.messages.values():
         for s in m.signals:
+            if not s.value_table and not s.value_table_name:
+                continue
+            # Prefer named catalog reference when linked.
+            if (s.value_table_name
+                    and s.value_table_name in db.value_tables
+                    and db.value_tables[s.value_table_name]):
+                lines.append("VAL_ %d %s %s ;" % (
+                    m.can_id, s.name, s.value_table_name))
+                continue
             if s.value_table:
                 pairs = " ".join(
                     '%d "%s"' % (v, d.replace('"', '\\"'))

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
+from typing import Optional
 
 from PyQt6.QtCore import QByteArray, QRectF, QSize, Qt
 from PyQt6.QtGui import QIcon, QPainter, QPixmap
@@ -23,12 +24,12 @@ ALIASES = {
     "security": "lock",
     "profiles": "account",
     "log": "output",
-    # DBC Studio
+    # DBC Studio activities — stems match NAV_PAGES keys (files must exist)
     "editor": "edit",
     "edit": "edit",
-    "analyze": "search",
-    "integrate": "sync",
-    "deliver": "export",
+    "analyze": "analyze",
+    "integrate": "integrate",
+    "deliver": "deliver",
     "matrix": "list",
     "valuetables": "checklist",
     "attributes": "settings",
@@ -162,24 +163,27 @@ def icon_path(name: str) -> str:
     path = os.path.join(_DIR, stem + ".svg")
     if os.path.isfile(path):
         return path
-    return os.path.join(_DIR, name + ".svg")
+    # Fall back to the raw key so activity ids like analyze.svg always resolve
+    # even when an older ALIASES map is cached / installed.
+    direct = os.path.join(_DIR, name + ".svg")
+    if os.path.isfile(direct):
+        return direct
+    return path
 
 
-@lru_cache(maxsize=512)
-def pixmap(name: str, color: str = "#333333", size: int = 16) -> QPixmap:
-    """Render a crisp codicon; 2× supersample for clear edges at 16–20px."""
-    path = icon_path(name)
+def _render_svg_file(
+        path: str, size: int, *, tint: Optional[str] = None) -> QPixmap:
+    """Rasterize an SVG at *size* with 3× supersample for sharp Win DPI edges."""
     if not os.path.isfile(path):
-        # Visible fallback so missing aliases never look like empty holes
         pm = QPixmap(size, size)
         pm.fill(Qt.GlobalColor.transparent)
         return pm
     with open(path, "r", encoding="utf-8") as f:
         svg = f.read()
-    svg = svg.replace("currentColor", color)
+    if tint:
+        svg = svg.replace("currentColor", tint)
     renderer = QSvgRenderer(QByteArray(svg.encode("utf-8")))
-    # Supersample then downscale for sharper strokes on Windows DPI
-    scale = 2 if size <= 24 else 1
+    scale = 3 if size <= 32 else (2 if size <= 64 else 1)
     raw = size * scale
     hi = QPixmap(raw, raw)
     hi.fill(Qt.GlobalColor.transparent)
@@ -197,6 +201,12 @@ def pixmap(name: str, color: str = "#333333", size: int = 16) -> QPixmap:
         Qt.TransformationMode.SmoothTransformation)
 
 
+@lru_cache(maxsize=512)
+def pixmap(name: str, color: str = "#333333", size: int = 16) -> QPixmap:
+    """Render a crisp codicon; 3× supersample for clear edges at toolbar sizes."""
+    return _render_svg_file(icon_path(name), size, tint=color)
+
+
 def clear_pixmap_cache() -> None:
     """Drop cached tinted SVGs (call after replacing icon files)."""
     pixmap.cache_clear()
@@ -204,6 +214,16 @@ def clear_pixmap_cache() -> None:
 
 def icon(name: str, color: str = "#333333", size: int = 16) -> QIcon:
     return QIcon(pixmap(name, color, size))
+
+
+def window_icon_from_svg(path: str, sizes: tuple[int, ...] = (16, 24, 32, 48, 64)) -> QIcon:
+    """Multi-resolution window / taskbar icon from a colored SVG (no tint)."""
+    ic = QIcon()
+    for s in sizes:
+        pm = _render_svg_file(path, s, tint=None)
+        if not pm.isNull():
+            ic.addPixmap(pm)
+    return ic
 
 
 def set_button(

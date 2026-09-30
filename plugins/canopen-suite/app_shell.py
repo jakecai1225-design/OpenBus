@@ -1167,9 +1167,10 @@ class AppShell(QMainWindow):
 
     def _on_activity_clicked(self, key: str):
         self._switch_activity(key)
-        if not self._open_tabs:
-            default = _WORKSPACE_DEFAULT.get(key, "eds_dict")
-            self._open_feature_tab(default, activate=True)
+        # Always open/activate the workspace default leaf so Side Bar clicks
+        # and Activity switches never leave a blank editor surface.
+        default = _WORKSPACE_DEFAULT.get(key, "eds_dict")
+        self._open_feature_tab(default, activate=True)
         self._persist()
 
     def _on_workbench_page(self, key: str):

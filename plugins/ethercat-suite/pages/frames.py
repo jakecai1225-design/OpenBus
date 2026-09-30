@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 
 from core.coe import parse_sdo, sdo_upload_request
 from core.datagram import parse_frame
-from widgets import ghost, primary, spin, table
+from widgets import ghost, primary, spin, spin_hex, table
 
 
 def _hex_bytes(text: str) -> bytes:
@@ -76,9 +76,7 @@ def _mailbox(session):
     root = QVBoxLayout(page)
     root.setContentsMargins(12, 8, 12, 8)
     root.setSpacing(8)
-    index = spin(0, 0xFFFF, 0x1000, "Object index")
-    index.setDisplayIntegerBase(16)
-    index.setPrefix("0x")
+    index = spin_hex(0, 0xFFFF, 0x1000, "Object index")
     sub = spin(0, 255, 0, "Subindex")
     build = primary("Build upload", "Show a CoE SDO upload mailbox")
     parse = ghost("Parse", "search", "Parse the hex below as CoE SDO")

@@ -124,7 +124,7 @@ def build(shell, document, log_fn) -> QWidget:
         "EDS", "DCF", "HTML", "CSV", "XDD lite",
         "CANopenNode V4 (OD.h/c)", "CanFestival (C/H)",
     ])
-    fmt.setFixedHeight(26)
+    fmt.setFixedHeight(_ui.CTRL_H)
     fmt.setMinimumWidth(200)
     fmt.setToolTip("Export format")
     open_after = QCheckBox("Open after")

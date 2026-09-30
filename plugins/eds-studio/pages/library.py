@@ -37,18 +37,20 @@ def build(shell, document, log_fn) -> QWidget:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
 
+    # In-page Starters | Profiles segment (chrome row is for leaf tabs).
     bar = QTabBar()
-    bar.setObjectName("SuiteEditorTabs")
+    bar.setObjectName("SuiteSegmentTabs")
     bar.setDrawBase(False)
     bar.setExpanding(False)
     bar.setDocumentMode(True)
+    bar.setFixedHeight(_ui.TOOL_H)
     bar.setToolTip("Starters = new document · Profiles = insert objects")
     bar.addTab("Starters")
     bar.addTab("Profiles")
-    root.chrome_tabs = bar
 
     stack = QStackedWidget()
     bar.currentChanged.connect(stack.setCurrentIndex)
+    layout.addWidget(bar)
     layout.addWidget(stack, 1)
 
     selected_starter = {"id": None}
@@ -355,4 +357,8 @@ def build(shell, document, log_fn) -> QWidget:
             cat_list.setCurrentRow(i)
             break
 
+    def show_starters():
+        bar.setCurrentIndex(0)
+
+    root.show_starters = show_starters
     return root

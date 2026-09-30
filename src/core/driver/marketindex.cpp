@@ -2,6 +2,7 @@
 
 #include "core/appconfig.h"
 #include "core/logging.h"
+#include "core/plugin/domainplugins.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -116,23 +117,9 @@ void MarketIndex::onReplyFinished(QNetworkReply *reply)
             m_drivers.append(info);
     }
 
-    // ---- plugins[]: Python packages (.opk); domain suites only (drop thin leftovers) ----
-    static const QSet<QString> kDomainPluginIds = {
-        QStringLiteral("uds-suite"),
-        QStringLiteral("dbc-studio"),
-        QStringLiteral("canopen-suite"),
-        QStringLiteral("j1939-suite"),
-        QStringLiteral("obd-suite"),
-        QStringLiteral("tx-lab"),
-        QStringLiteral("bus-security"),
-        QStringLiteral("protocol-hub"),
-        QStringLiteral("log-analysis"),
-        QStringLiteral("bus-utilities"),
-        QStringLiteral("autosar-suite"),
-        QStringLiteral("ethercat-suite"),
-        QStringLiteral("ai-agent"),
-    };
-
+    // ---- plugins[]: Python packages (.opk); product-surface allowlist only ----
+    // Shared with PluginManager via domainplugins.h so market / sidebar / packs
+    // cannot drift (stale remote or build/bin/market.json still filtered here).
     m_plugins.clear();
     int skippedThin = 0;
     const auto plugins = obj.value(QStringLiteral("plugins")).toArray();
@@ -155,7 +142,8 @@ void MarketIndex::onReplyFinished(QNetworkReply *reply)
         info.updatedAt = p.value(QStringLiteral("updatedAt")).toString();
         if (info.id.isEmpty() || info.package.isEmpty())
             continue;
-        if (!kDomainPluginIds.contains(info.id)) {
+        if (!isProductSurfacePlugin(info.id)
+            || retiredPluginIds().contains(info.id)) {
             ++skippedThin;
             continue;
         }
@@ -165,7 +153,7 @@ void MarketIndex::onReplyFinished(QNetworkReply *reply)
     m_loaded = true;
     m_lastError.clear();
     OPENBUS_LOG_INFO("MarketIndex",
-                     "market loaded: {} drivers / {} plugins (skipped {} thin)",
+                     "market loaded: {} drivers / {} plugins (skipped {} non-domain)",
                      m_drivers.size(), m_plugins.size(), skippedThin);
     emit loaded(true, QString());
 }

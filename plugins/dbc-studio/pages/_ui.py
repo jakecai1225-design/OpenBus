@@ -31,21 +31,30 @@ from PyQt6.QtWidgets import (
 
 from _shared import codicons, vscode_theme as T
 
-# Density tokens (industrial software — tight but readable)
+# VS Code Light type + control scale (one kit for the whole suite)
+#   Body / tree / nav ...... 13px
+#   Controls / buttons ..... 12px, CTRL_H 28
+#   Meta / chrome labels ... 11px muted (never shouty uppercase titles)
 CTRL_H = 28
-TOOL_H = 32
-FILTER_H = 34      # filter strip: CTRL_H + 3px pad each side
-ICON = 16          # labeled Ghost/Primary buttons (VS Code toolbar)
-ICON_TOOL = 16     # icon-only tool buttons
-ICON_CHIP = 14     # compact header chips
-ICON_TAB = 12      # tab close
+STRIP_PAD_V = 4
+STRIP_EDGE = 2   # border-bottom + DPI fudge
+TOOL_H = CTRL_H + 2 * STRIP_PAD_V + STRIP_EDGE   # 38
+FILTER_H = TOOL_H
+TAB_H = 36
+CHROME_H = TAB_H + 2                # 38
+ICON = 16
+ICON_TOOL = 16
+ICON_CHIP = 14
+ICON_TAB = 12
 GAP = 6
 PAD_X = 10
 PAD_Y = 6
-ROW_H = 26  # list / tree row — avoids glyph clipping on Win DPI
-# Icon contrast on light panels (VS Code activity / toolbar)
-ICON_FG = T.TEXT           # primary actions / icon tools
-ICON_MUTED = T.TEXT_DIM    # secondary / idle state
+ROW_H = 26
+FS_BODY = 13
+FS_CTRL = 12
+FS_META = 11
+ICON_FG = T.TEXT
+ICON_MUTED = T.TEXT_DIM
 
 # Golden ratio (φ ≈ 1.618). Master pane gets φ⁻¹ of width when it is the
 # primary work surface; catalog / secondary nav gets the complementary share.
@@ -59,7 +68,7 @@ PANE_MIN_PROP = 200  # property / Objects catalog
 TREE_STYLE = f"""
 QTreeWidget#SuiteMatrix {{
   border: none; background: transparent; outline: 0;
-  font-size: 12px;
+  font-size: {FS_BODY}px;
 }}
 QTreeWidget#SuiteMatrix::item {{
   padding: 4px 8px; min-height: {ROW_H}px;
@@ -78,7 +87,7 @@ QTreeWidget#SuiteMatrix::branch {{
 LIST_STYLE = f"""
 QListWidget#SuiteMatrix {{
   border: none; background: transparent; outline: 0;
-  font-size: 12px;
+  font-size: {FS_BODY}px;
 }}
 QListWidget#SuiteMatrix::item {{
   padding: 5px 10px; min-height: {ROW_H}px;
@@ -94,7 +103,7 @@ QListWidget#SuiteMatrix::item:hover:!selected {{
 TABLE_STYLE = f"""
 QTableWidget#SuiteMatrix {{
   border: none; background: transparent; outline: 0;
-  font-size: 12px;
+  font-size: {FS_BODY}px;
   gridline-color: {T.BORDER_SOFT};
 }}
 QTableWidget#SuiteMatrix::item {{
@@ -103,9 +112,11 @@ QTableWidget#SuiteMatrix::item {{
 """
 
 DBC_OVERLAY = f"""
-/* DBC Studio industrial overlay — document chrome */
+/* DBC Studio — one type/control scale over shared vscode_theme */
 QMainWindow {{
   background: {T.BG};
+  font-size: {FS_BODY}px;
+  font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
 }}
 QWidget#SuiteSideBar,
 QWidget#WorkspaceSideBar {{
@@ -116,29 +127,35 @@ QWidget#WorkspaceSideBar {{
 QWidget#SuiteSideBarHeader {{
   background: {T.SIDEBAR};
   border-bottom: 1px solid {T.BORDER_SOFT};
+  min-height: {TOOL_H}px;
 }}
 QWidget#SuiteDocBanner {{
   background: {T.SIDEBAR};
   border-bottom: 1px solid {T.BORDER_SOFT};
   min-height: {TOOL_H}px;
-  max-height: {TOOL_H + 4}px;
+}}
+QLabel#SuiteSectionTitle {{
+  color: {T.TEXT};
+  font-size: {FS_CTRL}px;
+  font-weight: 600;
+  letter-spacing: 0;
 }}
 QLabel#SuiteSideBarTitle {{
-  color: {T.TEXT_MUTED};
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
+  color: {T.TEXT};
+  font-size: {FS_CTRL}px;
+  font-weight: 600;
+  letter-spacing: 0;
 }}
 QLabel#SuiteDocPath {{
   color: {T.TEXT_DIM};
-  font-size: 11px;
+  font-size: {FS_META}px;
   padding: 2px 0;
 }}
-QWidget#SuiteToolStrip {{
+QWidget#SuiteToolStrip,
+QWidget#SuiteToolbar {{
   background: {T.EDITOR};
   border-bottom: 1px solid {T.BORDER_SOFT};
   min-height: {TOOL_H}px;
-  max-height: {TOOL_H}px;
 }}
 QWidget#SuiteInlineFilter {{
   background: {T.EDITOR};
@@ -148,12 +165,20 @@ QWidget#SuiteInlineFilter {{
 QWidget#SuiteInlineFilter QLineEdit,
 QWidget#SuiteInlineFilter QComboBox,
 QWidget#SuiteInlineFilter QPushButton,
-QWidget#SuiteInlineFilter QLabel {{
-  font-size: 12px;
+QWidget#SuiteInlineFilter QLabel,
+QWidget#SuiteToolbar QLineEdit,
+QWidget#SuiteToolbar QComboBox,
+QWidget#SuiteToolbar QPushButton,
+QWidget#SuiteToolStrip QLineEdit,
+QWidget#SuiteToolStrip QComboBox,
+QWidget#SuiteToolStrip QPushButton {{
+  font-size: {FS_CTRL}px;
   min-height: {CTRL_H}px;
   max-height: {CTRL_H}px;
 }}
-QWidget#SuiteInlineFilter QLineEdit {{
+QWidget#SuiteInlineFilter QLineEdit,
+QWidget#SuiteToolbar QLineEdit,
+QWidget#SuiteToolStrip QLineEdit {{
   border: 1px solid {T.BORDER};
   border-radius: 3px;
   background: {T.EDITOR};
@@ -165,13 +190,13 @@ QWidget#SuitePropPanel {{
 }}
 QLabel#SuitePropTitle {{
   color: {T.TEXT};
-  font-size: 12px;
+  font-size: {FS_CTRL}px;
   font-weight: 600;
   padding: 0;
 }}
 QLabel#SuiteFieldLabel {{
   color: {T.TEXT_DIM};
-  font-size: 12px;
+  font-size: {FS_CTRL}px;
   font-weight: 500;
 }}
 QFrame#SuiteHairline {{
@@ -180,16 +205,19 @@ QFrame#SuiteHairline {{
   border: none;
 }}
 QTabBar#SuiteEditorTabs {{
-  min-height: 35px;
+  min-height: {TAB_H}px;
 }}
 QTabBar#SuiteEditorTabs::tab {{
-  padding: 0 4px 0 12px;
+  padding: 8px 4px 8px 12px;
   min-width: 72px;
-  min-height: 35px;
-  max-height: 35px;
-  font-size: 13px;
+  min-height: {TAB_H}px;
+  max-height: {TAB_H}px;
+  font-size: {FS_BODY}px;
 }}
-/* Tab close — VS Code style: 18px hit target, soft hover pill */
+QTabBar#SuiteEditorTabs::tab:selected {{
+  padding-top: 6px;
+  padding-bottom: 8px;
+}}
 QToolButton#SuiteTabClose, QPushButton#SuiteTabClose {{
   border: none;
   background: transparent;
@@ -209,23 +237,22 @@ QToolButton#SuiteTabClose:hover, QPushButton#SuiteTabClose:hover {{
 QToolButton#SuiteTabClose:pressed, QPushButton#SuiteTabClose:pressed {{
   background: {T.BORDER};
 }}
-/* Force SuiteMatrix density over shared vscode_theme 13px/22px */
 QTreeWidget#SuiteMatrix,
 QListWidget#SuiteMatrix,
 QTableWidget#SuiteMatrix {{
   border: none;
   background: transparent;
   outline: 0;
-  font-size: 12px;
+  font-size: {FS_BODY}px;
 }}
 QTableWidget {{
   gridline-color: {T.BORDER_SOFT};
-  font-size: 12px;
+  font-size: {FS_BODY}px;
 }}
 QHeaderView::section {{
   background: {T.SIDEBAR};
   color: {T.TEXT_DIM};
-  font-size: 11px;
+  font-size: {FS_META}px;
   font-weight: 600;
   padding: 5px 8px;
   border: none;
@@ -246,7 +273,6 @@ QSplitter#SuiteVSplitter::handle {{
 QSplitter#SuiteVSplitter::handle:hover {{
   background: {T.ACCENT};
 }}
-/* Property pane: keep inputs readable, avoid full-bleed stretch */
 QWidget#SuitePropPanel QLineEdit,
 QWidget#SuitePropPanel QComboBox,
 QWidget#SuitePropPanel QSpinBox,
@@ -254,9 +280,8 @@ QWidget#SuitePropPanel QWidget#StepSpin {{
   max-width: 360px;
 }}
 QWidget#SuitePropPanel QLabel {{
-  font-size: 12px;
+  font-size: {FS_CTRL}px;
 }}
-/* Unified StepSpin chrome */
 QWidget#StepSpin {{
   background: {T.EDITOR};
   border: 1px solid #C8C8C8;
@@ -271,7 +296,7 @@ QWidget#StepSpin QSpinBox#SuiteSpin {{
   padding: 2px 6px;
   min-height: {CTRL_H - 2}px;
   max-height: {CTRL_H - 2}px;
-  font-size: 12px;
+  font-size: {FS_CTRL}px;
 }}
 QWidget#StepSpinButtons {{
   background: transparent;
@@ -290,10 +315,9 @@ QToolButton#StepSpinBtn:hover {{
 QToolButton#StepSpinBtn:pressed {{
   background: {T.BORDER_SOFT};
 }}
-/* Native SuiteSpin fallback — identical up/down geometry */
 QSpinBox#SuiteSpin {{
   padding-right: 20px;
-  font-size: 12px;
+  font-size: {FS_CTRL}px;
 }}
 QSpinBox#SuiteSpin::up-button,
 QSpinBox#SuiteSpin::down-button {{
@@ -313,29 +337,38 @@ QSpinBox#SuiteSpin::down-button {{
 }}
 QLabel#SuiteQuiet {{
   color: {T.TEXT_DIM};
-  font-size: 12px;
+  font-size: {FS_CTRL}px;
   padding: 6px {PAD_X}px 4px {PAD_X}px;
 }}
 QLabel#SuiteCount {{
   color: {T.TEXT_MUTED};
-  font-size: 11px;
+  font-size: {FS_META}px;
   padding: 0 4px;
 }}
 QLabel#SuiteHint {{
-  color: {T.TEXT_DIM};
-  font-size: 12px;
+  color: {T.TEXT_MUTED};
+  font-size: {FS_CTRL}px;
+}}
+QLabel#SuiteEmptyTitle {{
+  color: {T.TEXT};
+  font-size: {FS_BODY}px;
+  font-weight: 600;
+}}
+QLabel#SuiteEmptyHint {{
+  color: {T.TEXT_MUTED};
+  font-size: {FS_CTRL}px;
 }}
 QTextEdit#SuiteCode,
 QPlainTextEdit#SuiteCode {{
   font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
-  font-size: 12px;
+  font-size: {FS_CTRL}px;
   border: none;
 }}
 QStatusBar {{
   background: {T.SIDEBAR};
   border-top: 1px solid {T.BORDER};
   color: {T.TEXT_DIM};
-  font-size: 11px;
+  font-size: {FS_META}px;
 }}
 QWidget#SuiteDropZone {{
   border: 1px dashed {T.BORDER};
@@ -346,12 +379,33 @@ QWidget#SuiteDropZone {{
 QWidget#SuiteDropZone:hover {{
   border-color: {T.ACCENT};
 }}
+/* Toolbar actions — same height; Ghost has visible border like Secondary */
 QPushButton#PrimaryButton,
-QPushButton#GhostButton {{
-  font-size: 12px;
+QPushButton#GhostButton,
+QPushButton#SecondaryButton {{
+  font-size: {FS_CTRL}px;
   padding: 0 10px;
+  min-height: {CTRL_H}px;
+  max-height: {CTRL_H}px;
+  border-radius: 3px;
 }}
-/* Icon-only toolbar — 28×28 hit target, glyph centered, no clip */
+QPushButton#GhostButton {{
+  background: {T.EDITOR};
+  color: {T.TEXT};
+  border: 1px solid #CECECE;
+  font-weight: 500;
+}}
+QPushButton#GhostButton:hover {{
+  background: {T.SIDEBAR_HOVER};
+  border-color: #B8B8B8;
+  color: {T.TEXT};
+}}
+QPushButton#PrimaryButton {{
+  background: {T.ACCENT};
+  color: #FFFFFF;
+  border: 1px solid {T.ACCENT};
+  font-weight: 600;
+}}
 QToolButton#SuiteIconTool {{
   background: transparent;
   border: 1px solid transparent;
@@ -373,6 +427,11 @@ QToolButton#SuiteIconTool:pressed {{
 QToolButton#SuiteIconTool:disabled {{
   opacity: 0.45;
 }}
+QLineEdit, QComboBox {{
+  font-size: {FS_CTRL}px;
+  min-height: {CTRL_H}px;
+  max-height: {CTRL_H}px;
+}}
 """
 
 
@@ -391,17 +450,28 @@ def hairline() -> QFrame:
 
 
 def tool_strip(*widgets, stretch_at: int | None = None) -> QWidget:
-    """Single-row IDE toolbar (32px)."""
+    """Single-row IDE toolbar — tall enough for full CTRL_H field borders."""
+    from PyQt6.QtWidgets import QCheckBox, QComboBox, QLineEdit
     host = QWidget()
     host.setObjectName("SuiteToolStrip")
     host.setFixedHeight(TOOL_H)
+    host.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
     lay = QHBoxLayout(host)
-    lay.setContentsMargins(PAD_X, 2, PAD_X, 2)
+    lay.setContentsMargins(PAD_X, STRIP_PAD_V, PAD_X, STRIP_PAD_V)
     lay.setSpacing(GAP)
     for i, w in enumerate(widgets):
         if stretch_at is not None and i == stretch_at:
             lay.addStretch(1)
         if w is not None:
+            try:
+                name = w.objectName() if hasattr(w, "objectName") else ""
+                if isinstance(w, QToolButton) and name == "SuiteIconTool":
+                    w.setFixedSize(CTRL_H, CTRL_H)
+                elif name == "StepSpin" or isinstance(
+                        w, (QLineEdit, QComboBox, QPushButton, QCheckBox)):
+                    w.setFixedHeight(CTRL_H)
+            except Exception:
+                pass
             lay.addWidget(w, 0, Qt.AlignmentFlag.AlignVCenter)
     if stretch_at is None:
         lay.addStretch(1)
@@ -409,14 +479,14 @@ def tool_strip(*widgets, stretch_at: int | None = None) -> QWidget:
 
 
 def ghost_btn(text: str, tip: str, icon: str = "") -> QPushButton:
-    """Secondary action — 28px, optional VS Code icon at ICON size."""
+    """Secondary toolbar action — 28px, visible border (same chrome as Primary)."""
     btn = QPushButton(text)
     btn.setObjectName("GhostButton")
     btn.setFixedHeight(CTRL_H)
     btn.setCursor(Qt.CursorShape.PointingHandCursor)
     btn.setToolTip(tip)
     if icon:
-        codicons.set_button(btn, icon, color=ICON_MUTED, size=ICON)
+        codicons.set_button(btn, icon, color=ICON_FG, size=ICON)
     return btn
 
 
@@ -433,7 +503,7 @@ def primary_btn(text: str, tip: str, icon: str = "") -> QPushButton:
 
 
 def icon_tool(icon: str, tip: str, *, size: int = ICON_TOOL) -> QToolButton:
-    """Icon-only tool — 28×28 hit target, 16px glyph, high contrast."""
+    """Icon-only tool — 28×28 hit target, 16px glyph."""
     btn = QToolButton()
     btn.setObjectName("SuiteIconTool")
     btn.setAutoRaise(True)
@@ -447,7 +517,7 @@ def icon_tool(icon: str, tip: str, *, size: int = ICON_TOOL) -> QToolButton:
 
 
 def chip_btn(text: str, tip: str, icon: str = "") -> QPushButton:
-    """Header chip — same height as fields; icon slightly smaller."""
+    """Header chip — same height as fields."""
     btn = QPushButton(text)
     btn.setObjectName("GhostButton")
     btn.setFixedHeight(CTRL_H)
@@ -477,6 +547,13 @@ def suite_spin(
     return w
 
 
+def count_label(text: str = "") -> QLabel:
+    """Meta / status text — SuiteCount (11px muted). Prefer over ad-hoc styles."""
+    lab = QLabel(text)
+    lab.setObjectName("SuiteCount")
+    return lab
+
+
 def quiet_label(text: str) -> QLabel:
     lab = QLabel(text)
     lab.setObjectName("SuiteHint")
@@ -485,7 +562,7 @@ def quiet_label(text: str) -> QLabel:
 
 
 def next_step_bar(label: str, *actions) -> QWidget:
-    """One quiet handoff row: hint + 1–2 action widgets (Interop Unity IU-4)."""
+    """One quiet handoff row: hint + 1–2 action widgets."""
     host = QWidget()
     host.setObjectName("SuiteNextStep")
     row = QHBoxLayout(host)
@@ -505,21 +582,22 @@ def empty_state(
         title: str,
         hint: str = "",
         actions: Optional[list] = None) -> QWidget:
-    """Centered empty placeholder for editor panes.
-
-    ``actions`` is an optional list of QWidget buttons shown under the hint.
-    """
+    """Centered empty placeholder — kit typography, optional CTAs."""
     host = QWidget()
+    host.setObjectName("SuiteEmptyState")
     lay = QVBoxLayout(host)
-    lay.setContentsMargins(PAD_X * 2, 48, PAD_X * 2, 24)
+    lay.setContentsMargins(PAD_X * 2, 40, PAD_X * 2, 24)
     lay.addStretch(1)
     t = QLabel(title)
-    t.setObjectName("SuitePropTitle")
+    t.setObjectName("SuiteEmptyTitle")
     t.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+    t.setWordWrap(True)
     lay.addWidget(t)
     if hint:
-        h = quiet_label(hint)
+        h = QLabel(hint)
+        h.setObjectName("SuiteEmptyHint")
         h.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        h.setWordWrap(True)
         lay.addWidget(h)
     if actions:
         row = QHBoxLayout()
@@ -535,8 +613,9 @@ def empty_state(
 
 
 def section_title(text: str) -> QLabel:
-    lab = QLabel(text.upper())
-    lab.setObjectName("SuiteSideBarTitle")
+    """Side Bar section title — sentence case, 12px/600 (VS Code explorer)."""
+    lab = QLabel(text)
+    lab.setObjectName("SuiteSectionTitle")
     return lab
 
 
@@ -550,6 +629,25 @@ def field_label(text: str) -> QLabel:
     lab = QLabel(text)
     lab.setObjectName("SuiteFieldLabel")
     return lab
+
+
+def strip_field(label: str, widget: QWidget, *, tip: str = "") -> QWidget:
+    """Label + control for tool strips — never leave a bare value floating."""
+    host = QWidget()
+    host.setObjectName("SuiteStripField")
+    row = QHBoxLayout(host)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(4)
+    lab = field_label(label)
+    if tip:
+        lab.setToolTip(tip)
+        try:
+            widget.setToolTip(tip)
+        except Exception:
+            pass
+    row.addWidget(lab, 0, Qt.AlignmentFlag.AlignVCenter)
+    row.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
+    return host
 
 
 def panel_header(title: str, *trailing) -> QWidget:
@@ -578,19 +676,21 @@ def inline_filter(*widgets) -> QWidget:
     row.setObjectName("SuiteInlineFilter")
     row.setFixedHeight(FILTER_H)
     lay = QHBoxLayout(row)
-    lay.setContentsMargins(PAD_X, 4, PAD_X, 4)
+    lay.setContentsMargins(PAD_X, STRIP_PAD_V, PAD_X, STRIP_PAD_V)
     lay.setSpacing(GAP)
     align = Qt.AlignmentFlag.AlignVCenter
     for w in widgets:
         if w is None:
             continue
-        if hasattr(w, "setFixedHeight") and not isinstance(w, QLabel):
+        if isinstance(w, QLineEdit):
+            w.setFixedHeight(CTRL_H)
+            lay.addWidget(w, 1, align)
+        else:
             try:
                 w.setFixedHeight(CTRL_H)
             except Exception:
                 pass
-        stretch = 1 if isinstance(w, QLineEdit) else 0
-        lay.addWidget(w, stretch, align)
+            lay.addWidget(w, 0, align)
     return row
 
 

@@ -84,7 +84,7 @@
 
 ### 插件化工具
 - **G9 重构** — 原“工具集/协议”侧边栏功能全部插件化（Python + PyQt6），插件在「插件市场」标签页与侧边栏迷你市场安装/启用，支持 `.opk` 包打包安装
-- **领域套件（S0–S5）** — 以套件为单位发布：UDS Suite / DBC Studio / CANopen Suite / J1939 Suite / OBD Suite / TX Lab / Bus Security / Protocol Hub / Log & Compare / Bus Utilities；详见 [doc/Plugin_Domain_Suites.md](doc/Plugin_Domain_Suites.md)
+- **领域套件** — 产品面只上架领域应用：UDS / DBC / EDS / CANopen / J1939 / OBD / AUTOSAR / EtherCAT（+ AI Agent）；TX Lab / Bus Security / Protocol Hub / Log Analysis / Bus Utilities 已退役至 `plugins/_retired/`。详见 [doc/Plugin_Domain_Suites.md](doc/Plugin_Domain_Suites.md)
 - **AI Agent** — 只读 Trace 分析 + HITL 写路径（`frames_send` / UDS·OBD 请求 facade）与工件生成；详见 [doc/aiagent.md](doc/aiagent.md)
 - **插件开发** — 参见 [doc/插件系统方案.md](doc/插件系统方案.md)，`python scripts/plugin_tool.py pack-suites` 打包领域套件，`python scripts/make_market.py` 生成本地市场索引
 

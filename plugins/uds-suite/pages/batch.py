@@ -220,51 +220,35 @@ def _load_rows_from_path(path):
 
 
 def build(parent, session, log_fn) -> QWidget:
-    from _shared import vscode_theme, codicons
+    from pages import _ui
 
     root = QWidget(parent)
     layout = QVBoxLayout(root)
-    layout.setContentsMargins(16, 12, 16, 12)
-    layout.setSpacing(14)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
 
     rows = [dict(r) for r in DEFAULT_ROWS]
     last_batch_path = [""]
     runner_ref = [None]
 
-    seq_card, seq_body = vscode_theme.block(
-        "Sequence",
-        "CSV columns: name, req, expect, timeout, delay. Run uses the shared TX / RX.",
-    )
-
-    btns = QHBoxLayout()
-    btns.setSpacing(8)
-    import_btn = QPushButton("Import")
-    add_btn = QPushButton("Add")
-    edit_btn = QPushButton("Edit")
-    del_btn = QPushButton("Delete")
-    run_btn = QPushButton("Run")
-    run_btn.setObjectName("PrimaryButton")
-    stop_btn = QPushButton("Stop")
-    export_btn = QPushButton("Export")
-    for w, ic, primary in (
-        (import_btn, "import", False),
-        (add_btn, "add", False),
-        (edit_btn, "edit", False),
-        (del_btn, "delete", False),
-        (run_btn, "start", True),
-        (stop_btn, "stop", False),
-        (export_btn, "export", False),
-    ):
-        w.setFixedHeight(28)
-        codicons.set_button(w, ic, primary=primary)
-    for w in (import_btn, add_btn, edit_btn, del_btn):
-        btns.addWidget(w)
-    btns.addStretch(1)
-    for w in (run_btn, stop_btn, export_btn):
-        btns.addWidget(w)
-    seq_body.addLayout(btns)
-    layout.addWidget(seq_card)
+    import_btn = _ui.ghost_btn("Import", "Import CSV/JSON sequence", "import")
+    add_btn = _ui.ghost_btn("Add", "Add a step", "add")
+    edit_btn = _ui.ghost_btn("Edit", "Edit selected step", "edit")
+    del_btn = _ui.ghost_btn("Delete", "Delete selected step", "delete")
+    run_btn = _ui.primary_btn("Run", "Run sequence on shared TX/RX", "start")
+    stop_btn = _ui.ghost_btn("Stop", "Stop runner", "stop")
+    export_btn = _ui.ghost_btn("Export", "Export results CSV", "export")
     stop_btn.setEnabled(False)
+
+    layout.addWidget(_ui.tool_strip(
+        import_btn, add_btn, edit_btn, del_btn,
+        run_btn, stop_btn, export_btn, stretch_at=4))
+
+    body = QWidget()
+    body.setObjectName("SuiteContent")
+    body_l = QVBoxLayout(body)
+    body_l.setContentsMargins(12, 8, 12, 8)
+    body_l.setSpacing(4)
 
     tree = QTreeWidget()
     tree.setHeaderLabels([
@@ -274,16 +258,16 @@ def build(parent, session, log_fn) -> QWidget:
     tree.setRootIsDecorated(False)
     tree.setAlternatingRowColors(True)
     tree.setSelectionBehavior(tree.SelectionBehavior.SelectRows)
+    tree.setToolTip(
+        "CSV columns: name, req, expect, timeout, delay. "
+        "Result is PASS, FAIL, or NRC.")
     tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-    result_card, result_body = vscode_theme.block(
-        "Steps",
-        "One row per request. Result is PASS, FAIL, or NRC.",
-    )
-    result_body.addWidget(tree, 1)
     summary = QLabel("Idle")
-    summary.setObjectName("SuiteHint")
-    result_body.addWidget(summary)
-    layout.addWidget(result_card, 1)
+    summary.setObjectName("SuiteStatusMuted")
+    summary.setToolTip("Batch run summary")
+    body_l.addWidget(tree, 1)
+    body_l.addWidget(summary)
+    layout.addWidget(body, 1)
 
     def _plog(text):
         log_fn("RX", "-", b"", "[Batch] %s" % text)
@@ -481,4 +465,5 @@ def build(parent, session, log_fn) -> QWidget:
             pass
 
     _refresh()
+    _ui.polish_work_surface(root)
     return root

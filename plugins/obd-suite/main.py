@@ -67,7 +67,7 @@ def activate(context):
     context.register_command("obdSuite.open", on_open, "OBD Suite")
 
     _shell.show()
-    sin.output.append("OBD Suite ready (Scanner / Log)")
+    sin.output.append("OBD Suite ready (Scanner / Readiness / Setup)")
 
 
 def deactivate():

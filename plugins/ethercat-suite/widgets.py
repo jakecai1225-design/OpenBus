@@ -17,12 +17,18 @@ from PyQt6.QtWidgets import (
 from _shared import codicons
 
 
-def spin(lo: int, hi: int, value: int, tip: str = "", width: int = 100):
+def spin(lo: int, hi: int, value: int, tip: str = "", width: int = 100,
+         *, hex_mode: bool = False):
     from _shared.widgets import StepSpin
-    box = StepSpin(int(value), minimum=lo, maximum=hi, width=width)
+    box = StepSpin(
+        int(value), minimum=lo, maximum=hi, hex_mode=hex_mode, width=width)
     if tip:
         box.setToolTip(tip)
     return box
+
+
+def spin_hex(lo: int, hi: int, value: int, tip: str = "", width: int = 110):
+    return spin(lo, hi, value, tip, width, hex_mode=True)
 
 
 def combo(items: list, tip: str = "") -> QComboBox:

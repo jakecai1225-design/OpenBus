@@ -53,6 +53,18 @@ class SharedSession(QObject):
         self._tp_timer.timeout.connect(self._on_tp_tick)
         self._tp_timer.start(self.tp_interval_ms)
 
+        # Cross-page focus + Context Next (plugin development norm).
+        self.focus_leaf = "services"
+        self.focus_service = 0
+        self.focus_did = 0
+        self.focus_dtc = ""
+        self._focus_listeners: list[Callable] = []
+        self._ids_touched = False
+        self._did_request = False
+        self._scan_hits = 0
+        self._post_hint_stage = 0
+        self._profile_path = ""
+
     def set_log_fn(self, fn: Callable) -> None:
         self._log_fn = fn
 
@@ -100,6 +112,7 @@ class SharedSession(QObject):
         if func_id is not None:
             self.func_id = int(func_id)
         self._apply_ids_to_stack()
+        self._ids_touched = True
         self._notify_ids()
         self.log(
             "RX", "-", b"",
@@ -123,6 +136,7 @@ class SharedSession(QObject):
         self._apply_ids_to_stack()
         cid = self.func_id if use_func else self.tx_id
         self.log("TX", cid, pdu, tag)
+        self._did_request = True
 
         def _wrap(ok, resp, note):
             if resp and len(resp) >= 3 and resp[0] == 0x7F:
@@ -203,6 +217,48 @@ class SharedSession(QObject):
             self.request(encode_22(did), on_done=cb, tag="Read %04X %s" % (did, name))
 
         _next()
+
+    def on_focus(self, cb: Callable) -> None:
+        self._focus_listeners.append(cb)
+
+    def set_focus(
+            self, leaf: str = "", service: int = 0, did: int = 0,
+            dtc: str = "", **_kwargs) -> None:
+        leaf = (leaf or "").strip()
+        if leaf:
+            self.focus_leaf = leaf
+        if service:
+            self.focus_service = int(service) & 0xFF
+        if did:
+            self.focus_did = int(did) & 0xFFFF
+        if dtc is not None and str(dtc).strip():
+            self.focus_dtc = str(dtc).strip()
+        for cb in list(self._focus_listeners):
+            try:
+                cb(self.focus_leaf, self.focus_service, self.focus_did,
+                   self.focus_dtc)
+            except Exception:
+                pass
+
+    def note_scan_hits(self, count: int) -> None:
+        self._scan_hits = max(0, int(count))
+
+    def advance_next_hint(self) -> None:
+        self._post_hint_stage = min(4, int(self._post_hint_stage) + 1)
+
+    def next_hint(self) -> tuple:
+        """Return (label, action_id, kwargs) for Context Next."""
+        if not self._ids_touched:
+            return ("Set TX/RX IDs", "uds.goto", {"page": "session"})
+        if (self.session_name or "unknown") == "unknown":
+            return ("Open Extended", "uds.extended", {})
+        if not self._did_request:
+            return ("Send a service", "uds.goto", {"page": "services"})
+        if self._scan_hits > 0 and self._post_hint_stage < 2:
+            return ("Review Scan", "uds.goto", {"page": "scan"})
+        if self._post_hint_stage < 3:
+            return ("Run Batch", "uds.goto", {"page": "batch"})
+        return ("Security audit", "uds.goto", {"page": "security"})
 
     def _on_tp_tick(self) -> None:
         if not (self.tester_present and self.isotp._alive):

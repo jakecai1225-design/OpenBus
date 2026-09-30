@@ -56,7 +56,19 @@ def test_set_focus():
     print("PASS set_focus")
 
 
+def test_on_focus_listener():
+    d = DbcDocument()
+    hits = []
+    d.on_focus(lambda: hits.append((d.focus_can_id, d.focus_signal)))
+    d.set_focus(0x100, "A")
+    d.set_focus(0x100, "A")  # duplicate — no notify
+    d.set_focus(0x100, "B")
+    assert hits == [(0x100, "A"), (0x100, "B")]
+    print("PASS on_focus listener")
+
+
 if __name__ == "__main__":
     test_next_hint_golden()
     test_set_focus()
+    test_on_focus_listener()
     print("All session hint tests passed")

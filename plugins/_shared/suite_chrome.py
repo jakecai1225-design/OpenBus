@@ -68,6 +68,11 @@ ACTIVITY_TIPS = {
     "merge": "Merge — combine DBC files",
     "export": "Export — EDS / DCF / HTML / CSV / XDD",
     "pdo": "PDO Map — file-layer RPDO / TPDO mapping",
+    # DBC Studio activities
+    "edit": "Edit — messages, signals, value tables, attributes",
+    "analyze": "Analyze — matrix, timing, validate",
+    "integrate": "Integrate — compare and merge DBC files",
+    "deliver": "Deliver — export and library",
 }
 
 
@@ -197,12 +202,15 @@ def build_workbench(
     root.setContentsMargins(0, 0, 0, 0)
     root.setSpacing(0)
 
+    # VS Code activity rail: 48px wide, full-bleed icon buttons, 24px glyphs
+    _act_w = max(48, int(nav_width))
+    _act_icon = 24
     activity = QWidget()
     activity.setObjectName("SuiteActivityBar")
-    activity.setFixedWidth(max(40, int(nav_width)))
+    activity.setFixedWidth(_act_w)
     act_l = QVBoxLayout(activity)
-    act_l.setContentsMargins(0, 4, 0, 4)
-    act_l.setSpacing(2)
+    act_l.setContentsMargins(0, 6, 0, 6)
+    act_l.setSpacing(0)
 
     page_index = {}
     activity_btns: dict[str, QToolButton] = {}
@@ -225,16 +233,19 @@ def build_workbench(
             btn.setChecked(True)
             btn.blockSignals(False)
             for k, b in activity_btns.items():
-                color = vscode_theme.ACCENT if k == key else vscode_theme.TEXT_DIM
+                color = vscode_theme.ACCENT if k == key else vscode_theme.TEXT
                 icon_key = nav_pages[page_index[k]][0]
-                codicons.set_button(b, icon_key, color=color, size=20)
+                codicons.set_button(b, icon_key, color=color, size=_act_icon)
+        # Tab-based suites own the chrome slot via set_editor_tabs. Never replace
+        # their strip with an activity title (would wipe open tabs on highlight).
         if not callable(getattr(window, "_on_workbench_page", None)):
             title_map = dict(nav_pages)
             tab_pages = {
                 "diagnose", "com", "system", "topology", "frames", "esi",
                 "network", "eds", "library",
+                "edit", "analyze", "integrate", "deliver",
             }
-            if key not in tab_pages:
+            if key not in tab_pages and not _chrome_tabs:
                 set_editor_title(title_map.get(key, key))
 
     def highlight_activity(key: str):
@@ -252,13 +263,13 @@ def build_workbench(
         b.setCheckable(True)
         b.setAutoRaise(True)
         b.setCursor(Qt.CursorShape.PointingHandCursor)
-        b.setFixedSize(36, 36)
-        b.setIconSize(QSize(20, 20))
+        b.setFixedSize(_act_w, _act_w)
+        b.setIconSize(QSize(_act_icon, _act_icon))
         tip = ACTIVITY_TIPS.get(key, page_title)
         tip = i18n.t(tip, tip)
         tip = "%s  (Ctrl+%d)" % (tip, i + 1)
         b.setToolTip(tip)
-        codicons.set_button(b, key, color=vscode_theme.TEXT_DIM, size=20)
+        codicons.set_button(b, key, color=vscode_theme.TEXT, size=_act_icon)
         btn_group.addButton(b, i)
         activity_btns[key] = b
 
@@ -336,7 +347,9 @@ def build_workbench(
 
     chrome = QWidget()
     chrome.setObjectName("SuiteEditorChrome")
-    chrome.setFixedHeight(32)
+    # Match SuiteEditorTabs (TAB_H) + breathing room for accent / DPI.
+    from _shared.suite_ui import CHROME_H
+    chrome.setFixedHeight(CHROME_H)
     ch = QHBoxLayout(chrome)
     ch.setContentsMargins(0, 0, 4, 0)
     ch.setSpacing(0)
@@ -693,11 +706,15 @@ def bind_nav_shortcuts(window, nav_pages, goto_fn) -> None:
 
 
 def make_toolbar(title: str | None = None):
+    """One TOOL_H strip — same density as suite_ui.tool_strip (full field borders)."""
+    from _shared.suite_ui import PAD_X, STRIP_PAD_V, TOOL_H
+
     bar = QWidget()
-    bar.setObjectName("SuiteToolbar")
+    # SuiteToolStrip + SuiteToolbar share QSS density (CTRL_H + vertical pad).
+    bar.setObjectName("SuiteToolStrip")
+    bar.setMinimumHeight(TOOL_H)
     row = QHBoxLayout(bar)
-    row.setContentsMargins(8, 4, 8, 4)
-    row.setSpacing(4)
+    row.setContentsMargins(PAD_X, STRIP_PAD_V, PAD_X, STRIP_PAD_V)
     row.setSpacing(8)
     if title:
         lab = QLabel(title.upper())

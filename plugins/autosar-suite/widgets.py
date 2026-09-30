@@ -39,7 +39,7 @@ def combo(items: list, tip: str = "") -> QComboBox:
 def ghost(text: str, icon: str, tip: str) -> QPushButton:
     btn = QPushButton(text)
     btn.setObjectName("GhostButton")
-    btn.setFixedHeight(22)
+    btn.setFixedHeight(28)
     btn.setCursor(Qt.CursorShape.PointingHandCursor)
     btn.setToolTip(tip)
     codicons.set_button(btn, icon, size=12)

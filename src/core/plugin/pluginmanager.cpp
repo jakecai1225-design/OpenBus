@@ -2,6 +2,7 @@
 #include "pluginhost.h"
 #include "pluginzmq.h"
 #include "pluginconvertjob.h"
+#include "domainplugins.h"
 #include "core/canframe.h"
 #include "core/logging.h"
 #include "core/dbcdata.h"
@@ -12,6 +13,7 @@
 #include "core/dbc/dbc_writer.h"
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QCoreApplication>
@@ -21,6 +23,7 @@
 #include <QJsonArray>
 #include <QJsonValue>
 #include <QProcessEnvironment>
+#include <algorithm>
 
 // ---- CanFrame ↔ JSON 转换 ----
 
@@ -74,6 +77,7 @@ PluginManager *PluginManager::instance()
 PluginManager::PluginManager(QObject *parent)
     : QObject(parent)
 {
+    loadUserUninstalled();
 }
 
 QString PluginManager::findAppBaseDir() const
@@ -133,20 +137,76 @@ QString PluginManager::installPluginsDir() const
     return QCoreApplication::applicationDirPath() + QStringLiteral("/plugins");
 }
 
+QString PluginManager::userUninstalledFilePath() const
+{
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+           + QStringLiteral("/plugins-uninstalled.json");
+}
+
+void PluginManager::loadUserUninstalled()
+{
+    m_userUninstalledPlugins.clear();
+    QFile f(userUninstalledFilePath());
+    if (!f.open(QIODevice::ReadOnly))
+        return;
+    const auto arr = QJsonDocument::fromJson(f.readAll())
+                         .object()
+                         .value(QStringLiteral("uninstalled"))
+                         .toArray();
+    for (const auto &v : arr) {
+        const QString name = v.toString().trimmed();
+        if (!name.isEmpty())
+            m_userUninstalledPlugins.insert(name);
+    }
+}
+
+void PluginManager::saveUserUninstalled() const
+{
+    const QString path = userUninstalledFilePath();
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QJsonArray arr;
+    auto names = m_userUninstalledPlugins.values();
+    std::sort(names.begin(), names.end());
+    for (const QString &name : names)
+        arr.append(name);
+    QJsonObject obj;
+    obj.insert(QStringLiteral("uninstalled"), arr);
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        spdlog::warn("PluginManager: cannot write {}", path.toStdString());
+        return;
+    }
+    f.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+}
+
 void PluginManager::scanPluginsDirectory(const QString &pluginsDir, bool skipExisting)
 {
     QDir dir(pluginsDir);
     if (!dir.exists())
         return;
 
+    // Mixed hubs archived under plugins/_retired/; never ship on the product surface.
+    const QSet<QString> &retired = retiredPluginIds();
+
     const QStringList entries = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     for (const auto &entry : entries) {
-        if (entry == QLatin1String("_shared"))
+        // _shared, _retired, and any future private trees.
+        if (entry.startsWith(QLatin1Char('_')))
             continue;
+        if (retired.contains(entry)) {
+            spdlog::debug("PluginManager: skip retired plugin '{}'",
+                          entry.toStdString());
+            continue;
+        }
         const QString pluginDir = dir.absoluteFilePath(entry);
         PluginInfo info;
         if (!info.loadFromDirectory(pluginDir))
             continue;
+        if (retired.contains(info.name)) {
+            spdlog::debug("PluginManager: skip retired plugin '{}'",
+                          info.name.toStdString());
+            continue;
+        }
         if (m_plugins.contains(info.name)) {
             if (skipExisting) {
                 spdlog::debug("PluginManager: skip installed duplicate '{}'",
@@ -319,10 +379,14 @@ void PluginManager::discoverPlugins()
         scanPluginsDirectory(installed, true);
     }
 
-    spdlog::info("PluginManager: 发现 {} 个插件 (dir={})",
+    // User Uninstall must hide source-tree copies from Installed / discovery.
+    for (const QString &name : m_userUninstalledPlugins)
+        m_plugins.remove(name);
+
+    spdlog::info("PluginManager: discovered {} plugins (dir={})",
                  m_plugins.size(), m_pluginsDir.toStdString());
 
-    // 重算懒激活候选集，并清理订阅表中已卸载的插件
+    // Rebuild lazy-activation candidates; drop subscribers for removed plugins.
     m_onFramePlugins.clear();
     for (const auto &info : m_plugins)
         if (info.activatesOnFrame())
@@ -1275,72 +1339,98 @@ void PluginManager::handleWorkspaceGetSetting(const QJsonObject &params, const Q
 QString PluginManager::installPackage(const QString &opkPath)
 {
     if (!QFileInfo::exists(opkPath))
-        return QStringLiteral("插件包不存在: %1").arg(opkPath);
+        return QStringLiteral("Plugin package not found: %1").arg(opkPath);
     if (m_pythonExe.isEmpty())
         m_pythonExe = findPythonExecutable();
     if (m_pythonExe.isEmpty())
-        return QStringLiteral("未找到 Python 解释器");
+        return QStringLiteral("Python interpreter not found");
 
     const QString toolPath = QFileInfo(m_hostScriptPath).dir().filePath("plugin_tool.py");
     if (!QFileInfo::exists(toolPath))
-        return QStringLiteral("打包工具不存在: %1").arg(toolPath);
+        return QStringLiteral("Pack tool not found: %1").arg(toolPath);
 
     QProcess proc;
     proc.start(m_pythonExe, {toolPath, "install", opkPath, installPluginsDir()});
     if (!proc.waitForFinished(60000)) {
         proc.kill();
-        return QStringLiteral("安装超时");
+        return QStringLiteral("Install timed out");
     }
     const QByteArray out = proc.readAllStandardOutput().trimmed();
 
     QJsonParseError err;
     const QJsonDocument doc = QJsonDocument::fromJson(out, &err);
     if (err.error != QJsonParseError::NoError || !doc.isObject())
-        return QStringLiteral("安装脚本输出异常: %1")
+        return QStringLiteral("Install script output invalid: %1")
                    .arg(QString::fromUtf8(out).left(300));
 
     const QJsonObject res = doc.object();
     if (!res.value("ok").toBool())
-        return res.value("error").toString(QStringLiteral("安装失败"));
+        return res.value("error").toString(QStringLiteral("Install failed"));
 
-    // 重新扫描并确保宿主运行（此前无插件时宿主未启动）
+    const QString installedName = res.value(QStringLiteral("name")).toString();
+    if (!installedName.isEmpty()
+        && m_userUninstalledPlugins.remove(installedName)) {
+        saveUserUninstalled();
+    }
+
+    // Rescan and ensure host is running (may have been skipped with zero plugins).
     discoverPlugins();
     startHostIfNeeded();
     emit pluginListChanged();
-    spdlog::info("PluginManager: 已安装插件 '{}'",
-                 res.value("name").toString().toStdString());
+    spdlog::info("PluginManager: installed plugin '{}'",
+                 installedName.toStdString());
     return QString();
 }
 
 QString PluginManager::uninstallPlugin(const QString &name)
 {
     if (!m_plugins.contains(name))
-        return QStringLiteral("插件不存在: %1").arg(name);
-    if (m_disabledPlugins.contains(name) == false)
-        setPluginEnabled(name, false);   // 内部会先停用
-    else
-        deactivatePlugin(name);
+        return QStringLiteral("Plugin not found: %1").arg(name);
 
-    const QString toolPath = QFileInfo(m_hostScriptPath).dir().filePath("plugin_tool.py");
-    QProcess proc;
-    proc.start(m_pythonExe, {toolPath, "uninstall", name, installPluginsDir()});
-    if (!proc.waitForFinished(30000)) {
-        proc.kill();
-        return QStringLiteral("卸载超时");
+    // Stop runtime use; do not leave a Disabled entry after Uninstall.
+    deactivatePlugin(name);
+    m_disabledPlugins.remove(name);
+    m_activatedPlugins.remove(name);
+
+    // Remove .opk extract under build/bin/plugins when present. Missing is OK:
+    // live source plugins/ may be the only on-disk copy (dev load path).
+    const QString installCopy = QDir(installPluginsDir()).filePath(name);
+    if (QDir(installCopy).exists()) {
+        if (m_pythonExe.isEmpty())
+            m_pythonExe = findPythonExecutable();
+        const QString toolPath =
+            QFileInfo(m_hostScriptPath).dir().filePath("plugin_tool.py");
+        if (m_pythonExe.isEmpty() || !QFileInfo::exists(toolPath)) {
+            if (!QDir(installCopy).removeRecursively())
+                return QStringLiteral("Failed to remove plugin directory: %1")
+                    .arg(installCopy);
+        } else {
+            QProcess proc;
+            proc.start(m_pythonExe,
+                       {toolPath, "uninstall", name, installPluginsDir()});
+            if (!proc.waitForFinished(30000)) {
+                proc.kill();
+                return QStringLiteral("Uninstall timed out");
+            }
+            const QByteArray out = proc.readAllStandardOutput().trimmed();
+            QJsonParseError err;
+            const QJsonDocument doc = QJsonDocument::fromJson(out, &err);
+            if (err.error != QJsonParseError::NoError || !doc.isObject())
+                return QStringLiteral("Uninstall script output invalid: %1")
+                           .arg(QString::fromUtf8(out).left(300));
+            const QJsonObject res = doc.object();
+            if (!res.value("ok").toBool())
+                return res.value("error").toString(
+                    QStringLiteral("Uninstall failed"));
+        }
     }
-    const QByteArray out = proc.readAllStandardOutput().trimmed();
 
-    QJsonParseError err;
-    const QJsonDocument doc = QJsonDocument::fromJson(out, &err);
-    if (err.error != QJsonParseError::NoError || !doc.isObject())
-        return QStringLiteral("卸载脚本输出异常: %1")
-                   .arg(QString::fromUtf8(out).left(300));
-    const QJsonObject res = doc.object();
-    if (!res.value("ok").toBool())
-        return res.value("error").toString(QStringLiteral("卸载失败"));
+    // Hide from Installed even if git source plugins/<name> still exists.
+    m_userUninstalledPlugins.insert(name);
+    saveUserUninstalled();
 
     discoverPlugins();
     emit pluginListChanged();
-    spdlog::info("PluginManager: 已卸载插件 '{}'", name.toStdString());
+    spdlog::info("PluginManager: uninstalled plugin '{}'", name.toStdString());
     return QString();
 }

@@ -587,3 +587,39 @@ QToolTip { background-color: @contentBg; color: @text; border: 1px solid @border
 #WinCloseBtn { background: transparent; color: @barFg; border: none; }
 #WinCloseBtn:hover { background-color: @closeBtnHover; }
 #WinCloseBtn:pressed { background-color: @closeBtnPress; }
+
+/* ---- Marketplace (VS Code-style detail chrome) ---- */
+#MarketDetailChrome {
+    background-color: @contentBg;
+    border-bottom: 1px solid @border;
+    min-height: 36px;
+}
+#MarketBackBtn {
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: @accent;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 10px;
+    text-align: left;
+}
+#MarketBackBtn:hover {
+    background-color: @hoverBg;
+    color: @accentHover;
+}
+#MarketBackBtn:pressed {
+    background-color: @selectionBg;
+}
+#MarketCrumbTitle {
+    color: @text;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 0 4px;
+}
+#MarketDim {
+    color: @textDim;
+}
+#MarketToolbar {
+    background: transparent;
+}

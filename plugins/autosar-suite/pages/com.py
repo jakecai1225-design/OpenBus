@@ -265,7 +265,7 @@ class _Pack(QWidget):
             self.grid.insertRow(row)
             self.grid.setItem(row, 0, _item(sig.name))
             edit = QLineEdit("0")
-            edit.setFixedHeight(26)
+            edit.setFixedHeight(28)
             edit.setToolTip("Physical value (%s)" % (sig.unit or "raw scale"))
             self.grid.setCellWidget(row, 1, edit)
             self.grid.setItem(row, 2, _item(sig.unit))

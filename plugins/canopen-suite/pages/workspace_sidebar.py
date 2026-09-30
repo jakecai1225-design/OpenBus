@@ -29,9 +29,10 @@ def _doc_banner(shell) -> QWidget:
     """One row: file name + New / Open / Save / Apply."""
     host = QWidget()
     host.setObjectName("SuiteDocBanner")
-    host.setFixedHeight(_ui.TOOL_H + 4)
+    host.setFixedHeight(_ui.TOOL_H)
+    host.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
     lay = QHBoxLayout(host)
-    lay.setContentsMargins(_ui.PAD_X, 2, 6, 2)
+    lay.setContentsMargins(_ui.PAD_X, _ui.STRIP_PAD_V, 6, _ui.STRIP_PAD_V)
     lay.setSpacing(2)
     path_lab = QLabel("No EDS")
     path_lab.setObjectName("SuiteDocPath")

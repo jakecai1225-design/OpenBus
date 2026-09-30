@@ -42,26 +42,32 @@
 
 ---
 
-## 3. 目标套件地图（33 → ~10）
+## 3. 目标套件地图（领域套件 + AI）
+
+产品面只保留**单一领域应用**与 AI Agent。工具杂烩（TX Lab / Bus Security / Protocol Hub / Log Analysis / Bus Utilities）已归档到 `plugins/_retired/`，不再发现、不打包、不上架。
 
 | Suite ID | 产品名 | 吸收的旧插件 | 对标 |
 |----------|--------|--------------|------|
 | `uds-suite` | **UDS Suite** | uds-diagnostic, uds-scan, uds-batch, uds-security-audit | Softing DTS / CANoe Diag / TSMaster UDS |
 | `dbc-studio` | **DBC Studio** | dbc-lint, dbc-diff, dbc-codegen, dbc-exporter, dbc-merge + 主进程 DBC 能力对齐 | Vector CANdb++ |
+| `eds-studio` | **EDS Studio** | EDS/DCF 编辑与校验 | Vector CANeds |
 | `canopen-suite` | **CANopen Suite** | canopen-scanner + 新建 EDS/OD/PDO/NMT | CANopen Magic / Peak CANopen |
 | `j1939-suite` | **J1939 Suite** | j1939-analyzer（扩展 TP/RQST/DM） | PEAK J1939 / CANoe J1939 |
 | `obd-suite` | **OBD Suite** | obd2-scanner（扩展 Mode01–09、冻结帧、报告） | FORScan / Torque Pro |
-| `tx-lab` | **TX / Restbus Lab** | can-frame-generator, can-simulator, can-dashboard | CANoe IG / Restbus / Panel |
-| `bus-security` | **Bus Security** | can-fuzzer, can-ids, can-stress, e2e-checksum, uds audit 可交叉链到 UDS | Caring Caribou / 内安工具 |
-| `protocol-monitors` | **Protocol Hub** | autosar-nm, iso-tp, isobus, nmea2000, gbt27930, xcp | 各协议专用观察器合一入口 |
-| `log-analysis` | **Log & Compare** | log-toolkit, frame-compare, trigger-logger, can-quality-report, can-reverse, can-id-scanner | CANalyzer + asammdf lite |
-| `bus-utilities` | **Bus Utilities** | can-bit-timing, can-gateway | 计算器 + 网关规则 |
-| `autosar-suite` | **AUTOSAR Suite** | 新建（Protocol Hub 只保留 NM 观察；本套件做 COM / ARXML / E2E / SecOC） | CANoe.AUTOSAR / DaVinci / TSMaster COM |
+| `autosar-suite` | **AUTOSAR Suite** | COM / ARXML / CanNm / E2E / SecOC（原 Protocol Hub 观察能力不进产品面） | CANoe.AUTOSAR / DaVinci / TSMaster COM |
 | `ethercat-suite` | **EtherCAT Suite** | 新建 | TwinCAT ESI / EC-Engineer / SOEM 工具链 |
 | `ai-agent` | **AI Agent** | （新建，见 aiagent.md） | Majster-AI × MCP |
 
-> 实施顺序建议：**UDS Suite → DBC Studio → CANopen Suite → TX Lab → 其余**。  
-> S5 已移除旧插件目录。源码树与 `plugin_tool.py pack-suites` 只保留领域套件；自定义插件仍可用 `pack <dir>` 单独打包。
+| 已退役（`plugins/_retired/`） | 说明 |
+|-------------------------------|------|
+| `tx-lab` | 发帧 / Restbus / Dashboard 合集 |
+| `bus-security` | Fuzz / IDS / Stress / E2E 合集 |
+| `protocol-hub` | 多协议监视合集 |
+| `log-analysis` | 离线日志工具箱 |
+| `bus-utilities` | 位时序 + 网关计算器 |
+
+> 实施顺序建议：**UDS Suite → DBC Studio → CANopen Suite → 其余领域套件**。  
+> S5 已移除旧细插件；杂烩套件再退役一轮。源码树与 `plugin_tool.py pack-suites` 只保留上表 Keep 行；自定义插件仍可用 `pack <dir>` 单独打包。
 
 ---
 

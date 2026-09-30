@@ -10,16 +10,14 @@ from __future__ import annotations
 
 import time
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import (
     QCheckBox,
-    QFormLayout,
-    QHBoxLayout,
     QHeaderView,
-    QLabel,
     QLineEdit,
+    QMenu,
     QMessageBox,
-    QPushButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -43,66 +41,50 @@ def _hex(data):
 
 
 def build(parent, session, log_fn) -> QWidget:
-    from _shared import vscode_theme, codicons
+    from pages import _ui
     from widgets.step_spin import StepSpin
 
     root = QWidget(parent)
     layout = QVBoxLayout(root)
-    layout.setContentsMargins(16, 12, 16, 12)
-    layout.setSpacing(14)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
 
-    range_card, range_body = vscode_theme.block(
-        "Range",
-        "Probe each request ID with TesterPresent. Apply writes the selected row into the shared connection.",
-    )
-    form_host = QWidget()
-    form = QFormLayout(form_host)
-    vscode_theme.tune_form(form)
-    form.setContentsMargins(0, 0, 0, 0)
     start_edit = QLineEdit("0x7E0")
+    start_edit.setFixedHeight(_ui.CTRL_H)
+    start_edit.setMaximumWidth(100)
     end_edit = QLineEdit("0x7E7")
+    end_edit.setFixedHeight(_ui.CTRL_H)
+    end_edit.setMaximumWidth(100)
     offset_edit = QLineEdit("0x08")
+    offset_edit.setFixedHeight(_ui.CTRL_H)
+    offset_edit.setMaximumWidth(80)
     timeout_spin = StepSpin(600, minimum=100, maximum=5000, suffix=" ms", width=100)
-    probe_check = QCheckBox("Also probe session (10 03) and VIN (22 F190)")
+    probe_check = QCheckBox("Probe 10 03 + VIN")
     probe_check.setChecked(True)
-    form.addRow("Start ID", start_edit)
-    form.addRow("End ID", end_edit)
-    form.addRow("Response offset", offset_edit)
-    form.addRow("Timeout", timeout_spin)
-    form.addRow("", probe_check)
-    range_body.addWidget(form_host)
+    probe_check.setToolTip("Also probe session (10 03) and VIN (22 F190)")
 
-    btns = QHBoxLayout()
-    btns.setSpacing(8)
-    scan_btn = QPushButton("Start scan")
-    scan_btn.setObjectName("PrimaryButton")
-    scan_btn.setFixedSize(112, 28)
-    codicons.set_button(scan_btn, "start", primary=True)
-    stop_btn = QPushButton("Stop")
-    stop_btn.setObjectName("SecondaryButton")
-    stop_btn.setFixedSize(80, 28)
-    codicons.set_button(stop_btn, "stop")
-    apply_btn = QPushButton("Apply")
-    apply_btn.setObjectName("SecondaryButton")
-    apply_btn.setFixedSize(88, 28)
-    codicons.set_button(apply_btn, "apply")
-    clear_btn = QPushButton("Clear")
-    clear_btn.setObjectName("GhostButton")
-    clear_btn.setFixedHeight(28)
-    codicons.set_button(clear_btn, "clear")
-    export_btn = QPushButton("Export")
-    export_btn.setObjectName("GhostButton")
-    export_btn.setFixedHeight(28)
-    codicons.set_button(export_btn, "export")
-    btns.addWidget(scan_btn)
-    btns.addWidget(stop_btn)
-    btns.addWidget(apply_btn)
-    btns.addStretch(1)
-    btns.addWidget(clear_btn)
-    btns.addWidget(export_btn)
-    range_body.addLayout(btns)
-    layout.addWidget(range_card)
+    scan_btn = _ui.primary_btn("Start", "Start range scan", "start")
+    stop_btn = _ui.ghost_btn("Stop", "Stop scan", "stop")
+    apply_btn = _ui.ghost_btn("Apply", "Write selected IDs into shared session", "apply")
+    clear_btn = _ui.ghost_btn("Clear", "Clear results", "clear")
+    export_btn = _ui.ghost_btn("Export", "Export results as CSV", "export")
     stop_btn.setEnabled(False)
+
+    layout.addWidget(_ui.tool_strip(
+        _ui.strip_field("From", start_edit, tip="First request ID (hex)"),
+        _ui.strip_field("To", end_edit, tip="Last request ID (hex)"),
+        _ui.strip_field(
+            "Offset", offset_edit, tip="Response ID = request + offset"),
+        _ui.strip_field("Timeout", timeout_spin, tip="Per-ID timeout"),
+        probe_check,
+        scan_btn, stop_btn, apply_btn, clear_btn, export_btn,
+        stretch_at=5))
+
+    body = QWidget()
+    body.setObjectName("SuiteContent")
+    body_l = QVBoxLayout(body)
+    body_l.setContentsMargins(12, 8, 12, 8)
+    body_l.setSpacing(6)
 
     tree = QTreeWidget()
     tree.setHeaderLabels([
@@ -110,17 +92,14 @@ def build(parent, session, log_fn) -> QWidget:
     ])
     tree.setRootIsDecorated(False)
     tree.setAlternatingRowColors(True)
+    tree.setToolTip("Online ECUs. Select a row, then Apply.")
     tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     tree.header().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
     empty = plugin_shell.empty_state_label(
-        "No ECUs yet. Set the range, then Start scan.")
-    result_card, result_body = vscode_theme.block(
-        "Results",
-        "Online ECUs. Select a row, then Apply to use those IDs.",
-    )
-    result_body.addWidget(tree, 1)
-    result_body.addWidget(empty)
-    layout.addWidget(result_card, 1)
+        "No ECUs yet. Set the range, then Start.")
+    body_l.addWidget(tree, 1)
+    body_l.addWidget(empty)
+    layout.addWidget(body, 1)
 
     state = {
         "client": None,
@@ -184,6 +163,7 @@ def build(parent, session, log_fn) -> QWidget:
         stop_btn.setEnabled(False)
         online = sum(1 for r in state["results"] if r.get("online"))
         summary = "Scan done: %d IDs, %d online" % (len(state["results"]), online)
+        session.note_scan_hits(online)
         _plog(summary)
         plugin_shell.set_status(parent.window(), summary, 6000)
         _persist()
@@ -374,7 +354,14 @@ def build(parent, session, log_fn) -> QWidget:
         if not r.get("online"):
             QMessageBox.warning(root, "Offline", "Selected ID did not respond")
             return
-        session.apply_ids(r["req_id"], r["rsp_id"])
+        shell = parent
+        if hasattr(shell, "run_action"):
+            shell.run_action(
+                "uds.apply_scan_ids",
+                req_id=r["req_id"], rsp_id=r["rsp_id"])
+        else:
+            session.apply_ids(r["req_id"], r["rsp_id"])
+        session.note_scan_hits(sum(1 for x in state["results"] if x.get("online")))
         _plog("Applied TX 0x%X / RX 0x%X to connection" % (
             r["req_id"], r["rsp_id"]))
         plugin_shell.set_status(
@@ -413,6 +400,42 @@ def build(parent, session, log_fn) -> QWidget:
     clear_btn.clicked.connect(on_clear)
     export_btn.clicked.connect(on_export)
 
+    def _copy_text(text: str):
+        if not text:
+            return
+        QGuiApplication.clipboard().setText(str(text))
+        plugin_shell.set_status(parent.window(), "Copied", 1500)
+
+    def _scan_menu(pos):
+        item = tree.itemAt(pos)
+        menu = QMenu(tree)
+        if item is None:
+            menu.addAction("Start scan", on_scan)
+            menu.addAction("Clear", on_clear)
+        else:
+            tree.setCurrentItem(item)
+            menu.addAction(
+                "Copy request ID", lambda: _copy_text(item.text(0)))
+            menu.addAction(
+                "Copy response ID", lambda: _copy_text(item.text(1)))
+            menu.addSeparator()
+            menu.addAction("Apply to connection", on_apply)
+            menu.addAction(
+                "Open Services…",
+                lambda: parent.run_action("uds.goto", page="services")
+                if hasattr(parent, "run_action")
+                else parent.goto_page("services"))
+            menu.addAction(
+                "Open DID…",
+                lambda: parent.run_action("uds.goto", page="did")
+                if hasattr(parent, "run_action")
+                else parent.goto_page("did"))
+        if menu.actions():
+            menu.exec(tree.viewport().mapToGlobal(pos))
+
+    tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    tree.customContextMenuRequested.connect(_scan_menu)
+
     saved = state_store.load_state(PLUGIN_ID, "scan.json") or {}
     if saved.get("scan_start"):
         start_edit.setText(str(saved["scan_start"]))
@@ -427,4 +450,5 @@ def build(parent, session, log_fn) -> QWidget:
 
     empty.setVisible(True)
     tree.setVisible(False)
+    _ui.polish_work_surface(root)
     return root

@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""CANopen Suite UI kit — industrial IDE density (VS Code / CANeds-like).
+"""Shared suite UI kit - industrial IDE density (VS Code Light).
 
 Chrome recipe (every work page):
-  1. ``tool_strip`` or ``panel_header`` — one 32px row
-  2. optional ``inline_filter`` — controls at CTRL_H
-  3. work surface (tree / table / form) — stretch
+  1. tool_strip or panel_header - one TOOL_H row (CTRL_H + pad)
+  2. optional inline_filter - same height so fields keep all four borders
+  3. work surface (tree / table / form) - stretch
 Hints go in tooltips, never a second caption row under the chrome.
 """
 
@@ -32,9 +32,15 @@ from PyQt6.QtWidgets import (
 from _shared import codicons, vscode_theme as T
 
 # Density tokens (industrial software — tight but readable)
+# Strip height MUST be CTRL_H + 2*STRIP_PAD_V so QLineEdit/QComboBox
+# bottom borders are never clipped (Win DPI + 1px border).
 CTRL_H = 28
-TOOL_H = 32
-FILTER_H = 34      # filter strip: CTRL_H + 3px pad each side
+STRIP_PAD_V = 4
+STRIP_EDGE = 2   # border-bottom + DPI fudge
+TOOL_H = CTRL_H + 2 * STRIP_PAD_V + STRIP_EDGE   # 38
+FILTER_H = TOOL_H                   # same as tool strip
+TAB_H = 36
+CHROME_H = TAB_H + 2                # 38
 ICON = 16          # labeled Ghost/Primary buttons (VS Code toolbar)
 ICON_TOOL = 16     # icon-only tool buttons
 ICON_CHIP = 14     # compact header chips
@@ -103,7 +109,7 @@ QTableWidget#SuiteMatrix::item {{
 """
 
 CANOPEN_OVERLAY = f"""
-/* CANopen industrial overlay — document chrome */
+/* Shared suite industrial overlay — document chrome */
 QMainWindow {{
   background: {T.BG};
 }}
@@ -121,7 +127,6 @@ QWidget#SuiteDocBanner {{
   background: {T.SIDEBAR};
   border-bottom: 1px solid {T.BORDER_SOFT};
   min-height: {TOOL_H}px;
-  max-height: {TOOL_H + 4}px;
 }}
 QLabel#SuiteSideBarTitle {{
   color: {T.TEXT_MUTED};
@@ -134,30 +139,62 @@ QLabel#SuiteDocPath {{
   font-size: 11px;
   padding: 2px 0;
 }}
-QWidget#SuiteToolStrip {{
+QWidget#SuiteToolStrip,
+QWidget#SuiteToolbar {{
   background: {T.EDITOR};
   border-bottom: 1px solid {T.BORDER_SOFT};
   min-height: {TOOL_H}px;
-  max-height: {TOOL_H}px;
 }}
 QWidget#SuiteInlineFilter {{
   background: {T.EDITOR};
   border-bottom: 1px solid {T.BORDER_SOFT};
   min-height: {FILTER_H}px;
 }}
+QWidget#SuiteToolStrip QLineEdit,
+QWidget#SuiteToolStrip QComboBox,
+QWidget#SuiteToolbar QLineEdit,
+QWidget#SuiteToolbar QComboBox,
 QWidget#SuiteInlineFilter QLineEdit,
-QWidget#SuiteInlineFilter QComboBox,
+QWidget#SuiteInlineFilter QComboBox {{
+  font-size: 12px;
+  min-height: {CTRL_H}px;
+  max-height: {CTRL_H}px;
+  border: 1px solid {T.BORDER};
+  border-radius: 3px;
+  background: {T.EDITOR};
+  padding: 1px 8px;
+}}
+QWidget#SuiteToolStrip QLineEdit:hover,
+QWidget#SuiteToolStrip QComboBox:hover,
+QWidget#SuiteToolbar QLineEdit:hover,
+QWidget#SuiteToolbar QComboBox:hover,
+QWidget#SuiteInlineFilter QLineEdit:hover,
+QWidget#SuiteInlineFilter QComboBox:hover {{
+  border-color: #A8A8A8;
+}}
+QWidget#SuiteToolStrip QLineEdit:focus,
+QWidget#SuiteToolStrip QComboBox:focus,
+QWidget#SuiteToolbar QLineEdit:focus,
+QWidget#SuiteToolbar QComboBox:focus,
+QWidget#SuiteInlineFilter QLineEdit:focus,
+QWidget#SuiteInlineFilter QComboBox:focus {{
+  border-color: {T.ACCENT};
+}}
+QWidget#SuiteToolStrip QPushButton,
+QWidget#SuiteToolStrip QLabel,
+QWidget#SuiteToolbar QPushButton,
+QWidget#SuiteToolbar QLabel,
 QWidget#SuiteInlineFilter QPushButton,
 QWidget#SuiteInlineFilter QLabel {{
   font-size: 12px;
   min-height: {CTRL_H}px;
   max-height: {CTRL_H}px;
 }}
-QWidget#SuiteInlineFilter QLineEdit {{
-  border: 1px solid {T.BORDER};
-  border-radius: 3px;
-  background: {T.EDITOR};
-  padding: 2px 8px;
+QWidget#SuiteToolStrip QComboBox::drop-down,
+QWidget#SuiteToolbar QComboBox::drop-down,
+QWidget#SuiteInlineFilter QComboBox::drop-down {{
+  border: none;
+  width: 18px;
 }}
 QWidget#SuitePropPanel {{
   background: {T.EDITOR};
@@ -180,14 +217,18 @@ QFrame#SuiteHairline {{
   border: none;
 }}
 QTabBar#SuiteEditorTabs {{
-  min-height: 35px;
+  min-height: {TAB_H}px;
 }}
 QTabBar#SuiteEditorTabs::tab {{
-  padding: 0 4px 0 12px;
+  padding: 8px 4px 8px 12px;
   min-width: 72px;
-  min-height: 35px;
-  max-height: 35px;
+  min-height: {TAB_H}px;
+  max-height: {TAB_H}px;
   font-size: 13px;
+}}
+QTabBar#SuiteEditorTabs::tab:selected {{
+  padding-top: 6px;
+  padding-bottom: 8px;
 }}
 /* Tab close — VS Code style: 18px hit target, soft hover pill */
 QToolButton#SuiteTabClose, QPushButton#SuiteTabClose {{
@@ -269,8 +310,8 @@ QWidget#StepSpin QSpinBox#SuiteSpin {{
   border: none;
   background: transparent;
   padding: 2px 6px;
-  min-height: {CTRL_H - 2}px;
-  max-height: {CTRL_H - 2}px;
+  min-height: {CTRL_H - 4}px;
+  max-height: {CTRL_H - 4}px;
   font-size: 12px;
 }}
 QWidget#StepSpinButtons {{
@@ -391,17 +432,28 @@ def hairline() -> QFrame:
 
 
 def tool_strip(*widgets, stretch_at: int | None = None) -> QWidget:
-    """Single-row IDE toolbar (32px)."""
+    """Single-row IDE toolbar — tall enough for full CTRL_H field borders."""
+    from PyQt6.QtWidgets import QCheckBox, QComboBox, QLineEdit
     host = QWidget()
     host.setObjectName("SuiteToolStrip")
     host.setFixedHeight(TOOL_H)
+    host.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
     lay = QHBoxLayout(host)
-    lay.setContentsMargins(PAD_X, 2, PAD_X, 2)
+    lay.setContentsMargins(PAD_X, STRIP_PAD_V, PAD_X, STRIP_PAD_V)
     lay.setSpacing(GAP)
     for i, w in enumerate(widgets):
         if stretch_at is not None and i == stretch_at:
             lay.addStretch(1)
         if w is not None:
+            try:
+                name = w.objectName() if hasattr(w, "objectName") else ""
+                if isinstance(w, QToolButton) and name == "SuiteIconTool":
+                    w.setFixedSize(CTRL_H, CTRL_H)
+                elif name == "StepSpin" or isinstance(
+                        w, (QLineEdit, QComboBox, QPushButton, QCheckBox)):
+                    w.setFixedHeight(CTRL_H)
+            except Exception:
+                pass
             lay.addWidget(w, 0, Qt.AlignmentFlag.AlignVCenter)
     if stretch_at is None:
         lay.addStretch(1)
@@ -488,8 +540,9 @@ def next_step_bar(label: str, *actions) -> QWidget:
     """One quiet handoff row: hint + 1–2 action widgets (Interop Unity IU-4)."""
     host = QWidget()
     host.setObjectName("SuiteNextStep")
+    host.setMinimumHeight(TOOL_H)
     row = QHBoxLayout(host)
-    row.setContentsMargins(PAD_X, 2, PAD_X, 2)
+    row.setContentsMargins(PAD_X, STRIP_PAD_V, PAD_X, STRIP_PAD_V)
     row.setSpacing(GAP)
     tip = QLabel(label or "")
     tip.setObjectName("SuiteHint")
@@ -497,7 +550,7 @@ def next_step_bar(label: str, *actions) -> QWidget:
     row.addWidget(tip, 1)
     for w in actions:
         if w is not None:
-            row.addWidget(w, 0)
+            row.addWidget(w, 0, Qt.AlignmentFlag.AlignVCenter)
     return host
 
 
@@ -552,12 +605,32 @@ def field_label(text: str) -> QLabel:
     return lab
 
 
+def strip_field(label: str, widget: QWidget, *, tip: str = "") -> QWidget:
+    """Label + control for tool strips — never leave a bare value floating."""
+    host = QWidget()
+    host.setObjectName("SuiteStripField")
+    row = QHBoxLayout(host)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(4)
+    lab = field_label(label)
+    if tip:
+        lab.setToolTip(tip)
+        try:
+            widget.setToolTip(tip)
+        except Exception:
+            pass
+    row.addWidget(lab, 0, Qt.AlignmentFlag.AlignVCenter)
+    row.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
+    return host
+
+
 def panel_header(title: str, *trailing) -> QWidget:
     """Property-pane title row — same TOOL_H as sidebar_header."""
     head = QWidget()
     head.setFixedHeight(TOOL_H)
+    head.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
     lay = QHBoxLayout(head)
-    lay.setContentsMargins(PAD_X, 0, 6, 0)
+    lay.setContentsMargins(PAD_X, STRIP_PAD_V, 6, STRIP_PAD_V)
     lay.setSpacing(4)
     lab = QLabel(title)
     lab.setObjectName("SuitePropTitle")
@@ -569,7 +642,7 @@ def panel_header(title: str, *trailing) -> QWidget:
 
 
 def inline_filter(*widgets) -> QWidget:
-    """Filter / multi-control row — FILTER_H so CTRL_H widgets never clip.
+    """Filter / multi-control row — same height contract as tool_strip.
 
     Pass one or more widgets; the first QLineEdit stretches.
     """
@@ -577,8 +650,9 @@ def inline_filter(*widgets) -> QWidget:
     row = QWidget()
     row.setObjectName("SuiteInlineFilter")
     row.setFixedHeight(FILTER_H)
+    row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
     lay = QHBoxLayout(row)
-    lay.setContentsMargins(PAD_X, 4, PAD_X, 4)
+    lay.setContentsMargins(PAD_X, STRIP_PAD_V, PAD_X, STRIP_PAD_V)
     lay.setSpacing(GAP)
     align = Qt.AlignmentFlag.AlignVCenter
     for w in widgets:
@@ -803,8 +877,9 @@ def sidebar_header(title: str, *trailing) -> QWidget:
     head = QWidget()
     head.setObjectName("SuiteSideBarHeader")
     head.setFixedHeight(TOOL_H)
+    head.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
     hl = QHBoxLayout(head)
-    hl.setContentsMargins(PAD_X, 0, 6, 0)
+    hl.setContentsMargins(PAD_X, STRIP_PAD_V, 6, STRIP_PAD_V)
     hl.setSpacing(4)
     hl.addWidget(section_title(title), 1)
     for w in trailing:
@@ -823,3 +898,62 @@ def split_editor(left: QWidget, right: QWidget, *, left_ratio: int = 7) -> QSpli
     split.addWidget(left)
     split.addWidget(right)
     return configure_splitter(split, golden=True, master_left=True)
+
+
+def muted_label(text: str = "") -> QLabel:
+    """Status / path muted text using theme tokens (no hardcoded hex)."""
+    lab = QLabel(text)
+    lab.setObjectName("SuiteDocPath")
+    return lab
+
+
+def polish_work_surface(root: QWidget) -> None:
+    """Unify ad-hoc widgets under a work page to suite chrome.
+
+    - Bare QPushButton -> GhostButton @ CTRL_H
+    - Bare QTreeWidget / QTableWidget -> SuiteMatrix styling
+    - Bare QTabWidget -> SuitePageTabs
+    Does not rewrite PrimaryButton / already-named widgets.
+    """
+    from PyQt6.QtWidgets import QPushButton, QTabWidget, QTableWidget, QTreeWidget
+    if root is None:
+        return
+    for btn in root.findChildren(QPushButton):
+        name = btn.objectName() or ""
+        if name in ("PrimaryButton", "GhostButton", "SuiteTabClose"):
+            continue
+        if not name:
+            btn.setObjectName("GhostButton")
+        try:
+            btn.setFixedHeight(CTRL_H)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        except Exception:
+            pass
+    for tree in root.findChildren(QTreeWidget):
+        if tree.objectName() != "SuiteMatrix":
+            style_tree(tree, header_hidden=tree.isHeaderHidden())
+    for table in root.findChildren(QTableWidget):
+        if table.objectName() != "SuiteMatrix":
+            style_table(table)
+    for tabs in root.findChildren(QTabWidget):
+        if tabs.objectName() not in ("SuitePageTabs",):
+            style_page_tabs(tabs)
+
+
+def style_page_tabs(tabs) -> None:
+    """Underline-style page tabs (documentMode), shared across suites."""
+    from PyQt6.QtWidgets import QTabWidget
+    if not isinstance(tabs, QTabWidget):
+        return
+    tabs.setObjectName("SuitePageTabs")
+    tabs.setDocumentMode(True)
+    tabs.setMovable(False)
+    bar = tabs.tabBar()
+    if bar is not None:
+        bar.setObjectName("SuiteTopTabs")
+        bar.setExpanding(False)
+        bar.setDrawBase(False)
+
+
+def apply_suite_chrome(window):
+    return apply_canopen_chrome(window)

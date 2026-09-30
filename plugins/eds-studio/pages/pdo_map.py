@@ -6,7 +6,6 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QComboBox,
-    QLabel,
     QLineEdit,
     QStackedWidget,
     QTreeWidget,
@@ -43,7 +42,7 @@ def build(shell, document, log_fn) -> QWidget:
 
     chrome, crow = suite_chrome.make_toolbar()
     pdo_box = QComboBox()
-    pdo_box.setFixedHeight(26)
+    pdo_box.setFixedHeight(_ui.CTRL_H)
     pdo_box.setMinimumWidth(150)
     pdo_box.setToolTip("PDO communication / mapping object")
     sub_spin = _ui.spin(1, 64, 1, "Mapping entry number", width=72)
@@ -59,23 +58,23 @@ def build(shell, document, log_fn) -> QWidget:
     count = _ui.count_label()
     apply_btn = _ui.primary_btn("Apply", "Write mapping entry into the EDS", "apply")
     for lab, w in (
-        ("", pdo_box), ("#", sub_spin), ("Idx", map_idx),
-        ("Sub", map_sub), ("Bits", map_bits), ("", raw_edit),
+        ("PDO", pdo_box), ("#", sub_spin), ("Idx", map_idx),
+        ("Sub", map_sub), ("Bits", map_bits), ("Raw", raw_edit),
     ):
-        if lab:
-            t = QLabel(lab)
-            t.setStyleSheet("color:#78909C;font-size:11px;")
-            crow.addWidget(t)
-        crow.addWidget(w)
+        crow.addWidget(_ui.strip_field(lab, w))
     crow.addWidget(count)
     crow.addStretch(1)
     crow.addWidget(apply_btn)
     layout.addWidget(chrome)
 
     body = QStackedWidget()
+    open_lib = _ui.primary_btn(
+        "Open Library", "Starters and CiA PDO packs", "database")
+    open_lib.clicked.connect(lambda: shell.goto_page("library"))
     empty = _ui.empty_state(
-        "No PDO objects yet.\n"
-        "Open Library → Profiles → Pack RPDO1+TPDO1, or use a Starter.")
+        "No PDO objects yet",
+        "Open Library → Profiles → Pack RPDO1+TPDO1, or use a Starter.",
+        actions=[open_lib])
     tree = QTreeWidget()
     tree.setHeaderLabels([
         "PDO", "Sub", "Name", "Mapped", "Bits", "Raw"])
@@ -226,5 +225,18 @@ def build(shell, document, log_fn) -> QWidget:
     tree.itemSelectionChanged.connect(_on_select)
     apply_btn.clicked.connect(_apply)
     document.on_changed(_refresh)
+
+    def refresh():
+        _refresh()
+        # Prefer focusing a PDO-related index when coming from Editor.
+        fi = document.focus_index
+        if fi is None:
+            return
+        for i in range(pdo_box.count()):
+            if pdo_box.itemData(i) == fi:
+                pdo_box.setCurrentIndex(i)
+                break
+
+    root.refresh = refresh
     _refresh()
     return root

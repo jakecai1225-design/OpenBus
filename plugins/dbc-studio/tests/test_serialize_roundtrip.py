@@ -126,8 +126,119 @@ def test_value_tables_and_attributes_roundtrip():
         db2.messages[256].signal("Temp").value_table_name = "TempState"
         text2 = dbcparse.serialize(db2)
         assert "VAL_TABLE_ TempState" in text2
-        assert 'VAL_ 256 Temp' in text2
+        assert "VAL_ 256 Temp TempState" in text2 or 'VAL_ 256 Temp' in text2
         print("PASS value tables + attributes round-trip")
+
+
+def test_ba_def_extended_object_types():
+    """BA_DEF_ must keep EV_ / BU_SG_REL_ (and plain network) definitions."""
+    src = """VERSION \"\"
+
+NS_ :
+BS_:
+BU_: ECU1
+
+BO_ 1 Demo: 1 ECU1
+ SG_ A : 0|8@1+ (1,0) [0|1] \"\" Vector__XXX
+
+BA_DEF_ BO_ \"GenMsgCycleTime\" INT 0 65535;
+BA_DEF_ \"DBName\" STRING ;
+BA_DEF_ EV_ \"EnvDummy\" INT 0 100;
+BA_DEF_ BU_SG_REL_ \"NodeSigRel\" ENUM \"No\",\"Yes\";
+BA_DEF_DEF_ \"DBName\" \"DemoDb\";
+BA_DEF_DEF_ \"GenMsgCycleTime\" 20;
+BA_ \"DBName\" \"DemoDb\";
+BA_ \"GenMsgCycleTime\" BO_ 1 20;
+"""
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, "attrs.dbc")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(src)
+        db = dbcparse.parse_file(path)
+        names = {d.name: d for d in db.attribute_defs}
+        assert "DBName" in names
+        assert names["DBName"].object_type == ""
+        assert names["DBName"].default == "DemoDb"
+        assert "EnvDummy" in names
+        assert names["EnvDummy"].object_type == "EV_"
+        assert "NodeSigRel" in names
+        assert names["NodeSigRel"].object_type == "BU_SG_REL_"
+        assert db.network_attributes.get("DBName") == "DemoDb"
+        assert db.messages[1].attributes.get("GenMsgCycleTime") in (20, "20")
+        print("PASS BA_DEF_ extended object types")
+
+
+def test_signal_attribute_view_and_hex_ba():
+    """Signal Values lists GenSig defaults + parent GenMsg*, and hex BA_ ids."""
+    from pages.attributes import signal_attribute_view
+
+    src = """VERSION \"\"
+
+NS_ :
+BS_:
+BU_: ECU1
+
+BO_ 80 Frame: 2 ECU1
+ SG_ SigA : 0|8@1+ (1,0) [0|255] \"\" Vector__XXX
+
+BA_DEF_ BO_ \"GenMsgCycleTime\" INT 0 65535;
+BA_DEF_ SG_ \"GenSigStartValue\" INT 0 65535;
+BA_ \"GenMsgCycleTime\" BO_ 0x50 500;
+BA_ \"GenSigStartValue\" SG_ 0x50 SigA 3;
+"""
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, "sig_attrs.dbc")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(src)
+        db = dbcparse.parse_file(path)
+        assert 80 in db.messages
+        assert db.messages[80].attributes.get("GenMsgCycleTime") in (500, "500")
+        assert db.messages[80].signal("SigA").attributes.get(
+            "GenSigStartValue") in (3, "3")
+        assert db.attr_def("GenSigSendType") is not None
+
+        rows = signal_attribute_view(db, 80, "SigA")
+        by_name = {r[0]: r for r in rows}
+        assert "GenSigStartValue" in by_name
+        assert by_name["GenSigStartValue"][1] in ("3", 3) or str(
+            by_name["GenSigStartValue"][1]) == "3"
+        assert by_name["GenSigStartValue"][2] == "set"
+        assert by_name["GenSigStartValue"][3] == "SG_"
+        assert "GenSigSendType" in by_name
+        assert by_name["GenSigSendType"][2] == "default"
+        assert "GenMsgCycleTime" in by_name
+        assert by_name["GenMsgCycleTime"][2] == "message"
+        assert by_name["GenMsgCycleTime"][3] == "BO_"
+        print("PASS signal attribute view + hex BA_")
+
+def test_inline_val_promotes_to_catalog():
+    """DBC with only VAL_ (no VAL_TABLE_) must still fill value_tables."""
+    src = """VERSION \"\"
+
+NS_ :
+BS_:
+BU_: ECU1
+
+BO_ 100 Status: 1 ECU1
+ SG_ Mode : 0|8@1+ (1,0) [0|3] \"\" Vector__XXX
+
+VAL_ 100 Mode 0 \"Off\" 1 \"Run\" 2 \"Fault\" ;
+"""
+    with tempfile.TemporaryDirectory() as td:
+        path = os.path.join(td, "inline.dbc")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(src)
+        db = dbcparse.parse_file(path)
+        sig = db.messages[100].signal("Mode")
+        assert sig is not None
+        assert sig.value_table[0] == "Off"
+        assert sig.value_table[2] == "Fault"
+        assert db.value_tables, "catalog empty after inline VAL_"
+        assert sig.value_table_name in db.value_tables
+        assert db.value_tables[sig.value_table_name][1] == "Run"
+        text = dbcparse.serialize(db)
+        assert "VAL_TABLE_" in text
+        print("PASS inline VAL_ promotes to catalog (%s)" % sig.value_table_name)
 
 
 def test_vector_layout():
@@ -191,6 +302,9 @@ if __name__ == "__main__":
     test_lint_and_merge()
     test_communications_matrix_model()
     test_value_tables_and_attributes_roundtrip()
+    test_ba_def_extended_object_types()
+    test_signal_attribute_view_and_hex_ba()
+    test_inline_val_promotes_to_catalog()
     test_vector_layout()
     test_undo_redo()
     test_csv_import()

@@ -1,0 +1,82 @@
+[2026-09-30 08:25:59.608] [info] 日志系统初始化完成，日志目录: C:/Users/admin/AppData/Roaming/openbus/openbus/logs
+[2026-09-30 08:25:59.609] [info] AppConfig: 配置加载成功 -> C:/Users/admin/AppData/Roaming/openbus/openbus/settings.json
+[2026-09-30 08:25:59.610] [info] AppConfig: 配置已保存 -> C:/Users/admin/AppData/Roaming/openbus/openbus/settings.json
+[2026-09-30 08:25:59.610] [info] SessionManager: 会话加载成功 -> C:/Users/admin/AppData/Roaming/openbus/openbus/sessions.json
+[2026-09-30 08:25:59.618] [info] PluginInfo: 已加载插件 'ai-agent' v0.5.0 (D:/code/openbus/sin/plugins/ai-agent)
+[2026-09-30 08:25:59.618] [info] PluginInfo: 已加载插件 'autosar-suite' v1.2.0 (D:/code/openbus/sin/plugins/autosar-suite)
+[2026-09-30 08:25:59.619] [info] PluginInfo: 已加载插件 'bus-security' v2.0.0 (D:/code/openbus/sin/plugins/bus-security)
+[2026-09-30 08:25:59.619] [info] PluginInfo: 已加载插件 'bus-utilities' v2.0.0 (D:/code/openbus/sin/plugins/bus-utilities)
+[2026-09-30 08:25:59.619] [info] PluginInfo: 已加载插件 'canopen-suite' v2.4.0 (D:/code/openbus/sin/plugins/canopen-suite)
+[2026-09-30 08:25:59.619] [info] PluginInfo: 已加载插件 'dbc-studio' v2.0.0 (D:/code/openbus/sin/plugins/dbc-studio)
+[2026-09-30 08:25:59.619] [info] PluginInfo: 已加载插件 'eds-studio' v1.0.0 (D:/code/openbus/sin/plugins/eds-studio)
+[2026-09-30 08:25:59.619] [info] PluginInfo: 已加载插件 'ethercat-suite' v1.0.0 (D:/code/openbus/sin/plugins/ethercat-suite)
+[2026-09-30 08:25:59.619] [info] PluginInfo: 已加载插件 'j1939-suite' v2.0.0 (D:/code/openbus/sin/plugins/j1939-suite)
+[2026-09-30 08:25:59.619] [info] PluginInfo: 已加载插件 'log-analysis' v2.0.0 (D:/code/openbus/sin/plugins/log-analysis)
+[2026-09-30 08:25:59.620] [info] PluginInfo: 已加载插件 'obd-suite' v2.0.0 (D:/code/openbus/sin/plugins/obd-suite)
+[2026-09-30 08:25:59.620] [info] PluginInfo: 已加载插件 'protocol-hub' v2.0.0 (D:/code/openbus/sin/plugins/protocol-hub)
+[2026-09-30 08:25:59.620] [info] PluginInfo: 已加载插件 'tx-lab' v2.0.0 (D:/code/openbus/sin/plugins/tx-lab)
+[2026-09-30 08:25:59.620] [info] PluginInfo: 已加载插件 'uds-suite' v2.0.1 (D:/code/openbus/sin/plugins/uds-suite)
+[2026-09-30 08:25:59.620] [info] PluginInfo: 已加载插件 'ai-agent' v0.5.0 (D:/code/openbus/sin/build/bin/plugins/ai-agent)
+[2026-09-30 08:25:59.620] [debug] PluginManager: skip installed duplicate 'ai-agent'
+[2026-09-30 08:25:59.620] [info] PluginInfo: 已加载插件 'autosar-suite' v1.2.0 (D:/code/openbus/sin/build/bin/plugins/autosar-suite)
+[2026-09-30 08:25:59.620] [debug] PluginManager: skip installed duplicate 'autosar-suite'
+[2026-09-30 08:25:59.620] [info] PluginInfo: 已加载插件 'bus-security' v2.0.0 (D:/code/openbus/sin/build/bin/plugins/bus-security)
+[2026-09-30 08:25:59.620] [debug] PluginManager: skip installed duplicate 'bus-security'
+[2026-09-30 08:25:59.620] [info] PluginInfo: 已加载插件 'bus-utilities' v2.0.0 (D:/code/openbus/sin/build/bin/plugins/bus-utilities)
+[2026-09-30 08:25:59.620] [debug] PluginManager: skip installed duplicate 'bus-utilities'
+[2026-09-30 08:25:59.621] [info] PluginInfo: 已加载插件 'canopen-suite' v2.4.0 (D:/code/openbus/sin/build/bin/plugins/canopen-suite)
+[2026-09-30 08:25:59.621] [debug] PluginManager: skip installed duplicate 'canopen-suite'
+[2026-09-30 08:25:59.621] [info] PluginInfo: 已加载插件 'dbc-studio' v2.0.0 (D:/code/openbus/sin/build/bin/plugins/dbc-studio)
+[2026-09-30 08:25:59.621] [debug] PluginManager: skip installed duplicate 'dbc-studio'
+[2026-09-30 08:25:59.621] [info] PluginInfo: 已加载插件 'eds-studio' v1.0.0 (D:/code/openbus/sin/build/bin/plugins/eds-studio)
+[2026-09-30 08:25:59.621] [debug] PluginManager: skip installed duplicate 'eds-studio'
+[2026-09-30 08:25:59.621] [info] PluginInfo: 已加载插件 'ethercat-suite' v1.0.0 (D:/code/openbus/sin/build/bin/plugins/ethercat-suite)
+[2026-09-30 08:25:59.621] [debug] PluginManager: skip installed duplicate 'ethercat-suite'
+[2026-09-30 08:25:59.621] [info] PluginInfo: 已加载插件 'j1939-suite' v2.0.0 (D:/code/openbus/sin/build/bin/plugins/j1939-suite)
+[2026-09-30 08:25:59.621] [debug] PluginManager: skip installed duplicate 'j1939-suite'
+[2026-09-30 08:25:59.621] [info] PluginInfo: 已加载插件 'log-analysis' v2.0.0 (D:/code/openbus/sin/build/bin/plugins/log-analysis)
+[2026-09-30 08:25:59.621] [debug] PluginManager: skip installed duplicate 'log-analysis'
+[2026-09-30 08:25:59.621] [info] PluginInfo: 已加载插件 'obd-suite' v2.0.0 (D:/code/openbus/sin/build/bin/plugins/obd-suite)
+[2026-09-30 08:25:59.621] [debug] PluginManager: skip installed duplicate 'obd-suite'
+[2026-09-30 08:25:59.622] [info] PluginInfo: 已加载插件 'protocol-hub' v2.0.0 (D:/code/openbus/sin/build/bin/plugins/protocol-hub)
+[2026-09-30 08:25:59.622] [debug] PluginManager: skip installed duplicate 'protocol-hub'
+[2026-09-30 08:25:59.622] [info] PluginInfo: 已加载插件 'tx-lab' v2.0.0 (D:/code/openbus/sin/build/bin/plugins/tx-lab)
+[2026-09-30 08:25:59.622] [debug] PluginManager: skip installed duplicate 'tx-lab'
+[2026-09-30 08:25:59.622] [info] PluginInfo: 已加载插件 'uds-suite' v2.0.1 (D:/code/openbus/sin/build/bin/plugins/uds-suite)
+[2026-09-30 08:25:59.622] [debug] PluginManager: skip installed duplicate 'uds-suite'
+[2026-09-30 08:25:59.623] [info] PluginManager: 发现 14 个插件 (dir=D:/code/openbus/sin/plugins)
+[2026-09-30 08:25:59.813] [info] PluginManager: using plugin Python: C:\msys64\ucrt64\bin\python.exe (via C:\msys64\ucrt64\bin\python.exe)
+[2026-09-30 08:25:59.842] [info] PluginZmqHub: ctrl=tcp://127.0.0.1:52405 data=tcp://127.0.0.1:52406
+[2026-09-30 08:25:59.855] [info] PluginHost: starting Python host: C:\msys64\ucrt64\bin\python.exe D:/code/openbus/sin/build/bin/scripts/sin_host.py (ctrl=tcp://127.0.0.1:52405 data=tcp://127.0.0.1:52406)
+[2026-09-30 08:25:59.860] [info] PluginHost: process started (PID=14208), waiting for host.hello
+[2026-09-30 08:25:59.862] [error] [CanDeviceZLG] sharedZlgDll: load failed: Cannot load library zlgcan.dll: 找不到指定的模块。
+[2026-09-30 08:25:59.862] [info] [CanDeviceZLG] isAvailable: false
+[2026-09-30 08:25:59.865] [warning] [PEAK] PCANBasic.dll not found (place under drivers/peak/vendor or install PEAK drivers)
+[2026-09-30 08:25:59.869] [warning] [Kvaser] canlib32.dll not found (install Kvaser drivers / place under drivers/kvaser/vendor)
+[2026-09-30 08:25:59.877] [warning] [Vector] vxlapi64.dll / vxlapi.dll not found (install Vector Driver Setup or place under drivers/vector/vendor)
+[2026-09-30 08:25:59.880] [warning] [TongXing] libTSCAN.dll not found (install TOSUN runtime or place libTSCAN.dll + libTSH.dll under drivers/tongxing/vendor)
+[2026-09-30 08:25:59.883] [warning] [Ixxat] vcinpl2.dll not found (install IXXAT VCI4 or place under drivers/ixxat/vendor)
+[2026-09-30 08:25:59.887] [warning] [Intrepid] icsneoc not found (build/install libicsneo or place under drivers/intrepid/vendor)
+[2026-09-30 08:25:59.894] [warning] [DriverRegistry] driver 'busmust' load failed: 缺少 driver.json
+[2026-09-30 08:25:59.894] [warning] [DriverRegistry] driver 'candle' external load failed (缺少 driver.json), keeping builtin
+[2026-09-30 08:25:59.894] [warning] [DriverRegistry] driver 'intrepid' load failed: 缺少 driver.json
+[2026-09-30 08:25:59.894] [warning] [DriverRegistry] driver 'ixxat' load failed: 缺少 driver.json
+[2026-09-30 08:25:59.894] [warning] [DriverRegistry] driver 'kvaser' load failed: 缺少 driver.json
+[2026-09-30 08:25:59.895] [warning] [DriverRegistry] driver 'peak' load failed: 缺少 driver.json
+[2026-09-30 08:25:59.895] [warning] [DriverRegistry] driver 'slcan' external load failed (缺少 driver.json), keeping builtin
+[2026-09-30 08:25:59.895] [warning] [DriverRegistry] driver 'socketcan' load failed: 缺少 driver.json
+[2026-09-30 08:25:59.895] [warning] [DriverRegistry] driver 'tongxing' load failed: 缺少 driver.json
+[2026-09-30 08:25:59.895] [warning] [DriverRegistry] driver 'vector' load failed: 缺少 driver.json
+[2026-09-30 08:25:59.895] [warning] [DriverRegistry] driver 'zlg' load failed: 缺少 driver.json
+[2026-09-30 08:26:00.244] [debug] PluginZmqHub: ctrl inbound 76 bytes (2 parts)
+[2026-09-30 08:26:00.245] [debug] PluginZmqHub: ctrl inbound 115 bytes (2 parts)
+[2026-09-30 08:26:00.499] [debug] PluginZmqHub: ctrl inbound 76 bytes (2 parts)
+[2026-09-30 08:26:00.749] [debug] PluginZmqHub: ctrl inbound 76 bytes (2 parts)
+[2026-09-30 08:26:00.997] [debug] PluginZmqHub: ctrl inbound 76 bytes (2 parts)
+[2026-09-30 08:26:01.248] [debug] PluginZmqHub: ctrl inbound 76 bytes (2 parts)
+[2026-09-30 08:26:01.500] [debug] PluginZmqHub: ctrl inbound 76 bytes (2 parts)
+[2026-09-30 08:26:01.750] [debug] PluginZmqHub: ctrl inbound 76 bytes (2 parts)
+[2026-09-30 08:26:01.955] [info] PluginHost: host.hello received
+[2026-09-30 08:26:01.955] [info] Plugin: [INFO] sin plugin host started (PyQt6 available)
+[2026-09-30 08:26:01.959] [info] PluginHost[stderr]: sin_host: hello burst ctrl=tcp://127.0.0.1:52405 data=tcp://127.0.0.1:52406
+[2026-09-30 08:26:02.001] [debug] PluginZmqHub: ctrl inbound 76 bytes (2 parts)

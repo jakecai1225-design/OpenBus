@@ -18,21 +18,18 @@ Ship **one visual language** (UDS) across every domain suite, then deepen featur
 |---------------|------|
 | `uds-suite` | Reference chrome + diagnose depth |
 | `dbc-studio` | Database authoring |
+| `eds-studio` | EDS / DCF authoring |
 | `canopen-suite` | CANopen network / OD |
 | `j1939-suite` | Heavy-duty PGN / DM |
 | `obd-suite` | OBD-II scanner |
-| `tx-lab` | Generator / restbus / dashboard |
-| `bus-security` | Fuzz / IDS / stress / E2E |
-| `protocol-hub` | NM / ISO-TP / ISOBUS / NMEA / GBT / XCP |
-| `log-analysis` | Offline toolkit |
-| `bus-utilities` | Bit timing + gateway |
 | `autosar-suite` | COM / ARXML / CanNm / E2E / SecOC |
 | `ethercat-suite` | ESI / topology / PDO / CoE / DC / datagrams |
 | `ai-agent` | Platform agent (market optional) |
 
-| Removed | Status |
-|---------|--------|
+| Removed / retired | Status |
+|-------------------|--------|
 | Thin single-purpose plugins (UDS×N, DBC×N, …) | Gone from `plugins/` and `market.json` plugins[] (S5). Do not reintroduce. |
+| `tx-lab`, `bus-security`, `protocol-hub`, `log-analysis`, `bus-utilities` | Archived under `plugins/_retired/`; skipped by PluginManager; not in `SUITE_IDS` / market. |
 
 Pack command: `python scripts/plugin_tool.py pack-suites`  
 Local market: `python scripts/make_market.py`
@@ -53,22 +50,21 @@ Local market: `python scripts/make_market.py`
 
 ### P1 — Highest daily use after UDS
 
-Order: **dbc-studio → tx-lab**  
+Order: **dbc-studio → canopen-suite**  
 Apply page-level rules (block() sections, StepSpin, Setup-only connection where needed) and close competitive P0 rows in the requirements doc.
 
 ### P2 — Protocol scanners
 
-**canopen-suite → j1939-suite → obd-suite**  
-Add missing Setup / OD / DM / Mode coverage from competitor tables.
+**j1939-suite → obd-suite → autosar-suite → ethercat-suite**  
+Add missing Setup / OD / DM / Mode / COM coverage from competitor tables.
 
-### P3 — Hub / offline / utilities / security
+### P3 — (retired hubs)
 
-**protocol-hub → log-analysis → bus-security → bus-utilities**  
-Feature depth + page chrome; keep safety defaults for TX tools.
+Former P3 hubs (`protocol-hub`, `log-analysis`, `bus-security`, `bus-utilities`, `tx-lab`) are archived; do not reintroduce as product tiles. Fold useful pieces into a real domain suite only via PDCA.
 
 ### P4 — Ship
 
-Bump suite versions, `make_market.py`, smoke install from market, README cleanup of any leftover thin-plugin names.
+Bump suite versions, `make_market.py`, smoke install from market, README cleanup of any leftover thin-plugin or retired-hub names.
 
 ---
 

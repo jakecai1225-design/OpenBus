@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from _shared import plugin_shell, vscode_theme, codicons
+from pages import _ui
 from widgets.step_spin import StepSpin
 
 
@@ -38,7 +39,7 @@ def _field(label: str, widget: QWidget) -> QWidget:
     return wrap
 
 
-def _section(title: str, hint: str = "") -> tuple[QWidget, QVBoxLayout]:
+def _section(title: str, tip: str = "") -> tuple[QWidget, QVBoxLayout]:
     card = QWidget()
     card.setObjectName("SuiteSettingsSection")
     outer = QVBoxLayout(card)
@@ -50,13 +51,11 @@ def _section(title: str, hint: str = "") -> tuple[QWidget, QVBoxLayout]:
     head.setSpacing(10)
     t = QLabel(title)
     t.setObjectName("SuiteSectionTitle")
+    if tip:
+        t.setToolTip(tip)
+        card.setToolTip(tip)
     head.addWidget(t)
-    if hint:
-        h = QLabel(hint)
-        h.setObjectName("SuiteHint")
-        head.addWidget(h, 1)
-    else:
-        head.addStretch(1)
+    head.addStretch(1)
     outer.addLayout(head)
 
     body = QVBoxLayout()
@@ -103,12 +102,8 @@ def build(parent, session, log_fn) -> QWidget:
     func_check.setToolTip("Send on Func ID instead of TX")
     crow2.addWidget(func_check)
     crow2.addStretch(1)
-    apply_btn = QPushButton("Apply")
-    apply_btn.setObjectName("PrimaryButton")
-    apply_btn.setFixedHeight(26)
+    apply_btn = _ui.primary_btn("Apply", "Apply connection IDs and addressing", "apply")
     apply_btn.setMinimumWidth(88)
-    apply_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-    codicons.set_button(apply_btn, "apply", primary=True, size=12)
     crow2.addWidget(apply_btn)
     cl.addLayout(crow2)
     layout.addWidget(conn)
@@ -127,7 +122,7 @@ def build(parent, session, log_fn) -> QWidget:
         b = QPushButton(label)
         b.setObjectName("SegmentBtn")
         b.setCheckable(True)
-        b.setFixedHeight(26)
+        b.setFixedHeight(_ui.CTRL_H)
         b.setMinimumWidth(84)
         b.setCursor(Qt.CursorShape.PointingHandCursor)
         b.setToolTip("Session 0x%02X" % code)
@@ -182,12 +177,8 @@ def build(parent, session, log_fn) -> QWidget:
 
     # ---- Identify ----
     ident, il = _section("Identify", "F186 F187 F18A F18C F190 F191 F195 F197")
-    read_btn = QPushButton("Read ID")
-    read_btn.setObjectName("SecondaryButton")
-    read_btn.setFixedHeight(26)
+    read_btn = _ui.ghost_btn("Read ID", "Read identification DIDs", "refresh")
     read_btn.setMinimumWidth(96)
-    read_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-    codicons.set_button(read_btn, "refresh", size=12)
     read_btn.clicked.connect(session.read_identity)
     il.addWidget(read_btn, 0, Qt.AlignmentFlag.AlignLeft)
     layout.addWidget(ident)
@@ -229,4 +220,5 @@ def build(parent, session, log_fn) -> QWidget:
         tp_check.setChecked(session.tester_present)
 
     session.on_ids_changed(_sync)
+    _ui.polish_work_surface(root)
     return root

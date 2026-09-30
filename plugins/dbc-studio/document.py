@@ -22,6 +22,7 @@ class DbcDocument:
         self.compare_db: Optional[dbcparse.DbcFile] = None
         self.compare_path: str = ""
         self._listeners: List[Callable[[], None]] = []
+        self._focus_listeners: List[Callable[[], None]] = []
         self._baseline: dbcparse.DbcFile = copy.deepcopy(self.db)
         self._baseline_dirty: bool = False
         self._undo: List[Tuple[dbcparse.DbcFile, bool]] = []
@@ -45,8 +46,19 @@ class DbcDocument:
     def on_changed(self, fn: Callable[[], None]) -> None:
         self._listeners.append(fn)
 
+    def on_focus(self, fn: Callable[[], None]) -> None:
+        """Fired when Messages selection (focus) changes — no dirty notify."""
+        self._focus_listeners.append(fn)
+
     def _notify(self) -> None:
         for fn in list(self._listeners):
+            try:
+                fn()
+            except Exception:
+                pass
+
+    def _notify_focus(self) -> None:
+        for fn in list(self._focus_listeners):
             try:
                 fn()
             except Exception:
@@ -174,8 +186,12 @@ class DbcDocument:
 
     def set_focus(self, can_id=None, signal: str = "") -> None:
         """Carry message / signal selection across pages."""
+        sig = signal or ""
+        if self.focus_can_id == can_id and self.focus_signal == sig:
+            return
         self.focus_can_id = can_id
-        self.focus_signal = signal or ""
+        self.focus_signal = sig
+        self._notify_focus()
 
     def mark_validated(self, ok: bool, *, error_count: int = 0) -> None:
         self._validated_ok = bool(ok)

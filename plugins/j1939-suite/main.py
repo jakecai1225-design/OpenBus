@@ -67,7 +67,7 @@ def activate(context):
     context.register_command("j1939Suite.open", on_open, "J1939 Suite")
 
     _shell.show()
-    sin.output.append("J1939 Suite ready (Analyzer / Log)")
+    sin.output.append("J1939 Suite ready (Live / Transport / Diagnostics / Network)")
 
 
 def deactivate():

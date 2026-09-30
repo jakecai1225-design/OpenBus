@@ -31,7 +31,7 @@ def build(shell, document, log_fn) -> QWidget:
     chrome, crow = suite_chrome.make_toolbar()
     mode = QComboBox()
     mode.addItems(["COM models", "BSW modules"])
-    mode.setFixedHeight(26)
+    mode.setFixedHeight(_ui.CTRL_H)
     mode.setToolTip("COM PDU/signal diff or BSW parameter value diff")
     open_b = _ui.ghost_btn("Open B…", "Second ARXML or BSW folder/project", "browse")
     run_btn = _ui.primary_btn("Compare", "Diff A vs B", "search")

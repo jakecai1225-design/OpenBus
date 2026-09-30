@@ -19,7 +19,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import codicons, dbc_picker, plugin_shell, suite_chrome
+from pages import _ui
+from _shared import dbc_picker, plugin_shell
 
 
 def _reveal_in_os(path: str) -> None:
@@ -43,55 +44,22 @@ def build(shell, document, log_fn) -> QWidget:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
 
-    chrome, crow = suite_chrome.make_toolbar()
-    refresh_btn = QPushButton("Refresh")
-    refresh_btn.setObjectName("GhostButton")
-    refresh_btn.setFixedHeight(28)
-    codicons.set_button(refresh_btn, "refresh")
-    pin_btn = QPushButton("Pin")
-    pin_btn.setObjectName("GhostButton")
-    pin_btn.setFixedHeight(28)
-    pin_btn.setToolTip("Add selection to Favorites")
-    codicons.set_button(pin_btn, "add")
-    unpin_btn = QPushButton("Unpin")
-    unpin_btn.setObjectName("GhostButton")
-    unpin_btn.setFixedHeight(28)
-    codicons.set_button(unpin_btn, "delete")
-    reveal_btn = QPushButton("Reveal")
-    reveal_btn.setObjectName("GhostButton")
-    reveal_btn.setFixedHeight(28)
-    reveal_btn.setToolTip("Show in file manager")
-    codicons.set_button(reveal_btn, "folder")
-    clear_btn = QPushButton("Clear recent")
-    clear_btn.setObjectName("GhostButton")
-    clear_btn.setFixedHeight(28)
-    codicons.set_button(clear_btn, "clear")
-    browse_btn = QPushButton("Browse")
-    browse_btn.setObjectName("GhostButton")
-    browse_btn.setFixedHeight(28)
-    codicons.set_button(browse_btn, "browse")
-    open_btn = QPushButton("Open")
-    open_btn.setFixedHeight(28)
-    codicons.set_button(open_btn, "file", primary=True)
-    for w in (refresh_btn, pin_btn, unpin_btn, reveal_btn, clear_btn):
-        crow.addWidget(w)
-    crow.addStretch(1)
-    crow.addWidget(browse_btn)
-    crow.addWidget(open_btn)
-    layout.addWidget(chrome)
+    refresh_btn = _ui.ghost_btn("Refresh", "Refresh lists", "refresh")
+    pin_btn = _ui.ghost_btn("Pin", "Add selection to Favorites", "add")
+    unpin_btn = _ui.ghost_btn("Unpin", "Remove from Favorites", "delete")
+    reveal_btn = _ui.ghost_btn("Reveal", "Show in file manager", "folder")
+    clear_btn = _ui.ghost_btn("Clear recent", "Clear recent list", "clear")
+    browse_btn = _ui.ghost_btn("Browse", "Open a DBC from disk", "browse")
+    open_btn = _ui.primary_btn("Open", "Open the selected DBC", "file")
+    layout.addWidget(_ui.tool_strip(
+        refresh_btn, pin_btn, unpin_btn, reveal_btn, clear_btn,
+        browse_btn, open_btn, stretch_at=5))
 
     body = QWidget()
     body.setObjectName("SuiteContent")
     bl = QVBoxLayout(body)
-    suite_chrome.page_margins(bl)
-    bl.setSpacing(10)
-
-    hint = QLabel(
-        "Favorites stay pinned. Recent is auto-filled on open. "
-        "Double-click any path to open in Editor.")
-    hint.setWordWrap(True)
-    hint.setStyleSheet("color:#78909c;font-size:12px;")
-    bl.addWidget(hint)
+    bl.setContentsMargins(0, 0, 0, 0)
+    bl.setSpacing(0)
 
     split = QSplitter(Qt.Orientation.Horizontal)
 
@@ -105,7 +73,7 @@ def build(shell, document, log_fn) -> QWidget:
         vl.addWidget(head)
         lst = QListWidget()
         lst.setAlternatingRowColors(True)
-        lst.setStyleSheet("QListWidget { border: 1px solid #EEEEEE; }")
+        _ui.style_list(lst)
         vl.addWidget(lst, 1)
         return wrap, lst
 
@@ -119,7 +87,7 @@ def build(shell, document, log_fn) -> QWidget:
     bl.addWidget(split, 1)
 
     status = QLabel("")
-    status.setStyleSheet("color:#90A4AE;font-size:11px;")
+    status.setObjectName("SuiteCount")
     bl.addWidget(status)
     layout.addWidget(body, 1)
 

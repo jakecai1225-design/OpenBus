@@ -8,12 +8,12 @@ import os
 import time
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QColor, QFont, QGuiApplication
 from PyQt6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
     QFileDialog, QFormLayout, QHBoxLayout, QHeaderView,
-    QInputDialog, QLabel, QLineEdit, QMessageBox, QProgressBar, QPushButton,
-    QSizePolicy, QStackedWidget, QTabBar, QTableWidget, QTableWidgetItem, QTreeWidget,
+    QInputDialog, QLabel, QLineEdit, QMenu, QMessageBox, QProgressBar, QPushButton,
+    QSizePolicy, QTableWidget, QTableWidgetItem, QTreeWidget,
     QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -107,55 +107,38 @@ def _fit_len(key, n):
     return b"\x00" * (n - len(key)) + key
 
 
-def _tab(bar, stack, widget, name: str, hint: str):
-    """Add an editor tab. Content padding only — tab strip lives in shell chrome."""
+def _leaf(pages: dict, key: str, widget: QWidget, tip: str = "") -> None:
+    """Register a Diagnose sidebar leaf (no chrome Tab strip)."""
     wrap = QWidget()
     v = QVBoxLayout(wrap)
-    v.setContentsMargins(16, 10, 16, 8)
+    v.setContentsMargins(12, 8, 12, 8)
     v.setSpacing(0)
     v.addWidget(widget, 1)
-    stack.addWidget(wrap)
-    idx = bar.addTab(name)
-    if hint:
-        bar.setTabToolTip(idx, hint)
+    if tip:
+        wrap.setToolTip(tip)
+    pages[key] = wrap
 
 
 def build(parent, session, log_fn) -> QWidget:
+    from pages import _ui
     from widgets.layout import page
     from widgets.step_spin import StepSpin
     from widgets.session_tab import build as build_session_tab
-    from _shared import vscode_theme, codicons
+    from _shared import vscode_theme, codicons, plugin_shell
 
     root, layout = page(parent)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
-
-    # Tab strip is mounted into the shell editor chrome (single top row).
-    bar = QTabBar()
-    bar.setObjectName("SuiteEditorTabs")
-    bar.setDrawBase(False)
-    bar.setExpanding(False)
-    bar.setDocumentMode(True)
-    bar.setUsesScrollButtons(True)
-    bar.setElideMode(Qt.TextElideMode.ElideRight)
-    stack = QStackedWidget()
-    stack.setObjectName("SuiteEditorStack")
-    bar.currentChanged.connect(stack.setCurrentIndex)
-    layout.addWidget(stack, 1)
-
-    wb = getattr(parent, "_wb", None)
-    if wb is not None and hasattr(wb, "set_editor_tabs"):
-        parent._diagnose_tabs = bar
-        wb.set_editor_tabs(bar)
+    # Leaves are mounted into the shell Diagnose workspace stack.
+    leaf_pages: dict = {}
 
     def uds_send(pdu, on_done=None, expect_response=True, tag="Request"):
         session.request(pdu, on_done=on_done, expect_response=expect_response, tag=tag)
 
-    # ========== Tab 0: Session ==========
+    # ========== Leaf: Session ==========
     session_page = build_session_tab(parent, session, log_fn)
-    stack.addWidget(session_page)
-    bar.addTab("Session")
-    bar.setTabToolTip(0, "TX/RX IDs, diagnostic session, keep-alive, timing")
+    _leaf(leaf_pages, "session", session_page,
+          "TX/RX IDs, diagnostic session, keep-alive, timing")
 
     # ========== Tab 1: Services ==========
     svc_tab = QWidget()
@@ -194,8 +177,9 @@ def build(parent, session, log_fn) -> QWidget:
     svc_send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
     codicons.set_button(svc_send_btn, "send", primary=True)
     svc_resp_label = QLabel("Last response: —")
-    svc_resp_label.setObjectName("SuiteHint")
+    svc_resp_label.setObjectName("SuiteStatusMuted")
     svc_resp_label.setWordWrap(True)
+    svc_resp_label.setToolTip("Last UDS response")
     svc_resp_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
     req_body.addWidget(svc_title)
 
@@ -204,9 +188,6 @@ def build(parent, session, log_fn) -> QWidget:
     st_l = QHBoxLayout(starters)
     st_l.setContentsMargins(0, 0, 0, 4)
     st_l.setSpacing(8)
-    st_hint = QLabel("Quick start:")
-    st_hint.setObjectName("SuiteHint")
-    st_l.addWidget(st_hint)
 
     def _starter_btn(text, tip, sid, preset=None):
         b = QPushButton(text)
@@ -247,11 +228,37 @@ def build(parent, session, log_fn) -> QWidget:
     st_l.addStretch(1)
     req_body.addWidget(starters)
 
+    related_row = QHBoxLayout()
+    related_row.setContentsMargins(0, 0, 0, 0)
+    related_row.setSpacing(6)
+    related_lbl = QLabel("Related")
+    related_lbl.setObjectName("SuiteStatusMuted")
+    rel_did = QPushButton("DID")
+    rel_did.setObjectName("GhostButton")
+    rel_did.setFixedHeight(24)
+    rel_did.setToolTip("Open DID leaf")
+    rel_dtc = QPushButton("DTC")
+    rel_dtc.setObjectName("GhostButton")
+    rel_dtc.setFixedHeight(24)
+    rel_dtc.setToolTip("Open DTC leaf")
+    rel_scan = QPushButton("Scan")
+    rel_scan.setObjectName("GhostButton")
+    rel_scan.setFixedHeight(24)
+    rel_scan.setToolTip("Open Scan workspace")
+    for b, ic in ((rel_did, "symbol-numeric"), (rel_dtc, "warning"),
+                  (rel_scan, "search")):
+        try:
+            codicons.set_button(b, ic)
+        except Exception:
+            pass
+        related_row.addWidget(b)
+    related_row.addStretch(1)
+    req_body.addWidget(related_lbl)
+    req_body.addLayout(related_row)
+
     req_body.addWidget(svc_param_box)
     req_body.addWidget(svc_send_btn, 0, Qt.AlignmentFlag.AlignLeft)
-    resp_cap = QLabel("Response")
-    resp_cap.setObjectName("BusStripLabel")
-    req_body.addWidget(resp_cap)
+    svc_resp_label.setToolTip("Last UDS response")
     req_body.addWidget(svc_resp_label)
     req_body.addStretch()
     svc_h.addWidget(svc_tree, 2)
@@ -463,12 +470,71 @@ def build(parent, session, log_fn) -> QWidget:
         sid = item.data(0, Qt.ItemDataRole.UserRole)
         if sid is None:
             return
+        session.set_focus(leaf="services", service=int(sid))
         _clear_form()
         svc_title.setText(NAMES.get(sid, str(sid)))
         _svc_expect[0] = True
         _svc_maker[0] = FORMS[sid]()
 
     svc_tree.currentItemChanged.connect(lambda cur, _p: _on_service_selected(cur))
+
+    def _copy_text(text: str):
+        if not text:
+            return
+        QGuiApplication.clipboard().setText(str(text))
+        plugin_shell.set_status(parent, "Copied", 1500)
+
+    def _select_service(service_id: int):
+        sid = int(service_id or 0) & 0xFF
+        for i in range(svc_tree.topLevelItemCount()):
+            cat = svc_tree.topLevelItem(i)
+            for j in range(cat.childCount()):
+                it = cat.child(j)
+                if it.data(0, Qt.ItemDataRole.UserRole) == sid:
+                    svc_tree.setCurrentItem(it)
+                    svc_tree.scrollToItem(it)
+                    session.set_focus(leaf="services", service=sid)
+                    return
+
+    def _svc_menu(pos):
+        item = svc_tree.itemAt(pos)
+        menu = QMenu(svc_tree)
+        if item is None or item.data(0, Qt.ItemDataRole.UserRole) is None:
+            menu.addAction(
+                "Open DID…",
+                lambda: parent.run_action("uds.goto", page="did")
+                if hasattr(parent, "run_action") else parent.goto_page("did"))
+            menu.addAction(
+                "Open DTC…",
+                lambda: parent.run_action("uds.goto", page="dtc")
+                if hasattr(parent, "run_action") else parent.goto_page("dtc"))
+        else:
+            svc_tree.setCurrentItem(item)
+            sid = int(item.data(0, Qt.ItemDataRole.UserRole) or 0)
+            session.set_focus(leaf="services", service=sid)
+            menu.addAction(
+                "Copy service ID",
+                lambda: _copy_text("0x%02X" % sid))
+            menu.addAction("Send", _on_svc_send)
+            menu.addSeparator()
+            if sid == 0x22:
+                menu.addAction(
+                    "Open DID…",
+                    lambda: parent.run_action("uds.goto", page="did")
+                    if hasattr(parent, "run_action")
+                    else parent.goto_page("did"))
+            if sid in (0x14, 0x19):
+                menu.addAction(
+                    "Open DTC…",
+                    lambda: parent.run_action("uds.goto", page="dtc")
+                    if hasattr(parent, "run_action")
+                    else parent.goto_page("dtc"))
+            menu.addAction(
+                "Open Scan…",
+                lambda: parent.run_action("uds.goto", page="scan")
+                if hasattr(parent, "run_action") else parent.goto_page("scan"))
+        if menu.actions():
+            menu.exec(svc_tree.viewport().mapToGlobal(pos))
 
     def _on_svc_send():
         if not _svc_maker[0]:
@@ -481,6 +547,8 @@ def build(parent, session, log_fn) -> QWidget:
         if not pdu:
             log_fn("ERR", "-", b"", "Empty request")
             return
+        if pdu:
+            session.set_focus(leaf="services", service=int(pdu[0]))
 
         def cb(ok, resp, note):
             svc_resp_label.setText(note if note else ("Sent" if ok else "Failed"))
@@ -492,8 +560,20 @@ def build(parent, session, log_fn) -> QWidget:
                  tag=NAMES.get(pdu[0] if pdu else 0, "Request"))
 
     svc_send_btn.clicked.connect(_on_svc_send)
-    _tab(bar, stack, svc_tab, "Services",
-         "Pick a service (or Quick start), fill parameters, Send. Watch OUTPUT below.")
+    svc_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    svc_tree.customContextMenuRequested.connect(_svc_menu)
+    rel_did.clicked.connect(
+        lambda: parent.run_action("uds.goto", page="did")
+        if hasattr(parent, "run_action") else parent.goto_page("did"))
+    rel_dtc.clicked.connect(
+        lambda: parent.run_action("uds.goto", page="dtc")
+        if hasattr(parent, "run_action") else parent.goto_page("dtc"))
+    rel_scan.clicked.connect(
+        lambda: parent.run_action("uds.goto", page="scan")
+        if hasattr(parent, "run_action") else parent.goto_page("scan"))
+    _leaf(leaf_pages, "services", svc_tab,
+          "Pick a service, fill parameters, Send. Prefer Extended session first.")
+    leaf_pages["services"].select_service = _select_service  # type: ignore[attr-defined]
 
     # Default path: land on Services with DiagnosticSessionControl → Extended
     for i in range(svc_tree.topLevelItemCount()):
@@ -536,6 +616,15 @@ def build(parent, session, log_fn) -> QWidget:
             codicons.set_button(w, ic)
     for w in (did_add, did_del, did_read_all, did_poll_check):
         did_btn_row.addWidget(w)
+    did_rel_svc = QPushButton("Services")
+    did_rel_svc.setObjectName("GhostButton")
+    did_rel_svc.setFixedHeight(28)
+    did_rel_svc.setToolTip("Open Services (22 ReadDataByIdentifier)")
+    try:
+        codicons.set_button(did_rel_svc, "symbol-method")
+    except Exception:
+        pass
+    did_btn_row.addWidget(did_rel_svc)
     did_btn_row.addStretch()
     did_btn_row.addWidget(did_write_edit, 2)
     did_write_btn.setFixedHeight(28)
@@ -717,6 +806,55 @@ def build(parent, session, log_fn) -> QWidget:
     did_write_btn.clicked.connect(_did_write_fn)
     did_table.cellDoubleClicked.connect(_on_did_double)
 
+    def _select_did(did: int):
+        target = int(did or 0) & 0xFFFF
+        for row, r in enumerate(_did_rows):
+            if r["did"] == target:
+                did_table.selectRow(row)
+                did_table.scrollToItem(did_table.item(row, 0))
+                session.set_focus(leaf="did", did=target)
+                return
+
+    def _did_menu(pos):
+        index = did_table.indexAt(pos)
+        menu = QMenu(did_table)
+        row = index.row() if index.isValid() else -1
+        if 0 <= row < len(_did_rows):
+            did_table.selectRow(row)
+            r = _did_rows[row]
+            did = int(r["did"])
+            session.set_focus(leaf="did", did=did)
+            menu.addAction(
+                "Copy DID", lambda: _copy_text("0x%04X" % did))
+            menu.addAction(
+                "Copy name", lambda: _copy_text(r.get("name", "")))
+            menu.addSeparator()
+            menu.addAction("Read", lambda d=did: _did_read(d))
+            menu.addAction("Write selected", _did_write_fn)
+            menu.addSeparator()
+            menu.addAction(
+                "Open Services (22)…",
+                lambda: parent.run_action("uds.goto_service", service=0x22)
+                if hasattr(parent, "run_action")
+                else parent.goto_page("services"))
+            menu.addAction("Remove", _did_del_fn)
+        else:
+            menu.addAction("Add DID…", _did_add_fn)
+            menu.addAction("Read all", _did_read_all_fn)
+            menu.addAction(
+                "Open Services…",
+                lambda: parent.run_action("uds.goto", page="services")
+                if hasattr(parent, "run_action")
+                else parent.goto_page("services"))
+        if menu.actions():
+            menu.exec(did_table.viewport().mapToGlobal(pos))
+
+    did_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    did_table.customContextMenuRequested.connect(_did_menu)
+    did_rel_svc.clicked.connect(
+        lambda: parent.run_action("uds.goto_service", service=0x22)
+        if hasattr(parent, "run_action") else parent.goto_page("services"))
+
     _did_last_read = {}
 
     def _did_poll_tick():
@@ -737,10 +875,11 @@ def build(parent, session, log_fn) -> QWidget:
     did_poll_timer.setInterval(200)
     did_poll_timer.timeout.connect(_did_poll_tick)
     did_poll_timer.start(200)
-    _tab(bar, stack, did_tab, "DID",
-         "Read or write identifiers (22 / 2E). Built-in dictionary plus your own DIDs.")
+    _leaf(leaf_pages, "did", did_tab,
+          "Read or write identifiers (22 / 2E). Built-in dictionary plus your own DIDs.")
+    leaf_pages["did"].select_did = _select_did  # type: ignore[attr-defined]
 
-    # ========== Tab 3: DTC ==========
+    # ========== Leaf: DTC ==========
     dtc_tab = QWidget()
     dtc_v = QVBoxLayout(dtc_tab)
     dtc_v.setContentsMargins(0, 0, 0, 0)
@@ -854,10 +993,53 @@ def build(parent, session, log_fn) -> QWidget:
     dtc_read_btn.clicked.connect(_on_dtc_read)
     dtc_cnt_btn.clicked.connect(_on_dtc_count)
     dtc_clear_btn.clicked.connect(_on_dtc_clear)
-    _tab(bar, stack, dtc_tab, "DTC",
-         "Read stored faults (19) or clear them (14). Status bits are decoded in the table.")
 
-    # ========== Tab 4: Security Access (local algos OK) ==========
+    def _select_dtc(code: str):
+        needle = (code or "").strip().upper()
+        if not needle:
+            return
+        for row in range(dtc_table.rowCount()):
+            item = dtc_table.item(row, 0)
+            if item and item.text().upper() == needle:
+                dtc_table.selectRow(row)
+                dtc_table.scrollToItem(item)
+                session.set_focus(leaf="dtc", dtc=needle)
+                return
+
+    def _dtc_menu(pos):
+        index = dtc_table.indexAt(pos)
+        menu = QMenu(dtc_table)
+        row = index.row() if index.isValid() else -1
+        menu.addAction("Read DTC list", _on_dtc_read)
+        menu.addAction("Read count", _on_dtc_count)
+        if row >= 0 and dtc_table.item(row, 0) is not None:
+            dtc_table.selectRow(row)
+            code = dtc_table.item(row, 0).text()
+            session.set_focus(leaf="dtc", dtc=code)
+            menu.addSeparator()
+            menu.addAction("Copy DTC", lambda: _copy_text(code))
+            raw = dtc_table.item(row, 1)
+            if raw is not None:
+                menu.addAction(
+                    "Copy raw", lambda: _copy_text(raw.text()))
+            menu.addSeparator()
+            menu.addAction(
+                "Open Services (19)…",
+                lambda: parent.run_action("uds.goto_service", service=0x19)
+                if hasattr(parent, "run_action")
+                else parent.goto_page("services"))
+        menu.addSeparator()
+        menu.addAction("Clear all…", _on_dtc_clear)
+        if menu.actions():
+            menu.exec(dtc_table.viewport().mapToGlobal(pos))
+
+    dtc_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    dtc_table.customContextMenuRequested.connect(_dtc_menu)
+    _leaf(leaf_pages, "dtc", dtc_tab,
+          "Read stored faults (19) or clear them (14). Status bits are decoded in the table.")
+    leaf_pages["dtc"].select_dtc = _select_dtc  # type: ignore[attr-defined]
+
+    # ========== Leaf: SecAccess ==========
     sec_tab = QWidget()
     sec_v = QVBoxLayout(sec_tab)
     sec_v.setContentsMargins(0, 0, 0, 0)
@@ -985,10 +1167,10 @@ def build(parent, session, log_fn) -> QWidget:
     unlock_body.addWidget(sec_host)
     sec_v.addWidget(unlock_card)
     sec_v.addStretch(1)
-    _tab(bar, stack, sec_tab, "Security",
-         "Request a seed (27 01), compute a key, send it (27 02). Not an audit — that is the Security page.")
+    _leaf(leaf_pages, "sec_access", sec_tab,
+          "Request a seed (27 01), compute a key, send it (27 02). Not an audit — that is the Security page.")
 
-    # ========== Tab 5: Flash ==========
+    # ========== Leaf: Flash ==========
     fl_tab = QWidget()
     fl_v = QVBoxLayout(fl_tab)
     fl_v.setContentsMargins(0, 0, 0, 0)
@@ -1064,7 +1246,8 @@ def build(parent, session, log_fn) -> QWidget:
     fl_progress.setRange(0, 1000)
     fl_progress.setValue(0)
     fl_status = QLabel("Idle — choose a file, then Start flash")
-    fl_status.setObjectName("SuiteHint")
+    fl_status.setObjectName("SuiteStatusMuted")
+    fl_status.setToolTip("Flash sequence status")
     prog_card, prog_body = vscode_theme.block(
         "Progress",
         "Current step. Each request is also written to OUTPUT.",
@@ -1303,10 +1486,10 @@ def build(parent, session, log_fn) -> QWidget:
 
     fl_start_btn.clicked.connect(_on_flash_start)
     fl_stop_btn.clicked.connect(_on_flash_stop)
-    _tab(bar, stack, fl_tab, "Flash",
-         "Programming sequence: optional precheck, erase, 34/36/37, checksum, reset. HEX and S19 fill the start address.")
+    _leaf(leaf_pages, "flash", fl_tab,
+          "Programming sequence: optional precheck, erase, 34/36/37, checksum, reset.")
 
-    # Session | Services | DID | DTC | Security | Flash — start on Services
-    bar.setCurrentIndex(1)
-    stack.setCurrentIndex(1)
+    # Leaves mounted by AppShell Diagnose workspace (sidebar, not Tab strip).
+    root.leaf_pages = leaf_pages  # type: ignore[attr-defined]
+    _ui.polish_work_surface(root)
     return root

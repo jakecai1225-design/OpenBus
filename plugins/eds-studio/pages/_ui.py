@@ -1,59 +1,33 @@
 # -*- coding: utf-8 -*-
-"""Shared EDS Studio UI helpers — quiet chrome, consistent controls."""
+"""EDS Studio UI — shared suite_ui density + EDS helpers."""
 
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QAbstractItemView,
     QComboBox,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QListWidget,
-    QPushButton,
-    QTreeWidget,
 )
 
-from _shared import codicons
-
-TREE_STYLE = (
-    "QTreeWidget#SuiteMatrix, QListWidget#SuiteSideList {"
-    " border: none; background: transparent; outline: 0; }"
-    "QTreeWidget#SuiteMatrix::item:selected,"
-    "QListWidget#SuiteSideList::item:selected {"
-    " background: #E3F2FD; color: #0D47A1; }"
-    "QTreeWidget#SuiteMatrix::item:hover,"
-    "QListWidget#SuiteSideList::item:hover {"
-    " background: #F5F5F5; }"
+from _shared import vscode_theme as T
+from _shared.suite_ui import *  # noqa: F401,F403
+from _shared.suite_ui import apply_suite_chrome as apply_eds_chrome  # noqa: F401
+from _shared.suite_ui import (
+    CTRL_H,
+    muted_label,
+    style_tree as _suite_style_tree,
+    configure_columns,
 )
 
 FORM_MAX_W = 360
-
-
-def ghost_btn(text: str, tip: str, icon: str = "") -> QPushButton:
-    btn = QPushButton(text)
-    btn.setObjectName("GhostButton")
-    btn.setFixedHeight(26)
-    btn.setCursor(Qt.CursorShape.PointingHandCursor)
-    btn.setToolTip(tip)
-    if icon:
-        codicons.set_button(btn, icon, size=12)
-    return btn
-
-
-def primary_btn(text: str, tip: str, icon: str = "apply") -> QPushButton:
-    btn = QPushButton(text)
-    btn.setFixedHeight(26)
-    btn.setCursor(Qt.CursorShape.PointingHandCursor)
-    btn.setToolTip(tip)
-    codicons.set_button(btn, icon, size=12, primary=True)
-    return btn
+ICON_FG = T.TEXT
 
 
 def line_edit(tip: str, placeholder: str = "") -> QLineEdit:
     edit = QLineEdit()
-    edit.setFixedHeight(28)
+    edit.setFixedHeight(CTRL_H)
     edit.setToolTip(tip)
     if placeholder:
         edit.setPlaceholderText(placeholder)
@@ -63,7 +37,7 @@ def line_edit(tip: str, placeholder: str = "") -> QLineEdit:
 def combo(items, tip: str) -> QComboBox:
     box = QComboBox()
     box.addItems(list(items))
-    box.setFixedHeight(28)
+    box.setFixedHeight(CTRL_H)
     box.setToolTip(tip)
     return box
 
@@ -84,47 +58,26 @@ def spin(lo, hi, value, tip="", width=100):
     return box
 
 
-def style_tree(tree: QTreeWidget, stretch_col: int = 1) -> None:
-    tree.setObjectName("SuiteMatrix")
-    tree.setAlternatingRowColors(True)
-    tree.setUniformRowHeights(True)
-    tree.setRootIsDecorated(True)
-    tree.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-    tree.setStyleSheet(TREE_STYLE)
-    hdr = tree.header()
-    hdr.setHighlightSections(False)
-    hdr.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft)
-    for i in range(tree.columnCount()):
-        mode = (QHeaderView.ResizeMode.Stretch if i == stretch_col
-                else QHeaderView.ResizeMode.ResizeToContents)
-        hdr.setSectionResizeMode(i, mode)
+def count_label(text: str = "") -> QLabel:
+    return muted_label(text)
+
+
+def style_tree(tree, stretch_col: int = 1, *, header_hidden: bool = False) -> None:
+    """EDS pages pass stretch_col; map onto shared helpers."""
+    _suite_style_tree(tree, header_hidden=header_hidden)
+    try:
+        configure_columns(tree, stretch=stretch_col)
+    except Exception:
+        pass
 
 
 def style_list(lst: QListWidget) -> None:
     lst.setObjectName("SuiteSideList")
     lst.setSpacing(1)
-    lst.setStyleSheet(TREE_STYLE +
-                      "QListWidget#SuiteSideList::item { padding: 6px 8px; }")
+    lst.setStyleSheet(
+        "QListWidget#SuiteSideList { border: none; background: transparent; outline: 0; }"
+        "QListWidget#SuiteSideList::item { padding: 6px 8px; }"
+        "QListWidget#SuiteSideList::item:selected {"
+        " background: #E3F2FD; color: #0D47A1; }"
+        "QListWidget#SuiteSideList::item:hover { background: #F5F5F5; }")
     lst.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-
-
-def quiet_label(text: str = "") -> QLabel:
-    lab = QLabel(text)
-    lab.setStyleSheet("color:#90A4AE;font-size:11px;")
-    lab.setWordWrap(True)
-    return lab
-
-
-def empty_state(text: str) -> QLabel:
-    lab = QLabel(text)
-    lab.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    lab.setStyleSheet(
-        "color:#B0BEC5;font-size:13px;padding:32px 16px;")
-    lab.setWordWrap(True)
-    return lab
-
-
-def count_label() -> QLabel:
-    lab = QLabel("")
-    lab.setStyleSheet("color:#78909C;font-size:11px;padding:0 6px;")
-    return lab

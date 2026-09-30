@@ -118,8 +118,9 @@ def build(parent, session, log_fn) -> QWidget:
     seq_row.addWidget(seq_preview)
     seq_body.addLayout(seq_row)
     seq_info = QLabel("No sequence loaded")
-    seq_info.setObjectName("SuiteHint")
+    seq_info.setObjectName("SuiteStatusMuted")
     seq_info.setWordWrap(True)
+    seq_info.setToolTip("Sequence preview summary")
     seq_body.addWidget(seq_info)
     seq_body.addWidget(seq_to_batch, 0, Qt.AlignmentFlag.AlignLeft)
     seq_body.addStretch(1)
@@ -202,9 +203,18 @@ def build(parent, session, log_fn) -> QWidget:
             steps = load_sequence(path)
             seq_info.setText("%d steps in %s" % (len(steps), os.path.basename(path)))
             state_store.save_state(PLUGIN_ID, {"last_sequence": path}, "profiles_meta.json")
+            seq_to_batch.setEnabled(True)
             _plog("Sequence preview: %d steps" % len(steps))
         except (OSError, ValueError, KeyError) as e:
             seq_info.setText("Error: %s" % e)
+            seq_to_batch.setEnabled(False)
+
+    def _open_batch():
+        shell = parent
+        if hasattr(shell, "run_action"):
+            shell.run_action("uds.goto", page="batch")
+        elif hasattr(shell, "goto_page"):
+            shell.goto_page("batch")
 
     load_btn.clicked.connect(_on_load)
     save_btn.clicked.connect(_on_save)
@@ -212,6 +222,7 @@ def build(parent, session, log_fn) -> QWidget:
     sync_btn.clicked.connect(_on_sync)
     seq_browse.clicked.connect(_on_seq_browse)
     seq_preview.clicked.connect(_preview)
+    seq_to_batch.clicked.connect(_open_batch)
 
     saved = state_store.load_state(PLUGIN_ID, "profile.json")
     if saved:
@@ -224,4 +235,6 @@ def build(parent, session, log_fn) -> QWidget:
         seq_path.setText(str(meta["last_sequence"]))
 
     session.on_ids_changed(_on_sync)
+    from pages import _ui
+    _ui.polish_work_surface(root)
     return root

@@ -149,6 +149,9 @@ class AppShell(QMainWindow):
         self._chrome_park.setAttribute(
             Qt.WidgetAttribute.WA_DontShowOnScreen, True)
 
+        from pages import _ui as _suite_ui
+        _suite_ui.apply_autosar_chrome(self)
+
         self._wb = suite_chrome.build_workbench(
             self, NAV_PAGES, title="AUTOSAR Studio", panel_title="OUTPUT",
             panel_visible=True, sidebar_visible=True,
@@ -542,9 +545,9 @@ class AppShell(QMainWindow):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setToolTip(tip)
             if text:
-                btn.setFixedHeight(26)
+                btn.setFixedHeight(28)
             else:
-                btn.setFixedSize(28, 26)
+                btn.setFixedSize(28, 28)
             if not primary:
                 btn.setObjectName("GhostButton")
             codicons.set_button(btn, icon, size=12, primary=primary)

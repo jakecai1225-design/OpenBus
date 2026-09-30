@@ -2,6 +2,7 @@
 
 #include "core/driver/driverregistry.h"
 #include "core/driver/marketindex.h"
+#include "core/plugin/domainplugins.h"
 #include "core/plugin/plugininfo.h"
 #include "core/plugin/pluginmanager.h"
 
@@ -190,6 +191,9 @@ QVector<MarketEntryData> MarketModel::collectInstalledPlugins()
     auto *pm = PluginManager::instance();
     const auto plugins = pm->discoveredPlugins();
     for (const auto &p : plugins) {
+        // Hide retired / non-domain leftovers from sidebar + Installed list.
+        if (retiredPluginIds().contains(p.name))
+            continue;
         MarketEntryData d;
         d.item = { MarketItem::InstalledPlugin, p.name };
         d.title = p.title();
@@ -230,6 +234,8 @@ QVector<MarketEntryData> MarketModel::collectMarketPlugins()
 {
     QVector<MarketEntryData> out;
     for (const auto &p : MarketIndex::instance()->plugins()) {
+        if (!isProductSurfacePlugin(p.id) || retiredPluginIds().contains(p.id))
+            continue;
         MarketEntryData d;
         d.item = { MarketItem::MarketPlugin, p.id };
         d.title = p.name;

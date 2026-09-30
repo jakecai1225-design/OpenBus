@@ -18,7 +18,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import codicons, plugin_shell, state_store, suite_chrome
+from pages import _ui
+from _shared import plugin_shell, state_store
 from core import timing_lite
 
 PLUGIN_ID = "dbc-studio"
@@ -30,51 +31,37 @@ def build(shell, document, log_fn) -> QWidget:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
 
-    chrome, crow = suite_chrome.make_toolbar()
-    crow.addWidget(QLabel("Baud"))
     baud = QComboBox()
     baud.addItems([
         "125000", "250000", "500000", "666666", "800000", "1000000",
     ])
     baud.setCurrentText("500000")
-    baud.setFixedHeight(28)
+    baud.setFixedHeight(_ui.CTRL_H)
     baud.setMinimumWidth(110)
-    crow.addWidget(baud)
+    baud.setToolTip("Bus baud for load estimate")
     stuffing = QCheckBox("Stuffing ×1.2")
     stuffing.setChecked(True)
     stuffing.setToolTip("Lite worst-case bit-stuffing factor")
-    crow.addWidget(stuffing)
-    crow.addStretch(1)
-    refresh_btn = QPushButton("Recalculate")
-    refresh_btn.setFixedHeight(28)
-    codicons.set_button(refresh_btn, "refresh", primary=True)
-    export_btn = QPushButton("Export CSV")
-    export_btn.setObjectName("GhostButton")
-    export_btn.setFixedHeight(28)
-    codicons.set_button(export_btn, "export")
-    crow.addWidget(refresh_btn)
-    crow.addWidget(export_btn)
-    layout.addWidget(chrome)
+    refresh_btn = _ui.primary_btn(
+        "Recalculate", "Recompute load from GenMsgCycleTime", "refresh")
+    export_btn = _ui.ghost_btn("Export CSV", "Export timing table", "export")
+    layout.addWidget(_ui.tool_strip(
+        _ui.field_label("Baud"), baud, stuffing,
+        refresh_btn, export_btn, stretch_at=3))
 
     body = QWidget()
     body.setObjectName("SuiteContent")
     bl = QVBoxLayout(body)
-    suite_chrome.page_margins(bl)
-    bl.setSpacing(10)
-
-    hint = QLabel(
-        "Timing lite — estimate cyclic bus load from GenMsgCycleTime / cycle. "
-        "Event frames (cycle 0) are listed but excluded from load%.")
-    hint.setWordWrap(True)
-    hint.setStyleSheet("color:#78909c;font-size:12px;")
-    bl.addWidget(hint)
+    bl.setContentsMargins(0, 0, 0, 0)
+    bl.setSpacing(0)
 
     summary = QLabel("Open a DBC with cycle times to estimate load")
-    summary.setObjectName("SuiteSectionTitle")
+    summary.setObjectName("SuiteCount")
+    summary.setContentsMargins(_ui.PAD_X, 4, _ui.PAD_X, 2)
     bl.addWidget(summary)
 
     band = QLabel("")
-    band.setStyleSheet("font-size:12px;font-weight:600;")
+    band.setObjectName("SuiteSectionTitle")
     bl.addWidget(band)
 
     table = QTableWidget(0, 7)
@@ -88,11 +75,7 @@ def build(shell, document, log_fn) -> QWidget:
     table.verticalHeader().setVisible(False)
     table.verticalHeader().setDefaultSectionSize(28)
     table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-    table.setStyleSheet(
-        "QTableWidget#SuiteMatrix { gridline-color: #EEEEEE; }"
-        "QTableWidget#SuiteMatrix::item:selected {"
-        " background: #E3F2FD; color: #0D47A1; }"
-    )
+    _ui.style_table(table)
     bl.addWidget(table, 1)
     layout.addWidget(body, 1)
 
@@ -115,13 +98,16 @@ def build(shell, document, log_fn) -> QWidget:
         level = timing_lite.load_band(load)
         if level == "ok":
             band.setText("●  Comfortable (< 30%)")
-            band.setStyleSheet("color:#2E7D32;font-size:12px;font-weight:600;")
+            band.setStyleSheet(
+                "color:#2E7D32;font-size:%dpx;font-weight:600;" % _ui.FS_CTRL)
         elif level == "warn":
             band.setText("●  Elevated (30–50%) — review high-rate frames")
-            band.setStyleSheet("color:#EF6C00;font-size:12px;font-weight:600;")
+            band.setStyleSheet(
+                "color:#EF6C00;font-size:%dpx;font-weight:600;" % _ui.FS_CTRL)
         else:
             band.setText("●  High (≥ 50%) — risk of bus saturation")
-            band.setStyleSheet("color:#C62828;font-size:12px;font-weight:600;")
+            band.setStyleSheet(
+                "color:#C62828;font-size:%dpx;font-weight:600;" % _ui.FS_CTRL)
 
         rows = [r for r in result["rows"] if r["kind"] == "cyclic"]
         rows.sort(key=lambda r: -r["share_pct"])

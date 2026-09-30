@@ -2,7 +2,8 @@
 """AppShell — DBC Studio (four pillars + File menu + Context Next).
 
 Activities: Edit / Analyze / Integrate / Deliver.
-DBC files live under File; chrome row shows the leaf title only.
+DBC files live under File; sidebar leaves open as closable editor tabs
+on the main chrome row (VS Code style), same contract as CANopen.
 """
 
 from __future__ import annotations
@@ -11,23 +12,27 @@ import os
 import time
 from typing import Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QColor, QFontMetrics, QKeySequence
 from PyQt6.QtWidgets import (
     QCheckBox,
     QFileDialog,
+    QHBoxLayout,
     QLabel,
     QMainWindow,
     QMenuBar,
     QMessageBox,
     QStackedWidget,
+    QTabBar,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QWidget,
 )
 
 from _shared import (
     codicons, dbc_picker, plugin_shell, state_store, suite_chrome,
+    vscode_theme,
 )
 from document import DbcDocument
 from pages import _ui
@@ -89,6 +94,35 @@ _PAGE_ALIASES = {
     "codegen": "export",
 }
 
+_ACTIVITY_KEYS = frozenset(k for k, _ in NAV_PAGES)
+_LEAF_KEYS = frozenset(FEATURE_TITLES.keys())
+
+
+def _is_leaf_feature(feature: str) -> bool:
+    return feature in _LEAF_KEYS and feature in FEATURE_ROUTE
+
+
+def normalize_open_tabs(ot) -> list[str]:
+    """Accept a list (or legacy junk) and keep known leaf feature keys only."""
+    restored: list[str] = []
+    raw: list[str] = []
+    if isinstance(ot, list):
+        raw = [x for x in ot if isinstance(x, str)]
+    elif isinstance(ot, dict):
+        for _ws, v in ot.items():
+            if not isinstance(v, list):
+                continue
+            for x in v:
+                if isinstance(x, str) and x not in raw:
+                    raw.append(x)
+    for x in raw:
+        key = _PAGE_ALIASES.get(x, x)
+        if not _is_leaf_feature(key):
+            continue
+        if key not in restored:
+            restored.append(key)
+    return restored
+
 
 class AppShell(QMainWindow):
     def __init__(self, context, start_page: Optional[str] = None):
@@ -108,6 +142,9 @@ class AppShell(QMainWindow):
         self._workspace_stack_index: dict[str, int] = {}
         self._sidebars: dict = {}
         self._active_feature = "editor"
+        self._open_tabs: list[str] = []
+        self._tab_bar: Optional[QTabBar] = None
+        self._tab_guard = False
         self._lint_before_save = True
         self._next_action = ("", "", {})
         self._status_chrome_mounted = False
@@ -116,6 +153,13 @@ class AppShell(QMainWindow):
             codicons.clear_pixmap_cache()
         except Exception:
             pass
+
+        _icon_svg = os.path.join(os.path.dirname(__file__), "icon.svg")
+        if os.path.isfile(_icon_svg):
+            try:
+                self.setWindowIcon(codicons.window_icon_from_svg(_icon_svg))
+            except Exception:
+                pass
 
         _ui.apply_dbc_chrome(self)
         plugin_shell.attach_status_bar(self, "Ready")
@@ -184,9 +228,9 @@ class AppShell(QMainWindow):
         if goto:
             state_store.clear_state(PLUGIN_ID, "goto.json")
         page = _PAGE_ALIASES.get(page or "", page or "editor")
-        if page in dict(NAV_PAGES):
+        if page in _ACTIVITY_KEYS and page not in _LEAF_KEYS:
             page = _WORKSPACE_DEFAULT.get(page, "editor")
-        if page not in FEATURE_ROUTE:
+        if not _is_leaf_feature(page):
             page = "editor"
         activity = FEATURE_ROUTE[page][0]
         self._switch_activity(activity)
@@ -268,10 +312,114 @@ class AppShell(QMainWindow):
             w.setParent(bar)
             bar.addPermanentWidget(w)
 
-    def _mount_chrome(self, feature: str):
-        title = FEATURE_TITLES.get(feature, feature)
-        self._wb.set_editor_title(title)
+    def _tab_title(self, feature: str) -> str:
+        return FEATURE_TITLES.get(feature, feature)
+
+    def _mount_tab_bar(self):
+        opens = list(self._open_tabs)
+        bar = QTabBar()
+        bar.setObjectName("SuiteEditorTabs")
+        bar.setDrawBase(False)
+        bar.setExpanding(False)
+        bar.setDocumentMode(True)
+        bar.setTabsClosable(False)
+        bar.setMovable(True)
+        for feat in opens:
+            idx = bar.addTab(self._tab_title(feat))
+            bar.setTabToolTip(idx, FEATURE_TITLES.get(feat, feat))
+            bar.setTabData(idx, feat)
+            close_btn = QToolButton(bar)
+            close_btn.setObjectName("SuiteTabClose")
+            close_btn.setAutoRaise(True)
+            close_btn.setFixedSize(18, 18)
+            close_btn.setIconSize(QSize(12, 12))
+            close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            close_btn.setToolTip("Close tab")
+            close_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            codicons.set_button(
+                close_btn, "close", color=vscode_theme.TEXT_DIM, size=12)
+            bar.setTabButton(idx, QTabBar.ButtonPosition.RightSide, close_btn)
+
+            def _close_feat(_checked=False, key=feat):
+                for j in range(bar.count()):
+                    if bar.tabData(j) == key:
+                        bar.tabCloseRequested.emit(j)
+                        break
+
+            close_btn.clicked.connect(_close_feat)
+        if self._active_feature in opens:
+            bar.setCurrentIndex(opens.index(self._active_feature))
+        elif opens:
+            bar.setCurrentIndex(len(opens) - 1)
+
+        def _changed(idx: int):
+            if self._tab_guard or idx < 0:
+                return
+            feat = bar.tabData(idx)
+            if feat:
+                self._activate_feature(str(feat))
+
+        def _close(idx: int):
+            if idx < 0 or idx >= bar.count():
+                return
+            feat = bar.tabData(idx)
+            if not feat:
+                return
+            self._close_feature_tab(str(feat))
+
+        def _moved(_from: int, _to: int):
+            order = []
+            for i in range(bar.count()):
+                d = bar.tabData(i)
+                if d:
+                    order.append(str(d))
+            if order:
+                self._open_tabs = order
+
+        bar.currentChanged.connect(_changed)
+        bar.tabCloseRequested.connect(_close)
+        bar.tabMoved.connect(_moved)
+        self._tab_bar = bar
+
+        host = QWidget()
+        host.setObjectName("SuiteEditorTabHost")
+        row = QHBoxLayout(host)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(0)
+        row.addWidget(bar, 1)
+        self._wb.set_editor_tabs(host)
         self._ensure_status_chrome()
+
+    def _open_feature_tab(self, feature: str, *, activate: bool = True):
+        if not _is_leaf_feature(feature):
+            return
+        route = FEATURE_ROUTE[feature]
+        if feature not in self._open_tabs:
+            self._open_tabs.append(feature)
+        if activate:
+            self._active_feature = feature
+        self._mount_tab_bar()
+        self._activate_feature(feature)
+        workspace, _ = route
+        sb = self._sidebars.get(workspace)
+        if sb is not None and hasattr(sb, "select_section"):
+            try:
+                sb.select_section(feature)
+            except Exception:
+                pass
+
+    def _close_feature_tab(self, feature: str):
+        if feature in self._open_tabs:
+            self._open_tabs.remove(feature)
+        if not self._open_tabs:
+            self._open_feature_tab("editor", activate=True)
+            return
+        nxt = (
+            self._active_feature
+            if self._active_feature in self._open_tabs
+            else self._open_tabs[-1])
+        self._mount_tab_bar()
+        self._activate_feature(nxt)
 
     def _build_menubar(self):
         bar = self.menuBar()
@@ -323,6 +471,8 @@ class AppShell(QMainWindow):
         m_view.addSeparator()
         for feat, title in (
                 ("editor", "&Messages"),
+                ("valuetables", "&Value tables"),
+                ("attributes", "&Attributes"),
                 ("validate", "&Validate"),
                 ("export", "&Export"),
                 ("library", "&Library")):
@@ -375,6 +525,10 @@ class AppShell(QMainWindow):
             "view.export": lambda: self.goto_page("export"),
             "view.library": lambda: self.goto_page("library"),
             "view.matrix": lambda: self.goto_page("matrix"),
+            "view.valuetables": lambda: self.goto_value_tables(
+                kw.get("table")),
+            "view.attributes": lambda: self.goto_attributes(
+                kw.get("can_id"), kw.get("signal")),
             "editor.focus": lambda: self.goto_editor_target(
                 kw.get("can_id"), kw.get("signal")),
         }
@@ -435,9 +589,6 @@ class AppShell(QMainWindow):
     def _switch_activity(self, key: str):
         if key not in dict(NAV_PAGES):
             return
-        wi = self._workspace_stack_index.get(key)
-        if wi is not None:
-            self.stack.setCurrentIndex(wi)
         sb = self._sidebars.get(key)
         if sb is not None and self._wb.set_side_bar_widget:
             self._wb.set_side_bar_widget(sb)
@@ -445,16 +596,26 @@ class AppShell(QMainWindow):
             self._wb.highlight_activity(key)
         except Exception:
             pass
+        if self._open_tabs:
+            self._mount_tab_bar()
 
     def _on_activity_clicked(self, key: str):
         self._switch_activity(key)
-        default = _WORKSPACE_DEFAULT.get(key, "editor")
-        self.goto_page(default)
+        if not self._open_tabs:
+            default = _WORKSPACE_DEFAULT.get(key, "editor")
+            self._open_feature_tab(default, activate=True)
+        self._sync_next_hint()
+        self._persist()
+
+    def _on_workbench_page(self, key: str):
+        # Presence also tells suite_chrome not to set_editor_title on highlight
+        # (that would wipe the editor tab strip).
+        self._on_activity_clicked(key)
 
     def _activate_feature(self, feature: str):
-        route = FEATURE_ROUTE.get(feature)
-        if not route:
+        if not _is_leaf_feature(feature):
             return
+        route = FEATURE_ROUTE[feature]
         workspace, _ = route
         self._active_feature = feature
         wi = self._workspace_stack_index.get(workspace)
@@ -468,7 +629,15 @@ class AppShell(QMainWindow):
             else:
                 idx = getattr(outer, "_feature_index", {}).get(feature, 0)
                 outer.setCurrentIndex(idx)
-        self._mount_chrome(feature)
+        if self._tab_bar is not None:
+            self._tab_guard = True
+            try:
+                for i in range(self._tab_bar.count()):
+                    if self._tab_bar.tabData(i) == feature:
+                        self._tab_bar.setCurrentIndex(i)
+                        break
+            finally:
+                self._tab_guard = False
         sb = self._sidebars.get(workspace)
         if sb is not None and hasattr(sb, "select_section"):
             try:
@@ -479,14 +648,26 @@ class AppShell(QMainWindow):
             self._wb.highlight_activity(workspace)
         except Exception:
             pass
+        plugin_shell.set_status(
+            self, FEATURE_TITLES.get(feature, feature), 1200)
+        # Re-sync leaf UIs with document focus (Messages ↔ Value tables / Attributes).
+        page = self._pages.get(feature)
+        refresh = getattr(page, "refresh", None) if page is not None else None
+        if callable(refresh):
+            try:
+                refresh()
+            except Exception:
+                pass
 
     def goto_page(self, key: str):
         key = _PAGE_ALIASES.get(key, key)
-        if key in dict(NAV_PAGES):
+        if key in _ACTIVITY_KEYS and key not in _LEAF_KEYS:
             key = _WORKSPACE_DEFAULT.get(key, "editor")
-        if key not in FEATURE_ROUTE:
+        if not _is_leaf_feature(key):
             key = "editor"
-        self._activate_feature(key)
+        workspace = FEATURE_ROUTE[key][0]
+        self._switch_activity(workspace)
+        self._open_feature_tab(key, activate=True)
         self._sync_next_hint()
         self._persist()
 
@@ -496,6 +677,21 @@ class AppShell(QMainWindow):
         api = self._pages.get("editor")
         if api is not None and hasattr(api, "select_target"):
             api.select_target(can_id, signal)
+
+    def goto_value_tables(self, table_name: Optional[str] = None):
+        self.goto_page("valuetables")
+        api = self._pages.get("valuetables")
+        if api is not None and table_name and hasattr(api, "select_table"):
+            api.select_table(table_name)
+
+    def goto_attributes(self, can_id=None, signal=None):
+        if can_id is not None:
+            self.document.set_focus(can_id, signal or "")
+        self.goto_page("attributes")
+        api = self._pages.get("attributes")
+        refresh = getattr(api, "refresh", None) if api is not None else None
+        if callable(refresh):
+            refresh()
 
     # ------------------------------------------------------------------
     def _build_output_panel(self):
@@ -810,6 +1006,7 @@ class AppShell(QMainWindow):
             "recent": list(self._recent),
             "favorites": list(self._favorites),
             "nav_page": page,
+            "open_tabs": list(self._open_tabs),
             "geometry_hex": geo,
             "lint_before_save": bool(self._lint_before_save),
             "sidebar": self._wb.is_sidebar_visible() if self._wb else True,
@@ -844,6 +1041,7 @@ class AppShell(QMainWindow):
             if "sidebar" in saved:
                 self._wb.set_sidebar_visible(bool(saved["sidebar"]))
             self._wb.set_panel_visible(False)
+            self._open_tabs = normalize_open_tabs(saved.get("open_tabs"))
             self._fill_recent_menu()
         except (TypeError, ValueError):
             pass

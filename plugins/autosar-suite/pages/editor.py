@@ -31,7 +31,7 @@ def build(shell, document, log_fn) -> QWidget:
     chrome, crow = suite_chrome.make_toolbar()
     mode = QComboBox()
     mode.addItems(["COM", "ECUC"])
-    mode.setFixedHeight(26)
+    mode.setFixedHeight(_ui.CTRL_H)
     mode.setToolTip("Edit COM extract or derived ECUC-lite intermediates")
     count = _ui.quiet_label("")
     add_pdu = _ui.ghost_btn("PDU", "Add I-SIGNAL-I-PDU (COM mode)", "add")

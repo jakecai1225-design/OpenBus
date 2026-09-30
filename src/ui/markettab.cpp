@@ -3,7 +3,7 @@
 #include "flowlayout.h"         // 首页卡片网格流式换行（marketplace 网页版版式）
 
 #include "core/driver/driverregistry.h"
-#include "core/appconfig.h"
+#include "core/plugin/domainplugins.h"
 #include "core/plugin/plugininfo.h"
 #include "core/plugin/pluginmanager.h"
 #include "ui/thememanager.h"
@@ -20,7 +20,6 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QHeaderView>
-#include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonParseError>
@@ -41,6 +40,7 @@
 #include <QRegularExpression>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QSize>
 #include <QStackedWidget>
 #include <QStandardPaths>
 #include <QTableWidget>
@@ -491,8 +491,11 @@ void MarketTab::buildUi()
     root->setContentsMargins(8, 8, 8, 8);
     root->setSpacing(6);
 
-    // ---- 工具栏：筛选 + 排序 + 刷新 + 安装菜单（大搜索框移首页 hero，marketplace 版式） ----
-    auto *bar = new QHBoxLayout;
+    // ---- Toolbar: filter + sort + refresh + install (home only; hidden on detail) ----
+    m_toolbarHost = new QWidget;
+    m_toolbarHost->setObjectName(QStringLiteral("MarketToolbar"));
+    auto *bar = new QHBoxLayout(m_toolbarHost);
+    bar->setContentsMargins(0, 0, 0, 0);
     bar->setSpacing(6);
 
     m_filterAll = new QToolButton;
@@ -516,7 +519,7 @@ void MarketTab::buildUi()
     bar->addWidget(m_filterDrivers);
     bar->addWidget(m_filterPlugins);
 
-    // 排序（marketplace 网页版筛选/排序控件对齐）
+    // Sort (marketplace filter/sort alignment)
     m_sortCombo = new QComboBox;
     m_sortCombo->addItems({ QStringLiteral("默认排序"),
                             QStringLiteral("最近更新"),
@@ -528,85 +531,6 @@ void MarketTab::buildUi()
 
     bar->addStretch(1);
 
-    // ---- 市场源（插件系统方案 §六：切换 market.json 来源，持久化 settings.json） ----
-    auto *sourceBtn = new QToolButton;
-    sourceBtn->setIcon(svgIcon(":/icons/database.svg",
-                               ThemeManager::instance()->currentTheme().text, 14));
-    sourceBtn->setText(QStringLiteral("市场源"));
-    sourceBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    sourceBtn->setPopupMode(QToolButton::InstantPopup);
-    sourceBtn->setToolTip(QStringLiteral(
-        "market.json 索引来源（openbus_appstore 开发源 / 自定义 URL / 本地文件）"));
-    auto *sourceMenu = new QMenu(sourceBtn);
-    // 每次展开重建：显示当前源 + 可选项（避免陈旧状态）
-    connect(sourceMenu, &QMenu::aboutToShow, this, [this, sourceMenu]() {
-        sourceMenu->clear();
-        const QString cur = AppConfig::instance()->getString(
-            QStringLiteral("market.url"));
-        auto *head = sourceMenu->addAction(
-            cur.isEmpty()
-                ? QStringLiteral("当前源：默认（自动定位）")
-                : QStringLiteral("当前源：%1").arg(cur));
-        head->setEnabled(false);
-        sourceMenu->addSeparator();
-
-        // 应用新源：持久化 + 刷新索引（旧详情失效，回到首页）
-        const auto applySource = [this](const QString &url) {
-            AppConfig::instance()->set(QStringLiteral("market.url"), url);
-            AppConfig::instance()->save();
-            MarketIndex::instance()->setMarketUrl(
-                url.isEmpty() ? MarketIndex::defaultMarketUrl() : QUrl(url));
-            m_current = MarketItem();
-            m_marketStatus->setText(QStringLiteral("市场加载中…"));
-            MarketIndex::instance()->refresh();
-        };
-
-        auto *defAct = sourceMenu->addAction(
-            QStringLiteral("默认（自动定位本地 market/ 或官方源）"));
-        connect(defAct, &QAction::triggered, this,
-                [applySource]() { applySource(QString()); });
-        auto *devAct = sourceMenu->addAction(QStringLiteral(
-            "openbus 应用市场 · 开发 (127.0.0.1:5173)"));
-        connect(devAct, &QAction::triggered, this, [applySource]() {
-            applySource(QStringLiteral("http://127.0.0.1:5173/market/market.json"));
-        });
-        auto *officialAct = sourceMenu->addAction(QStringLiteral(
-            "openbus 应用市场 · 官方 (sin.org.cn)"));
-        connect(officialAct, &QAction::triggered, this, [applySource]() {
-            applySource(QStringLiteral("http://sin.org.cn/market/market.json"));
-        });
-        auto *customAct = sourceMenu->addAction(QStringLiteral("自定义 URL…"));
-        connect(customAct, &QAction::triggered, this, [this, applySource]() {
-            const QString curUrl = MarketIndex::instance()->marketUrl().toString();
-            bool ok = false;
-            const QString url = QInputDialog::getText(
-                this, QStringLiteral("市场源"),
-                QStringLiteral("market.json 地址（http(s):// 或 file:///）:"),
-                QLineEdit::Normal, curUrl, &ok);
-            if (ok && !url.trimmed().isEmpty())
-                applySource(url.trimmed());
-        });
-        auto *localAct = sourceMenu->addAction(
-            QStringLiteral("选择本地 market.json…"));
-        connect(localAct, &QAction::triggered, this, [this, applySource]() {
-            const QString file = QFileDialog::getOpenFileName(
-                this, QStringLiteral("选择 market.json"), QString(),
-                QStringLiteral("市场索引 (market.json);;所有文件 (*)"));
-            if (!file.isEmpty())
-                applySource(QUrl::fromLocalFile(file).toString());
-        });
-    });
-    sourceBtn->setMenu(sourceMenu);
-    // 主题切换 → 重刷按钮图标颜色（DEF-08 字符串信号）
-    auto *sourceBtnRelay = new SignalRelay(this);
-    sourceBtnRelay->fire0 = [sourceBtn]() {
-        sourceBtn->setIcon(svgIcon(":/icons/database.svg",
-                                  ThemeManager::instance()->currentTheme().text, 14));
-    };
-    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
-            sourceBtnRelay, SLOT(fire()));
-    bar->addWidget(sourceBtn);
-
     auto *refreshBtn = new QToolButton;
     refreshBtn->setIcon(svgIcon(":/icons/refresh.svg",
                                 ThemeManager::instance()->currentTheme().text, 14));
@@ -614,7 +538,7 @@ void MarketTab::buildUi()
     refreshBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     refreshBtn->setToolTip(QStringLiteral("重新拉取市场索引与本地已装列表"));
     connect(refreshBtn, &QToolButton::clicked, this, &MarketTab::onRefreshClicked);
-    // 主题切换 → 重刷按钮图标颜色（DEF-08 字符串信号）
+    // Theme switch → refresh button icon color (DEF-08 string signal)
     auto *refreshBtnRelay = new SignalRelay(this);
     refreshBtnRelay->fire0 = [refreshBtn]() {
         refreshBtn->setIcon(svgIcon(":/icons/refresh.svg",
@@ -631,7 +555,6 @@ void MarketTab::buildUi()
     installBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     installBtn->setToolTip(QStringLiteral("从本地包文件安装（.odp 驱动 / .opk 插件）"));
     connect(installBtn, &QToolButton::clicked, this, &MarketTab::onInstallFromFile);
-    // 主题切换 → 重刷按钮图标颜色（DEF-08 字符串信号）
     auto *installBtnRelay = new SignalRelay(this);
     installBtnRelay->fire0 = [installBtn]() {
         installBtn->setIcon(svgIcon(":/icons/kebab.svg",
@@ -641,7 +564,7 @@ void MarketTab::buildUi()
             installBtnRelay, SLOT(fire()));
     bar->addWidget(installBtn);
 
-    root->addLayout(bar);
+    root->addWidget(m_toolbarHost);
 
     // ---- 下载进度条（状态行移首页 hero 下方） ----
     m_progress = new QProgressBar;
@@ -729,28 +652,58 @@ void MarketTab::buildUi()
     homeLay->addWidget(hero);
     homeLay->addWidget(m_listArea, 1);
 
-    // ---- 详情页：「← 返回市场」+ 详情滚动区 ----
+    // ---- Detail page: VS Code-style breadcrumb chrome + scroll body ----
     auto *detailPage = new QWidget;
     auto *detailLay = new QVBoxLayout(detailPage);
-    detailLay->setContentsMargins(0, 4, 0, 0);
-    detailLay->setSpacing(6);
-    auto *backBtn = new QToolButton;
-    backBtn->setText(QStringLiteral("← 返回市场"));
-    backBtn->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    backBtn->setToolTip(QStringLiteral("回到市场首页（搜索 / 浏览卡片）"));
-    connect(backBtn, &QToolButton::clicked, this, [this]() {
+    detailLay->setContentsMargins(0, 0, 0, 0);
+    detailLay->setSpacing(0);
+
+    auto *chrome = new QWidget;
+    chrome->setObjectName(QStringLiteral("MarketDetailChrome"));
+    chrome->setAttribute(Qt::WA_StyledBackground, true);
+    auto *chromeLay = new QHBoxLayout(chrome);
+    chromeLay->setContentsMargins(8, 4, 12, 4);
+    chromeLay->setSpacing(8);
+
+    auto *backBtn = new QPushButton;
+    backBtn->setObjectName(QStringLiteral("MarketBackBtn"));
+    backBtn->setCursor(Qt::PointingHandCursor);
+    backBtn->setFlat(true);
+    backBtn->setText(QStringLiteral("返回市场"));
+    backBtn->setToolTip(QStringLiteral("回到市场首页（浏览 / 搜索扩展）"));
+    const auto applyBackIcon = [backBtn]() {
+        const QString accent = ThemeManager::instance()->currentTheme().accent;
+        backBtn->setIcon(svgIcon(":/icons/chevron-left.svg", accent, 16));
+        backBtn->setIconSize(QSize(16, 16));
+    };
+    applyBackIcon();
+    connect(backBtn, &QPushButton::clicked, this, [this]() {
         m_stack->setCurrentIndex(0);
+        if (m_toolbarHost)
+            m_toolbarHost->setVisible(true);
+        m_detailCrumb->clear();
     });
-    auto *backRow = new QHBoxLayout;
-    backRow->setContentsMargins(4, 0, 0, 0);
-    backRow->addWidget(backBtn);
-    backRow->addStretch(1);
-    detailLay->addLayout(backRow);
+    auto *backRelay = new SignalRelay(this);
+    backRelay->fire0 = applyBackIcon;
+    connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
+            backRelay, SLOT(fire()));
+    chromeLay->addWidget(backBtn, 0, Qt::AlignVCenter);
+
+    auto *sep = new QLabel(QStringLiteral("/"));
+    sep->setObjectName(QStringLiteral("MarketDim"));
+    chromeLay->addWidget(sep, 0, Qt::AlignVCenter);
+
+    m_detailCrumb = new QLabel;
+    m_detailCrumb->setObjectName(QStringLiteral("MarketCrumbTitle"));
+    m_detailCrumb->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    chromeLay->addWidget(m_detailCrumb, 1, Qt::AlignVCenter);
+
+    detailLay->addWidget(chrome);
 
     auto *detailHost = new QWidget;
     m_detailLay = new QVBoxLayout(detailHost);
-    m_detailLay->setContentsMargins(8, 0, 8, 0);
-    m_detailLay->setSpacing(8);
+    m_detailLay->setContentsMargins(16, 12, 16, 12);
+    m_detailLay->setSpacing(10);
     m_detailArea = new QScrollArea;
     m_detailArea->setWidgetResizable(true);
     m_detailArea->setWidget(detailHost);
@@ -777,7 +730,9 @@ void MarketTab::buildUi()
 
 void MarketTab::focusSearch()
 {
-    m_stack->setCurrentIndex(0);   // 搜索框在首页 hero（marketplace 版式）
+    m_stack->setCurrentIndex(0);   // Search box lives on home hero
+    if (m_toolbarHost)
+        m_toolbarHost->setVisible(true);
     m_searchEdit->setFocus(Qt::ShortcutFocusReason);
     m_searchEdit->selectAll();
 }
@@ -1027,6 +982,8 @@ void MarketTab::rebuildList()
         if (wantPlugins) {
             QVector<CardData> installed;
             for (const auto &p : PluginManager::instance()->discoveredPlugins()) {
+                if (retiredPluginIds().contains(p.name))
+                    continue;
                 CardData d;
                 d.item = { MarketItem::InstalledPlugin, p.name };
                 d.title = p.title();
@@ -1091,7 +1048,9 @@ void MarketTab::clearDetail()
 
 void MarketTab::showPlaceholder(const QString &text)
 {
-    m_stack->setCurrentIndex(1);   // 占位也属详情页（如「该驱动已卸载」）
+    m_stack->setCurrentIndex(1);   // Placeholder is still the detail page
+    if (m_toolbarHost)
+        m_toolbarHost->setVisible(false);
     clearDetail();
     auto *label = new QLabel(text);
     label->setObjectName(QStringLiteral("MarketDim"));
@@ -1101,7 +1060,11 @@ void MarketTab::showPlaceholder(const QString &text)
 
 void MarketTab::showDetail(const MarketItem &item)
 {
-    m_stack->setCurrentIndex(1);   // 首页卡片点击 / 联动定位 → 进详情页
+    m_stack->setCurrentIndex(1);   // Card click / reveal → detail page
+    if (m_toolbarHost)
+        m_toolbarHost->setVisible(false);
+    if (m_detailCrumb)
+        m_detailCrumb->setText(item.id);
     switch (item.kind) {
     case MarketItem::MarketDriver: {
         const auto d = MarketIndex::instance()->driverById(item.id);
@@ -1135,6 +1098,8 @@ void MarketTab::showDetail(const MarketItem &item)
 void MarketTab::showMarketDriver(const MarketIndex::DriverInfo &drv)
 {
     clearDetail();
+    if (m_detailCrumb)
+        m_detailCrumb->setText(drv.name.isEmpty() ? drv.id : drv.name);
 
     // 头部：图标 + 名称/厂商/版本 + 摘要
     auto *head = new QWidget;
@@ -1266,6 +1231,8 @@ void MarketTab::showInstalledDriver(const QString &driverId)
     const auto &e = *it;
 
     clearDetail();
+    if (m_detailCrumb)
+        m_detailCrumb->setText(e.displayName.isEmpty() ? driverId : e.displayName);
 
     auto *head = new QWidget;
     auto *hlay = new QHBoxLayout(head);
@@ -1357,6 +1324,8 @@ void MarketTab::showInstalledDriver(const QString &driverId)
 void MarketTab::showMarketPlugin(const MarketIndex::PluginInfo &plug)
 {
     clearDetail();
+    if (m_detailCrumb)
+        m_detailCrumb->setText(plug.name.isEmpty() ? plug.id : plug.name);
 
     auto *head = new QWidget;
     auto *hlay = new QHBoxLayout(head);
@@ -1446,6 +1415,8 @@ void MarketTab::showInstalledPlugin(const QString &name)
     const auto &p = *it;
 
     clearDetail();
+    if (m_detailCrumb)
+        m_detailCrumb->setText(name);
     auto *pm = PluginManager::instance();
     const bool enabled = pm->isPluginEnabled(name);
     const bool activated = pm->isPluginActivated(name);

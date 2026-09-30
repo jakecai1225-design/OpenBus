@@ -208,6 +208,7 @@ QToolButton#LayoutToggleBtn:pressed {{
 QWidget#SuiteActivityBar {{
     background: {SIDEBAR};
     border-right: 1px solid {BORDER};
+    min-width: 48px;
     max-width: 48px;
 }}
 QToolButton#ActivityBtn {{
@@ -378,9 +379,9 @@ QWidget#SuiteToolbar QSpinBox {{
     background: {EDITOR};
     border: 1px solid #CECECE;
     border-radius: 3px;
-    padding: 2px 8px;
-    min-height: 24px;
-    max-height: 26px;
+    padding: 1px 8px;
+    min-height: 28px;
+    max-height: 28px;
     font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
     font-size: 12px;
     color: {TEXT};
@@ -680,7 +681,7 @@ QWidget#SuiteEditorTabHost {{
 QTabBar#SuiteEditorTabs {{
     background: {SIDEBAR};
     border: none;
-    min-height: 35px;
+    min-height: 36px;
 }}
 QTabBar#SuiteEditorTabs::tab {{
     background: {SIDEBAR};
@@ -688,17 +689,19 @@ QTabBar#SuiteEditorTabs::tab {{
     border: none;
     border-right: 1px solid {BORDER};
     border-radius: 0;
-    padding: 0 4px 0 12px;
+    padding: 8px 4px 8px 12px;
     margin: 0;
-    min-height: 35px;
-    max-height: 35px;
+    min-height: 36px;
+    max-height: 36px;
     font-size: 13px;
 }}
 QTabBar#SuiteEditorTabs::tab:selected {{
     background: {EDITOR};
     color: {TEXT};
     font-weight: 600;
-    border-top: 1px solid {ACCENT};
+    border-top: 2px solid {ACCENT};
+    padding-top: 6px;
+    padding-bottom: 8px;
 }}
 QTabBar#SuiteEditorTabs::tab:hover:!selected {{
     background: {SIDEBAR_HOVER};
@@ -745,6 +748,7 @@ QTabBar#SuiteTopTabs {{
     background: transparent;
     margin: 0;
     padding-top: 2px;
+    min-height: 32px;
 }}
 QTabBar#SuiteTopTabs::tab {{
     background: transparent;
@@ -752,9 +756,10 @@ QTabBar#SuiteTopTabs::tab {{
     border: none;
     border-bottom: 2px solid transparent;
     border-radius: 0;
-    padding: 7px 14px;
+    /* Extra bottom pad so underline never kisses glyph baselines. */
+    padding: 8px 14px 10px 14px;
     margin-right: 0;
-    min-height: 22px;
+    min-height: 28px;
 }}
 QTabBar#SuiteTopTabs::tab:selected {{
     color: {TEXT};
@@ -816,7 +821,7 @@ QLineEdit, QSpinBox, QComboBox {{
     background: {EDITOR};
     border: 1px solid #C8C8C8;
     border-radius: 3px;
-    padding: 3px 8px 4px 8px;
+    padding: 2px 8px;
     min-height: 28px;
     max-height: 28px;
     color: {TEXT};

@@ -284,10 +284,8 @@ def build(parent, session, log_fn) -> QWidget:
     # ---- Check ----
     check = QWidget()
     clay = QVBoxLayout(check)
-    clay.setContentsMargins(_ui.PAD_X, 6, _ui.PAD_X, 6)
-    clay.setSpacing(6)
-    check_tools = QHBoxLayout()
-    check_tools.setSpacing(_ui.GAP)
+    clay.setContentsMargins(0, 0, 0, 0)
+    clay.setSpacing(0)
     run_check = _ui.primary_btn("Check", "Deep validate + CiA profile coverage")
     profile_box = QComboBox()
     profile_box.addItems([
@@ -297,16 +295,13 @@ def build(parent, session, log_fn) -> QWidget:
     profile_box.setToolTip("Profile expected-object coverage (auto from Device type)")
     ready_lbl = QLabel("")
     ready_lbl.setObjectName("SuiteCount")
-    check_tools.addWidget(run_check)
-    check_tools.addWidget(_ui.field_label("Profile"))
-    check_tools.addWidget(profile_box)
-    check_tools.addStretch(1)
-    check_tools.addWidget(ready_lbl)
-    clay.addLayout(check_tools)
+    clay.addWidget(_ui.tool_strip(
+        run_check, _ui.field_label("Profile"), profile_box, ready_lbl,
+        stretch_at=3))
     next_host = QWidget()
     next_host.setVisible(False)
     next_lay = QHBoxLayout(next_host)
-    next_lay.setContentsMargins(0, 0, 0, 0)
+    next_lay.setContentsMargins(_ui.PAD_X, _ui.STRIP_PAD_V, _ui.PAD_X, _ui.STRIP_PAD_V)
     next_lay.setSpacing(_ui.GAP)
     next_lab = QLabel("Next")
     next_lab.setObjectName("SuiteFieldLabel")

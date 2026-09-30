@@ -37,19 +37,20 @@ def build(shell, document, log_fn) -> QWidget:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
 
-    # Sub-feature tabs live in the workbench chrome row (not a second bar).
+    # In-page Dictionary | Device segment (not chrome — leaves own the tab strip).
     bar = QTabBar()
-    bar.setObjectName("SuiteEditorTabs")
+    bar.setObjectName("SuiteSegmentTabs")
     bar.setDrawBase(False)
     bar.setExpanding(False)
     bar.setDocumentMode(True)
+    bar.setFixedHeight(_ui.TOOL_H)
     bar.setToolTip("Dictionary: OD tree · Device: FileInfo / Commissioning")
     for name in ("Dictionary", "Device"):
         bar.addTab(name)
-    root.chrome_tabs = bar
 
     stack = QStackedWidget()
     bar.currentChanged.connect(stack.setCurrentIndex)
+    layout.addWidget(bar)
     layout.addWidget(stack, 1)
 
     selected = {"key": None}
@@ -102,7 +103,8 @@ def build(shell, document, log_fn) -> QWidget:
     fw.setSpacing(0)
 
     empty = _ui.empty_state(
-        "Select an object in the tree\nto edit its definition")
+        "Select an object",
+        "Pick an index in the tree to edit its definition")
     fw.addWidget(empty)
 
     form_host = QWidget()
@@ -314,6 +316,7 @@ def build(shell, document, log_fn) -> QWidget:
             if walk(tree.topLevelItem(i)):
                 break
 
+
     def _on_select():
         item = tree.currentItem()
         if not item:
@@ -324,6 +327,7 @@ def build(shell, document, log_fn) -> QWidget:
             _show_form(False)
             return
         selected["key"] = key
+        document.set_focus(key[0], key[1])
         entry = edsparse.find_entry(document.eds.entries, key[0], key[1])
         if entry:
             _fill_form(entry)
@@ -352,12 +356,12 @@ def build(shell, document, log_fn) -> QWidget:
         entry.pdo_mapping = "1" if pdo.currentText() == "Yes" else "0"
         entry.low_limit = low_edit.text().strip()
         entry.high_limit = high_edit.text().strip()
-        # Keep SubNumber consistent after edits (CiA 306 record/array)
         EdsDocument = type(document)
         if hasattr(EdsDocument, "_sync_sub_numbers"):
             EdsDocument._sync_sub_numbers(eds)
         document.apply_eds(eds)
         selected["key"] = (idx, sub)
+        document.set_focus(idx, sub)
         log_fn("OK", "Updated %s" % entry.display_index())
 
     def _apply_meta():
@@ -418,7 +422,6 @@ def build(shell, document, log_fn) -> QWidget:
         src = edsparse.find_entry(eds.entries, key[0], key[1])
         if src is None:
             return
-        # Duplicate whole index group into next free manufacturer index
         group = [e for e in eds.entries if e.index == key[0]]
         existing = {e.index for e in eds.entries}
         new_idx = 0x2000
@@ -435,7 +438,7 @@ def build(shell, document, log_fn) -> QWidget:
         type(document)._sync_sub_numbers(eds)
         document.apply_eds(eds)
         select_object(new_idx, key[1])
-        log_fn("SYS", "Duplicated 0x%04X → 0x%04X" % (key[0], new_idx))
+        log_fn("SYS", "Duplicated 0x%04X -> 0x%04X" % (key[0], new_idx))
 
     def _copy_default_to_param():
         if mute["on"]:
@@ -446,7 +449,7 @@ def build(shell, document, log_fn) -> QWidget:
             return
         param_edit.setText(val)
         _apply_form()
-        log_fn("OK", "ParameterValue ← DefaultValue (DCF)")
+        log_fn("OK", "ParameterValue <- DefaultValue (DCF)")
 
     def _remove():
         key = selected["key"]
@@ -462,9 +465,40 @@ def build(shell, document, log_fn) -> QWidget:
         _show_form(False)
         log_fn("SYS", "Removed 0x%04X:%02X" % key)
 
+    def refresh():
+        prefer = selected["key"]
+        if prefer is None and document.focus_index is not None:
+            prefer = (document.focus_index, document.focus_subindex)
+        _rebuild_tree(prefer)
+
+    def _on_focus():
+        if document.focus_index is None:
+            return
+        select_object(document.focus_index, document.focus_subindex)
+
+    def _ctx_menu(pos):
+        item = tree.itemAt(pos)
+        if item is None:
+            return
+        key = item.data(0, Qt.ItemDataRole.UserRole)
+        if not key:
+            return
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(tree)
+        act_pdo = menu.addAction("Open PDO Map")
+        act_val = menu.addAction("Open Validate")
+        chosen = menu.exec(tree.viewport().mapToGlobal(pos))
+        document.set_focus(key[0], key[1])
+        if chosen is act_pdo and hasattr(shell, "goto_page"):
+            shell.goto_page("pdo")
+        elif chosen is act_val and hasattr(shell, "goto_page"):
+            shell.goto_page("validate")
+
     def _on_doc():
         _rebuild_tree(selected["key"])
 
+    tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    tree.customContextMenuRequested.connect(_ctx_menu)
     tree.itemSelectionChanged.connect(_on_select)
     filt.textChanged.connect(lambda *_: _rebuild_tree(selected["key"]))
     apply_btn.clicked.connect(_apply_form)
@@ -480,8 +514,10 @@ def build(shell, document, log_fn) -> QWidget:
         box.currentIndexChanged.connect(
             lambda *_: _apply_form() if not mute["on"] else None)
     document.on_changed(_on_doc)
+    document.on_focus(_on_focus)
     _rebuild_tree()
     _show_form(False)
 
     root.select_object = select_object
+    root.refresh = refresh
     return root

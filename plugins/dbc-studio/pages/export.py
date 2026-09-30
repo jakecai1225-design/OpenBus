@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from pages import _ui
 from _shared import codicons, plugin_shell, state_store, suite_chrome, vscode_theme
 from core import codegen, export_matrix
 
@@ -54,17 +55,12 @@ def build(shell, document, log_fn) -> QWidget:
     ml = QVBoxLayout(matrix)
     suite_chrome.page_margins(ml)
 
-    hint = QLabel(
-        "Export a message/signal matrix for review or tooling.")
-    hint.setWordWrap(True)
-    hint.setStyleSheet("color:#78909c;font-size:12px;")
-    ml.addWidget(hint)
 
     of = QFormLayout()
     vscode_theme.tune_form(of)
     fmt = QComboBox()
     fmt.addItems(["CSV", "JSON", "HTML"])
-    fmt.setFixedHeight(28)
+    fmt.setFixedHeight(_ui.CTRL_H)
     opt_minmax = QCheckBox("Include min / max")
     opt_minmax.setChecked(True)
     opt_nodes = QCheckBox("Include receivers")
@@ -85,7 +81,7 @@ def build(shell, document, log_fn) -> QWidget:
     mrow = QHBoxLayout()
     mrow.addStretch(1)
     export_btn = QPushButton("Export matrix")
-    export_btn.setFixedHeight(28)
+    export_btn.setFixedHeight(_ui.CTRL_H)
     codicons.set_button(export_btn, "export", primary=True)
     mrow.addWidget(export_btn)
     ml.addLayout(mrow)
@@ -102,10 +98,10 @@ def build(shell, document, log_fn) -> QWidget:
     crow.addWidget(QLabel("Identifier style"))
     style = QComboBox()
     style.addItems(["keep", "upper"])
-    style.setFixedHeight(28)
+    style.setFixedHeight(_ui.CTRL_H)
     crow.addWidget(style)
     gen_btn = QPushButton("Generate")
-    gen_btn.setFixedHeight(28)
+    gen_btn.setFixedHeight(_ui.CTRL_H)
     codicons.set_button(gen_btn, "apply", primary=True)
     crow.addWidget(gen_btn)
     crow.addStretch(1)
@@ -114,22 +110,20 @@ def build(shell, document, log_fn) -> QWidget:
     crow.addWidget(open_code)
     save_h = QPushButton("Save .h")
     save_h.setObjectName("GhostButton")
-    save_h.setFixedHeight(28)
+    save_h.setFixedHeight(_ui.CTRL_H)
     codicons.set_button(save_h, "save")
     save_c = QPushButton("Save .c")
     save_c.setObjectName("GhostButton")
-    save_c.setFixedHeight(28)
+    save_c.setFixedHeight(_ui.CTRL_H)
     codicons.set_button(save_c, "save")
     crow.addWidget(save_h)
     crow.addWidget(save_c)
     cl.addLayout(crow)
 
     preview = QTextEdit()
+    preview.setObjectName("SuiteCode")
     preview.setReadOnly(True)
     preview.setPlaceholderText("Generated C pack / unpack preview")
-    preview.setStyleSheet(
-        "QTextEdit { font-family: Consolas, monospace; font-size: 12px; "
-        "border: 1px solid #EEEEEE; }")
     cl.addWidget(preview, 1)
     tabs.addTab(code, "C Codegen")
 

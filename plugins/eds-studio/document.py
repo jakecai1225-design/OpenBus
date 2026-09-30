@@ -22,11 +22,18 @@ class EdsDocument:
         self.compare_eds: Optional[edsparse.EdsDocument] = None
         self.compare_path: str = ""
         self._listeners: List[Callable[[], None]] = []
+        self._focus_listeners: List[Callable[[], None]] = []
         self._baseline: edsparse.EdsDocument = copy.deepcopy(self.eds)
         self._baseline_dirty: bool = False
         self._undo: List[Tuple[edsparse.EdsDocument, bool]] = []
         self._redo: List[Tuple[edsparse.EdsDocument, bool]] = []
         self._suspend_hist: bool = False
+        # Cross-page selection + Context Next (plugin development norm).
+        self.focus_index: Optional[int] = None
+        self.focus_subindex: int = 0
+        self._validated_ok = False
+        self._lint_error_count = 0
+        self._post_hint_stage = 0
 
     @property
     def entries(self):
@@ -35,8 +42,19 @@ class EdsDocument:
     def on_changed(self, fn: Callable[[], None]) -> None:
         self._listeners.append(fn)
 
+    def on_focus(self, fn: Callable[[], None]) -> None:
+        """Fired when OD selection (focus) changes — no dirty notify."""
+        self._focus_listeners.append(fn)
+
     def _notify(self) -> None:
         for fn in list(self._listeners):
+            try:
+                fn()
+            except Exception:
+                pass
+
+    def _notify_focus(self) -> None:
+        for fn in list(self._focus_listeners):
             try:
                 fn()
             except Exception:
@@ -106,14 +124,19 @@ class EdsDocument:
             self.eds.path = self.path
         self.dirty = dirty
         self._clear_history()
+        self.reset_next_hint()
         self._notify()
 
     def new(self) -> None:
         self.set_eds(edsparse.empty_document(), path="", dirty=False)
+        self.focus_index = None
+        self.focus_subindex = 0
 
     def load(self, path: str) -> edsparse.EdsDocument:
         eds = edsparse.parse_eds_file_document(path)
         self.set_eds(eds, path=path, dirty=False)
+        self.focus_index = None
+        self.focus_subindex = 0
         return eds
 
     def save(self, path: Optional[str] = None, as_dcf: Optional[bool] = None) -> str:
@@ -217,3 +240,53 @@ class EdsDocument:
             "is_dcf": bool(self.eds.is_dcf),
             "product": self.eds.device_info.get("ProductName", ""),
         }
+
+    # ---- Focus + Context Next (plugin norm) ----------------------------
+
+    def set_focus(self, index=None, subindex: int = 0) -> None:
+        """Carry OD index/sub selection across pages."""
+        sub = int(subindex or 0)
+        if self.focus_index == index and self.focus_subindex == sub:
+            return
+        self.focus_index = index
+        self.focus_subindex = sub
+        self._notify_focus()
+
+    def mark_validated(self, ok: bool, *, error_count: int = 0) -> None:
+        self._validated_ok = bool(ok)
+        self._lint_error_count = max(0, int(error_count))
+
+    def advance_next_hint(self) -> None:
+        if self._has_content():
+            self._post_hint_stage = min(2, int(self._post_hint_stage or 0) + 1)
+
+    def reset_next_hint(self) -> None:
+        self._post_hint_stage = 0
+        self._validated_ok = False
+        self._lint_error_count = 0
+
+    def _has_content(self) -> bool:
+        if self.path:
+            return True
+        # empty_document() ships boilerplate OD entries; treat unsaved
+        # pristine docs as empty so Context Next still offers Open.
+        return bool(self.dirty)
+
+    def next_hint(self) -> tuple:
+        """Return ``(label, action_name, kwargs)`` for Context Next."""
+        if not self._has_content():
+            return ("Open EDS…", "eds.open", {})
+        if self.dirty or not self.path:
+            if not self._validated_ok:
+                return ("Validate", "view.validate", {})
+            return ("Save", "eds.save", {})
+        if not self._validated_ok:
+            return ("Validate", "view.validate", {})
+        if self._lint_error_count > 0:
+            return ("Validate", "view.validate", {})
+        stage = int(self._post_hint_stage or 0)
+        if stage <= 0:
+            return ("PDO Map", "view.pdo", {})
+        if stage == 1:
+            return ("Export…", "view.export", {})
+        return ("Library", "view.library", {})

@@ -29,7 +29,7 @@ def build(shell, document, log_fn) -> QWidget:
     chrome, crow = suite_chrome.make_toolbar()
     filt = QLineEdit()
     filt.setPlaceholderText("Search parameters…")
-    filt.setFixedHeight(26)
+    filt.setFixedHeight(_ui.CTRL_H)
     filt.setMaximumWidth(220)
     count = _ui.quiet_label("")
     import_btn = _ui.ghost_btn(

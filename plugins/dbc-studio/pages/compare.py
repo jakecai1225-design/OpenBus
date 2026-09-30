@@ -19,7 +19,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import codicons, dbc_picker, dbcparse, plugin_shell, suite_chrome
+from pages import _ui
+from _shared import dbc_picker, dbcparse, plugin_shell
 from core import diff_engine
 
 
@@ -29,81 +30,44 @@ def build(shell, document, log_fn) -> QWidget:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
 
-    chrome, crow = suite_chrome.make_toolbar()
     path_a = QLineEdit()
     path_a.setPlaceholderText("A — empty uses current document")
-    path_a.setFixedHeight(28)
+    path_a.setFixedHeight(_ui.CTRL_H)
     path_a.setClearButtonEnabled(True)
+    path_a.setToolTip("Diff two DBC files — leave A empty to use the open document")
     path_b = QLineEdit()
     path_b.setPlaceholderText("B — pick a DBC to compare")
-    path_b.setFixedHeight(28)
+    path_b.setFixedHeight(_ui.CTRL_H)
     path_b.setClearButtonEnabled(True)
-    crow.addWidget(QLabel("A"), 0)
-    crow.addWidget(path_a, 1)
-    crow.addWidget(QLabel("B"), 0)
-    crow.addWidget(path_b, 1)
-
-    use_doc_btn = QPushButton("Use current")
-    use_doc_btn.setObjectName("GhostButton")
-    use_doc_btn.setFixedHeight(28)
-    use_doc_btn.setToolTip("Clear A so Compare uses the open document")
-    pick_a = QPushButton("Browse A")
-    pick_a.setObjectName("GhostButton")
-    pick_a.setFixedHeight(28)
-    codicons.set_button(pick_a, "browse")
-    pick_b = QPushButton("Browse B")
-    pick_b.setObjectName("GhostButton")
-    pick_b.setFixedHeight(28)
-    codicons.set_button(pick_b, "browse")
-    ws_b = QPushButton("Workspace B")
-    ws_b.setObjectName("GhostButton")
-    ws_b.setFixedHeight(28)
-    codicons.set_button(ws_b, "database")
-    run_btn = QPushButton("Compare")
-    run_btn.setFixedHeight(28)
-    codicons.set_button(run_btn, "compare", primary=True)
-    for w in (use_doc_btn, pick_a, pick_b, ws_b, run_btn):
-        crow.addWidget(w)
-    layout.addWidget(chrome)
+    use_doc_btn = _ui.ghost_btn(
+        "Use current", "Clear A so Compare uses the open document", "")
+    pick_a = _ui.ghost_btn("Browse A", "Pick file A", "browse")
+    pick_b = _ui.ghost_btn("Browse B", "Pick file B", "browse")
+    ws_b = _ui.ghost_btn("Workspace B", "Pick B from workspace", "database")
+    run_btn = _ui.primary_btn("Compare", "Run A/B diff", "compare")
+    layout.addWidget(_ui.tool_strip(
+        _ui.field_label("A"), path_a,
+        _ui.field_label("B"), path_b,
+        use_doc_btn, pick_a, pick_b, ws_b, run_btn, stretch_at=3))
 
     body = QWidget()
     body.setObjectName("SuiteContent")
     bl = QVBoxLayout(body)
-    suite_chrome.page_margins(bl)
-    bl.setSpacing(10)
+    bl.setContentsMargins(0, 0, 0, 0)
+    bl.setSpacing(0)
 
-    hint = QLabel(
-        "Diff two DBC files — message and signal level, export for review.")
-    hint.setWordWrap(True)
-    hint.setStyleSheet("color:#78909c;font-size:12px;")
-    bl.addWidget(hint)
-
-    meta = QHBoxLayout()
     summary = QLabel("Select file B to compare")
-    summary.setStyleSheet("color:#90A4AE;font-size:11px;")
-    meta.addWidget(summary, 1)
-    export_csv = QPushButton("CSV")
-    export_csv.setObjectName("GhostButton")
-    export_csv.setFixedHeight(28)
-    codicons.set_button(export_csv, "export")
-    export_html = QPushButton("HTML")
-    export_html.setObjectName("GhostButton")
-    export_html.setFixedHeight(28)
-    codicons.set_button(export_html, "export")
-    meta.addWidget(export_csv)
-    meta.addWidget(export_html)
-    bl.addLayout(meta)
+    summary.setObjectName("SuiteCount")
+    summary.setContentsMargins(_ui.PAD_X, 2, _ui.PAD_X, 2)
+    export_csv = _ui.ghost_btn("CSV", "Export diff as CSV", "export")
+    export_html = _ui.ghost_btn("HTML", "Export diff as HTML", "export")
+    bl.addWidget(_ui.tool_strip(summary, export_csv, export_html, stretch_at=1))
 
     tree = QTreeWidget()
-    tree.setObjectName("SuiteMatrix")
     tree.setHeaderLabels(["Kind", "ID", "Name", "Detail"])
     tree.setAlternatingRowColors(True)
-    tree.header().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-    tree.setStyleSheet(
-        "QTreeWidget#SuiteMatrix { border: 1px solid #EEEEEE; }"
-        "QTreeWidget#SuiteMatrix::item:selected {"
-        " background: #E3F2FD; color: #0D47A1; }"
-    )
+    _ui.style_tree(tree, header_hidden=False)
+    _ui.configure_columns(tree, stretch=3)
     bl.addWidget(tree, 1)
     layout.addWidget(body, 1)
 

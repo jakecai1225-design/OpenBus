@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional, Sequence, Tuple
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
@@ -17,28 +17,32 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from _shared import codicons, vscode_theme as T
 from pages import _ui
 
-SectionSpec = Tuple[str, str, str]
+# key, label, tip, icon alias
+SectionSpec = Tuple[str, str, str, str]
 
 EDIT_SECTIONS = (
-    ("editor", "Messages", "Edit network / nodes / messages / signals"),
-    ("valuetables", "Value tables", "Named value encodings for signals"),
-    ("attributes", "Attributes", "Attribute definitions and values"),
+    ("editor", "Messages", "Edit network / nodes / messages / signals", "edit"),
+    ("valuetables", "Value tables", "Named value encodings for signals", "checklist"),
+    ("attributes", "Attributes", "Attribute definitions and values", "settings"),
 )
 ANALYZE_SECTIONS = (
-    ("matrix", "Matrix", "Signal × message overview"),
-    ("timing", "Timing", "Bus load estimate from cycle times"),
-    ("validate", "Validate", "Lint the current DBC"),
+    ("matrix", "Matrix", "Signal × message overview", "list"),
+    ("timing", "Timing", "Bus load estimate from cycle times", "trace"),
+    ("validate", "Validate", "Lint the current DBC", "check"),
 )
 INTEGRATE_SECTIONS = (
-    ("compare", "Compare", "Diff two DBC files"),
-    ("merge", "Merge", "Merge multiple DBC files"),
+    ("compare", "Compare", "Diff two DBC files", "search"),
+    ("merge", "Merge", "Merge multiple DBC files", "sync"),
 )
 DELIVER_SECTIONS = (
-    ("export", "Export", "Export matrix / codegen"),
-    ("library", "Library", "Recent and pinned DBC files"),
+    ("export", "Export", "Export matrix / codegen", "export"),
+    ("library", "Library", "Recent and pinned DBC files", "database"),
 )
+
+_LEAF_ICON = 16
 
 
 def build_section_sidebar(
@@ -61,6 +65,7 @@ def build_section_sidebar(
     _ui.style_tree(tree)
     tree.setRootIsDecorated(False)
     tree.setIndentation(0)
+    tree.setIconSize(QSize(_LEAF_ICON, _LEAF_ICON))
     tree.setExpandsOnDoubleClick(False)
     lay.addWidget(tree, 1)
 
@@ -69,10 +74,11 @@ def build_section_sidebar(
 
     def rebuild():
         tree.clear()
-        for key, label, tip in sections:
+        for key, label, tip, icon_name in sections:
             item = QTreeWidgetItem([label])
             item.setData(0, Qt.ItemDataRole.UserRole, key)
             item.setToolTip(0, tip)
+            item.setIcon(0, codicons.icon(icon_name, T.TEXT, _LEAF_ICON))
             tree.addTopLevelItem(item)
 
     def select_section(key: str):

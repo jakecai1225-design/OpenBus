@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import plugin_shell, state_store, vscode_theme, codicons
+from _shared import plugin_shell, state_store
 
 PLUGIN_ID = "uds-suite"
 
@@ -189,10 +189,13 @@ class _SeedCollector:
 
 
 def build(parent, session, log_fn) -> QWidget:
+    from pages import _ui
     from widgets.layout import page
     from widgets.step_spin import StepSpin
 
     root, layout = page(parent)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
 
     seeds = []
     nrc_counts = {}
@@ -200,83 +203,54 @@ def build(parent, session, log_fn) -> QWidget:
     session_timing = [None]
     collector_ref = [None]
 
-    body = QWidget()
-    bl = QVBoxLayout(body)
-    bl.setContentsMargins(0, 0, 0, 0)
-    bl.setSpacing(8)
-
-    collect_card, collect_body = vscode_theme.block(
-        "Collect",
-        "Observational only. Requests seeds (27 01) and never sends keys (27 02).",
-    )
-
-    action = QWidget()
-    al = QHBoxLayout(action)
-    al.setContentsMargins(0, 0, 0, 0)
-    al.setSpacing(8)
-
-    al.addWidget(QLabel("Samples"))
     count_spin = StepSpin(20, minimum=2, maximum=200, width=72)
-    al.addWidget(count_spin)
-
-    al.addWidget(QLabel("Interval"))
     interval_spin = StepSpin(300, minimum=50, maximum=10000, suffix=" ms", width=90)
-    al.addWidget(interval_spin)
-
-    collect_btn = QPushButton("Collect")
-    collect_btn.setObjectName("PrimaryButton")
-    collect_btn.setFixedSize(100, 28)
-    collect_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-    collect_btn.setToolTip("27 01 seed requests only")
-    codicons.set_button(collect_btn, "start", primary=True)
-    stop_btn = QPushButton("Stop")
-    stop_btn.setObjectName("SecondaryButton")
-    stop_btn.setFixedSize(80, 28)
-    codicons.set_button(stop_btn, "stop")
-    analyze_btn = QPushButton("Analyze")
-    analyze_btn.setObjectName("SecondaryButton")
-    analyze_btn.setFixedSize(96, 28)
-    codicons.set_button(analyze_btn, "search")
-    for w in (collect_btn, stop_btn, analyze_btn):
-        w.setCursor(Qt.CursorShape.PointingHandCursor)
-        al.addWidget(w)
+    collect_btn = _ui.primary_btn(
+        "Collect", "27 01 seed requests only — never sends keys", "start")
+    stop_btn = _ui.ghost_btn("Stop", "Stop collection", "stop")
+    analyze_btn = _ui.ghost_btn("Analyze", "Analyze collected seeds", "search")
+    report_html_btn = _ui.ghost_btn("HTML", "Export HTML report", "file")
+    report_csv_btn = _ui.ghost_btn("CSV", "Export CSV report", "export")
+    clear_btn = _ui.ghost_btn("Clear", "Clear results", "clear")
     stop_btn.setEnabled(False)
-    al.addStretch(1)
 
-    report_html_btn = QPushButton("HTML")
-    report_csv_btn = QPushButton("CSV")
-    clear_btn = QPushButton("Clear")
-    for w, ic in ((report_html_btn, "file"), (report_csv_btn, "export"), (clear_btn, "clear")):
-        w.setObjectName("GhostButton")
-        w.setFixedHeight(28)
-        w.setCursor(Qt.CursorShape.PointingHandCursor)
-        codicons.set_button(w, ic)
-        al.addWidget(w)
-    collect_body.addWidget(action)
+    layout.addWidget(_ui.tool_strip(
+        _ui.strip_field(
+            "Samples", count_spin,
+            tip="Number of 27 01 seed samples to collect"),
+        _ui.strip_field(
+            "Interval", interval_spin,
+            tip="Delay between seed requests"),
+        collect_btn, stop_btn, analyze_btn,
+        report_html_btn, report_csv_btn, clear_btn, stretch_at=2))
 
-    status_row = QHBoxLayout()
-    status_row.setSpacing(8)
+    body = QWidget()
+    body.setObjectName("SuiteContent")
+    bl = QVBoxLayout(body)
+    bl.setContentsMargins(12, 8, 12, 8)
+    bl.setSpacing(6)
+
     progress = QProgressBar()
     progress.setRange(0, 100)
     progress.setValue(0)
     progress.setTextVisible(False)
     progress.setFixedHeight(6)
+    progress.setToolTip("Collection progress")
     timing_label = QLabel("Session timing —")
-    timing_label.setObjectName("SuiteHint")
+    timing_label.setObjectName("SuiteStatusMuted")
+    timing_label.setToolTip("Observed session timing from 10 response")
+    status_row = QHBoxLayout()
+    status_row.setSpacing(8)
     status_row.addWidget(progress, 1)
     status_row.addWidget(timing_label)
-    collect_body.addLayout(status_row)
-    bl.addWidget(collect_card)
+    bl.addLayout(status_row)
 
-    result_card, result_body = vscode_theme.block(
-        "Results",
-        "Seeds, negative responses, and the written findings.",
-    )
     tabs = QTabWidget()
     tabs.setDocumentMode(True)
     tabs.setTabPosition(QTabWidget.TabPosition.North)
-    result_body.addWidget(tabs, 1)
-    bl.addWidget(result_card, 1)
+    tabs.setToolTip("Seeds, NRCs, and findings")
+    bl.addWidget(tabs, 1)
+    layout.addWidget(body, 1)
 
     seed_tab = QWidget()
     sv = QVBoxLayout(seed_tab)
@@ -584,5 +558,5 @@ def build(parent, session, log_fn) -> QWidget:
     if saved.get("sec_interval_ms"):
         interval_spin.setValue(int(saved["sec_interval_ms"]))
 
-    layout.addWidget(body, 1)
+    _ui.polish_work_surface(root)
     return root

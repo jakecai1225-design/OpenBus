@@ -29,12 +29,11 @@ class QNetworkReply;
  *  - 首页 = 居中大标题 + 大搜索框（市场网页 hero 版式）+ 分区卡片网格
  *    （FlowLayout 自适应换行；「精选推荐 / 最近更新」或搜索结果单区）；
  *    卡片 = 图标 + 名称/厂商 + 摘要 + 免费 徽标 + 安装/更新按钮（整卡点击进详情）。
- *  - 详情页 = 「← 返回市场」+ 四形态详情（图文/设备简表/Markdown 说明
- *    + 操作按钮组：安装/更新/启停/禁用/卸载）。
+ *  - 详情页 = 顶栏「← Marketplace」面包屑（回首页）+ 四形态详情（图文/设备简表/
+ *    Markdown 说明 + 操作按钮组：安装/更新/启停/禁用/卸载）。进详情时隐藏首页筛选栏。
  *
- * 工具栏（常驻）：全部/驱动/插件筛选 + 排序（默认/最近更新/名称）+ 刷新 + ⋯安装。
- * 数据源聚合：DriverRegistry（已装驱动）/ PluginManager（已装插件）/
- * MarketIndex（市场驱动 + 插件，schema 2）。
+ * 工具栏（首页常驻）：全部/驱动/插件筛选 + 排序（默认/最近更新/名称）+ 刷新 + 安装。
+ * 数据源：官方 market.json（MarketIndex 默认源）；DriverRegistry / PluginManager。
  * 安装链：下载 → sha256 → 驱动 driver_tool install 热加载 / 插件
  * PluginManager::installPackage；图片经磁盘缓存（AppData/market-cache）。
  */
@@ -109,13 +108,15 @@ private:
 
     // ---- UI ----
     QStackedWidget *m_stack = nullptr;  // 0 = 市场首页（hero + 卡片网格）/ 1 = 详情页
+    QWidget *m_toolbarHost = nullptr;   // 首页筛选/排序/刷新（进详情时隐藏）
     QLineEdit *m_searchEdit = nullptr;  // hero 大搜索框（首页居中）
     QPushButton *m_searchBtn = nullptr; // hero 搜索按钮（主题强调色）
     QToolButton *m_filterAll = nullptr;
     QToolButton *m_filterDrivers = nullptr;
     QToolButton *m_filterPlugins = nullptr;
     QComboBox *m_sortCombo = nullptr;   // 排序：默认 / 最近更新 / 名称
-    QLabel *m_marketStatus = nullptr;   // 市场源状态（更新日期 / 错误；hero 下方居中）
+    QLabel *m_marketStatus = nullptr;   // 市场状态（更新日期 / 错误；hero 下方居中）
+    QLabel *m_detailCrumb = nullptr;    // 详情顶栏当前条目名（面包屑右侧）
     QProgressBar *m_progress = nullptr; // 下载进度（顶部细条，默认隐藏）
     QScrollArea *m_listArea = nullptr;
     QVBoxLayout *m_listLay = nullptr;   // 首页分区（标题 + FlowLayout 卡片，尾 stretch）

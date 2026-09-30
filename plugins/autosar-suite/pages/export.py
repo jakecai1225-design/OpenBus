@@ -60,7 +60,7 @@ def build(shell, document, log_fn) -> QWidget:
         "ARXML", "DBC", "HTML", "CSV", "ECUC-lite",
         "BSW module ARXML", "Project intermediates",
         "Handoff report (HTML)"])
-    fmt.setFixedHeight(26)
+    fmt.setFixedHeight(_ui.CTRL_H)
     fmt.setToolTip("Export format — never generates BSW/RTE source")
     open_after = QCheckBox("Open after")
     open_after.setChecked(True)

@@ -63,7 +63,10 @@ def test_kit_density_tokens():
     with open(path, "r", encoding="utf-8") as f:
         src = f.read()
     assert "Chrome recipe" in src
-    assert "FILTER_H = 34" in src
+    assert "FILTER_H = TOOL_H" in src or "FILTER_H = 36" in src or (
+        "FILTER_H = CTRL_H + 2 * STRIP_PAD_V" in src)
+    assert "STRIP_PAD_V = 4" in src
+    assert "TOOL_H = CTRL_H + 2 * STRIP_PAD_V + STRIP_EDGE" in src
     assert "PANE_MIN = 180" in src
     assert "PANE_MIN_PROP = 200" in src
     print("PASS kit density tokens")

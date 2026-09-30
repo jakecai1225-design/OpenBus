@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 from _shared import codicons, plugin_shell, state_store, suite_chrome, vscode_theme
 
 from session import SharedSession
+from pages import _ui
 
 PLUGIN_ID = "ethercat-suite"
 
@@ -53,6 +54,7 @@ class AppShell(QMainWindow):
         self._esi_tabs = None
 
         vscode_theme.apply(self)
+        _ui.apply_ethercat_chrome(self)
         plugin_shell.attach_status_bar(self, "Ready")
         plugin_shell.wire_close_deactivates(self, PLUGIN_ID)
         self._wb = suite_chrome.build_workbench(

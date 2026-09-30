@@ -29,6 +29,8 @@ import zipfile
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 
 # Domain suites shipped in the marketplace. Thin plugins were removed in S5.
+# Mixed hubs archived under plugins/_retired/ — keep RETIRED_IDS in sync with
+# src/core/plugin/domainplugins.h (market + sidebar + PluginManager).
 SUITE_IDS = (
     "uds-suite",
     "dbc-studio",
@@ -37,13 +39,20 @@ SUITE_IDS = (
     "canopen-suite",
     "j1939-suite",
     "obd-suite",
+    "ethercat-suite",
+)
+
+# Must match domainplugins.h retiredPluginIds() — never pack or list these.
+RETIRED_IDS = frozenset({
     "tx-lab",
     "bus-security",
     "protocol-hub",
     "log-analysis",
     "bus-utilities",
-    "ethercat-suite",
-)
+})
+
+# Product-surface allowlist (SUITE_IDS + AI Agent). Must match domainplugins.h.
+PRODUCT_SURFACE_IDS = frozenset(SUITE_IDS) | frozenset({"ai-agent"})
 
 
 def _repo_plugins_dir():

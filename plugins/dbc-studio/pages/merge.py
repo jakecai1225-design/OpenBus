@@ -21,7 +21,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import codicons, dbc_picker, dbcparse, plugin_shell, state_store, suite_chrome
+from pages import _ui
+from _shared import dbc_picker, dbcparse, plugin_shell, state_store
 from core import merge_engine
 
 PLUGIN_ID = "dbc-studio"
@@ -33,84 +34,47 @@ def build(shell, document, log_fn) -> QWidget:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
 
-    chrome, crow = suite_chrome.make_toolbar()
-    add_btn = QPushButton("Add file")
-    add_btn.setObjectName("GhostButton")
-    add_btn.setFixedHeight(28)
-    codicons.set_button(add_btn, "add")
-    add_ws = QPushButton("Workspace")
-    add_ws.setObjectName("GhostButton")
-    add_ws.setFixedHeight(28)
-    codicons.set_button(add_ws, "database")
-    clear_btn = QPushButton("Clear")
-    clear_btn.setObjectName("GhostButton")
-    clear_btn.setFixedHeight(28)
-    codicons.set_button(clear_btn, "clear")
-    crow.addWidget(add_btn)
-    crow.addWidget(add_ws)
-    crow.addWidget(clear_btn)
-    crow.addWidget(QLabel("Policy"))
+    add_btn = _ui.ghost_btn("Add file", "Add a DBC to merge", "add")
+    add_ws = _ui.ghost_btn("Workspace", "Add from workspace", "database")
+    clear_btn = _ui.ghost_btn("Clear", "Clear input list", "clear")
     policy = QComboBox()
     policy.addItems(["Skip (keep first)", "Rename later", "Prefer A (keep first)"])
-    policy.setFixedHeight(28)
+    policy.setFixedHeight(_ui.CTRL_H)
     policy.setMinimumWidth(160)
-    crow.addWidget(policy)
-    crow.addStretch(1)
-    run_btn = QPushButton("Merge")
-    run_btn.setFixedHeight(28)
-    codicons.set_button(run_btn, "merge", primary=True)
-    apply_btn = QPushButton("Apply to Editor")
-    apply_btn.setFixedHeight(28)
-    codicons.set_button(apply_btn, "apply", primary=True)
-    export_btn = QPushButton("Conflicts CSV")
-    export_btn.setObjectName("GhostButton")
-    export_btn.setFixedHeight(28)
-    codicons.set_button(export_btn, "export")
-    crow.addWidget(run_btn)
-    crow.addWidget(apply_btn)
-    crow.addWidget(export_btn)
-    layout.addWidget(chrome)
+    policy.setToolTip("Conflict policy when the same message ID appears twice")
+    run_btn = _ui.primary_btn("Merge", "Compute merged database", "merge")
+    apply_btn = _ui.primary_btn(
+        "Apply to Editor", "Replace the open document with the merge result", "apply")
+    export_btn = _ui.ghost_btn("Conflicts CSV", "Export conflict report", "export")
+    layout.addWidget(_ui.tool_strip(
+        add_btn, add_ws, clear_btn,
+        _ui.field_label("Policy"), policy,
+        run_btn, apply_btn, export_btn, stretch_at=5))
 
     body = QWidget()
     body.setObjectName("SuiteContent")
     bl = QVBoxLayout(body)
-    suite_chrome.page_margins(bl)
-    bl.setSpacing(10)
+    bl.setContentsMargins(0, 0, 0, 0)
+    bl.setSpacing(0)
 
-    hint = QLabel(
-        "Merge additional DBC files into a working copy, then Apply to replace "
-        "the open document.")
-    hint.setWordWrap(True)
-    hint.setStyleSheet("color:#78909c;font-size:12px;")
-    bl.addWidget(hint)
-
-    files_head = QLabel("Input files")
-    files_head.setObjectName("SuiteSectionTitle")
-    bl.addWidget(files_head)
+    bl.addWidget(_ui.panel_header("Input files"))
     files = QListWidget()
     files.setAlternatingRowColors(True)
     files.setMaximumHeight(100)
-    files.setStyleSheet(
-        "QListWidget { border: 1px solid #EEEEEE; }"
-    )
+    _ui.style_list(files)
     bl.addWidget(files)
 
     summary = QLabel("Add one or more DBC files to merge")
-    summary.setStyleSheet("color:#90A4AE;font-size:11px;")
+    summary.setObjectName("SuiteCount")
     bl.addWidget(summary)
 
     tree = QTreeWidget()
-    tree.setObjectName("SuiteMatrix")
     tree.setHeaderLabels(["CAN ID", "Kept", "Other", "Source", "Action"])
     tree.setRootIsDecorated(False)
     tree.setAlternatingRowColors(True)
     tree.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+    _ui.style_tree(tree, header_hidden=False)
     tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-    tree.setStyleSheet(
-        "QTreeWidget#SuiteMatrix { border: 1px solid #EEEEEE; }"
-        "QTreeWidget#SuiteMatrix::item:selected {"
-        " background: #E3F2FD; color: #0D47A1; }"
-    )
     bl.addWidget(tree, 1)
     layout.addWidget(body, 1)
 

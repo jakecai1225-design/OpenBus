@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QGuiApplication>
 #include <QMessageBox>
 
 #include "ui/mainwindow.h"
@@ -10,18 +11,26 @@
 #include "core/sessionmanager.h"
 #include "core/module/moduleregistry.h"
 
-// 各业务 DLL 唯一导出的 C 工厂（拆分方案 §4.2：壳不 include 模块头，
-// 仅链接导入库；工厂按模块唯一命名 openbus_create<Xxx>Module）
-extern "C" IBusinessModule *openbus_createMarketModule();       // openbus_market.dll（B1）
-extern "C" IBusinessModule *openbus_createTransceiveModule();   // openbus_transceive.dll（B2）
-extern "C" IBusinessModule *openbus_createDbcModule();          // openbus_dbc.dll（B3）
-extern "C" IBusinessModule *openbus_createFlowModule();         // openbus_flow.dll（B4）
-extern "C" IBusinessModule *openbus_createTraceModule();        // openbus_trace.dll（B5）
-extern "C" IBusinessModule *openbus_createGraphicModule();      // openbus_graphic.dll（B5）
+// Business DLL C factories (shell links import libs only; see split plan §4.2)
+extern "C" IBusinessModule *openbus_createMarketModule();       // openbus_market.dll (B1)
+extern "C" IBusinessModule *openbus_createTransceiveModule();   // openbus_transceive.dll (B2)
+extern "C" IBusinessModule *openbus_createDbcModule();          // openbus_dbc.dll (B3)
+extern "C" IBusinessModule *openbus_createFlowModule();         // openbus_flow.dll (B4)
+extern "C" IBusinessModule *openbus_createTraceModule();        // openbus_trace.dll (B5)
+extern "C" IBusinessModule *openbus_createGraphicModule();      // openbus_graphic.dll (B5)
 
 int main(int argc, char *argv[])
 {
-    // 注册元类型，支持信号/槽传递 CanFrame
+    // Must run before QGuiApplication. On this host (RDP / odd screen geometry),
+    // Qt6's default High-DPI path abort-fails in Qt6Core (STATUS_FAIL_FAST_EXCEPTION
+    // / RaiseFailFastException) when showing FramelessWindowHint + showMaximized.
+    // Disabling High-DPI scaling avoids the abort; Round policy alone is not enough.
+    if (qEnvironmentVariableIsEmpty("QT_ENABLE_HIGHDPI_SCALING"))
+        qputenv("QT_ENABLE_HIGHDPI_SCALING", QByteArrayLiteral("0"));
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
+        Qt::HighDpiScaleFactorRoundingPolicy::Round);
+
+    // Register meta-types for CanFrame signal/slot delivery
     qRegisterMetaType<CanFrame>("CanFrame");
     qRegisterMetaType<QVector<CanFrame>>("QVector<CanFrame>");
 
@@ -30,7 +39,7 @@ int main(int argc, char *argv[])
     app.setOrganizationName("openbus");
     app.setApplicationVersion("0.1.0");
 
-    // 初始化日志系统（需在 QApplication 设置名称之后）
+    // Init logging after QApplication name/org are set
     logging::init();
 
     try {

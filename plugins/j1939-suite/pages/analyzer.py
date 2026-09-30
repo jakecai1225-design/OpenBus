@@ -10,11 +10,12 @@ from __future__ import annotations
 import os
 import time
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTreeWidget,
+    QWidget, QVBoxLayout, QLabel, QTreeWidget,
     QTreeWidgetItem, QTextEdit, QHeaderView, QTabWidget, QLineEdit,
-    QSpinBox, QGroupBox, QFormLayout, QMessageBox,
+    QSpinBox, QMessageBox, QMenu,
 )
 
 import sin
@@ -403,6 +404,11 @@ def _load_dbc_path(path):
     return True
 
 
+def load_dbc(path: str) -> bool:
+    """Public wrapper for File menu / run_action."""
+    return _load_dbc_path(path)
+
+
 def build(parent, session, log_fn):
     global _running, _dbc, _dbc_path, _total
     _sessions.clear()
@@ -415,67 +421,63 @@ def build(parent, session, log_fn):
     _total = 0
     _running = True
 
+    from pages import _ui
+
     root = QWidget(parent)
     layout = QVBoxLayout(root)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
 
-    top = QHBoxLayout()
-    summary = QLabel("No J1939 traffic yet")
-    summary.setStyleSheet("font-weight:bold;")
-    top.addWidget(summary, 1)
-    dbc_label = QLabel("DBC: (none)")
-    dbc_label.setStyleSheet("color:#78909c;")
-    top.addWidget(dbc_label)
-    dbc_btn = QPushButton("Load DBC…")
-    clear_btn = QPushButton("Clear")
-    export_btn = QPushButton("Export CSV")
-    top.addWidget(dbc_btn)
-    top.addWidget(clear_btn)
-    top.addWidget(export_btn)
-    layout.addLayout(top)
+    summary = _ui.muted_label("No J1939 traffic yet")
+    summary.setToolTip("Live frame / PGN summary")
+    dbc_label = _ui.muted_label("DBC: (none)")
+    dbc_label.setToolTip("Loaded J1939 DBC")
+    dbc_btn = _ui.ghost_btn("Load DBC…", "Load J1939 DBC for SPN decode", "export")
+    clear_btn = _ui.ghost_btn("Clear", "Clear live tables", "clear")
+    export_btn = _ui.ghost_btn("Export CSV", "Export analysis CSV", "export")
+    filter_edit = QLineEdit()
+    filter_edit.setPlaceholderText("Filter PGN / name…")
+    filter_edit.setClearButtonEnabled(True)
+    filter_edit.setToolTip("Filter PGN stats")
+    layout.addWidget(_ui.tool_strip(
+        summary, dbc_label, dbc_btn, clear_btn, export_btn))
+    layout.addWidget(_ui.inline_filter(filter_edit))
 
-    layout.addWidget(plugin_shell.help_label(
-        "Monitors SAE J1939 extended frames. Load a J1939 DBC for SPN/signal "
-        "decode beyond built-in tables. RQST sends PGN 0xEA00 (59904). "
-        "TP tab shows BAM/RTS-CTS reassembled PDUs."))
-
-    rqst_box = QGroupBox("RQST (PGN 59904 / 0xEA00)")
-    rqst_form = QFormLayout(rqst_box)
     target_sa = QSpinBox()
     target_sa.setRange(0, 255)
     target_sa.setDisplayIntegerBase(16)
     target_sa.setPrefix("0x")
     target_sa.setValue(0x00)
+    target_sa.setToolTip("RQST target SA")
     our_sa = QSpinBox()
     our_sa.setRange(0, 255)
     our_sa.setDisplayIntegerBase(16)
     our_sa.setPrefix("0x")
     our_sa.setValue(0xF9)
+    our_sa.setToolTip("Our source address")
     pgn_edit = QLineEdit("0xF004")
-    pgn_edit.setPlaceholderText("Requested PGN e.g. 0xF004 or 61444")
-    send_rqst_btn = QPushButton("Send RQST")
-    rqst_row = QHBoxLayout()
-    rqst_row.addWidget(QLabel("Target SA"))
-    rqst_row.addWidget(target_sa)
-    rqst_row.addWidget(QLabel("Our SA"))
-    rqst_row.addWidget(our_sa)
-    rqst_row.addWidget(QLabel("PGN"))
-    rqst_row.addWidget(pgn_edit, 1)
-    rqst_row.addWidget(send_rqst_btn)
-    rqst_form.addRow(rqst_row)
-    layout.addWidget(rqst_box)
+    pgn_edit.setPlaceholderText("Requested PGN e.g. 0xF004")
+    pgn_edit.setToolTip("PGN to request via 0xEA00")
+    send_rqst_btn = _ui.primary_btn("Send RQST", "Send PGN request", "arrow-right")
+    layout.addWidget(_ui.tool_strip(
+        QLabel("RQST"), QLabel("Target"), target_sa,
+        QLabel("Our SA"), our_sa, QLabel("PGN"), pgn_edit, send_rqst_btn))
 
     tabs = QTabWidget()
     layout.addWidget(tabs, 1)
+    _ui.style_page_tabs(tabs)
 
-    empty = plugin_shell.empty_state_label(
-        "No frames yet — start capture or wait for J1939 traffic on the bus.")
+    empty = _ui.empty_state(
+        "No frames yet",
+        "Wait for J1939 traffic on the bus.")
 
     pgn_tab = QWidget()
     pv = QVBoxLayout(pgn_tab)
+    pv.setContentsMargins(0, 0, 0, 0)
     pgn_tree = QTreeWidget()
     pgn_tree.setHeaderLabels(["PGN", "Name", "Count", "Last SA", "Last time"])
+    _ui.style_tree(pgn_tree, header_hidden=False)
     pgn_tree.setRootIsDecorated(False)
-    pgn_tree.setAlternatingRowColors(True)
     pgn_tree.setSortingEnabled(True)
     pgn_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     pv.addWidget(empty)
@@ -484,41 +486,47 @@ def build(parent, session, log_fn):
 
     dec_tab = QWidget()
     dv = QVBoxLayout(dec_tab)
+    dv.setContentsMargins(0, 0, 0, 0)
     dec_tree = QTreeWidget()
     dec_tree.setHeaderLabels(["Timestamp (s)", "PGN", "Decoded"])
+    _ui.style_tree(dec_tree, header_hidden=False)
     dec_tree.setRootIsDecorated(False)
-    dec_tree.setAlternatingRowColors(True)
     dec_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     dv.addWidget(dec_tree, 1)
 
     tp_tab = QWidget()
     tv = QVBoxLayout(tp_tab)
+    tv.setContentsMargins(0, 0, 0, 0)
     tp_tree = QTreeWidget()
     tp_tree.setHeaderLabels(
         ["Timestamp (s)", "Kind", "SA", "DA", "PGN", "Bytes", "Payload (hex)"])
+    _ui.style_tree(tp_tree, header_hidden=False)
     tp_tree.setRootIsDecorated(False)
-    tp_tree.setAlternatingRowColors(True)
     tp_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-    tp_empty = plugin_shell.empty_state_label(
-        "No reassembled TP PDUs yet (BAM / RTS-CTS).")
+    tp_empty = _ui.empty_state(
+        "No reassembled TP PDUs yet",
+        "BAM / RTS-CTS PDUs appear when transport traffic arrives.")
     tv.addWidget(tp_empty)
     tv.addWidget(tp_tree, 1)
     tp_tree.hide()
 
     addr_tab = QWidget()
     av = QVBoxLayout(addr_tab)
+    av.setContentsMargins(0, 0, 0, 0)
     addr_tree = QTreeWidget()
     addr_tree.setHeaderLabels(
         ["Source addr", "NAME (hex)", "Manufacturer", "Function code",
          "Function", "Claim time"])
+    _ui.style_tree(addr_tree, header_hidden=False)
     addr_tree.setRootIsDecorated(False)
-    addr_tree.setAlternatingRowColors(True)
     addr_tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     av.addWidget(addr_tree, 1)
 
     log_tab = QWidget()
     lv = QVBoxLayout(log_tab)
+    lv.setContentsMargins(0, 0, 0, 0)
     log_view = QTextEdit()
+    log_view.setObjectName("SuiteCode")
     log_view.setReadOnly(True)
     lv.addWidget(log_view, 1)
 
@@ -533,11 +541,11 @@ def build(parent, session, log_fn):
     def _set_dbc_label():
         if _dbc_path:
             base = os.path.basename(_dbc_path)
-            dbc_label.setText("DBC: %s (%d msgs)" % (base, len(_dbc.messages) if _dbc else 0))
-            dbc_label.setStyleSheet("color:#2e7d32;")
+            dbc_label.setText(
+                "DBC: %s (%d msgs)"
+                % (base, len(_dbc.messages) if _dbc else 0))
         else:
             dbc_label.setText("DBC: (none)")
-            dbc_label.setStyleSheet("color:#78909c;")
 
     def refresh():
         summary.setText(
@@ -555,11 +563,33 @@ def build(parent, session, log_fn):
 
         pgn_tree.setSortingEnabled(False)
         pgn_tree.clear()
+        needle = (filter_edit.text() or "").strip().lower()
+        focus_pgn = int(getattr(session, "focus_pgn", 0) or 0)
+        focus_item = None
         for pgn, st in _pgn_stats.items():
-            pgn_tree.addTopLevelItem(QTreeWidgetItem([
+            row_txt = "0x%04X %s" % (pgn, st["name"])
+            if needle and needle not in row_txt.lower():
+                continue
+            it = QTreeWidgetItem([
                 "0x%04X" % pgn, st["name"], str(st["count"]),
-                "%02X" % st["sa"], "%.3f" % st["last_ts"]]))
+                "%02X" % st["sa"], "%.3f" % st["last_ts"]])
+            it.setData(0, Qt.ItemDataRole.UserRole, int(pgn))
+            pgn_tree.addTopLevelItem(it)
+            if focus_pgn and pgn == focus_pgn and focus_item is None:
+                focus_item = it
+        if focus_item is not None:
+            pgn_tree.setCurrentItem(focus_item)
         pgn_tree.setSortingEnabled(True)
+
+        if _dm_rows and hasattr(session, "note_dm"):
+            session.note_dm()
+        if _tp_pdus and hasattr(session, "note_tp"):
+            session.note_tp()
+        if _addr_claims and hasattr(session, "note_claim"):
+            session.note_claim()
+        if hasattr(session, "_sync_next_hint") is False and hasattr(parent, "_sync_next_hint"):
+            pass
+
 
         dec_tree.setSortingEnabled(False)
         dec_tree.clear()
@@ -607,12 +637,17 @@ def build(parent, session, log_fn):
     timer.start(500)
 
     def on_load_dbc():
+        if hasattr(parent, "run_action"):
+            parent.run_action("j1939.load_dbc")
+            return
         path = dbc_picker.pick_dbc(parent, "Load J1939 DBC")
         if not path:
             return
         if not _load_dbc_path(path):
             QMessageBox.warning(parent, "DBC", "No messages found in file")
             return
+        if hasattr(session, "note_dbc"):
+            session.note_dbc(path)
         _set_dbc_label()
         plugin_shell.set_status(parent, "DBC loaded: %s" % path, 4000)
         _ev("DBC", "Loaded %s (%d messages)" % (path, len(_dbc.messages)))
@@ -662,7 +697,8 @@ def build(parent, session, log_fn):
             text = pgn_edit.text().strip()
             req_pgn = int(text, 0) if text else 0
         except ValueError:
-            QMessageBox.warning(parent, "RQST", "Invalid PGN (use hex 0xF004 or decimal)")
+            QMessageBox.warning(
+                parent, "RQST", "Invalid PGN (use hex 0xF004 or decimal)")
             return
         req_pgn &= 0x3FFFF
         da = target_sa.value() & 0xFF
@@ -684,18 +720,164 @@ def build(parent, session, log_fn):
         plugin_shell.set_status(
             parent, "RQST sent → DA %02X PGN 0x%05X" % (da, req_pgn), 3000)
 
+    def on_pgn_activated(item, _col):
+        try:
+            data = item.data(0, Qt.ItemDataRole.UserRole)
+            pgn = int(data) if data is not None else int(item.text(0), 0)
+        except Exception:
+            return
+        if hasattr(session, "set_focus"):
+            session.set_focus(pgn=pgn)
+
+    def select_pgn(pgn: int):
+        key = int(pgn) & 0x3FFFF
+        tabs.setCurrentWidget(pgn_tab)
+        for i in range(pgn_tree.topLevelItemCount()):
+            it = pgn_tree.topLevelItem(i)
+            if it is None:
+                continue
+            data = it.data(0, Qt.ItemDataRole.UserRole)
+            try:
+                cur = int(data) if data is not None else int(it.text(0), 0)
+            except Exception:
+                continue
+            if cur == key:
+                pgn_tree.setCurrentItem(it)
+                pgn_tree.scrollToItem(it)
+                return
+
+    def _copy_text(text: str):
+        if not text:
+            return
+        QGuiApplication.clipboard().setText(str(text))
+        plugin_shell.set_status(parent, "Copied", 1500)
+
+    def _pgn_menu(pos):
+        item = pgn_tree.itemAt(pos)
+        menu = QMenu(pgn_tree)
+        if item is None:
+            menu.addAction("Load DBC…", on_load_dbc)
+            menu.addAction("Clear", on_clear)
+        else:
+            pgn_tree.setCurrentItem(item)
+            try:
+                data = item.data(0, Qt.ItemDataRole.UserRole)
+                pgn = int(data) if data is not None else int(item.text(0), 0)
+            except Exception:
+                pgn = 0
+            session.set_focus(pgn=pgn)
+            menu.addAction(
+                "Copy PGN", lambda: _copy_text("0x%04X" % pgn))
+            menu.addAction(
+                "Copy name", lambda: _copy_text(item.text(1)))
+            menu.addSeparator()
+            pgn_edit.setText("0x%04X" % pgn)
+            menu.addAction("Send RQST for PGN", on_send_rqst)
+            menu.addSeparator()
+            menu.addAction(
+                "Open Diagnostics…",
+                lambda: parent.run_action("j1939.goto", page="diagnostics")
+                if hasattr(parent, "run_action")
+                else parent.goto_page("diagnostics"))
+            menu.addAction(
+                "Open Transport…",
+                lambda: parent.run_action("j1939.goto", page="transport")
+                if hasattr(parent, "run_action")
+                else parent.goto_page("transport"))
+            menu.addAction(
+                "Filter this PGN",
+                lambda: filter_edit.setText("0x%04X" % pgn))
+        if menu.actions():
+            menu.exec(pgn_tree.viewport().mapToGlobal(pos))
+
+    def _on_focus(pgn, _sa):
+        if int(pgn or 0):
+            select_pgn(int(pgn))
+
+    if hasattr(session, "on_focus"):
+        session.on_focus(_on_focus)
+
+    def refresh_dbc_label():
+        _set_dbc_label()
+        if hasattr(session, "note_dbc") and _dbc_path:
+            session.note_dbc(_dbc_path)
 
     dbc_btn.clicked.connect(on_load_dbc)
     clear_btn.clicked.connect(on_clear)
     export_btn.clicked.connect(on_export)
     send_rqst_btn.clicked.connect(on_send_rqst)
+    filter_edit.textChanged.connect(lambda _t: refresh())
+    pgn_tree.itemClicked.connect(on_pgn_activated)
+    pgn_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    pgn_tree.customContextMenuRequested.connect(_pgn_menu)
+
+    def _dec_menu(pos):
+        item = dec_tree.itemAt(pos)
+        menu = QMenu(dec_tree)
+        if item is not None:
+            dec_tree.setCurrentItem(item)
+            try:
+                pgn = int(item.text(1), 0)
+            except Exception:
+                pgn = 0
+            menu.addAction(
+                "Copy decoded", lambda: _copy_text(item.text(2)))
+            if pgn:
+                session.set_focus(pgn=pgn)
+                menu.addAction(
+                    "Copy PGN", lambda: _copy_text("0x%04X" % pgn))
+                menu.addAction(
+                    "Select in PGN stats", lambda: select_pgn(pgn))
+                menu.addSeparator()
+                menu.addAction(
+                    "Open Diagnostics…",
+                    lambda: parent.run_action(
+                        "j1939.goto", page="diagnostics")
+                    if hasattr(parent, "run_action")
+                    else parent.goto_page("diagnostics"))
+        if menu.actions():
+            menu.exec(dec_tree.viewport().mapToGlobal(pos))
+
+    def _tp_menu(pos):
+        item = tp_tree.itemAt(pos)
+        menu = QMenu(tp_tree)
+        if item is not None:
+            tp_tree.setCurrentItem(item)
+            try:
+                pgn = int(item.text(4), 0)
+            except Exception:
+                pgn = 0
+            menu.addAction(
+                "Copy payload", lambda: _copy_text(item.text(6)))
+            if pgn:
+                session.set_focus(pgn=pgn)
+                menu.addAction(
+                    "Copy PGN", lambda: _copy_text("0x%04X" % pgn))
+                menu.addAction(
+                    "Open Transport leaf…",
+                    lambda: parent.run_action(
+                        "j1939.goto", page="transport")
+                    if hasattr(parent, "run_action")
+                    else parent.goto_page("transport"))
+        if menu.actions():
+            menu.exec(tp_tree.viewport().mapToGlobal(pos))
+
+    dec_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    dec_tree.customContextMenuRequested.connect(_dec_menu)
+    tp_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    tp_tree.customContextMenuRequested.connect(_tp_menu)
     plugin_shell.bind_shortcut(parent, "Ctrl+E", on_export)
 
     saved = state_store.load_state(SUITE_ID, "settings.json") or {}
     if saved.get("dbc_path"):
         if _load_dbc_path(saved["dbc_path"]):
             _set_dbc_label()
+            if hasattr(session, "note_dbc"):
+                session.note_dbc(saved["dbc_path"])
             plugin_shell.set_status(
                 parent, "Restored DBC %s" % os.path.basename(_dbc_path), 3000)
 
+    root.select_pgn = select_pgn  # type: ignore[attr-defined]
+    root.refresh_dbc_label = refresh_dbc_label  # type: ignore[attr-defined]
+    _ui.polish_work_surface(root)
     return root

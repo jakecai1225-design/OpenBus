@@ -129,12 +129,13 @@ public:
 
     // ---- 插件包安装/卸载（G9 .opk）----
 
-    /// 从 .opk 包安装插件
-    /// @return 错误信息，空串表示成功
+    /// Install plugin from an .opk package.
+    /// @return error message; empty on success
     QString installPackage(const QString &opkPath);
 
-    /// 卸载插件（停用并删除 plugins/<name>/ 目录）
-    /// @return 错误信息，空串表示成功
+    /// Uninstall plugin: deactivate, remove .opk install copy, and hide from
+    /// Installed even when a live source tree copy remains under plugins/.
+    /// @return error message; empty on success
     QString uninstallPlugin(const QString &name);
 
 private:
@@ -142,13 +143,17 @@ private:
 
     PluginHost *m_host = nullptr;
     QHash<QString, PluginInfo> m_plugins;     ///< name → info
-    QSet<QString> m_activatedPlugins;         ///< 已激活的插件名
-    QSet<QString> m_disabledPlugins;          ///< 用户禁用的插件名
+    QSet<QString> m_activatedPlugins;         ///< activated plugin names
+    QSet<QString> m_disabledPlugins;          ///< user-disabled plugin names
+    /// User clicked Uninstall; keep out of discovery until re-installed.
+    /// Needed because resolvePluginsDir prefers the git source tree, so
+    /// deleting only build/bin/plugins/<name> would leave the suite listed.
+    QSet<QString> m_userUninstalledPlugins;
 
-    QString m_pluginsDir;                     ///< plugins/ 目录
-    QString m_sdkDir;                         ///< sdk/ 目录
-    QString m_hostScriptPath;                 ///< sin_host.py 路径
-    QString m_pythonExe;                      ///< Python 解释器路径
+    QString m_pluginsDir;                     ///< plugins/ directory
+    QString m_sdkDir;                         ///< sdk/ directory
+    QString m_hostScriptPath;                 ///< sin_host.py path
+    QString m_pythonExe;                      ///< Python interpreter path
 
     // files.* 转换 Job 表（G9）
     QHash<int, PluginConvertJob *> m_convertJobs;
@@ -187,8 +192,11 @@ private:
     /// Where .opk install/uninstall writes (always beside the executable).
     QString installPluginsDir() const;
     void scanPluginsDirectory(const QString &pluginsDir, bool skipExisting);
-    void startHostIfNeeded();   ///< 无插件时跳过；安装首个插件后可补启
-    void onHostStarted();       ///< 崩溃自愈：重启后重激活已激活插件（首启无操作）
+    QString userUninstalledFilePath() const;
+    void loadUserUninstalled();
+    void saveUserUninstalled() const;
+    void startHostIfNeeded();   ///< skip when no plugins; start after first install
+    void onHostStarted();       ///< crash recovery: re-activate after host restart
 
     /// True when plugin dir has app_shell.py (shared import names across domains).
     bool usesSharedSuiteModules(const QString &name) const;

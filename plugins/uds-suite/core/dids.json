@@ -1,4 +1,13 @@
 {
-  "custom": {},
+  "custom": {
+    "5678": {
+      "name": "software version",
+      "type": "hex"
+    },
+    "8989": {
+      "name": "fff",
+      "type": "hex"
+    }
+  },
   "disabled": []
 }

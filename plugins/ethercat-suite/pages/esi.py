@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.esi import CoeObject, Pdo, PdoEntry, serialize_esi, validate_esi
-from widgets import ghost, primary, spin, table
+from widgets import ghost, primary, spin, spin_hex, table
 
 
 def _ensure_device(session):
@@ -75,12 +75,8 @@ def _tree_tab(session):
     name_ed = QLineEdit()
     name_ed.setFixedHeight(28)
     vendor = spin(0, 0x7FFFFFFF, 0, "Vendor Id")
-    product = spin(0, 0x7FFFFFFF, 0, "Product code")
-    product.setDisplayIntegerBase(16)
-    product.setPrefix("0x")
-    index = spin(0, 0xFFFF, 0x1600, "Index")
-    index.setDisplayIntegerBase(16)
-    index.setPrefix("0x")
+    product = spin_hex(0, 0x7FFFFFFF, 0, "Product code")
+    index = spin_hex(0, 0xFFFF, 0x1600, "Index")
     sub = spin(0, 255, 0, "Subindex / object sub")
     bits = spin(1, 64, 16, "Bit length")
     type_ed = QLineEdit("UINT")

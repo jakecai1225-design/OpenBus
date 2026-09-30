@@ -39,6 +39,9 @@ class StepSpin(QWidget):
         super().__init__(parent)
         self.setObjectName("StepSpin")
         self.setFixedHeight(CTRL_H)
+        # Required for QSS border/background on a plain QWidget host.
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setAutoFillBackground(True)
         if width > 0:
             self.setFixedWidth(width)
 
@@ -51,7 +54,9 @@ class StepSpin(QWidget):
         self.spin.setRange(minimum, maximum)
         self.spin.setValue(value)
         self.spin.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        self.spin.setFixedHeight(CTRL_H)
+        # Inner height leaves 2px for the host border (top+bottom).
+        inner_h = CTRL_H - 2
+        self.spin.setFixedHeight(inner_h)
         self.spin.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -72,14 +77,14 @@ class StepSpin(QWidget):
             col = QWidget()
             col.setObjectName("StepSpinButtons")
             col.setFixedWidth(STEP_W)
-            col.setFixedHeight(CTRL_H)
+            col.setFixedHeight(inner_h)
             vl = QVBoxLayout(col)
             vl.setContentsMargins(0, 0, 0, 0)
             vl.setSpacing(0)
-            half = CTRL_H // 2
+            half = inner_h // 2
             self._up = self._make_step("chevron-up", "Increase", half)
             self._down = self._make_step(
-                "chevron-down", "Decrease", CTRL_H - half)
+                "chevron-down", "Decrease", inner_h - half)
             self._up.clicked.connect(self.spin.stepUp)
             self._down.clicked.connect(self.spin.stepDown)
             vl.addWidget(self._up)

@@ -131,6 +131,19 @@ def test_tab_canonical_collapses_views():
     assert normalize_open_tabs(None) == []
 
 
+def test_activity_always_opens_default():
+    path = os.path.join(_SUITE, "app_shell.py")
+    with open(path, "r", encoding="utf-8") as f:
+        src = f.read()
+    # Blank editor regression: Activity click must open default leaf even when
+    # other tabs already exist (do not gate on empty _open_tabs).
+    assert "if not self._open_tabs:" not in src.split(
+        "def _on_activity_clicked")[1].split("def _on_workbench_page")[0]
+    assert "_open_feature_tab(default, activate=True)" in src.split(
+        "def _on_activity_clicked")[1].split("def _on_workbench_page")[0]
+    print("PASS activity always opens default")
+
+
 def test_eds_stack_no_project_page():
     path = os.path.join(_SUITE, "app_shell.py")
     with open(path, "r", encoding="utf-8") as f:
@@ -163,6 +176,7 @@ if __name__ == "__main__":
     test_live_and_trace_pillars()
     test_workspace_defaults()
     test_tab_canonical_collapses_views()
+    test_activity_always_opens_default()
     test_eds_stack_no_project_page()
     test_no_cjk_in_suite_chrome()
     print("PASS shell routes")

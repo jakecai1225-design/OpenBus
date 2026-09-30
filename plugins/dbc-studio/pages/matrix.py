@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from pages import _ui
 from _shared import codicons, plugin_shell
 
 
@@ -76,36 +77,21 @@ def build(shell, document, log_fn) -> QWidget:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
 
-    chrome = QWidget()
-    chrome.setObjectName("SuiteToolbar")
-    crow = QHBoxLayout(chrome)
-    crow.setContentsMargins(12, 6, 12, 6)
-    crow.setSpacing(8)
     filt = QLineEdit()
     filt.setPlaceholderText("Filter signal or message…")
     filt.setClearButtonEnabled(True)
-    filt.setFixedHeight(28)
+    filt.setFixedHeight(_ui.CTRL_H)
     filt.setMinimumWidth(220)
-    crow.addWidget(filt, 1)
-    refresh_btn = QPushButton("Refresh")
-    refresh_btn.setObjectName("GhostButton")
-    refresh_btn.setFixedHeight(28)
-    codicons.set_button(refresh_btn, "refresh")
-    crow.addWidget(refresh_btn)
-    layout.addWidget(chrome)
+    filt.setToolTip("Filter the communications matrix")
+    refresh_btn = _ui.ghost_btn("Refresh", "Rebuild matrix from the open DBC", "refresh")
+    layout.addWidget(_ui.tool_strip(filt, refresh_btn, stretch_at=1))
 
     body = QWidget()
     body.setObjectName("SuiteContent")
     bl = QVBoxLayout(body)
-    bl.setContentsMargins(16, 12, 16, 12)
-    bl.setSpacing(10)
+    bl.setContentsMargins(0, 0, 0, 0)
+    bl.setSpacing(0)
 
-    hint = QLabel(
-        "Communications matrix — same job as CANdb++ View|Communications matrix, "
-        "but live-filtered and one double-click from Editor.")
-    hint.setWordWrap(True)
-    hint.setStyleSheet("color:#78909c;font-size:12px;")
-    bl.addWidget(hint)
 
     chips = QHBoxLayout()
     chips.setSpacing(8)
@@ -115,14 +101,15 @@ def build(shell, document, log_fn) -> QWidget:
         ("Both", "#6A1B9A"),
     ):
         chip = QLabel("●  " + text)
+        chip.setObjectName("SuiteCount")
         chip.setStyleSheet(
-            "QLabel { color: %s; font-size: 11px; font-weight: 600; "
-            "padding: 3px 10px; background: #F5F7FA; border-radius: 11px; }"
-            % color)
+            "QLabel { color: %s; font-size: %dpx; font-weight: 600; "
+            "padding: 2px 8px; }"
+            % (color, _ui.FS_META))
         chips.addWidget(chip)
     chips.addStretch(1)
     status = QLabel("")
-    status.setStyleSheet("color:#90A4AE;font-size:11px;")
+    status.setObjectName("SuiteCount")
     chips.addWidget(status)
     bl.addLayout(chips)
 
@@ -135,11 +122,8 @@ def build(shell, document, log_fn) -> QWidget:
     table.verticalHeader().setVisible(False)
     table.verticalHeader().setDefaultSectionSize(28)
     table.setSortingEnabled(False)
-    table.setStyleSheet(
-        "QTableWidget#SuiteMatrix { gridline-color: #EEEEEE; }"
-        "QTableWidget#SuiteMatrix::item:selected {"
-        " background: #E3F2FD; color: #0D47A1; }"
-    )
+    _ui.style_table(table)
+    table.setShowGrid(True)
     bl.addWidget(table, 1)
     layout.addWidget(body, 1)
 

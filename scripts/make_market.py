@@ -76,41 +76,6 @@ SUITE_CATALOG = [
         "keywords": "obd obd2 pid dtc",
     },
     {
-        "id": "tx-lab",
-        "name": "TX Lab",
-        "description": "Periodic TX, Restbus simulation and live dashboard.",
-        "tags": ["tx", "restbus"],
-        "keywords": "frame generator simulator dashboard restbus",
-    },
-    {
-        "id": "bus-security",
-        "name": "Bus Security",
-        "description": "Fuzzer, IDS, stress and E2E checksum in one suite.",
-        "tags": ["security"],
-        "keywords": "fuzzer ids stress e2e",
-    },
-    {
-        "id": "protocol-hub",
-        "name": "Protocol Hub",
-        "description": "NM, ISO-TP, ISOBUS, NMEA2000, GBT27930 and XCP monitors.",
-        "tags": ["protocol"],
-        "keywords": "nm isotp isobus nmea2000 gbt27930 xcp",
-    },
-    {
-        "id": "log-analysis",
-        "name": "Log & Compare",
-        "description": "Log toolkit, compare, trigger, quality, reverse and ID scan.",
-        "tags": ["log", "analysis"],
-        "keywords": "log compare trigger quality reverse id-scan",
-    },
-    {
-        "id": "bus-utilities",
-        "name": "Bus Utilities",
-        "description": "Bit timing calculator and CAN gateway rules.",
-        "tags": ["tools"],
-        "keywords": "bit timing gateway",
-    },
-    {
         "id": "ethercat-suite",
         "name": "EtherCAT Suite",
         "description": "ESI, topology, PDO process image, CoE SDO, DC timing and datagram decode.",
@@ -202,6 +167,9 @@ def pack_one(plugin_dir: str, out_opk: str) -> None:
 
 
 def build_market(out_dir: str, remote_url: str, opk_src: str) -> str:
+    sys.path.insert(0, os.path.dirname(__file__))
+    import plugin_tool
+
     remote = load_remote(remote_url)
     remote_dir = remote_url.rsplit("/", 1)[0]
 
@@ -215,6 +183,12 @@ def build_market(out_dir: str, remote_url: str, opk_src: str) -> str:
     today = date.today().isoformat()
     for meta in SUITE_CATALOG:
         sid = meta["id"]
+        if sid in plugin_tool.RETIRED_IDS:
+            print("skip retired", sid)
+            continue
+        if sid not in plugin_tool.PRODUCT_SURFACE_IDS:
+            print("skip non-surface", sid)
+            continue
         plugin_dir = os.path.join(ROOT, "plugins", sid)
         manifest_path = os.path.join(plugin_dir, "plugin.json")
         if not os.path.isfile(manifest_path):

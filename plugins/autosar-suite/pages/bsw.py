@@ -62,7 +62,7 @@ def build(shell, document, log_fn, *, nav_in_sidebar: bool = False) -> QWidget:
         filter_ed = QLineEdit()
         filter_ed.setPlaceholderText("Filter modules…")
         filter_ed.setClearButtonEnabled(True)
-        filter_ed.setFixedHeight(26)
+        filter_ed.setFixedHeight(_ui.CTRL_H)
         filter_ed.setToolTip("Filter BSW catalog by name or group")
         left_l.addWidget(filter_ed)
         mod_tree = QTreeWidget()
@@ -126,7 +126,7 @@ def build(shell, document, log_fn, *, nav_in_sidebar: bool = False) -> QWidget:
     head_l.addWidget(head_title)
     head_l.addWidget(_ui.quiet_label("Short name"))
     name_ed = QLineEdit()
-    name_ed.setFixedHeight(26)
+    name_ed.setFixedHeight(_ui.CTRL_H)
     name_ed.setMinimumWidth(160)
     name_ed.setPlaceholderText("Container / module short name")
     head_l.addWidget(name_ed, 1)
@@ -446,7 +446,7 @@ def build(shell, document, log_fn, *, nav_in_sidebar: bool = False) -> QWidget:
             return w
         if kind == "numerical":
             w = QLineEdit(str(value))
-            w.setFixedHeight(26)
+            w.setFixedHeight(_ui.CTRL_H)
             lo = pdef.get("min")
             hi = pdef.get("max")
             if lo is not None or hi is not None:
@@ -455,7 +455,7 @@ def build(shell, document, log_fn, *, nav_in_sidebar: bool = False) -> QWidget:
                 lambda r=row_meta: _commit_param_value(r))
             return w
         w = QLineEdit(str(value))
-        w.setFixedHeight(26)
+        w.setFixedHeight(_ui.CTRL_H)
         w.editingFinished.connect(
             lambda r=row_meta: _commit_param_value(r))
         return w

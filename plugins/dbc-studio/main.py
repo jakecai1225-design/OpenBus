@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """DBC Studio — domain suite for DBC edit / validate / compare / merge / export.
 
-Workspaces: Editor | Validate | Compare | Merge | Export | Library
-Shared document + activity log.
+Activities: Edit | Analyze | Integrate | Deliver.
+Shared document + File menu + Context Next + OUTPUT.
 """
 
 from __future__ import annotations

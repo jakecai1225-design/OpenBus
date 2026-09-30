@@ -11,21 +11,22 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QMessageBox,
-    QPushButton,
-    QSpinBox,
+    QScrollArea,
     QSplitter,
     QStackedWidget,
     QTreeWidget,
@@ -34,7 +35,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from _shared import codicons, dbcparse, plugin_shell, vscode_theme
+from pages import _ui
+from _shared import dbcparse, plugin_shell, vscode_theme
 from core import csv_import
 
 from .bit_layout import BitLayout, _Draft
@@ -69,9 +71,30 @@ def _spin(lo, hi, value, tip, width=100):
 
 def _line(text, tip):
     edit = QLineEdit(text)
-    edit.setFixedHeight(28)
+    edit.setFixedHeight(_ui.CTRL_H)
     edit.setToolTip(tip)
     return edit
+
+
+def _hpair(*widgets) -> QWidget:
+    """Two fields on one baseline — cuts vertical overflow on the inspector."""
+    box = QWidget()
+    row = QHBoxLayout(box)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(8)
+    for w in widgets:
+        row.addWidget(w, 1)
+    return box
+
+
+def _wrap_scroll(page: QWidget) -> QScrollArea:
+    """Inspector pages scroll instead of clipping the last rows (Receivers)."""
+    area = QScrollArea()
+    area.setWidgetResizable(True)
+    area.setFrameShape(QFrame.Shape.NoFrame)
+    area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    area.setWidget(page)
+    return area
 
 
 class _NameIdDialog(QDialog):
@@ -96,137 +119,99 @@ def build(shell, document, log_fn) -> QWidget:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
 
-    toolbar_host = QWidget()
-    toolbar_host.setObjectName("SuiteToolbar")
-    toolbar = QHBoxLayout(toolbar_host)
-    toolbar.setContentsMargins(12, 6, 12, 6)
-    toolbar.setSpacing(6)
     filt = _line("", "Filter nodes, messages and signals")
     filt.setPlaceholderText("Filter tree…")
     filt.setClearButtonEnabled(True)
     filt.setMinimumWidth(160)
-    filt.setMaximumWidth(240)
-    add_msg = QPushButton("Message")
-    add_sig = QPushButton("Signal")
-    add_node = QPushButton("Node")
-    delete_btn = QPushButton("")
-    import_btn = QPushButton("")
-    ai_btn = QPushButton("")
-    apply_btn = QPushButton("Apply")
-    apply_btn.setObjectName("PrimaryButton")
-    for b, tip in (
-        (add_msg, "New message"),
-        (add_sig, "New signal on the selected message"),
-        (add_node, "New node"),
-        (delete_btn, "Delete selection (Del)"),
-        (import_btn, "Import messages/signals from CSV"),
-        (ai_btn, "Attach selection to AI Agent"),
-        (apply_btn, "Write the definition into the database (Ctrl+Enter)"),
-    ):
-        b.setFixedHeight(28)
-        b.setCursor(Qt.CursorShape.PointingHandCursor)
-        b.setToolTip(tip)
-        if b is not apply_btn:
-            b.setObjectName("GhostButton")
-    for b in (delete_btn, import_btn, ai_btn):
-        b.setFixedSize(28, 28)
-    codicons.set_button(add_msg, "add")
-    codicons.set_button(add_sig, "add")
-    codicons.set_button(add_node, "add")
-    codicons.set_button(delete_btn, "delete")
-    codicons.set_button(import_btn, "import")
-    codicons.set_button(ai_btn, "beaker")
-    codicons.set_button(apply_btn, "apply", primary=True)
-    toolbar.addWidget(filt, 1)
-    toolbar.addWidget(add_msg)
-    toolbar.addWidget(add_sig)
-    toolbar.addWidget(add_node)
-    toolbar.addWidget(delete_btn)
-    toolbar.addWidget(import_btn)
-    toolbar.addWidget(ai_btn)
-    toolbar.addStretch(1)
-    toolbar.addWidget(apply_btn)
-    layout.addWidget(toolbar_host)
+    filt.setMaximumWidth(280)
+    add_msg = _ui.ghost_btn("Message", "New message", "add")
+    add_sig = _ui.ghost_btn(
+        "Signal", "New signal on the selected message", "add")
+    add_node = _ui.ghost_btn("Node", "New node", "add")
+    delete_btn = _ui.icon_tool("delete", "Delete selection (Del)")
+    import_btn = _ui.icon_tool(
+        "import", "Import messages/signals from CSV")
+    ai_btn = _ui.icon_tool("beaker", "Attach selection to AI Agent")
+    apply_btn = _ui.primary_btn(
+        "Apply", "Write the definition into the database (Ctrl+Enter)",
+        "apply")
+    layout.addWidget(_ui.tool_strip(
+        filt, add_msg, add_sig, add_node,
+        delete_btn, import_btn, ai_btn, apply_btn,
+        stretch_at=7))
 
     body = QWidget()
     body.setObjectName("SuiteContent")
     body_l = QVBoxLayout(body)
-    body_l.setContentsMargins(12, 8, 12, 8)
-    body_l.setSpacing(8)
+    body_l.setContentsMargins(0, 0, 0, 0)
+    body_l.setSpacing(0)
 
     splitter = QSplitter(Qt.Orientation.Horizontal)
     splitter.setChildrenCollapsible(False)
     tree = QTreeWidget()
-    tree.setHeaderLabels(["Name", "ID / layout"])
+    tree.setHeaderLabels(["Name", "ID / Layout"])
     tree.setAlternatingRowColors(True)
-    tree.setUniformRowHeights(True)
-    tree.setAnimated(True)
-    tree.setIndentation(16)
-    tree.setMinimumWidth(300)
+    tree.setMinimumWidth(280)
     tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-    tree.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-    tree.setStyleSheet(
-        "QTreeWidget { border: 1px solid #EEEEEE; }"
-        "QTreeWidget::item { padding: 2px 4px; }"
-        "QTreeWidget::item:selected { background: #E3F2FD; color: #0D47A1; }"
-    )
-    hdr = tree.header()
-    hdr.setStretchLastSection(True)
-    hdr.setMinimumSectionSize(100)
-    hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
-    hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+    tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    _ui.style_tree(tree, header_hidden=False)
+    _ui.configure_columns(tree, stretch=1, mins={0: 160, 1: 100})
     tree.setColumnWidth(0, 260)
     splitter.addWidget(tree)
 
     stack = QStackedWidget()
-    stack.setMinimumWidth(300)
-    empty = plugin_shell.empty_state_label(
-        "Select a node, message, or signal in the tree.\n"
-        "Or create one with Message / Signal / Node above.")
+    stack.setMinimumWidth(280)
+    empty = _ui.empty_state(
+        "Nothing selected",
+        "Select a node, message, or signal in the tree — "
+        "or create one with Message / Signal / Node above.")
     stack.addWidget(empty)
 
     msg_page = QWidget()
     msg_form = QFormLayout(msg_page)
-    msg_form.setSpacing(8)
-    msg_form.setContentsMargins(12, 8, 12, 8)
+    msg_form.setContentsMargins(8, 4, 12, 8)
     vscode_theme.tune_form(msg_form)
+    msg_form.setVerticalSpacing(6)
     m_name = _line("", "Message name")
     m_id = _line("", "CAN identifier")
     m_ext = QCheckBox("Extended (29-bit)")
     m_dlc = _spin(0, 64, 8, "Data length")
     m_sender = QComboBox()
     m_sender.setEditable(True)
-    m_sender.setFixedHeight(28)
+    m_sender.setFixedHeight(_ui.CTRL_H)
     m_sender.setToolTip(
         "Transmitter node (BU_). Pick from the network or type a new name.")
     m_cycle = _spin(0, 65535, 0, "GenMsgCycleTime, milliseconds")
     m_comment = _line("", "Message comment")
     msg_form.addRow("Name", m_name)
-    msg_form.addRow("CAN ID", m_id)
+    msg_form.addRow("CAN ID / DLC", _hpair(m_id, m_dlc))
     msg_form.addRow("", m_ext)
-    msg_form.addRow("DLC", m_dlc)
     msg_form.addRow("Transmitter", m_sender)
     msg_form.addRow("Cycle time", m_cycle)
     msg_form.addRow("Comment", m_comment)
-    stack.addWidget(msg_page)
+    m_attrs_btn = _ui.ghost_btn(
+        "Attributes…", "Open Attributes for this message", "settings")
+    msg_form.addRow("Related", m_attrs_btn)
+    msg_scroll = _wrap_scroll(msg_page)
+    stack.addWidget(msg_scroll)
 
     sig_page = QWidget()
     sig_form = QFormLayout(sig_page)
-    sig_form.setSpacing(8)
-    sig_form.setContentsMargins(12, 8, 12, 8)
+    sig_form.setContentsMargins(8, 4, 12, 8)
     vscode_theme.tune_form(sig_form)
+    sig_form.setVerticalSpacing(6)
     s_name = _line("", "Signal name")
     s_start = _spin(0, 512, 0, "Start bit. Intel: LSB. Motorola: MSB. Bit 0 is the LSB of byte 0.")
     s_len = _spin(1, 64, 8, "Bit length")
     s_endian = QComboBox()
     s_endian.addItems(["Intel (little)", "Motorola (big)"])
-    s_endian.setFixedHeight(28)
+    s_endian.setFixedHeight(_ui.CTRL_H)
     s_endian.setToolTip("Byte order, CANdb++ @1 / @0")
     s_signed = QCheckBox("Signed")
     s_signed.setToolTip("Two's complement raw value")
     s_mux = QComboBox()
     s_mux.addItems(["None", "Multiplexor", "Multiplexed"])
-    s_mux.setFixedHeight(28)
+    s_mux.setFixedHeight(_ui.CTRL_H)
     s_mux.setToolTip("M = multiplexor, mN = multiplexed value")
     s_mux_val = _spin(0, 255, 0, "Multiplexer value")
     s_factor = _line("1", "Factor")
@@ -238,7 +223,7 @@ def build(shell, document, log_fn) -> QWidget:
     s_values = _line("", "Value descriptions, 0=Off; 1=On")
     s_values.setPlaceholderText("0=Off; 1=On")
     s_vtable = QComboBox()
-    s_vtable.setFixedHeight(28)
+    s_vtable.setFixedHeight(_ui.CTRL_H)
     s_vtable.setToolTip("Assign a named VAL_TABLE_ (Value Tables page)")
     rx_wrap = QWidget()
     rx_col = QVBoxLayout(rx_wrap)
@@ -246,72 +231,77 @@ def build(shell, document, log_fn) -> QWidget:
     rx_col.setSpacing(4)
     rx_bar = QHBoxLayout()
     rx_bar.setSpacing(6)
-    rx_hint = QLabel("Check nodes that receive this signal")
-    rx_hint.setStyleSheet("color:#90A4AE;font-size:11px;")
-    rx_bar.addWidget(rx_hint, 1)
-    rx_all = QPushButton("All")
-    rx_all.setObjectName("GhostButton")
-    rx_all.setFixedHeight(24)
-    rx_all.setToolTip("Select all receivers")
-    rx_none = QPushButton("None")
-    rx_none.setObjectName("GhostButton")
-    rx_none.setFixedHeight(24)
-    rx_none.setToolTip("Clear receivers")
+    rx_bar.addStretch(1)
+    rx_all = _ui.ghost_btn("All", "Select all receiver nodes")
+    rx_none = _ui.ghost_btn("None", "Clear receiver nodes")
     rx_bar.addWidget(rx_all)
     rx_bar.addWidget(rx_none)
     rx_col.addLayout(rx_bar)
     receivers = QListWidget()
-    receivers.setToolTip("Receiver nodes (Rx). Transmitter is set on the message.")
-    receivers.setMaximumHeight(140)
+    receivers.setToolTip(
+        "Receiver nodes (Rx). Check nodes that receive this signal. "
+        "Transmitter is set on the message.")
+    receivers.setMinimumHeight(72)
+    receivers.setMaximumHeight(120)
     receivers.setAlternatingRowColors(True)
-    receivers.setStyleSheet(
-        "QListWidget { border: 1px solid #E0E0E0; border-radius: 2px; }"
-        "QListWidget::item { padding: 2px 4px; }"
-        "QListWidget::item:selected { background: #E3F2FD; color: #0D47A1; }"
-    )
+    _ui.style_list(receivers)
     rx_col.addWidget(receivers)
     sig_form.addRow("Name", s_name)
-    sig_form.addRow("Start bit", s_start)
-    sig_form.addRow("Length", s_len)
-    sig_form.addRow("Byte order", s_endian)
-    sig_form.addRow("", s_signed)
-    sig_form.addRow("Multiplex", s_mux)
-    sig_form.addRow("Mux value", s_mux_val)
-    sig_form.addRow("Factor", s_factor)
-    sig_form.addRow("Offset", s_offset)
-    sig_form.addRow("Min", s_min)
-    sig_form.addRow("Max", s_max)
+    sig_form.addRow("Start / length", _hpair(s_start, s_len))
+    sig_form.addRow("Byte order", _hpair(s_endian, s_signed))
+    sig_form.addRow("Multiplex", _hpair(s_mux, s_mux_val))
+    sig_form.addRow("Factor / offset", _hpair(s_factor, s_offset))
+    sig_form.addRow("Min / max", _hpair(s_min, s_max))
     sig_form.addRow("Unit", s_unit)
     sig_form.addRow("Comment", s_comment)
     sig_form.addRow("Value table", s_vtable)
     sig_form.addRow("Values", s_values)
     sig_form.addRow("Receivers", rx_wrap)
-    stack.addWidget(sig_page)
+    s_links = QWidget()
+    s_links_l = QHBoxLayout(s_links)
+    s_links_l.setContentsMargins(0, 0, 0, 0)
+    s_links_l.setSpacing(8)
+    s_vt_btn = _ui.ghost_btn(
+        "Value tables…", "Open Value tables for this signal", "checklist")
+    s_attrs_btn = _ui.ghost_btn(
+        "Attributes…", "Open Attributes for this signal", "settings")
+    s_links_l.addWidget(s_vt_btn)
+    s_links_l.addWidget(s_attrs_btn)
+    s_links_l.addStretch(1)
+    sig_form.addRow("Related", s_links)
+    sig_scroll = _wrap_scroll(sig_page)
+    stack.addWidget(sig_scroll)
 
     node_page = QWidget()
     node_form = QFormLayout(node_page)
-    node_form.setContentsMargins(12, 8, 12, 8)
+    node_form.setContentsMargins(8, 4, 12, 8)
     vscode_theme.tune_form(node_form)
+    node_form.setVerticalSpacing(6)
     n_name = _line("", "Node name. Apply renames transmitter and receiver references.")
     node_form.addRow("Node", n_name)
-    stack.addWidget(node_page)
+    node_scroll = _wrap_scroll(node_page)
+    stack.addWidget(node_scroll)
 
     splitter.addWidget(stack)
 
     layout_host = QWidget()
+    layout_host.setObjectName("SuitePropPanel")
     layout_host.setMinimumWidth(260)
     layout_col = QVBoxLayout(layout_host)
-    layout_col.setContentsMargins(8, 4, 4, 4)
-    layout_title = QLabel("Layout")
-    layout_title.setObjectName("SuiteEditorTitle")
-    layout_col.addWidget(layout_title)
+    layout_col.setContentsMargins(0, 0, 0, 0)
+    layout_col.setSpacing(0)
+    layout_col.addWidget(_ui.panel_header("Layout"))
     bit_view = BitLayout()
-    layout_col.addWidget(bit_view, 1)
+    bit_view.setToolTip(
+        "Click a color to select that signal. Drag bits to set start and length.")
+    layout_scroll = QScrollArea()
+    layout_scroll.setWidgetResizable(True)
+    layout_scroll.setFrameShape(QFrame.Shape.NoFrame)
+    layout_scroll.setWidget(bit_view)
+    layout_col.addWidget(layout_scroll, 1)
     splitter.addWidget(layout_host)
-    splitter.setStretchFactor(0, 3)
-    splitter.setStretchFactor(1, 3)
-    splitter.setStretchFactor(2, 2)
-    splitter.setSizes([380, 400, 300])
+    _ui.configure_splitter(
+        splitter, sizes=[380, 400, 300], stretch=(3, 3, 2))
     body_l.addWidget(splitter, 1)
     layout.addWidget(body, 1)
 
@@ -408,7 +398,7 @@ def build(shell, document, log_fn) -> QWidget:
         _fill_sender(msg.sender or "")
         m_cycle.setValue(int(msg.cycle_time or 0))
         m_comment.setText(msg.comment or "")
-        stack.setCurrentWidget(msg_page)
+        stack.setCurrentWidget(msg_scroll)
         _preview()
 
     def _show_signal(msg, sig):
@@ -444,7 +434,7 @@ def build(shell, document, log_fn) -> QWidget:
         s_vtable.setCurrentIndex(max(0, idx))
         s_vtable.blockSignals(False)
         _fill_receivers(sig.receivers)
-        stack.setCurrentWidget(sig_page)
+        stack.setCurrentWidget(sig_scroll)
         _preview()
 
     def _show_node(name):
@@ -453,7 +443,7 @@ def build(shell, document, log_fn) -> QWidget:
         state["can_id"] = None
         state["signal"] = None
         n_name.setText(name)
-        stack.setCurrentWidget(node_page)
+        stack.setCurrentWidget(node_scroll)
         bit_view.clear()
 
     def _rebuild_tree(select_can_id=None, select_signal=None, select_node=None):
@@ -539,20 +529,24 @@ def build(shell, document, log_fn) -> QWidget:
         if item is None:
             stack.setCurrentWidget(empty)
             bit_view.clear()
+            document.set_focus(None, "")
             return
         kind, cid, name = item.data(0, Qt.ItemDataRole.UserRole) or (None, None, None)
         if kind == "message" and cid is not None:
             msg = document.db.messages.get(cid)
             if msg:
+                document.set_focus(cid, "")
                 _show_message(msg)
             return
         if kind == "signal" and cid is not None and name:
             msg = document.db.messages.get(cid)
             sig = msg.signal(name) if msg else None
             if msg and sig:
+                document.set_focus(cid, name)
                 _show_signal(msg, sig)
             return
         if kind == "node" and name:
+            document.set_focus(None, "")
             _show_node(name)
             return
         stack.setCurrentWidget(empty)
@@ -887,6 +881,109 @@ def build(shell, document, log_fn) -> QWidget:
             return
         _rebuild_tree(cid, name)
 
+    def _layout_range(start_bit, length):
+        """Layout click/drag writes start + length into the inspector (Apply to save)."""
+        if state.get("kind") != "signal" or not state.get("signal"):
+            return
+        s_start.blockSignals(True)
+        s_len.blockSignals(True)
+        s_start.setValue(int(start_bit))
+        s_len.setValue(max(1, int(length)))
+        s_start.blockSignals(False)
+        s_len.blockSignals(False)
+        _preview()
+
+    def _goto_attributes():
+        cid = state.get("can_id")
+        if cid is None:
+            plugin_shell.set_status(
+                shell, "Select a message or signal first", 2500)
+            return
+        sig = state.get("signal") if state.get("kind") == "signal" else ""
+        if hasattr(shell, "goto_attributes"):
+            shell.goto_attributes(cid, sig or None)
+        else:
+            document.set_focus(cid, sig or "")
+            shell.goto_page("attributes")
+
+    def _goto_value_tables():
+        name = ""
+        if state.get("kind") == "signal" and state.get("can_id") is not None:
+            msg = document.db.messages.get(state["can_id"])
+            sig = msg.signal(state.get("signal")) if msg else None
+            if sig:
+                name = (getattr(sig, "value_table_name", "") or "").strip()
+        if hasattr(shell, "goto_value_tables"):
+            shell.goto_value_tables(name or None)
+        else:
+            shell.goto_page("valuetables")
+
+    def _copy_text(text: str):
+        if not text:
+            return
+        QApplication.clipboard().setText(text)
+        plugin_shell.set_status(shell, "Copied", 1500)
+
+    def _tree_menu(pos):
+        item = tree.itemAt(pos)
+        if item is None:
+            return
+        tree.setCurrentItem(item)
+        data = item.data(0, Qt.ItemDataRole.UserRole) or (None, None, None)
+        kind = data[0]
+        menu = QMenu(tree)
+        if kind == "message" and data[1] is not None:
+            cid = data[1]
+            msg = document.db.messages.get(cid)
+            label = msg.name if msg else "0x%X" % cid
+            menu.addAction(
+                "Copy name",
+                lambda: _copy_text(label))
+            menu.addAction(
+                "Copy CAN ID",
+                lambda: _copy_text("0x%X" % cid))
+            menu.addSeparator()
+            menu.addAction(
+                "Open Attributes…",
+                lambda: (
+                    shell.goto_attributes(cid, None)
+                    if hasattr(shell, "goto_attributes")
+                    else shell.goto_page("attributes")))
+            menu.addAction("Add signal", _on_add_signal)
+            menu.addSeparator()
+            menu.addAction("Delete", _on_delete)
+        elif kind == "signal" and data[1] is not None and data[2]:
+            cid, sname = data[1], data[2]
+            msg = document.db.messages.get(cid)
+            sig = msg.signal(sname) if msg else None
+            vt = (getattr(sig, "value_table_name", "") or "").strip() if sig else ""
+            menu.addAction("Copy name", lambda: _copy_text(sname))
+            menu.addSeparator()
+            menu.addAction(
+                "Open Attributes…",
+                lambda: (
+                    shell.goto_attributes(cid, sname)
+                    if hasattr(shell, "goto_attributes")
+                    else shell.goto_page("attributes")))
+            if vt and hasattr(shell, "goto_value_tables"):
+                menu.addAction(
+                    "Open Value table (%s)…" % vt,
+                    lambda: shell.goto_value_tables(vt))
+            else:
+                menu.addAction(
+                    "Open Value tables…",
+                    _goto_value_tables)
+            menu.addSeparator()
+            menu.addAction("Delete", _on_delete)
+        elif kind == "node" and data[2]:
+            menu.addAction("Copy name", lambda: _copy_text(data[2]))
+            menu.addAction("Delete", _on_delete)
+        else:
+            menu.addAction("Add message", _on_add_message)
+            menu.addAction("Add node", _on_add_node)
+        if menu.actions():
+            menu.exec(tree.viewport().mapToGlobal(pos))
+
     def select_target(can_id=None, signal=None):
         if can_id is None:
             _rebuild_tree()
@@ -899,6 +996,7 @@ def build(shell, document, log_fn) -> QWidget:
         _rebuild_tree(can_id, signal)
 
     bit_view.on_pick = _pick_signal
+    bit_view.on_range = _layout_range
     for w in (s_start, s_len):
         w.valueChanged.connect(lambda _v: _preview())
     s_endian.currentIndexChanged.connect(lambda _i: _preview())
@@ -909,7 +1007,11 @@ def build(shell, document, log_fn) -> QWidget:
             s_values.setText(_fmt_value_table(document.db.value_tables[vname]))
 
     s_vtable.currentIndexChanged.connect(_on_vtable_picked)
+    m_attrs_btn.clicked.connect(_goto_attributes)
+    s_attrs_btn.clicked.connect(_goto_attributes)
+    s_vt_btn.clicked.connect(_goto_value_tables)
     tree.currentItemChanged.connect(lambda _c, _p: _on_select())
+    tree.customContextMenuRequested.connect(_tree_menu)
     filt.textChanged.connect(lambda _t: _rebuild_tree(
         state.get("can_id"), state.get("signal"), state.get("node")))
     apply_btn.clicked.connect(_on_apply)

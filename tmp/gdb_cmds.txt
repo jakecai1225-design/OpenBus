@@ -1,0 +1,6 @@
+set pagination off
+set confirm off
+run
+bt 40
+thread apply all bt 15
+quit
