@@ -6,7 +6,7 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QHBoxLayout, QTableWidgetItem, QVBoxLayout, QWidget
 
 from core.cannm import decode_nm, encode_nm, nm_state_name
-from widgets import ghost, primary, spin, table
+from widgets import ghost, primary, spin, spin_hex, table
 
 
 def build(_parent, session, _log):
@@ -15,9 +15,7 @@ def build(_parent, session, _log):
     root.setContentsMargins(12, 8, 12, 8)
     root.setSpacing(8)
 
-    base = spin(0, 0x7FF, session.nm_base, "NM CAN id = base + node id")
-    base.setDisplayIntegerBase(16)
-    base.setPrefix("0x")
+    base = spin_hex(0, 0x7FF, session.nm_base, "NM CAN id = base + node id")
     node = spin(0, 255, 1, "Source node id to transmit")
     row = QHBoxLayout()
     row.addWidget(base)

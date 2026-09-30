@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.secoc import build_secured, verify_secured
-from widgets import primary, spin, table
+from widgets import primary, spin, spin_hex, table
 
 
 def _parse_hex(text: str) -> bytes:
@@ -30,9 +30,7 @@ def build(_parent, session, _log):
     root.setContentsMargins(12, 8, 12, 8)
     root.setSpacing(8)
 
-    can_id = spin(0, 0x1FFFFFFF, session.secoc_can_id, "CAN id for the secured PDU")
-    can_id.setDisplayIntegerBase(16)
-    can_id.setPrefix("0x")
+    can_id = spin_hex(0, 0x1FFFFFFF, session.secoc_can_id, "CAN id for the secured PDU")
     fv_bits = spin(0, 64, session.secoc_fv_bits, "Freshness value length in bits")
     mac_bits = spin(0, 128, session.secoc_mac_bits, "Truncated MAC length in bits")
     fv = spin(0, 0xFFFFFF, 1, "Freshness counter to transmit")

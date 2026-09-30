@@ -365,6 +365,32 @@ QToolButton#SuitePanelTab:checked {{
 }}
 QWidget#SuiteMenubarTrailing {{
     background: transparent;
+    min-height: 28px;
+}}
+QWidget#SuiteMenubarTrailing QToolButton#LayoutToggleBtn {{
+    margin: 0 1px;
+}}
+QMenuBar {{
+    background: {SIDEBAR};
+    color: {TEXT};
+    border: none;
+    border-bottom: 1px solid {BORDER};
+    padding: 0 4px;
+    spacing: 0;
+    min-height: 30px;
+}}
+QMenuBar::item {{
+    background: transparent;
+    color: {TEXT};
+    padding: 4px 10px;
+    margin: 0;
+    border-radius: 3px;
+}}
+QMenuBar::item:selected {{
+    background: {SIDEBAR_HOVER};
+}}
+QMenuBar::item:pressed {{
+    background: {ACCENT_SOFT};
 }}
 QLabel#SessionBadge {{
     color: {ACCENT};

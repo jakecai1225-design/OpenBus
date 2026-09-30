@@ -11,9 +11,11 @@ import time
 from typing import Optional
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QKeySequence
 from PyQt6.QtWidgets import (
     QMainWindow,
+    QMenuBar,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -96,6 +98,7 @@ class AppShell(QMainWindow):
         self.goto_page(page if page in self._page_index else "topology")
         self._wb.set_sidebar_visible(True)
         self._wb.set_panel_visible(True)
+        self._build_menubar()
         suite_chrome.bind_nav_shortcuts(self, NAV_PAGES, self.goto_page)
         plugin_shell.bind_shortcut(
             self, "Ctrl+J",
@@ -109,6 +112,51 @@ class AppShell(QMainWindow):
         self._log_row(
             "SYS", "-", b"",
             "Topology / PDO / CoE / ESI / DC / Frames. Demo slave loaded. No NIC master.")
+
+    def _build_menubar(self):
+        bar = self.menuBar()
+        if bar is None:
+            bar = QMenuBar(self)
+            self.setMenuBar(bar)
+        bar.clear()
+        bar.setVisible(True)
+
+        def _act(menu, label, slot, shortcut=None):
+            a = menu.addAction(label)
+            a.triggered.connect(slot)
+            if shortcut:
+                a.setShortcut(QKeySequence(shortcut))
+            return a
+
+        m_file = bar.addMenu("&File")
+        _act(m_file, "E&xit", self.close)
+
+        m_view = bar.addMenu("&View")
+        for key, title in NAV_PAGES:
+            _act(m_view, title,
+                 lambda _c=False, k=key: self.goto_page(k))
+        m_view.addSeparator()
+        _act(m_view, "Toggle &Side Bar",
+             lambda: self._wb.set_sidebar_visible(
+                 not self._wb.is_sidebar_visible()), "Ctrl+B")
+        _act(m_view, "Toggle &OUTPUT",
+             lambda: self._wb.set_panel_visible(
+                 not self._wb.is_panel_visible()), "Ctrl+J")
+        _act(m_view, "&Maximize Editor",
+             lambda: self._wb.set_maximized(
+                 not self._wb.is_maximized()), "Ctrl+Shift+E")
+
+        m_help = bar.addMenu("&Help")
+        _act(m_help, "&About EtherCAT Suite", self._menu_about)
+
+        self._menubar_trailing = suite_chrome.attach_layout_toggles_to_menubar(
+            self, self._wb)
+
+    def _menu_about(self):
+        QMessageBox.information(
+            self, "About EtherCAT Suite",
+            "EtherCAT Suite — Topology, PDO, CoE, ESI, DC, Frames.\n"
+            "Offline model and capture decode (no NIC master).")
 
     def _on_workbench_page(self, key: str):
         if key == "topology" and self._net_tabs is not None:

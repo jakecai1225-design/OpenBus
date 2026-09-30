@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.ipdu import Signal, blank_pdu, pack_signal, unpack_signal
-from widgets import combo, ghost, primary, spin, table
+from widgets import combo, ghost, primary, spin, spin_hex, table
 
 
 def _item(text: str) -> QTableWidgetItem:
@@ -42,9 +42,7 @@ class _Layout(QWidget):
         root.setSpacing(8)
         row = QHBoxLayout()
         self.pdu = combo([], "Active I-PDU")
-        self.can_id = spin(0, 0x1FFFFFFF, 0, "CAN identifier")
-        self.can_id.setDisplayIntegerBase(16)
-        self.can_id.setPrefix("0x")
+        self.can_id = spin_hex(0, 0x1FFFFFFF, 0, "CAN identifier")
         self.dlc = spin(0, 64, 8, "PDU length in bytes")
         row.addWidget(self.pdu, 1)
         row.addWidget(self.can_id)

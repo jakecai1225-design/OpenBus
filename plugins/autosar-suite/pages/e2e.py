@@ -6,7 +6,7 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QHBoxLayout, QTableWidgetItem, QVBoxLayout, QWidget
 
 from core.e2e import p01_check, p01_protect
-from widgets import combo, primary, spin, table
+from widgets import combo, primary, spin, spin_hex, table
 
 
 def build(_parent, session, _log):
@@ -15,12 +15,8 @@ def build(_parent, session, _log):
     root.setContentsMargins(12, 8, 12, 8)
     root.setSpacing(8)
 
-    can_id = spin(0, 0x1FFFFFFF, session.e2e_can_id, "CAN id watched for Profile 1")
-    can_id.setDisplayIntegerBase(16)
-    can_id.setPrefix("0x")
-    data_id = spin(0, 0xFFFF, session.e2e_data_id, "16-bit DataID")
-    data_id.setDisplayIntegerBase(16)
-    data_id.setPrefix("0x")
+    can_id = spin_hex(0, 0x1FFFFFFF, session.e2e_can_id, "CAN id watched for Profile 1")
+    data_id = spin_hex(0, 0xFFFF, session.e2e_data_id, "16-bit DataID")
     mode = combo(["BOTH", "LOW", "ALT"], "DataID bytes included in the CRC")
     mode.setCurrentText(session.e2e_mode if session.e2e_mode in ("BOTH", "LOW", "ALT") else "BOTH")
     counter = spin(0, 14, 0, "Profile 1 counter nibble")

@@ -367,9 +367,15 @@ class AppShell(QMainWindow):
         _act(m_view, "Toggle &OUTPUT",
              lambda: self._wb.set_panel_visible(
                  not self._wb.is_panel_visible()), "Ctrl+J")
+        _act(m_view, "&Maximize Editor",
+             lambda: self._wb.set_maximized(
+                 not self._wb.is_maximized()), "Ctrl+Shift+E")
 
         m_help = bar.addMenu("&Help")
         _act(m_help, "&About UDS Suite", self._menu_about)
+
+        self._menubar_trailing = suite_chrome.attach_layout_toggles_to_menubar(
+            self, self._wb)
 
     def _fill_recent_menu(self):
         menu = getattr(self, "_recent_menu", None)

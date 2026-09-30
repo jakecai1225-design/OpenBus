@@ -27,6 +27,10 @@ def spin(
     return box
 
 
+def spin_hex(lo: int, hi: int, value: int, tip: str = "", width: int = 110):
+    return spin(lo, hi, value, tip, width, hex_mode=True)
+
+
 def combo(items: list, tip: str = "") -> QComboBox:
     box = QComboBox()
     box.addItems(items)

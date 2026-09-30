@@ -162,7 +162,6 @@ class AppShell(QMainWindow):
 
         self._init_document_controls()
         self._build_menubar()
-        self._mount_menubar_trailing()
         self._build_output_panel()
         self.session.set_log_fn(self._session_log)
         plugin_shell.wire_close_deactivates(self, PLUGIN_ID)
@@ -651,12 +650,19 @@ class AppShell(QMainWindow):
         _act(m_view, "Toggle &OUTPUT",
              lambda: self._wb.set_panel_visible(
                  not self._wb.is_panel_visible()), "Ctrl+J")
+        _act(m_view, "&Maximize Editor",
+             lambda: self._wb.set_maximized(
+                 not self._wb.is_maximized()), "Ctrl+Shift+E")
 
         m_help = bar.addMenu("&Help")
         _act(m_help, "&Spec Encyclopedia", lambda: self.goto_page("spec"))
         _act(m_help, "&Handoff report…", self._menu_handoff_report)
         _act(m_help, "&Boundary (no codegen)", self._menu_boundary)
         _act(m_help, "&About AUTOSAR Studio", self._menu_about)
+
+        self._menubar_trailing = suite_chrome.attach_layout_toggles_to_menubar(
+            self, self._wb,
+            extra_widgets=[self.dirty_label, *self._doc_btns])
 
     def _menu_wizard_comm(self):
         log = self.document.wizard_init_comm_stack()
@@ -714,27 +720,12 @@ class AppShell(QMainWindow):
                     base = "Findings"
                     it.setText(0, "%s (%d)" % (base, n) if n else base)
 
-    def _mount_menubar_trailing(self):
-        """Dirty + doc actions + layout toggles on the native menubar row."""
-        host = QWidget()
-        host.setObjectName("SuiteMenubarTrailing")
-        row = QHBoxLayout(host)
-        row.setContentsMargins(4, 0, 6, 0)
-        row.setSpacing(2)
-        row.addWidget(self.dirty_label)
-        for btn in self._doc_btns:
-            row.addWidget(btn)
-        for btn in (
-            self._wb.btn_sidebar,
-            self._wb.btn_panel,
-            self._wb.btn_maximize,
-        ):
-            btn.setParent(None)
-            row.addWidget(btn)
-        self._menubar_trailing = host
-        bar = self.menuBar()
-        if bar is not None:
-            bar.setCornerWidget(host, Qt.Corner.TopRightCorner)
+    def _park_chrome_widgets(self):
+        """Park path label before chrome remount (no durable tab bars)."""
+        park = self._chrome_park
+        if getattr(self, "path_label", None) is not None:
+            self.path_label.setParent(park)
+        # dirty_label / _doc_btns / layout toggles live on menubar trailing.
 
     def _fill_recent_projects_menu(self):
         menu = getattr(self, "_recent_proj_menu", None)
@@ -750,13 +741,6 @@ class AppShell(QMainWindow):
             a = menu.addAction(path)
             a.triggered.connect(
                 lambda _c=False, p=path: self._open_recent_project(p))
-
-    def _park_chrome_widgets(self):
-        """Park path label before chrome remount (no durable tab bars)."""
-        park = self._chrome_park
-        if getattr(self, "path_label", None) is not None:
-            self.path_label.setParent(park)
-        # dirty_label / _doc_btns / layout toggles live on menubar trailing.
 
     def _mount_chrome(self, page_key: str):
         """Chrome row: feature title + path (Side Bar owns navigation)."""

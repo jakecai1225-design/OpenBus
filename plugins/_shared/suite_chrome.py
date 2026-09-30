@@ -2,9 +2,10 @@
 """Shared suite chrome — VS Code–style workbench (minimal vertical chrome).
 
 Vertical layers (keep to two above the editor):
-  1. One editor chrome row — page tabs OR page title + layout toggles
-  2. Editor body
-  3. Collapsible OUTPUT (optional)
+  1. Native menubar — File / Edit / View + layout toggles on the right corner
+  2. One editor chrome row — page tabs OR page title only (no layout icons)
+  3. Editor body
+  4. Collapsible OUTPUT (optional)
 
 Horizontal: Activity bar (icon strip) | optional Side Bar | editor column.
 When side_bar_enabled: activity stays visible; Ctrl+B toggles the Side Bar.
@@ -13,13 +14,15 @@ When side_bar_enabled: activity stays visible; Ctrl+B toggles the Side Bar.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Optional
+from typing import Callable, Optional, Sequence
 
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
     QLabel,
+    QMainWindow,
+    QMenuBar,
     QSizePolicy,
     QSplitter,
     QStackedWidget,
@@ -92,6 +95,8 @@ class WorkbenchParts:
     btn_sidebar: QToolButton
     btn_panel: QToolButton
     btn_maximize: QToolButton
+    """Park host for layout toggles until attach_layout_toggles_to_menubar."""
+    layout_toggle_host: QWidget
     set_sidebar_visible: Callable[[bool], None]
     set_panel_visible: Callable[[bool], None]
     set_maximized: Callable[[bool], None]
@@ -403,8 +408,15 @@ def build_workbench(
         btn.setIconSize(QSize(16, 16))
         btn.setToolTip(tip)
         codicons.set_button(btn, icon_name, color=vscode_theme.TEXT_DIM, size=16)
-        ch.addWidget(btn, 0, Qt.AlignmentFlag.AlignVCenter)
         return btn
+
+    # Layout toggles live on the menubar right corner (VS Code), not this row.
+    layout_toggle_host = QWidget()
+    layout_toggle_host.setObjectName("SuiteLayoutTogglePark")
+    layout_toggle_host.hide()
+    park_lay = QHBoxLayout(layout_toggle_host)
+    park_lay.setContentsMargins(0, 0, 0, 0)
+    park_lay.setSpacing(0)
 
     if side_bar_enabled or lock_activity:
         btn_sidebar = _make_toggle(
@@ -417,6 +429,8 @@ def build_workbench(
     btn_panel = _make_toggle("layout-panel", i18n.t("Toggle Panel (Ctrl+J)"))
     btn_maximize = _make_toggle("layout-maximize", max_tip)
     btn_maximize.setChecked(False)
+    for _btn in (btn_sidebar, btn_panel, btn_maximize):
+        park_lay.addWidget(_btn)
 
     right_l.addWidget(chrome)
 
@@ -661,6 +675,7 @@ def build_workbench(
         btn_sidebar=btn_sidebar,
         btn_panel=btn_panel,
         btn_maximize=btn_maximize,
+        layout_toggle_host=layout_toggle_host,
         set_sidebar_visible=set_sidebar_visible,
         set_panel_visible=set_panel_visible,
         set_maximized=set_maximized,
@@ -691,6 +706,45 @@ def build_workbench(
 
 
 WorkbenchHandles = WorkbenchParts  # compat alias for mount helpers
+
+
+def attach_layout_toggles_to_menubar(
+        window: QMainWindow,
+        wb: WorkbenchParts,
+        extra_widgets: Optional[Sequence[QWidget]] = None,
+) -> QWidget:
+    """Mount layout toggles (and optional extras) on the menubar right corner.
+
+    Call after the suite has built its QMenuBar. Editor chrome stays
+    tabs/title only — VS Code places these icons on the menu row.
+    """
+    bar = window.menuBar()
+    if bar is None:
+        bar = QMenuBar(window)
+        window.setMenuBar(bar)
+    bar.setVisible(True)
+
+    host = QWidget()
+    host.setObjectName("SuiteMenubarTrailing")
+    row = QHBoxLayout(host)
+    row.setContentsMargins(4, 0, 6, 0)
+    row.setSpacing(2)
+
+    for w in list(extra_widgets or ()):
+        if w is None:
+            continue
+        w.setParent(None)
+        row.addWidget(w)
+
+    for btn in (wb.btn_sidebar, wb.btn_panel, wb.btn_maximize):
+        btn.setParent(None)
+        row.addWidget(btn)
+
+    bar.setCornerWidget(host, Qt.Corner.TopRightCorner)
+    host.show()
+    # Keep a reference so callers can re-attach after menuBar().clear().
+    wb.layout_toggle_host = host  # type: ignore[misc]
+    return host
 
 
 def page_margins(layout, *, top: int = 12) -> None:

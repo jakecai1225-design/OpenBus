@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
 
 from core.arxml_min import export_dbc, serialize_arxml, validate_ipdus
 from core.ipdu import Ipdu, Signal
-from widgets import combo, ghost, primary, spin, table
+from widgets import combo, ghost, primary, spin, spin_hex, table
 
 
 def _tree_tab(session, shell=None):
@@ -58,9 +58,7 @@ def _tree_tab(session, shell=None):
     form.setSpacing(8)
     name_ed = QLineEdit()
     name_ed.setFixedHeight(28)
-    can_id = spin(0, 0x1FFFFFFF, 0, "CAN identifier")
-    can_id.setDisplayIntegerBase(16)
-    can_id.setPrefix("0x")
+    can_id = spin_hex(0, 0x1FFFFFFF, 0, "CAN identifier")
     dlc = spin(0, 64, 8, "PDU length")
     start = spin(0, 512, 0, "Start bit")
     length = spin(1, 64, 8, "Bit length")
