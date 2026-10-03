@@ -16,7 +16,7 @@ def build(shell, document, log_fn) -> QWidget:
     layout.setSpacing(0)
 
     chrome, crow = suite_chrome.make_toolbar()
-    run_btn = _ui.primary_btn("Refresh", "Recompute coverage", "refresh")
+    run_btn = _ui.ghost_btn("Refresh", "Recompute coverage", "refresh")
     summary = _ui.quiet_label("")
     crow.addWidget(run_btn)
     crow.addWidget(summary)

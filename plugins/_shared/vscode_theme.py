@@ -32,6 +32,13 @@ TEXT = "#3B3B3B"
 TEXT_DIM = "#6C6C6C"
 TEXT_MUTED = "#8A8A8A"
 TEXT_SIDE = "#3B3B3B"
+
+# Type scale (§13.14) — every suite must use these; no local 13/14 “title walls”.
+FS_BODY = 12   # work surface: trees, tabs, forms, section titles, buttons
+FS_CTRL = 12   # controls (= body)
+FS_META = 11   # muted chrome / side-bar titles / status hints
+FS_MENU = 12   # menubar labels (same as body)
+FS_MONO = 12   # paths / hex / code
 ACCENT = "#005FB8"
 ACCENT_SOFT = "#CCE8FF"
 ACCENT_HOVER = "#1F7AD3"
@@ -132,6 +139,38 @@ def block(title: str, hint: str = "", trailing: QWidget | None = None) -> tuple[
     return card, bl
 
 
+def field_label(text: str) -> QLabel:
+    """Form-row noun — SuiteFieldLabel @ FS_BODY (use instead of addRow string)."""
+    lab = QLabel(text)
+    lab.setObjectName("SuiteFieldLabel")
+    return lab
+
+
+def value_label(text: str = "—", *, mono: bool = False) -> QLabel:
+    """Read-only form value — quiet body or monospace."""
+    lab = QLabel(text)
+    lab.setObjectName("SuiteMono" if mono else "SuiteQuiet")
+    lab.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    return lab
+
+
+def polish_form_labels(form: QFormLayout) -> None:
+    """Tag bare QFormLayout labels as SuiteFieldLabel (call after addRow)."""
+    if form is None:
+        return
+    for i in range(form.rowCount()):
+        item = form.itemAt(i, QFormLayout.ItemRole.LabelRole)
+        if item is None:
+            continue
+        w = item.widget()
+        if not isinstance(w, QLabel):
+            continue
+        name = w.objectName() or ""
+        if name.startswith("Suite"):
+            continue
+        w.setObjectName("SuiteFieldLabel")
+
+
 def tune_form(form) -> None:
     """Right-aligned labels, even rows, fields grow together."""
     form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -139,6 +178,7 @@ def tune_form(form) -> None:
     form.setHorizontalSpacing(12)
     form.setVerticalSpacing(8)
     form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+    polish_form_labels(form)
 
 
 def stylesheet() -> str:
@@ -146,18 +186,25 @@ def stylesheet() -> str:
     _icons = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
     check_on = os.path.join(_icons, "check-white.svg").replace("\\", "/")
     return f"""
-/* ===== Shell — VS Code Light type scale: 13 body / 12 secondary / 11 meta ===== */
+/* ===== Shell — VS Code Light type scale: 12 work / 11 meta ===== */
 QMainWindow, QDialog {{
     background: {EDITOR};
     color: {TEXT};
-    font-size: 13px;
+    font-size: {FS_BODY}px;
+    font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+}}
+/* Bare QLabels (QFormLayout.addRow strings, value text) — force body scale.
+   Named Suite* labels override below. Prevents “giant form labels” vs 12px inputs. */
+QLabel {{
+    color: {TEXT};
+    font-size: {FS_BODY}px;
     font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
 }}
 QStatusBar {{
     background: {EDITOR};
     color: {TEXT_MUTED};
     border-top: 1px solid {BORDER};
-    font-size: 12px;
+    font-size: {FS_BODY}px;
     min-height: 22px;
 }}
 QStatusBar::item {{ border: none; }}
@@ -169,12 +216,12 @@ QWidget#SuiteTitleBar {{
 }}
 QLabel#SuiteTitleLabel {{
     color: {TEXT};
-    font-size: 13px;
+    font-size: {FS_BODY}px;
     font-weight: 600;
 }}
 QLabel#SuiteTitleChip {{
     color: {TEXT_DIM};
-    font-size: 12px;
+    font-size: {FS_BODY}px;
     font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
     padding: 3px 10px;
     background: {EDITOR};
@@ -188,13 +235,17 @@ QLabel#SuiteTitleChip:hover {{
 QToolButton#LayoutToggleBtn {{
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 4px;
+    border-radius: 0;
     padding: 0;
     margin: 0;
+    min-width: 36px;
+    max-width: 36px;
+    min-height: 34px;
+    max-height: 34px;
 }}
 QToolButton#LayoutToggleBtn:hover {{
     background: {SIDEBAR_HOVER};
-    border-color: {BORDER};
+    border-color: transparent;
 }}
 QToolButton#LayoutToggleBtn:checked {{
     background: {ACCENT_SOFT};
@@ -235,7 +286,7 @@ QListWidget#SuiteNav {{
     border-right: 1px solid {BORDER};
     outline: none;
     padding: 0;
-    font-size: 13px;
+    font-size: {FS_BODY}px;
 }}
 QListWidget#SuiteNav::item {{
     padding: 0 12px;
@@ -264,23 +315,25 @@ QWidget#SuiteToolbar {{
 }}
 QWidget#SuiteToolbar QLabel {{
     color: {TEXT_DIM};
-    font-size: 12px;
+    font-size: {FS_BODY}px;
 }}
 QWidget#SuiteToolbar QLabel#SuiteToolbarTitle {{
     color: {TEXT_MUTED};
-    font-size: 11px;
+    font-size: {FS_META}px;
     font-weight: 600;
     letter-spacing: 0.4px;
     padding-right: 4px;
 }}
 QLabel#SuiteToolbarTitle {{
     color: {TEXT_MUTED};
-    font-size: 11px;
+    font-size: {FS_META}px;
     font-weight: 600;
     letter-spacing: 0.4px;
 }}
 
-/* ===== Side Bar explorer (VS Code) ===== */
+/* ===== Side Bar explorer (VS Code) =====
+   Viewlet title = .part > .title (35px) + .title-label h2 (11px uppercase).
+   Pane section headers stay 22px elsewhere — do NOT reuse that here. */
 QWidget#SuiteSideBar, QWidget#WorkspaceSideBar, QWidget#ConfigSideBar {{
     background: {SIDEBAR};
     border: none;
@@ -288,8 +341,15 @@ QWidget#SuiteSideBar, QWidget#WorkspaceSideBar, QWidget#ConfigSideBar {{
 QWidget#SuiteSideBarHeader {{
     background: {SIDEBAR};
     border: none;
-    min-height: 22px;
-    max-height: 22px;
+    border-bottom: 1px solid {BORDER_SOFT};
+    min-height: 35px;
+}}
+QLabel#SuiteSideBarTitle {{
+    color: {TEXT_MUTED};
+    font-size: {FS_META}px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 0 2px;
 }}
 /* Multi-line document strip above Side Bar explorer (CANopen / suites).
    Must NOT share SuiteSideBarHeader — that header is height-capped. */
@@ -302,13 +362,13 @@ QWidget#SuiteDocBanner {{
 }}
 QLabel#SuiteDocPath {{
     color: {TEXT_MUTED};
-    font-size: 12px;
+    font-size: {FS_BODY}px;
     font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
     padding: 0 6px;
 }}
 QLabel#SuiteDirtyDot {{
     color: {ACCENT};
-    font-size: 14px;
+    font-size: {FS_BODY}px;
     font-weight: 700;
     padding: 0 2px;
 }}
@@ -316,7 +376,7 @@ QTreeWidget#SuiteMatrix {{
     background: transparent;
     border: none;
     outline: 0;
-    font-size: 13px;
+    font-size: {FS_BODY}px;
 }}
 QTreeWidget#SuiteMatrix::item {{
     padding: 2px 4px;
@@ -341,7 +401,7 @@ QTableWidget#SuiteMatrix::item:selected {{
 QPlainTextEdit#BswSpecPane {{
     background: {EDITOR};
     color: {TEXT_MUTED};
-    font-size: 12px;
+    font-size: {FS_BODY}px;
     border: none;
     border-top: 1px solid {BORDER_SOFT};
     padding: 6px 8px;
@@ -353,7 +413,7 @@ QToolButton#SuitePanelTab {{
     border-bottom: 1px solid transparent;
     border-radius: 0;
     padding: 2px 8px;
-    font-size: 11px;
+    font-size: {FS_META}px;
     font-weight: 600;
 }}
 QToolButton#SuitePanelTab:hover {{
@@ -363,39 +423,102 @@ QToolButton#SuitePanelTab:checked {{
     color: {TEXT};
     border-bottom: 1px solid {ACCENT};
 }}
+QWidget#SuiteMenuChromeSlot {{
+    background: {SIDEBAR};
+    border: none;
+    margin: 0;
+    padding: 0;
+}}
+QWidget#SuiteMenuChrome {{
+    background: {SIDEBAR};
+    border: none;
+    border-bottom: 1px solid {BORDER};
+    min-height: 35px;
+    max-height: 35px;
+}}
+QWidget#SuiteMenuButtons {{
+    background: {SIDEBAR};
+}}
+QFrame#SuiteMenuSep {{
+    background: {BORDER_SOFT};
+    border: none;
+    margin: 0 4px;
+    max-width: 1px;
+}}
 QWidget#SuiteMenubarTrailing {{
     background: transparent;
-    min-height: 28px;
+    min-height: 35px;
+    max-height: 35px;
 }}
 QWidget#SuiteMenubarTrailing QToolButton#LayoutToggleBtn {{
-    margin: 0 1px;
+    margin: 0;
+    min-width: 36px;
+    max-width: 36px;
+    min-height: 35px;
+    max-height: 35px;
+}}
+QToolButton#WinMinBtn, QToolButton#WinMaxBtn {{
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 46px;
+    max-width: 46px;
+    min-height: 35px;
+    max-height: 35px;
+}}
+QToolButton#WinMinBtn:hover, QToolButton#WinMaxBtn:hover {{
+    background: {SIDEBAR_HOVER};
+}}
+QToolButton#WinMinBtn:pressed, QToolButton#WinMaxBtn:pressed {{
+    background: {BORDER};
+}}
+QToolButton#WinCloseBtn {{
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 46px;
+    max-width: 46px;
+    min-height: 35px;
+    max-height: 35px;
+}}
+QToolButton#WinCloseBtn:hover {{
+    background: #E81123;
+}}
+QToolButton#WinCloseBtn:pressed {{
+    background: #F1707A;
+}}
+QMainWindow[suiteFrameless="true"] {{
+    border: 1px solid {BORDER};
 }}
 QMenuBar {{
     background: {SIDEBAR};
     color: {TEXT};
     border: none;
-    border-bottom: 1px solid {BORDER};
     padding: 0 4px;
     spacing: 0;
     min-height: 30px;
 }}
 QMenuBar::item {{
     background: transparent;
+    padding: 4px 8px;
+    border-radius: 0;
     color: {TEXT};
-    padding: 4px 10px;
-    margin: 0;
-    border-radius: 3px;
+    font-size: {FS_MENU}px;
 }}
 QMenuBar::item:selected {{
     background: {SIDEBAR_HOVER};
 }}
 QMenuBar::item:pressed {{
-    background: {ACCENT_SOFT};
+    background: {SIDEBAR_HOVER};
 }}
 QLabel#SessionBadge {{
     color: {ACCENT};
     font-weight: 600;
-    font-size: 11px;
+    font-size: {FS_META}px;
     padding: 2px 10px;
     background: {ACCENT_SOFT};
     border: none;
@@ -405,11 +528,11 @@ QWidget#SuiteToolbar QSpinBox {{
     background: {EDITOR};
     border: 1px solid #CECECE;
     border-radius: 3px;
-    padding: 1px 8px;
-    min-height: 28px;
-    max-height: 28px;
+    padding: 0px 8px;
+    min-height: 26px;
+    max-height: 26px;
     font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
-    font-size: 12px;
+    font-size: {FS_BODY}px;
     color: {TEXT};
 }}
 QWidget#SuiteToolbar QSpinBox:focus {{
@@ -449,8 +572,8 @@ QWidget#StepSpin {{
     background: {EDITOR};
     border: 1px solid #C8C8C8;
     border-radius: 3px;
-    min-height: 28px;
-    max-height: 28px;
+    /* Outer height from setFixedHeight(28) — do not set min/max here
+       (Qt content-box min-height + border expands past the strip). */
 }}
 QWidget#StepSpin:hover {{
     border-color: #A8A8A8;
@@ -460,11 +583,11 @@ QWidget#StepSpin QSpinBox#SuiteSpin {{
     color: {TEXT};
     border: none;
     border-radius: 0;
-    padding: 2px 6px;
+    padding: 0px 6px;
     min-height: 26px;
     max-height: 26px;
     font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
-    font-size: 12px;
+    font-size: {FS_BODY}px;
     selection-background-color: {ACCENT_SOFT};
 }}
 QWidget#StepSpin QSpinBox#SuiteSpin:focus {{
@@ -489,11 +612,11 @@ QSpinBox#SuiteSpin {{
     color: {TEXT};
     border: 1px solid #C8C8C8;
     border-radius: 3px;
-    padding: 3px 20px 4px 8px;
-    min-height: 28px;
-    max-height: 28px;
+    padding: 0px 20px 0px 8px;
+    min-height: 26px;
+    max-height: 26px;
     font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
-    font-size: 12px;
+    font-size: {FS_BODY}px;
     selection-background-color: {ACCENT_SOFT};
 }}
 QSpinBox#SuiteSpin:hover {{
@@ -527,8 +650,21 @@ QSpinBox#SuiteSpin::down-button:hover {{
 }}
 QLabel#SuiteFieldLabel {{
     color: {TEXT_DIM};
-    font-size: 12px;
+    font-size: {FS_BODY}px;
     font-weight: 500;
+}}
+QLabel#SuiteQuiet {{
+    color: {TEXT_DIM};
+    font-size: {FS_BODY}px;
+}}
+QLabel#SuiteMono {{
+    color: {TEXT};
+    font-size: {FS_MONO}px;
+    font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+}}
+QLabel#SuiteCount {{
+    color: {TEXT_MUTED};
+    font-size: {FS_META}px;
 }}
 QWidget#SuiteSettingsSection {{
     background: transparent;
@@ -553,7 +689,7 @@ QPushButton#SegmentBtn {{
     padding: 0 14px;
     min-height: 26px;
     max-height: 26px;
-    font-size: 12px;
+    font-size: {FS_BODY}px;
     font-weight: 500;
 }}
 QPushButton#SegmentBtn[segment="first"] {{
@@ -589,13 +725,13 @@ QWidget#SuiteBlockBody {{
 }}
 QLabel#SuiteSectionTitle {{
     color: {TEXT};
-    font-size: 13px;
+    font-size: {FS_BODY}px;
     font-weight: 600;
     letter-spacing: 0;
 }}
 QLabel#SuiteHint {{
     color: {TEXT_MUTED};
-    font-size: 12px;
+    font-size: {FS_BODY}px;
 }}
 QLabel#SuiteWarn {{
     background: {WARN_BG};
@@ -603,17 +739,17 @@ QLabel#SuiteWarn {{
     border: none;
     border-radius: {RADIUS};
     padding: 8px 12px;
-    font-size: 12px;
+    font-size: {FS_BODY}px;
 }}
 QLabel#BusStripLabel {{
     color: {TEXT_DIM};
-    font-size: 12px;
+    font-size: {FS_BODY}px;
     font-weight: 600;
 }}
 QLabel#PageTitle {{
     color: {TEXT};
-    font-size: 13px;
-    font-weight: 700;
+    font-size: {FS_BODY}px;
+    font-weight: 600;
 }}
 
 /* ===== Buttons ===== */
@@ -625,7 +761,7 @@ QPushButton {{
     padding: 0 12px;
     min-height: 26px;
     max-height: 26px;
-    font-size: 12px;
+    font-size: {FS_BODY}px;
 }}
 QPushButton:hover {{
     background: {SIDEBAR_HOVER};
@@ -671,7 +807,7 @@ QPushButton#GhostButton:hover {{
 /* ===== Checkboxes ===== */
 QCheckBox {{
     color: {TEXT};
-    font-size: 12px;
+    font-size: {FS_BODY}px;
     spacing: 8px;
 }}
 QCheckBox::indicator {{
@@ -697,7 +833,7 @@ QWidget#SuiteEditorChrome {{
 }}
 QLabel#SuiteEditorTitle {{
     color: {TEXT};
-    font-size: 13px;
+    font-size: {FS_BODY}px;
     font-weight: 600;
     padding: 0 10px;
 }}
@@ -719,7 +855,7 @@ QTabBar#SuiteEditorTabs::tab {{
     margin: 0;
     min-height: 36px;
     max-height: 36px;
-    font-size: 13px;
+    font-size: {FS_BODY}px;
 }}
 QTabBar#SuiteEditorTabs::tab:selected {{
     background: {EDITOR};
@@ -815,7 +951,7 @@ QTreeWidget, QListWidget {{
 QTableWidget {{
     gridline-color: transparent;
     font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
-    font-size: 12px;
+    font-size: {FS_BODY}px;
     alternate-background-color: {EDITOR};
 }}
 QTableWidget#OutputTable {{
@@ -829,7 +965,7 @@ QHeaderView::section {{
     border-bottom: 1px solid {BORDER};
     border-right: none;
     padding: 6px 8px;
-    font-size: 11px;
+    font-size: {FS_META}px;
     font-weight: 700;
     letter-spacing: 0.3px;
 }}
@@ -842,16 +978,17 @@ QTreeWidget::item:selected, QListWidget::item:selected {{
     color: {TEXT};
 }}
 
-/* ===== Inputs ===== */
+/* ===== Inputs — outer height CTRL_H=28 via setFixedHeight;
+   QSS min-height is content-box (pad-y 0 + border 1+1 → use 26). ===== */
 QLineEdit, QSpinBox, QComboBox {{
     background: {EDITOR};
     border: 1px solid #C8C8C8;
     border-radius: 3px;
-    padding: 2px 8px;
-    min-height: 28px;
-    max-height: 28px;
+    padding: 0px 8px;
+    min-height: 26px;
+    max-height: 26px;
     color: {TEXT};
-    font-size: 12px;
+    font-size: {FS_BODY}px;
     selection-background-color: {ACCENT_SOFT};
 }}
 QLineEdit:hover, QSpinBox:hover, QComboBox:hover {{
@@ -868,6 +1005,7 @@ QGroupBox {{
     border: none;
     margin-top: 12px;
     padding: 8px 0 4px 0;
+    font-size: {FS_BODY}px;
     font-weight: 600;
     color: {TEXT};
 }}
@@ -877,7 +1015,7 @@ QGroupBox::title {{
     left: 0;
     padding: 0;
     color: {TEXT};
-    font-size: 13px;
+    font-size: {FS_BODY}px;
     font-weight: 600;
     letter-spacing: 0;
 }}
@@ -937,7 +1075,7 @@ QHeaderView::section {{
     border-bottom: 1px solid {BORDER_SOFT};
     border-right: none;
     padding: 4px 8px;
-    font-size: 11px;
+    font-size: {FS_META}px;
     font-weight: 600;
     letter-spacing: 0.2px;
 }}
@@ -953,6 +1091,48 @@ QProgressBar {{
 QProgressBar::chunk {{
     background: {ACCENT};
     border-radius: 2px;
+}}
+
+/* ===== Suite menubar LAST — QLabel labels (never QPushButton) ===== */
+QLabel#SuiteMenuLabel {{
+    background: transparent;
+    color: {TEXT};
+    border: none;
+    padding: 0 12px;
+    margin: 0;
+    min-height: 35px;
+    max-height: 35px;
+    font-size: {FS_MENU}px;
+}}
+QLabel#SuiteMenuLabel:hover {{
+    background: {SIDEBAR_HOVER};
+}}
+QPushButton#SuiteMenuButton {{
+    background: transparent;
+    color: {TEXT};
+    border: none;
+    border-radius: 0;
+    padding: 0 10px;
+    margin: 0;
+    min-height: 35px;
+    max-height: 35px;
+    min-width: 44px;
+    max-width: 220px;
+    font-size: {FS_MENU}px;
+    text-align: center;
+}}
+QPushButton#SuiteMenuButton:hover {{
+    background: {SIDEBAR_HOVER};
+    border: none;
+}}
+QPushButton#SuiteMenuButton:pressed {{
+    background: {SIDEBAR_HOVER};
+    border: none;
+}}
+QPushButton#SuiteMenuButton:disabled {{
+    color: {TEXT_MUTED};
+    background: transparent;
+    border: none;
 }}
 """
 

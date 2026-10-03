@@ -144,6 +144,98 @@ def build(parent, session, log_fn) -> QWidget:
     nlay.addWidget(nmt_scan_strip, 0)
     stack.addWidget(nmt_page)
 
+    # ---- LSS lite ----
+    lss_page = QWidget()
+    llay = QVBoxLayout(lss_page)
+    llay.setContentsMargins(0, 0, 0, 0)
+    llay.setSpacing(0)
+
+    from core import lss_master as _lss
+
+    lss_node = _ui.suite_spin(
+        session.node_id, minimum=1, maximum=127,
+        tip="New Node-ID to assign (after Switch to config)", width=100)
+    cfg_btn = _ui.primary_btn(
+        "Config mode", "LSS Switch mode global → configuration", "sync")
+    wait_btn = _ui.ghost_btn(
+        "Waiting", "LSS Switch mode global → waiting", "debug-continue")
+    set_id_btn = _ui.ghost_btn(
+        "Set Node-ID", "Configure Node-ID (requires config mode)", "edit")
+    inquire_btn = _ui.ghost_btn(
+        "Inquire ID", "Ask configured slave for its Node-ID", "search")
+    ident_btn = _ui.ghost_btn(
+        "Find unconfigured", "Identify non-configured remote slaves", "search")
+    llay.addWidget(_ui.tool_strip(
+        _ui.field_label("Node"), lss_node,
+        cfg_btn, wait_btn, set_id_btn, inquire_btn, ident_btn, stretch_at=2))
+    lss_log = QListWidget()
+    lss_log.setObjectName("SuiteMatrix")
+    _ui.style_list(lss_log)
+    lss_log.setToolTip("LSS master traffic — confirm before Set Node-ID")
+    llay.addWidget(lss_log, 1)
+    stack.addWidget(lss_page)
+
+    def _lss_note(text: str):
+        lss_log.insertItem(0, text)
+        log_fn("SYS", "-", b"", text)
+
+    def on_lss_cfg():
+        pdu = _lss.encode_switch_global(1)
+        session.send_raw(_lss.LSS_MASTER_ID, pdu, "LSS config mode")
+        _lss_note("TX Switch global → configuration")
+
+    def on_lss_wait():
+        pdu = _lss.encode_switch_global(0)
+        session.send_raw(_lss.LSS_MASTER_ID, pdu, "LSS waiting")
+        _lss_note("TX Switch global → waiting")
+
+    def on_lss_set_id():
+        from PyQt6.QtWidgets import QMessageBox
+        nid = lss_node.value()
+        reply = QMessageBox.question(
+            parent, "Confirm LSS Node-ID",
+            "Assign Node-ID %d to the selected LSS slave?\n"
+            "Device must already be in configuration mode." % nid,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        pdu = _lss.encode_configure_node_id(nid)
+        session.send_raw(_lss.LSS_MASTER_ID, pdu, "LSS configure Node-ID %d" % nid)
+        _lss_note("TX Configure Node-ID %d" % nid)
+        session.set_node_id(nid)
+
+    def on_lss_inquire():
+        pdu = _lss.encode_inquire_node_id()
+        session.send_raw(_lss.LSS_MASTER_ID, pdu, "LSS inquire Node-ID")
+        _lss_note("TX Inquire Node-ID")
+
+    def on_lss_ident():
+        pdu = _lss.encode_identify_non_configured()
+        session.send_raw(_lss.LSS_MASTER_ID, pdu, "LSS identify non-configured")
+        _lss_note("TX Identify non-configured slaves")
+
+    cfg_btn.clicked.connect(on_lss_cfg)
+    wait_btn.clicked.connect(on_lss_wait)
+    set_id_btn.clicked.connect(on_lss_set_id)
+    inquire_btn.clicked.connect(on_lss_inquire)
+    ident_btn.clicked.connect(on_lss_ident)
+
+    def _on_lss_frame(frame):
+        if frame.id != _lss.LSS_SLAVE_ID:
+            return
+        data = bytes(frame.data) if frame.data else b""
+        kind, fields = _lss.decode_lss_slave(data)
+        if kind == "inquire_node_id":
+            _lss_note("RX Node-ID = %d" % fields.get("node_id", 0))
+        elif kind == "configure_node_id_ack":
+            err = fields.get("error", 0)
+            _lss_note("RX Configure Node-ID ack error=%d" % err)
+        elif kind == "identify_slave":
+            _lss_note("RX Identify slave")
+
+    session.on_bus_frame(_on_lss_frame)
+
     state = {"running": False, "node": 1, "nodes": {}}
 
     def _refresh_nmt_list():
@@ -332,6 +424,9 @@ def build(parent, session, log_fn) -> QWidget:
             stack.setCurrentIndex(1)
             node_spin.setValue(session.node_id)
             _refresh_nmt_list()
+        elif key in ("network_lss", "lss"):
+            stack.setCurrentIndex(2)
+            lss_node.setValue(session.node_id)
         else:
             stack.setCurrentIndex(0)
 

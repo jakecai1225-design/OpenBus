@@ -29,7 +29,7 @@ def build(shell, document, log_fn) -> QWidget:
     layout.setSpacing(0)
 
     chrome, crow = suite_chrome.make_toolbar()
-    derive_btn = _ui.primary_btn(
+    derive_btn = _ui.ghost_btn(
         "Derive from COM", "One Sender port per signal", "refresh")
     export_btn = _ui.ghost_btn("Export SWC…", "Write SWC-lite ARXML", "export")
     tip = _ui.quiet_label("Port map only — no RTE / BSW codegen")
@@ -64,12 +64,13 @@ def build(shell, document, log_fn) -> QWidget:
     sig_ed.setFixedHeight(28)
     pdu_ed = QLineEdit()
     pdu_ed.setFixedHeight(28)
-    apply_btn = _ui.primary_btn("Apply", "Write port fields", "apply")
-    form.addRow("Port name", name_ed)
-    form.addRow("Direction", dir_cb)
-    form.addRow("Signal", sig_ed)
-    form.addRow("PDU", pdu_ed)
-    form.addRow("", apply_btn)
+    apply_btn = _ui.ghost_btn("Apply", "Write port fields", "apply")
+    form.addRow(vscode_theme.field_label("Port name"), name_ed)
+    form.addRow(vscode_theme.field_label("Direction"), dir_cb)
+    form.addRow(vscode_theme.field_label("Signal"), sig_ed)
+    form.addRow(vscode_theme.field_label("PDU"), pdu_ed)
+    form.addRow(apply_btn)
+    vscode_theme.polish_form_labels(form)
     sl.addWidget(form_host)
     layout.addWidget(split_host, 1)
 

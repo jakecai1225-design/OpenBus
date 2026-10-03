@@ -135,24 +135,58 @@ Master plan: [Domain_Suite_Rollout_Plan.md](Domain_Suite_Rollout_Plan.md)
 
 ## 2. CANopen Suite (`canopen-suite`)
 
-### Competitors
-1. **Vector CANoe.CANopen + CANeds** — EDS→model→PDO link→trace  
-2. **emotas CANopen DeviceExplorer** — SDO/PDO/NMT/LSS, CiA 402, DCF  
-3. **port CCM** — network-wide PDO linking planner  
+### Top3 (locked 2026-10-01 — boutique closed loop)
 
-### Must-have (P0)
-- Setup: node-ID, baud, EDS path  
-- Object dictionary browser (typed values)  
-- SDO upload/download; NMT commands; Heartbeat view  
-- PDO mapping table (read/edit where safe)  
-- Scan / LSS lite; shared log  
+| # | Product | Slice we copy |
+|---|---------|---------------|
+| 1 | **emotas / SYS TEC CANopen DeviceExplorer** | Object-browser first; SDO/NMT/HB; PDO config + live viz; DCF; LSS; CiA 402 panel |
+| 2 | **Vector CANoe.CANopen** (+ CANeds file side) | EDS→model→PDO link→Trace journey; interpreter-grade decode; soak stability |
+| 3 | **CANopenEditor** (CANopenNode) | EDS/DCF depth + **OD.h / OD.c** codegen fidelity |
+
+**Boundary:** `eds-studio` owns deep file Diff/CI (CANeds). `canopen-suite` owns online master + light EDS edit + Apply→Live + Trace + Codegen.
+
+**IA (shipped):** Activity EDS | Live | Trace | Code — Side Bar leaves, VS Code chrome.
+
+### Golden journeys (acceptance axis)
+
+1. **Author:** New/Open → Profiles → Objects → PDO map → Check → Save → Apply → Live OD  
+2. **Commission:** Scan → select Node → Live OD / NMT  
+3. **Observe:** Trace (live decode / CSV import)  
+4. **Deliver:** Check pass → Codegen → save C/H  
+
+### Phase A — closed loop + stability (P0)
+
+- Journey CTAs on empty/success (no dead ends)  
+- SDO: timeout / busy / abort text; **segmented** upload/download  
+- Network health: Heartbeat timeout highlight; NMT state; EMCY recent list → OUTPUT  
+- Trace: COB classify + SDO/PDO/NMT/EMCY/HB field decode (EdsBusDecoder)  
+- Soak checklist (2h Scan→SDO→NMT→Trace); reconnect must not crash  
+
+### Phase B — DeviceExplorer high-frequency (P1)
+
+- Live OD typed edit; batch read; bus-refresh vs EDS-apply clarity  
+- PDO live unpack + optional mini sparkline; Live PDO leaf when page exists  
+- DCF open/save + ParameterValue vs Live diff hint  
+- LSS lite (scan / set Node-ID / bitrate with confirm)  
+- CiA 402 panel (controlword / statusword / power commands) under Live → Drive  
+
+### Phase C — deliver + light network (P2)
+
+- Codegen golden vs CANopenEditor OD.h/OD.c  
+- Semantic Trace: SDO session regroup; PDO signal names from applied OD  
+- Multi-node project: node list + EDS/DCF paths; PDO link matrix MVP  
+- Scripting deferred; prefer `run_action` / AI attach  
+
+### Out of scope
+
+- Full HIL / Restbus / CAPL-class scripting  
+- CANopen FD matrix, SRDO, EnergyBus  
+- Replacing `eds-studio` Diff/CI/SARIF  
 
 ### UI / UX
-- Nav: Setup | Network | OD | PDO | Drive(402) | Log  
-- Object browser dominant (emotas pattern)  
 
-### Out of scope (P2+)
-- Full HIL restbus; CiA profile pack explosion  
+- Object browser dominant (emotas)  
+- One chrome row; OUTPUT for log + findings; body 12px / meta 11px  
 
 ---
 
@@ -332,7 +366,7 @@ UDS remains the quality bar for chrome. Feature depth per domain follows the tab
 | 2026-09-22 | ARXML Studio Phase 4: BSWMD import, fix recipe packs, SWC/port mapping lite (no codegen). |
 | 2026-09-22 | ARXML Studio Phase 5: full menubar + DBC→COM/BSW sync; deep ECUC schemas; `validate_bsw_set`; still no stack codegen. |
 | 2026-09-22 | AUTOSAR Studio schema-driven BSW configurator: `ecuc_schemas/*.json`, multiplicity UI, typed ECUC ARXML export. |
-| 2026-09-23 | AUTOSAR Studio Phase 8–12: EcucDefs depth + BSWMD structure; preserve-unknown ARXML; Live sync; findings ack/release; wizards/handoff; multi-PDU Live; golden fixtures. Still no codegen. |
+| 2026-10-01 | CANopen Suite Top3 locked: DeviceExplorer / CANoe.CANopen / CANopenEditor. Phase A/B/C boutique closed-loop plan under `tmp/pdca/canopen-top3-parity/`. |
 
 ---
 

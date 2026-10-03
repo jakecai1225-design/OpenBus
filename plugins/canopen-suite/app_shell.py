@@ -62,8 +62,10 @@ FEATURE_ROUTE: dict[str, tuple[str, Optional[int]]] = {
     "device": ("device", 0),
     "od": ("device", 0),
     "pdo": ("device", 0),
+    "drive": ("device", 0),
     "network_scan": ("device", 0),
     "network_nmt": ("device", 0),
+    "network_lss": ("device", 0),
     "network": ("device", 0),
     "trace": ("trace", 0),
     "monitor": ("trace", 0),
@@ -79,11 +81,13 @@ FEATURE_TITLES: dict[str, str] = {
     "network": "Scan",
     "network_scan": "Scan",
     "network_nmt": "NMT",
+    "network_lss": "LSS",
     "monitor": "Trace",
     "trace": "Trace",
     "device": "Live OD",
     "od": "Live OD",
     "pdo": "Live PDO",
+    "drive": "Drive",
     "eds": "Dictionary",
     "eds_dict": "Dictionary",
     "eds_device": "Device info",
@@ -121,7 +125,6 @@ _TAB_CANONICAL = {
     "device": "od",
     "trace": "monitor",
     "code": "eds_codegen",
-    "pdo": "od",
 }
 
 _WORKSPACE_DEFAULT = {
@@ -187,7 +190,6 @@ class AppShell(QMainWindow):
         except Exception:
             pass
 
-        _ui.apply_canopen_chrome(self)
         plugin_shell.attach_status_bar(self, "Ready")
         plugin_shell.wire_close_deactivates(self, PLUGIN_ID)
 
@@ -196,6 +198,7 @@ class AppShell(QMainWindow):
             panel_visible=False, sidebar_visible=True,
             side_bar_enabled=True, side_bar_visible=True, lock_activity=True,
             side_bar_width=240)
+        _ui.apply_canopen_chrome(self)
         self.stack = self._wb.stack
         i18n.on_language_changed(lambda _loc: self.retranslate())
         self.retranslate()
@@ -213,14 +216,15 @@ class AppShell(QMainWindow):
         self.session.set_log_fn(self._log_row)
 
         from pages import (
-            codegen, eds_editor, eds_pdo, library, monitor, network, object_dict,
-            pdo, workspace_sidebar,
+            codegen, drive, eds_editor, eds_pdo, library, monitor, network,
+            object_dict, pdo, workspace_sidebar,
         )
 
         self._pages["network"] = network.build(self, self.session, self._log_row)
         self._pages["monitor"] = monitor.build(self, self.session, self._log_row)
         self._pages["od"] = object_dict.build(self, self.session, self._log_row)
         self._pages["pdo"] = pdo.build(self, self.session, self._log_row)
+        self._pages["drive"] = drive.build(self, self.session, self._log_row)
         self._pages["eds"] = eds_editor.build(self, self.session, self._log_row)
         self._pages["eds_pdo"] = eds_pdo.build(self, self.session, self._log_row)
         self._pages["codegen"] = codegen.build(self, self.session, self._log_row)
@@ -249,8 +253,10 @@ class AppShell(QMainWindow):
         self._add_workspace("device", [
             ("od", self._pages["od"]),
             ("pdo", self._pages["pdo"]),
+            ("drive", self._pages["drive"]),
             ("network_scan", self._pages["network"]),
             ("network_nmt", self._pages["network"]),
+            ("network_lss", self._pages["network"]),
         ])
         self._wire_live_inner()
         self._add_workspace("trace", [
@@ -424,12 +430,8 @@ class AppShell(QMainWindow):
                 bar.setTabText(i, self._tab_title(str(feat)))
 
     def _build_menubar(self):
-        bar = self.menuBar()
-        if bar is None:
-            bar = QMenuBar(self)
-            self.setMenuBar(bar)
-        bar.clear()
-        bar.setVisible(True)
+        """VS Code text menubar: File | Edit | View | Run | Help."""
+        bar = suite_chrome.begin_suite_menubar(self)
 
         def _act(menu, label, slot, shortcut=None):
             a = menu.addAction(label)
@@ -470,8 +472,8 @@ class AppShell(QMainWindow):
         m_edit = bar.addMenu("&Edit")
         _act(m_edit, "&Apply EDS → OD",
              lambda: self.run_action("eds.apply_od"), "Ctrl+Return")
-
-        m_prof = bar.addMenu("&Profile")
+        m_edit.addSeparator()
+        m_prof = m_edit.addMenu("&Profile")
         _act(m_prof, "Browse &Profiles…",
              lambda: self.run_action("profile.browse"))
         m_prof.addSeparator()
@@ -483,32 +485,6 @@ class AppShell(QMainWindow):
             _act(m_prof, label,
                  lambda _c=False, p=pid: self.run_action(
                      "profile.insert", profile_id=p))
-
-        m_dev = bar.addMenu("&Device")
-        _act(m_dev, "Jump to &Live OD",
-             lambda: self.run_action("view.od"))
-        _act(m_dev, "&Read selection",
-             lambda: self.run_action("device.read_sel"))
-        _act(m_dev, "Read &EDS vs Live",
-             lambda: self.run_action("device.read_all"))
-        m_dev.addSeparator()
-        _act(m_dev, "Live &PDO…",
-             lambda: self.goto_page("pdo"))
-
-        m_net = bar.addMenu("&Network")
-        _act(m_net, "&Scan", lambda: self.run_action("network.scan"))
-        _act(m_net, "&Trace…", lambda: self.goto_page("monitor"))
-        m_net.addSeparator()
-        from session import (
-            NMT_PREOP, NMT_RESET_COMM, NMT_RESET_NODE, NMT_START, NMT_STOP)
-        for label, cmd in (
-                ("NMT &Start", NMT_START),
-                ("NMT Sto&p", NMT_STOP),
-                ("NMT Pre-&op", NMT_PREOP),
-                ("NMT Reset &Node", NMT_RESET_NODE),
-                ("NMT Reset &Communication", NMT_RESET_COMM)):
-            _act(m_net, label,
-                 lambda _c=False, c=cmd: self.run_action("network.nmt", cmd=c))
 
         m_view = bar.addMenu("&View")
         for key, title in NAV_PAGES:
@@ -529,6 +505,30 @@ class AppShell(QMainWindow):
         _act(m_view, "&Maximize Editor",
              lambda: self._wb.set_maximized(
                  not self._wb.is_maximized()), "Ctrl+Shift+E")
+
+        # Run — live device / network (VS Code Run slot)
+        m_run = bar.addMenu("&Run")
+        _act(m_run, "Jump to &Live OD",
+             lambda: self.run_action("view.od"))
+        _act(m_run, "&Read selection",
+             lambda: self.run_action("device.read_sel"))
+        _act(m_run, "Read &EDS vs Live",
+             lambda: self.run_action("device.read_all"))
+        m_run.addSeparator()
+        _act(m_run, "&Scan Network",
+             lambda: self.run_action("network.scan"))
+        _act(m_run, "&Trace…", lambda: self.goto_page("monitor"))
+        m_run.addSeparator()
+        from session import (
+            NMT_PREOP, NMT_RESET_COMM, NMT_RESET_NODE, NMT_START, NMT_STOP)
+        for label, cmd in (
+                ("NMT &Start", NMT_START),
+                ("NMT Sto&p", NMT_STOP),
+                ("NMT Pre-&op", NMT_PREOP),
+                ("NMT Reset &Node", NMT_RESET_NODE),
+                ("NMT Reset &Communication", NMT_RESET_COMM)):
+            _act(m_run, label,
+                 lambda _c=False, c=cmd: self.run_action("network.nmt", cmd=c))
 
         m_help = bar.addMenu("&Help")
         _act(m_help, "&Keyboard shortcuts", self._menu_shortcuts)
@@ -947,21 +947,25 @@ class AppShell(QMainWindow):
         return stack
 
     def _wire_live_inner(self):
-        """Live workspace: OD / PDO pages + Network Scan/NMT on shared widget."""
+        """Live workspace: OD / PDO / Drive + Network Scan/NMT/LSS."""
         net = self._pages["network"]
         outer = self._workspace_stacks["device"]
-        # od=0, pdo=1, network page=2
+        # od=0, pdo=1, drive=2, network page=3
         outer._feature_index = {
-            "od": 0, "device": 0, "pdo": 1,
-            "network_scan": 2, "network_nmt": 2, "network": 2,
+            "od": 0, "device": 0, "pdo": 1, "drive": 2,
+            "network_scan": 3, "network_nmt": 3, "network_lss": 3,
+            "network": 3,
         }
 
         def apply(key: str):
             if key == "pdo":
                 outer.setCurrentIndex(1)
                 return
-            if key in ("network_scan", "network_nmt", "network"):
+            if key == "drive":
                 outer.setCurrentIndex(2)
+                return
+            if key in ("network_scan", "network_nmt", "network_lss", "network"):
+                outer.setCurrentIndex(3)
                 if hasattr(net, "select_view"):
                     net.select_view(key)
                 return

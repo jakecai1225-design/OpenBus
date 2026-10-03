@@ -34,7 +34,7 @@ def build(shell, document, log_fn) -> QWidget:
     mode.setFixedHeight(_ui.CTRL_H)
     mode.setToolTip("COM PDU/signal diff or BSW parameter value diff")
     open_b = _ui.ghost_btn("Open B…", "Second ARXML or BSW folder/project", "browse")
-    run_btn = _ui.primary_btn("Compare", "Diff A vs B", "search")
+    run_btn = _ui.ghost_btn("Compare", "Diff A vs B", "search")
     path_lbl = _ui.quiet_label("B: (none)")
     crow.addWidget(mode)
     crow.addWidget(open_b)

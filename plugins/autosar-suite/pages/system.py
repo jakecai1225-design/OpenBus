@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from _shared import vscode_theme
 from core.arxml_min import export_dbc, serialize_arxml, validate_ipdus
 from core.ipdu import Ipdu, Signal
 from widgets import combo, ghost, primary, spin, spin_hex, table
@@ -69,15 +70,16 @@ def _tree_tab(session, shell=None):
     offset.setFixedHeight(28)
     unit = QLineEdit()
     unit.setFixedHeight(28)
-    form.addRow("Name", name_ed)
-    form.addRow("CAN id", can_id)
-    form.addRow("DLC", dlc)
-    form.addRow("Start bit", start)
-    form.addRow("Length", length)
-    form.addRow("Endian", endian)
-    form.addRow("Factor", factor)
-    form.addRow("Offset", offset)
-    form.addRow("Unit", unit)
+    form.addRow(vscode_theme.field_label("Name"), name_ed)
+    form.addRow(vscode_theme.field_label("CAN id"), can_id)
+    form.addRow(vscode_theme.field_label("DLC"), dlc)
+    form.addRow(vscode_theme.field_label("Start bit"), start)
+    form.addRow(vscode_theme.field_label("Length"), length)
+    form.addRow(vscode_theme.field_label("Endian"), endian)
+    form.addRow(vscode_theme.field_label("Factor"), factor)
+    form.addRow(vscode_theme.field_label("Offset"), offset)
+    form.addRow(vscode_theme.field_label("Unit"), unit)
+    vscode_theme.polish_form_labels(form)
     split.addWidget(form_host, 1)
     root.addLayout(split, 1)
 

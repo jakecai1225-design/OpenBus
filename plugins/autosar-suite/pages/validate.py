@@ -30,7 +30,7 @@ def build(shell, document, log_fn) -> QWidget:
     layout.setSpacing(0)
 
     chrome, crow = suite_chrome.make_toolbar()
-    run_btn = _ui.primary_btn(
+    run_btn = _ui.ghost_btn(
         "Validate", "COM + ECUC + SWC cross-artifact check", "validate")
     summary = _ui.quiet_label("Ready")
     sev_filter = QComboBox()

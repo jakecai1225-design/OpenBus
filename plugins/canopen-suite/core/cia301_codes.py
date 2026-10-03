@@ -152,8 +152,9 @@ LSS_CS: Dict[int, str] = {
     0x45: "Inquire identity product-code",
     0x46: "Inquire identity revision",
     0x47: "Inquire identity serial",
-    0x4E: "Inquire node-ID",
-    0x5E: "Identify non-configured remote slave",
+    0x4C: "Identify non-configured remote slave",
+    0x4E: "Identify remote slave (fastscan)",
+    0x5E: "Inquire node-ID",
     0x5F: "Identify remote slave",
 }
 

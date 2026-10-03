@@ -109,7 +109,6 @@ class AppShell(QMainWindow):
             except Exception:
                 pass
 
-        _ui.apply_j1939_chrome(self)
         plugin_shell.attach_status_bar(self, "Ready")
         plugin_shell.wire_close_deactivates(self, PLUGIN_ID)
 
@@ -118,6 +117,7 @@ class AppShell(QMainWindow):
             panel_visible=True, sidebar_visible=True,
             side_bar_enabled=True, side_bar_visible=True, lock_activity=True,
             side_bar_width=200)
+        _ui.apply_j1939_chrome(self)
         self.stack = self._wb.stack
 
         self._init_status_controls()
@@ -262,12 +262,8 @@ class AppShell(QMainWindow):
         self._activate_feature(nxt)
 
     def _build_menubar(self):
-        bar = self.menuBar()
-        if bar is None:
-            bar = QMenuBar(self)
-            self.setMenuBar(bar)
-        bar.clear()
-        bar.setVisible(True)
+        """VS Code text menubar — File | Edit | View | Help (+ Run)."""
+        bar = suite_chrome.begin_suite_menubar(self)
 
         def _act(menu, label, slot, shortcut=None):
             a = menu.addAction(label)

@@ -93,17 +93,21 @@ def test_profiles_under_eds():
 
 def test_live_and_trace_pillars():
     assert [s[0] for s in LIVE_SECTIONS] == [
-        "od", "network_scan", "network_nmt"]
+        "od", "pdo", "drive", "network_scan", "network_nmt", "network_lss"]
     assert [s[0] for s in DEVICE_SECTIONS] == [
-        "od", "network_scan", "network_nmt"]
+        "od", "pdo", "drive", "network_scan", "network_nmt", "network_lss"]
     assert [s[0] for s in TRACE_SECTIONS] == ["monitor"]
     assert [s[0] for s in CODE_SECTIONS] == ["eds_codegen"]
     assert FEATURE_ROUTE["network_scan"][0] == "device"
     assert FEATURE_ROUTE["monitor"][0] == "trace"
     assert FEATURE_ROUTE["od"][0] == "device"
+    assert FEATURE_ROUTE["drive"][0] == "device"
+    assert FEATURE_ROUTE["pdo"][0] == "device"
+    assert FEATURE_ROUTE["network_lss"][0] == "device"
     assert "build_eds_sidebar" in _SB
     assert dict((k, lab) for k, lab, _t in EDS_SECTIONS)["eds_pdo"] == "PDO map"
     assert dict((k, lab) for k, lab, _t in LIVE_SECTIONS)["od"] == "Live OD"
+    assert dict((k, lab) for k, lab, _t in LIVE_SECTIONS)["drive"] == "Drive"
 
 
 def test_workspace_defaults():

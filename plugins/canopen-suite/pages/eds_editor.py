@@ -199,6 +199,7 @@ def build(parent, session, log_fn) -> QWidget:
     form.addRow(_ui.field_label("Low limit"), low_edit)
     form.addRow(_ui.field_label("High limit"), high_edit)
     form.addRow("", live_btn)
+    _ui.polish_form_labels(form)
     split.addWidget(form_host)
     # OD tree (primary) | Definition form → golden major : minor
     _ui.configure_splitter(split, golden=True, master_left=True)
@@ -263,18 +264,19 @@ def build(parent, session, log_fn) -> QWidget:
     _add_meta("File")
     for key, tip in file_keys:
         edit = _line("", tip)
-        device_form.addRow(key, edit)
+        device_form.addRow(_ui.field_label(key), edit)
         device_edits[("file", key)] = edit
     _add_meta("Device")
     for key, tip in device_keys:
         edit = _line("", tip)
-        device_form.addRow(key, edit)
+        device_form.addRow(_ui.field_label(key), edit)
         device_edits[("device", key)] = edit
     _add_meta("Device commissioning")
     for key, tip in commission_keys:
         edit = _line("", tip)
-        device_form.addRow(key, edit)
+        device_form.addRow(_ui.field_label(key), edit)
         device_edits[("comm", key)] = edit
+    _ui.polish_form_labels(device_form)
     device_scroll.setWidget(device_inner)
     device_lay = QVBoxLayout(device)
     device_lay.setContentsMargins(0, 0, 0, 0)

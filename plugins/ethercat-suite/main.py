@@ -44,10 +44,17 @@ def _open_suite(start_page: str | None = None):
     _shell.activateWindow()
 
 
+
+def _reload_live_modules():
+    from _shared import suite_chrome
+    suite_chrome.reload_live_modules()
+
+
 def activate(context):
     global _shell, _context
     _context = context
     try:
+        _reload_live_modules()
         from app_shell import AppShell
     except ImportError as exc:
         msg = "EtherCAT Suite failed to import: %s" % exc

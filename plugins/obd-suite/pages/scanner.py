@@ -272,7 +272,7 @@ def build(parent, session, log_fn):
 
     layout.addWidget(_ui.tool_strip(
         support_btn, dtc_btn, pending_btn, clear_btn, vin_btn, freeze_btn,
-        poll_btn, QLabel("Poll"), poll_spin, readiness_btn))
+        poll_btn, _ui.field_label("Poll"), poll_spin, readiness_btn))
     layout.addWidget(_ui.inline_filter(filter_edit))
 
     tabs = QTabWidget()

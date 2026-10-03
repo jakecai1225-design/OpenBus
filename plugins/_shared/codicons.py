@@ -148,6 +148,10 @@ ALIASES = {
     "export": "export",
     "arrow-right": "arrow-right",
     "check": "check",
+    # Window chrome (frameless suite menubar — same glyphs as host)
+    "win-minimize": "win-minimize",
+    "win-maximize": "win-maximize",
+    "win-restore": "win-restore",
     # Workbench layout toggles (VS Code title-bar style)
     "layout-sidebar": "layout-sidebar-left",
     "layout-sidebar-left": "layout-sidebar-left",
@@ -238,6 +242,8 @@ def set_button(
     c = "#FFFFFF" if primary else color
     btn.setIcon(icon(name, c, size))
     btn.setIconSize(QSize(size, size))
+    btn.setProperty("codiconName", name)
+    btn.setProperty("codiconPrimary", bool(primary))
 
 
 def set_nav_item(item: QListWidgetItem, name: str, color: str = "#333333") -> None:

@@ -684,12 +684,18 @@ def build(shell, document, log_fn, *, nav_in_sidebar: bool = False) -> QWidget:
             if document.manifest:
                 document.manifest.ensure_module_entry(name)
             document.dirty = True
+        # Always refresh the container tree for the selected module. Do not
+        # rely solely on document.on_changed — set_active_bsw no-ops when the
+        # module is already active, and _bsw_page_visible can skip the fill.
+        same = (name == document.active_bsw and name in document.bsw)
         document.set_active_bsw(name)
         selected["module"] = name
         selected["kind"] = "mod"
         selected["path"] = ()
-        _load_prop_sheet()
         _fill_modules()
+        _fill_config(reload_props=True)
+        if not same:
+            _schedule_live()
 
     def _on_cfg():
         item = cfg_tree.currentItem()
@@ -986,12 +992,16 @@ def build(shell, document, log_fn, *, nav_in_sidebar: bool = False) -> QWidget:
         live_timer.start()
 
     def _bsw_page_visible() -> bool:
+        """True when the BSW configurator is the active Config leaf."""
         try:
-            return (
-                getattr(shell, "_wb", None) is not None
-                and shell._wb.current_page() == "config"
-                and getattr(shell, "_active_feature", "") in (
-                    "bsw", "config", ""))
+            feat = getattr(shell, "_active_feature", "") or ""
+            if feat in ("bsw", "config"):
+                return True
+            wb = getattr(shell, "_wb", None)
+            if wb is not None and callable(getattr(wb, "current_page", None)):
+                return wb.current_page() == "config" and feat in (
+                    "bsw", "config", "")
+            return False
         except Exception:
             return True
 

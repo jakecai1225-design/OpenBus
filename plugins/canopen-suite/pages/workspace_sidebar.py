@@ -236,11 +236,14 @@ EDS_SECTIONS = (
 )
 EDS_NESTED: dict = {}
 
-# Live = control (no Live PDO in primary sidebar)
+# Live = control + Drive (CiA 402) + Live PDO viz
 LIVE_SECTIONS = (
     ("od", "Live OD", "SDO read / write on the selected Node-ID"),
+    ("pdo", "Live PDO", "RPDO/TPDO map + live unpack"),
+    ("drive", "Drive", "CiA 402 controlword / statusword"),
     ("network_scan", "Scan", "Find nodes 1-127"),
     ("network_nmt", "NMT", "Start / Stop / Pre-op / Reset"),
+    ("network_lss", "LSS", "Configure Node-ID (lite)"),
 )
 LIVE_NESTED: dict = {}
 DEVICE_SECTIONS = LIVE_SECTIONS

@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from _shared import vscode_theme
 from core.esi import CoeObject, Pdo, PdoEntry, serialize_esi, validate_esi
 from widgets import ghost, primary, spin, spin_hex, table
 
@@ -81,13 +82,14 @@ def _tree_tab(session):
     bits = spin(1, 64, 16, "Bit length")
     type_ed = QLineEdit("UINT")
     type_ed.setFixedHeight(28)
-    form.addRow("Name", name_ed)
-    form.addRow("Vendor", vendor)
-    form.addRow("Product", product)
-    form.addRow("Index", index)
-    form.addRow("Sub / bits", sub)
-    form.addRow("BitLen", bits)
-    form.addRow("Type", type_ed)
+    form.addRow(vscode_theme.field_label("Name"), name_ed)
+    form.addRow(vscode_theme.field_label("Vendor"), vendor)
+    form.addRow(vscode_theme.field_label("Product"), product)
+    form.addRow(vscode_theme.field_label("Index"), index)
+    form.addRow(vscode_theme.field_label("Sub / bits"), sub)
+    form.addRow(vscode_theme.field_label("BitLen"), bits)
+    form.addRow(vscode_theme.field_label("Type"), type_ed)
+    vscode_theme.polish_form_labels(form)
     split.addWidget(form_host, 1)
     root.addLayout(split, 1)
 
@@ -326,8 +328,13 @@ def _save_tab(session):
 
 
 def build(parent, session, _log):
+    # In-page tabs — chrome editor tabs are owned by suite_tabs on AppShell.
+    root = QWidget()
+    lay = QVBoxLayout(root)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(0)
     bar = QTabBar()
-    bar.setObjectName("SuiteEditorTabs")
+    bar.setObjectName("SuiteInnerTabs")
     bar.setDrawBase(False)
     bar.setExpanding(False)
     bar.setDocumentMode(True)
@@ -338,5 +345,6 @@ def build(parent, session, _log):
     stack.addWidget(_validate_tab(session))
     stack.addWidget(_save_tab(session))
     bar.currentChanged.connect(stack.setCurrentIndex)
-    parent._esi_tabs = bar
-    return stack
+    lay.addWidget(bar)
+    lay.addWidget(stack, 1)
+    return root

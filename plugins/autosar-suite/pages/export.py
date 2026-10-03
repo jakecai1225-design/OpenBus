@@ -64,7 +64,7 @@ def build(shell, document, log_fn) -> QWidget:
     fmt.setToolTip("Export format — never generates BSW/RTE source")
     open_after = QCheckBox("Open after")
     open_after.setChecked(True)
-    export_btn = _ui.primary_btn("Export…", "Write file", "export")
+    export_btn = _ui.ghost_btn("Export…", "Write file", "export")
     crow.addWidget(fmt)
     crow.addWidget(open_after)
     crow.addStretch(1)

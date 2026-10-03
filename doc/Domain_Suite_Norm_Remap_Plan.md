@@ -1,10 +1,10 @@
 # Domain Suite · 插件开发规范改造计划
 
 > **依据：** [插件开发规范.md](插件开发规范.md)（尤其 **§3 四件套**、§2–4、§6、§9、§11–13）  
-> **参考实现：** `canopen-suite` / `dbc-studio` / `eds-studio` / `uds-suite` / `obd-suite` / `j1939-suite`（均已 VS Code 四件套）  
+> **参考实现：** `canopen-suite` / `dbc-studio` / `eds-studio` / `uds-suite` / `obd-suite` / `j1939-suite` / `autosar-suite` / `ethercat-suite`（均已 VS Code 四件套）  
 > **产品面：** `domainplugins.h` 白名单内领域套件；不含 `ai-agent`（平台 Agent，另轨）、不含 `_retired`  
 > **门禁：** 每个套件需求须 **PDCA × 2**（`tmp/pdca/<suite>-norm/`）  
-> **修订：** 2026-09-30 · 强制四件套写入规范；UDS/OBD/J1939 壳层已对齐
+> **修订：** 2026-09-30 · 强制四件套写入规范；autosar / ethercat 壳层已对齐四件套（Activity≤5）
 
 ---
 
@@ -32,8 +32,8 @@
 | **eds-studio** | 3 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Wave 1 CLOSED** |
 | **obd-suite** | 3 | ✅ | ✅ | ✅ | ✅ Mode/PID | ✅ | ✅ Export | **Wave 2 CLOSED** |
 | **j1939-suite** | 4 | ✅ | ✅ | ✅ | ✅ PGN focus | ✅ | ✅ DBC File | **Wave 2 CLOSED** |
-| **autosar-suite** | **6** 超标 | ❌ 半套 | PARTIAL 标题 chrome | ❌ | PARTIAL `goto_editor` | 弱 | ✅ | **Wave 1 待办** |
-| **ethercat-suite** | **7** 超标 | ❌ 半套 | PARTIAL（`set_editor_title` 风险） | ❌ | ❌ | ❌ | ❌ | **Wave 2 待办** |
+| **autosar-suite** | 5 | ✅ | ✅ `suite_tabs` | PARTIAL | PARTIAL `goto_editor` | ✅ | ✅ | **Wave 1 CLOSED（壳层）** |
+| **ethercat-suite** | 4 | ✅ | ✅ `suite_tabs` | PARTIAL `run_action` | ❌ | ✅ | ✅ Demo | **Wave 2 CLOSED（壳层）** |
 
 ### 共性缺口（共享波次要解决）
 
@@ -66,11 +66,11 @@
 Wave 0（共享）✅
   └─ 规范 §3 四件套 + suite_tabs / suite_ui + Acceptance §8
 Wave 1（文件型）
-  └─ eds-studio ✅ → autosar-suite（待办：压 Activity + 四件套）
+  └─ eds-studio ✅ → autosar-suite ✅（壳层 CLOSED：Activity≤5 + suite_tabs）
 Wave 2（在线 / 扫描型）
-  └─ obd-suite ✅ → j1939-suite ✅ → ethercat-suite（待办）
+  └─ obd-suite ✅ → j1939-suite ✅ → ethercat-suite ✅（壳层 CLOSED）
 Wave 3（收口）
-  └─ 跨套件契约抽样 + Rollout 状态 + 规范回写
+  └─ 跨套件契约抽样 + Rollout 状态 + 规范回写（§13.9–13.12 已回写）
 ```
 
 **不排进本计划：** `ai-agent`（另轨）；已对齐套件仅做回归与互操作加深。
@@ -104,16 +104,16 @@ Wave 3（收口）
 
 ---
 
-### 6.2 `autosar-suite`（Wave 1）
+### 6.2 `autosar-suite`（Wave 1 · **壳层 CLOSED**）
 
 **金路径：** Open/Import ARXML → BSW/COM 配置 → Validate → Export  
 
 | Round | 内容 |
 |-------|------|
-| **R1 壳层** | Activity ≤5；**§3 四件套全绿**（Side Bar + `_open_tabs` + OUTPUT）；`run_action` + Context Next；`_ui` → `suite_ui` |
-| **R2 互操作** | 强化已有 `goto_editor_target`；PDU/Signal/BSW 节点 focus + `on_focus`；BSW ↔ Editor ↔ Validate 搜索/右键；定义类页展示 Default/Type（若有属性面）；空态 CTA |
+| **R1 壳层** | ✅ Activity≤5（Validate 并入 Config）；四件套 + `suite_tabs` + 菜单布局开关；`tests/test_shell_routes.py` |
+| **R2 互操作** | 强化已有 `goto_editor_target`；PDU/Signal/BSW 节点 focus + `on_focus`；BSW ↔ Editor ↔ Validate 搜索/右键；空态 CTA |
 
-**风险：** 页多（~20）；R1 只改壳与 IA，禁止顺手重写全部业务页。
+**风险：** 页多（~20）；R2 只加深互操作，禁止顺手重写全部业务页。
 
 ---
 
@@ -139,13 +139,13 @@ Wave 3（收口）
 
 ---
 
-### 6.5 `ethercat-suite`（Wave 2 · 待办）
+### 6.5 `ethercat-suite`（Wave 2 · **壳层 CLOSED**）
 
 **金路径：** ESI/拓扑 → PDO → CoE →（DC/Frames 高级）→ Setup  
 
 | Round | 内容 |
 |-------|------|
-| **R1 壳层** | Activity 压到 ≤5；**勾满 §3.3 四件套**；消灭 `set_editor_title` 清 Tab；File 管 ESI；`run_action` + Next；`_ui` → `suite_ui` |
+| **R1 壳层** | ✅ Activity≤5（Network / Objects / Timing / Setup）；四件套 + `suite_tabs`；页内子 Tab 不再抢 chrome；`run_action` + File Demo；`tests/test_shell_routes.py` |
 | **R2** | Slave/OD focus；Topology ↔ PDO ↔ CoE 互跳；空态 CTA |
 
 ---
@@ -207,7 +207,7 @@ Wave 3（收口）
 | AUTOSAR / EtherCAT 页过多导致范围膨胀 | R1 只动 `app_shell` + sidebar + session；页面只改 chrome 配方 |
 | EDS Studio vs CANopen 用户混淆 | 文案与入口隔离；规范 §2.4 |
 | 复制 Tab 代码漂移 | Wave 0 检查表 + 契约测试钉符号名 |
-| OBD / J1939 半套壳 | ✅ 已对齐四件套；剩余 Wave：autosar / ethercat |
+| OBD / J1939 / AUTOSAR / EtherCAT 壳层 | ✅ 已对齐四件套；R2 互操作加深按各套件 PDCA |
 | 市场/白名单误改 | 本计划**不改** `domainplugins.h`；若改名另开 13.3 三处同步任务 |
 
 ---
@@ -235,4 +235,4 @@ Wave 3（收口）
 
 ---
 
-*下一步：确认 Wave 1 先做 `eds-studio` 还是 `autosar-suite` 后，开 `tmp/pdca/<suite>-norm/R1-P-plan.md` 开工。*
+*修订：2026-09-30 · autosar / ethercat 壳层 CLOSED（Activity≤5 + suite_tabs）；规范 §13.9–13.12 已回写。R2 互操作仍可按套件 PDCA 加深。*

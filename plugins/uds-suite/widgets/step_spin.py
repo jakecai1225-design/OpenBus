@@ -48,8 +48,11 @@ class StepSpin(QWidget):
         self.spin.setRange(minimum, maximum)
         self.spin.setValue(value)
         self.spin.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
-        # Leave 2px for the host border (top+bottom) so it is never clipped.
+        # Host owns the 1px border; inner fill is CTRL_H - 2.
         self.spin.setFixedHeight(CTRL_H - 2)
+        self.spin.setStyleSheet(
+            "QSpinBox#SuiteSpin { border: none; padding: 0px 6px;"
+            " min-height: 26px; max-height: 26px; }")
         self.spin.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import QFormLayout, QWidget
 
+from _shared import vscode_theme
 from widgets import combo, spin, spin_hex, wrap_width
 
 
@@ -18,11 +19,12 @@ def build(_parent, session, _log):
     mode.setCurrentText(session.e2e_mode if session.e2e_mode in ("BOTH", "LOW", "ALT") else "BOTH")
     sec = spin_hex(0, 0x1FFFFFFF, session.secoc_can_id, "CAN id checked by SecOC")
 
-    form.addRow("NM base", nm)
-    form.addRow("E2E CAN id", e2e_id)
-    form.addRow("E2E DataID", data_id)
-    form.addRow("E2E DataID mode", mode)
-    form.addRow("SecOC CAN id", sec)
+    form.addRow(vscode_theme.field_label("NM base"), nm)
+    form.addRow(vscode_theme.field_label("E2E CAN id"), e2e_id)
+    form.addRow(vscode_theme.field_label("E2E DataID"), data_id)
+    form.addRow(vscode_theme.field_label("E2E DataID mode"), mode)
+    form.addRow(vscode_theme.field_label("SecOC CAN id"), sec)
+    vscode_theme.polish_form_labels(form)
 
     nm.valueChanged.connect(lambda v: setattr(session, "nm_base", v))
     e2e_id.valueChanged.connect(lambda v: setattr(session, "e2e_can_id", v))

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import (
     QFormLayout,
-    QLabel,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -51,13 +50,13 @@ def build(shell, document, log_fn) -> QWidget:
     stats_host.setMaximumWidth(420)
     form = QFormLayout(stats_host)
     vscode_theme.tune_form(form)
-    lbl_objects = QLabel("—")
-    lbl_indexes = QLabel("—")
-    lbl_comm = QLabel("—")
-    lbl_mfg = QLabel("—")
-    lbl_dev = QLabel("—")
-    lbl_pdo = QLabel("—")
-    lbl_dcf = QLabel("—")
+    lbl_objects = vscode_theme.value_label("—")
+    lbl_indexes = vscode_theme.value_label("—")
+    lbl_comm = vscode_theme.value_label("—")
+    lbl_mfg = vscode_theme.value_label("—")
+    lbl_dev = vscode_theme.value_label("—")
+    lbl_pdo = vscode_theme.value_label("—")
+    lbl_dcf = vscode_theme.value_label("—")
     for label, w in (
         ("OD entries", lbl_objects),
         ("Unique indexes", lbl_indexes),
@@ -67,7 +66,8 @@ def build(shell, document, log_fn) -> QWidget:
         ("Mapped PDO bits", lbl_pdo),
         ("DCF", lbl_dcf),
     ):
-        form.addRow(label, w)
+        form.addRow(vscode_theme.field_label(label), w)
+    vscode_theme.polish_form_labels(form)
     bl.addWidget(stats_host)
 
     report = QTextEdit()

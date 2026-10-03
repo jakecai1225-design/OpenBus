@@ -133,7 +133,7 @@ class ChatWindow(QMainWindow):
         central = QWidget()
         lay = QVBoxLayout(central)
         title = QLabel("AI Agent cannot start")
-        title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        title.setObjectName("SuiteSectionTitle")
         body = QPlainTextEdit()
         body.setReadOnly(True)
         body.setPlainText(message)

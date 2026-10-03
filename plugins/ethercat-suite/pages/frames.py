@@ -116,8 +116,13 @@ def _mailbox(session):
 
 
 def build(parent, session, _log):
+    # In-page tabs — chrome editor tabs are owned by suite_tabs on AppShell.
+    root = QWidget()
+    lay = QVBoxLayout(root)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(0)
     bar = QTabBar()
-    bar.setObjectName("SuiteEditorTabs")
+    bar.setObjectName("SuiteInnerTabs")
     bar.setDrawBase(False)
     bar.setExpanding(False)
     bar.setDocumentMode(True)
@@ -127,5 +132,6 @@ def build(parent, session, _log):
     stack.addWidget(_datagrams(session))
     stack.addWidget(_mailbox(session))
     bar.currentChanged.connect(stack.setCurrentIndex)
-    parent._frame_tabs = bar
-    return stack
+    lay.addWidget(bar)
+    lay.addWidget(stack, 1)
+    return root

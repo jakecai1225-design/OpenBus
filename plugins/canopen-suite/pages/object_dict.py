@@ -94,6 +94,11 @@ def build(parent, session, log_fn) -> QWidget:
     rv.setContentsMargins(0, 0, 0, 0)
     rv.setSpacing(0)
     rv.addWidget(_ui.panel_header("SDO", read_all, write_btn, read_btn))
+    health_lbl = QLabel("—")
+    health_lbl.setObjectName("SuiteCount")
+    health_lbl.setToolTip("Heartbeat / NMT / EMCY for the shared Node-ID")
+    sdo_hint = _ui.quiet_label(
+        "Select a row — Read from the bus, or Write with confirmation.")
     form = QFormLayout()
     form.setSpacing(8)
     form.setContentsMargins(_ui.PAD_X, 8, _ui.PAD_X, _ui.PAD_X)
@@ -122,6 +127,8 @@ def build(parent, session, log_fn) -> QWidget:
     form.addRow(_ui.field_label("Value"), val_edit)
     form.addRow(_ui.field_label("Size"), size_spin)
     form.addRow(_ui.field_label("Result"), result_lbl)
+    form.addRow(_ui.field_label("Network"), health_lbl)
+    rv.addWidget(sdo_hint)
     rv.addLayout(form)
     rv.addStretch(1)
     split.addWidget(right)
@@ -310,9 +317,15 @@ def build(parent, session, log_fn) -> QWidget:
 
         def done(ok, value, note):
             if ok:
-                disp = "0x%X" % (value if value is not None else 0)
+                if isinstance(value, (bytes, bytearray)):
+                    disp = "0x" + bytes(value).hex().upper()
+                else:
+                    disp = "0x%X" % (value if value is not None else 0)
                 result_lbl.setText("%s (%s)" % (disp, note))
-                val_edit.setText(disp)
+                val_edit.setText(disp if not isinstance(value, (bytes, bytearray))
+                                 else ("0x%X" % int.from_bytes(
+                                     bytes(value)[:4].ljust(4, b"\x00"),
+                                     "little")))
                 if hasattr(session, "set_live_value"):
                     session.set_live_value(idx, sub, disp)
                 else:
@@ -323,7 +336,15 @@ def build(parent, session, log_fn) -> QWidget:
                 plugin_shell.set_status(parent, "SDO read failed", 3000)
 
         if not session.sdo_upload(idx, sub, on_done=done):
-            result_lbl.setText("Busy")
+            result_lbl.setText("Busy — wait for SDO or abort")
+
+    def _refresh_health():
+        if hasattr(session, "health_summary"):
+            health_lbl.setText(session.health_summary())
+
+    if hasattr(session, "on_health_changed"):
+        session.on_health_changed(_refresh_health)
+    _refresh_health()
 
     def on_write():
         idx = idx_spin.value()

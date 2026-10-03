@@ -13,7 +13,7 @@ import time
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QTreeWidget,
+    QWidget, QVBoxLayout, QTreeWidget,
     QTreeWidgetItem, QTextEdit, QHeaderView, QTabWidget, QLineEdit,
     QSpinBox, QMessageBox, QMenu,
 )
@@ -460,8 +460,9 @@ def build(parent, session, log_fn):
     pgn_edit.setToolTip("PGN to request via 0xEA00")
     send_rqst_btn = _ui.primary_btn("Send RQST", "Send PGN request", "arrow-right")
     layout.addWidget(_ui.tool_strip(
-        QLabel("RQST"), QLabel("Target"), target_sa,
-        QLabel("Our SA"), our_sa, QLabel("PGN"), pgn_edit, send_rqst_btn))
+        _ui.field_label("RQST"), _ui.field_label("Target"), target_sa,
+        _ui.field_label("Our SA"), our_sa, _ui.field_label("PGN"), pgn_edit,
+        send_rqst_btn))
 
     tabs = QTabWidget()
     layout.addWidget(tabs, 1)

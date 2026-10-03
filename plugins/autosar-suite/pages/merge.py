@@ -19,7 +19,7 @@ def build(shell, document, log_fn) -> QWidget:
 
     chrome, crow = suite_chrome.make_toolbar()
     open_b = _ui.ghost_btn("Open B…", "Source ARXML to merge from", "browse")
-    merge_btn = _ui.primary_btn(
+    merge_btn = _ui.ghost_btn(
         "Merge added from B", "Copy PDUs/signals only in B into A", "add")
     crow.addWidget(open_b)
     crow.addStretch(1)

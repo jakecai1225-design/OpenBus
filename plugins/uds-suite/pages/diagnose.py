@@ -126,7 +126,11 @@ def build(parent, session, log_fn) -> QWidget:
     from widgets.session_tab import build as build_session_tab
     from _shared import vscode_theme, codicons, plugin_shell
 
-    root, layout = page(parent)
+    # Holder for dialogs / leaf_pages only — never mount into the window.
+    # Parenting to AppShell leaves a 100x30 ghost at (0,0) that blocks the menubar.
+    root, layout = page(None)
+    root.hide()
+    root.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
     # Leaves are mounted into the shell Diagnose workspace stack.
@@ -149,11 +153,13 @@ def build(parent, session, log_fn) -> QWidget:
     svc_tree.setHeaderLabel("Services")
     svc_tree.setMinimumWidth(240)
     svc_tree.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+    _ui.style_tree(svc_tree, header_hidden=True)
     for cat, items in SERVICE_TREE:
         cat_item = QTreeWidgetItem([cat])
         cat_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-        f = QFont()
+        f = QFont(svc_tree.font())
         f.setBold(True)
+        f.setPixelSize(12)
         cat_item.setFont(0, f)
         svc_tree.addTopLevelItem(cat_item)
         for sid, name in items:
@@ -171,6 +177,11 @@ def build(parent, session, log_fn) -> QWidget:
     svc_param_box = QWidget()
     svc_form = QFormLayout(svc_param_box)
     vscode_theme.tune_form(svc_form)
+
+    def _form_row(label: str, widget: QWidget) -> None:
+        lab = QLabel(label)
+        lab.setObjectName("SuiteFieldLabel")
+        svc_form.addRow(lab, widget)
     svc_send_btn = QPushButton("Send")
     svc_send_btn.setObjectName("PrimaryButton")
     svc_send_btn.setFixedSize(84, 28)
@@ -232,7 +243,7 @@ def build(parent, session, log_fn) -> QWidget:
     related_row.setContentsMargins(0, 0, 0, 0)
     related_row.setSpacing(6)
     related_lbl = QLabel("Related")
-    related_lbl.setObjectName("SuiteStatusMuted")
+    related_lbl.setObjectName("SuiteFieldLabel")
     rel_did = QPushButton("DID")
     rel_did.setObjectName("GhostButton")
     rel_did.setFixedHeight(24)
@@ -298,7 +309,7 @@ def build(parent, session, log_fn) -> QWidget:
         c = QComboBox()
         for k, v in SESSIONS.items():
             c.addItem(v, k)
-        svc_form.addRow("Target session:", c)
+        _form_row("Target session:", c)
         return lambda: encode_10(c.currentData())
 
     def _f_11():
@@ -306,14 +317,14 @@ def build(parent, session, log_fn) -> QWidget:
         for k, v in ((0x01, "01 hardReset"), (0x02, "02 keyOffOnReset"),
                      (0x03, "03 softReset")):
             c.addItem(v, k)
-        svc_form.addRow("Reset type:", c)
+        _form_row("Reset type:", c)
         return lambda: encode_11(c.currentData())
 
     def _f_3e():
         c = QComboBox()
         c.addItem("80 suppress positive (recommended)", 0x80)
         c.addItem("00 require response", 0x00)
-        svc_form.addRow("Sub-function:", c)
+        _form_row("Sub-function:", c)
 
         def sync_expect(*_a):
             _svc_expect[0] = c.currentData() != 0x80
@@ -331,27 +342,27 @@ def build(parent, session, log_fn) -> QWidget:
         for k, v in ((0x01, "01 normal"), (0x02, "02 network management"),
                      (0x03, "03 normal+NM")):
             ct.addItem(v, k)
-        svc_form.addRow("Control:", cc)
-        svc_form.addRow("Comm type:", ct)
+        _form_row("Control:", cc)
+        _form_row("Comm type:", ct)
         return lambda: encode_28(cc.currentData(), ct.currentData())
 
     def _f_85():
         c = QComboBox()
         c.addItem("01 on", 0x01)
         c.addItem("02 off", 0x02)
-        svc_form.addRow("Sub-function:", c)
+        _form_row("Sub-function:", c)
         return lambda: encode_85(c.currentData())
 
     def _f_22():
         e = _hex_edit("DID hex, e.g. F190", "F190")
-        svc_form.addRow("DID:", e)
+        _form_row("DID:", e)
         return lambda: encode_22(_parse_did(e.text()))
 
     def _f_2e():
         d = _hex_edit("DID hex", "F187")
         v = _hex_edit("Data hex")
-        svc_form.addRow("DID:", d)
-        svc_form.addRow("Data:", v)
+        _form_row("DID:", d)
+        _form_row("Data:", v)
         return lambda: encode_2e(_parse_did(d.text()), _parse_hex(v.text()))
 
     def _f_2f():
@@ -362,9 +373,9 @@ def build(parent, session, log_fn) -> QWidget:
                      (0x00, "0X shortTermAdjustment (needs data)")):
             c.addItem(v, k)
         v = _hex_edit("Control data hex")
-        svc_form.addRow("DID:", d)
-        svc_form.addRow("Control:", c)
-        svc_form.addRow("Data:", v)
+        _form_row("DID:", d)
+        _form_row("Control:", c)
+        _form_row("Data:", v)
 
         def make():
             data = _parse_hex(v.text()) if v.text().strip() else b""
@@ -374,7 +385,7 @@ def build(parent, session, log_fn) -> QWidget:
 
     def _f_14():
         e = _hex_edit("DTC group 3 bytes (FFFFFF=all)", "FFFFFF")
-        svc_form.addRow("DTC group:", e)
+        _form_row("DTC group:", e)
         return lambda: bytes([0x14]) + _parse_n(e.text(), 3, "DTC group")
 
     def _f_19():
@@ -386,9 +397,9 @@ def build(parent, session, log_fn) -> QWidget:
             c.addItem(v, k)
         m = StepSpin(0xFF, minimum=0, maximum=0xFF, hex_mode=True, width=72)
         e = _hex_edit("DTC number 3 bytes (sub 04)", "FFFFFF")
-        svc_form.addRow("Sub-function:", c)
-        svc_form.addRow("Status mask:", m)
-        svc_form.addRow("DTC number:", e)
+        _form_row("Sub-function:", c)
+        _form_row("Status mask:", m)
+        _form_row("DTC number:", e)
 
         def make():
             sub = c.currentData()
@@ -404,8 +415,8 @@ def build(parent, session, log_fn) -> QWidget:
             c.addItem("%02X requestSeed level%d" % (lv, (lv + 1) // 2), lv)
             c.addItem("%02X sendKey level%d" % (lv + 1, (lv + 1) // 2), lv + 1)
         v = _hex_edit("Key hex (for sendKey)")
-        svc_form.addRow("Sub-function:", c)
-        svc_form.addRow("Data:", v)
+        _form_row("Sub-function:", c)
+        _form_row("Data:", v)
 
         def make():
             req = encode_27(c.currentData())
@@ -421,8 +432,8 @@ def build(parent, session, log_fn) -> QWidget:
                      (0x03, "03 requestRoutineResults")):
             c.addItem(v, k)
         r = _hex_edit("Routine ID hex", "FF01")
-        svc_form.addRow("Sub-function:", c)
-        svc_form.addRow("Routine ID:", r)
+        _form_row("Sub-function:", c)
+        _form_row("Routine ID:", r)
         return lambda: encode_31(c.currentData(), _parse_did(r.text()))
 
     def _f_34():
@@ -431,9 +442,9 @@ def build(parent, session, log_fn) -> QWidget:
         f.addItem("0x22 addr 2B + size 2B", (2, 2))
         a = _hex_edit("Start address hex", "08040000")
         s = StepSpin(0x10000, minimum=1, maximum=0x7FFFFFFF, width=120)
-        svc_form.addRow("Format:", f)
-        svc_form.addRow("Start address:", a)
-        svc_form.addRow("Byte count:", s)
+        _form_row("Format:", f)
+        _form_row("Start address:", a)
+        _form_row("Byte count:", s)
 
         def make():
             al, sl = f.currentData()
@@ -445,17 +456,17 @@ def build(parent, session, log_fn) -> QWidget:
     def _f_36():
         c = StepSpin(1, minimum=0, maximum=0xFF, width=72)
         d = _hex_edit("Block data hex")
-        svc_form.addRow("Block counter:", c)
-        svc_form.addRow("Data:", d)
+        _form_row("Block counter:", c)
+        _form_row("Data:", d)
         return lambda: encode_36(c.value(), _parse_hex(d.text()))
 
     def _f_37():
-        svc_form.addRow("Params:", QLabel("none — RequestTransferExit"))
+        _form_row("Params:", QLabel("none — RequestTransferExit"))
         return encode_37
 
     def _f_raw():
         e = _hex_edit("Full request hex, e.g. 22 F1 90", "22 F1 90")
-        svc_form.addRow("Request:", e)
+        _form_row("Request:", e)
         return lambda: _parse_hex(e.text())
 
     FORMS = {0x10: _f_10, 0x11: _f_11, 0x3E: _f_3e, 0x28: _f_28, 0x85: _f_85,
@@ -716,9 +727,9 @@ def build(parent, session, log_fn) -> QWidget:
         ne.setPlaceholderText("Name")
         tc = QComboBox()
         tc.addItems(DID_TYPES)
-        form.addRow("DID:", de)
-        form.addRow("Name:", ne)
-        form.addRow("Type:", tc)
+        form.addRow(vscode_theme.field_label("DID"), de)
+        form.addRow(vscode_theme.field_label("Name"), ne)
+        form.addRow(vscode_theme.field_label("Type"), tc)
         bb = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         form.addRow(bb)
@@ -1065,26 +1076,24 @@ def build(parent, session, log_fn) -> QWidget:
     sec_file_btn.setObjectName("SecondaryButton")
     sec_file_btn.setFixedHeight(28)
     codicons.set_button(sec_file_btn, "browse")
-    sec_file_label = QLabel("None")
-    sec_seed_label = QLabel("—")
-    sec_key_label = QLabel("—")
-    sec_result_label = QLabel("—")
-    for l in (sec_seed_label, sec_key_label, sec_result_label):
-        l.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        l.setStyleSheet("font-family: Consolas, 'Cascadia Mono', monospace; font-size: 12px;")
+    sec_file_label = vscode_theme.value_label("None")
+    sec_seed_label = vscode_theme.value_label("—", mono=True)
+    sec_key_label = vscode_theme.value_label("—", mono=True)
+    sec_result_label = vscode_theme.value_label("—")
     sec_seed_btn = QPushButton("Request seed (27 odd)")
     sec_key_btn = QPushButton("Send key (27 even)")
     sec_key_btn.setEnabled(False)
-    sec_form.addRow("Security level:", sec_level)
-    sec_form.addRow("Key algorithm:", sec_algo)
-    sec_form.addRow("Expression:", sec_expr)
-    sec_form.addRow("Algo file:", sec_file_btn)
-    sec_form.addRow("Current file:", sec_file_label)
-    sec_form.addRow("Seed:", sec_seed_label)
-    sec_form.addRow("Computed key:", sec_key_label)
-    sec_form.addRow("Result:", sec_result_label)
+    sec_form.addRow(vscode_theme.field_label("Security level"), sec_level)
+    sec_form.addRow(vscode_theme.field_label("Key algorithm"), sec_algo)
+    sec_form.addRow(vscode_theme.field_label("Expression"), sec_expr)
+    sec_form.addRow(vscode_theme.field_label("Algo file"), sec_file_btn)
+    sec_form.addRow(vscode_theme.field_label("Current file"), sec_file_label)
+    sec_form.addRow(vscode_theme.field_label("Seed"), sec_seed_label)
+    sec_form.addRow(vscode_theme.field_label("Computed key"), sec_key_label)
+    sec_form.addRow(vscode_theme.field_label("Result"), sec_result_label)
     sec_form.addRow(sec_seed_btn)
     sec_form.addRow(sec_key_btn)
+    vscode_theme.polish_form_labels(sec_form)
 
     _sec_state = {"seed": None, "file": None}
 
@@ -1206,9 +1215,10 @@ def build(parent, session, log_fn) -> QWidget:
     file_host = QWidget()
     file_form = QFormLayout(file_host)
     vscode_theme.tune_form(file_form)
-    file_form.addRow("Firmware", fl_file_row)
-    file_form.addRow("Start address", fl_addr)
-    file_form.addRow("Block size", fl_block_edit)
+    file_form.addRow(vscode_theme.field_label("Firmware"), fl_file_row)
+    file_form.addRow(vscode_theme.field_label("Start address"), fl_addr)
+    file_form.addRow(vscode_theme.field_label("Block size"), fl_block_edit)
+    vscode_theme.polish_form_labels(file_form)
     file_body.addWidget(file_host)
     cols.addWidget(file_card, 1)
 
@@ -1222,7 +1232,8 @@ def build(parent, session, log_fn) -> QWidget:
     seq_host = QWidget()
     seq_form = QFormLayout(seq_host)
     vscode_theme.tune_form(seq_form)
-    seq_form.addRow("Security level", fl_sec_lv)
+    seq_form.addRow(vscode_theme.field_label("Security level"), fl_sec_lv)
+    vscode_theme.polish_form_labels(seq_form)
     seq_body.addWidget(seq_host)
     fl_btn_row = QHBoxLayout()
     fl_start_btn = QPushButton("Start flash")

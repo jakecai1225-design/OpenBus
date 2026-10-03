@@ -18,6 +18,23 @@ PLUGIN_ID = "autosar-suite"
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
+else:
+    # Keep suite dir first so local widgets.py wins over any path shadowing
+    # (e.g. plugins/_shared on PYTHONPATH exposing _shared/widgets).
+    try:
+        sys.path.remove(_HERE)
+    except ValueError:
+        pass
+    sys.path.insert(0, _HERE)
+
+# Drop a stale top-level ``widgets`` that is not this suite's module.
+_w = sys.modules.get("widgets")
+if _w is not None:
+    _wf = (getattr(_w, "__file__", None) or "").replace("\\", "/")
+    if "autosar-suite" not in _wf:
+        for _k in list(sys.modules):
+            if _k == "widgets" or _k.startswith("widgets."):
+                sys.modules.pop(_k, None)
 
 _shell = None
 _context = None
@@ -47,6 +64,11 @@ def _open_suite(start_page: str | None = None):
     _shell.activateWindow()
 
 
+def _reload_live_modules():
+    from _shared import suite_chrome
+    suite_chrome.reload_live_modules()
+
+
 def activate(context):
     global _shell, _context
     _context = context
@@ -56,6 +78,7 @@ def activate(context):
         if app is not None:
             app.setApplicationName("AUTOSAR Studio")
             app.setApplicationDisplayName("AUTOSAR Studio")
+        _reload_live_modules()
         from app_shell import AppShell
         start = _resolve_start_page(context)
         _shell = AppShell(context, start_page=start)
@@ -80,7 +103,7 @@ def activate(context):
     _shell.raise_()
     _shell.activateWindow()
     sin.output.append(
-        "AUTOSAR Studio ready (Project / Config / COM / Bus / Validate)")
+        "AUTOSAR Studio ready (Project / Config / COM / Bus / Setup)")
 
 
 def deactivate():

@@ -454,7 +454,7 @@ def build(parent, session, log_fn) -> QWidget:
         html = [
             "<h3>SecurityAccess audit (observational)</h3>",
             "<p>Seeds %d · critical %d · warn %d · score "
-            "<b style='font-size:16pt'>%d</b>/100</p><hr>" % (
+            "<b style='font-size:12px'>%d</b>/100</p><hr>" % (
                 len(seeds), high, warn, score),
         ]
         for sev, text in sorted(findings, key=lambda f: sev_order.get(f[0], 9)):

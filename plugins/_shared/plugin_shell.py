@@ -47,7 +47,7 @@ def empty_state_label(text: str, parent: Optional[QWidget] = None) -> QLabel:
     lbl = QLabel(text, parent)
     lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
     lbl.setWordWrap(True)
-    lbl.setStyleSheet("color:#78909c;padding:24px;font-size:13px;")
+    lbl.setStyleSheet("color:#78909c;padding:24px;font-size:12px;")
     return lbl
 
 

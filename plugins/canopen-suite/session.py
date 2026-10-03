@@ -8,7 +8,7 @@ import os
 from typing import Callable, List, Optional
 
 import sin
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, QTimer
 
 from core.eds_parse import (
     EdsDocument,
@@ -16,6 +16,7 @@ from core.eds_parse import (
     export_eds_text,
     parse_eds_file_document,
 )
+from core.network_health import NetworkHealth
 from core.sdo_client import SdoClient
 
 
@@ -68,6 +69,7 @@ class SharedSession(QObject):
         self._focus_listeners: list[Callable[[], None]] = []
         self._log_fn: Optional[Callable] = None
         self._frame_listeners: list[Callable] = []
+        self._health_listeners: list[Callable[[], None]] = []
 
         def _send(can_id, data):
             sin.frames.send(can_id, data)
@@ -75,6 +77,11 @@ class SharedSession(QObject):
         self.sdo = SdoClient(_send, parent=self, timeout_ms=800)
         self.sdo.set_node(self.node_id)
         self.sdo.on_log = self._sdo_log
+        self.health = NetworkHealth(hb_timeout_s=2.0, emcy_limit=64)
+        self._health_timer = QTimer(self)
+        self._health_timer.setInterval(500)
+        self._health_timer.timeout.connect(self._poll_health)
+        self._health_timer.start()
 
     def set_log_fn(self, fn: Callable) -> None:
         self._log_fn = fn
@@ -101,6 +108,42 @@ class SharedSession(QObject):
     def on_bus_frame(self, cb: Callable) -> None:
         """Extra listeners for Monitor / Network (after SDO handling)."""
         self._frame_listeners.append(cb)
+
+    def on_health_changed(self, cb: Callable[[], None]) -> None:
+        self._health_listeners.append(cb)
+
+    def _notify_health(self) -> None:
+        for cb in list(self._health_listeners):
+            try:
+                cb()
+            except Exception:
+                pass
+
+    def _poll_health(self) -> None:
+        newly = self.health.poll_timeouts()
+        for nid in newly:
+            self.log(
+                "ERR", "-", b"",
+                "Heartbeat timeout node %d (>%.1fs)" % (
+                    nid, self.health.hb_timeout_s))
+        if newly:
+            self._notify_health()
+
+    def health_summary(self) -> str:
+        """One-line status for Live chrome (selected node + EMCY count)."""
+        nh = self.health.nodes.get(self.node_id)
+        emcy_n = len(self.health.emcy)
+        if nh is None:
+            base = "Node %d · no HB yet" % self.node_id
+        else:
+            age = nh.age_s()
+            age_s = ("%.1fs" % age) if age < 1e8 else "—"
+            flag = " LOST" if nh.missed else ""
+            base = "Node %d · %s · HB %s%s" % (
+                self.node_id, nh.nmt_label, age_s, flag)
+        if emcy_n:
+            base += " · EMCY %d" % emcy_n
+        return base
 
     def _notify_node(self) -> None:
         for cb in list(self._node_listeners):
@@ -452,6 +495,11 @@ class SharedSession(QObject):
         data = bytes(frame.data) if frame.data else b""
         if data:
             self.sdo.on_frame(frame.id, data)
+            note = self.health.on_frame(frame.id, data)
+            if note:
+                if note.startswith("EMCY"):
+                    self.log("ERR", frame.id, data, note)
+                self._notify_health()
         for cb in list(self._frame_listeners):
             try:
                 cb(frame)
@@ -466,5 +514,12 @@ class SharedSession(QObject):
     ) -> bool:
         return self.sdo.download(index, subindex, value, size, on_done=on_done)
 
+    def sdo_download_bytes(
+        self, index: int, subindex: int, payload: bytes, on_done=None
+    ) -> bool:
+        return self.sdo.download_bytes(
+            index, subindex, payload, on_done=on_done)
+
     def shutdown(self) -> None:
+        self._health_timer.stop()
         self.sdo.cancel()

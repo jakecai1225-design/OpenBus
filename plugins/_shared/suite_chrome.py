@@ -2,7 +2,8 @@
 """Shared suite chrome — VS Code–style workbench (minimal vertical chrome).
 
 Vertical layers (keep to two above the editor):
-  1. Native menubar — File / Edit / View + layout toggles on the right corner
+  1. Frameless menubar row — File/Edit/View + actions + layout
+     toggles + min/max/close (same row as VS Code custom title bar)
   2. One editor chrome row — page tabs OR page title only (no layout icons)
   3. Editor body
   4. Collapsible OUTPUT (optional)
@@ -16,13 +17,18 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Sequence
 
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import QEvent, QObject, QPoint, QSize, Qt
+from PyQt6.QtGui import QFont, QFontMetrics, QMouseEvent
 from PyQt6.QtWidgets import (
+    QAbstractButton,
     QButtonGroup,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMenu,
     QMenuBar,
+    QPushButton,
     QSizePolicy,
     QSplitter,
     QStackedWidget,
@@ -33,6 +39,14 @@ from PyQt6.QtWidgets import (
 
 from _shared import codicons, plugin_shell, vscode_theme
 from _shared import i18n
+
+# Menubar chrome density — match host / VS Code custom title row.
+CHROME_BTN_H = 35
+LAYOUT_BTN_W = 36
+WIN_BTN_W = 46
+CHROME_ICON = 16
+MENU_ROW_H = 35  # full glyph room; InstantPopup QToolButton clipped at 30
+
 
 
 # Activity-bar tooltips (Ctrl+N appended when buttons are built).
@@ -66,7 +80,8 @@ ACTIVITY_TIPS = {
     "valuetables": "Value Tables — named VAL_TABLE_ library",
     "attributes": "Attributes — BA_DEF_ / BA_ values",
     "validate": "Validate — findings, analysis, compare, merge, export",
-    "timing": "Analysis — coverage and PDO load estimate",
+    "timing": "Timing — DC cycle, shift and cable delay (EtherCAT) / analysis",
+    "objects": "Objects — PDO, CoE and ESI",
     "compare": "Compare — diff two description files",
     "merge": "Merge — combine DBC files",
     "export": "Export — EDS / DCF / HTML / CSV / XDD",
@@ -203,9 +218,27 @@ def build_workbench(
 
     central = QWidget()
     window.setCentralWidget(central)
-    root = QHBoxLayout(central)
+    outer = QVBoxLayout(central)
+    outer.setContentsMargins(0, 0, 0, 0)
+    outer.setSpacing(0)
+
+    # Slot for SuiteMenuChrome (File/Edit row). Must live in central — NOT
+    # QMainWindow.setMenuWidget — because menuBar() deletes that widget.
+    menu_chrome_slot = QWidget()
+    menu_chrome_slot.setObjectName("SuiteMenuChromeSlot")
+    menu_chrome_slot.setFixedHeight(0)
+    menu_chrome_slot_l = QVBoxLayout(menu_chrome_slot)
+    menu_chrome_slot_l.setContentsMargins(0, 0, 0, 0)
+    menu_chrome_slot_l.setSpacing(0)
+    outer.addWidget(menu_chrome_slot, 0)
+    window._suite_menu_chrome_slot = menu_chrome_slot  # type: ignore[attr-defined]
+
+    body = QWidget()
+    body.setObjectName("SuiteWorkbenchBody")
+    root = QHBoxLayout(body)
     root.setContentsMargins(0, 0, 0, 0)
     root.setSpacing(0)
+    outer.addWidget(body, 1)
 
     # VS Code activity rail: 48px wide, full-bleed icon buttons, 24px glyphs
     _act_w = max(48, int(nav_width))
@@ -404,10 +437,11 @@ def build_workbench(
         btn.setChecked(True)
         btn.setAutoRaise(True)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setFixedSize(28, 28)
-        btn.setIconSize(QSize(16, 16))
+        btn.setFixedSize(LAYOUT_BTN_W, CHROME_BTN_H)
+        btn.setIconSize(QSize(CHROME_ICON, CHROME_ICON))
         btn.setToolTip(tip)
-        codicons.set_button(btn, icon_name, color=vscode_theme.TEXT_DIM, size=16)
+        codicons.set_button(
+            btn, icon_name, color=vscode_theme.TEXT_DIM, size=CHROME_ICON)
         return btn
 
     # Layout toggles live on the menubar right corner (VS Code), not this row.
@@ -708,43 +742,504 @@ def build_workbench(
 WorkbenchHandles = WorkbenchParts  # compat alias for mount helpers
 
 
+def _normalize_menubar_action(widget: QWidget) -> None:
+    """Force menubar trailing controls to CHROME_BTN_H / CHROME_ICON."""
+    if isinstance(widget, QAbstractButton):
+        widget.setFixedHeight(CHROME_BTN_H)
+        if not widget.text():
+            widget.setFixedSize(LAYOUT_BTN_W, CHROME_BTN_H)
+        widget.setIconSize(QSize(CHROME_ICON, CHROME_ICON))
+        name = widget.property("codiconName")
+        if name:
+            primary = bool(widget.property("codiconPrimary"))
+            try:
+                codicons.set_button(
+                    widget, str(name),
+                    color=vscode_theme.TEXT, size=CHROME_ICON,
+                    primary=primary)
+            except Exception:
+                pass
+    elif isinstance(widget, QLabel):
+        widget.setFixedHeight(CHROME_BTN_H)
+        widget.setAlignment(
+            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+
+
+class _MenubarChromeFilter(QObject):
+    """Drag / double-click maximize on empty menu chrome (VS Code)."""
+
+    def __init__(self, window: QMainWindow, bar: QMenuBar):
+        super().__init__(window)
+        self._window = window
+        self._bar = bar
+
+    def eventFilter(self, obj, event):  # noqa: N802
+        if obj is None or obj.objectName() != "SuiteMenuChrome":
+            return False
+        et = event.type()
+        if et not in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonDblClick):
+            return False
+        me = event
+        if not (isinstance(me, QMouseEvent)
+                and me.button() == Qt.MouseButton.LeftButton):
+            return False
+        child = obj.childAt(me.pos())
+        walk = child
+        for _ in range(8):
+            if walk is None:
+                break
+            n = walk.objectName() if hasattr(walk, "objectName") else ""
+            # Never steal clicks from menus, tools, or window buttons.
+            if n in (
+                    "SuiteMenuButtons", "SuiteMenubarTrailing",
+                    "SuiteMenuButton", "SuiteMenuLabel",
+                    "WinMinBtn", "WinMaxBtn", "WinCloseBtn",
+                    "LayoutToggleBtn"):
+                return False
+            if isinstance(walk, (QToolButton, QAbstractButton, QLabel, QMenuBar)):
+                return False
+            walk = walk.parentWidget() if hasattr(walk, "parentWidget") else None
+
+        if et == QEvent.Type.MouseButtonPress:
+            wh = self._window.windowHandle()
+            if wh is not None:
+                wh.startSystemMove()
+                return True
+        else:
+            if self._window.isMaximized():
+                self._window.showNormal()
+            else:
+                self._window.showMaximized()
+            return True
+        return False
+
+
+class _WindowStateFilter(QObject):
+    """Refresh maximize/restore icon when window state changes."""
+
+    def __init__(self, window: QMainWindow, max_btn: QToolButton):
+        super().__init__(window)
+        self._window = window
+        self._max_btn = max_btn
+
+    def eventFilter(self, obj, event):  # noqa: N802
+        if obj is self._window and event.type() == QEvent.Type.WindowStateChange:
+            _set_win_max_icon(self._max_btn, self._window.isMaximized())
+        return False
+
+
+def _set_win_max_icon(btn: QToolButton, maximized: bool) -> None:
+    name = "win-restore" if maximized else "win-maximize"
+    codicons.set_button(
+        btn, name, color=vscode_theme.TEXT, size=CHROME_ICON)
+    btn.setProperty("codiconName", name)
+
+
+def _make_win_btn(name: str, tip: str, object_name: str) -> QToolButton:
+    btn = QToolButton()
+    btn.setObjectName(object_name)
+    btn.setAutoRaise(True)
+    btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    btn.setFixedSize(WIN_BTN_W, CHROME_BTN_H)
+    btn.setIconSize(QSize(CHROME_ICON, CHROME_ICON))
+    btn.setToolTip(tip)
+    codicons.set_button(btn, name, color=vscode_theme.TEXT, size=CHROME_ICON)
+    btn.setProperty("codiconName", name)
+    return btn
+
+
+def _ensure_frameless(window: QMainWindow) -> None:
+    """Drop OS title bar so the QMenuBar is the only top chrome row."""
+    if getattr(window, "_suite_frameless", False):
+        return
+    window.setWindowFlags(
+        Qt.WindowType.Window
+        | Qt.WindowType.FramelessWindowHint
+        | Qt.WindowType.WindowSystemMenuHint
+        | Qt.WindowType.WindowMinimizeButtonHint
+        | Qt.WindowType.WindowMaximizeButtonHint
+    )
+    # Thin border so frameless window still reads as a frame on light theme.
+    window.setProperty("suiteFrameless", True)
+    window.style().unpolish(window)
+    window.style().polish(window)
+    window._suite_frameless = True  # type: ignore[attr-defined]
+
+
+def _menu_sep() -> QFrame:
+    line = QFrame()
+    line.setObjectName("SuiteMenuSep")
+    line.setFrameShape(QFrame.Shape.VLine)
+    line.setFrameShadow(QFrame.Shadow.Plain)
+    line.setFixedWidth(1)
+    line.setFixedHeight(max(16, CHROME_BTN_H - 12))
+    return line
+
+
+def _strip_amp(text: str) -> str:
+    return (text or "").replace("&", "").strip()
+
+
+def _harvest_top_menus(bar: QMenuBar) -> list:
+    """Return [(label, QMenu), ...] from a populated QMenuBar."""
+    out = []
+    for act in list(bar.actions()):
+        menu = act.menu()
+        if menu is None:
+            continue
+        label = _strip_amp(act.text())
+        if not label:
+            continue
+        out.append((label, menu))
+    return out
+
+
+def _park_popup_menu(menu: QMenu, owner: QWidget) -> None:
+    """Own a harvested QMenu as a Popup — never as a visible embedded child.
+
+    ``setParent(label)`` without Popup flags leaves the QMenu visible at (0,0)
+    with its full size (200×300), painting over File/Edit until the user clicks
+    (which dismisses the phantom panel). That was the 'menubar occluded' bug.
+    """
+    menu.hide()
+    menu.setParent(owner)
+    menu.setWindowFlags(Qt.WindowType.Popup)
+    menu.hide()
+
+
+class SuiteMenuButton(QLabel):
+    """VS Code top-level menu label — QLabel + Popup QMenu (not QPushButton)."""
+
+    _PAD_X = 24
+
+    def __init__(self, label: str, menu: QMenu, host: Optional[QWidget] = None):
+        super().__init__(label)
+        self.setObjectName("SuiteMenuLabel")
+        self.setAlignment(
+            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignHCenter)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+        font = QFont(self.font())
+        font.setPixelSize(vscode_theme.FS_MENU)
+        self.setFont(font)
+        self._menu = menu
+        self._host = host
+        # Owner = host window (or host) so the menu is not an embedded child of
+        # this label. Popup flag + hide prevents occlusion of the text.
+        owner = host.window() if host is not None else self
+        if owner is None:
+            owner = self
+        _park_popup_menu(menu, owner)
+        menu.aboutToHide.connect(menu.hide)
+        self._apply_label_width(label)
+
+    def _apply_label_width(self, label: str) -> None:
+        fm = QFontMetrics(self.font())
+        text_w = fm.horizontalAdvance(label) if label else 0
+        w = max(52, text_w + self._PAD_X)
+        self.setFixedSize(w, MENU_ROW_H)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        self._apply_label_width(self.text())
+        m = self._menu
+        # If something re-parented the menu onto this label, re-park as Popup.
+        if m is not None and m.parentWidget() is self:
+            owner = self.window() or self
+            _park_popup_menu(m, owner)
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        return QSize(max(self.minimumWidth(), 52), MENU_ROW_H)
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802
+        return self.sizeHint()
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._popup()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def _popup(self) -> None:
+        host = self._host
+        if host is not None:
+            host._suite_menu_active = self  # type: ignore[attr-defined]
+            for btn in host.findChildren(SuiteMenuButton):
+                if btn is not self and btn._menu.isVisible():
+                    btn._menu.close()
+                    btn._menu.hide()
+        self._menu.popup(self.mapToGlobal(QPoint(0, self.height())))
+
+    def enterEvent(self, event) -> None:  # noqa: N802
+        host = self._host
+        active = getattr(host, "_suite_menu_active", None) if host else None
+        if (
+            host is not None
+            and isinstance(active, SuiteMenuButton)
+            and active is not self
+            and active._menu.isVisible()
+        ):
+            self._popup()
+        super().enterEvent(event)
+
+
+def _make_menu_button(label: str, menu: QMenu,
+                      host: Optional[QWidget] = None) -> SuiteMenuButton:
+    return SuiteMenuButton(label, menu, host=host)
+
+
+def _embed_menu_chrome(window: QMainWindow, chrome: QWidget) -> None:
+    """Place SuiteMenuChrome in the workbench central slot (not setMenuWidget).
+
+    Qt deletes any widget installed via ``setMenuWidget`` when ``menuBar()`` is
+    later called — tab mounts used to trigger that and wipe File/Edit.
+    Embedding in ``SuiteMenuChromeSlot`` survives ``menuBar()`` / corner
+    re-attach mistakes; the official QMenuBar stays height-0 and hidden.
+    """
+    h = MENU_ROW_H
+    chrome.setFixedHeight(h)
+    slot = getattr(window, "_suite_menu_chrome_slot", None)
+    if slot is None:
+        slot = window.findChild(QWidget, "SuiteMenuChromeSlot")
+    if slot is not None:
+        sl = slot.layout()
+        if sl is not None:
+            while sl.count():
+                item = sl.takeAt(0)
+                w = item.widget()
+                if w is not None and w is not chrome:
+                    w.setParent(None)
+            chrome.setParent(None)
+            sl.addWidget(chrome)
+        slot.setFixedHeight(h)
+        slot.show()
+        chrome.show()
+        return
+    # Legacy shell without a slot — last resort (fragile if menuBar() is used).
+    window.setMenuWidget(chrome)
+    chrome.show()
+
+
+def reload_live_modules(*extra: str) -> None:
+    """Drop cached shell/chrome modules so live edits under plugins/ apply.
+
+    sin_host keeps a long-lived interpreter — deactivate/reactivate would
+    otherwise keep the first-imported ``suite_chrome`` (broken menubar).
+    Call from each suite ``activate()`` before importing ``AppShell``.
+    """
+    import importlib
+    import sys
+
+    keys = [
+        "_shared.suite_chrome",
+        "_shared.vscode_theme",
+        "_shared.suite_tabs",
+        "_shared.suite_ui",
+        "app_shell",
+        "session",
+        "document",
+        *extra,
+    ]
+    for name in list(sys.modules):
+        drop = False
+        for k in keys:
+            if name == k or name.startswith(k + "."):
+                drop = True
+                break
+        if not drop and (name == "pages" or name.startswith("pages.")):
+            drop = True
+        if drop:
+            sys.modules.pop(name, None)
+    try:
+        importlib.invalidate_caches()
+    except Exception:
+        pass
+
+
+def begin_suite_menubar(window: QMainWindow) -> QMenuBar:
+    """Clear and return the suite QMenuBar to populate before attach.
+
+    Prefer the bar cached on ``_suite_menu_bar`` (owned by SuiteMenuChrome)
+    so we never leave a visible OS/QMainWindow menubar fighting the chrome.
+    """
+    bar = getattr(window, "_suite_menu_bar", None)
+    if bar is None:
+        bar = window.menuBar()
+    if bar is None:
+        bar = QMenuBar(window)
+        window.setMenuBar(bar)
+    bar.setNativeMenuBar(False)
+    bar.clear()
+    window._suite_menu_bar = bar  # type: ignore[attr-defined]
+    return bar
+
+
 def attach_layout_toggles_to_menubar(
         window: QMainWindow,
         wb: WorkbenchParts,
         extra_widgets: Optional[Sequence[QWidget]] = None,
 ) -> QWidget:
-    """Mount layout toggles (and optional extras) on the menubar right corner.
+    """Mount one VS Code row: File Edit … | stretch | tools | win.
 
-    Call after the suite has built its QMenuBar. Editor chrome stays
-    tabs/title only — VS Code places these icons on the menu row.
+    Top-level menus become ``SuiteMenuLabel`` (plain text) + Popup ``QMenu``.
+    The row lives in central ``SuiteMenuChromeSlot`` — never ``setMenuWidget``.
+    No brand/logo left of File (VS Code menu text starts the row).
     """
-    bar = window.menuBar()
+    _ensure_frameless(window)
+
+    bar = getattr(window, "_suite_menu_bar", None)
+    if bar is None:
+        bar = window.menuBar()
     if bar is None:
         bar = QMenuBar(window)
         window.setMenuBar(bar)
-    bar.setVisible(True)
+    bar.setNativeMenuBar(False)
+    menus = _harvest_top_menus(bar)
+    # Official menubar area stays a zero-height sentinel so later menuBar()
+    # calls do not invent a visible empty bar (and never touch our chrome).
+    bar.hide()
+    bar.setFixedHeight(0)
 
+    # --- trailing: doc tools | layout | window (equal icon size, grouped) ---
     host = QWidget()
     host.setObjectName("SuiteMenubarTrailing")
+    host.setFixedHeight(MENU_ROW_H)
+    host.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
     row = QHBoxLayout(host)
-    row.setContentsMargins(4, 0, 6, 0)
+    row.setContentsMargins(6, 0, 0, 0)
     row.setSpacing(2)
 
-    for w in list(extra_widgets or ()):
-        if w is None:
-            continue
-        w.setParent(None)
-        row.addWidget(w)
+    extras = [w for w in list(extra_widgets or ()) if w is not None]
+    if extras:
+        for w in extras:
+            w.setParent(None)
+            _normalize_menubar_action(w)
+            row.addWidget(w, 0, Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(_menu_sep(), 0, Qt.AlignmentFlag.AlignVCenter)
 
     for btn in (wb.btn_sidebar, wb.btn_panel, wb.btn_maximize):
         btn.setParent(None)
-        row.addWidget(btn)
+        btn.setFixedSize(LAYOUT_BTN_W, CHROME_BTN_H)
+        btn.setIconSize(QSize(CHROME_ICON, CHROME_ICON))
+        try:
+            name = btn.property("codiconName")
+            if name:
+                codicons.set_button(
+                    btn, str(name), color=vscode_theme.TEXT_DIM,
+                    size=CHROME_ICON)
+        except Exception:
+            pass
+        row.addWidget(btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
-    bar.setCornerWidget(host, Qt.Corner.TopRightCorner)
+    row.addWidget(_menu_sep(), 0, Qt.AlignmentFlag.AlignVCenter)
+
+    min_btn = _make_win_btn("win-minimize", "Minimize", "WinMinBtn")
+    max_btn = _make_win_btn(
+        "win-restore" if window.isMaximized() else "win-maximize",
+        "Maximize", "WinMaxBtn")
+    close_btn = _make_win_btn("close", "Close", "WinCloseBtn")
+    _set_win_max_icon(max_btn, window.isMaximized())
+
+    min_btn.clicked.connect(window.showMinimized)
+    max_btn.clicked.connect(
+        lambda: window.showNormal() if window.isMaximized()
+        else window.showMaximized())
+    close_btn.clicked.connect(window.close)
+
+    row.addWidget(min_btn)
+    row.addWidget(max_btn)
+    row.addWidget(close_btn)
+
+    if getattr(window, "_suite_winstate_filter", None) is None:
+        wf = _WindowStateFilter(window, max_btn)
+        window.installEventFilter(wf)
+        window._suite_winstate_filter = wf  # type: ignore[attr-defined]
+    else:
+        window._suite_winstate_filter._max_btn = max_btn  # type: ignore[attr-defined]
+
+    # --- chrome row ---
+    chrome = getattr(window, "_suite_menu_chrome", None)
+    if chrome is None:
+        chrome = QWidget()
+        chrome.setObjectName("SuiteMenuChrome")
+        chrome.setFixedHeight(MENU_ROW_H)
+        cl = QHBoxLayout(chrome)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(0)
+        chrome._layout = cl  # type: ignore[attr-defined]
+        window._suite_menu_chrome = chrome  # type: ignore[attr-defined]
+    else:
+        chrome.setFixedHeight(MENU_ROW_H)
+    cl = chrome._layout  # type: ignore[attr-defined]
+    while cl.count():
+        item = cl.takeAt(0)
+        w = item.widget()
+        if w is not None and w is not host and w is not bar:
+            # Drop previous SuiteMenuButton instances on rebuild.
+            w.setParent(None)
+            w.deleteLater()
+
+    brand = getattr(window, "_suite_brand", None)
+    if brand is not None:
+        brand.hide()
+        brand.setParent(None)
+        brand.deleteLater()
+        window._suite_brand = None  # type: ignore[attr-defined]
+
+    menu_host = QWidget()
+    menu_host.setObjectName("SuiteMenuButtons")
+    menu_host.setFixedHeight(MENU_ROW_H)
+    menu_host.setSizePolicy(
+        QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+    menu_host._suite_menu_active = None  # type: ignore[attr-defined]
+    ml = QHBoxLayout(menu_host)
+    ml.setContentsMargins(8, 0, 0, 0)
+    ml.setSpacing(0)
+    for label, menu in menus:
+        btn = _make_menu_button(label, menu, host=menu_host)
+        ml.addWidget(btn, 0, Qt.AlignmentFlag.AlignVCenter)
+    cl.addWidget(menu_host, 0, Qt.AlignmentFlag.AlignVCenter)
+    cl.addStretch(1)
+
+    host.setParent(None)
+    host.setFixedHeight(MENU_ROW_H)
+    cl.addWidget(host, 0, Qt.AlignmentFlag.AlignVCenter)
+
+    # Keep silent harvested QMenuBar as child so ownership stays valid.
+    bar.setParent(chrome)
+    bar.hide()
+    bar.setFixedHeight(0)
+
+    sentinel = getattr(window, "_suite_menu_sentinel", None)
+    if sentinel is None:
+        sentinel = QMenuBar(window)
+        sentinel.setObjectName("SuiteMenuBarSentinel")
+        sentinel.setNativeMenuBar(False)
+        window._suite_menu_sentinel = sentinel  # type: ignore[attr-defined]
+    sentinel.setMaximumHeight(0)
+    sentinel.setFixedHeight(0)
+    sentinel.hide()
+    window.setMenuBar(sentinel)
+
+    _embed_menu_chrome(window, chrome)
     host.show()
-    # Keep a reference so callers can re-attach after menuBar().clear().
+    menu_host.show()
+
+    if getattr(window, "_suite_menubar_filter", None) is None:
+        filt = _MenubarChromeFilter(window, bar)
+        chrome.installEventFilter(filt)
+        window._suite_menubar_filter = filt  # type: ignore[attr-defined]
+
+    window._suite_menu_bar = bar  # type: ignore[attr-defined]
+    window._suite_menu_buttons = menu_host  # type: ignore[attr-defined]
     wb.layout_toggle_host = host  # type: ignore[misc]
+    window._suite_win_btns = (min_btn, max_btn, close_btn)  # type: ignore[attr-defined]
     return host
+
 
 
 def page_margins(layout, *, top: int = 12) -> None:

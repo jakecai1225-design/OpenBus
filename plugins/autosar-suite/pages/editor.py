@@ -37,7 +37,7 @@ def build(shell, document, log_fn) -> QWidget:
     add_pdu = _ui.ghost_btn("PDU", "Add I-SIGNAL-I-PDU (COM mode)", "add")
     add_sig = _ui.ghost_btn("Signal", "Add signal under selected PDU", "add")
     remove_btn = _ui.ghost_btn("", "Remove selection", "delete")
-    apply_btn = _ui.primary_btn("Apply", "Write form into selection", "apply")
+    apply_btn = _ui.ghost_btn("Apply", "Write form into selection", "apply")
     crow.addWidget(mode)
     crow.addWidget(count)
     crow.addStretch(1)
@@ -101,7 +101,8 @@ def build(shell, document, log_fn) -> QWidget:
     for label, w, tip_id in rows:
         form.addRow(label, w)
         w.setProperty("spec_id", tip_id)
-    form.addRow("Definition", defref_lbl)
+    form.addRow(vscode_theme.field_label("Definition"), defref_lbl)
+    vscode_theme.polish_form_labels(form)
 
     tip = _ui.tip_panel()
     tip.setText("Select a PDU or signal — Spec tip appears here.")

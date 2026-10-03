@@ -11,8 +11,6 @@ from typing import Callable, Optional, Sequence, Tuple
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QHBoxLayout,
-    QLabel,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -28,15 +26,7 @@ NestedSpec = Tuple[str, str, str, Sequence[SectionSpec]]
 
 
 def _header(title: str) -> QWidget:
-    head = QWidget()
-    head.setObjectName("SuiteSideBarHeader")
-    head.setFixedHeight(28)
-    hl = QHBoxLayout(head)
-    hl.setContentsMargins(10, 0, 6, 0)
-    lab = QLabel(title.upper())
-    lab.setObjectName("SuiteToolbarTitle")
-    hl.addWidget(lab, 1)
-    return head
+    return _ui.sidebar_header(title)
 
 
 def build_section_sidebar(

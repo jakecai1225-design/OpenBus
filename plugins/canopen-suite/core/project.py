@@ -26,6 +26,10 @@ class ProjectManifest:
     eds: str = "device.eds"  # primary relative to root
     eds_files: list = field(default_factory=list)  # extra EDS in project
     dcf: str = ""
+    # Multi-node engineering (Phase C lite): [{node_id, eds, dcf, label}, ...]
+    nodes: list = field(default_factory=list)
+    # PDO link matrix MVP: list of dicts from core.pdo_link.PdoLink
+    pdo_links: list = field(default_factory=list)
     notes: str = ""
     created: float = 0.0
     updated: float = 0.0
@@ -50,6 +54,8 @@ class ProjectManifest:
                 str(x).replace("\\", "/") for x in (self.eds_files or []) if x
             ],
             "dcf": (self.dcf or "").replace("\\", "/"),
+            "nodes": list(self.nodes or []),
+            "pdo_links": list(self.pdo_links or []),
             "notes": self.notes or "",
             "created": float(self.created),
             "updated": float(self.updated),
@@ -72,6 +78,10 @@ class ProjectManifest:
             eds=primary,
             eds_files=norm,
             dcf=str(d.get("dcf") or ""),
+            nodes=list(d.get("nodes") or []) if isinstance(d.get("nodes"), list) else [],
+            pdo_links=(
+                list(d.get("pdo_links") or [])
+                if isinstance(d.get("pdo_links"), list) else []),
             notes=str(d.get("notes") or ""),
             created=float(d.get("created") or 0),
             updated=float(d.get("updated") or 0),

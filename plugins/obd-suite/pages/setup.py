@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import (
     QComboBox,
-    QLabel,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -38,7 +37,8 @@ def build(parent, session, log_fn) -> QWidget:
         "Open Scanner", "Go to Scanner after applying IDs", "search")
 
     layout.addWidget(_ui.tool_strip(
-        QLabel("Request"), req, QLabel("Response"), rx, apply_btn, open_scan))
+        _ui.field_label("Request"), req, _ui.field_label("Response"), rx,
+        apply_btn, open_scan))
 
     body = QWidget()
     body_l = QVBoxLayout(body)

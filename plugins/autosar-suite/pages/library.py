@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Library — file starters + project templates + recent."""
+"""Library — file starters + project templates + recent.
+
+No tool_strip under Editor Tabs: pick a starter in the list, preview on the
+right, then Use via next_step (or double-click). Matches Workspace empty_state
+discipline (§4).
+"""
 
 from __future__ import annotations
 
@@ -70,15 +75,9 @@ def build(shell, document, log_fn) -> QWidget:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(0)
 
-    chrome, crow = suite_chrome.make_toolbar()
-    use_btn = _ui.primary_btn(
-        "Use starter", "Replace document or create project", "file")
-    crow.addStretch(1)
-    crow.addWidget(use_btn)
-    layout.addWidget(chrome)
-
     split = QSplitter(Qt.Orientation.Horizontal)
     lst = QListWidget()
+    lst.setObjectName("SuiteMatrix")
     for tid, title, blurb, _fn in FILE_STARTERS:
         item = QListWidgetItem(title)
         item.setData(Qt.ItemDataRole.UserRole, ("file", tid))
@@ -95,19 +94,37 @@ def build(shell, document, log_fn) -> QWidget:
     right.setObjectName("SuiteContent")
     rl = QVBoxLayout(right)
     suite_chrome.page_margins(rl)
+    rl.setSpacing(10)
+
+    use_btn = _ui.primary_btn(
+        "Use starter", "Replace document or create project (or double-click)",
+        "file")
+    head, hl = _ui.content_header("Library")
+    hl.addStretch(1)
+    tip = _ui.quiet_label("Double-click a starter to apply")
+    hl.addWidget(tip, 0, Qt.AlignmentFlag.AlignVCenter)
+    rl.addWidget(head)
+
     blurb = QTextEdit()
     blurb.setReadOnly(True)
     blurb.setMaximumHeight(120)
+    blurb.setObjectName("SuiteHintBox")
     recent = QListWidget()
+    recent.setObjectName("SuiteMatrix")
     recent_proj = QListWidget()
-    rl.addWidget(_ui.quiet_label("Starter"))
+    recent_proj.setObjectName("SuiteMatrix")
+    rl.addWidget(_ui.section_title("Starter"))
     rl.addWidget(blurb)
-    rl.addWidget(_ui.quiet_label("Recent files — double-click to open"))
+    rl.addWidget(_ui.section_title("Recent files"))
     rl.addWidget(recent, 1)
-    rl.addWidget(_ui.quiet_label("Recent projects"))
+    rl.addWidget(_ui.section_title("Recent projects"))
     rl.addWidget(recent_proj, 1)
+    rl.addWidget(_ui.next_step_bar(
+        "Apply the selected starter to the workspace.", use_btn))
     split.addWidget(right)
     layout.addWidget(split, 1)
+    split.setStretchFactor(0, 2)
+    split.setStretchFactor(1, 3)
 
     selected = {"kind": "file", "id": "demo"}
 

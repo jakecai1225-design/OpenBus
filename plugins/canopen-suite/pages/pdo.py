@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Live PDO — bus / applied-OD mapping view (Device menu power path).
+"""Live PDO — mapping view + RPDO/TPDO payload unpack (DeviceExplorer slice).
 
-Not in the Live sidebar (EDS → PDO map owns file mapping).
-One tool strip + empty_state when nothing is mapped yet.
+Sidebar leaf when viz is present. One tool strip; empty_state when unmapped.
 """
 
 from __future__ import annotations
@@ -17,6 +16,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from core.cob_classify import classify_cob
 from core.pdo_map import decode_mapping, mapping_indexes, pdo_label
 from pages import _ui
 
@@ -31,6 +31,16 @@ def _parse_int(text):
         return None
 
 
+def _unpack_bits(payload: bytes, bit_offset: int, bit_length: int) -> int:
+    """Little-endian bitfield extract from PDO payload."""
+    raw = bytes(payload or b"")
+    if not raw or bit_length <= 0:
+        return 0
+    acc = int.from_bytes(raw.ljust(8, b"\x00")[:8], "little")
+    mask = (1 << bit_length) - 1
+    return (acc >> bit_offset) & mask
+
+
 def build(parent, session, log_fn) -> QWidget:
     root = QWidget(parent)
     layout = QVBoxLayout(root)
@@ -39,7 +49,7 @@ def build(parent, session, log_fn) -> QWidget:
 
     status = QLabel("Idle")
     status.setObjectName("SuiteCount")
-    status.setToolTip("Live mapping (bus) — read node or load from applied OD")
+    status.setToolTip("Live mapping + last RX values for shared Node-ID")
     eds_btn = _ui.ghost_btn(
         "From EDS", "Load RPDO/TPDO maps from the applied OD", "folder")
     read_btn = _ui.primary_btn(
@@ -53,7 +63,9 @@ def build(parent, session, log_fn) -> QWidget:
         eds_btn, read_btn, stop_btn, open_map, status, stretch_at=4))
 
     tree = QTreeWidget()
-    tree.setHeaderLabels(["PDO", "Slot", "Object", "Name", "Bits", "Source"])
+    tree.setHeaderLabels([
+        "PDO", "Slot", "Object", "Name", "Bits", "Source", "Live",
+    ])
     _ui.style_tree(tree, header_hidden=False)
     tree.setRootIsDecorated(False)
     tree.setAlternatingRowColors(True)
@@ -66,8 +78,8 @@ def build(parent, session, log_fn) -> QWidget:
     empty_read = _ui.ghost_btn(
         "Read node", "SDO-upload mapping objects from the bus", "arrow-right")
     empty = _ui.empty_state(
-        "No live mapping (bus) yet",
-        "Map objects in EDS PDO map, load from the applied OD, or read the node.",
+        "No live mapping yet",
+        "Map in EDS PDO map, load from applied OD, or read the node — then watch Live.",
         actions=[empty_eds_pdo, empty_eds, empty_read])
 
     body = QStackedWidget()
@@ -75,7 +87,9 @@ def build(parent, session, log_fn) -> QWidget:
     body.addWidget(tree)
     layout.addWidget(body, 1)
 
+    # rows: (pdo_label, slot, index, sub, bits, name, source, bit_offset, pdo_kind)
     rows = []
+    live_vals = {}  # (index, sub) -> display
     queue = []
     running = {"v": False}
 
@@ -96,10 +110,11 @@ def build(parent, session, log_fn) -> QWidget:
 
     def _refresh():
         tree.clear()
-        for pdo, slot, index, sub, bits, name, source in rows:
+        for pdo, slot, index, sub, bits, name, source, _off, _kind in rows:
+            live = live_vals.get((index, sub), "—")
             tree.addTopLevelItem(QTreeWidgetItem([
                 pdo, str(slot), "0x%04X:%02X" % (index, sub),
-                name, str(bits), source,
+                name, str(bits), source, live,
             ]))
         status.setText("%d slots · Node %d" % (len(rows), session.node_id))
         _ui.fit_columns(tree, stretch=3)
@@ -110,13 +125,20 @@ def build(parent, session, log_fn) -> QWidget:
         if decoded is None:
             return
         index, sub, bits = decoded
+        # Compute bit offset within this PDO from prior slots of same PDO
+        bit_off = 0
+        for r in rows:
+            if r[0] == pdo_label(pdo_index):
+                bit_off += int(r[4])
+        kind = "TPDO" if 0x1A00 <= pdo_index <= 0x1BFF else "RPDO"
         rows.append((
             pdo_label(pdo_index), slot, index, sub, bits,
-            _name(index, sub), source,
+            _name(index, sub), source, bit_off, kind,
         ))
 
     def _from_eds():
         rows.clear()
+        live_vals.clear()
         for e in _entries():
             if e.index not in mapping_indexes() or e.subindex == 0:
                 continue
@@ -151,7 +173,10 @@ def build(parent, session, log_fn) -> QWidget:
                 for slot in range(1, min(count, 8) + 1):
                     queue.append((index, slot, "map"))
             elif ok and phase == "map":
-                _add(index, sub, int(value or 0), "SDO")
+                raw = value
+                if isinstance(value, (bytes, bytearray)):
+                    raw = int.from_bytes(bytes(value)[:4].ljust(4, b"\x00"), "little")
+                _add(index, sub, int(raw or 0), "SDO")
             QTimer.singleShot(40, _next)
 
         if not session.sdo.upload(index, sub, _done):
@@ -160,6 +185,7 @@ def build(parent, session, log_fn) -> QWidget:
 
     def _read_node():
         rows.clear()
+        live_vals.clear()
         tree.clear()
         queue.clear()
         for index in mapping_indexes():
@@ -170,14 +196,31 @@ def build(parent, session, log_fn) -> QWidget:
         _next()
 
     def _open_map():
-        if hasattr(parent, "run_action"):
-            parent.run_action("view.eds")  # fallback
         if hasattr(parent, "goto_page"):
             parent.goto_page("eds_pdo")
+        elif hasattr(parent, "run_action"):
+            parent.run_action("view.pdo_map")
 
-    def _open_dict():
-        if hasattr(parent, "run_action"):
-            parent.run_action("view.eds")
+    def _on_bus(frame):
+        if not rows:
+            return
+        kind, node, _lab = classify_cob(frame.id)
+        if node != session.node_id:
+            return
+        if not (kind.startswith("TPDO") or kind.startswith("RPDO")):
+            return
+        data = bytes(frame.data) if frame.data else b""
+        if not data:
+            return
+        changed = False
+        for pdo, _slot, index, sub, bits, _name, _src, bit_off, _rk in rows:
+            if pdo != kind and not pdo.startswith(kind):
+                continue
+            val = _unpack_bits(data, bit_off, bits)
+            live_vals[(index, sub)] = "0x%X" % val
+            changed = True
+        if changed:
+            _refresh()
 
     eds_btn.clicked.connect(_from_eds)
     empty_eds.clicked.connect(_from_eds)
@@ -187,5 +230,6 @@ def build(parent, session, log_fn) -> QWidget:
     open_map.clicked.connect(_open_map)
     empty_eds_pdo.clicked.connect(_open_map)
     session.on_od_changed(_from_eds)
+    session.on_bus_frame(_on_bus)
     _from_eds()
     return root

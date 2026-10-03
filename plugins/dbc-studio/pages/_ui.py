@@ -32,14 +32,16 @@ from PyQt6.QtWidgets import (
 from _shared import codicons, vscode_theme as T
 
 # VS Code Light type + control scale (one kit for the whole suite)
-#   Body / tree / nav ...... 13px
+#   Body / tree / nav ...... 12px
 #   Controls / buttons ..... 12px, CTRL_H 28
 #   Meta / chrome labels ... 11px muted (never shouty uppercase titles)
 CTRL_H = 28
+CTRL_INNER = CTRL_H - 2
 STRIP_PAD_V = 4
 STRIP_EDGE = 2   # border-bottom + DPI fudge
 TOOL_H = CTRL_H + 2 * STRIP_PAD_V + STRIP_EDGE   # 38
 FILTER_H = TOOL_H
+SIDEBAR_TITLE_H = 35                # VS Code .part > .title
 TAB_H = 36
 CHROME_H = TAB_H + 2                # 38
 ICON = 16
@@ -50,9 +52,9 @@ GAP = 6
 PAD_X = 10
 PAD_Y = 6
 ROW_H = 26
-FS_BODY = 13
-FS_CTRL = 12
-FS_META = 11
+FS_BODY = T.FS_BODY
+FS_CTRL = T.FS_CTRL
+FS_META = T.FS_META
 ICON_FG = T.TEXT
 ICON_MUTED = T.TEXT_DIM
 
@@ -127,7 +129,7 @@ QWidget#WorkspaceSideBar {{
 QWidget#SuiteSideBarHeader {{
   background: {T.SIDEBAR};
   border-bottom: 1px solid {T.BORDER_SOFT};
-  min-height: {TOOL_H}px;
+  min-height: {SIDEBAR_TITLE_H}px;
 }}
 QWidget#SuiteDocBanner {{
   background: {T.SIDEBAR};
@@ -141,10 +143,10 @@ QLabel#SuiteSectionTitle {{
   letter-spacing: 0;
 }}
 QLabel#SuiteSideBarTitle {{
-  color: {T.TEXT};
-  font-size: {FS_CTRL}px;
-  font-weight: 600;
-  letter-spacing: 0;
+  color: {T.TEXT_MUTED};
+  font-size: {FS_META}px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }}
 QLabel#SuiteDocPath {{
   color: {T.TEXT_DIM};
@@ -165,7 +167,6 @@ QWidget#SuiteInlineFilter {{
 QWidget#SuiteInlineFilter QLineEdit,
 QWidget#SuiteInlineFilter QComboBox,
 QWidget#SuiteInlineFilter QPushButton,
-QWidget#SuiteInlineFilter QLabel,
 QWidget#SuiteToolbar QLineEdit,
 QWidget#SuiteToolbar QComboBox,
 QWidget#SuiteToolbar QPushButton,
@@ -173,16 +174,32 @@ QWidget#SuiteToolStrip QLineEdit,
 QWidget#SuiteToolStrip QComboBox,
 QWidget#SuiteToolStrip QPushButton {{
   font-size: {FS_CTRL}px;
-  min-height: {CTRL_H}px;
-  max-height: {CTRL_H}px;
+  min-height: {CTRL_INNER}px;
+  max-height: {CTRL_INNER}px;
+  padding: 0px 8px;
+}}
+QWidget#SuiteInlineFilter QLabel,
+QWidget#SuiteToolbar QLabel,
+QWidget#SuiteToolStrip QLabel {{
+  font-size: {FS_CTRL}px;
+  min-height: 0;
+  max-height: none;
+  padding: 0;
 }}
 QWidget#SuiteInlineFilter QLineEdit,
 QWidget#SuiteToolbar QLineEdit,
-QWidget#SuiteToolStrip QLineEdit {{
+QWidget#SuiteToolStrip QLineEdit,
+QWidget#SuiteInlineFilter QComboBox,
+QWidget#SuiteToolbar QComboBox,
+QWidget#SuiteToolStrip QComboBox {{
   border: 1px solid {T.BORDER};
   border-radius: 3px;
   background: {T.EDITOR};
-  padding: 2px 8px;
+  padding: 0px 8px;
+}}
+QWidget#SuiteStripField {{
+  background: transparent;
+  max-height: {CTRL_H}px;
 }}
 QWidget#SuitePropPanel {{
   background: {T.EDITOR};
@@ -467,7 +484,7 @@ def tool_strip(*widgets, stretch_at: int | None = None) -> QWidget:
                 name = w.objectName() if hasattr(w, "objectName") else ""
                 if isinstance(w, QToolButton) and name == "SuiteIconTool":
                     w.setFixedSize(CTRL_H, CTRL_H)
-                elif name == "StepSpin" or isinstance(
+                elif name in ("StepSpin", "SuiteStripField") or isinstance(
                         w, (QLineEdit, QComboBox, QPushButton, QCheckBox)):
                     w.setFixedHeight(CTRL_H)
             except Exception:
@@ -613,9 +630,21 @@ def empty_state(
 
 
 def section_title(text: str) -> QLabel:
-    """Side Bar section title — sentence case, 12px/600 (VS Code explorer)."""
+    """In-page section title — sentence case, 12px/600."""
     lab = QLabel(text)
     lab.setObjectName("SuiteSectionTitle")
+    return lab
+
+
+def sidebar_viewlet_title(text: str) -> QLabel:
+    """VS Code Side Bar viewlet title — 11px muted uppercase."""
+    lab = QLabel(text.upper())
+    lab.setObjectName("SuiteSideBarTitle")
+    font = lab.font()
+    font.setFamilies(["Segoe UI", "Microsoft YaHei UI", "sans-serif"])
+    font.setPixelSize(FS_META)
+    font.setBold(True)
+    lab.setFont(font)
     return lab
 
 
@@ -631,10 +660,19 @@ def field_label(text: str) -> QLabel:
     return lab
 
 
+def value_label(text: str = "—", *, mono: bool = False) -> QLabel:
+    return T.value_label(text, mono=mono)
+
+
+def polish_form_labels(form) -> None:
+    T.polish_form_labels(form)
+
+
 def strip_field(label: str, widget: QWidget, *, tip: str = "") -> QWidget:
     """Label + control for tool strips — never leave a bare value floating."""
     host = QWidget()
     host.setObjectName("SuiteStripField")
+    host.setFixedHeight(CTRL_H)
     row = QHBoxLayout(host)
     row.setContentsMargins(0, 0, 0, 0)
     row.setSpacing(4)
@@ -645,6 +683,10 @@ def strip_field(label: str, widget: QWidget, *, tip: str = "") -> QWidget:
             widget.setToolTip(tip)
         except Exception:
             pass
+    try:
+        widget.setFixedHeight(CTRL_H)
+    except Exception:
+        pass
     row.addWidget(lab, 0, Qt.AlignmentFlag.AlignVCenter)
     row.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
     return host
@@ -900,13 +942,15 @@ def _header_of(view):
 
 
 def sidebar_header(title: str, *trailing) -> QWidget:
+    """VS Code viewlet title row (.part > .title = 35px)."""
     head = QWidget()
     head.setObjectName("SuiteSideBarHeader")
-    head.setFixedHeight(TOOL_H)
+    head.setFixedHeight(SIDEBAR_TITLE_H)
+    head.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
     hl = QHBoxLayout(head)
-    hl.setContentsMargins(PAD_X, 0, 6, 0)
+    hl.setContentsMargins(8, 0, 8, 0)
     hl.setSpacing(4)
-    hl.addWidget(section_title(title), 1)
+    hl.addWidget(sidebar_viewlet_title(title), 1)
     for w in trailing:
         if w is not None:
             hl.addWidget(w, 0, Qt.AlignmentFlag.AlignVCenter)
