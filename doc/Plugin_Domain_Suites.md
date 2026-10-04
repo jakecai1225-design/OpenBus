@@ -56,6 +56,8 @@
 | `obd-suite` | **OBD Suite** | obd2-scanner（扩展 Mode01–09、冻结帧、报告） | FORScan / Torque Pro |
 | `autosar-suite` | **AUTOSAR Suite** | COM / ARXML / CanNm / E2E / SecOC（原 Protocol Hub 观察能力不进产品面） | CANoe.AUTOSAR / DaVinci / TSMaster COM |
 | `ethercat-suite` | **EtherCAT Suite** | 新建 | TwinCAT ESI / EC-Engineer / SOEM 工具链 |
+| `a2l-studio` | **A2L Studio** | ASAP2 符号 / Check / Compare / Export，Apply → XCP | CANape / INCA（文件侧） |
+| `xcp-studio` | **XCP Studio** | XCP on CAN 测量 / 标定 / 记录 | CANape / INCA（在线侧） |
 | `ai-agent` | **AI Agent** | （新建，见 aiagent.md） | Majster-AI × MCP |
 
 | 已退役（`plugins/_retired/`） | 说明 |

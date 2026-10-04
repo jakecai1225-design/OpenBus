@@ -198,9 +198,6 @@ private:
     void startHostIfNeeded();   ///< skip when no plugins; start after first install
     void onHostStarted();       ///< crash recovery: re-activate after host restart
 
-    /// True when plugin dir has app_shell.py (shared import names across domains).
-    bool usesSharedSuiteModules(const QString &name) const;
-
     // 处理来自 Python 宿主的消息
     void handleHostMessage(const QString &method, const QJsonObject &params, const QJsonValue &id);
 

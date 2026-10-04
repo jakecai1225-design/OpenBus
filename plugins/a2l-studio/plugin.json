@@ -1,0 +1,19 @@
+{
+    "name": "a2l-studio",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "A2L Studio — ASAP2/A2L file workbench (symbols, check, compare, export). Apply to XCP Studio.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:a2lStudio.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "a2lStudio.open",
+                "title": "A2L Studio"
+            }
+        ]
+    }
+}

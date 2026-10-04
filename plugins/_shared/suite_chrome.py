@@ -91,6 +91,10 @@ ACTIVITY_TIPS = {
     "analyze": "Analyze — matrix, timing, validate",
     "integrate": "Integrate — compare and merge DBC files",
     "deliver": "Deliver — export and library",
+    "a2l": "A2L — applied ASAP2 symbols (read-only)",
+    "live": "Live — XCP on CAN connect",
+    "measure": "Measure — poll / DAQ and record",
+    "calibrate": "Calibrate — scalar / MAP write",
 }
 
 
@@ -282,6 +286,7 @@ def build_workbench(
                 "diagnose", "com", "system", "topology", "frames", "esi",
                 "network", "eds", "library",
                 "edit", "analyze", "integrate", "deliver",
+                "a2l", "live", "measure", "calibrate",
             }
             if key not in tab_pages and not _chrome_tabs:
                 set_editor_title(title_map.get(key, key))
@@ -1024,34 +1029,65 @@ def _embed_menu_chrome(window: QMainWindow, chrome: QWidget) -> None:
     chrome.show()
 
 
-def reload_live_modules(*extra: str) -> None:
+def reload_live_modules(*extra: str, plugin_dir: str | None = None) -> None:
     """Drop cached shell/chrome modules so live edits under plugins/ apply.
 
     sin_host keeps a long-lived interpreter — deactivate/reactivate would
     otherwise keep the first-imported ``suite_chrome`` (broken menubar).
     Call from each suite ``activate()`` before importing ``AppShell``.
+
+    When several suites are open, only suite-local tops under *plugin_dir*
+    are dropped so peer windows keep their parked modules.
     """
     import importlib
+    import inspect
+    import os
     import sys
 
-    keys = [
+    if plugin_dir is None:
+        for fr in inspect.stack()[1:8]:
+            f = getattr(fr, "filename", None) or ""
+            if not f:
+                continue
+            # suite main.py / app_shell live directly under plugins/<id>/
+            norm = f.replace("\\", "/")
+            if "/plugins/" in norm and "/_shared/" not in norm:
+                plugin_dir = os.path.dirname(os.path.abspath(f))
+                break
+
+    shared_keys = (
         "_shared.suite_chrome",
         "_shared.vscode_theme",
         "_shared.suite_tabs",
         "_shared.suite_ui",
-        "app_shell",
-        "session",
-        "document",
-        *extra,
-    ]
+    )
+    local_keys = ("app_shell", "session", "document", "pages", *extra)
+
+    def _under(path: str, root: str) -> bool:
+        if not path or not root:
+            return False
+        try:
+            return os.path.commonpath(
+                [os.path.abspath(path), os.path.abspath(root)]
+            ) == os.path.abspath(root)
+        except ValueError:
+            return False
+
     for name in list(sys.modules):
         drop = False
-        for k in keys:
+        for k in shared_keys:
             if name == k or name.startswith(k + "."):
                 drop = True
                 break
-        if not drop and (name == "pages" or name.startswith("pages.")):
-            drop = True
+        if not drop:
+            for k in local_keys:
+                if name == k or name.startswith(k + "."):
+                    mod = sys.modules.get(name)
+                    f = getattr(mod, "__file__", None) if mod else None
+                    if plugin_dir and f and not _under(f, plugin_dir):
+                        continue
+                    drop = True
+                    break
         if drop:
             sys.modules.pop(name, None)
     try:

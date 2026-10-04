@@ -24,6 +24,8 @@ Ship **one visual language** (UDS) across every domain suite, then deepen featur
 | `obd-suite` | OBD-II scanner |
 | `autosar-suite` | COM / ARXML / CanNm / E2E / SecOC |
 | `ethercat-suite` | ESI / topology / PDO / CoE / DC / datagrams |
+| `a2l-studio` | ASAP2 / A2L file workbench (Apply → XCP) |
+| `xcp-studio` | XCP on CAN measurement & calibration |
 | `ai-agent` | Platform agent (market optional) |
 
 | Removed / retired | Status |

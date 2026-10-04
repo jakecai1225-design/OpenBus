@@ -135,9 +135,9 @@ def load_plugin(plugin_name, plugin_dir, main_script):
     if not os.path.exists(main_path):
         log_error(f"plugin {plugin_name} entry missing: {main_path}")
         return None
-    # Drop cached app_shell/pages/... from a previously loaded suite.
-    # Every suite uses those top-level names; without this, opening CANopen
-    # after UDS reuses UDS classes and shows the wrong window.
+    # Park still-active suites' bare tops, then clear collisions so this
+    # suite can import its own app_shell/pages without closing peers.
+    _park_active_suite_modules()
     _evict_stale_suite_modules(plugin_dir)
     # Plugin dir first for local modules (uds_client, …); keep plugins root for _shared.
     if plugin_dir and plugin_dir not in sys.path:
@@ -168,6 +168,14 @@ def load_plugin(plugin_name, plugin_dir, main_script):
 _SUITE_LOCAL_TOPS = ("app_shell", "session", "pages", "widgets", "core")
 
 
+def _safe_plugin_key(plugin_name: str) -> str:
+    return "".join(c if c.isalnum() else "_" for c in (plugin_name or "plugin"))
+
+
+def _park_prefix(plugin_name: str) -> str:
+    return "_sin_suite_%s" % _safe_plugin_key(plugin_name)
+
+
 def _is_under(path, directory):
     if not path or not directory:
         return False
@@ -188,16 +196,41 @@ def _evict_modules_under(directory):
             sys.modules.pop(name, None)
 
 
-def _evict_stale_suite_modules(keep_dir):
-    """Drop shared suite tops (app_shell, pages, …) not owned by keep_dir.
+def _park_suite_modules(plugin_name: str, plugin_dir: str) -> None:
+    """Keep suite tops alive under a namespaced key after bare names move.
 
-    Always evict colliding names from other plugin directories. Skipping eviction
-    while another plugin was still 'live' made the next suite import the
-    previous AppShell and show the wrong window after close then open.
+    Multiple domain suites can stay open: peer windows already hold class
+    references; parking prevents GC and lets a later activate reclaim bare
+    names (app_shell/pages/...) for the newly opened suite.
     """
+    if not plugin_name or not plugin_dir:
+        return
+    prefix = _park_prefix(plugin_name)
+    root = os.path.abspath(plugin_dir)
+    for name, mod in list(sys.modules.items()):
+        if name.startswith("_sin_suite_"):
+            continue
+        top = name.split(".", 1)[0]
+        if top not in _SUITE_LOCAL_TOPS:
+            continue
+        f = getattr(mod, "__file__", None)
+        if not f or not _is_under(f, root):
+            continue
+        sys.modules["%s.%s" % (prefix, name)] = mod
+
+
+def _park_active_suite_modules() -> None:
+    for name, entry in list(_plugins.items()):
+        _park_suite_modules(name, entry.get("directory") or "")
+
+
+def _evict_stale_suite_modules(keep_dir):
+    """Drop bare suite tops not owned by keep_dir (parked copies stay)."""
     keep = os.path.abspath(keep_dir) if keep_dir else ""
     plugins_root = os.path.dirname(keep) if keep else ""
     for name, mod in list(sys.modules.items()):
+        if name.startswith("_sin_suite_"):
+            continue
         top = name.split(".", 1)[0]
         if top not in _SUITE_LOCAL_TOPS:
             continue
@@ -241,6 +274,8 @@ def activate_plugin(params):
             log_error(f"plugin {name} activate failed:\n{traceback.format_exc()}")
             _plugins.pop(name, None)
             return False
+    # Park this suite so a later peer activate can reclaim bare tops.
+    _park_suite_modules(name, _plugins[name]["directory"])
     return True
 
 
@@ -250,23 +285,28 @@ def deactivate_plugin(params):
     if not entry:
         return
     try:
-        from sin.ui import set_current_plugin
+        from sin.ui import set_current_plugin, close_plugin_windows
         set_current_plugin(None)
+        close_plugin_windows(name)
     except ImportError:
-        pass
-    try:
-        from sin.ui import close_all_windows
-        close_all_windows()
-    except ImportError:
-        pass
+        try:
+            from sin.ui import set_current_plugin
+            set_current_plugin(None)
+        except ImportError:
+            pass
     if hasattr(entry["module"], "deactivate"):
         try:
             entry["module"].deactivate()
             log_info(f"plugin {name} deactivated")
         except Exception:
             log_error(f"plugin {name} deactivate failed:\n{traceback.format_exc()}")
-    # Free app_shell/pages/... so the next suite does not import this one.
-    _evict_modules_under(entry.get("directory") or "")
+    # Free this suite's modules (bare + parked) so the next open is clean.
+    directory = entry.get("directory") or ""
+    _evict_modules_under(directory)
+    prefix = _park_prefix(name)
+    for mod_name in list(sys.modules):
+        if mod_name == prefix or mod_name.startswith(prefix + "."):
+            sys.modules.pop(mod_name, None)
     main_key = f"_sin_plugin_{name}"
     sys.modules.pop(main_key, None)
 

@@ -1,0 +1,19 @@
+{
+    "name": "xcp-studio",
+    "version": "1.0.0",
+    "author": "sin",
+    "description": "XCP Studio — online measurement & calibration (XCP on CAN). Apply A2L from A2L Studio.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:xcpStudio.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "xcpStudio.open",
+                "title": "XCP Studio"
+            }
+        ]
+    }
+}

@@ -23,6 +23,8 @@
 | bus-utilities | CANoe+VH6501 / IVNT-03 / PEAK Bit Rate Tool | Scanner + Quality | P3 in progress |
 | autosar-suite | DaVinci Configurator / EB tresos / ISOLAR + CANoe COM | DBC/EDS chrome | **AUTOSAR Studio** (BSW + live COM) |
 | ethercat-suite | TwinCAT / EC-Engineer / SOEM | UDS chrome | ESI editor P0 |
+| a2l-studio | CANape Symbol Explorer / INCA A2L | EDS Studio chrome | **P0+P1 shipped** |
+| xcp-studio | Vector CANape / ETAS INCA | CANopen Suite chrome | **P0+P1 shipped** |
 | ai-agent | (platform agent — see aiagent.md) | P0 theme | Done (P0) |
 
 Legacy thin plugins are **removed** from `plugins/` and `market.json` plugins[]. Do not reintroduce them.
@@ -367,6 +369,81 @@ UDS remains the quality bar for chrome. Feature depth per domain follows the tab
 | 2026-09-22 | ARXML Studio Phase 5: full menubar + DBC→COM/BSW sync; deep ECUC schemas; `validate_bsw_set`; still no stack codegen. |
 | 2026-09-22 | AUTOSAR Studio schema-driven BSW configurator: `ecuc_schemas/*.json`, multiplicity UI, typed ECUC ARXML export. |
 | 2026-10-01 | CANopen Suite Top3 locked: DeviceExplorer / CANoe.CANopen / CANopenEditor. Phase A/B/C boutique closed-loop plan under `tmp/pdca/canopen-top3-parity/`. |
+| 2026-10-03 | A2L Studio + XCP Studio locked (Top2: CANape / INCA). File vs live split like EDS↔CANopen. PDCA under `tmp/pdca/a2l-studio-v1/` and `tmp/pdca/xcp-studio-v1/`. |
+
+---
+
+## 11. A2L Studio (`a2l-studio`)
+
+> **Product goal:** ASAP2/A2L file workbench — Symbol Explorer daily path without opening CANape/INCA for description edits.
+
+### Top2
+
+| # | Product | Slice |
+|---|---------|-------|
+| 1 | **Vector CANape** | Symbol Explorer; MEASUREMENT / CHARACTERISTIC / AXIS / COMPU |
+| 2 | **ETAS INCA** | A2L-driven project symbols; validation before online |
+
+**Boundary:** File layer only. Live XCP stays in **`xcp-studio`**. Handoff: Apply → XCP Studio.
+
+### Phase A (P0) — shipped
+
+- Open / Save ASAP2 subset  
+- Objects tree + property panel  
+- Check (missing address, bad refs, duplicate names)  
+- Search / filter  
+- Apply → `xcp-studio` via `state_store`  
+
+### Phase B (P1) — shipped
+
+- Compare two A2L files  
+- Export slim A2L / CSV symbol table  
+
+### Out of scope
+
+ELF→A2L address refresh; full IF_DATA deep editor; vCDM.
+
+### UI
+
+Activity: Edit · Analyze · Deliver. Leaves: Objects / Check / Compare / Export. VS Code four-piece chrome.
+
+---
+
+## 12. XCP Studio (`xcp-studio`)
+
+> **Product goal:** Online XCP master M&C — Connect → Measure → Calibrate → Record without CANape/INCA.
+
+### Top2
+
+| # | Product | Slice |
+|---|---------|-------|
+| 1 | **Vector CANape** | XCP on CAN; DAQ + polling; online cal; record |
+| 2 | **ETAS INCA** | Scalar / map calibrate; page concept; dataset export |
+
+**Boundary:** Online only. A2L deep edit in **`a2l-studio`**. Transport v1 = **XCP on CAN** only.
+
+### Phase A (P0) — shipped
+
+- Load applied A2L  
+- CONNECT / DISCONNECT / GET_STATUS  
+- Polling + DAQ lite START/STOP  
+- Value table + mini sparkline  
+- Scalar CHARACTERISTIC write (confirm)  
+- CSV record  
+
+### Phase B (P1) — shipped
+
+- 1D/2D MAP grid (lite sequential write)  
+- Calibration page SWITCH (if slave supports)  
+- MDF subset export (text dump, not binary MDF4)  
+
+### Out of scope
+
+XCP on Eth/FlexRay; CCP full; Seed&Key; Flash/PGM; multi-ECU sync; CASL.
+
+### UI
+
+Activity: A2L · Live · Measure · Calibrate. Record leaf under Measure. VS Code four-piece chrome.
 
 ---
 
@@ -378,7 +455,8 @@ UDS remains the quality bar for chrome. Feature depth per domain follows the tab
 | **EDS/DCF** | `eds-studio` (+ canopen-suite live) | CANeds / emotas / CANopenEditor | Full file studio; live OD stays in canopen-suite |
 | **ARXML / BSW config + live COM** | `autosar-suite` (AUTOSAR Studio) | DaVinci / tresos / ISOLAR | Project roles + BSW ECUC + live COM; no stack codegen |
 | **ESI** | `ethercat-suite` ESI | TwinCAT / EC-Engineer / SOEM tools | Tree edit PDO/Objects + Validate + Save XML (no ENI) |
-| **LDF / FIBEX / A2L / ODX** | — | — | Out of scope until dedicated LIN / measurement / UDS-ODX track |
+| **A2L / ASAP2** | `a2l-studio` (+ `xcp-studio` live) | CANape / INCA A2L | File studio; live M&C stays in xcp-studio |
+| **LDF / FIBEX / ODX** | — | — | Out of scope until dedicated LIN / UDS-ODX track |
 
 ### UX bar (all description editors)
 

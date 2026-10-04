@@ -56,7 +56,9 @@ def test_suite_wrappers():
             ("j1939-suite", "apply_j1939_chrome"),
             ("eds-studio", "apply_eds_chrome"),
             ("autosar-suite", "apply_autosar_chrome"),
-            ("ethercat-suite", "apply_ethercat_chrome")):
+            ("ethercat-suite", "apply_ethercat_chrome"),
+            ("a2l-studio", "apply_a2l_chrome"),
+            ("xcp-studio", "apply_xcp_chrome")):
         path = os.path.join(_ROOT, "plugins", suite, "pages", "_ui.py")
         with open(path, "r", encoding="utf-8") as f:
             src = f.read()

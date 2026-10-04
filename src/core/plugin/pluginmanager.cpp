@@ -593,15 +593,8 @@ void PluginManager::activatePlugin(const QString &name)
     if (m_activatedPlugins.contains(name))
         return;
 
-    // Domain plugins share top-level Python names (app_shell, pages, …).
-    // Keep only one loaded or the next open reuses the previous AppShell UI.
-    if (usesSharedSuiteModules(name)) {
-        const QStringList active = m_activatedPlugins.values();
-        for (const QString &other : active) {
-            if (other != name && usesSharedSuiteModules(other))
-                deactivatePlugin(other);
-        }
-    }
+    // Domain suites may stay open together. Module isolation lives in sin_host
+    // (park shared tops app_shell/pages/... per plugin). Do not deactivate peers.
 
     const PluginInfo &info = m_plugins[name];
 
@@ -664,15 +657,6 @@ void PluginManager::deactivatePlugin(const QString &name)
     m_frameSubscribers.remove(name);
 
     spdlog::info("PluginManager: 停用插件 '{}'", name.toStdString());
-}
-
-bool PluginManager::usesSharedSuiteModules(const QString &name) const
-{
-    if (!m_plugins.contains(name))
-        return false;
-    const QString path = m_plugins[name].directory
-                         + QStringLiteral("/app_shell.py");
-    return QFileInfo::exists(path);
 }
 
 void PluginManager::onFrameReceived(const CanFrame &frame)

@@ -48,6 +48,13 @@ SUITE_CATALOG = [
         "keywords": "eds dcf canopen validate export pdo",
     },
     {
+        "id": "a2l-studio",
+        "name": "A2L Studio",
+        "description": "ASAP2/A2L symbol explorer: objects, check, compare, export. Apply to XCP Studio.",
+        "tags": ["a2l", "asap2", "calibration"],
+        "keywords": "a2l asap2 measurement characteristic xcp canape inca",
+    },
+    {
         "id": "autosar-suite",
         "name": "AUTOSAR Studio",
         "description": "Unified AUTOSAR CP workbench: BSW module config (Os/Com/PduR/Dcm/…), live COM/NM/E2E/SecOC, project ARXML (no stack codegen).",
@@ -60,6 +67,13 @@ SUITE_CATALOG = [
         "description": "Template/profile EDS workbench, live OD vs EDS, Codegen, Network/NMT/PDO, CiA profiles.",
         "tags": ["canopen"],
         "keywords": "canopen eds od sdo nmt",
+    },
+    {
+        "id": "xcp-studio",
+        "name": "XCP Studio",
+        "description": "Online XCP on CAN measurement and calibration. Load A2L from A2L Studio.",
+        "tags": ["xcp", "calibration", "measurement"],
+        "keywords": "xcp canape inca daq calibrate a2l",
     },
     {
         "id": "j1939-suite",
