@@ -32,6 +32,11 @@ CMakeSettings.json
 .vs/
 .vscode/
 
+# ---- Python bytecode (generated locally; do not commit) ----
+__pycache__/
+*.py[cod]
+*$py.class
+
 # ---- 编译产物 ----
 *.o
 *.obj
