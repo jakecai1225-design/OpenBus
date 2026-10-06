@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     app.setApplicationName("openbus");
     app.setOrganizationName("openbus");
-    app.setApplicationVersion("0.1.0");
+    app.setApplicationVersion("1.10.4");
 
     // Init logging after QApplication name/org are set
     logging::init();

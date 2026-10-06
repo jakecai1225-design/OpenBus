@@ -160,15 +160,14 @@ void MainWindow::onOpenWelcomeTab()
             m_sideBar->showPanel(static_cast<int>(ActivityBar::Dbc));
         });
         connect(m_welcomePage, &WelcomePage::openShortcutsRequested, this, [this]() {
-            onSettingsRequested(QStringLiteral("快捷键"));
+            onSettingsRequested(QStringLiteral("shortcuts"));
         });
         connect(m_welcomePage, &WelcomePage::openAboutRequested,
                 this, &MainWindow::showAboutDialog);
         connect(m_welcomePage, &WelcomePage::openReleaseNotesRequested,
                 this, &MainWindow::showReleaseNotes);
         connect(m_welcomePage, &WelcomePage::openDocsRequested, this, []() {
-            QDesktopServices::openUrl(
-                QUrl(QStringLiteral("https://gitee.com/openbus/openbus")));
+            QDesktopServices::openUrl(QUrl(QStringLiteral("http://sin.org.cn/docs")));
         });
         connect(m_welcomePage, &WelcomePage::clearRecentRequested, this, [this]() {
             SessionManager::instance()->clearRecent();

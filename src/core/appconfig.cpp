@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QFile>
+#include <QLocale>
 #include <QTextStream>
 
 AppConfig *AppConfig::instance()
@@ -33,10 +34,12 @@ void AppConfig::load()
 
     QFile file(m_path);
     if (!file.exists()) {
-        // 首次运行：写入默认配置
         m_data = defaultConfig();
+        const QString sys = QLocale::system().name().replace(QLatin1Char('-'), QLatin1Char('_'));
+        m_data["ui.language"] = sys.toStdString();
         save();
-        spdlog::info("AppConfig: 首次初始化，已写入默认配置 -> {}", m_path.toStdString());
+        spdlog::info("AppConfig: 首次初始化，ui.language={} -> {}",
+                     sys.toStdString(), m_path.toStdString());
         return;
     }
 
@@ -48,7 +51,9 @@ void AppConfig::load()
 
     QByteArray raw = file.readAll();
     try {
-        m_data = json::parse(raw.toStdString());
+        json loaded = json::parse(raw.toStdString());
+        m_data = defaultConfig();
+        m_data.merge_patch(loaded);
         spdlog::info("AppConfig: 配置加载成功 -> {}", m_path.toStdString());
     } catch (const json::parse_error &e) {
         spdlog::error("AppConfig: JSON 解析失败: {}，使用默认值", e.what());

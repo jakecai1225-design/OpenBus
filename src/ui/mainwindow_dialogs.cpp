@@ -63,6 +63,7 @@
 #include <QDateTime>
 #include <QStatusBar>
 #include <QApplication>
+#include <QCoreApplication>
 #include <QFileInfo>
 #include <QDir>
 #include <QPlainTextEdit>
@@ -98,25 +99,25 @@
 void MainWindow::showAboutDialog()
 {
     QDialog dlg(this);
-    dlg.setWindowTitle("关于 openbus");
+    dlg.setWindowTitle(tr("About openbus"));
     dlg.setFixedWidth(380);
     auto *layout = new QVBoxLayout(&dlg);
 
     auto *title = new QLabel("<b style='font-size:24px;color:#4a90d9'>openbus</b>", &dlg);
-    auto *desc = new QLabel("CAN/CAN FD 报文分析工具", &dlg);
-    auto *ver = new QLabel("版本: 1.0.0", &dlg);
-    auto *author = new QLabel("作者: 蔡可杰 (Jake.cai)", &dlg);
-    auto *github = new QLabel("Gitee: <a href='https://gitee.com/jake_cai/openbus'>https://gitee.com/jake_cai/openbus</a>", &dlg);
+    auto *desc = new QLabel(tr("CAN / CAN FD bus analysis workbench"), &dlg);
+    auto *ver = new QLabel(
+        tr("Version: %1").arg(QCoreApplication::applicationVersion()), &dlg);
+    auto *author = new QLabel(tr("Author: Jake.cai (蔡可杰)"), &dlg);
+    auto *github = new QLabel(
+        QStringLiteral("Gitee: <a href='https://gitee.com/jake_cai/sin'>https://gitee.com/jake_cai/sin</a>"),
+        &dlg);
     github->setTextInteractionFlags(Qt::TextBrowserInteraction);
     github->setOpenExternalLinks(true);
-    auto *email = new QLabel("邮箱: 929168503@qq.com", &dlg);
-    auto *wechat = new QLabel("微信: 13368295840", &dlg);
-    auto *biz = new QLabel("商业合作: 929168503@qq.com / 微信 13368295840", &dlg);
-    biz->setObjectName("DimLabel");
-    auto *copyright = new QLabel("基于 Qt6 构建 © 2026", &dlg);
+    auto *email = new QLabel(tr("Email: 929168503@qq.com"), &dlg);
+    auto *copyright = new QLabel(tr("Built with Qt 6. © 2026"), &dlg);
     copyright->setObjectName("DimLabel");
 
-    for (auto *l : {title, desc, ver, author, github, email, wechat, biz, copyright}) {
+    for (auto *l : {title, desc, ver, author, github, email, copyright}) {
         layout->addWidget(l);
     }
     layout->addStretch();
@@ -131,14 +132,14 @@ void MainWindow::showAboutDialog()
 void MainWindow::showLicenseDialog()
 {
     QDialog dlg(this);
-    dlg.setWindowTitle("许可证");
+    dlg.setWindowTitle(tr("License"));
     dlg.resize(500, 400);
     auto *layout = new QVBoxLayout(&dlg);
 
     auto *browser = new QTextBrowser(&dlg);
     browser->setPlainText(
         "MIT License\n\n"
-        "Copyright (c) 2026 蔡可杰 (Jake.cai)\n\n"
+        "Copyright (c) 2026 Jake.cai (蔡可杰)\n\n"
         "Permission is hereby granted, free of charge, to any person obtaining a copy "
         "of this software and associated documentation files (the \"Software\"), to deal "
         "in the Software without restriction, including without limitation the rights "
@@ -165,41 +166,13 @@ void MainWindow::showLicenseDialog()
 
 void MainWindow::showReleaseNotes()
 {
-    QDialog dlg(this);
-    dlg.setWindowTitle("发版记录");
-    dlg.resize(500, 400);
-    auto *layout = new QVBoxLayout(&dlg);
-
-    auto *browser = new QTextBrowser(&dlg);
-    browser->setPlainText(
-        "v1.0.0 (2026-07-27)\n"
-        "  首个正式版本\n"
-        "  - CAN/CAN FD 报文实时采集与离线回放\n"
-        "  - DBC 文件加载与信号级解析\n"
-        "  - Wireshark 风格三栏 Trace 视图\n"
-        "  - 多 Graphic 信号波形图（多纵轴）\n"
-        "  - VS Code 风格可拆分标签页布局\n"
-        "  - AI 对话助手集成\n\n"
-        "v0.9.0 (2026-07-20)\n"
-        "  Beta 预览版\n"
-        "  - 无边框窗口 + 菜单栏拖拽\n"
-        "  - ActivityBar + SideBar 多面板\n"
-        "  - 基础报文录制与回放\n");
-    layout->addWidget(browser);
-
-    auto *btns = new QDialogButtonBox(QDialogButtonBox::Close, &dlg);
-    connect(btns, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
-    layout->addWidget(btns);
-
-    dlg.exec();
+    QDesktopServices::openUrl(QUrl(QStringLiteral("http://sin.org.cn/updates")));
 }
 
 void MainWindow::showShortcuts()
 {
-    // 帮助菜单仍以对话框呈现；侧栏设置面板"快捷键"条目走标签页
-    // （ShortcutsPage），文案共用 ShortcutsPage::shortcutsText()
     QDialog dlg(this);
-    dlg.setWindowTitle("快捷键");
+    dlg.setWindowTitle(tr("Keyboard Shortcuts"));
     dlg.resize(400, 350);
     auto *layout = new QVBoxLayout(&dlg);
 
@@ -217,32 +190,43 @@ void MainWindow::showShortcuts()
 
 void MainWindow::showCheckUpdate()
 {
-    QMessageBox::information(this, "检查更新",
-        "当前版本: 1.0.0\n"
-        "最新版本: 1.0.0 (已是最新)\n\n"
-        "如有更新，请前往 Gitee Releases 页面下载最新版本。");
+    const QString ver = QCoreApplication::applicationVersion();
+    const int r = QMessageBox::information(
+        this,
+        tr("Check for Updates"),
+        tr("Installed version: %1\n\nRelease notes and installers are published on the website.")
+            .arg(ver),
+        QMessageBox::Open | QMessageBox::Ok);
+    if (r == QMessageBox::Open)
+        QDesktopServices::openUrl(QUrl(QStringLiteral("http://sin.org.cn/updates")));
 }
 
 void MainWindow::showBusinessCoop()
 {
     QDialog dlg(this);
-    dlg.setWindowTitle("商业合作");
+    dlg.setWindowTitle(tr("Business"));
     dlg.setFixedWidth(380);
     auto *layout = new QVBoxLayout(&dlg);
 
-    auto *title = new QLabel("<b style='color:#4a90d9'>如需商业授权、定制开发、技术支持或业务合作</b>", &dlg);
+    auto *title = new QLabel(
+        QStringLiteral("<b style='color:#4a90d9'>%1</b>")
+            .arg(tr("For commercial licensing, custom development, or support")),
+        &dlg);
     title->setWordWrap(true);
-    auto *author = new QLabel("作者: 蔡可杰 (Jake.cai)", &dlg);
-    auto *email = new QLabel("邮箱: 929168503@qq.com", &dlg);
-    auto *wechat = new QLabel("微信: 13368295840", &dlg);
-    auto *github = new QLabel("Gitee: <a href='https://gitee.com/jake_cai/openbus'>https://gitee.com/jake_cai/openbus</a>", &dlg);
+    auto *author = new QLabel(tr("Author: Jake.cai (蔡可杰)"), &dlg);
+    auto *email = new QLabel(tr("Email: 929168503@qq.com"), &dlg);
+    auto *github = new QLabel(
+        QStringLiteral("Gitee: <a href='https://gitee.com/jake_cai/sin'>https://gitee.com/jake_cai/sin</a>"),
+        &dlg);
     github->setTextInteractionFlags(Qt::TextBrowserInteraction);
     github->setOpenExternalLinks(true);
-    auto *note = new QLabel("本项目基于 MIT License 开源，商业使用请联系作者获取授权。", &dlg);
+    auto *note = new QLabel(
+        tr("openbus is released under the MIT License. Contact the author for commercial arrangements."),
+        &dlg);
     note->setObjectName("DimLabel");
     note->setWordWrap(true);
 
-    for (auto *l : {title, author, email, wechat, github, note}) {
+    for (auto *l : {title, author, email, github, note}) {
         layout->addWidget(l);
     }
     layout->addStretch();

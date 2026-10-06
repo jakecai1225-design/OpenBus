@@ -7,7 +7,7 @@ install still works. Replaces plugins[] with suites packed by pack-suites.
 
 Usage:
     python scripts/make_market.py
-    python scripts/make_market.py --remote http://sin.org.cn/market/market.json
+    python scripts/make_market.py --remote https://sin.org.cn/market/market.json
     python scripts/make_market.py --out build/bin/market
 """
 
@@ -148,13 +148,9 @@ def localize_drivers(drivers: list, remote_base: str, assets_dir: str) -> list:
                 item.pop("image", None)
                 print("driver icon", sid, icon_name)
 
-        for key in ("package", "readme"):
-            val = item.get(key)
-            if not val or not isinstance(val, str):
-                continue
-            if val.startswith(("http://", "https://", "file:")):
-                continue
-            item[key] = base + val.lstrip("./")
+        val = item.get("package")
+        if val and isinstance(val, str) and not val.startswith(("http://", "https://", "file:")):
+            item["package"] = base + val.lstrip("./")
         # Leave any leftover absolute icon/image alone only if we had no local tile.
         if not icon_name or not os.path.isfile(
                 os.path.join(src_dir, icon_name or "")):

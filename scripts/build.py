@@ -11,6 +11,7 @@ Commands:
   rebuild    - Rebuild (clean + configure + build)
   deploy     - Deploy Qt runtime deps
   package    - Portable Windows zip (Release + deploy + archive)
+               optional --installer → NSIS setup.exe with language dialog
   all        - Full pipeline (configure + build + deploy + run)
   status     - Show environment status
   open       - Open build dir in Explorer
@@ -24,6 +25,7 @@ Examples:
   python scripts/build.py status
   python scripts/build.py package -j8
   python scripts/build.py package --build-type Release --version 1.0.0
+  python scripts/build.py package --version 1.10.4 --installer
 
 Dev profile (daily: -O1 -g1; separate dir alongside full Debug):
   python scripts/build.py configure --build-type Dev --build-dir build-dev
@@ -66,6 +68,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 # Enable Windows console ANSI colors
 def _enable_ansi_colors():
@@ -399,6 +402,9 @@ def warn(msg):
 
 def fail(msg):
     print(f"{C.RED}[FAIL]{C.RESET} {msg}")
+
+
+err = fail
 
 
 def header(msg):
@@ -1080,6 +1086,10 @@ def cmd_package(env, args):
                 continue
             shutil.copy2(Path(root) / name, dest_dir / name)
 
+    root_lic = PROJECT_ROOT / "LICENSE"
+    if root_lic.is_file():
+        shutil.copy2(root_lic, stage / "LICENSE.txt")
+
     (stage / "README.txt").write_text(
         "\n".join([
             "openbus — portable package (Windows 10/11 x64)",
@@ -1144,6 +1154,86 @@ def cmd_package(env, args):
     ok(f"Portable package ready: {fmt_path(zip_path)} ({size_mb:.1f} MB)")
     ok(f"Unpacked folder:       {fmt_path(stage)}")
     info("Copy the zip (or the folder) to another PC and run openbus.exe")
+
+    if getattr(args, "installer", False):
+        compile_windows_installer(stage, version)
+
+
+def find_makensis() -> Optional[Path]:
+    env_p = os.environ.get("NSIS") or os.environ.get("MAKENSIS")
+    candidates = []
+    if env_p:
+        p = Path(env_p)
+        candidates.append(p if p.suffix.lower() == ".exe" else p / "makensis.exe")
+    candidates.extend(
+        [
+            Path(r"D:\tools\nsis\nsis-3.0.4.1\makensis.exe"),
+            Path(r"C:\Program Files (x86)\NSIS\makensis.exe"),
+            Path(r"C:\Program Files\NSIS\makensis.exe"),
+        ]
+    )
+    which = shutil.which("makensis")
+    if which:
+        candidates.append(Path(which))
+    for c in candidates:
+        if c and c.is_file():
+            return c
+    return None
+
+
+def compile_windows_installer(stage: Path, version: str) -> None:
+    """Build NSIS setup.exe with first-page language choice (EN/ZH/DE/…)."""
+    header("Windows installer (NSIS)")
+    nsi = PROJECT_ROOT / "installer" / "openbus.nsi"
+    if not nsi.is_file():
+        err(f"Missing installer script: {fmt_path(nsi)}")
+        return
+    exe = stage / "openbus.exe"
+    if not exe.is_file():
+        err(f"Staged tree has no openbus.exe: {fmt_path(stage)}")
+        return
+    makensis = find_makensis()
+    if not makensis:
+        warn("makensis.exe not found — skip setup.exe")
+        warn("Install NSIS 3 (https://nsis.sourceforge.io/) or set NSIS=C:\\Program Files (x86)\\NSIS")
+        warn("Then: python scripts/build.py package --version <ver> --installer")
+        return
+
+    dist_root = PROJECT_ROOT / "dist"
+    dist_root.mkdir(parents=True, exist_ok=True)
+    out_file = dist_root / f"openbus-{version}-windows-x64-setup.exe"
+    src = str(stage.resolve()).replace("/", "\\")
+    out = str(out_file.resolve()).replace("/", "\\")
+    license_src = PROJECT_ROOT / "LICENSE"
+    lic = str(license_src.resolve()).replace("/", "\\") if license_src.is_file() else ""
+    cmd = [
+        str(makensis),
+        "/V2",
+        f"/DVERSION={version}",
+        f"/DSOURCE_DIR={src}",
+        f"/DOUT_FILE={out}",
+        str(nsi),
+    ]
+    if license_src.is_file():
+        cmd.insert(-1, f"/DLICENSE_FILE={lic}")
+    env = os.environ.copy()
+    env["NSISDIR"] = str(makensis.parent)
+    info(" ".join(cmd))
+    r = subprocess.run(cmd, env=env)
+    if r.returncode != 0:
+        err("NSIS compile failed")
+        sys.exit(1)
+    size_mb = out_file.stat().st_size / (1024 * 1024)
+    ok(f"Installer ready: {fmt_path(out_file)} ({size_mb:.1f} MB)")
+    info("Setup starts with a language dialog (English / 简体中文 / Deutsch / …)")
+    info("Choice is stored as ui.language in %APPDATA%\\openbus\\openbus\\settings.json")
+
+
+def cmd_installer(env, args):
+    """Compile setup.exe from an already-staged portable folder (no rebuild)."""
+    stage = Path(args.stage).expanduser().resolve()
+    version = args.version or "0.0.0"
+    compile_windows_installer(stage, version)
 
 
 def cmd_all(env, args):
@@ -1407,10 +1497,20 @@ Note: no native Windows CMake/Qt; displayed paths use /c/... form
                    help="Wipe package build dir before configure")
     p.add_argument("--reconfigure", action="store_true",
                    help="Force CMake reconfigure even if cache matches")
+    p.add_argument("--installer", action="store_true",
+                   help="Also build NSIS setup.exe (language dialog: EN/ZH/DE/…)")
     p.add_argument("-D", "--define", action="append", default=[], metavar="VAR=VALUE",
                    help="Extra CMake cache define; repeatable")
     add_build_dir_opt(p)
     p.set_defaults(func=cmd_package, build_dir="build-release")
+
+    p = sub.add_parser(
+        "installer",
+        help="Build NSIS setup.exe from an existing staged folder (no rebuild)",
+    )
+    p.add_argument("--stage", required=True, help="Folder that contains openbus.exe")
+    p.add_argument("--version", default="1.10.4", help="Version baked into setup.exe name")
+    p.set_defaults(func=cmd_installer)
 
     # all
     p = sub.add_parser("all", help="Full pipeline (configure + build + deploy + run)")

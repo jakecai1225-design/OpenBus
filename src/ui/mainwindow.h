@@ -315,6 +315,14 @@ private:
     QAction *m_colorRuleAction = nullptr;
     QAction *m_aboutAction = nullptr;
     QAction *m_docsAction = nullptr;
+    QAction *m_websiteAction = nullptr;
+    QAction *m_giteeAction = nullptr;
+    QAction *m_reportIssueAction = nullptr;
+    QAction *m_checkUpdateAction = nullptr;
+    QAction *m_releaseNotesAction = nullptr;
+    QAction *m_shortcutsAction = nullptr;
+    QAction *m_licenseAction = nullptr;
+    QAction *m_businessAction = nullptr;
     QAction *m_recordAction = nullptr;
     QAction *m_playAction = nullptr;
     QAction *m_pauseAction = nullptr;

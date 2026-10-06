@@ -213,25 +213,25 @@ void MainWindow::createMenuBar()
     m_aboutAction = m_helpMenu->addAction(tr("About openbus"), this, &MainWindow::showAboutDialog);
     m_helpMenu->addSeparator();
     m_docsAction = m_helpMenu->addAction(tr("Documentation"), this, []() {
-        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus"));
+        QDesktopServices::openUrl(QUrl(QStringLiteral("http://sin.org.cn/docs")));
     });
-    m_helpMenu->addAction(QStringLiteral("Website"), this, []() {
-        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus"));
+    m_websiteAction = m_helpMenu->addAction(tr("Website"), this, []() {
+        QDesktopServices::openUrl(QUrl(QStringLiteral("http://sin.org.cn/")));
     });
-    m_helpMenu->addAction(QStringLiteral("Gitee"), this, []() {
-        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus"));
+    m_giteeAction = m_helpMenu->addAction(tr("Gitee"), this, []() {
+        QDesktopServices::openUrl(QUrl(QStringLiteral("https://gitee.com/jake_cai/sin")));
     });
     m_helpMenu->addSeparator();
-    m_helpMenu->addAction(QStringLiteral("Report Issue"), this, []() {
-        QDesktopServices::openUrl(QUrl("https://gitee.com/jake_cai/openbus/issues"));
+    m_reportIssueAction = m_helpMenu->addAction(tr("Report Issue"), this, []() {
+        QDesktopServices::openUrl(QUrl(QStringLiteral("https://gitee.com/jake_cai/sin/issues")));
     });
-    m_helpMenu->addAction(QStringLiteral("Check for Updates"), this, &MainWindow::showCheckUpdate);
-    m_helpMenu->addAction(QStringLiteral("Release Notes"), this, &MainWindow::showReleaseNotes);
+    m_checkUpdateAction = m_helpMenu->addAction(tr("Check for Updates"), this, &MainWindow::showCheckUpdate);
+    m_releaseNotesAction = m_helpMenu->addAction(tr("Release Notes"), this, &MainWindow::showReleaseNotes);
     m_helpMenu->addSeparator();
-    m_helpMenu->addAction(QStringLiteral("Keyboard Shortcuts"), this, &MainWindow::showShortcuts);
-    m_helpMenu->addAction(QStringLiteral("License"), this, &MainWindow::showLicenseDialog);
+    m_shortcutsAction = m_helpMenu->addAction(tr("Keyboard Shortcuts"), this, &MainWindow::showShortcuts);
+    m_licenseAction = m_helpMenu->addAction(tr("License"), this, &MainWindow::showLicenseDialog);
     m_helpMenu->addSeparator();
-    m_helpMenu->addAction(QStringLiteral("Business"), this, &MainWindow::showBusinessCoop);
+    m_businessAction = m_helpMenu->addAction(tr("Business"), this, &MainWindow::showBusinessCoop);
 }
 
 void MainWindow::retranslateUi()
@@ -270,6 +270,14 @@ void MainWindow::retranslateUi()
     if (m_simAction) m_simAction->setText(tr("Simulator"));
     if (m_aboutAction) m_aboutAction->setText(tr("About openbus"));
     if (m_docsAction) m_docsAction->setText(tr("Documentation"));
+    if (m_websiteAction) m_websiteAction->setText(tr("Website"));
+    if (m_giteeAction) m_giteeAction->setText(tr("Gitee"));
+    if (m_reportIssueAction) m_reportIssueAction->setText(tr("Report Issue"));
+    if (m_checkUpdateAction) m_checkUpdateAction->setText(tr("Check for Updates"));
+    if (m_releaseNotesAction) m_releaseNotesAction->setText(tr("Release Notes"));
+    if (m_shortcutsAction) m_shortcutsAction->setText(tr("Keyboard Shortcuts"));
+    if (m_licenseAction) m_licenseAction->setText(tr("License"));
+    if (m_businessAction) m_businessAction->setText(tr("Business"));
 
     if (m_statusLabel && m_statusLabel->text() == QStringLiteral("Ready"))
         m_statusLabel->setText(tr("Ready"));

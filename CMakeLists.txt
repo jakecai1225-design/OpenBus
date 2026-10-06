@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(openbus
-    VERSION 0.1.0
+    VERSION 1.10.4
     DESCRIPTION "CAN/CAN FD frame analyze, replay, record, trace, graphic desktop app"
     LANGUAGES CXX
 )

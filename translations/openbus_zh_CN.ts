@@ -120,6 +120,74 @@
         <translation>文档</translation>
     </message>
     <message>
+        <source>Website</source>
+        <translation>官网</translation>
+    </message>
+    <message>
+        <source>Gitee</source>
+        <translation>Gitee</translation>
+    </message>
+    <message>
+        <source>Report Issue</source>
+        <translation>报告问题</translation>
+    </message>
+    <message>
+        <source>Check for Updates</source>
+        <translation>检查更新</translation>
+    </message>
+    <message>
+        <source>Release Notes</source>
+        <translation>发行说明</translation>
+    </message>
+    <message>
+        <source>Keyboard Shortcuts</source>
+        <translation>快捷键</translation>
+    </message>
+    <message>
+        <source>License</source>
+        <translation>许可证</translation>
+    </message>
+    <message>
+        <source>Business</source>
+        <translation>商业合作</translation>
+    </message>
+    <message>
+        <source>CAN / CAN FD bus analysis workbench</source>
+        <translation>CAN / CAN FD 总线分析工作台</translation>
+    </message>
+    <message>
+        <source>Version: %1</source>
+        <translation>版本：%1</translation>
+    </message>
+    <message>
+        <source>Author: Jake.cai (蔡可杰)</source>
+        <translation>作者：蔡可杰 (Jake.cai)</translation>
+    </message>
+    <message>
+        <source>Email: 929168503@qq.com</source>
+        <translation>邮箱：929168503@qq.com</translation>
+    </message>
+    <message>
+        <source>Built with Qt 6. © 2026</source>
+        <translation>基于 Qt 6 构建 © 2026</translation>
+    </message>
+    <message>
+        <source>Installed version: %1
+
+Release notes and installers are published on the website.</source>
+        <translation>当前版本：%1
+
+发行说明与安装包发布在官网上。</translation>
+    </message>
+    <message>
+        <source>For commercial licensing, custom development, or support</source>
+        <translation>如需商业授权、定制开发或技术支持</translation>
+    </message>
+    <message>
+        <source>openbus is released under the MIT License. Contact the author for commercial arrangements.</source>
+        <translation>openbus 以 MIT 许可证发布。商业合作请联系作者。</translation>
+    </message>
+    <message>
         <source>Ready</source>
         <translation>就绪</translation>
     </message>

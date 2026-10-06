@@ -19,7 +19,7 @@ class QNetworkReply;
  *
  * 数据源：
  *   - 开发：build/market 或源码根 market/（从 build/bin 经 ../market、../../market 定位）
- *   - 发布：OSS / 官方 http://sin.org.cn/market/market.json（URL 可配置）
+ *   - 发布：OSS / 官方 https://sin.org.cn/market/market.json（URL 可配置）
  *
  * 列表过滤（驱动/插件名称、厂商、关键词等多词 AND 匹配）由 UI 层使用
  * matchWords() 完成，无需服务端支持。
@@ -96,7 +96,7 @@ public:
     /// 多词 AND 文本匹配（空词/空文本返回 true；不区分大小写）— 列表过滤工具
     static bool matchWords(const QString &text, const QStringList &fields);
 
-    /// 市场源定位：本地 market/ → 官方 http://sin.org.cn/market/market.json
+    /// 市场源定位：本地 market/ → 官方 https://sin.org.cn/market/market.json
     static QUrl defaultMarketUrl();
 
 signals:

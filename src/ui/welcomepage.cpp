@@ -18,7 +18,7 @@
 
 namespace {
 
-constexpr char kVersion[] = "1.0.0";
+constexpr char kVersion[] = "1.10.4";
 
 } // namespace
 
