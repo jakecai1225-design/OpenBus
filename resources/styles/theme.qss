@@ -345,8 +345,72 @@ QPlainTextEdit {
 
 /* ---- 滚动区: 跟随父容器背景 (未设置时视口用系统浅色调色板, 深色主题下会出现浅色底) ---- */
 QScrollArea { border: none; background: transparent; }
-#WelcomeScroll, #WelcomeViewport, #WelcomeContent, #BrandMark {
+#WelcomeScroll, #WelcomeViewport, #WelcomeContent, #WelcomeShell, #BrandMark {
     background: transparent; border: none;
+}
+
+/* ---- Welcome (VS Code Getting Started) ---- */
+#WelcomeHeroTitle {
+    color: @text;
+    background: transparent;
+    border: none;
+}
+#WelcomeHeroSub {
+    color: @textDim;
+    font-size: 14px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    max-width: 520px;
+}
+#WelcomeVersion {
+    color: @textDim;
+    font-size: 12px;
+    background: transparent;
+    border: none;
+    padding-top: 2px;
+}
+#WelcomeSectionTitle {
+    color: @text;
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    padding: 0 0 2px 0;
+}
+#WelcomeSection {
+    background: transparent;
+    border: none;
+}
+#WelcomeRecentEmpty {
+    color: @textDim;
+    font-size: 13px;
+    background: transparent;
+    border: none;
+    padding: 4px 8px;
+}
+#WelcomeTip {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+}
+#WelcomeTipTitle {
+    color: @text;
+    font-size: 13px;
+    background: transparent;
+    border: none;
+}
+#WelcomeTipBody {
+    color: @textDim;
+    font-size: 12px;
+    background: transparent;
+    border: none;
+    max-width: 420px;
+}
+#WelcomeBrandMark {
+    background: transparent;
+    border: none;
 }
 #TerminalOutput { background-color: @terminalBg; color: @terminalFg; border: none; }
 #TerminalPrompt { font-family: Consolas, monospace; font-weight: bold; color: @accent; }
@@ -406,6 +470,33 @@ QPushButton:hover { background-color: @buttonHover; border: 1px solid @border; }
 QPushButton:pressed { background-color: @buttonPress; }
 QPushButton:disabled { background-color: @buttonDisabledBg; color: @buttonDisabledText; border: 1px solid @borderDim; }
 QPushButton[default="true"] { border: 1px solid @accent; }
+
+/* Welcome flat links (after QPushButton so border/padding win) */
+#WelcomeLinkBtn {
+    background: transparent;
+    color: @accent;
+    border: none;
+    border-radius: 3px;
+    text-align: left;
+    padding: 5px 8px;
+    font-size: 13px;
+    font-weight: 400;
+    min-height: 0;
+}
+#WelcomeLinkBtn:hover {
+    background-color: @selectionBg;
+    color: @accentHover;
+    border: none;
+}
+#WelcomeLinkBtn:pressed {
+    background-color: @buttonPress;
+    border: none;
+}
+#WelcomeLinkBtn:focus {
+    background-color: @selectionBg;
+    border: none;
+    outline: none;
+}
 
 /* ---- Tables ---- */
 QTableView {

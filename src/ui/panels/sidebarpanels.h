@@ -99,6 +99,7 @@ class SidePanel : public QWidget
     Q_OBJECT
 public:
     explicit SidePanel(const QString &title, QWidget *parent = nullptr);
+    void setTitle(const QString &title);
 
 protected:
     void setupTitle(const QString &title);
@@ -106,6 +107,7 @@ protected:
 
 private:
     QVBoxLayout *m_contentLayout = nullptr;
+    QLabel *m_titleLabel = nullptr;
 };
 
 // ============================================================
@@ -399,6 +401,7 @@ class TransceivePanel : public SidePanel
     Q_OBJECT
 public:
     explicit TransceivePanel(QWidget *parent = nullptr);
+    void retranslateUi();
 
 signals:
     void openSendRequested();
@@ -411,6 +414,12 @@ private slots:
     void onPlaybackClicked();
     void onOfflineAnalysisClicked();
     void onRecordClicked();
+
+private:
+    QPushButton *m_sendBtn = nullptr;
+    QPushButton *m_playbackBtn = nullptr;
+    QPushButton *m_offlineBtn = nullptr;
+    QPushButton *m_recordBtn = nullptr;
 };
 
 // ============================================================

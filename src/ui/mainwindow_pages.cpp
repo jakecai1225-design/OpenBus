@@ -103,7 +103,8 @@ void MainWindow::onOpenMarketTab()
         setupMarketTab();
     if (!m_marketWidget)
         return;
-    openTab(m_marketWidget, QStringLiteral("插件市场"));
+    setPageKind(m_marketWidget, QStringLiteral("extensions"));
+    openTab(m_marketWidget, tr("Extensions"));
     marketInvoke(QStringLiteral("refreshInstalled"));
     // ＋新增设备跳转后直接聚焦搜索（方案 §13.6）
     marketInvoke(QStringLiteral("focusSearch"));
@@ -177,7 +178,8 @@ void MainWindow::onOpenWelcomeTab()
     } else {
         m_welcomePage->refreshRecent();
     }
-    openTab(m_welcomePage, QStringLiteral("Welcome"));
+    setPageKind(m_welcomePage, QStringLiteral("welcome"));
+    openTab(m_welcomePage, tr("Welcome"));
 }
 
 void MainWindow::onOpenTraceTab()
@@ -206,83 +208,53 @@ void MainWindow::onTracePageSelected(int row)
 
 void MainWindow::onOpenSendTab()
 {
-    // 在所有拆分组中查找已有的发送标签页
-    const auto allTabs = m_editorArea->allTabWidgets();
-    for (auto *tw : allTabs) {
-        for (int i = 0; i < tw->count(); ++i) {
-            if (tw->tabText(i).contains("发送")) {
-                tw->setCurrentIndex(i);
-                m_tabLabel->setText(tw->tabText(i));
-                return;
-            }
-        }
-    }
-    // 未找到则经收发模块创建（拆分方案 B2：页面归 openbus_transceive.dll，
-    // 装配逻辑在模块内完成，壳只提供 ShellContext）
+    if (activateTabByPageKind(QStringLiteral("send")))
+        return;
     if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("transceive"))) {
         ShellContext ctx = makeShellContext();
-        if (QWidget *page = mod->createPage(QStringLiteral("signalsend"), ctx))
-            openTab(page, "发送");
+        if (QWidget *page = mod->createPage(QStringLiteral("signalsend"), ctx)) {
+            setPageKind(page, QStringLiteral("send"));
+            openTab(page, tr("Send"));
+        }
     }
 }
 
 void MainWindow::onOpenPlaybackTab()
 {
-    const auto allTabs = m_editorArea->allTabWidgets();
-    for (auto *tw : allTabs) {
-        for (int i = 0; i < tw->count(); ++i) {
-            if (tw->tabText(i).contains("回放")) {
-                tw->setCurrentIndex(i);
-                m_tabLabel->setText(tw->tabText(i));
-                return;
-            }
-        }
-    }
-    // 未找到则经收发模块创建（拆分方案 B2）
+    if (activateTabByPageKind(QStringLiteral("playback")))
+        return;
     if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("transceive"))) {
         ShellContext ctx = makeShellContext();
-        if (QWidget *page = mod->createPage(QStringLiteral("playback"), ctx))
-            openTab(page, "回放");
+        if (QWidget *page = mod->createPage(QStringLiteral("playback"), ctx)) {
+            setPageKind(page, QStringLiteral("playback"));
+            openTab(page, tr("Playback"));
+        }
     }
 }
 
 void MainWindow::onOpenOfflineAnalysisTab()
 {
-    const auto allTabs = m_editorArea->allTabWidgets();
-    for (auto *tw : allTabs) {
-        for (int i = 0; i < tw->count(); ++i) {
-            if (tw->tabText(i).contains(QStringLiteral("离线分析"))) {
-                tw->setCurrentIndex(i);
-                m_tabLabel->setText(tw->tabText(i));
-                return;
-            }
-        }
-    }
-    // 未找到则经收发模块创建（拆分方案 B2）
+    if (activateTabByPageKind(QStringLiteral("offline")))
+        return;
     if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("transceive"))) {
         ShellContext ctx = makeShellContext();
-        if (QWidget *page = mod->createPage(QStringLiteral("offlineanalysis"), ctx))
-            openTab(page, QStringLiteral("离线分析"));
+        if (QWidget *page = mod->createPage(QStringLiteral("offlineanalysis"), ctx)) {
+            setPageKind(page, QStringLiteral("offline"));
+            openTab(page, tr("Offline Analysis"));
+        }
     }
 }
 
 void MainWindow::onOpenRecordTab()
 {
-    const auto allTabs = m_editorArea->allTabWidgets();
-    for (auto *tw : allTabs) {
-        for (int i = 0; i < tw->count(); ++i) {
-            if (tw->tabText(i).contains("录制")) {
-                tw->setCurrentIndex(i);
-                m_tabLabel->setText(tw->tabText(i));
-                return;
-            }
-        }
-    }
-    // 未找到则经收发模块创建（拆分方案 B2）
+    if (activateTabByPageKind(QStringLiteral("record")))
+        return;
     if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("transceive"))) {
         ShellContext ctx = makeShellContext();
-        if (QWidget *page = mod->createPage(QStringLiteral("record"), ctx))
-            openTab(page, "录制");
+        if (QWidget *page = mod->createPage(QStringLiteral("record"), ctx)) {
+            setPageKind(page, QStringLiteral("record"));
+            openTab(page, tr("Record"));
+        }
     }
 }
 
@@ -291,47 +263,33 @@ void MainWindow::onOpenRecordTab()
 
 void MainWindow::onOpenDeviceTab(int deviceKind, int devIndex, const QString &deviceName, int deviceType)
 {
-    // 查找已有的设备连接标签页
-    const auto allTabs = m_editorArea->allTabWidgets();
-    for (auto *tw : allTabs) {
-        for (int i = 0; i < tw->count(); ++i) {
-            if (tw->tabText(i).contains("设备连接")) {
-                tw->setCurrentIndex(i);
-                m_tabLabel->setText(tw->tabText(i));
-                flowInvoke(QStringLiteral("setDevice"),
-                           QVariantList{ deviceKind, devIndex, deviceName, deviceType });
-                return;
-            }
-        }
+    if (activateTabByPageKind(QStringLiteral("device"))) {
+        flowInvoke(QStringLiteral("setDevice"),
+                   QVariantList{ deviceKind, devIndex, deviceName, deviceType });
+        return;
     }
 
-    // 未找到则经 flow 模块创建（拆分方案 B4：param 携带 DevicePanel 选中设备）
     if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("flow"))) {
         ShellContext ctx = makeShellContext();
         if (QWidget *page = mod->createPage(
                 QStringLiteral("device"),
-                QVariantList{ deviceKind, devIndex, deviceName, deviceType }, ctx))
-            openTab(page, QStringLiteral("设备连接"));
+                QVariantList{ deviceKind, devIndex, deviceName, deviceType }, ctx)) {
+            setPageKind(page, QStringLiteral("device"));
+            openTab(page, tr("Devices"));
+        }
     }
 }
 
 void MainWindow::openDevicePage()
 {
-    // Real 块入口：查找已有设备连接页，未找到则经 flow 模块创建（不指定设备）
-    const auto allTabs = m_editorArea->allTabWidgets();
-    for (auto *tw : allTabs) {
-        for (int i = 0; i < tw->count(); ++i) {
-            if (tw->tabText(i).contains(QStringLiteral("设备连接"))) {
-                tw->setCurrentIndex(i);
-                m_tabLabel->setText(tw->tabText(i));
-                return;
-            }
-        }
-    }
+    if (activateTabByPageKind(QStringLiteral("device")))
+        return;
     if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("flow"))) {
         ShellContext ctx = makeShellContext();
-        if (QWidget *page = mod->createPage(QStringLiteral("device"), ctx))
-            openTab(page, QStringLiteral("设备连接"));
+        if (QWidget *page = mod->createPage(QStringLiteral("device"), ctx)) {
+            setPageKind(page, QStringLiteral("device"));
+            openTab(page, tr("Devices"));
+        }
     }
 }
 
@@ -376,9 +334,8 @@ void MainWindow::onOpenMeasurementSetup()
     // moduleInstanceClosed/dbcSelectRequested/dbcRemoveRequested/filterRulesChanged
     // 连接已迁入 FlowModule（拆分方案 B4：前者经 shellInvoke 回调壳，后三者模块侧完成）
 
-    // 先打开 Flow 标签页，确保标签页顺序为 CAN Flow → 帧列表1 → 时序波形1
-    // （标签名与「新建协议流」模板 CAN Flow 一致，截图反馈 2026-08-23）
-    openTab(view, QStringLiteral("CAN Flow"));
+    setPageKind(view, QStringLiteral("flow"));
+    openTab(view, tr("CAN Flow"));
 
     // 注册默认 Trace1/Graphic1 实例到 flow 画布（经模块创建或复用现有实例，
     // 拆分方案 B5；createXxxInstance 内部完成 openTab + flow 注册 + destroyed 清理）
@@ -397,8 +354,10 @@ void MainWindow::onOpenDataWindow()
     // 单实例缓存在模块内，壳只负责开标签页）
     if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("graphic"))) {
         ShellContext ctx = makeShellContext();
-        if (QWidget *page = mod->createPage(QStringLiteral("datawindow"), ctx))
-            openTab(page, QStringLiteral("Data Window"));
+        if (QWidget *page = mod->createPage(QStringLiteral("datawindow"), ctx)) {
+            setPageKind(page, QStringLiteral("datawindow"));
+            openTab(page, tr("Data Window"));
+        }
     }
 }
 
@@ -406,22 +365,21 @@ void MainWindow::onOpenIOGraph()
 {
     if (!m_ioGraph) {
         m_ioGraph = new IOGraphView(this);
+        setPageKind(m_ioGraph, QStringLiteral("iograph"));
     }
-    openTab(m_ioGraph, QStringLiteral("I/O Graph"));
+    openTab(m_ioGraph, tr("I/O Graph"));
 }
 
 void MainWindow::onOpenWatcher()
 {
-    // Watcher 观测页壳侧自持（doc/Watcher方案.md 方案 A：BusStatistics/
-    // DbcManager 与壳同侧直连，不经模块编排；标签页关闭即销毁 →
-    // destroyed 置空单例指针，同 m_shortcutsPage 先例）
     if (!m_watcherView) {
         m_watcherView = new WatcherView(m_dbcManager, m_busStats, this);
+        setPageKind(m_watcherView, QStringLiteral("watcher"));
         connect(m_watcherView, &QObject::destroyed, this, [this]() {
             m_watcherView = nullptr;
         });
     }
-    openTab(m_watcherView, QStringLiteral("Watcher 观测"));
+    openTab(m_watcherView, tr("Watcher"));
 }
 
 void MainWindow::onOpenColorRuleEditor()

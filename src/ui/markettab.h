@@ -48,6 +48,8 @@ public slots:
     void refreshInstalled();
 
 public:
+    /// Refresh all persistent chrome strings (language switch).
+    void retranslateUi();
     /// 聚焦搜索框并全选（设备树「＋新增设备」跳转联动，方案 §13.6）
     void focusSearch();
     /// 定位并展示指定条目（清空搜索/筛选 → 重建列表 → 选中展示详情；
@@ -115,6 +117,10 @@ private:
     QToolButton *m_filterDrivers = nullptr;
     QToolButton *m_filterPlugins = nullptr;
     QComboBox *m_sortCombo = nullptr;   // 排序：默认 / 最近更新 / 名称
+    QToolButton *m_refreshBtn = nullptr;
+    QToolButton *m_installBtn = nullptr;
+    QLabel *m_heroTitle = nullptr;
+    QPushButton *m_backBtn = nullptr;
     QLabel *m_marketStatus = nullptr;   // 市场状态（更新日期 / 错误；hero 下方居中）
     QLabel *m_detailCrumb = nullptr;    // 详情顶栏当前条目名（面包屑右侧）
     QProgressBar *m_progress = nullptr; // 下载进度（顶部细条，默认隐藏）
@@ -126,6 +132,8 @@ private:
     MarketItem m_current;               // 当前选中条目
     QNetworkAccessManager *m_nam = nullptr;   // 市场 icon/图片 + 包下载
     QString m_pythonExe;                // 缓存的 Python 解释器路径
+    bool m_marketOk = false;            // last MarketIndex::loaded result (for retranslate)
+    QString m_marketError;
 };
 
 #endif // MARKETTAB_H

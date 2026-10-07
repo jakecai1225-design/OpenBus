@@ -24,6 +24,7 @@ inline const QSet<QString> &domainPluginAllowlist()
         QStringLiteral("obd-suite"),
         QStringLiteral("autosar-suite"),
         QStringLiteral("ethercat-suite"),
+        QStringLiteral("log-converter"),
         QStringLiteral("ai-agent"),
     };
     return kIds;

@@ -1,0 +1,542 @@
+{
+  "module": "Can",
+  "definition": "/AUTOSAR/EcucDefs/Can",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "CanGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DET",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanDevErrorDetect"
+        },
+        {
+          "shortName": "CanVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Version info",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanVersionInfoApi"
+        },
+        {
+          "shortName": "CanMultiplexedTransmission",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "MultiplexedTransmission",
+          "detail": "MultiplexedTransmission",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanMultiplexedTransmission"
+        },
+        {
+          "shortName": "CanHardwareCancellation",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "HardwareCancellation",
+          "detail": "HardwareCancellation",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanHardwareCancellation"
+        },
+        {
+          "shortName": "CanIdenticalIdCancellation",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "IdenticalIdCancellation",
+          "detail": "IdenticalIdCancellation",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanIdenticalIdCancellation"
+        },
+        {
+          "shortName": "CanPublicIcomSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PublicIcomSupport",
+          "detail": "PublicIcomSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanPublicIcomSupport"
+        },
+        {
+          "shortName": "CanSetBaudrateApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SetBaudrateApi",
+          "detail": "SetBaudrateApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanSetBaudrateApi"
+        },
+        {
+          "shortName": "CanTriggerTransmitEnable",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TriggerTransmitEnable",
+          "detail": "TriggerTransmitEnable",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanTriggerTransmitEnable"
+        },
+        {
+          "shortName": "CanMainFunctionBusoffPeriod",
+          "kind": "numerical",
+          "default": "0.01",
+          "summary": "BusOff period",
+          "detail": "BusOff period",
+          "range": "",
+          "min": 0.001,
+          "max": 1,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanMainFunctionBusoffPeriod"
+        },
+        {
+          "shortName": "CanMainFunctionModePeriod",
+          "kind": "numerical",
+          "default": "0.01",
+          "summary": "Mode period",
+          "detail": "Mode period",
+          "range": "",
+          "min": 0.001,
+          "max": 1,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanMainFunctionModePeriod"
+        },
+        {
+          "shortName": "CanMainFunctionWakeupPeriod",
+          "kind": "numerical",
+          "default": "0.01",
+          "summary": "Wakeup period",
+          "detail": "Wakeup period",
+          "range": "",
+          "min": 0.001,
+          "max": 1,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanMainFunctionWakeupPeriod"
+        },
+        {
+          "shortName": "CanCancelTransmitApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Cancel TX",
+          "detail": "Cancel TX",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanCancelTransmitApi"
+        },
+        {
+          "shortName": "CanHardwareTimeout",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "HW timeout",
+          "detail": "HW timeout",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanHardwareTimeout",
+          "min": 0
+        },
+        {
+          "shortName": "CanIndex",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Driver index",
+          "detail": "Driver index",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanIndex",
+          "min": 0
+        },
+        {
+          "shortName": "CanMainFunctionBusPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "Bus period (ms)",
+          "detail": "Bus period (ms)",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanMainFunctionBusPeriod",
+          "min": 1
+        },
+        {
+          "shortName": "CanMainFunctionReadPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "Read period (ms)",
+          "detail": "Read period (ms)",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanMainFunctionReadPeriod",
+          "min": 1
+        },
+        {
+          "shortName": "CanMainFunctionWritePeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "Write period (ms)",
+          "detail": "Write period (ms)",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanGeneral/CanMainFunctionWritePeriod",
+          "min": 1
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/Can/CanConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": [
+        "CanController",
+        "CanHardwareObject"
+      ]
+    },
+    {
+      "shortName": "CanController",
+      "definition": "/AUTOSAR/EcucDefs/Can/CanConfigSet/CanController",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "CanConfigSet",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "CanControllerId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Controller id",
+          "detail": "Controller Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanControllerId"
+        },
+        {
+          "shortName": "CanControllerBaudRate",
+          "kind": "numerical",
+          "default": "500",
+          "summary": "kbit/s",
+          "detail": "Baud rate kbps",
+          "range": "",
+          "min": 1,
+          "max": 1000,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanControllerBaudRate"
+        },
+        {
+          "shortName": "CanControllerBaseAddress",
+          "kind": "string",
+          "default": "0x0",
+          "summary": "Base address",
+          "detail": "Base address",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanControllerBaseAddress"
+        },
+        {
+          "shortName": "CanBusoffProcessing",
+          "kind": "enumeration",
+          "default": "INTERRUPT",
+          "summary": "BusOff processing",
+          "detail": "BusOff processing",
+          "range": "",
+          "literals": [
+            "INTERRUPT",
+            "POLLING"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanBusoffProcessing"
+        },
+        {
+          "shortName": "CanRxProcessing",
+          "kind": "enumeration",
+          "default": "INTERRUPT",
+          "summary": "Rx processing",
+          "detail": "Rx processing",
+          "range": "",
+          "literals": [
+            "INTERRUPT",
+            "POLLING",
+            "MIXED"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanRxProcessing"
+        },
+        {
+          "shortName": "CanTxProcessing",
+          "kind": "enumeration",
+          "default": "INTERRUPT",
+          "summary": "Tx processing",
+          "detail": "Tx processing",
+          "range": "",
+          "literals": [
+            "INTERRUPT",
+            "POLLING",
+            "MIXED"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanTxProcessing"
+        },
+        {
+          "shortName": "CanWakeupProcessing",
+          "kind": "enumeration",
+          "default": "INTERRUPT",
+          "summary": "Wakeup processing",
+          "detail": "Wakeup processing",
+          "range": "",
+          "literals": [
+            "INTERRUPT",
+            "POLLING"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanWakeupProcessing"
+        },
+        {
+          "shortName": "CanControllerPropSeg",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "Prop segment",
+          "detail": "Prop segment",
+          "range": "",
+          "min": 1,
+          "max": 64,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanControllerPropSeg"
+        },
+        {
+          "shortName": "CanControllerSeg1",
+          "kind": "numerical",
+          "default": "5",
+          "summary": "Seg1",
+          "detail": "Seg1",
+          "range": "",
+          "min": 1,
+          "max": 64,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanControllerSeg1"
+        },
+        {
+          "shortName": "CanControllerSeg2",
+          "kind": "numerical",
+          "default": "2",
+          "summary": "Seg2",
+          "detail": "Seg2",
+          "range": "",
+          "min": 1,
+          "max": 64,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanControllerSeg2"
+        },
+        {
+          "shortName": "CanControllerSyncJumpWidth",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "SJW",
+          "detail": "SJW",
+          "range": "",
+          "min": 1,
+          "max": 64,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanControllerSyncJumpWidth"
+        },
+        {
+          "shortName": "CanControllerActivation",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ControllerActivation",
+          "detail": "ControllerActivation",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanControllerActivation"
+        },
+        {
+          "shortName": "CanWakeupSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "WakeupSupport",
+          "detail": "WakeupSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanController/CanWakeupSupport"
+        },
+        {
+          "shortName": "CanControllerDefaultBaudrate",
+          "kind": "reference",
+          "default": "",
+          "summary": "Default baudrate ref",
+          "detail": "Default baudrate ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanConfigSet/CanController/CanControllerDefaultBaudrate"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanHardwareObject",
+      "definition": "/AUTOSAR/EcucDefs/Can/CanConfigSet/CanHardwareObject",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "CanConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanObjectId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Object id",
+          "detail": "Object Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanHardwareObject/CanObjectId"
+        },
+        {
+          "shortName": "CanIdType",
+          "kind": "enumeration",
+          "default": "STANDARD",
+          "summary": "Id type",
+          "detail": "Id type",
+          "range": "",
+          "literals": [
+            "STANDARD",
+            "EXTENDED"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Can/CanHardwareObject/CanIdType"
+        },
+        {
+          "shortName": "CanObjectType",
+          "kind": "enumeration",
+          "default": "TRANSMIT",
+          "summary": "Object type",
+          "detail": "Object type",
+          "range": "",
+          "literals": [
+            "RECEIVE",
+            "TRANSMIT"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Can/CanHardwareObject/CanObjectType"
+        },
+        {
+          "shortName": "CanHandleType",
+          "kind": "enumeration",
+          "default": "FULL",
+          "summary": "Handle type",
+          "detail": "Handle type",
+          "range": "",
+          "literals": [
+            "BASIC",
+            "FULL"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Can/CanHardwareObject/CanHandleType"
+        },
+        {
+          "shortName": "CanHwFilterCode",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Filter code",
+          "detail": "Filter code",
+          "range": "",
+          "min": 0,
+          "max": 536870911,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanHardwareObject/CanHwFilterCode"
+        },
+        {
+          "shortName": "CanHwFilterMask",
+          "kind": "numerical",
+          "default": "2047",
+          "summary": "Filter mask",
+          "detail": "Filter mask",
+          "range": "",
+          "min": 0,
+          "max": 536870911,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanHardwareObject/CanHwFilterMask"
+        },
+        {
+          "shortName": "CanHwObjectCount",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "HW object count",
+          "detail": "HW object count",
+          "range": "",
+          "min": 1,
+          "max": 256,
+          "definition": "/AUTOSAR/EcucDefs/Can/CanHardwareObject/CanHwObjectCount"
+        },
+        {
+          "shortName": "CanControllerRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Controller ref",
+          "detail": "Reference to CanController",
+          "range": "",
+          "destination": "CanController",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanHardwareObject/CanControllerRef"
+        },
+        {
+          "shortName": "CanFdPaddingValue",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "FD padding",
+          "detail": "FD padding",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanConfigSet/CanHardwareObject/CanFdPaddingValue",
+          "min": 0,
+          "max": 255
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanControllerBaudrateConfig",
+      "definition": "/AUTOSAR/EcucDefs/Can/CanControllerBaudrateConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanControllerBaudRateConfigID",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Baud cfg id",
+          "detail": "Baud cfg id",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanControllerBaudrateConfig/CanControllerBaudRateConfigID"
+        },
+        {
+          "shortName": "CanControllerBaudRate",
+          "kind": "numerical",
+          "default": "500",
+          "summary": "Baud rate",
+          "detail": "Baud rate",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanControllerBaudrateConfig/CanControllerBaudRate"
+        },
+        {
+          "shortName": "CanControllerPropSeg",
+          "kind": "numerical",
+          "default": "2",
+          "summary": "Prop seg",
+          "detail": "Prop seg",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanControllerBaudrateConfig/CanControllerPropSeg"
+        },
+        {
+          "shortName": "CanControllerSeg1",
+          "kind": "numerical",
+          "default": "3",
+          "summary": "Seg1",
+          "detail": "Seg1",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanControllerBaudrateConfig/CanControllerSeg1"
+        },
+        {
+          "shortName": "CanControllerSeg2",
+          "kind": "numerical",
+          "default": "2",
+          "summary": "Seg2",
+          "detail": "Seg2",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanControllerBaudrateConfig/CanControllerSeg2"
+        },
+        {
+          "shortName": "CanControllerSyncJumpWidth",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "SJW",
+          "detail": "SJW",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Can/CanControllerBaudrateConfig/CanControllerSyncJumpWidth"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

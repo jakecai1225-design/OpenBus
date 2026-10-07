@@ -91,6 +91,7 @@ struct ProjectWatcherEntry {
     QString name;
     QString messageName;
     bool extended = false;
+    bool recording = false;
 };
 
 /**

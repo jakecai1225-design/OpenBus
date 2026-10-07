@@ -1,10 +1,50 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
-  <!-- openbus welcome mark: hub node — concentric rings + cross, VS Code–like weight -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <!-- OpenBus welcome watermark: orb-weaver + radial web (theme via currentColor) -->
   <g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <circle cx="64" cy="64" r="52" stroke-width="3.5"/>
-    <circle cx="64" cy="64" r="28" stroke-width="3"/>
-    <line x1="64" y1="8" x2="64" y2="120" stroke-width="3.5"/>
-    <line x1="8" y1="64" x2="120" y2="64" stroke-width="3.5"/>
+    <!-- concentric web rings -->
+    <circle cx="128" cy="128" r="108" stroke-width="1.6" opacity="0.55"/>
+    <circle cx="128" cy="128" r="84" stroke-width="1.5" opacity="0.7"/>
+    <circle cx="128" cy="128" r="60" stroke-width="1.5"/>
+    <circle cx="128" cy="128" r="36" stroke-width="1.4"/>
+    <circle cx="128" cy="128" r="18" stroke-width="1.3"/>
+    <!-- radial spokes -->
+    <g stroke-width="1.35" opacity="0.85">
+      <line x1="128" y1="16" x2="128" y2="240"/>
+      <line x1="16" y1="128" x2="240" y2="128"/>
+      <g transform="rotate(22.5 128 128)">
+        <line x1="128" y1="16" x2="128" y2="240"/>
+        <line x1="16" y1="128" x2="240" y2="128"/>
+      </g>
+      <g transform="rotate(45 128 128)">
+        <line x1="128" y1="16" x2="128" y2="240"/>
+        <line x1="16" y1="128" x2="240" y2="128"/>
+      </g>
+      <g transform="rotate(67.5 128 128)">
+        <line x1="128" y1="16" x2="128" y2="240"/>
+        <line x1="16" y1="128" x2="240" y2="128"/>
+      </g>
+    </g>
   </g>
-  <circle cx="64" cy="64" r="9" fill="currentColor" stroke="none"/>
+  <!-- spider body -->
+  <g fill="currentColor" stroke="none">
+    <ellipse cx="128" cy="138" rx="14" ry="18"/>
+    <circle cx="128" cy="112" r="11"/>
+  </g>
+  <!-- eight legs -->
+  <g stroke="currentColor" stroke-width="3.2" stroke-linecap="round" fill="none">
+    <path d="M118 116 C98 108 78 88 58 62"/>
+    <path d="M116 124 C92 122 68 116 42 108"/>
+    <path d="M116 136 C90 142 66 152 44 168"/>
+    <path d="M118 146 C100 160 78 180 60 202"/>
+    <path d="M138 116 C158 108 178 88 198 62"/>
+    <path d="M140 124 C164 122 188 116 214 108"/>
+    <path d="M140 136 C166 142 190 152 212 168"/>
+    <path d="M138 146 C156 160 178 180 196 202"/>
+  </g>
+  <!-- joint nodes on web (subtle) -->
+  <g fill="currentColor" stroke="none" opacity="0.9">
+    <circle cx="178" cy="82" r="4"/>
+    <circle cx="88" cy="78" r="3.2"/>
+    <circle cx="188" cy="168" r="3.2"/>
+  </g>
 </svg>

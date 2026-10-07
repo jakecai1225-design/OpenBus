@@ -1,0 +1,77 @@
+{
+  "module": "LdCom",
+  "definition": "/AUTOSAR/EcucDefs/LdCom",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "LdComConfig",
+      "definition": "/AUTOSAR/EcucDefs/LdCom/LdComConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "LdComIPdu",
+          "kind": "string",
+          "default": "",
+          "summary": "LdComIPdu",
+          "detail": "AUTOSAR EcucDefs LdComIPdu parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LdCom/LdComConfig/LdComIPdu"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "LdComGeneral",
+      "definition": "/AUTOSAR/EcucDefs/LdCom/LdComGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "LdComDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LdCom/LdComGeneral/LdComDevErrorDetect"
+        },
+        {
+          "shortName": "LdComVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LdCom/LdComGeneral/LdComVersionInfoApi"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "LdComIPdu",
+      "definition": "/AUTOSAR/EcucDefs/LdCom/LdComIPdu",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "LdComPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "LdComPduRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/LdCom/LdComIPdu/LdComPduRef"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

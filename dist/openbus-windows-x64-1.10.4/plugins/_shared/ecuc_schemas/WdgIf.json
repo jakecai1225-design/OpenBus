@@ -1,0 +1,80 @@
+{
+  "module": "WdgIf",
+  "definition": "/AUTOSAR/EcucDefs/WdgIf",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "WdgIfConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/WdgIf/WdgIfConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "WdgIfDevice",
+          "kind": "string",
+          "default": "",
+          "summary": "WdgIfDevice",
+          "detail": "AUTOSAR EcucDefs WdgIfDevice parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/WdgIf/WdgIfConfigSet/WdgIfDevice"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "WdgIfGeneral",
+      "definition": "/AUTOSAR/EcucDefs/WdgIf/WdgIfGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "WdgIfDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "WdgIfDevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/WdgIf/WdgIfGeneral/WdgIfDevErrorDetect"
+        },
+        {
+          "shortName": "WdgIfVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/WdgIf/WdgIfGeneral/WdgIfVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "WdgIfDevice"
+      ]
+    },
+    {
+      "shortName": "WdgIfDevice",
+      "definition": "/AUTOSAR/EcucDefs/WdgIf/WdgIfGeneral/WdgIfDevice",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "WdgIfGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "WdgIfDeviceIndex",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Device index",
+          "detail": "Device index",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/WdgIf/WdgIfDevice/WdgIfDeviceIndex"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

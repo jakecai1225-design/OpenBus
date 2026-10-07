@@ -110,6 +110,11 @@ void FilterHeaderView::paintSection(QPainter *painter, const QRect &rect, int lo
 
     const Theme &th = ThemeManager::instance()->currentTheme();
     const bool hovered = (logicalIndex == m_hoverSection);
+    const bool isSorted = (m_sortColumn == logicalIndex);
+    const bool filterActive = hasFilter(logicalIndex);
+    // 当前排序列 / 活跃过滤：始终显示；其余仅悬停时提示可交互
+    const bool showSort = isSorted || hovered;
+    const bool showFilter = filterActive || hovered;
 
     // 1. 基类绘制背景 + 文字（排序指示器已禁用，不会绘制）
     painter->save();
@@ -122,45 +127,32 @@ void FilterHeaderView::paintSection(QPainter *painter, const QRect &rect, int lo
     painter->drawLine(rect.right(), rect.top(), rect.right(), rect.bottom());
     painter->restore();
 
-    if (rect.width() < 50)
-        return;  // 太窄不画图标
+    if ((!showSort && !showFilter) || rect.width() < 50)
+        return;
 
     QRect fRect = filterRect(rect);
     QRect sRect = sortIndicatorRect(rect);
 
-    // 3. 在图标区域绘制背景遮罩，防止文字渗入图标下方
-    //    颜色取当前节背景（悬停节用 headerHover），避免遮罩色块突兀
-    int iconLeft = sRect.left() - 3;
+    // Icon-area mask so title text does not bleed under the glyphs
+    const int iconLeft = (showSort ? sRect.left() : fRect.left()) - 3;
     QRect maskRect(iconLeft, rect.top() + 1,
                    rect.right() - iconLeft + 1, rect.height() - 1);
     painter->save();
     painter->setPen(Qt::NoPen);
+    // 悬停用 headerHover；仅持久指示时用表头底色遮罩文字
     painter->setBrush(QColor(hovered ? th.headerHover : th.headerBg));
     painter->drawRect(maskRect);
     painter->restore();
 
-    bool active = hasFilter(logicalIndex);
-
-    // 4. 排序三角形 — 当前排序列绘制实心三角
-    if (m_sortColumn == logicalIndex) {
-        drawSortIndicator(painter, sRect, m_sortOrder == Qt::AscendingOrder);
-    } else if (hovered) {
-        // 非排序列悬停时显示提示点（主题次级色）
-        painter->save();
-        painter->setRenderHint(QPainter::Antialiasing, true);
-        QColor hint(th.textDim);
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(hint);
-        int dotSize = 3;
-        int dx = sRect.left() + (sRect.width() - dotSize) / 2;
-        int dy = sRect.top() + (sRect.height() - dotSize) / 2;
-        painter->drawEllipse(QPointF(dx + dotSize / 2.0, dy + dotSize / 2.0),
-                             dotSize / 2.0, dotSize / 2.0);
-        painter->restore();
+    if (showSort) {
+        if (isSorted)
+            drawSortIndicator(painter, sRect, m_sortOrder == Qt::AscendingOrder);
+        else
+            drawSortHint(painter, sRect);
     }
 
-    // 5. 过滤漏斗图标 — 始终可见
-    drawFilterIcon(painter, fRect, active, hovered);
+    if (showFilter)
+        drawFilterIcon(painter, fRect, filterActive);
 }
 
 void FilterHeaderView::drawSortIndicator(QPainter *painter, const QRect &rect, bool ascending) const
@@ -168,21 +160,29 @@ void FilterHeaderView::drawSortIndicator(QPainter *painter, const QRect &rect, b
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    QColor color(ThemeManager::instance()->currentTheme().accent);  // 主题色实心三角
+    const Theme &th = ThemeManager::instance()->currentTheme();
+    QColor color(th.accent);
     painter->setPen(Qt::NoPen);
     painter->setBrush(color);
 
+    // 略内缩，三角更大更醒目
+    const qreal padX = 1.0;
+    const qreal padY = 1.5;
+    const qreal l = rect.left() + padX;
+    const qreal r = rect.right() - padX;
+    const qreal t = rect.top() + padY;
+    const qreal b = rect.bottom() - padY;
+    const qreal cx = (l + r) / 2.0;
+
     QPainterPath path;
     if (ascending) {
-        // 向上三角 ▲
-        path.moveTo(rect.left() + rect.width() / 2.0, rect.top() + 0.5);
-        path.lineTo(rect.right() - 0.5, rect.bottom() - 0.5);
-        path.lineTo(rect.left() + 0.5, rect.bottom() - 0.5);
+        path.moveTo(cx, t);
+        path.lineTo(r, b);
+        path.lineTo(l, b);
     } else {
-        // 向下三角 ▼
-        path.moveTo(rect.left() + rect.width() / 2.0, rect.bottom() - 0.5);
-        path.lineTo(rect.right() - 0.5, rect.top() + 0.5);
-        path.lineTo(rect.left() + 0.5, rect.top() + 0.5);
+        path.moveTo(cx, b);
+        path.lineTo(r, t);
+        path.lineTo(l, t);
     }
     path.closeSubpath();
     painter->drawPath(path);
@@ -190,21 +190,56 @@ void FilterHeaderView::drawSortIndicator(QPainter *painter, const QRect &rect, b
     painter->restore();
 }
 
-void FilterHeaderView::drawFilterIcon(QPainter *painter, const QRect &rect,
-                                      bool active, bool hovered) const
+void FilterHeaderView::drawSortHint(QPainter *painter, const QRect &rect) const
 {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    // 颜色（主题色）：激活=accent, 悬停=text, 否则=textDim（始终可见）
+    // 灰化上下双箭头：明确“可排序”，比单点/单三角更易发现
+    QColor color(ThemeManager::instance()->currentTheme().textDim);
+    color.setAlpha(200);
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(color);
+
+    const qreal cx = rect.center().x();
+    const qreal w = rect.width() * 0.42;   // 半宽
+    const qreal gap = 1.0;                 // 上下三角间距
+    const qreal h = (rect.height() - gap) / 2.0 - 0.5;
+
+    // ▲ 上半
+    {
+        QPainterPath up;
+        const qreal top = rect.top() + 0.5;
+        const qreal bot = top + h;
+        up.moveTo(cx, top);
+        up.lineTo(cx + w, bot);
+        up.lineTo(cx - w, bot);
+        up.closeSubpath();
+        painter->drawPath(up);
+    }
+    // ▼ 下半
+    {
+        QPainterPath down;
+        const qreal bot = rect.bottom() - 0.5;
+        const qreal top = bot - h;
+        down.moveTo(cx, bot);
+        down.lineTo(cx + w, top);
+        down.lineTo(cx - w, top);
+        down.closeSubpath();
+        painter->drawPath(down);
+    }
+
+    painter->restore();
+}
+
+void FilterHeaderView::drawFilterIcon(QPainter *painter, const QRect &rect, bool active) const
+{
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+
+    // Caller only paints while hovered; active filter → accent
     const Theme &th = ThemeManager::instance()->currentTheme();
-    QColor color;
-    if (active)
-        color = QColor(th.accent);
-    else if (hovered)
-        color = QColor(th.text);
-    else
-        color = QColor(th.textDim);
+    QColor color = active ? QColor(th.accent) : QColor(th.text);
 
     painter->setPen(QPen(color, 1.5));
     painter->setBrush(Qt::NoBrush);

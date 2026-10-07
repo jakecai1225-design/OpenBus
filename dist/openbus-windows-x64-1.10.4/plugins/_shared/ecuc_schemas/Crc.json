@@ -1,0 +1,108 @@
+{
+  "module": "Crc",
+  "definition": "/AUTOSAR/EcucDefs/Crc",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "CrcGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "Crc_8_Mode",
+          "kind": "string",
+          "default": "",
+          "summary": "Crc_8_Mode",
+          "detail": "AUTOSAR EcucDefs Crc_8_Mode parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral/Crc_8_Mode"
+        },
+        {
+          "shortName": "Crc_16_Mode",
+          "kind": "string",
+          "default": "",
+          "summary": "Crc_16_Mode",
+          "detail": "AUTOSAR EcucDefs Crc_16_Mode parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral/Crc_16_Mode"
+        },
+        {
+          "shortName": "Crc_32_Mode",
+          "kind": "string",
+          "default": "",
+          "summary": "Crc_32_Mode",
+          "detail": "AUTOSAR EcucDefs Crc_32_Mode parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral/Crc_32_Mode"
+        },
+        {
+          "shortName": "CrcDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral/CrcDevErrorDetect"
+        },
+        {
+          "shortName": "CrcVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral/CrcVersionInfoApi"
+        },
+        {
+          "shortName": "Crc8Mode",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "8Mode",
+          "detail": "8Mode",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral/Crc8Mode"
+        },
+        {
+          "shortName": "Crc8H2FMode",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "8H2FMode",
+          "detail": "8H2FMode",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral/Crc8H2FMode"
+        },
+        {
+          "shortName": "Crc16Mode",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "16Mode",
+          "detail": "16Mode",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral/Crc16Mode"
+        },
+        {
+          "shortName": "Crc32Mode",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "32Mode",
+          "detail": "32Mode",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral/Crc32Mode"
+        },
+        {
+          "shortName": "Crc64Mode",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "64Mode",
+          "detail": "64Mode",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Crc/CrcGeneral/Crc64Mode"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

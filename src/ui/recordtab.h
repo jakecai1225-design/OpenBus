@@ -9,15 +9,13 @@ class QLineEdit;
 class QComboBox;
 class QCheckBox;
 class QLabel;
-class QRadioButton;
 class QSpinBox;
 class QGroupBox;
 class QDoubleSpinBox;
 
 /**
- * @brief 录制控制标签页 — 中央区域
- *
- * 包含录制按钮、文件路径/前缀/格式、文件分割、缓冲区、录制过滤、触发录制
+ * @brief Record control tab — file path/prefix/format, split, buffer, filter, trigger.
+ * Source strings are English; translations come from openbus_*.qm.
  */
 class RecordTab : public QWidget
 {
@@ -27,21 +25,18 @@ public:
     explicit RecordTab(QWidget *parent = nullptr);
 
     void setRecording(bool recording);
+    void retranslateUi();
 
-    /// 录制文件设置访问器
     QString directory() const { return m_dirEdit->text(); }
     QString prefix() const { return m_prefixEdit->text(); }
     QString format() const { return m_formatCombo->currentData().toString(); }
 
-    /// Full UI config for project save/restore
     QVariantMap configMap() const;
     void loadConfig(const QVariantMap &map);
 
 signals:
     void recordToggled(bool on);
-    /// 暂停状态变化：true=已暂停, false=已恢复
     void pauseRequested(bool paused);
-    /// 请求停止触发录制（与 recordToggled 区分）
     void triggerRecordingStopped();
     void triggerRecordingRequested(
         const QString &dir, const QString &prefix, const QString &format,
@@ -52,7 +47,6 @@ signals:
 
 private slots:
     void onBrowse();
-    /// 在系统资源管理器中打开录制文件目录
     void onOpenDir();
     void onRecord();
     void onTriggerRecord();
@@ -60,33 +54,51 @@ private slots:
     void onStopClicked();
 
 private:
-    QPushButton *m_recordBtn;
-    QPushButton *m_pauseBtn;
-    QPushButton *m_stopBtn;
-    QLineEdit *m_dirEdit;
-    QLineEdit *m_prefixEdit;
-    QComboBox *m_formatCombo;
-    QCheckBox *m_splitBySize;
-    QSpinBox *m_sizeSpin;
-    QCheckBox *m_splitByTime;
-    QSpinBox *m_timeSpin;
-    QCheckBox *m_ringChk;
-    QComboBox *m_bufferCombo;
-    QCheckBox *m_filterAll;
-    QCheckBox *m_filterRx;
-    QCheckBox *m_filterTx;
-    QCheckBox *m_filterFd;
-    QLineEdit *m_idFilterEdit;
-    QLabel *m_statusLabel;
+    void refreshDynamicLabels();
 
-    // 触发录制
-    QGroupBox *m_triggerGroup;
-    QCheckBox *m_triggerEnable;
-    QLineEdit *m_triggerExprEdit;
-    QDoubleSpinBox *m_preTriggerSpin;
-    QDoubleSpinBox *m_postTriggerSpin;
-    QCheckBox *m_repeatTriggerChk;
-    QPushButton *m_triggerRecordBtn;
+    QPushButton *m_recordBtn = nullptr;
+    QPushButton *m_pauseBtn = nullptr;
+    QPushButton *m_stopBtn = nullptr;
+    QLineEdit *m_dirEdit = nullptr;
+    QLineEdit *m_prefixEdit = nullptr;
+    QComboBox *m_formatCombo = nullptr;
+    QCheckBox *m_splitBySize = nullptr;
+    QSpinBox *m_sizeSpin = nullptr;
+    QCheckBox *m_splitByTime = nullptr;
+    QSpinBox *m_timeSpin = nullptr;
+    QCheckBox *m_ringChk = nullptr;
+    QComboBox *m_bufferCombo = nullptr;
+    QCheckBox *m_filterAll = nullptr;
+    QCheckBox *m_filterRx = nullptr;
+    QCheckBox *m_filterTx = nullptr;
+    QCheckBox *m_filterFd = nullptr;
+    QLineEdit *m_idFilterEdit = nullptr;
+    QLabel *m_statusLabel = nullptr;
+
+    QGroupBox *m_fileGroup = nullptr;
+    QGroupBox *m_splitGroup = nullptr;
+    QGroupBox *m_filterGroup = nullptr;
+    QGroupBox *m_triggerGroup = nullptr;
+    QLabel *m_dirLabel = nullptr;
+    QLabel *m_prefixLabel = nullptr;
+    QLabel *m_formatLabel = nullptr;
+    QLabel *m_everySizeLabel = nullptr;
+    QLabel *m_everyTimeLabel = nullptr;
+    QLabel *m_bufferLabel = nullptr;
+    QLabel *m_idFilterLabel = nullptr;
+    QLabel *m_triggerCondLabel = nullptr;
+    QLabel *m_preTriggerLabel = nullptr;
+    QLabel *m_postTriggerLabel = nullptr;
+    QPushButton *m_browseBtn = nullptr;
+    QPushButton *m_openDirBtn = nullptr;
+    QCheckBox *m_triggerEnable = nullptr;
+    QLineEdit *m_triggerExprEdit = nullptr;
+    QDoubleSpinBox *m_preTriggerSpin = nullptr;
+    QDoubleSpinBox *m_postTriggerSpin = nullptr;
+    QCheckBox *m_repeatTriggerChk = nullptr;
+    QPushButton *m_triggerRecordBtn = nullptr;
+
+    bool m_paused = false;
 };
 
 #endif // RECORDTAB_H

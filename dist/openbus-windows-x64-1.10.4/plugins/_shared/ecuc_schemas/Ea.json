@@ -1,0 +1,91 @@
+{
+  "module": "Ea",
+  "definition": "/AUTOSAR/EcucDefs/Ea",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "EaGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Ea/EaGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EaDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EaDevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Ea/EaGeneral/EaDevErrorDetect"
+        },
+        {
+          "shortName": "EaVirtualPageSize",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "EaVirtualPageSize",
+          "detail": "AUTOSAR EcucDefs EaVirtualPageSize parameter.",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Ea/EaGeneral/EaVirtualPageSize"
+        },
+        {
+          "shortName": "EaVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Ea/EaGeneral/EaVersionInfoApi"
+        },
+        {
+          "shortName": "EaPollingMode",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PollingMode",
+          "detail": "PollingMode",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Ea/EaGeneral/EaPollingMode"
+        }
+      ],
+      "subContainers": [
+        "EaBlockConfiguration"
+      ]
+    },
+    {
+      "shortName": "EaBlockConfiguration",
+      "definition": "/AUTOSAR/EcucDefs/Ea/EaGeneral/EaBlockConfiguration",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "EaGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "EaBlockNumber",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "EaBlockNumber",
+          "detail": "Block number",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Ea/EaBlockConfiguration/EaBlockNumber"
+        },
+        {
+          "shortName": "EaBlockSize",
+          "kind": "numerical",
+          "default": "64",
+          "summary": "EaBlockSize",
+          "detail": "Block size",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Ea/EaBlockConfiguration/EaBlockSize"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

@@ -97,6 +97,13 @@ SUITE_CATALOG = [
         "keywords": "ethercat esi coe pdo dc mailbox datagram",
     },
     {
+        "id": "log-converter",
+        "name": "Log Converter",
+        "description": "Convert CAN/CAN FD logs between BLF, ASC, CSV, PCAP/PCAPNG and TRC. Batch, inspect, history.",
+        "tags": ["log", "convert", "blf", "asc", "tool"],
+        "keywords": "blf asc csv pcap trc convert batch canfd log vector wireshark",
+    },
+    {
         "id": "ai-agent",
         "name": "AI Agent",
         "description": "Read-only Trace/DBC tool loop with OpenAI-compatible providers.",

@@ -91,6 +91,8 @@ set(SRC_CORE
     core/filter_engine.cpp
     core/appconfig.h
     core/appconfig.cpp
+    core/insights.h
+    core/insights.cpp
     core/translationmanager.h
     core/translationmanager.cpp
     core/file_import/file_importer.h

@@ -18,7 +18,7 @@ CommandCenter::CommandCenter(QWidget *parent)
     setMinimumWidth(280);
     setMaximumWidth(520);
 
-    m_placeholder = QStringLiteral("Search openbus");
+    m_placeholder = QStringLiteral("Search OpenBus");
 
     auto *lay = new QHBoxLayout(this);
     lay->setContentsMargins(6, 0, 10, 0);

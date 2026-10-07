@@ -1,0 +1,225 @@
+{
+  "module": "SecOC",
+  "definition": "/AUTOSAR/EcucDefs/SecOC",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "SecOCGeneral",
+      "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "SecOCDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SecOCDevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCGeneral/SecOCDevErrorDetect"
+        },
+        {
+          "shortName": "SecOCMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "SecOCMainFunctionPeriod",
+          "detail": "AUTOSAR EcucDefs SecOCMainFunctionPeriod parameter.",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCGeneral/SecOCMainFunctionPeriod"
+        },
+        {
+          "shortName": "SecOCQueryFreshnessValue",
+          "kind": "string",
+          "default": "",
+          "summary": "SecOCQueryFreshnessValue",
+          "detail": "AUTOSAR EcucDefs SecOCQueryFreshnessValue parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCGeneral/SecOCQueryFreshnessValue"
+        },
+        {
+          "shortName": "SecOCVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCGeneral/SecOCVersionInfoApi"
+        },
+        {
+          "shortName": "SecOCEnableSecurityEventReporting",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EnableSecurityEventReporting",
+          "detail": "EnableSecurityEventReporting",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCGeneral/SecOCEnableSecurityEventReporting"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "SecOCRxPduProcessing",
+      "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCConfig/SecOCRxPduProcessing",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "SecOCConfig",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "SecOCAuthDataFreshnessLen",
+          "kind": "string",
+          "default": "",
+          "summary": "SecOCAuthDataFreshnessLen",
+          "detail": "AUTOSAR EcucDefs SecOCAuthDataFreshnessLen parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCRxPduProcessing/SecOCAuthDataFreshnessLen"
+        },
+        {
+          "shortName": "SecOCAuthInfoTruncLength",
+          "kind": "string",
+          "default": "",
+          "summary": "SecOCAuthInfoTruncLength",
+          "detail": "AUTOSAR EcucDefs SecOCAuthInfoTruncLength parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCRxPduProcessing/SecOCAuthInfoTruncLength"
+        },
+        {
+          "shortName": "SecOCRxPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "SecOCRxPduRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "pdu",
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCRxPduProcessing/SecOCRxPduRef"
+        },
+        {
+          "shortName": "SecOCAuthInfoTxLength",
+          "kind": "numerical",
+          "default": "4",
+          "summary": "Auth info length",
+          "detail": "Auth info length",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCRxPduProcessing/SecOCAuthInfoTxLength"
+        },
+        {
+          "shortName": "SecOCFreshnessValueLength",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "Freshness length",
+          "detail": "Freshness length",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCRxPduProcessing/SecOCFreshnessValueLength"
+        },
+        {
+          "shortName": "SecOCDataId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Data Id",
+          "detail": "Data Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCRxPduProcessing/SecOCDataId"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "SecOCTxPduProcessing",
+      "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCConfig/SecOCTxPduProcessing",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "SecOCConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "SecOCAuthInfoTxLength",
+          "kind": "string",
+          "default": "4",
+          "summary": "SecOCAuthInfoTxLength",
+          "detail": "Auth info length",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCTxPduProcessing/SecOCAuthInfoTxLength",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "SecOCTxPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "SecOCTxPduRef",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "pdu",
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCTxPduProcessing/SecOCTxPduRef"
+        },
+        {
+          "shortName": "SecOCFreshnessValueLength",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "Freshness length",
+          "detail": "Freshness length",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCTxPduProcessing/SecOCFreshnessValueLength"
+        },
+        {
+          "shortName": "SecOCDataId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Data Id",
+          "detail": "Data Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCTxPduProcessing/SecOCDataId"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "SecOCConfig",
+      "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCConfig",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": [
+        "SecOCRxPduProcessing",
+        "SecOCTxPduProcessing",
+        "SecOCVerificationStatusPropagation"
+      ]
+    },
+    {
+      "shortName": "SecOCVerificationStatusPropagation",
+      "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCConfig/SecOCVerificationStatusPropagation",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "SecOCConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "SecOCVerificationStatusPropagationEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VerificationStatusPropagationEnabled",
+          "detail": "VerificationStatusPropagationEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/SecOC/SecOCVerificationStatusPropagation/SecOCVerificationStatusPropagationEnabled"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

@@ -99,11 +99,11 @@
 void MainWindow::showAboutDialog()
 {
     QDialog dlg(this);
-    dlg.setWindowTitle(tr("About openbus"));
+    dlg.setWindowTitle(tr("About OpenBus"));
     dlg.setFixedWidth(380);
     auto *layout = new QVBoxLayout(&dlg);
 
-    auto *title = new QLabel("<b style='font-size:24px;color:#4a90d9'>openbus</b>", &dlg);
+    auto *title = new QLabel("<b style='font-size:24px;color:#4a90d9'>OpenBus</b>", &dlg);
     auto *desc = new QLabel(tr("CAN / CAN FD bus analysis workbench"), &dlg);
     auto *ver = new QLabel(
         tr("Version: %1").arg(QCoreApplication::applicationVersion()), &dlg);
@@ -221,7 +221,7 @@ void MainWindow::showBusinessCoop()
     github->setTextInteractionFlags(Qt::TextBrowserInteraction);
     github->setOpenExternalLinks(true);
     auto *note = new QLabel(
-        tr("openbus is released under the MIT License. Contact the author for commercial arrangements."),
+        tr("OpenBus is released under the MIT License. Contact the author for commercial arrangements."),
         &dlg);
     note->setObjectName("DimLabel");
     note->setWordWrap(true);

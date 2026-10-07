@@ -23,6 +23,7 @@
 #include "core/module/moduleregistry.h"
 #include "core/module/imodule.h"
 #include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
+#include "core/insights.h"
 #include "core/marketmodel.h"   // MarketItem（ExtensionsPanel 信号类型，经 QVariant 传给市场模块；B5-5 迁 data 层）
 // ui/udsview.h, ui/canopenview.h 已移除 — UDS/CANopen 由插件 uds-diagnostic/canopen-explorer 提供
 // ui/markettab.h 已移除 — 插件市场页经 ModuleRegistry "market" 模块创建（拆分方案 B0）
@@ -100,7 +101,8 @@
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     if (m_recording) {
-        if (QMessageBox::question(this, "退出", "正在录制，确定退出？") != QMessageBox::Yes) {
+        if (QMessageBox::question(this, tr("Quit"),
+                tr("Recording in progress. Quit anyway?")) != QMessageBox::Yes) {
             event->ignore();
             return;
         }
@@ -113,6 +115,8 @@ void MainWindow::closeEvent(QCloseEvent *event)
     // 关闭插件系统
     if (m_pluginManager)
         m_pluginManager->shutdown();
+
+    Insights::instance()->endSession();
 
     // 自动保存工程
     if (AppConfig::instance()->getBool("project.autoSaveOnClose", true)) {
@@ -133,8 +137,8 @@ void MainWindow::closeEvent(QCloseEvent *event)
 void MainWindow::onOpenProject()
 {
     QString path = QFileDialog::getOpenFileName(
-        this, QStringLiteral("打开工程"), {},
-        QStringLiteral("openbus 工程文件 (*.openbusproj);;所有文件 (*.*)"));
+        this, tr("Open Project"), {},
+        tr("OpenBus Project Files (*.openbusproj);;All Files (*.*)"));
     if (path.isEmpty()) return;
 
     // 先保存当前工程状态
@@ -145,8 +149,8 @@ void MainWindow::onOpenProject()
     // 加载新工程
     if (ProjectManager::instance()->loadProject(path)) {
         applyProjectState();
-        m_bottomPanel->appendOutput(QStringLiteral("工程已加载: ") +
-                                    ProjectManager::instance()->currentProjectName());
+        m_bottomPanel->appendOutput(tr("Project loaded: %1").arg(
+            ProjectManager::instance()->currentProjectName()));
     }
 }
 
@@ -157,14 +161,14 @@ void MainWindow::onSaveProject()
     QString path = ProjectManager::instance()->currentFilePath();
     if (path.isEmpty()) {
         path = QFileDialog::getSaveFileName(
-            this, QStringLiteral("保存工程"),
+            this, tr("Save Project"),
             ProjectManager::instance()->currentProjectName() + ".openbusproj",
-            QStringLiteral("openbus 工程文件 (*.openbusproj);;所有文件 (*.*)"));
+            tr("OpenBus Project Files (*.openbusproj);;All Files (*.*)"));
         if (path.isEmpty()) return;
     }
 
     if (ProjectManager::instance()->saveProject(path)) {
-        m_bottomPanel->appendOutput(QStringLiteral("工程已保存: ") + path);
+        m_bottomPanel->appendOutput(tr("Project saved: %1").arg(path));
     }
 }
 
@@ -189,15 +193,15 @@ void MainWindow::onProjectSwitched(int index)
         // 已保存到文件的工程：从文件加载
         if (ProjectManager::instance()->loadProject(target.filePath)) {
             applyProjectState();
-            m_bottomPanel->appendOutput(QStringLiteral("已切换到工程: ") +
-                                        ProjectManager::instance()->currentProjectName());
+            m_bottomPanel->appendOutput(tr("Switched to project: %1").arg(
+                                        ProjectManager::instance()->currentProjectName()));
         }
     } else if (!target.stateJson.isEmpty()) {
         // 未保存但有状态快照：从快照恢复
         ProjectManager::instance()->fromJsonString(target.stateJson);
         applyProjectState();
-        m_bottomPanel->appendOutput(QStringLiteral("已切换到工程: ") +
-                                    ProjectManager::instance()->currentProjectName());
+        m_bottomPanel->appendOutput(tr("Switched to project: %1").arg(
+                                    ProjectManager::instance()->currentProjectName()));
     } else {
         // 全新工程：创建空状态
         ProjectManager::instance()->newProject(target.name);
@@ -226,7 +230,7 @@ void MainWindow::onProjectCreated(const QString &name)
     // 2. 创建新工程
     ProjectManager::instance()->newProject(name);
     applyProjectState();
-    m_bottomPanel->appendOutput(QStringLiteral("已创建新工程: ") + name);
+    m_bottomPanel->appendOutput(tr("Created project: %1").arg(name));
 
     // 3. 刷新树形列表
     projects[curIdx].stateJson = ProjectManager::instance()->toJsonString();
@@ -295,7 +299,7 @@ void MainWindow::captureProjectState()
         for (const auto &id : ids) {
             ProjectTraceInstance ti;
             ti.id = id;
-            ti.title = QString("帧列表%1").arg(id.mid(5).toInt());
+            ti.title = tr("Frame List %1").arg(id.mid(5).toInt());
             ti.filterExpression = traceQuery(QStringLiteral("filterExpression"),
                                              id).toString();
             ti.colorRules = traceQuery(QStringLiteral("colorRules"), id).toList();
@@ -318,7 +322,7 @@ void MainWindow::captureProjectState()
                 continue;
             ProjectGraphicInstance gi;
             gi.id = id;
-            gi.title = QString("时序波形%1").arg(id.mid(7).toInt());
+            gi.title = tr("Waveform %1").arg(id.mid(7).toInt());
             const auto sigList = graphicQuery(QStringLiteral("signalConfigs"),
                                               QVariant::fromValue(gv)).toList();
             for (const auto &sigVar : sigList) {
@@ -344,6 +348,7 @@ void MainWindow::captureProjectState()
             we.name = e.name;
             we.messageName = e.messageName;
             we.extended = e.extended;
+            we.recording = e.recording;
             st.watchers.append(we);
         }
     }
@@ -399,7 +404,16 @@ void MainWindow::applyProjectState()
         for (auto *tw : allTabs) {
             for (int i = tw->count() - 1; i >= 0; --i) {
                 QString text = tw->tabText(i);
+                const QString kind = pageKindOf(tw->widget(i));
                 if (isTraceTabText(text) || isGraphicTabText(text) ||
+                    kind == QLatin1String("playback") || kind == QLatin1String("offline") ||
+                    kind == QLatin1String("record") || kind == QLatin1String("send") ||
+                    kind == QLatin1String("watcher") || kind == QLatin1String("trace") ||
+                    kind == QLatin1String("graphic") ||
+                    text.contains(QStringLiteral("Playback")) ||
+                    text.contains(QStringLiteral("Offline")) ||
+                    text.contains(QStringLiteral("Record")) ||
+                    text.contains(QStringLiteral("Send")) ||
                     text.contains(QStringLiteral("回放")) ||
                     text.contains(QStringLiteral("离线分析")) ||
                     text.contains(QStringLiteral("录制")) ||
@@ -428,7 +442,7 @@ void MainWindow::applyProjectState()
         if (QFile::exists(path)) {
             m_dbcManager->loadDbc(path);
         } else {
-            m_bottomPanel->appendOutput(QStringLiteral("DBC 文件不存在: ") + path);
+            m_bottomPanel->appendOutput(tr("DBC file not found: %1").arg(path));
         }
     }
 
@@ -465,20 +479,26 @@ void MainWindow::applyProjectState()
         } else if (isTraceTabText(tabName)) {
             QString numPart = tabName;
             numPart.remove(QStringLiteral("帧列表"))
+                   .remove(QStringLiteral("Frame List"), Qt::CaseInsensitive)
                    .remove(QStringLiteral("Trace"), Qt::CaseInsensitive);
             createTraceInstance(QString("trace%1").arg(numPart.toInt()));
         } else if (isGraphicTabText(tabName)) {
             QString numPart = tabName;
             numPart.remove(QStringLiteral("时序波形"))
+                   .remove(QStringLiteral("Waveform"), Qt::CaseInsensitive)
                    .remove(QStringLiteral("Graphic"), Qt::CaseInsensitive);
             createGraphicInstance(QString("graphic%1").arg(numPart.toInt()));
-        } else if (tabName.contains(QStringLiteral("发送"))) {
+        } else if (tabName.contains(QStringLiteral("Send")) ||
+                   tabName.contains(QStringLiteral("发送"))) {
             onOpenSendTab();
-        } else if (tabName.contains(QStringLiteral("回放"))) {
+        } else if (tabName.contains(QStringLiteral("Playback")) ||
+                   tabName.contains(QStringLiteral("回放"))) {
             onOpenPlaybackTab();
-        } else if (tabName.contains(QStringLiteral("离线分析"))) {
+        } else if (tabName.contains(QStringLiteral("Offline")) ||
+                   tabName.contains(QStringLiteral("离线分析"))) {
             onOpenOfflineAnalysisTab();
-        } else if (tabName.contains(QStringLiteral("录制"))) {
+        } else if (tabName.contains(QStringLiteral("Record")) ||
+                   tabName.contains(QStringLiteral("录制"))) {
             onOpenRecordTab();
         } else if (tabName.contains(QStringLiteral("Watcher"))) {
             onOpenWatcher();
@@ -574,6 +594,7 @@ void MainWindow::applyProjectState()
                 e.name = w.name;
                 e.messageName = w.messageName;
                 e.extended = w.extended;
+                e.recording = w.recording;
                 entries.append(e);
             }
             m_watcherView->loadWatchEntries(entries);
@@ -617,9 +638,9 @@ void MainWindow::applyProjectState()
         onOpenMeasurementSetup();
 
     // 13. Window title
-    setWindowTitle(QStringLiteral("openbus - %1").arg(st.name));
+    setWindowTitle(QStringLiteral("OpenBus - %1").arg(st.name));
 
-    m_bottomPanel->appendOutput(QStringLiteral("工程现场已恢复: %1").arg(st.name));
+    m_bottomPanel->appendOutput(tr("Project session restored: %1").arg(st.name));
 }
 
 // ============================================================
@@ -628,7 +649,7 @@ void MainWindow::applyProjectState()
 void MainWindow::onFilePreviewRequested(const QString &filePath)
 {
     QFileInfo fi(filePath);
-    QString label = QStringLiteral("[预览] %1").arg(fi.fileName());
+    QString label = tr("[Preview] %1").arg(fi.fileName());
 
     // 检查是否已存在同名标签页
     auto *tabs = m_editorArea->activeTabWidget();
@@ -649,7 +670,7 @@ void MainWindow::onFilePreviewRequested(const QString &filePath)
 
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
-        preview->setPlainText(QStringLiteral("无法打开文件:\n%1").arg(filePath));
+        preview->setPlainText(tr("Cannot open file:\n%1").arg(filePath));
     } else {
         QByteArray data = file.readAll();
         file.close();
@@ -657,7 +678,7 @@ void MainWindow::onFilePreviewRequested(const QString &filePath)
         // 检测二进制内容（包含 NULL 字节）
         if (data.contains('\0') && data.size() > 0) {
             preview->setPlainText(
-                QStringLiteral("二进制文件，无法以文本方式预览:\n%1\n\n文件大小: %2 bytes")
+                tr("Binary file; cannot preview as text:\n%1\n\nFile size: %2 bytes")
                     .arg(filePath)
                     .arg(data.size()));
         } else {

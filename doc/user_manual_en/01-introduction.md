@@ -1,8 +1,8 @@
 # 1. Introduction and installation
 
-## 1.1 What openbus is
+## 1.1 What OpenBus is
 
-**openbus** is a desktop **CAN / CAN FD bus analysis** application for automotive electronics and industrial field work. It brings project management, device connection, measurement setup (Flow), live frame lists (Trace), signal waveforms (Graphic), DBC decode, transmit / record / playback, and an extensible driver / plugin marketplace into one VS Code–style workbench.
+**OpenBus** is a desktop **CAN / CAN FD bus analysis** application for automotive electronics and industrial field work. It brings project management, device connection, measurement setup (Flow), live frame lists (Trace), signal waveforms (Graphic), DBC decode, transmit / record / playback, and an extensible driver / plugin marketplace into one VS Code–style workbench.
 
 Typical uses:
 
@@ -27,7 +27,7 @@ Typical uses:
 1. Get the release package (**installer** `openbus-*-windows-x64-setup.exe`, or a portable zip).
 2. **Installer**: the first dialog is the wizard language (English / 简体中文 / Deutsch / …). That choice is stored as the UI language for the first launch (you can still change it later under **Settings → General → Language**).
 3. Finish setup, or extract the portable zip to a path without awkward permission issues.
-4. Start **openbus**. First launch usually opens the **Welcome** page.
+4. Start **OpenBus**. First launch usually opens the **Welcome** page.
 
 ![First-launch main window](images/01-welcome.png)
 

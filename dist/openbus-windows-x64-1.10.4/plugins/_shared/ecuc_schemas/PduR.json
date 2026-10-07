@@ -1,0 +1,455 @@
+{
+  "module": "PduR",
+  "definition": "/AUTOSAR/EcucDefs/PduR",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "PduRGeneral",
+      "definition": "/AUTOSAR/EcucDefs/PduR/PduRGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "PduRDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DET",
+          "detail": "DET",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRGeneral/PduRDevErrorDetect"
+        },
+        {
+          "shortName": "PduRVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Version info",
+          "detail": "Version info",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRGeneral/PduRVersionInfoApi"
+        },
+        {
+          "shortName": "PduRZeroCostOperation",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ZeroCostOperation",
+          "detail": "ZeroCostOperation",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRGeneral/PduRZeroCostOperation"
+        },
+        {
+          "shortName": "PduRMetaDataSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "MetaDataSupport",
+          "detail": "MetaDataSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRGeneral/PduRMetaDataSupport"
+        },
+        {
+          "shortName": "PduRMulticastSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "MulticastSupport",
+          "detail": "MulticastSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRGeneral/PduRMulticastSupport"
+        },
+        {
+          "shortName": "PduRRoutingPathGroupSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Routing path groups",
+          "detail": "Routing path groups",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRGeneral/PduRRoutingPathGroupSupport"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "PduRRoutingTables",
+      "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTables",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "PduRMaxRoutingTableEntries",
+          "kind": "numerical",
+          "default": "16",
+          "summary": "PduRMaxRoutingTableEntries",
+          "detail": "AUTOSAR EcucDefs PduRMaxRoutingTableEntries parameter.",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTables/PduRMaxRoutingTableEntries"
+        }
+      ],
+      "subContainers": [
+        "PduRRoutingTable"
+      ]
+    },
+    {
+      "shortName": "PduRRoutingTable",
+      "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTables/PduRRoutingTable",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "PduRRoutingTables",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "PduRSrcPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "PduRSrcPduRef",
+          "detail": "AUTOSAR EcucDefs PduRSrcPduRef parameter.",
+          "range": "",
+          "destination": "pdu",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTable/PduRSrcPduRef"
+        },
+        {
+          "shortName": "PduRDestPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "PduRDestPduRef",
+          "detail": "AUTOSAR EcucDefs PduRDestPduRef parameter.",
+          "range": "",
+          "destination": "pdu",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTable/PduRDestPduRef"
+        },
+        {
+          "shortName": "PduRDestPduDataProvision",
+          "kind": "enumeration",
+          "default": "DIRECT",
+          "summary": "PduRDestPduDataProvision",
+          "detail": "AUTOSAR EcucDefs PduRDestPduDataProvision parameter.",
+          "range": "",
+          "literals": [
+            "TRIGGER_TRANSMIT",
+            "DIRECT"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTable/PduRDestPduDataProvision"
+        },
+        {
+          "shortName": "PduRRoutingPathGroupRef",
+          "kind": "string",
+          "default": "",
+          "summary": "Path group",
+          "detail": "Optional routing path group",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTable/PduRRoutingPathGroupRef"
+        },
+        {
+          "shortName": "PduRQueueDepth",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Queue depth",
+          "detail": "0 = no queue",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTable/PduRQueueDepth",
+          "min": 0,
+          "max": 255
+        }
+      ],
+      "subContainers": [
+        "PduRDestPdu",
+        "PduRSrcPdu"
+      ]
+    },
+    {
+      "shortName": "PduRDestPdu",
+      "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTable/PduRDestPdu",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "PduRRoutingTable",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "PduRDestPduHandleId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Dest handle",
+          "detail": "AUTOSAR EcucDefs PduRDestPduHandleId parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRDestPdu/PduRDestPduHandleId",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "PduRDestPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Dest PDU",
+          "detail": "Destination I-PDU / module PDU",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRDestPdu/PduRDestPduRef",
+          "destination": "pdu"
+        },
+        {
+          "shortName": "PduRTransmissionConfirmation",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Tx confirmation",
+          "detail": "Forward TxConfirmation",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRDestPdu/PduRTransmissionConfirmation"
+        },
+        {
+          "shortName": "PduRDestPduDataProvision",
+          "kind": "enumeration",
+          "default": "TRIGGER_TRANSMIT",
+          "summary": "Data provision",
+          "detail": "AUTOSAR EcucDefs PduRDestPduDataProvision parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRDestPdu/PduRDestPduDataProvision",
+          "literals": [
+            "TRIGGER_TRANSMIT",
+            "DIRECT"
+          ]
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "PduRSrcPdu",
+      "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingTable/PduRSrcPdu",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": 1,
+      "parent": "PduRRoutingTable",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "PduRSourcePduHandleId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Src handle",
+          "detail": "AUTOSAR EcucDefs PduRSourcePduHandleId parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRSrcPdu/PduRSourcePduHandleId",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "PduRSrcPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Src PDU",
+          "detail": "Source I-PDU",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRSrcPdu/PduRSrcPduRef",
+          "destination": "pdu"
+        },
+        {
+          "shortName": "PduRSourcePduPduRBswModulesRef",
+          "kind": "string",
+          "default": "Com",
+          "summary": "BSW module",
+          "detail": "Upper layer providing the PDU",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRSrcPdu/PduRSourcePduPduRBswModulesRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "PduRConfiguration",
+      "definition": "/AUTOSAR/EcucDefs/PduR/PduRConfiguration",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": [
+        "PduRRoutingPathGroup",
+        "PduRRoutingPath",
+        "PduRBswModules",
+        "PduRDefaultValue"
+      ]
+    },
+    {
+      "shortName": "PduRRoutingPathGroup",
+      "definition": "/AUTOSAR/EcucDefs/PduR/PduRConfiguration/PduRRoutingPathGroup",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "PduRConfiguration",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "PduRRoutingPathGroupId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Group Id",
+          "detail": "Group Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingPathGroup/PduRRoutingPathGroupId"
+        },
+        {
+          "shortName": "PduRRoutingPathGroupEnabledAtInit",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "RoutingPathGroupEnabledAtInit",
+          "detail": "RoutingPathGroupEnabledAtInit",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingPathGroup/PduRRoutingPathGroupEnabledAtInit"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "PduRRoutingPath",
+      "definition": "/AUTOSAR/EcucDefs/PduR/PduRConfiguration/PduRRoutingPath",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "PduRConfiguration",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "PduRSrcPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Source PDU",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingPath/PduRSrcPduRef"
+        },
+        {
+          "shortName": "PduRDestPduRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Dest PDU",
+          "detail": "Reference to Pdu",
+          "range": "",
+          "destination": "Pdu",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingPath/PduRDestPduRef"
+        },
+        {
+          "shortName": "PduRDestPduDataProvision",
+          "kind": "enumeration",
+          "default": "PDUR_DIRECT",
+          "summary": "Data provision",
+          "detail": "Data provision",
+          "range": "",
+          "literals": [
+            "PDUR_DIRECT",
+            "PDUR_TRIGGERTRANSMIT"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingPath/PduRDestPduDataProvision"
+        },
+        {
+          "shortName": "PduRTransmissionConfirmation",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TransmissionConfirmation",
+          "detail": "TransmissionConfirmation",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingPath/PduRTransmissionConfirmation"
+        },
+        {
+          "shortName": "PduRTpThresholdReached",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TpThresholdReached",
+          "detail": "TpThresholdReached",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRRoutingPath/PduRTpThresholdReached"
+        },
+        {
+          "shortName": "PduRQueueLength",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Queue length",
+          "detail": "Queue length",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRConfiguration/PduRRoutingPath/PduRQueueLength",
+          "min": 0
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "PduRBswModules",
+      "definition": "/AUTOSAR/EcucDefs/PduR/PduRConfiguration/PduRBswModules",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "PduRConfiguration",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "PduRBswModuleRef",
+          "kind": "reference",
+          "default": "Com",
+          "summary": "Module ref",
+          "detail": "Module ref",
+          "range": "",
+          "destination": "EcucModule",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRBswModules/PduRBswModuleRef"
+        },
+        {
+          "shortName": "PduRCommunicationInterface",
+          "kind": "boolean",
+          "default": "true",
+          "summary": "IF module",
+          "detail": "IF module",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRConfiguration/PduRBswModules/PduRCommunicationInterface"
+        },
+        {
+          "shortName": "PduRTransportProtocol",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TP module",
+          "detail": "TP module",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRConfiguration/PduRBswModules/PduRTransportProtocol"
+        },
+        {
+          "shortName": "PduRLowerModule",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Lower module",
+          "detail": "Lower module",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRConfiguration/PduRBswModules/PduRLowerModule"
+        },
+        {
+          "shortName": "PduRUpperModule",
+          "kind": "boolean",
+          "default": "true",
+          "summary": "Upper module",
+          "detail": "Upper module",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRConfiguration/PduRBswModules/PduRUpperModule"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "PduRDefaultValue",
+      "definition": "/AUTOSAR/EcucDefs/PduR/PduRConfiguration/PduRDefaultValue",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "PduRConfiguration",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "PduRDefaultValueLength",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "Default length",
+          "detail": "Default length",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/PduR/PduRDefaultValue/PduRDefaultValueLength"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+openbus 绿色免安装包（Windows 10/11 64 位）
+==========================================
+
+1. 解压整个文件夹到任意目录（不要只拷贝 openbus.exe）。
+2. 双击 openbus.exe 即可运行。
+3. platforms、*.dll、kerneldlls 等必须与 exe 同目录保留。
+
+说明：
+  - 无需安装 Qt / MSYS2。
+  - 若使用 USB-CAN 硬件，可能仍需安装厂家设备驱动。
+  - 若 SmartScreen 提示，选“更多信息”→“仍要运行”。
+
+构建类型: Release  |  打包日期: 20261006

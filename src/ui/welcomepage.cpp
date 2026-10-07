@@ -7,7 +7,6 @@
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QGridLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QFrame>
@@ -15,6 +14,7 @@
 #include <QFileInfo>
 #include <QPainter>
 #include <QPaintEvent>
+#include <QRadialGradient>
 
 namespace {
 
@@ -54,22 +54,42 @@ void WelcomePage::setupUi()
     content->setObjectName(QStringLiteral("WelcomeContent"));
     content->setAttribute(Qt::WA_TranslucentBackground);
     content->setAutoFillBackground(false);
-    auto *lay = new QVBoxLayout(content);
-    lay->setContentsMargins(48, 36, 48, 48);
-    lay->setSpacing(28);
-    lay->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
+    content->setMaximumWidth(980);
 
-    // ---- Hero ----
+    auto *lay = new QVBoxLayout(content);
+    lay->setContentsMargins(56, 40, 56, 56);
+    lay->setSpacing(32);
+    lay->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+
+    // ---- Hero (brand-first) ----
     auto *hero = new QWidget(content);
     auto *heroLay = new QVBoxLayout(hero);
     heroLay->setContentsMargins(0, 0, 0, 0);
-    heroLay->setSpacing(6);
+    heroLay->setSpacing(8);
 
-    m_heroTitle = new QLabel(QStringLiteral("openbus"), hero);
+    auto *brandRow = new QWidget(hero);
+    auto *brandLay = new QHBoxLayout(brandRow);
+    brandLay->setContentsMargins(0, 0, 0, 0);
+    brandLay->setSpacing(12);
+    brandLay->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
+    auto *mark = new QLabel(brandRow);
+    mark->setObjectName(QStringLiteral("WelcomeBrandMark"));
+    mark->setFixedSize(36, 36);
+    mark->setPixmap(renderSvgPixmap(QStringLiteral(":/icons/spider-logo.svg"),
+                                    QStringLiteral("#5A6A78"), 36));
+    mark->setProperty("role", QStringLiteral("brandMark"));
+
+    m_heroTitle = new QLabel(QStringLiteral("OpenBus"), brandRow);
+    m_heroTitle->setObjectName(QStringLiteral("WelcomeHeroTitle"));
     QFont titleFont = m_heroTitle->font();
-    titleFont.setPointSize(28);
+    titleFont.setPointSize(32);
     titleFont.setBold(true);
+    titleFont.setLetterSpacing(QFont::AbsoluteSpacing, -0.5);
     m_heroTitle->setFont(titleFont);
+
+    brandLay->addWidget(mark);
+    brandLay->addWidget(m_heroTitle);
 
     m_heroSub = new QLabel(
         QStringLiteral("CAN / CAN FD analysis — get started in a few clicks"), hero);
@@ -79,23 +99,28 @@ void WelcomePage::setupUi()
     m_versionLabel = new QLabel(QStringLiteral("Version %1").arg(QLatin1String(kVersion)), hero);
     m_versionLabel->setObjectName(QStringLiteral("WelcomeVersion"));
 
-    heroLay->addWidget(m_heroTitle);
+    heroLay->addWidget(brandRow);
     heroLay->addWidget(m_heroSub);
     heroLay->addWidget(m_versionLabel);
     lay->addWidget(hero);
 
-    // ---- Three columns: Start | Recent | Help ----
+    // ---- Two columns: Start + Walkthrough | Recent + Help ----
     auto *cols = new QWidget(content);
     auto *colsLay = new QHBoxLayout(cols);
     colsLay->setContentsMargins(0, 0, 0, 0);
-    colsLay->setSpacing(40);
+    colsLay->setSpacing(56);
     colsLay->setAlignment(Qt::AlignTop);
 
-    // Start
+    // Left: Start + Walkthrough
+    auto *left = new QWidget(cols);
+    auto *leftLay = new QVBoxLayout(left);
+    leftLay->setContentsMargins(0, 0, 0, 0);
+    leftLay->setSpacing(28);
+
     auto *startBody = new QWidget;
     auto *startLay = new QVBoxLayout(startBody);
     startLay->setContentsMargins(0, 0, 0, 0);
-    startLay->setSpacing(4);
+    startLay->setSpacing(2);
     auto addStart = [&](const QString &text, const QString &tip, auto signal) {
         auto *btn = makeLinkButton(text, tip);
         connect(btn, &QPushButton::clicked, this, signal);
@@ -125,21 +150,70 @@ void WelcomePage::setupUi()
     addStart(QStringLiteral("Extension Market"),
              QStringLiteral("Drivers and plugins"),
              &WelcomePage::openMarketRequested);
-    startLay->addStretch();
-    colsLay->addWidget(makeSection(QStringLiteral("Start"), startBody), 1);
+    leftLay->addWidget(makeSection(QStringLiteral("Start"), startBody));
 
-    // Recent
+    // Walkthrough — flat rows (VS Code Getting Started), not heavy cards
+    auto *walkBody = new QWidget;
+    auto *walkLay = new QVBoxLayout(walkBody);
+    walkLay->setContentsMargins(0, 0, 0, 0);
+    walkLay->setSpacing(14);
+
+    struct Tip {
+        QString title;
+        QString body;
+    };
+    const Tip tipList[] = {
+        {QStringLiteral("Connect hardware"),
+         QStringLiteral("Open Device Connection, scan for BUSMUST / ZLG / PEAK / "
+                        "Candle / SLCAN, then Connect.")},
+        {QStringLiteral("Start the flow"),
+         QStringLiteral("Open CAN Flow and press Start so Trace and Graphic receive "
+                        "live frames.")},
+        {QStringLiteral("Trace & Graphic"),
+         QStringLiteral("Use Trace for frame lists (overwrite mode, filters). Use "
+                        "Graphic for signal waveforms linked to the list.")},
+        {QStringLiteral("Load a DBC"),
+         QStringLiteral("Import a DBC in the Database sidebar to decode names and "
+                        "plot signals by definition.")},
+    };
+    for (const Tip &tip : tipList) {
+        auto *row = new QFrame(walkBody);
+        row->setObjectName(QStringLiteral("WelcomeTip"));
+        auto *rowLay = new QVBoxLayout(row);
+        rowLay->setContentsMargins(0, 0, 0, 0);
+        rowLay->setSpacing(3);
+        auto *t = new QLabel(tip.title, row);
+        t->setObjectName(QStringLiteral("WelcomeTipTitle"));
+        QFont tf = t->font();
+        tf.setBold(true);
+        t->setFont(tf);
+        auto *b = new QLabel(tip.body, row);
+        b->setWordWrap(true);
+        b->setObjectName(QStringLiteral("WelcomeTipBody"));
+        rowLay->addWidget(t);
+        rowLay->addWidget(b);
+        walkLay->addWidget(row);
+    }
+    leftLay->addWidget(makeSection(QStringLiteral("Walkthrough"), walkBody));
+    leftLay->addStretch();
+    colsLay->addWidget(left, 3);
+
+    // Right: Recent + Help
+    auto *right = new QWidget(cols);
+    auto *rightLay = new QVBoxLayout(right);
+    rightLay->setContentsMargins(0, 0, 0, 0);
+    rightLay->setSpacing(28);
+
     auto *recentBody = new QWidget;
     m_recentLayout = new QVBoxLayout(recentBody);
     m_recentLayout->setContentsMargins(0, 0, 0, 0);
-    m_recentLayout->setSpacing(4);
-    colsLay->addWidget(makeSection(QStringLiteral("Recent"), recentBody), 1);
+    m_recentLayout->setSpacing(2);
+    rightLay->addWidget(makeSection(QStringLiteral("Recent"), recentBody));
 
-    // Help
     auto *helpBody = new QWidget;
     auto *helpLay = new QVBoxLayout(helpBody);
     helpLay->setContentsMargins(0, 0, 0, 0);
-    helpLay->setSpacing(4);
+    helpLay->setSpacing(2);
     auto addHelp = [&](const QString &text, const QString &tip, auto signal) {
         auto *btn = makeLinkButton(text, tip);
         connect(btn, &QPushButton::clicked, this, signal);
@@ -154,78 +228,42 @@ void WelcomePage::setupUi()
     addHelp(QStringLiteral("Release Notes"),
             QStringLiteral("What is new in this build"),
             &WelcomePage::openReleaseNotesRequested);
-    addHelp(QStringLiteral("About openbus"),
+    addHelp(QStringLiteral("About OpenBus"),
             QStringLiteral("Version and credits"),
             &WelcomePage::openAboutRequested);
-    helpLay->addStretch();
-    colsLay->addWidget(makeSection(QStringLiteral("Help"), helpBody), 1);
+    rightLay->addWidget(makeSection(QStringLiteral("Help"), helpBody));
+    rightLay->addStretch();
+    colsLay->addWidget(right, 2);
 
     lay->addWidget(cols);
-
-    // ---- Walkthrough tip cards ----
-    auto *tipsTitle = new QLabel(QStringLiteral("Walkthrough"), content);
-    QFont tipFont = tipsTitle->font();
-    tipFont.setPointSize(14);
-    tipFont.setBold(true);
-    tipsTitle->setFont(tipFont);
-    lay->addWidget(tipsTitle);
-
-    auto *tips = new QWidget(content);
-    auto *tipsGrid = new QGridLayout(tips);
-    tipsGrid->setContentsMargins(0, 0, 0, 0);
-    tipsGrid->setHorizontalSpacing(16);
-    tipsGrid->setVerticalSpacing(16);
-
-    struct Tip {
-        QString title;
-        QString body;
-    };
-    const Tip tipList[] = {
-        {QStringLiteral("1. Connect hardware"),
-         QStringLiteral("Open Device Connection, scan for BUSMUST / ZLG / PEAK / "
-                        "Candle / SLCAN, then Connect.")},
-        {QStringLiteral("2. Start the flow"),
-         QStringLiteral("Open CAN Flow and press Start so Trace and Graphic receive "
-                        "live frames.")},
-        {QStringLiteral("3. Trace & Graphic"),
-         QStringLiteral("Use Trace for frame lists (overwrite mode, filters). Use "
-                        "Graphic for signal waveforms linked to the list.")},
-        {QStringLiteral("4. Load a DBC"),
-         QStringLiteral("Import a DBC in the Database sidebar to decode names and "
-                        "plot signals by definition.")},
-    };
-    for (int i = 0; i < 4; ++i) {
-        auto *card = new QFrame(tips);
-        card->setObjectName(QStringLiteral("WelcomeTip"));
-        auto *cardLay = new QVBoxLayout(card);
-        cardLay->setSpacing(6);
-        auto *t = new QLabel(tipList[i].title, card);
-        QFont tf = t->font();
-        tf.setBold(true);
-        t->setFont(tf);
-        auto *b = new QLabel(tipList[i].body, card);
-        b->setWordWrap(true);
-        b->setObjectName(QStringLiteral("WelcomeTipBody"));
-        cardLay->addWidget(t);
-        cardLay->addWidget(b);
-        tipsGrid->addWidget(card, i / 2, i % 2);
-    }
-    lay->addWidget(tips);
     lay->addStretch();
 
-    scroll->setWidget(content);
+    // Center the max-width content block in the scroll area
+    auto *shell = new QWidget;
+    shell->setObjectName(QStringLiteral("WelcomeShell"));
+    shell->setAttribute(Qt::WA_TranslucentBackground);
+    shell->setAutoFillBackground(false);
+    auto *shellLay = new QHBoxLayout(shell);
+    shellLay->setContentsMargins(0, 0, 0, 0);
+    shellLay->addStretch();
+    shellLay->addWidget(content);
+    shellLay->addStretch();
+
+    scroll->setWidget(shell);
     root->addWidget(scroll);
 }
 
 QFrame *WelcomePage::makeSection(const QString &title, QWidget *body)
 {
     auto *frame = new QFrame;
+    frame->setObjectName(QStringLiteral("WelcomeSection"));
     auto *lay = new QVBoxLayout(frame);
     lay->setContentsMargins(0, 0, 0, 0);
-    lay->setSpacing(10);
+    lay->setSpacing(12);
     auto *lab = new QLabel(title, frame);
+    lab->setObjectName(QStringLiteral("WelcomeSectionTitle"));
     QFont f = lab->font();
-    f.setPointSize(14);
+    f.setPointSize(13);
     f.setBold(true);
     lab->setFont(f);
     lay->addWidget(lab);
@@ -239,6 +277,7 @@ QPushButton *WelcomePage::makeLinkButton(const QString &text, const QString &tip
     btn->setObjectName(QStringLiteral("WelcomeLinkBtn"));
     btn->setFlat(true);
     btn->setCursor(Qt::PointingHandCursor);
+    btn->setFocusPolicy(Qt::StrongFocus);
     if (!tip.isEmpty())
         btn->setToolTip(tip);
     return btn;
@@ -249,7 +288,6 @@ void WelcomePage::refreshRecent()
     if (!m_recentLayout)
         return;
 
-    // Wipe and rebuild (empty label + path buttons + clear + stretch)
     while (QLayoutItem *it = m_recentLayout->takeAt(0)) {
         if (QWidget *w = it->widget())
             w->deleteLater();
@@ -258,6 +296,7 @@ void WelcomePage::refreshRecent()
 
     const QVariantList items = SessionManager::instance()->recentItems();
     m_recentEmpty = new QLabel(QStringLiteral("No recent projects yet."));
+    m_recentEmpty->setObjectName(QStringLiteral("WelcomeRecentEmpty"));
     m_recentEmpty->setWordWrap(true);
     m_recentEmpty->setVisible(items.isEmpty());
     m_recentLayout->addWidget(m_recentEmpty);
@@ -291,13 +330,21 @@ void WelcomePage::refreshRecent()
 void WelcomePage::applyTheme()
 {
     rebuildWatermark();
+
+    const Theme &t = ThemeManager::instance()->currentTheme();
+    // Refresh brand mark tint with theme
+    if (auto *mark = findChild<QLabel *>(QStringLiteral("WelcomeBrandMark"))) {
+        mark->setPixmap(renderSvgPixmap(QStringLiteral(":/icons/spider-logo.svg"),
+                                        t.accent, 36));
+    }
 }
 
 void WelcomePage::rebuildWatermark()
 {
-    // Small, bold mark — VS Code empty-editor scale (~200–260px render)
+    const Theme &t = ThemeManager::instance()->currentTheme();
+    // Soft slate from theme — large render for crisp HiDPI watermark
     m_watermark = renderSvgPixmap(QStringLiteral(":/icons/spider-watermark.svg"),
-                                  QStringLiteral("#5A6A78"), 256);
+                                  t.textDim, 320);
     update();
 }
 
@@ -308,15 +355,28 @@ void WelcomePage::paintEvent(QPaintEvent *event)
     p.setRenderHint(QPainter::Antialiasing);
     p.setRenderHint(QPainter::SmoothPixmapTransform);
     const Theme &t = ThemeManager::instance()->currentTheme();
-    p.fillRect(rect(), QColor(t.contentBg));
+    const QColor bg(t.contentBg);
+    p.fillRect(rect(), bg);
+
+    // Soft atmospheric wash (keeps OpenBus theme, not flat white)
+    {
+        QRadialGradient wash(width() * 0.72, height() * 0.28, qMax(width(), height()) * 0.55);
+        QColor c1(t.accent);
+        c1.setAlpha(18);
+        QColor c2(bg);
+        c2.setAlpha(0);
+        wash.setColorAt(0.0, c1);
+        wash.setColorAt(1.0, c2);
+        p.fillRect(rect(), wash);
+    }
 
     if (m_watermark.isNull() || width() < 200 || height() < 200)
         return;
 
-    // Centered, compact (VS Code–style empty editor watermark)
-    const int side = qBound(160, qRound(qMin(width(), height()) * 0.22), 260);
-    const int x = (width() - side) / 2;
-    const int y = (height() - side) / 2;
-    p.setOpacity(0.10);
+    // Large faint mark — bottom-right brand plane (VS Code empty-editor energy)
+    const int side = qBound(220, qRound(qMin(width(), height()) * 0.42), 420);
+    const int x = width() - side - qMax(24, width() / 18);
+    const int y = height() - side - qMax(16, height() / 20);
+    p.setOpacity(0.09);
     p.drawPixmap(QRect(x, y, side, side), m_watermark);
 }

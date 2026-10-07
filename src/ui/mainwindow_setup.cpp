@@ -128,15 +128,15 @@ void MainWindow::connectExtensionsPanel()
         });
         connect(extPanel, &ExtensionsPanel::pluginUninstallRequested,
                 this, [this](const QString &name) {
-            if (QMessageBox::question(this, QStringLiteral("卸载插件"),
-                                      QStringLiteral("确定卸载插件 %1？").arg(name))
+            if (QMessageBox::question(this, tr("Uninstall Plugin"),
+                                      tr("Uninstall plugin %1?").arg(name))
                 != QMessageBox::Yes)
                 return;
             const QString err = m_pluginManager
                                     ? m_pluginManager->uninstallPlugin(name)
-                                    : QStringLiteral("插件系统未初始化");
+                                    : tr("Plugin system is not initialized");
             if (!err.isEmpty())
-                QMessageBox::warning(this, QStringLiteral("卸载插件"), err);
+                QMessageBox::warning(this, tr("Uninstall Plugin"), err);
         });
         // 驱动禁用/卸载（与市场页详情按钮同一文案与语义）
         connect(extPanel, &ExtensionsPanel::driverToggleRequested,
@@ -147,22 +147,22 @@ void MainWindow::connectExtensionsPanel()
         connect(extPanel, &ExtensionsPanel::driverUninstallRequested,
                 this, [this](const QString &driverId) {
             if (QMessageBox::question(
-                    this, QStringLiteral("卸载驱动"),
-                    QStringLiteral("确定卸载驱动 %1？\n\n"
-                                   "若其 DLL 已被本次运行加载，重启程序后将彻底清理（方案 §7.4）。")
+                    this, tr("Uninstall Driver"),
+                    tr("Uninstall driver %1?\n\n"
+                       "If its DLL is already loaded in this session, "
+                       "it will be fully removed after restart.")
                         .arg(driverId))
                 != QMessageBox::Yes)
                 return;
             const QString err = DriverRegistry::instance()->uninstallExternal(driverId);
             if (!err.isEmpty())
-                QMessageBox::warning(this, QStringLiteral("卸载驱动"), err);
+                QMessageBox::warning(this, tr("Uninstall Driver"), err);
         });
-        // 离线安装 .odp/.opk（与市场页「⋯ 安装」同一安装链）
         connect(extPanel, &ExtensionsPanel::installFromFileRequested,
                 this, [this]() {
             const QString path = QFileDialog::getOpenFileName(
-                this, QStringLiteral("选择驱动/插件包"), QString(),
-                QStringLiteral("openbus 驱动与插件包 (*.odp *.opk);;所有文件 (*)"));
+                this, tr("Select Driver/Plugin Package"), QString(),
+                tr("OpenBus Driver & Plugin Packages (*.odp *.opk);;All Files (*)"));
             if (path.isEmpty())
                 return;
             if (!m_marketWidget)
@@ -207,14 +207,13 @@ void MainWindow::connectDataPipeline()
     auto *connRelay = new SignalRelay(this);
     connRelay->fnBoolString = [this](bool connected, const QString &name) {
         if (connected) {
-            m_connLabel->setText(QStringLiteral("已连接: %1").arg(name));
-            m_bottomPanel->appendOutput(QStringLiteral("硬件已连接: %1").arg(name));
-            // 重连成功：清除 Flow 页数据源块错误标记（红闪熄灭）
+            m_connLabel->setText(tr("Connected: %1").arg(name));
+            m_bottomPanel->appendOutput(tr("Hardware connected: %1").arg(name));
             flowInvoke(QStringLiteral("setBlockError"),
                        QVariantList{ QStringLiteral("source_real"), false });
         } else {
-            m_connLabel->setText("未连接");
-            m_bottomPanel->appendOutput(QStringLiteral("硬件已断开"));
+            m_connLabel->setText(tr("Disconnected"));
+            m_bottomPanel->appendOutput(tr("Hardware disconnected"));
         }
     };
     connect(m_deviceManager, SIGNAL(connectionChanged(bool,QString)),
@@ -241,7 +240,7 @@ void MainWindow::connectDataPipeline()
     auto *recStartRelay = new SignalRelay(this);
     recStartRelay->fire0 = [this]() {
         m_recording = true;
-        m_bottomPanel->appendOutput("录制开始");
+        m_bottomPanel->appendOutput(tr("Recording started"));
         transceiveInvoke(QStringLiteral("setRecording"), true);
         updateActions();
     };
@@ -249,7 +248,8 @@ void MainWindow::connectDataPipeline()
     auto *recStopRelay = new SignalRelay(this);
     recStopRelay->fnStringInt = [this](const QString &path, int count) {
         m_recording = false;
-        m_bottomPanel->appendOutput(QString("录制结束: %1 (%2 帧)").arg(path).arg(count));
+        m_bottomPanel->appendOutput(tr("Recording stopped: %1 (%2 frames)")
+                                        .arg(path).arg(count));
         transceiveInvoke(QStringLiteral("setRecording"), false);
         // 记入工程状态（工程树"录制文件"节点数据来源）
         auto &st = ProjectManager::instance()->currentStateRef();
@@ -383,22 +383,29 @@ void MainWindow::connectSidePanels()
             QString text = tabs->tabText(tabs->currentIndex());
             m_tabLabel->setText(text);
 
-            // 根据标签页文本同步侧边栏面板和活动栏
             ActivityBar::Activity act = ActivityBar::None;
-            if (text.contains("设备连接"))
+            const QString kind = pageKindOf(tabs->currentWidget());
+            if (kind == QLatin1String("device") || text.contains(QStringLiteral("Devices")) ||
+                text.contains(QStringLiteral("设备连接")))
                 act = ActivityBar::Device;
-            else if (text.contains("Flow", Qt::CaseInsensitive))
+            else if (kind == QLatin1String("flow") || text.contains(QStringLiteral("Flow"), Qt::CaseInsensitive))
                 act = ActivityBar::Analysis;
-            else if (isTraceTabText(text))
+            else if (kind == QLatin1String("trace") || isTraceTabText(text))
                 act = ActivityBar::Trace;
-            else if (isGraphicTabText(text))
+            else if (kind == QLatin1String("graphic") || isGraphicTabText(text))
                 act = ActivityBar::Graphic;
-            else if (text.contains("DBC"))
+            else if (text.contains(QStringLiteral("DBC")))
                 act = ActivityBar::Dbc;
-            else if (text.contains("发送") || text.contains("回放") ||
-                     text.contains("录制") || text.contains("离线分析"))
+            else if (kind == QLatin1String("send") || kind == QLatin1String("playback") ||
+                     kind == QLatin1String("record") || kind == QLatin1String("offline") ||
+                     text.contains(QStringLiteral("Send")) || text.contains(QStringLiteral("Playback")) ||
+                     text.contains(QStringLiteral("Record")) || text.contains(QStringLiteral("Offline")) ||
+                     text.contains(QStringLiteral("发送")) || text.contains(QStringLiteral("回放")) ||
+                     text.contains(QStringLiteral("录制")) || text.contains(QStringLiteral("离线分析")))
                 act = ActivityBar::Transceive;
-            else if (text.contains(QStringLiteral("插件市场")))
+            else if (kind == QLatin1String("extensions") ||
+                     text.contains(QStringLiteral("Extensions")) ||
+                     text.contains(QStringLiteral("插件市场")))
                 act = ActivityBar::Extensions;
 
             if (act != ActivityBar::None) {
@@ -420,7 +427,7 @@ void MainWindow::connectSidePanels()
     // DBC 加载通知（DEF-08 字符串信号）
     auto *dbcLoadedRelay = new SignalRelay(this);
     dbcLoadedRelay->fnString = [this](const QString &name) {
-        m_bottomPanel->appendOutput("DBC 已加载: " + name);
+        m_bottomPanel->appendOutput(tr("DBC loaded: %1").arg(name));
     };
     connect(m_dbcManager, SIGNAL(dbcLoaded(QString)),
             dbcLoadedRelay, SLOT(fireQString(QString)));
@@ -455,14 +462,14 @@ void MainWindow::connectProjectPanel()
             int newIdx = m_sideBar->projectPanel()->currentIndex();
             if (newIdx >= 0 && newIdx < projs.size())
                 projs[newIdx].stateJson = ProjectManager::instance()->toJsonString();
-            m_bottomPanel->appendOutput(QStringLiteral("工程已加载: ") + loadedName);
+            m_bottomPanel->appendOutput(tr("Project loaded: %1").arg(loadedName));
         }
     });
     connect(m_sideBar->projectPanel(), &ProjectPanel::saveProjectRequested,
             this, [this](const QString &path) {
         captureProjectState();
         if (ProjectManager::instance()->saveProject(path))
-            m_bottomPanel->appendOutput(QStringLiteral("工程已保存: ") + path);
+            m_bottomPanel->appendOutput(tr("Project saved: %1").arg(path));
     });
     connect(m_sideBar->projectPanel(), &ProjectPanel::filePreviewRequested,
             this, &MainWindow::onFilePreviewRequested);

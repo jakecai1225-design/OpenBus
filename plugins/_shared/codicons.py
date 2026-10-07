@@ -157,6 +157,7 @@ ALIASES = {
     "extensions": "extensions",
     "search": "search",
     "export": "export",
+    "convert": "export",
     "arrow-right": "arrow-right",
     "check": "check",
     # Window chrome (frameless suite menubar — same glyphs as host)

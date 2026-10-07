@@ -1,0 +1,121 @@
+{
+  "module": "CanTrcv",
+  "definition": "/AUTOSAR/EcucDefs/CanTrcv",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "CanTrcvConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanTrcvChannel",
+      "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvGeneral/CanTrcvChannel",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "CanTrcvGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "CanTrcvChannelId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "CanTrcvChannelId",
+          "detail": "Channel Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvChannel/CanTrcvChannelId"
+        },
+        {
+          "shortName": "CanTrcvControlUsed",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CanTrcvControlUsed",
+          "detail": "AUTOSAR EcucDefs CanTrcvControlUsed parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvChannel/CanTrcvControlUsed"
+        },
+        {
+          "shortName": "CanTrcvChannelUsed",
+          "kind": "enumeration",
+          "default": "true",
+          "summary": "Channel used",
+          "detail": "Channel used",
+          "range": "",
+          "literals": [
+            "true",
+            "false"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvChannel/CanTrcvChannelUsed"
+        },
+        {
+          "shortName": "CanTrcvInitState",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Init state",
+          "detail": "Init state",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvChannel/CanTrcvInitState"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "CanTrcvGeneral",
+      "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "CanTrcvDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvGeneral/CanTrcvDevErrorDetect"
+        },
+        {
+          "shortName": "CanTrcvVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvGeneral/CanTrcvVersionInfoApi"
+        },
+        {
+          "shortName": "CanTrcvGetVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "GetVersionInfoApi",
+          "detail": "GetVersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvGeneral/CanTrcvGetVersionInfoApi"
+        },
+        {
+          "shortName": "CanTrcvHwPnSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "HwPnSupport",
+          "detail": "HwPnSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/CanTrcv/CanTrcvGeneral/CanTrcvHwPnSupport"
+        }
+      ],
+      "subContainers": [
+        "CanTrcvChannel"
+      ]
+    }
+  ]
+}

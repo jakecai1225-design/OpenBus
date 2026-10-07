@@ -208,18 +208,31 @@ private:
     void processCommand(const QString &cmd);
     void openTab(QWidget *widget, const QString &label);
 
-    // 实例标签页识别：实例标题本地化为 帧列表/时序波形（2026-08-23 截图反馈：
-    // 与侧栏模板名保持一致），旧工程保存的 Trace%1/Graphic%1 标题仍需兼容
+    // Tab identity: prefer openbus.pageKind on the page widget; titles are localized.
+    // Legacy Chinese / Trace%1 / Graphic%1 titles still match for old projects.
     static bool isTraceTabText(const QString &text)
     {
-        return text.contains(QStringLiteral("Trace")) ||
+        return text.contains(QStringLiteral("Trace"), Qt::CaseInsensitive) ||
+               text.contains(QStringLiteral("Frame List"), Qt::CaseInsensitive) ||
                text.contains(QStringLiteral("帧列表"));
     }
     static bool isGraphicTabText(const QString &text)
     {
-        return text.contains(QStringLiteral("Graphic")) ||
+        return text.contains(QStringLiteral("Graphic"), Qt::CaseInsensitive) ||
+               text.contains(QStringLiteral("Waveform"), Qt::CaseInsensitive) ||
                text.contains(QStringLiteral("时序波形"));
     }
+    static void setPageKind(QWidget *w, const QString &kind)
+    {
+        if (w)
+            w->setProperty("openbus.pageKind", kind);
+    }
+    static QString pageKindOf(QWidget *w)
+    {
+        return w ? w->property("openbus.pageKind").toString() : QString();
+    }
+    bool activateTabByPageKind(const QString &kind);
+    void retranslateOpenTabs();
 
     void refreshPanelLists();
     void setupMarketTab();  // 创建/重建插件市场页（经 ModuleRegistry "market" 模块，方案 §13 / 拆分方案 B0）

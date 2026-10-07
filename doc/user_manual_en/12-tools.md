@@ -4,9 +4,13 @@
 
 **Tools > Watcher** (`Ctrl+Shift+W`)
 
-- **Variable watch**: add signals from loaded DBCs; see current / raw / Min / Max.
-- **Bus stats**: ID rate, period, jitter, and error summaries.
-- Toolbar: **Add variable**, remove, clear, **Pause refresh**, **Reset stats**.
+Debugger-style watch (Ozone / IAR / Keil flavored):
+
+- **Watch**: add DBC signals; columns include Value, VAL_ Symbolic, Raw, Age, Min/Max; brief highlight on change.
+- **Update rate**: toolbar 50–2000 ms (default 200 ms).
+- **Freeze**: freeze the table; frames still update in the background.
+- **Record**: check **Rec** or use Record; sample every update or on change into a ring buffer (~2000 points/signal); history pane below; **Export CSV**.
+- **Bus Statistics**: ID rate, period, jitter, and error summaries.
 
 ![Watcher](images/12-watcher.png)
 

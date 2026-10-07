@@ -91,6 +91,7 @@ ACTIVITY_TIPS = {
     "analyze": "Analyze — matrix, timing, validate",
     "integrate": "Integrate — compare and merge DBC files",
     "deliver": "Deliver — export and library",
+    "export": "Convert — BLF / ASC / CSV / PCAP / TRC log conversion",
     "a2l": "A2L — applied ASAP2 symbols (read-only)",
     "live": "Live — XCP on CAN connect",
     "measure": "Measure — poll / DAQ and record",

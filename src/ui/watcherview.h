@@ -7,6 +7,7 @@
 #include <QTimer>
 #include <QShowEvent>
 #include <QHideEvent>
+#include <QElapsedTimer>
 #include "core/canframe.h"
 #include "core/dbcdata.h"
 
@@ -14,52 +15,61 @@ class QTableWidget;
 class QToolBar;
 class QToolButton;
 class QLabel;
+class QComboBox;
+class QSplitter;
+class QTabWidget;
 class DbcManager;
 class BusStatistics;
 
 /**
- * @brief Watcher 观测窗口 — 调试器 Watch 风格的观测页（doc/Watcher方案.md）
+ * @brief Watcher — debugger-style signal watch (Ozone / IAR / Keil flavored).
  *
- * 对标 Lauterbach/IAR/Keil 的 Watch 窗口，两个标签页：
- *   - 变量观测：DBC 信号（= 总线"变量"）实时列表——当前值/原始值/最小/
- *     最大/单位/报文；懒解码自最新帧缓存，500ms 刷新，可暂停冻结；
- *   - 总线统计：BusStatistics 快照——摘要（总帧数/ID 数/负载/时长/错误帧）
- *     + 逐报文频率/周期/抖动 + 错误帧分类（Stuff/Form/ACK/Bit0/Bit1/CRC）。
- *
- * 数据来源：壳侧直连（onFrameReceived 喂帧；统计走引擎快照轮询，
- * 不连 statisticsUpdated 信号——DEF-08 跨库 PMF connect 规避）。
+ * Tab 1: variable watch — DBC signals with adjustable UI refresh, VAL_
+ *         symbolic names, change highlight, per-signal ring-buffer recording
+ *         and CSV export.
+ * Tab 2: bus statistics (unchanged snapshot polling of BusStatistics).
  */
 class WatcherView : public QWidget
 {
     Q_OBJECT
 
 public:
-    /// 观测变量条目（自带 DbcSignal 拷贝，解码不回查 DbcManager）
+    static constexpr int kRingCapacity = 2000;
+    static constexpr int kHighlightMs = 400;
+
+    struct Sample {
+        double tMs = 0.0;   ///< wall or bus time (ms) for CSV
+        double phys = 0.0;
+        quint64 raw = 0;
+    };
+
     struct WatchEntry {
-        QString name;          ///< 信号名
-        QString messageName;   ///< 所属报文名（显示用）
+        QString name;
+        QString messageName;
         quint32 canId = 0;
         bool extended = false;
-        DbcSignal sig;         ///< 信号定义拷贝（含 factor/offset/unit/位定义）
-        // 运行时统计
+        DbcSignal sig;
+
         double currentValue = 0.0;
         double minValue = 0.0;
         double maxValue = 0.0;
         bool hasValue = false;
+        double lastPhys = 0.0;
+        bool recording = false;
+        qint64 changedUntilMs = 0;   ///< QElapsedTimer ms epoch for highlight end
+        qint64 lastSampleMs = 0;     ///< last ring push (wall ms)
+        QVector<Sample> history;     ///< ring (oldest→newest, capped)
     };
 
     explicit WatcherView(DbcManager *dbc, BusStatistics *stats,
                          QWidget *parent = nullptr);
 
-    /// Project snapshot: identity of watched variables (no live values).
     QVector<WatchEntry> watchEntries() const { return m_entries; }
-    /// Replace watch list (rehydrates DbcSignal from DBC when possible).
     void loadWatchEntries(const QVector<WatchEntry> &entries);
+    void retranslateUi();
 
 public slots:
-    /// Latest-frame cache (shell onFrameReceived; same pattern as IOGraph).
     void onFrame(const CanFrame &frame);
-    /// Reset variable stats + frame cache (new measurement session).
     void clearData();
 
 protected:
@@ -71,29 +81,75 @@ private slots:
     void onRemoveSelected();
     void onClearVariables();
     void onResetStats();
-    void onRefreshTimer();  ///< 500ms UI refresh when visible (T5: stopped when hidden)
+    void onRefreshTimer();
+    void onRefreshRateChanged(int index);
+    void onSampleModeChanged(int index);
+    void onRecordSelected();
+    void onStopRecordSelected();
+    void onExportCsv();
+    void onWatchSelectionChanged();
+    void onRecCellChanged(int row, int column);
 
 private:
     DbcManager *m_dbc = nullptr;
     BusStatistics *m_stats = nullptr;
 
-    // ---- UI ----
     QToolBar *m_toolbar = nullptr;
-    QToolButton *m_pauseBtn = nullptr;     ///< 暂停刷新（冻结显示，checkable）
-    QTableWidget *m_watchTable = nullptr;  ///< 变量观测表（7 列）
-    QLabel *m_summaryLabel = nullptr;      ///< 统计摘要行（5 项卡片式文本）
-    QTableWidget *m_idTable = nullptr;     ///< 逐报文统计表（9 列）
-    QTableWidget *m_errorTable = nullptr;  ///< 错误分类表（1 行 7 列）
+    QTabWidget *m_tabs = nullptr;
+    QToolButton *m_addBtn = nullptr;
+    QToolButton *m_removeBtn = nullptr;
+    QToolButton *m_clearBtn = nullptr;
+    QToolButton *m_pauseBtn = nullptr;
+    QToolButton *m_resetBtn = nullptr;
+    QToolButton *m_recBtn = nullptr;
+    QToolButton *m_stopRecBtn = nullptr;
+    QToolButton *m_exportBtn = nullptr;
+    QLabel *m_rateLbl = nullptr;
+    QLabel *m_sampleLbl = nullptr;
+    QComboBox *m_rateCombo = nullptr;
+    QComboBox *m_sampleCombo = nullptr;
+    QTableWidget *m_watchTable = nullptr;
+    QTableWidget *m_historyTable = nullptr;
+    QLabel *m_historyHint = nullptr;
+    QLabel *m_summaryLabel = nullptr;
+    QTableWidget *m_idTable = nullptr;
+    QTableWidget *m_errorTable = nullptr;
+    QSplitter *m_watchSplitter = nullptr;
 
-    // ---- 状态 ----
     QVector<WatchEntry> m_entries;
-    QHash<quint32, CanFrame> m_latestFrames;   ///< canId → 最新帧（懒解码源）
+    QHash<quint32, CanFrame> m_latestFrames;
+    QHash<quint32, qint64> m_frameWallMs;  ///< canId → wall ms of last frame
     QTimer m_refreshTimer;
+    QElapsedTimer m_clock;
     bool m_paused = false;
+    bool m_recGuard = false;
+    int m_refreshMs = 200;
+    bool m_sampleOnChange = false;  ///< false = sample every refreshMs
+
+    enum Col {
+        ColName = 0,
+        ColValue,
+        ColSymbolic,
+        ColRaw,
+        ColUnit,
+        ColMessage,
+        ColAge,
+        ColMin,
+        ColMax,
+        ColRec,
+        ColCount
+    };
 
     void setupUi();
+    void applyRefreshMs(int ms);
     void refreshWatchTable();
     void refreshStatistics();
+    void refreshHistoryPane();
+    void pushSample(WatchEntry &e, double phys, quint64 raw, double tMs);
+    void maybeSampleFromFrame(quint32 canId, const CanFrame &frame);
+    QString formatAge(qint64 lastWallMs) const;
+    QString symbolicFor(const WatchEntry &e, quint64 raw) const;
+    int selectedWatchRow() const;
 };
 
 #endif // WATCHERVIEW_H

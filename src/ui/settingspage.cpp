@@ -178,6 +178,9 @@ void SettingsPage::setupMetas()
         QStringLiteral("int"), QStringLiteral("Initial window width"));
     add(QStringLiteral("window.height"), QStringLiteral("Window height"), QStringLiteral("General"),
         QStringLiteral("int"), QStringLiteral("Initial window height"));
+    add(QStringLiteral("telemetry.enabled"), tr("Share usage statistics"), tr("General"),
+        QStringLiteral("bool"),
+        tr("Anonymous visits, feature use, session length, and plugin install counts to sin.org.cn. No projects or CAN frames."));
 
     add(QStringLiteral("trace.maxFrames"), QStringLiteral("Max frames (local ring)"),
         QStringLiteral("Trace"), QStringLiteral("int"),

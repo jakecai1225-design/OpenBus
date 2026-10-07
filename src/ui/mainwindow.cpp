@@ -100,7 +100,7 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
-    setWindowTitle(QStringLiteral("openbus"));
+    setWindowTitle(QStringLiteral("OpenBus"));
     resize(1400, 900);
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
 
@@ -122,7 +122,7 @@ MainWindow::MainWindow(QWidget *parent)
     connectDataPipeline();
     connectSidePanels();
 
-    m_bottomPanel->appendOutput(QStringLiteral("openbus started"));
+    m_bottomPanel->appendOutput(QStringLiteral("OpenBus started"));
     updateActions();
     refreshPanelLists();
 
@@ -165,9 +165,27 @@ MainWindow::~MainWindow()
 
 void MainWindow::openTab(QWidget *widget, const QString &label)
 {
+    const QString kind = pageKindOf(widget);
+    const QString inst = widget
+        ? widget->property("openbus.instanceId").toString() : QString();
+    if (!kind.isEmpty() && m_editorArea) {
+        const auto allTabs = m_editorArea->allTabWidgets();
+        for (auto *tw : allTabs) {
+            for (int i = 0; i < tw->count(); ++i) {
+                QWidget *w = tw->widget(i);
+                if (pageKindOf(w) == kind &&
+                    w->property("openbus.instanceId").toString() == inst) {
+                    tw->setCurrentIndex(i);
+                    if (m_tabLabel)
+                        m_tabLabel->setText(tw->tabText(i));
+                    return;
+                }
+            }
+        }
+    }
+
     auto *tabs = m_editorArea->activeTabWidget();
     if (tabs) {
-        // 检查是否已存在同名标签
         for (int i = 0; i < tabs->count(); ++i) {
             if (tabs->tabText(i) == label) {
                 tabs->setCurrentIndex(i);
@@ -182,6 +200,81 @@ void MainWindow::openTab(QWidget *widget, const QString &label)
         tabs->setCurrentIndex(idx);
     if (m_tabLabel)
         m_tabLabel->setText(label);
+}
+
+bool MainWindow::activateTabByPageKind(const QString &kind)
+{
+    if (kind.isEmpty() || !m_editorArea)
+        return false;
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            QWidget *w = tw->widget(i);
+            // Singleton pages only (no instanceId) — Trace/Graphic use openTab
+            if (pageKindOf(w) == kind &&
+                w->property("openbus.instanceId").toString().isEmpty()) {
+                tw->setCurrentIndex(i);
+                if (m_tabLabel)
+                    m_tabLabel->setText(tw->tabText(i));
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void MainWindow::retranslateOpenTabs()
+{
+    if (!m_editorArea)
+        return;
+    const auto allTabs = m_editorArea->allTabWidgets();
+    for (auto *tw : allTabs) {
+        for (int i = 0; i < tw->count(); ++i) {
+            QWidget *w = tw->widget(i);
+            const QString kind = pageKindOf(w);
+            if (kind.isEmpty())
+                continue;
+            QString title;
+            if (kind == QLatin1String("send"))
+                title = tr("Send");
+            else if (kind == QLatin1String("playback"))
+                title = tr("Playback");
+            else if (kind == QLatin1String("offline"))
+                title = tr("Offline Analysis");
+            else if (kind == QLatin1String("record"))
+                title = tr("Record");
+            else if (kind == QLatin1String("device"))
+                title = tr("Devices");
+            else if (kind == QLatin1String("extensions"))
+                title = tr("Extensions");
+            else if (kind == QLatin1String("watcher"))
+                title = tr("Watcher");
+            else if (kind == QLatin1String("welcome"))
+                title = tr("Welcome");
+            else if (kind == QLatin1String("flow"))
+                title = tr("CAN Flow");
+            else if (kind == QLatin1String("datawindow"))
+                title = tr("Data Window");
+            else if (kind == QLatin1String("iograph"))
+                title = tr("I/O Graph");
+            else if (kind == QLatin1String("trace")) {
+                const QString id = w->property("openbus.instanceId").toString();
+                QString num = id;
+                num.remove(QStringLiteral("trace"), Qt::CaseInsensitive);
+                title = tr("Frame List %1").arg(num.toInt());
+            } else if (kind == QLatin1String("graphic")) {
+                const QString id = w->property("openbus.instanceId").toString();
+                QString num = id;
+                num.remove(QStringLiteral("graphic"), Qt::CaseInsensitive);
+                title = tr("Waveform %1").arg(num.toInt());
+            }
+            if (!title.isEmpty()) {
+                tw->setTabText(i, title);
+                if (tw->currentIndex() == i && m_tabLabel)
+                    m_tabLabel->setText(title);
+            }
+        }
+    }
 }
 
 void MainWindow::setupMarketTab()
@@ -472,8 +565,9 @@ QWidget *MainWindow::createTraceInstance(const QString &id)
     }
     QString numPart = id;
     numPart.remove("trace", Qt::CaseInsensitive);
-    // 标题与侧栏模板「帧列表」一致（截图反馈 2026-08-23）
-    const QString title = QString("帧列表%1").arg(numPart.toInt());
+    setPageKind(w, QStringLiteral("trace"));
+    w->setProperty("openbus.instanceId", id);
+    const QString title = tr("Frame List %1").arg(numPart.toInt());
 
     openTab(w, title);
     m_traceInstances[id] = w;
@@ -511,8 +605,9 @@ QWidget *MainWindow::createGraphicInstance(const QString &id)
     }
     QString numPart = id;
     numPart.remove("graphic", Qt::CaseInsensitive);
-    // 标题与侧栏模板「时序波形」一致（截图反馈 2026-08-23）
-    const QString title = QString("时序波形%1").arg(numPart.toInt());
+    setPageKind(w, QStringLiteral("graphic"));
+    w->setProperty("openbus.instanceId", id);
+    const QString title = tr("Waveform %1").arg(numPart.toInt());
 
     openTab(w, title);
     m_graphicInstances[id] = w;

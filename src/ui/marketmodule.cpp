@@ -74,6 +74,6 @@ void MarketModule::invoke(const QString &action, const QVariant &arg)
     } else if (action == QStringLiteral("revealItem")) {
         m_tab->revealItem(arg.value<MarketItem>());
     } else if (action == QStringLiteral("retranslate")) {
-        // Market strings stay English for now
+        m_tab->retranslateUi();
     }
 }

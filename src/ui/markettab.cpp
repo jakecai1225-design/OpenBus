@@ -6,6 +6,7 @@
 #include "core/plugin/domainplugins.h"
 #include "core/plugin/plugininfo.h"
 #include "core/plugin/pluginmanager.h"
+#include "core/insights.h"
 #include "ui/thememanager.h"
 #include "utils/svg_icon.h"
 
@@ -323,12 +324,12 @@ QString marketBadgeText(const CardData &d)
     return QStringLiteral("?");
 }
 
-/// Functional category for browse-mode sections (English UI labels).
+/// Functional category for browse-mode sections (English-source i18n labels).
 QString marketCategory(const CardData &d)
 {
     if (d.isDriver || d.item.kind == MarketItem::InstalledDriver
         || d.item.kind == MarketItem::MarketDriver)
-        return QStringLiteral("Hardware Drivers");
+        return MarketTab::tr("Hardware Drivers");
 
     const QString blob =
         (d.item.id + QLatin1Char(' ') + d.title + QLatin1Char(' ') + d.summary
@@ -345,7 +346,7 @@ QString marketCategory(const CardData &d)
     if (hasAny({QStringLiteral("uds"), QStringLiteral("diagnostic"),
                 QStringLiteral("iso14229"), QStringLiteral("isotp"),
                 QStringLiteral("doip"), QStringLiteral("obd")}))
-        return QStringLiteral("Diagnostics & Protocol");
+        return MarketTab::tr("Diagnostics & Protocol");
     if (hasAny({QStringLiteral("autosar"), QStringLiteral("arxml"),
                 QStringLiteral("someip"),
                 QStringLiteral("network management"),
@@ -354,17 +355,17 @@ QString marketCategory(const CardData &d)
         || d.item.id.contains(QLatin1String("-nm"), Qt::CaseInsensitive)
         || d.item.id.startsWith(QLatin1String("nm-"), Qt::CaseInsensitive)
         || d.item.id.contains(QLatin1String("arxml"), Qt::CaseInsensitive))
-        return QStringLiteral("Network & AUTOSAR");
+        return MarketTab::tr("Network & AUTOSAR");
     if (hasAny({QStringLiteral("dashboard"), QStringLiteral("meter"),
                 QStringLiteral("gauge"), QStringLiteral("plot"),
                 QStringLiteral("graphic"), QStringLiteral("visual"),
                 QStringLiteral("scope")}))
-        return QStringLiteral("Visualization");
+        return MarketTab::tr("Visualization");
     if (hasAny({QStringLiteral("trace"), QStringLiteral("analysis"),
                 QStringLiteral("decode"), QStringLiteral("filter"),
                 QStringLiteral("statistic")}))
-        return QStringLiteral("Analysis & Trace");
-    return QStringLiteral("Tools & Utilities");
+        return MarketTab::tr("Analysis & Trace");
+    return MarketTab::tr("Tools & Utilities");
 }
 
 /// Marketplace card factory: onOpen = card click (detail); onInstall = install/update
@@ -429,10 +430,10 @@ MarketCard *makeMarketCard(const CardData &d, const std::function<void()> &onOpe
     }
     QStringList meta;
     if (!d.updatedAt.isEmpty())
-        meta << QStringLiteral("Updated %1").arg(d.updatedAt);
+        meta << MarketTab::tr("Updated %1").arg(d.updatedAt);
     if (d.size > 0)
         meta << formatBytes(d.size);
-    meta << (d.isDriver ? QStringLiteral("Driver") : QStringLiteral("Plugin"));
+    meta << (d.isDriver ? MarketTab::tr("Driver") : MarketTab::tr("Plugin"));
     card->metaLabel = makeElidedLabel(meta.join(QStringLiteral(" · ")),
                                       textWidth, false, true);
     vbox->addWidget(card->metaLabel);
@@ -442,7 +443,7 @@ MarketCard *makeMarketCard(const CardData &d, const std::function<void()> &onOpe
     // Right: Free badge + Install / Update / Installed
     auto *right = new QVBoxLayout;
     right->setSpacing(6);
-    auto *badge = new QLabel(QStringLiteral("Free"));
+    auto *badge = new QLabel(MarketTab::tr("Free"));
     badge->setObjectName(QStringLiteral("MarketBadge"));
     badge->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
     right->addWidget(badge, 0, Qt::AlignRight | Qt::AlignTop);
@@ -451,11 +452,11 @@ MarketCard *makeMarketCard(const CardData &d, const std::function<void()> &onOpe
     card->actionBtn->setFixedHeight(26);
     card->actionBtn->setMinimumWidth(64);
     if (onInstall) {
-        card->actionBtn->setText(QStringLiteral("Install"));
+        card->actionBtn->setText(MarketTab::tr("Install"));
         QObject::connect(card->actionBtn, &QPushButton::clicked,
                          card, onInstall);
     } else {
-        card->actionBtn->setText(QStringLiteral("Installed"));
+        card->actionBtn->setText(MarketTab::tr("Installed"));
         card->actionBtn->setEnabled(false);
     }
     right->addWidget(card->actionBtn, 0, Qt::AlignRight | Qt::AlignBottom);
@@ -499,14 +500,11 @@ void MarketTab::buildUi()
     bar->setSpacing(6);
 
     m_filterAll = new QToolButton;
-    m_filterAll->setText(QStringLiteral("全部"));
     m_filterAll->setCheckable(true);
     m_filterAll->setChecked(true);
     m_filterDrivers = new QToolButton;
-    m_filterDrivers->setText(QStringLiteral("驱动"));
     m_filterDrivers->setCheckable(true);
     m_filterPlugins = new QToolButton;
-    m_filterPlugins->setText(QStringLiteral("插件"));
     m_filterPlugins->setCheckable(true);
     auto *group = new QButtonGroup(this);
     group->setExclusive(true);
@@ -521,48 +519,41 @@ void MarketTab::buildUi()
 
     // Sort (marketplace filter/sort alignment)
     m_sortCombo = new QComboBox;
-    m_sortCombo->addItems({ QStringLiteral("默认排序"),
-                            QStringLiteral("最近更新"),
-                            QStringLiteral("名称") });
-    m_sortCombo->setToolTip(QStringLiteral("首页卡片排列顺序"));
+    m_sortCombo->addItems({ QString(), QString(), QString() });
     connect(m_sortCombo, &QComboBox::currentIndexChanged,
             this, &MarketTab::onSearchChanged);
     bar->addWidget(m_sortCombo);
 
     bar->addStretch(1);
 
-    auto *refreshBtn = new QToolButton;
-    refreshBtn->setIcon(svgIcon(":/icons/refresh.svg",
-                                ThemeManager::instance()->currentTheme().text, 14));
-    refreshBtn->setText(QStringLiteral("刷新"));
-    refreshBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    refreshBtn->setToolTip(QStringLiteral("重新拉取市场索引与本地已装列表"));
-    connect(refreshBtn, &QToolButton::clicked, this, &MarketTab::onRefreshClicked);
+    m_refreshBtn = new QToolButton;
+    m_refreshBtn->setIcon(svgIcon(":/icons/refresh.svg",
+                                  ThemeManager::instance()->currentTheme().text, 14));
+    m_refreshBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    connect(m_refreshBtn, &QToolButton::clicked, this, &MarketTab::onRefreshClicked);
     // Theme switch → refresh button icon color (DEF-08 string signal)
     auto *refreshBtnRelay = new SignalRelay(this);
-    refreshBtnRelay->fire0 = [refreshBtn]() {
-        refreshBtn->setIcon(svgIcon(":/icons/refresh.svg",
-                                    ThemeManager::instance()->currentTheme().text, 14));
+    refreshBtnRelay->fire0 = [this]() {
+        m_refreshBtn->setIcon(svgIcon(":/icons/refresh.svg",
+                                      ThemeManager::instance()->currentTheme().text, 14));
     };
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             refreshBtnRelay, SLOT(fire()));
-    bar->addWidget(refreshBtn);
+    bar->addWidget(m_refreshBtn);
 
-    auto *installBtn = new QToolButton;
-    installBtn->setIcon(svgIcon(":/icons/kebab.svg",
-                                 ThemeManager::instance()->currentTheme().text, 14));
-    installBtn->setText(QStringLiteral("安装"));
-    installBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    installBtn->setToolTip(QStringLiteral("从本地包文件安装（.odp 驱动 / .opk 插件）"));
-    connect(installBtn, &QToolButton::clicked, this, &MarketTab::onInstallFromFile);
+    m_installBtn = new QToolButton;
+    m_installBtn->setIcon(svgIcon(":/icons/kebab.svg",
+                                   ThemeManager::instance()->currentTheme().text, 14));
+    m_installBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    connect(m_installBtn, &QToolButton::clicked, this, &MarketTab::onInstallFromFile);
     auto *installBtnRelay = new SignalRelay(this);
-    installBtnRelay->fire0 = [installBtn]() {
-        installBtn->setIcon(svgIcon(":/icons/kebab.svg",
-                                  ThemeManager::instance()->currentTheme().text, 14));
+    installBtnRelay->fire0 = [this]() {
+        m_installBtn->setIcon(svgIcon(":/icons/kebab.svg",
+                                      ThemeManager::instance()->currentTheme().text, 14));
     };
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             installBtnRelay, SLOT(fire()));
-    bar->addWidget(installBtn);
+    bar->addWidget(m_installBtn);
 
     root->addWidget(m_toolbarHost);
 
@@ -590,12 +581,12 @@ void MarketTab::buildUi()
     heroLay->setContentsMargins(24, 28, 24, 8);
     heroLay->setSpacing(10);
 
-    auto *heroTitle = new QLabel(QStringLiteral("openbus 扩展市场"));
-    QFont heroFont = heroTitle->font();
+    m_heroTitle = new QLabel;
+    QFont heroFont = m_heroTitle->font();
     heroFont.setBold(true);
     heroFont.setPointSize(heroFont.pointSize() + 6);
-    heroTitle->setFont(heroFont);
-    heroLay->addWidget(heroTitle, 0, Qt::AlignHCenter);
+    m_heroTitle->setFont(heroFont);
+    heroLay->addWidget(m_heroTitle, 0, Qt::AlignHCenter);
 
     // Hero search: QSS border+padding must fit inside fixed height or the
     // bottom edge of the field/button is clipped (same class of bug as suite strips).
@@ -607,8 +598,6 @@ void MarketTab::buildUi()
     searchRow->setSpacing(6);
     m_searchEdit = new QLineEdit;
     m_searchEdit->setObjectName(QStringLiteral("MarketSearchEdit"));
-    m_searchEdit->setPlaceholderText(
-        QStringLiteral("搜索驱动与插件（型号 / 厂商 / 关键词）"));
     m_searchEdit->setClearButtonEnabled(true);
     // 原生清除按钮 × 不随主题（深色下不可见）→ 换主题色 SVG 图标
     applyClearButtonIcon(m_searchEdit, ThemeManager::instance()->currentTheme().text);
@@ -622,7 +611,6 @@ void MarketTab::buildUi()
     searchRow->addWidget(m_searchEdit);
 
     m_searchBtn = new QPushButton;
-    m_searchBtn->setText(QStringLiteral("Search"));
     m_searchBtn->setObjectName(QStringLiteral("MarketSearchBtn"));
     m_searchBtn->setFixedHeight(kSearchCtrlH);
     m_searchBtn->setCursor(Qt::PointingHandCursor);
@@ -633,6 +621,10 @@ void MarketTab::buildUi()
     applySearchBtnStyle();
     const auto submitSearch = [this]() {
         onSearchChanged();
+        const QString q = m_searchEdit->text().trimmed();
+        if (!q.isEmpty())
+            Insights::instance()->track(QStringLiteral("search"),
+                                        QStringLiteral("market"), q);
         m_searchEdit->clearFocus();   // 收起输入焦点，视线回到结果区
         m_listArea->verticalScrollBar()->setValue(0);
     };
@@ -646,7 +638,7 @@ void MarketTab::buildUi()
     searchRow->addWidget(m_searchBtn);
     heroLay->addWidget(searchWrap, 0, Qt::AlignHCenter);
 
-    m_marketStatus = new QLabel(QStringLiteral("Loading marketplace…"));
+    m_marketStatus = new QLabel;
     m_marketStatus->setObjectName(QStringLiteral("MarketDim"));
     heroLay->addWidget(m_marketStatus, 0, Qt::AlignHCenter);
 
@@ -670,19 +662,17 @@ void MarketTab::buildUi()
     chromeLay->setContentsMargins(8, 4, 12, 4);
     chromeLay->setSpacing(8);
 
-    auto *backBtn = new QPushButton;
-    backBtn->setObjectName(QStringLiteral("MarketBackBtn"));
-    backBtn->setCursor(Qt::PointingHandCursor);
-    backBtn->setFlat(true);
-    backBtn->setText(QStringLiteral("返回市场"));
-    backBtn->setToolTip(QStringLiteral("回到市场首页（浏览 / 搜索扩展）"));
-    const auto applyBackIcon = [backBtn]() {
+    m_backBtn = new QPushButton;
+    m_backBtn->setObjectName(QStringLiteral("MarketBackBtn"));
+    m_backBtn->setCursor(Qt::PointingHandCursor);
+    m_backBtn->setFlat(true);
+    const auto applyBackIcon = [this]() {
         const QString accent = ThemeManager::instance()->currentTheme().accent;
-        backBtn->setIcon(svgIcon(":/icons/chevron-left.svg", accent, 16));
-        backBtn->setIconSize(QSize(16, 16));
+        m_backBtn->setIcon(svgIcon(":/icons/chevron-left.svg", accent, 16));
+        m_backBtn->setIconSize(QSize(16, 16));
     };
     applyBackIcon();
-    connect(backBtn, &QPushButton::clicked, this, [this]() {
+    connect(m_backBtn, &QPushButton::clicked, this, [this]() {
         m_stack->setCurrentIndex(0);
         if (m_toolbarHost)
             m_toolbarHost->setVisible(true);
@@ -692,7 +682,7 @@ void MarketTab::buildUi()
     backRelay->fire0 = applyBackIcon;
     connect(ThemeManager::instance(), SIGNAL(themeChanged(QString)),
             backRelay, SLOT(fire()));
-    chromeLay->addWidget(backBtn, 0, Qt::AlignVCenter);
+    chromeLay->addWidget(m_backBtn, 0, Qt::AlignVCenter);
 
     auto *sep = new QLabel(QStringLiteral("/"));
     sep->setObjectName(QStringLiteral("MarketDim"));
@@ -727,6 +717,69 @@ void MarketTab::buildUi()
     // 安装/禁用/卸载（含 scanAndLoad）后自动刷新已装分组
     connect(DriverRegistry::instance(), SIGNAL(driversChanged()),
             this, SLOT(refreshInstalled()));
+
+    retranslateUi();
+}
+
+void MarketTab::retranslateUi()
+{
+    if (m_filterAll)
+        m_filterAll->setText(tr("All"));
+    if (m_filterDrivers)
+        m_filterDrivers->setText(tr("Drivers"));
+    if (m_filterPlugins)
+        m_filterPlugins->setText(tr("Plugins"));
+
+    if (m_sortCombo && m_sortCombo->count() >= 3) {
+        m_sortCombo->setItemText(0, tr("Default"));
+        m_sortCombo->setItemText(1, tr("Recently updated"));
+        m_sortCombo->setItemText(2, tr("Name"));
+        m_sortCombo->setToolTip(tr("Sort order for home cards"));
+    }
+
+    if (m_refreshBtn) {
+        m_refreshBtn->setText(tr("Refresh"));
+        m_refreshBtn->setToolTip(
+            tr("Reload marketplace index and local installed list"));
+    }
+    if (m_installBtn) {
+        m_installBtn->setText(tr("Install"));
+        m_installBtn->setToolTip(
+            tr("Install from a local package file (.odp driver / .opk plugin)"));
+    }
+
+    if (m_heroTitle)
+        m_heroTitle->setText(tr("OpenBus Extensions Marketplace"));
+    if (m_searchEdit)
+        m_searchEdit->setPlaceholderText(
+            tr("Search drivers and plugins (model / vendor / keywords)"));
+    if (m_searchBtn)
+        m_searchBtn->setText(tr("Search"));
+    if (m_backBtn) {
+        m_backBtn->setText(tr("Back to Marketplace"));
+        m_backBtn->setToolTip(
+            tr("Return to marketplace home (browse / search extensions)"));
+    }
+
+    if (m_marketStatus) {
+        if (m_marketOk) {
+            auto *idx = MarketIndex::instance();
+            m_marketStatus->setText(
+                tr("Marketplace updated %1 · %2 drivers / %3 plugins")
+                    .arg(idx->updated())
+                    .arg(idx->drivers().size())
+                    .arg(idx->plugins().size()));
+        } else if (!m_marketError.isEmpty()) {
+            m_marketStatus->setText(
+                tr("Marketplace load failed: %1").arg(m_marketError));
+        } else {
+            m_marketStatus->setText(tr("Loading marketplace…"));
+        }
+    }
+
+    rebuildList();
+    if (m_stack && m_stack->currentIndex() == 1 && !m_current.id.isEmpty())
+        showDetail(m_current);
 }
 
 // ============================================================
@@ -759,10 +812,13 @@ void MarketTab::installLocalFile(const QString &path)
     if (path.endsWith(QStringLiteral(".opk"), Qt::CaseInsensitive)) {
         const QString err = PluginManager::instance()->installPackage(path);
         if (!err.isEmpty())
-            QMessageBox::warning(this, QStringLiteral("安装插件"), err);
-        else
-            QMessageBox::information(this, QStringLiteral("安装插件"),
-                                     QStringLiteral("插件安装成功"));
+            QMessageBox::warning(this, tr("Install Plugin"), err);
+        else {
+            Insights::instance()->track(QStringLiteral("plugin_download"),
+                                        QFileInfo(path).completeBaseName());
+            QMessageBox::information(this, tr("Install Plugin"),
+                                     tr("Plugin installed successfully"));
+        }
         refreshInstalled();
     } else {
         installOdpFile(path, QString());   // 离线包依赖包内 CHECKSUMS 自校验
@@ -784,19 +840,19 @@ void MarketTab::onRefreshClicked()
 void MarketTab::onInstallFromFile()
 {
     QMenu menu(this);
-    QAction *odpAct = menu.addAction(QStringLiteral("从 .odp 安装驱动…"));
-    QAction *opkAct = menu.addAction(QStringLiteral("从 .opk 安装插件…"));
+    QAction *odpAct = menu.addAction(tr("Install driver from .odp…"));
+    QAction *opkAct = menu.addAction(tr("Install plugin from .opk…"));
     QAction *chosen = menu.exec(QCursor::pos());
     if (chosen == odpAct) {
         const QString odp = QFileDialog::getOpenFileName(
-            this, QStringLiteral("选择驱动包"), QString(),
-            QStringLiteral("openbus 驱动包 (*.odp);;所有文件 (*)"));
+            this, tr("Select driver package"), QString(),
+            tr("OpenBus Driver Package (*.odp);;All Files (*)"));
         if (!odp.isEmpty())
             installLocalFile(odp);
     } else if (chosen == opkAct) {
         const QString opk = QFileDialog::getOpenFileName(
-            this, QStringLiteral("选择插件包"), QString(),
-            QStringLiteral("openbus 插件包 (*.opk);;所有文件 (*)"));
+            this, tr("Select plugin package"), QString(),
+            tr("OpenBus Plugin Package (*.opk);;All Files (*)"));
         if (!opk.isEmpty())
             installLocalFile(opk);
     }
@@ -804,12 +860,14 @@ void MarketTab::onInstallFromFile()
 
 void MarketTab::onMarketLoaded(bool ok, const QString &error)
 {
+    m_marketOk = ok;
+    m_marketError = error;
     auto *idx = MarketIndex::instance();
     if (!ok) {
-        m_marketStatus->setText(QStringLiteral("市场加载失败: %1").arg(error));
+        m_marketStatus->setText(tr("Marketplace load failed: %1").arg(error));
     } else {
         m_marketStatus->setText(
-            QStringLiteral("市场更新于 %1 · %2 个驱动 / %3 个插件")
+            tr("Marketplace updated %1 · %2 drivers / %3 plugins")
                 .arg(idx->updated())
                 .arg(idx->drivers().size())
                 .arg(idx->plugins().size()));
@@ -861,8 +919,7 @@ void MarketTab::rebuildList()
                 d, [this, item]() { selectItem(item); }, onInstall);
             if (onInstall) {
                 card->actionBtn->setText(
-                    local.isEmpty() ? QStringLiteral("Install")
-                                    : QStringLiteral("Update"));
+                    local.isEmpty() ? tr("Install") : tr("Update"));
             }
             // Already-installed plugin: Run button + double-click → activate
             const bool installedPlugin =
@@ -870,7 +927,7 @@ void MarketTab::rebuildList()
                 || d.item.kind == MarketItem::InstalledPlugin;
             if (installedPlugin) {
                 const QString pluginName = d.item.id;
-                card->actionBtn->setText(QStringLiteral("Run"));
+                card->actionBtn->setText(tr("Run"));
                 card->actionBtn->setEnabled(true);
                 card->actionBtn->disconnect();
                 QObject::connect(card->actionBtn, &QPushButton::clicked, card,
@@ -880,7 +937,7 @@ void MarketTab::rebuildList()
                 card->setOnDoubleClick([this, pluginName]() {
                     emit pluginActivateRequested(pluginName);
                 });
-                card->setToolTip(QStringLiteral(
+                card->setToolTip(tr(
                     "Run / double-click to start; single-click for details"));
             }
             // Letter badge only — do not overlay remote screenshot icons
@@ -963,25 +1020,25 @@ void MarketTab::rebuildList()
         else if (sortIdx == 2)
             std::stable_sort(all.begin(), all.end(), byName);
         if (all.isEmpty()) {
-            auto *empty = new QLabel(QStringLiteral("No matching items"));
+            auto *empty = new QLabel(tr("No matching items"));
             empty->setObjectName(QStringLiteral("MarketDim"));
             empty->setAlignment(Qt::AlignCenter);
             empty->setContentsMargins(24, 24, 24, 24);
             addWidget(empty);
             return;
         }
-        addSection(QStringLiteral("与 “%1” 匹配的 %2 个结果")
-                       .arg(text).arg(all.size()), all);
+        addSection(tr("%1 results matching \"%2\"")
+                       .arg(all.size()).arg(text), all);
         return;
     }
 
     // ---- Browse mode: Installed, then functional categories ----
     if (sortIdx == 1) {
         std::stable_sort(all.begin(), all.end(), byUpdated);
-        addSection(QStringLiteral("All · Recently updated"), all);
+        addSection(tr("All · Recently updated"), all);
     } else if (sortIdx == 2) {
         std::stable_sort(all.begin(), all.end(), byName);
-        addSection(QStringLiteral("All · By name"), all);
+        addSection(tr("All · By name"), all);
     } else {
         // Local installed plugins (always visible so UDS can be double-clicked)
         if (wantPlugins) {
@@ -1001,18 +1058,18 @@ void MarketTab::rebuildList()
                     installed.append(d);
             }
             if (!installed.isEmpty())
-                addSection(QStringLiteral("Installed · Double-click to run"),
+                addSection(tr("Installed · Double-click to run"),
                            installed);
         }
 
         // Category order for the home grid (~3 cards per row at 300px)
         const QStringList categoryOrder = {
-            QStringLiteral("Hardware Drivers"),
-            QStringLiteral("Diagnostics & Protocol"),
-            QStringLiteral("Network & AUTOSAR"),
-            QStringLiteral("Visualization"),
-            QStringLiteral("Analysis & Trace"),
-            QStringLiteral("Tools & Utilities"),
+            tr("Hardware Drivers"),
+            tr("Diagnostics & Protocol"),
+            tr("Network & AUTOSAR"),
+            tr("Visualization"),
+            tr("Analysis & Trace"),
+            tr("Tools & Utilities"),
         };
         QMap<QString, QVector<CardData>> byCat;
         for (const CardData &d : all)
@@ -1074,7 +1131,7 @@ void MarketTab::showDetail(const MarketItem &item)
     case MarketItem::MarketDriver: {
         const auto d = MarketIndex::instance()->driverById(item.id);
         if (d.id.isEmpty())
-            showPlaceholder(QStringLiteral("该驱动不在当前市场索引中"));
+            showPlaceholder(tr("This driver is not in the current marketplace index"));
         else
             showMarketDriver(d);
         break;
@@ -1085,7 +1142,7 @@ void MarketTab::showDetail(const MarketItem &item)
     case MarketItem::MarketPlugin: {
         const auto p = MarketIndex::instance()->pluginById(item.id);
         if (p.id.isEmpty())
-            showPlaceholder(QStringLiteral("该插件不在当前市场索引中"));
+            showPlaceholder(tr("This plugin is not in the current marketplace index"));
         else
             showMarketPlugin(p);
         break;
@@ -1120,7 +1177,7 @@ void MarketTab::showMarketDriver(const MarketIndex::DriverInfo &drv)
     vbox->setSpacing(2);
     vbox->addWidget(makeTitleLabel(drv.name));
     vbox->addWidget(makeSubLabel(
-        QStringLiteral("%1 · v%2 · 更新 %3")
+        tr("%1 · v%2 · Updated %3")
             .arg(drv.vendor, drv.version, drv.updatedAt)));
     if (!drv.summary.isEmpty())
         vbox->addWidget(makeSubLabel(drv.summary));
@@ -1132,8 +1189,7 @@ void MarketTab::showMarketDriver(const MarketIndex::DriverInfo &drv)
     auto *btnRow = new QWidget;
     auto *blay = new QHBoxLayout(btnRow);
     if (local.isEmpty()) {
-        auto *btn = new QPushButton(
-            QStringLiteral("安装 v%1").arg(drv.version));
+        auto *btn = new QPushButton(tr("Install v%1").arg(drv.version));
         connect(btn, &QPushButton::clicked, this, [this, drv]() {
             downloadAndInstall(MarketIndex::instance()->resolveUrl(drv.package),
                                drv.sha256, drv.id, false);
@@ -1141,7 +1197,7 @@ void MarketTab::showMarketDriver(const MarketIndex::DriverInfo &drv)
         blay->addWidget(btn);
     } else if (versionLessThan(local, drv.version)) {
         auto *btn = new QPushButton(
-            QStringLiteral("更新到 v%1（当前 v%2）").arg(drv.version, local));
+            tr("Update to v%1 (current v%2)").arg(drv.version, local));
         connect(btn, &QPushButton::clicked, this, [this, drv]() {
             downloadAndInstall(MarketIndex::instance()->resolveUrl(drv.package),
                                drv.sha256, drv.id, false);
@@ -1151,7 +1207,7 @@ void MarketTab::showMarketDriver(const MarketIndex::DriverInfo &drv)
         auto *btn = new QPushButton(
             svgIcon(":/icons/check.svg",
                     ThemeManager::instance()->currentTheme().text, 14),
-            QStringLiteral("已安装 v%1").arg(local));
+            tr("Installed v%1").arg(local));
         btn->setEnabled(false);
         blay->addWidget(btn);
     }
@@ -1160,7 +1216,7 @@ void MarketTab::showMarketDriver(const MarketIndex::DriverInfo &drv)
 
     // 代表图
     if (!drv.image.isEmpty()) {
-        auto *img = new QLabel(QStringLiteral("图片加载中…"));
+        auto *img = new QLabel(tr("Loading image…"));
         img->setAlignment(Qt::AlignCenter);
         img->setMinimumHeight(230);
         img->setStyleSheet(QStringLiteral(
@@ -1180,11 +1236,11 @@ void MarketTab::showMarketDriver(const MarketIndex::DriverInfo &drv)
 
     // 设备简表
     if (!drv.devices.isEmpty()) {
-        m_detailLay->addWidget(makeSectionLabel(QStringLiteral("支持设备")));
+        m_detailLay->addWidget(makeSectionLabel(tr("Supported devices")));
         auto *table = makeDeviceTable(
-            { QStringLiteral("型号"), QStringLiteral("通道"),
-              QStringLiteral("CAN FD"), QStringLiteral("最高波特率"),
-              QStringLiteral("时间戳") });
+            { tr("Model"), tr("Channels"),
+              QStringLiteral("CAN FD"), tr("Max baud rate"),
+              tr("Timestamp") });
         for (const auto &v : drv.devices) {
             const auto obj = v.toObject();
             const int row = table->rowCount();
@@ -1200,7 +1256,7 @@ void MarketTab::showMarketDriver(const MarketIndex::DriverInfo &drv)
                 obj.value(QStringLiteral("channels")).toInt())));
             table->setItem(row, 2, cell(
                 obj.value(QStringLiteral("canFd")).toBool()
-                    ? QStringLiteral("支持") : QStringLiteral("—")));
+                    ? tr("Yes") : QStringLiteral("—")));
             table->setItem(row, 3, cell(
                 obj.value(QStringLiteral("maxBaud")).toString()));
             table->setItem(row, 4, cell(
@@ -1210,7 +1266,7 @@ void MarketTab::showMarketDriver(const MarketIndex::DriverInfo &drv)
     }
 
     m_detailLay->addWidget(makeSubLabel(
-        QStringLiteral("包大小 %1 · 授权: %2 · 要求应用 ≥ v%3")
+        tr("Package size %1 · License: %2 · Requires app ≥ v%3")
             .arg(formatBytes(drv.size), drv.license, drv.minAppVersion)));
 
     auto *browser = makeMarkdownBrowser();
@@ -1230,7 +1286,7 @@ void MarketTab::showInstalledDriver(const QString &driverId)
                                      return e.driverId == driverId;
                                  });
     if (it == entries.cend()) {
-        showPlaceholder(QStringLiteral("该驱动已卸载"));
+        showPlaceholder(tr("This driver has been uninstalled"));
         return;
     }
     const auto &e = *it;
@@ -1260,10 +1316,10 @@ void MarketTab::showInstalledDriver(const QString &driverId)
     auto *status = new QLabel(
         e.enabled
             ? (e.available
-                   ? QStringLiteral("可用")
+                   ? tr("Available")
                    : e.disabledReason.isEmpty()
-                         ? QStringLiteral("不可用") : e.disabledReason)
-            : QStringLiteral("已禁用"));
+                         ? tr("Unavailable") : e.disabledReason)
+            : tr("Disabled"));
     status->setObjectName(
         e.enabled && e.available
             ? QStringLiteral("MarketOk")
@@ -1271,14 +1327,14 @@ void MarketTab::showInstalledDriver(const QString &driverId)
     m_detailLay->addWidget(status);
 
     m_detailLay->addWidget(makeSubLabel(
-        e.builtin ? QStringLiteral("来源: 内置（随主程序静态编译）")
-                  : QStringLiteral("来源: 外置驱动包（%1）").arg(e.installDir)));
+        e.builtin ? tr("Source: Built-in (statically linked with the app)")
+                  : tr("Source: External driver package (%1)").arg(e.installDir)));
 
     if (!e.devices.isEmpty()) {
-        m_detailLay->addWidget(makeSectionLabel(QStringLiteral("支持的设备型号")));
+        m_detailLay->addWidget(makeSectionLabel(tr("Supported device models")));
         auto *table = makeDeviceTable(
-            { QStringLiteral("型号名称"), QStringLiteral("设备类型"),
-              QStringLiteral("通道数"), QStringLiteral("CAN FD") });
+            { tr("Model name"), tr("Device type"),
+              tr("Channels"), QStringLiteral("CAN FD") });
         for (const auto &d : e.devices) {
             const auto obj = d.toObject();
             const int row = table->rowCount();
@@ -1294,7 +1350,7 @@ void MarketTab::showInstalledDriver(const QString &driverId)
                 obj.value(QStringLiteral("channels")).toInt())));
             table->setItem(row, 3, cell(
                 obj.value(QStringLiteral("canFd")).toBool()
-                    ? QStringLiteral("支持") : QStringLiteral("—")));
+                    ? tr("Yes") : QStringLiteral("—")));
         }
         m_detailLay->addWidget(table);
     }
@@ -1303,17 +1359,19 @@ void MarketTab::showInstalledDriver(const QString &driverId)
     auto *blay = new QHBoxLayout(btnRow);
     blay->addStretch(1);
     auto *toggleBtn = new QPushButton(
-        e.enabled ? QStringLiteral("禁用此驱动") : QStringLiteral("启用此驱动"));
-    toggleBtn->setToolTip(QStringLiteral(
-        "禁用后设备树隐藏且不参与枚举/创建，重启后不加载（方案 §7.4）"));
+        e.enabled ? tr("Disable this driver") : tr("Enable this driver"));
+    toggleBtn->setToolTip(tr(
+        "When disabled, the driver is hidden from the device tree and skipped "
+        "for enumeration/open; it will not load after restart"));
     connect(toggleBtn, &QPushButton::clicked, this, [this, driverId]() {
         toggleDriverEnabled(driverId);
     });
     blay->addWidget(toggleBtn);
-    auto *uninstallBtn = new QPushButton(QStringLiteral("卸载此驱动"));
+    auto *uninstallBtn = new QPushButton(tr("Uninstall this driver"));
     uninstallBtn->setEnabled(!e.builtin);
-    uninstallBtn->setToolTip(QStringLiteral(
-        "仅外置驱动可卸载；已加载的 DLL 在重启程序前仍驻留内存（方案 §7.4）"));
+    uninstallBtn->setToolTip(tr(
+        "Only external drivers can be uninstalled; a loaded DLL stays in memory "
+        "until the app restarts"));
     connect(uninstallBtn, &QPushButton::clicked, this, [this, driverId]() {
         uninstallDriver(driverId);
     });
@@ -1356,11 +1414,11 @@ void MarketTab::showMarketPlugin(const MarketIndex::PluginInfo &plug)
     vbox->setSpacing(2);
     vbox->addWidget(makeTitleLabel(plug.name));
     vbox->addWidget(makeSubLabel(
-        QStringLiteral("%1 · v%2 · 更新 %3")
+        tr("%1 · v%2 · Updated %3")
             .arg(plug.publisher, plug.version, plug.updatedAt)));
     if (!plug.tags.isEmpty())
         vbox->addWidget(makeSubLabel(
-            QStringLiteral("标签: %1")
+            tr("Tags: %1")
                 .arg(plug.tags.join(QStringLiteral("  ·  ")))));
     hlay->addLayout(vbox, 1);
     m_detailLay->addWidget(head);
@@ -1369,8 +1427,7 @@ void MarketTab::showMarketPlugin(const MarketIndex::PluginInfo &plug)
     auto *btnRow = new QWidget;
     auto *blay = new QHBoxLayout(btnRow);
     if (local.isEmpty()) {
-        auto *btn = new QPushButton(
-            QStringLiteral("安装 v%1").arg(plug.version));
+        auto *btn = new QPushButton(tr("Install v%1").arg(plug.version));
         connect(btn, &QPushButton::clicked, this, [this, plug]() {
             downloadAndInstall(MarketIndex::instance()->resolveUrl(plug.package),
                                plug.sha256, plug.id, true);
@@ -1378,7 +1435,7 @@ void MarketTab::showMarketPlugin(const MarketIndex::PluginInfo &plug)
         blay->addWidget(btn);
     } else if (versionLessThan(local, plug.version)) {
         auto *btn = new QPushButton(
-            QStringLiteral("更新到 v%1（当前 v%2）").arg(plug.version, local));
+            tr("Update to v%1 (current v%2)").arg(plug.version, local));
         connect(btn, &QPushButton::clicked, this, [this, plug]() {
             downloadAndInstall(MarketIndex::instance()->resolveUrl(plug.package),
                                plug.sha256, plug.id, true);
@@ -1388,7 +1445,7 @@ void MarketTab::showMarketPlugin(const MarketIndex::PluginInfo &plug)
         auto *btn = new QPushButton(
             svgIcon(":/icons/check.svg",
                     ThemeManager::instance()->currentTheme().text, 14),
-            QStringLiteral("已安装"));
+            tr("Installed"));
         btn->setEnabled(false);
         blay->addWidget(btn);
     }
@@ -1396,7 +1453,7 @@ void MarketTab::showMarketPlugin(const MarketIndex::PluginInfo &plug)
     m_detailLay->addWidget(btnRow);
 
     m_detailLay->addWidget(makeSubLabel(
-        QStringLiteral("包大小 %1 · 要求应用 ≥ v%2")
+        tr("Package size %1 · Requires app ≥ v%2")
             .arg(formatBytes(plug.size), plug.minAppVersion)));
 
     auto *browser = makeMarkdownBrowser();
@@ -1414,7 +1471,7 @@ void MarketTab::showInstalledPlugin(const QString &name)
     const auto it = std::find_if(plugins.cbegin(), plugins.cend(),
                                  [&name](const auto &p) { return p.name == name; });
     if (it == plugins.cend()) {
-        showPlaceholder(QStringLiteral("该插件已卸载"));
+        showPlaceholder(tr("This plugin has been uninstalled"));
         return;
     }
     const auto &p = *it;
@@ -1452,8 +1509,8 @@ void MarketTab::showInstalledPlugin(const QString &name)
     m_detailLay->addWidget(head);
 
     auto *status = new QLabel(
-        !enabled ? QStringLiteral("已禁用")
-                 : activated ? QStringLiteral("运行中") : QStringLiteral("已就绪"));
+        !enabled ? tr("Disabled")
+                 : activated ? tr("Running") : tr("Ready"));
     status->setObjectName(
         !enabled ? QStringLiteral("MarketDim")
                  : activated ? QStringLiteral("MarketOk")
@@ -1466,8 +1523,8 @@ void MarketTab::showInstalledPlugin(const QString &name)
     auto *btnRow = new QWidget;
     auto *blay = new QHBoxLayout(btnRow);
     auto *actionBtn = new QPushButton(
-        !enabled ? QStringLiteral("启用")
-                 : activated ? QStringLiteral("停止运行") : QStringLiteral("启动"));
+        !enabled ? tr("Enable")
+                 : activated ? tr("Stop") : tr("Start"));
     connect(actionBtn, &QPushButton::clicked, this,
             [this, name, enabled, activated]() {
         if (!enabled)
@@ -1479,13 +1536,13 @@ void MarketTab::showInstalledPlugin(const QString &name)
     });
     blay->addWidget(actionBtn);
     if (enabled) {
-        auto *disableBtn = new QPushButton(QStringLiteral("禁用"));
+        auto *disableBtn = new QPushButton(tr("Disable"));
         connect(disableBtn, &QPushButton::clicked, this, [this, name]() {
             emit pluginToggleRequested(name, false);
         });
         blay->addWidget(disableBtn);
     }
-    auto *uninstallBtn = new QPushButton(QStringLiteral("卸载"));
+    auto *uninstallBtn = new QPushButton(tr("Uninstall"));
     connect(uninstallBtn, &QPushButton::clicked, this, [this, name]() {
         uninstallPlugin(name);
     });
@@ -1496,7 +1553,7 @@ void MarketTab::showInstalledPlugin(const QString &name)
     // 市场补充说明（有条目时）
     const auto market = MarketIndex::instance()->pluginById(name);
     if (!market.id.isEmpty() && !market.readme.isEmpty()) {
-        m_detailLay->addWidget(makeSectionLabel(QStringLiteral("详细说明")));
+        m_detailLay->addWidget(makeSectionLabel(tr("Details")));
         auto *browser = makeMarkdownBrowser();
         browser->setMarkdown(market.readme);
         m_detailLay->addWidget(browser, 1);
@@ -1518,8 +1575,8 @@ void MarketTab::showInstalledPlugin(const QString &name)
 void MarketTab::downloadAndInstall(const QUrl &url, const QString &expectedSha,
                                    const QString &id, bool isPlugin)
 {
-    const QString title = isPlugin ? QStringLiteral("安装插件")
-                                   : QStringLiteral("安装驱动");
+    const QString title = isPlugin ? tr("Install Plugin")
+                                   : tr("Install Driver");
     m_progress->setRange(0, 100);
     m_progress->setValue(0);
     m_progress->setVisible(true);
@@ -1543,7 +1600,7 @@ void MarketTab::downloadAndInstall(const QUrl &url, const QString &expectedSha,
         m_progress->setVisible(false);
         if (reply->error() != QNetworkReply::NoError) {
             QMessageBox::warning(this, title,
-                QStringLiteral("包下载失败: %1").arg(reply->errorString()));
+                tr("Package download failed: %1").arg(reply->errorString()));
             return;
         }
 
@@ -1554,8 +1611,8 @@ void MarketTab::downloadAndInstall(const QUrl &url, const QString &expectedSha,
                 QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex());
             if (actual.compare(expectedSha, Qt::CaseInsensitive) != 0) {
                 QMessageBox::warning(this, title,
-                    QStringLiteral("包校验失败（sha256 不匹配），已中止安装。\n"
-                                   "请「刷新」市场索引后重试。"));
+                    tr("Package verification failed (sha256 mismatch); install aborted.\n"
+                       "Refresh the marketplace index and try again."));
                 return;
             }
         }
@@ -1566,7 +1623,7 @@ void MarketTab::downloadAndInstall(const QUrl &url, const QString &expectedSha,
                      : QStringLiteral("openbus-pkg-XXXXXX.odp")));
         if (!tmp.open()) {
             QMessageBox::warning(this, title,
-                QStringLiteral("无法创建临时文件: %1").arg(tmp.errorString()));
+                tr("Cannot create temporary file: %1").arg(tmp.errorString()));
             return;
         }
         tmp.write(data);
@@ -1576,9 +1633,11 @@ void MarketTab::downloadAndInstall(const QUrl &url, const QString &expectedSha,
             const QString err = PluginManager::instance()->installPackage(tmp.fileName());
             if (!err.isEmpty())
                 QMessageBox::warning(this, title, err);
-            else
+            else {
+                Insights::instance()->track(QStringLiteral("plugin_download"), id);
                 QMessageBox::information(
-                    this, title, QStringLiteral("插件 %1 安装成功。").arg(id));
+                    this, title, tr("Plugin %1 installed successfully.").arg(id));
+            }
             refreshInstalled();
         } else {
             installOdpFile(tmp.fileName(), expectedSha);
@@ -1592,15 +1651,15 @@ void MarketTab::installOdpFile(const QString &odpPath, const QString &expectedSh
     if (!expectedSha.isEmpty()) {
         QFile f(odpPath);
         if (!f.open(QIODevice::ReadOnly)) {
-            QMessageBox::warning(this, QStringLiteral("安装驱动"),
-                QStringLiteral("无法读取驱动包: %1").arg(odpPath));
+            QMessageBox::warning(this, tr("Install Driver"),
+                tr("Cannot read driver package: %1").arg(odpPath));
             return;
         }
         const QString actual = QString::fromLatin1(
             QCryptographicHash::hash(f.readAll(), QCryptographicHash::Sha256).toHex());
         if (actual.compare(expectedSha, Qt::CaseInsensitive) != 0) {
-            QMessageBox::warning(this, QStringLiteral("安装驱动"),
-                QStringLiteral("驱动包校验失败（sha256 不匹配），已中止安装。"));
+            QMessageBox::warning(this, tr("Install Driver"),
+                tr("Driver package verification failed (sha256 mismatch); install aborted."));
             return;
         }
     }
@@ -1609,17 +1668,18 @@ void MarketTab::installOdpFile(const QString &odpPath, const QString &expectedSh
     QJsonObject vres;
     QString err = runDriverTool({ QStringLiteral("validate"), odpPath }, &vres);
     if (!err.isEmpty()) {
-        QMessageBox::warning(this, QStringLiteral("安装驱动"), err);
+        QMessageBox::warning(this, tr("Install Driver"), err);
         return;
     }
     const QString id = vres.value(QStringLiteral("id")).toString();
     const QString version = vres.value(QStringLiteral("version")).toString();
 
     const auto ret = QMessageBox::question(
-        this, QStringLiteral("安装驱动"),
-        QStringLiteral("即将安装驱动 %1 v%2。\n\n"
-                       "注意：驱动为原生插件，安装后将加载进主进程"
-                       "（与内置驱动同级，保证低时延性能）。是否继续？").arg(id, version));
+        this, tr("Install Driver"),
+        tr("About to install driver %1 v%2.\n\n"
+           "Note: Drivers are native plugins and will be loaded into the main process "
+           "after install (same level as built-in drivers for low latency). Continue?")
+            .arg(id, version));
     if (ret != QMessageBox::Yes)
         return;
 
@@ -1627,7 +1687,7 @@ void MarketTab::installOdpFile(const QString &odpPath, const QString &expectedSh
     err = runDriverTool({ QStringLiteral("install"), odpPath,
                           DriverRegistry::driversRootDir() }, &ires);
     if (!err.isEmpty()) {
-        QMessageBox::warning(this, QStringLiteral("安装驱动"), err);
+        QMessageBox::warning(this, tr("Install Driver"), err);
         return;
     }
 
@@ -1636,24 +1696,25 @@ void MarketTab::installOdpFile(const QString &odpPath, const QString &expectedSh
     DriverRegistry::instance()->scanAndLoad();
     refreshInstalled();
     emit driverInstalled(id);
-    QMessageBox::information(this, QStringLiteral("安装驱动"),
-        QStringLiteral("驱动 %1 v%2 安装成功，已加载。")
+    Insights::instance()->track(QStringLiteral("plugin_download"), id);
+    QMessageBox::information(this, tr("Install Driver"),
+        tr("Driver %1 v%2 installed and loaded successfully.")
             .arg(id, ires.value(QStringLiteral("version")).toString()));
 }
 
 void MarketTab::uninstallDriver(const QString &driverId)
 {
     const auto ret = QMessageBox::question(
-        this, QStringLiteral("卸载驱动"),
-        QStringLiteral("确定卸载驱动 %1？\n\n"
-                       "若其 DLL 已被本次运行加载，重启程序后将彻底清理（方案 §7.4）。")
+        this, tr("Uninstall Driver"),
+        tr("Uninstall driver %1?\n\n"
+           "If its DLL is already loaded in this session, it will be fully cleaned up after restart.")
             .arg(driverId));
     if (ret != QMessageBox::Yes)
         return;
 
     const QString err = DriverRegistry::instance()->uninstallExternal(driverId);
     if (!err.isEmpty()) {
-        QMessageBox::warning(this, QStringLiteral("卸载驱动"), err);
+        QMessageBox::warning(this, tr("Uninstall Driver"), err);
         return;
     }
     // driversChanged → refreshInstalled（条目移除后详情自动回退占位）
@@ -1676,13 +1737,13 @@ void MarketTab::toggleDriverEnabled(const QString &driverId)
 void MarketTab::uninstallPlugin(const QString &name)
 {
     const auto ret = QMessageBox::question(
-        this, QStringLiteral("卸载插件"),
-        QStringLiteral("确定卸载插件 %1？").arg(name));
+        this, tr("Uninstall Plugin"),
+        tr("Uninstall plugin %1?").arg(name));
     if (ret != QMessageBox::Yes)
         return;
     const QString err = PluginManager::instance()->uninstallPlugin(name);
     if (!err.isEmpty())
-        QMessageBox::warning(this, QStringLiteral("卸载插件"), err);
+        QMessageBox::warning(this, tr("Uninstall Plugin"), err);
     refreshInstalled();
 }
 
@@ -1740,29 +1801,29 @@ QString MarketTab::runDriverTool(const QStringList &args, QJsonObject *result)
     if (m_pythonExe.isEmpty())
         m_pythonExe = findPythonExecutable();
     if (m_pythonExe.isEmpty())
-        return QStringLiteral("未找到 Python 解释器");
+        return tr("Python interpreter not found");
 
     const QString toolPath = QDir(findAppBaseDir())
                                  .filePath(QStringLiteral("scripts/driver_tool.py"));
     if (!QFileInfo::exists(toolPath))
-        return QStringLiteral("驱动工具不存在: %1").arg(toolPath);
+        return tr("Driver tool not found: %1").arg(toolPath);
 
     QProcess proc;
     proc.start(m_pythonExe, QStringList{ toolPath } + args);
     if (!proc.waitForFinished(60000)) {
         proc.kill();
-        return QStringLiteral("驱动工具执行超时");
+        return tr("Driver tool timed out");
     }
 
     const QByteArray out = proc.readAllStandardOutput().trimmed();
     QJsonParseError parseErr;
     const QJsonDocument doc = QJsonDocument::fromJson(out, &parseErr);
     if (parseErr.error != QJsonParseError::NoError || !doc.isObject())
-        return QStringLiteral("驱动工具输出异常: %1")
+        return tr("Unexpected driver tool output: %1")
                    .arg(QString::fromUtf8(out).left(300));
 
     *result = doc.object();
     if (!result->value(QStringLiteral("ok")).toBool())
-        return result->value(QStringLiteral("error")).toString(QStringLiteral("操作失败"));
+        return result->value(QStringLiteral("error")).toString(tr("Operation failed"));
     return QString();
 }

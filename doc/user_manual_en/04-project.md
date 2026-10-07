@@ -2,7 +2,7 @@
 
 ## 4.1 Purpose
 
-The **Project** workspace manages openbus projects: the open project tree, recent projects, and session entry points. A project remembers measurement layout, device, and analysis windows (exact persisted fields depend on the build).
+The **Project** workspace manages OpenBus projects: the open project tree, recent projects, and session entry points. A project remembers measurement layout, device, and analysis windows (exact persisted fields depend on the build).
 
 ## 4.2 Open the Project workspace
 

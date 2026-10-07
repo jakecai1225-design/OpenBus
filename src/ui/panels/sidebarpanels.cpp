@@ -79,16 +79,22 @@ void SidePanel::setupTitle(const QString &title)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    auto *titleBar = new QLabel(title, this);
-    titleBar->setObjectName("SidePanelTitle");
-    titleBar->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(titleBar);
+    m_titleLabel = new QLabel(title, this);
+    m_titleLabel->setObjectName("SidePanelTitle");
+    m_titleLabel->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(m_titleLabel);
 
     auto *contentWidget = new QWidget(this);
     m_contentLayout = new QVBoxLayout(contentWidget);
     m_contentLayout->setContentsMargins(0, 0, 0, 0);
     m_contentLayout->setSpacing(0);
     layout->addWidget(contentWidget, 1);
+}
+
+void SidePanel::setTitle(const QString &title)
+{
+    if (m_titleLabel)
+        m_titleLabel->setText(title);
 }
 
 // ============================================================
@@ -890,9 +896,9 @@ void ProjectPanel::refreshList()
 void ProjectPanel::onNewProject()
 {
     bool ok = false;
-    QString name = QInputDialog::getText(this, "新建工程",
-        "工程名称:", QLineEdit::Normal,
-        QString("工程 %1").arg(m_projects.size() + 1), &ok);
+    QString name = QInputDialog::getText(this, tr("New Project"),
+        tr("Project name:"), QLineEdit::Normal,
+        tr("Project %1").arg(m_projects.size() + 1), &ok);
     if (!ok || name.trimmed().isEmpty()) return;
 
     ProjectContext proj;
@@ -912,8 +918,8 @@ void ProjectPanel::onSaveProject()
     QString path = m_projects[m_currentIndex].filePath;
     if (path.isEmpty()) {
         path = QFileDialog::getSaveFileName(
-            this, "保存工程", m_projects[m_currentIndex].name + ".openbusproj",
-            "openbus 工程文件 (*.openbusproj);;所有文件 (*.*)");
+            this, tr("Save Project"), m_projects[m_currentIndex].name + ".openbusproj",
+            tr("OpenBus Project Files (*.openbusproj);;All Files (*.*)"));
         if (path.isEmpty()) return;
     }
 
@@ -925,8 +931,8 @@ void ProjectPanel::onSaveProject()
 void ProjectPanel::onOpenProject()
 {
     QString path = QFileDialog::getOpenFileName(
-        this, "打开工程", {},
-        "openbus 工程文件 (*.openbusproj);;所有文件 (*.*)");
+        this, tr("Open Project"), {},
+        tr("OpenBus Project Files (*.openbusproj);;All Files (*.*)"));
     if (path.isEmpty()) return;
 
     // 添加到工程列表
@@ -1414,8 +1420,8 @@ void DbcPanel::onImportDatabase()
 
     QString category = categoryForFile(path);
     if (category.isEmpty()) {
-        QMessageBox::warning(this, "不支持的格式",
-            QString("无法识别文件类型: %1\n支持: DBC / EDS / DCF / XDD / XML / LDF / NCF / DPF / ARXML")
+        QMessageBox::warning(this, tr("Unsupported Format"),
+            tr("Unrecognized file type: %1\nSupported: DBC / EDS / DCF / XDD / XML / LDF / NCF / DPF / ARXML")
                 .arg(QFileInfo(path).fileName()));
         return;
     }
@@ -1423,7 +1429,8 @@ void DbcPanel::onImportDatabase()
     // DBC 文件交给 DbcManager 解析
     if (category == "CAN/CANFD" && m_dbcMgr) {
         if (!m_dbcMgr->loadDbc(path))
-            QMessageBox::warning(this, "加载失败", "无法加载 DBC 文件: " + path);
+            QMessageBox::warning(this, tr("Load Failed"),
+                tr("Cannot load DBC file: %1").arg(path));
         return;
     }
 
@@ -1436,7 +1443,8 @@ void DbcPanel::onImportDatabase()
     // 避免重复加载
     for (const auto &e : m_otherDbs) {
         if (e.filePath == path) {
-            QMessageBox::information(this, "已加载", "该文件已在列表中");
+            QMessageBox::information(this, tr("Already Loaded"),
+                tr("This file is already in the list"));
             return;
         }
     }
@@ -1992,7 +2000,7 @@ void DevicePanel::populateTree()
     };
 
     auto *simItem = new QTreeWidgetItem(m_deviceTree);
-    simItem->setText(0, QStringLiteral("openbus Simulator"));
+    simItem->setText(0, QStringLiteral("OpenBus Simulator"));
     simItem->setData(0, Qt::UserRole, 0);
     simItem->setData(0, Qt::UserRole + 1, 0);
     attachOpen(simItem);
@@ -2059,42 +2067,53 @@ void DevicePanel::onItemDoubleClicked(QTreeWidgetItem *item, int /*column*/)
 // ============================================================
 
 TransceivePanel::TransceivePanel(QWidget *parent)
-    : SidePanel(QStringLiteral("Transceive"), parent)
+    : SidePanel(tr("Transceive"), parent)
 {
     auto *cl = contentLayout();
 
     const QString iconColor = ThemeManager::instance()->currentTheme().text;
 
-    auto *sendBtn = new QPushButton(QStringLiteral("Send"), this);
-    sendBtn->setObjectName("SidePanelButton");
-    sendBtn->setToolTip(QStringLiteral("Open Send tab"));
-    sendBtn->setIcon(svgIcon(":/icons/list.svg", iconColor, 16));
-    cl->addWidget(sendBtn);
+    m_sendBtn = new QPushButton(this);
+    m_sendBtn->setObjectName("SidePanelButton");
+    m_sendBtn->setIcon(svgIcon(":/icons/list.svg", iconColor, 16));
+    cl->addWidget(m_sendBtn);
 
-    auto *playbackBtn = new QPushButton(QStringLiteral("Playback"), this);
-    playbackBtn->setObjectName("SidePanelButton");
-    playbackBtn->setToolTip(QStringLiteral("Open Playback tab"));
-    playbackBtn->setIcon(svgIcon(":/icons/play.svg", iconColor, 16));
-    cl->addWidget(playbackBtn);
+    m_playbackBtn = new QPushButton(this);
+    m_playbackBtn->setObjectName("SidePanelButton");
+    m_playbackBtn->setIcon(svgIcon(":/icons/play.svg", iconColor, 16));
+    cl->addWidget(m_playbackBtn);
 
-    auto *offlineBtn = new QPushButton(QStringLiteral("Offline Analysis"), this);
-    offlineBtn->setObjectName("SidePanelButton");
-    offlineBtn->setToolTip(QStringLiteral("Open Offline Analysis tab"));
-    offlineBtn->setIcon(svgIcon(":/icons/file.svg", iconColor, 16));
-    cl->addWidget(offlineBtn);
+    m_offlineBtn = new QPushButton(this);
+    m_offlineBtn->setObjectName("SidePanelButton");
+    m_offlineBtn->setIcon(svgIcon(":/icons/file.svg", iconColor, 16));
+    cl->addWidget(m_offlineBtn);
 
-    auto *recordBtn = new QPushButton(QStringLiteral("Record"), this);
-    recordBtn->setObjectName("SidePanelButton");
-    recordBtn->setToolTip(QStringLiteral("Open Record tab"));
-    recordBtn->setIcon(svgIcon(":/icons/record.svg", iconColor, 16));
-    cl->addWidget(recordBtn);
+    m_recordBtn = new QPushButton(this);
+    m_recordBtn->setObjectName("SidePanelButton");
+    m_recordBtn->setIcon(svgIcon(":/icons/record.svg", iconColor, 16));
+    cl->addWidget(m_recordBtn);
 
     cl->addStretch();
 
-    connect(sendBtn, &QPushButton::clicked, this, &TransceivePanel::onSendClicked);
-    connect(playbackBtn, &QPushButton::clicked, this, &TransceivePanel::onPlaybackClicked);
-    connect(offlineBtn, &QPushButton::clicked, this, &TransceivePanel::onOfflineAnalysisClicked);
-    connect(recordBtn, &QPushButton::clicked, this, &TransceivePanel::onRecordClicked);
+    connect(m_sendBtn, &QPushButton::clicked, this, &TransceivePanel::onSendClicked);
+    connect(m_playbackBtn, &QPushButton::clicked, this, &TransceivePanel::onPlaybackClicked);
+    connect(m_offlineBtn, &QPushButton::clicked, this, &TransceivePanel::onOfflineAnalysisClicked);
+    connect(m_recordBtn, &QPushButton::clicked, this, &TransceivePanel::onRecordClicked);
+
+    retranslateUi();
+}
+
+void TransceivePanel::retranslateUi()
+{
+    setTitle(tr("Transceive"));
+    m_sendBtn->setText(tr("Send"));
+    m_sendBtn->setToolTip(tr("Open Send tab"));
+    m_playbackBtn->setText(tr("Playback"));
+    m_playbackBtn->setToolTip(tr("Open Playback tab"));
+    m_offlineBtn->setText(tr("Offline Analysis"));
+    m_offlineBtn->setToolTip(tr("Open Offline Analysis tab"));
+    m_recordBtn->setText(tr("Record"));
+    m_recordBtn->setToolTip(tr("Open Record tab"));
 }
 
 void TransceivePanel::onSendClicked()

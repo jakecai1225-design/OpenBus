@@ -21,7 +21,7 @@
     </message>
     <message>
         <source>Save Project</source>
-        <translation>Salvar projeto</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Import Log File...</source>
@@ -76,6 +76,38 @@
         <translation>Watcher</translation>
     </message>
     <message>
+        <source>Send</source>
+        <translation>Enviar</translation>
+    </message>
+    <message>
+        <source>Playback</source>
+        <translation>Reprodução</translation>
+    </message>
+    <message>
+        <source>Offline Analysis</source>
+        <translation>Análise offline</translation>
+    </message>
+    <message>
+        <source>Devices</source>
+        <translation>Dispositivos</translation>
+    </message>
+    <message>
+        <source>Extensions</source>
+        <translation>Extensões</translation>
+    </message>
+    <message>
+        <source>CAN Flow</source>
+        <translation>CAN Flow</translation>
+    </message>
+    <message>
+        <source>Frame List %1</source>
+        <translation>Lista de frames %1</translation>
+    </message>
+    <message>
+        <source>Waveform %1</source>
+        <translation>Forma de onda %1</translation>
+    </message>
+    <message>
         <source>Color Rule Editor...</source>
         <translation>Editor de regras de cor...</translation>
     </message>
@@ -122,6 +154,238 @@
     <message>
         <source>Ready</source>
         <translation>Pronto</translation>
+    </message>
+    <message>
+        <source>Recording File</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unsupported recording format: .%1
+Please use ASC or CSV.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot create file: %1
+Check that the path is valid and disk space is available.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot create recording file: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open File</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>;;DBC Files (*.dbc);;All Files (*.*)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Load failed: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot load: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Loaded: %1 (%2 frames, %3s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import Log File</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unsupported file format</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Importing...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File is empty or could not be parsed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import complete: %1 (%2 frames, format: %3)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 frames</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 rows</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Imported %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 / %2 frames</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter %1/%2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Uninstall Plugin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Uninstall plugin %1?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plugin system is not initialized</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Uninstall Driver</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Uninstall driver %1?
+
+If its DLL is already loaded in this session, it will be fully removed after restart.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select Driver/Plugin Package</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OpenBus Driver &amp; Plugin Packages (*.odp *.opk);;All Files (*)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connected: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hardware connected: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disconnected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hardware disconnected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recording started</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recording stopped: %1 (%2 frames)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DBC loaded: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Project loaded: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Project saved: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quit</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recording in progress. Quit anyway?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Project</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OpenBus Project Files (*.openbusproj);;All Files (*.*)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switched to project: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Created project: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DBC file not found: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Project session restored: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>[Preview] %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot open file:
+%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Binary file; cannot preview as text:
+%1
+
+File size: %2 bytes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No DBC message definition for ID=0x%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added %1 signals to Graphic (ID=0x%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added signal: %1 (ID=0x%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added signal to Trace: %1 (ID=0x%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Module %1 %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>enabled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>disabled</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -388,6 +652,226 @@
     </message>
 </context>
 <context>
+    <name>TransceivePanel</name>
+    <message>
+        <source>Transceive</source>
+        <translation>Tx/Rx</translation>
+    </message>
+    <message>
+        <source>Send</source>
+        <translation>Enviar</translation>
+    </message>
+    <message>
+        <source>Playback</source>
+        <translation>Reprodução</translation>
+    </message>
+    <message>
+        <source>Offline Analysis</source>
+        <translation>Análise offline</translation>
+    </message>
+    <message>
+        <source>Record</source>
+        <translation>Gravar</translation>
+    </message>
+    <message>
+        <source>Open Send tab</source>
+        <translation>Abrir Enviar</translation>
+    </message>
+    <message>
+        <source>Open Playback tab</source>
+        <translation>Abrir Reprodução</translation>
+    </message>
+    <message>
+        <source>Open Offline Analysis tab</source>
+        <translation>Abrir Análise offline</translation>
+    </message>
+    <message>
+        <source>Open Record tab</source>
+        <translation>Abrir Gravar</translation>
+    </message>
+</context>
+<context>
+    <name>RecordTab</name>
+    <message>
+        <source>Start Recording</source>
+        <translation>Iniciar gravação</translation>
+    </message>
+    <message>
+        <source>Stop Recording</source>
+        <translation>Parar gravação</translation>
+    </message>
+    <message>
+        <source>Pause</source>
+        <translation>Pausar</translation>
+    </message>
+    <message>
+        <source>Resume</source>
+        <translation>Retomar</translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <translation>Parar</translation>
+    </message>
+    <message>
+        <source>File Settings</source>
+        <translation>Configurações de arquivo</translation>
+    </message>
+    <message>
+        <source>Directory:</source>
+        <translation>Diretório:</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>Procurar...</translation>
+    </message>
+    <message>
+        <source>Open Folder</source>
+        <translation>Abrir pasta</translation>
+    </message>
+    <message>
+        <source>Open the recording directory in the system file manager</source>
+        <translation>Abrir o diretório de gravação</translation>
+    </message>
+    <message>
+        <source>File name prefix:</source>
+        <translation>Prefixo:</translation>
+    </message>
+    <message>
+        <source>File format:</source>
+        <translation>Formato:</translation>
+    </message>
+    <message>
+        <source>File Splitting</source>
+        <translation>Divisão de arquivo</translation>
+    </message>
+    <message>
+        <source>By size</source>
+        <translation>Por tamanho</translation>
+    </message>
+    <message>
+        <source>By time</source>
+        <translation>Por tempo</translation>
+    </message>
+    <message>
+        <source>Every</source>
+        <translation>A cada</translation>
+    </message>
+    <message>
+        <source> MB</source>
+        <translation> MB</translation>
+    </message>
+    <message>
+        <source> s</source>
+        <translation> s</translation>
+    </message>
+    <message>
+        <source>Ring mode (overwrite oldest files)</source>
+        <translation>Modo anel (sobrescrever mais antigos)</translation>
+    </message>
+    <message>
+        <source>Buffer size:</source>
+        <translation>Tamanho do buffer:</translation>
+    </message>
+    <message>
+        <source>%1 frames</source>
+        <translation>%1 frames</translation>
+    </message>
+    <message>
+        <source>Recording Filter</source>
+        <translation>Filtro de gravação</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>Tudo</translation>
+    </message>
+    <message>
+        <source>Rx only</source>
+        <translation>Somente Rx</translation>
+    </message>
+    <message>
+        <source>Tx only</source>
+        <translation>Somente Tx</translation>
+    </message>
+    <message>
+        <source>CAN FD only</source>
+        <translation>Somente CAN FD</translation>
+    </message>
+    <message>
+        <source>ID filter:</source>
+        <translation>Filtro de ID:</translation>
+    </message>
+    <message>
+        <source>Comma-separated, e.g. 0x123,0x456</source>
+        <translation>Separados por vírgula, ex.: 0x123,0x456</translation>
+    </message>
+    <message>
+        <source>Trigger Recording</source>
+        <translation>Gravação por gatilho</translation>
+    </message>
+    <message>
+        <source>Enable trigger recording</source>
+        <translation>Ativar gravação por gatilho</translation>
+    </message>
+    <message>
+        <source>Trigger condition:</source>
+        <translation>Condição:</translation>
+    </message>
+    <message>
+        <source>e.g. id == 0x1A5 and data[0] == 0xFF</source>
+        <translation>ex.: id == 0x1A5 and data[0] == 0xFF</translation>
+    </message>
+    <message>
+        <source>Pre-buffer:</source>
+        <translation>Pré-buffer:</translation>
+    </message>
+    <message>
+        <source>Post-record:</source>
+        <translation>Pós-gravação:</translation>
+    </message>
+    <message>
+        <source>Repeat trigger</source>
+        <translation>Repetir gatilho</translation>
+    </message>
+    <message>
+        <source>Start Trigger Recording</source>
+        <translation>Iniciar gravação por gatilho</translation>
+    </message>
+    <message>
+        <source>Stop Trigger Recording</source>
+        <translation>Parar gravação por gatilho</translation>
+    </message>
+    <message>
+        <source>Status: Idle</source>
+        <translation>Status: ocioso</translation>
+    </message>
+    <message>
+        <source>Status: Recording...</source>
+        <translation>Status: gravando...</translation>
+    </message>
+    <message>
+        <source>Status: Paused</source>
+        <translation>Status: pausado</translation>
+    </message>
+    <message>
+        <source>Select recording directory</source>
+        <translation>Selecionar diretório</translation>
+    </message>
+    <message>
+        <source>Please set a recording directory first.</source>
+        <translation>Defina primeiro um diretório de gravação.</translation>
+    </message>
+    <message>
+        <source>Directory does not exist:
+%1
+
+(It will be created when recording starts.)</source>
+        <translation>O diretório não existe:
+%1
+
+(Será criado ao iniciar.)</translation>
+    </message>
+</context>
+<context>
     <name>PlaybackTab</name>
     <message>
         <source>Playback</source>
@@ -440,6 +924,504 @@
     <message>
         <source>Ready</source>
         <translation>Pronto</translation>
+    </message>
+</context>
+<context>
+    <name>ProjectPanel</name>
+    <message>
+        <source>New Project</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Project name:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Project %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save Project</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Project</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OpenBus Project Files (*.openbusproj);;All Files (*.*)</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>DbcPanel</name>
+    <message>
+        <source>Unsupported Format</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unrecognized file type: %1
+Supported: DBC / EDS / DCF / XDD / XML / LDF / NCF / DPF / ARXML</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Load Failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot load DBC file: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Already Loaded</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This file is already in the list</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ColumnFilterPopup</name>
+    <message>
+        <source>Search...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>MarketTab</name>
+    <message>
+        <source>All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drivers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plugins</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Default</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recently updated</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sort order for home cards</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Refresh</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reload marketplace index and local installed list</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install from a local package file (.odp driver / .opk plugin)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OpenBus Extensions Marketplace</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search drivers and plugins (model / vendor / keywords)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Back to Marketplace</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Return to marketplace home (browse / search extensions)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Marketplace updated %1 · %2 drivers / %3 plugins</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Marketplace load failed: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Loading marketplace…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install Plugin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plugin installed successfully</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install driver from .odp…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install plugin from .opk…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select driver package</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OpenBus Driver Package (*.odp);;All Files (*)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select plugin package</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OpenBus Plugin Package (*.opk);;All Files (*)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Run</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Installed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Free</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Driver</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plugin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Updated %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hardware Drivers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Diagnostics &amp; Protocol</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network &amp; AUTOSAR</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Visualization</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Analysis &amp; Trace</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tools &amp; Utilities</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No matching items</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 results matching &quot;%2&quot;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All · Recently updated</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All · By name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Installed · Double-click to run</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This driver is not in the current marketplace index</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This plugin is not in the current marketplace index</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 · v%2 · Updated %3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install v%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Update to v%1 (current v%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Installed v%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Loading image…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Supported devices</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Model</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Channels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Max baud rate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Timestamp</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Package size %1 · License: %2 · Requires app ≥ v%3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This driver has been uninstalled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Available</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unavailable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Source: Built-in (statically linked with the app)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Source: External driver package (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Supported device models</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Model name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Device type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable this driver</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable this driver</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When disabled, the driver is hidden from the device tree and skipped for enumeration/open; it will not load after restart</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Uninstall this driver</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Only external drivers can be uninstalled; a loaded DLL stays in memory until the app restarts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tags: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Package size %1 · Requires app ≥ v%2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This plugin has been uninstalled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Running</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ready</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Uninstall</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Details</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Install Driver</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Package download failed: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Package verification failed (sha256 mismatch); install aborted.
+Refresh the marketplace index and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot create temporary file: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plugin %1 installed successfully.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot read driver package: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Driver package verification failed (sha256 mismatch); install aborted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>About to install driver %1 v%2.
+
+Note: Drivers are native plugins and will be loaded into the main process after install (same level as built-in drivers for low latency). Continue?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Uninstall driver %1?
+
+If its DLL is already loaded in this session, it will be fully cleaned up after restart.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Driver %1 v%2 installed and loaded successfully.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Uninstall Driver</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Uninstall Plugin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Uninstall plugin %1?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Python interpreter not found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Driver tool not found: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Driver tool timed out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unexpected driver tool output: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Operation failed</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 </TS>

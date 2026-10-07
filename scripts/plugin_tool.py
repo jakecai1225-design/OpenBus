@@ -42,6 +42,7 @@ SUITE_IDS = (
     "j1939-suite",
     "obd-suite",
     "ethercat-suite",
+    "log-converter",
 )
 
 # Must match domainplugins.h retiredPluginIds() — never pack or list these.

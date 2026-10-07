@@ -20,7 +20,7 @@
   !define OUT_FILE "openbus-${VERSION}-windows-x64-setup.exe"
 !endif
 
-Name "openbus"
+Name "OpenBus"
 OutFile "${OUT_FILE}"
 Unicode True
 InstallDir "$PROGRAMFILES64\openbus"
@@ -93,18 +93,18 @@ persist_write:
 persist_done:
 FunctionEnd
 
-Section "openbus"
+Section "OpenBus"
   SetOutPath "$INSTDIR"
   File /r "${SOURCE_DIR}\*.*"
 
   WriteUninstaller "$INSTDIR\uninstall.exe"
   WriteRegStr HKLM "Software\openbus" "InstallDir" "$INSTDIR"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\openbus" \
-      "DisplayName" "openbus"
+      "DisplayName" "OpenBus"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\openbus" \
       "DisplayVersion" "${VERSION}"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\openbus" \
-      "Publisher" "openbus"
+      "Publisher" "OpenBus"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\openbus" \
       "UninstallString" "$INSTDIR\uninstall.exe"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\openbus" \

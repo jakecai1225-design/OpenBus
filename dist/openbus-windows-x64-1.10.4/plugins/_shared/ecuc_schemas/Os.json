@@ -1,0 +1,650 @@
+{
+  "module": "Os",
+  "definition": "/AUTOSAR/EcucDefs/Os",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "OsAppMode",
+      "definition": "/AUTOSAR/EcucDefs/Os/OsAppMode",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "OsAppModeId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "OsAppModeId",
+          "detail": "AUTOSAR EcucDefs OsAppModeId parameter.",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsAppMode/OsAppModeId"
+        },
+        {
+          "shortName": "OsAppModeAutostart",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Autostart this app mode",
+          "detail": "Autostart this app mode",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsAppMode/OsAppModeAutostart"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "OsTask",
+      "definition": "/AUTOSAR/EcucDefs/Os/OsTask",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "OsTaskPriority",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "Task priority",
+          "detail": "Task priority",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsTask/OsTaskPriority"
+        },
+        {
+          "shortName": "OsTaskSchedule",
+          "kind": "enumeration",
+          "default": "FULL",
+          "summary": "Schedule",
+          "detail": "Schedule",
+          "range": "",
+          "literals": [
+            "FULL",
+            "NON"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Os/OsTask/OsTaskSchedule"
+        },
+        {
+          "shortName": "OsTaskActivation",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Max activations",
+          "detail": "Max activations",
+          "range": "",
+          "min": 1,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsTask/OsTaskActivation"
+        },
+        {
+          "shortName": "OsTaskStackSize",
+          "kind": "numerical",
+          "default": "1024",
+          "summary": "Stack size",
+          "detail": "Stack size",
+          "range": "",
+          "min": 64,
+          "max": 1048576,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsTask/OsTaskStackSize"
+        },
+        {
+          "shortName": "OsTaskType",
+          "kind": "enumeration",
+          "default": "BASIC",
+          "summary": "Type",
+          "detail": "Type",
+          "range": "",
+          "literals": [
+            "BASIC",
+            "EXTENDED"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Os/OsTask/OsTaskType"
+        },
+        {
+          "shortName": "OsTaskAutostart",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Autostart",
+          "detail": "Activate in default app mode",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsTask/OsTaskAutostart"
+        },
+        {
+          "shortName": "OsTaskAccessingApplication",
+          "kind": "string",
+          "default": "",
+          "summary": "Accessing app",
+          "detail": "OsApplication short name",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsTask/OsTaskAccessingApplication"
+        },
+        {
+          "shortName": "OsTaskEntry",
+          "kind": "string",
+          "default": "",
+          "summary": "Entry symbol",
+          "detail": "Task C entry",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsTask/OsTaskEntry"
+        },
+        {
+          "shortName": "OsTaskEventRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Event ref",
+          "detail": "Event ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsTask/OsTaskEventRef"
+        },
+        {
+          "shortName": "OsTaskResourceRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Resource ref",
+          "detail": "Resource ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsTask/OsTaskResourceRef"
+        }
+      ],
+      "subContainers": [
+        "OsEvent"
+      ]
+    },
+    {
+      "shortName": "OsCounter",
+      "definition": "/AUTOSAR/EcucDefs/Os/OsCounter",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "OsCounterMaxAllowedValue",
+          "kind": "numerical",
+          "default": "65535",
+          "summary": "Max value",
+          "detail": "Max value",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsCounter/OsCounterMaxAllowedValue"
+        },
+        {
+          "shortName": "OsCounterTicksPerBase",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Ticks per base",
+          "detail": "Ticks per base",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsCounter/OsCounterTicksPerBase"
+        },
+        {
+          "shortName": "OsCounterMinCycle",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Min cycle",
+          "detail": "Min cycle",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsCounter/OsCounterMinCycle"
+        },
+        {
+          "shortName": "OsCounterType",
+          "kind": "enumeration",
+          "default": "SOFTWARE",
+          "summary": "Counter type",
+          "detail": "Counter type",
+          "range": "",
+          "literals": [
+            "HARDWARE",
+            "SOFTWARE"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Os/OsCounter/OsCounterType"
+        },
+        {
+          "shortName": "OsSecondsPerTick",
+          "kind": "string",
+          "default": "0.001",
+          "summary": "Seconds per tick",
+          "detail": "Seconds per tick",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsCounter/OsSecondsPerTick"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "OsAlarm",
+      "definition": "/AUTOSAR/EcucDefs/Os/OsAlarm",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "OsAlarmCounterRef",
+          "kind": "reference",
+          "default": "0",
+          "summary": "Counter SHORT-NAME",
+          "detail": "Counter SHORT-NAME",
+          "range": "",
+          "destination": "container",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsAlarm/OsAlarmCounterRef",
+          "min": 0,
+          "max": 255
+        },
+        {
+          "shortName": "OsAlarmAction",
+          "kind": "enumeration",
+          "default": "ACTIVATETASK",
+          "summary": "Action",
+          "detail": "Action",
+          "range": "",
+          "literals": [
+            "ACTIVATETASK",
+            "SETEVENT",
+            "INCREMENTCOUNTER"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Os/OsAlarm/OsAlarmAction"
+        },
+        {
+          "shortName": "OsAlarmAutostart",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Autostart",
+          "detail": "Autostart",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsAlarm/OsAlarmAutostart"
+        },
+        {
+          "shortName": "OsAlarmCycleTime",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "Cycle ticks",
+          "detail": "Cycle ticks",
+          "range": "",
+          "min": 0,
+          "max": 4294967295,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsAlarm/OsAlarmCycleTime"
+        },
+        {
+          "shortName": "OsAlarmAlarmTime",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "Alarm time",
+          "detail": "Alarm time",
+          "range": "",
+          "min": 0,
+          "max": 4294967295,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsAlarm/OsAlarmAlarmTime"
+        },
+        {
+          "shortName": "OsAlarmActionTaskActivationRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "OsAlarmActionTaskActivationRef",
+          "detail": "Reference to OsTask",
+          "range": "",
+          "destination": "OsTask",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsAlarm/OsAlarmActionTaskActivationRef"
+        },
+        {
+          "shortName": "OsAlarmActivateTaskRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Task ref",
+          "detail": "Task ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsAlarm/OsAlarmActivateTaskRef"
+        },
+        {
+          "shortName": "OsAlarmSetEventRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Event ref",
+          "detail": "Event ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsAlarm/OsAlarmSetEventRef"
+        },
+        {
+          "shortName": "OsAlarmCallbackName",
+          "kind": "string",
+          "default": "",
+          "summary": "Callback",
+          "detail": "Callback",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsAlarm/OsAlarmCallbackName"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "OsScheduleTable",
+      "definition": "/AUTOSAR/EcucDefs/Os/OsScheduleTable",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "OsScheduleTableDuration",
+          "kind": "numerical",
+          "default": "100",
+          "summary": "OsScheduleTableDuration",
+          "detail": "AUTOSAR EcucDefs OsScheduleTableDuration parameter.",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsScheduleTable/OsScheduleTableDuration"
+        },
+        {
+          "shortName": "OsScheduleTableRepeating",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "OsScheduleTableRepeating",
+          "detail": "AUTOSAR EcucDefs OsScheduleTableRepeating parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsScheduleTable/OsScheduleTableRepeating"
+        },
+        {
+          "shortName": "OsScheduleTableCounterRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "OsScheduleTableCounterRef",
+          "detail": "AUTOSAR EcucDefs OsScheduleTableCounterRef parameter.",
+          "range": "",
+          "destination": "container",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsScheduleTable/OsScheduleTableCounterRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "OsIsr",
+      "definition": "/AUTOSAR/EcucDefs/Os/OsIsr",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "OsIsrCategory",
+          "kind": "enumeration",
+          "default": "CATEGORY_2",
+          "summary": "Category",
+          "detail": "Category",
+          "range": "",
+          "literals": [
+            "CATEGORY_1",
+            "CATEGORY_2"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Os/OsIsr/OsIsrCategory"
+        },
+        {
+          "shortName": "OsIsrResourceRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "OsIsrResourceRef",
+          "detail": "AUTOSAR EcucDefs OsIsrResourceRef parameter.",
+          "range": "",
+          "destination": "container",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsIsr/OsIsrResourceRef"
+        },
+        {
+          "shortName": "OsIsrStackSize",
+          "kind": "numerical",
+          "default": "512",
+          "summary": "Stack size",
+          "detail": "Stack size",
+          "range": "",
+          "min": 64,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsIsr/OsIsrStackSize"
+        },
+        {
+          "shortName": "OsIsrPriority",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "ISR priority",
+          "detail": "ISR priority",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsIsr/OsIsrPriority"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "OsResource",
+      "definition": "/AUTOSAR/EcucDefs/Os/OsResource",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "OsResourceProperty",
+          "kind": "enumeration",
+          "default": "STANDARD",
+          "summary": "Property",
+          "detail": "Property",
+          "range": "",
+          "literals": [
+            "STANDARD",
+            "LINKED",
+            "INTERNAL"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Os/OsResource/OsResourceProperty"
+        },
+        {
+          "shortName": "OsResourceAccessingApplication",
+          "kind": "string",
+          "default": "",
+          "summary": "OsResourceAccessingApplication",
+          "detail": "AUTOSAR EcucDefs OsResourceAccessingApplication parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsResource/OsResourceAccessingApplication"
+        },
+        {
+          "shortName": "OsResourcePriority",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Ceiling priority",
+          "detail": "Ceiling priority",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsResource/OsResourcePriority"
+        },
+        {
+          "shortName": "OsResourceLinkedResourceRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Linked resource",
+          "detail": "Linked resource",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsResource/OsResourceLinkedResourceRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "OsApplication",
+      "definition": "/AUTOSAR/EcucDefs/Os/OsApplication",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "OsTrusted",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Trusted",
+          "detail": "Trusted",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsApplication/OsTrusted"
+        },
+        {
+          "shortName": "OsApplicationCoreRef",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Core ref",
+          "detail": "Core ref",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsApplication/OsApplicationCoreRef"
+        },
+        {
+          "shortName": "OsAppScheduleTableRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Schedule table",
+          "detail": "Schedule table",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsApplication/OsAppScheduleTableRef"
+        },
+        {
+          "shortName": "OsAppTaskRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Task ref",
+          "detail": "Task ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsApplication/OsAppTaskRef"
+        },
+        {
+          "shortName": "OsAppIsrRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "ISR ref",
+          "detail": "ISR ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsApplication/OsAppIsrRef"
+        },
+        {
+          "shortName": "OsAppAlarmRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Alarm ref",
+          "detail": "Alarm ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsApplication/OsAppAlarmRef"
+        },
+        {
+          "shortName": "OsAppCounterRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Counter ref",
+          "detail": "Counter ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsApplication/OsAppCounterRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "OsOS",
+      "definition": "/AUTOSAR/EcucDefs/Os/OsOS",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "OsStackMonitoring",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "StackMonitoring",
+          "detail": "StackMonitoring",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsOS/OsStackMonitoring"
+        },
+        {
+          "shortName": "OsStatus",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Status",
+          "detail": "Status",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsOS/OsStatus",
+          "literals": [
+            "STANDARD",
+            "EXTENDED"
+          ]
+        },
+        {
+          "shortName": "OsUseGetServiceId",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "UseGetServiceId",
+          "detail": "UseGetServiceId",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsOS/OsUseGetServiceId"
+        },
+        {
+          "shortName": "OsUseParameterAccess",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "UseParameterAccess",
+          "detail": "UseParameterAccess",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsOS/OsUseParameterAccess"
+        },
+        {
+          "shortName": "OsUseResScheduler",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "UseResScheduler",
+          "detail": "UseResScheduler",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Os/OsOS/OsUseResScheduler"
+        },
+        {
+          "shortName": "OsScalabilityClass",
+          "kind": "enumeration",
+          "default": "SC1",
+          "summary": "Scalability class",
+          "detail": "Scalability class",
+          "range": "",
+          "literals": [
+            "SC1",
+            "SC2",
+            "SC3",
+            "SC4"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Os/OsOS/OsScalabilityClass"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "OsEvent",
+      "definition": "/AUTOSAR/EcucDefs/Os/OsTask/OsEvent",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "OsTask",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "OsEventMask",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Event mask",
+          "detail": "Event mask",
+          "range": "",
+          "min": 1,
+          "max": 4294967295,
+          "definition": "/AUTOSAR/EcucDefs/Os/OsEvent/OsEventMask"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

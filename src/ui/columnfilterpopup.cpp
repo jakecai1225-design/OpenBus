@@ -31,7 +31,7 @@ ColumnFilterPopup::ColumnFilterPopup(int column, QWidget *parent)
 
     // 搜索框
     m_searchEdit = new QLineEdit(this);
-    m_searchEdit->setPlaceholderText(QStringLiteral("搜索..."));
+    m_searchEdit->setPlaceholderText(tr("Search..."));
     m_searchEdit->setClearButtonEnabled(true);
     // 原生清除按钮 × 不随主题（深色下不可见）→ 换主题色 SVG 图标
     applyClearButtonIcon(m_searchEdit, ThemeManager::instance()->currentTheme().text);
@@ -40,9 +40,9 @@ ColumnFilterPopup::ColumnFilterPopup(int column, QWidget *parent)
     // 全选/清除/反选 按钮行
     auto *btnLayout = new QHBoxLayout();
     btnLayout->setSpacing(4);
-    m_selectAllBtn = new QPushButton(QStringLiteral("全选"), this);
-    m_clearAllBtn = new QPushButton(QStringLiteral("清除"), this);
-    m_invertBtn = new QPushButton(QStringLiteral("反选"), this);
+    m_selectAllBtn = new QPushButton(tr("Select All"), this);
+    m_clearAllBtn = new QPushButton(tr("Clear"), this);
+    m_invertBtn = new QPushButton(tr("Invert"), this);
     m_selectAllBtn->setFixedHeight(24);
     m_clearAllBtn->setFixedHeight(24);
     m_invertBtn->setFixedHeight(24);
@@ -62,8 +62,8 @@ ColumnFilterPopup::ColumnFilterPopup(int column, QWidget *parent)
     // 底部按钮行
     auto *bottomLayout = new QHBoxLayout();
     bottomLayout->setSpacing(4);
-    auto *clearFilterBtn = new QPushButton(QStringLiteral("清除筛选"), this);
-    auto *okBtn = new QPushButton(QStringLiteral("确定"), this);
+    auto *clearFilterBtn = new QPushButton(tr("Clear Filter"), this);
+    auto *okBtn = new QPushButton(tr("OK"), this);
     okBtn->setDefault(true);
     clearFilterBtn->setFixedHeight(26);
     okBtn->setFixedHeight(26);

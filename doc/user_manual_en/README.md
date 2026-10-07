@@ -1,8 +1,8 @@
-# openbus User Manual
+# OpenBus User Manual
 
 | Item | Description |
 |------|-------------|
-| Product | **openbus** — CAN / CAN FD bus analysis workbench |
+| Product | **OpenBus** — CAN / CAN FD bus analysis workbench |
 | Manual version | Matches software **1.10.4** |
 | Format | Markdown (exportable to PDF / HTML) |
 | Supported OS | Windows 10 / 11 (64-bit) |

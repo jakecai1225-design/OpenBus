@@ -1,0 +1,88 @@
+{
+  "module": "Mirror",
+  "definition": "/AUTOSAR/EcucDefs/Mirror",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "MirrorConfig",
+      "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "MirrorNetwork",
+          "kind": "string",
+          "default": "",
+          "summary": "MirrorNetwork",
+          "detail": "AUTOSAR EcucDefs MirrorNetwork parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorConfig/MirrorNetwork"
+        },
+        {
+          "shortName": "MirrorSourceNetwork",
+          "kind": "string",
+          "default": "",
+          "summary": "MirrorSourceNetwork",
+          "detail": "AUTOSAR EcucDefs MirrorSourceNetwork parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorConfig/MirrorSourceNetwork"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "MirrorGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "MirrorDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "MirrorDevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorGeneral/MirrorDevErrorDetect"
+        },
+        {
+          "shortName": "MirrorVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorGeneral/MirrorVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "MirrorSourceNetwork"
+      ]
+    },
+    {
+      "shortName": "MirrorSourceNetwork",
+      "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorGeneral/MirrorSourceNetwork",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "MirrorGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "MirrorNetworkRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "MirrorNetworkRef",
+          "detail": "Reference to ComMChannel",
+          "range": "",
+          "destination": "ComMChannel",
+          "definition": "/AUTOSAR/EcucDefs/Mirror/MirrorSourceNetwork/MirrorNetworkRef"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

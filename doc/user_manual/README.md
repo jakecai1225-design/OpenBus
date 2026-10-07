@@ -1,8 +1,8 @@
-# openbus 用户手册
+# OpenBus 用户手册
 
 | 项目 | 说明 |
 |------|------|
-| 产品 | **openbus** — CAN / CAN FD 总线分析工作台 |
+| 产品 | **OpenBus** — CAN / CAN FD 总线分析工作台 |
 | 手册版本 | 与软件 **1.10.4** 对应 |
 | 文档格式 | Markdown（可导出 PDF / HTML） |
 | 适用系统 | Windows 10 / 11（64 位） |

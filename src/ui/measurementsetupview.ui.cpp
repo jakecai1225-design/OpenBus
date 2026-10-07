@@ -282,8 +282,8 @@ void MeasurementSetupView::buildTopology()
     ModDef mods[] = {
         {"trace1",   "", "帧列表 1",           QColor(0x21, 0x96, 0xF3), "trace"},
         {"graphic1", "", "时序波形 1",         QColor(0xF4, 0x43, 0x36), "graphic"},
-        {"record",   "", "录制 Record",      QColor(0xFF, 0x98, 0x00), ""},
-        {"watcher",  "", "Watcher 观测",     QColor(0x4C, 0xAF, 0x50), ""},
+        {"record",   "", "Record",           QColor(0xFF, 0x98, 0x00), ""},
+        {"watcher",  "", "Watcher",          QColor(0x4C, 0xAF, 0x50), ""},
     };
     int modCount = 4;
     int modW = 140;

@@ -1,0 +1,367 @@
+{
+  "module": "EcuC",
+  "definition": "/AUTOSAR/EcucDefs/EcuC",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "EcucConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": [
+        "EcucPduCollection"
+      ]
+    },
+    {
+      "shortName": "EcucPduCollection",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucConfigSet/EcucPduCollection",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "EcucConfigSet",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EcucPduCollectionUseMetaData",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EcucPduCollectionUseMetaData",
+          "detail": "AUTOSAR EcucDefs EcucPduCollectionUseMetaData parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPduCollection/EcucPduCollectionUseMetaData"
+        }
+      ],
+      "subContainers": [
+        "EcucPdu",
+        "Pdu"
+      ]
+    },
+    {
+      "shortName": "EcucPdu",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPduCollection/EcucPdu",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "EcucPduCollection",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "EcucPduId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "EcucPduId",
+          "detail": "AUTOSAR EcucDefs EcucPduId parameter.",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPdu/EcucPduId"
+        },
+        {
+          "shortName": "EcucPduLength",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "EcucPduLength",
+          "detail": "AUTOSAR EcucDefs EcucPduLength parameter.",
+          "range": "",
+          "min": 0,
+          "max": 64,
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPdu/EcucPduLength"
+        },
+        {
+          "shortName": "EcucPduType",
+          "kind": "enumeration",
+          "default": "NORMAL",
+          "summary": "EcucPduType",
+          "detail": "AUTOSAR EcucDefs EcucPduType parameter.",
+          "range": "",
+          "literals": [
+            "NORMAL",
+            "TP"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPdu/EcucPduType"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EcucHardware",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucHardware",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EcucCoreDefinition",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Core definition",
+          "detail": "Core definition",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucHardware/EcucCoreDefinition"
+        },
+        {
+          "shortName": "EcucHardwareUseDefaultClockSettings",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EcucHardwareUseDefaultClockSettings",
+          "detail": "AUTOSAR EcucDefs EcucHardwareUseDefaultClockSettings parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucHardware/EcucHardwareUseDefaultClockSettings"
+        }
+      ],
+      "subContainers": [
+        "EcucCoreDefinition"
+      ]
+    },
+    {
+      "shortName": "EcucPartitionCollection",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPartitionCollection",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": [
+        "EcucPartition"
+      ]
+    },
+    {
+      "shortName": "EcucPartition",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPartitionCollection/EcucPartition",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "EcucPartitionCollection",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EcucPartitionBswModuleExecution",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "BSW module execution",
+          "detail": "BSW module execution",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPartition/EcucPartitionBswModuleExecution"
+        },
+        {
+          "shortName": "EcucPartitionEcucPartitionSoftwareComponentExecution",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EcucPartitionEcucPartitionSoftwareComponentExecution",
+          "detail": "AUTOSAR EcucDefs EcucPartitionEcucPartitionSoftwareComponentExecution parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPartition/EcucPartitionEcucPartitionSoftwareComponentExecution"
+        },
+        {
+          "shortName": "EcucPartitionEcucPartitionRunnableExecution",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EcucPartitionEcucPartitionRunnableExecution",
+          "detail": "AUTOSAR EcucDefs EcucPartitionEcucPartitionRunnableExecution parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPartition/EcucPartitionEcucPartitionRunnableExecution"
+        },
+        {
+          "shortName": "EcucPartitionCoreRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "EcucPartitionCoreRef",
+          "detail": "Reference to EcucCoreDefinition",
+          "range": "",
+          "destination": "EcucCoreDefinition",
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPartition/EcucPartitionCoreRef"
+        },
+        {
+          "shortName": "EcucPartitionBswModuleExecutionRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "EcucPartitionBswModuleExecutionRef",
+          "detail": "Reference to EcucModuleConfigurationValues",
+          "range": "",
+          "destination": "EcucModuleConfigurationValues",
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPartition/EcucPartitionBswModuleExecutionRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "Pdu",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPduCollection/Pdu",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "EcucPduCollection",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "PduLength",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "PDU length",
+          "detail": "PDU length",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/EcuC/Pdu/PduLength"
+        },
+        {
+          "shortName": "PduDirection",
+          "kind": "enumeration",
+          "default": "SEND",
+          "summary": "Direction",
+          "detail": "Direction",
+          "range": "",
+          "literals": [
+            "SEND",
+            "RECEIVE"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/EcuC/Pdu/PduDirection"
+        },
+        {
+          "shortName": "PduMetaDataLength",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Meta data length",
+          "detail": "Meta data length",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/EcuC/Pdu/PduMetaDataLength"
+        },
+        {
+          "shortName": "PduDynamicLength",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PduDynamicLength",
+          "detail": "AUTOSAR EcucDefs PduDynamicLength parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EcuC/Pdu/PduDynamicLength"
+        },
+        {
+          "shortName": "PduUseMetaData",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "PduUseMetaData",
+          "detail": "AUTOSAR EcucDefs PduUseMetaData parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EcuC/Pdu/PduUseMetaData"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EcucModuleConfigurationValues",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucModuleConfigurationValues",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EcucDefRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "EcucDefRef",
+          "detail": "Reference to EcucModuleDef",
+          "range": "",
+          "destination": "EcucModuleDef",
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucModuleConfigurationValues/EcucDefRef"
+        },
+        {
+          "shortName": "EcucModuleConfigurationValuesPostBuildLoadable",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EcucModuleConfigurationValuesPostBuildLoadable",
+          "detail": "AUTOSAR EcucDefs EcucModuleConfigurationValuesPostBuildLoadable parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucModuleConfigurationValues/EcucModuleConfigurationValuesPostBuildLoadable"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EcucCoreDefinition",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucHardware/EcucCoreDefinition",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "EcucHardware",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "EcucCoreId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Core Id",
+          "detail": "Core Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucCoreDefinition/EcucCoreId"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EcucPostBuildVariant",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPostBuildVariant",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EcucPostBuildVariantName",
+          "kind": "string",
+          "default": "",
+          "summary": "Variant name",
+          "detail": "Variant name",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucPostBuildVariant/EcucPostBuildVariantName"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EcucModuleDef",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucModuleDef",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EcucModuleDefName",
+          "kind": "string",
+          "default": "",
+          "summary": "Module name",
+          "detail": "Module name",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucModuleDef/EcucModuleDefName"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EcucValueCollection",
+      "definition": "/AUTOSAR/EcucDefs/EcuC/EcucValueCollection",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EcucValue",
+          "kind": "string",
+          "default": "",
+          "summary": "Value",
+          "detail": "Post-build value",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EcuC/EcucValueCollection/EcucValue"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

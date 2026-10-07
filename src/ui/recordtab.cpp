@@ -12,7 +12,6 @@
 #include <QSpinBox>
 #include <QDoubleSpinBox>
 #include <QFileDialog>
-#include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
 #include <QMessageBox>
@@ -34,16 +33,15 @@ RecordTab::RecordTab(QWidget *parent)
     formLayout->setContentsMargins(0, 0, 0, 0);
     formLayout->setSpacing(8);
 
-    // ---- 录制按钮 ----
     auto *btnLayout = new QHBoxLayout;
     btnLayout->setSpacing(8);
-    m_recordBtn = new QPushButton("开始录制", this);
+    m_recordBtn = new QPushButton(this);
     m_recordBtn->setCheckable(true);
     m_recordBtn->setMinimumWidth(120);
-    m_pauseBtn = new QPushButton("暂停", this);
+    m_pauseBtn = new QPushButton(this);
     m_pauseBtn->setMinimumWidth(100);
     m_pauseBtn->setEnabled(false);
-    m_stopBtn = new QPushButton("停止", this);
+    m_stopBtn = new QPushButton(this);
     m_stopBtn->setMinimumWidth(100);
     m_stopBtn->setEnabled(false);
     btnLayout->addWidget(m_recordBtn);
@@ -52,93 +50,88 @@ RecordTab::RecordTab(QWidget *parent)
     btnLayout->addStretch();
     formLayout->addLayout(btnLayout);
 
-    // ---- 文件设置 ----
-    auto *fileGroup = new QGroupBox("文件设置", formHost);
-    auto *fileLayout = new QGridLayout(fileGroup);
+    m_fileGroup = new QGroupBox(formHost);
+    auto *fileLayout = new QGridLayout(m_fileGroup);
     fileLayout->setContentsMargins(0, 4, 0, 0);
     fileLayout->setSpacing(8);
 
-    fileLayout->addWidget(new QLabel("文件目录:", fileGroup), 0, 0);
-    m_dirEdit = new QLineEdit("D:/recordings", fileGroup);
+    m_dirLabel = new QLabel(m_fileGroup);
+    fileLayout->addWidget(m_dirLabel, 0, 0);
+    m_dirEdit = new QLineEdit(QStringLiteral("D:/recordings"), m_fileGroup);
     fileLayout->addWidget(m_dirEdit, 0, 1);
-    auto *browseBtn = new QPushButton("浏览...", fileGroup);
-    fileLayout->addWidget(browseBtn, 0, 2);
-    auto *openDirBtn = new QPushButton("打开目录", fileGroup);
-    openDirBtn->setToolTip(QStringLiteral("在系统资源管理器中打开录制文件目录"));
-    fileLayout->addWidget(openDirBtn, 0, 3);
+    m_browseBtn = new QPushButton(m_fileGroup);
+    fileLayout->addWidget(m_browseBtn, 0, 2);
+    m_openDirBtn = new QPushButton(m_fileGroup);
+    fileLayout->addWidget(m_openDirBtn, 0, 3);
 
-    fileLayout->addWidget(new QLabel("文件名称前缀:", fileGroup), 1, 0);
-    m_prefixEdit = new QLineEdit("rec_", fileGroup);
+    m_prefixLabel = new QLabel(m_fileGroup);
+    fileLayout->addWidget(m_prefixLabel, 1, 0);
+    m_prefixEdit = new QLineEdit(QStringLiteral("rec_"), m_fileGroup);
     fileLayout->addWidget(m_prefixEdit, 1, 1, 1, 2);
 
-    fileLayout->addWidget(new QLabel("文件格式:", fileGroup), 2, 0);
-    m_formatCombo = new QComboBox(fileGroup);
-    m_formatCombo->addItem("BLF (.blf)", "blf");
-    m_formatCombo->addItem("ASC (.asc)", "asc");
-    m_formatCombo->addItem("CSV (.csv)", "csv");
+    m_formatLabel = new QLabel(m_fileGroup);
+    fileLayout->addWidget(m_formatLabel, 2, 0);
+    m_formatCombo = new QComboBox(m_fileGroup);
+    m_formatCombo->addItem(QStringLiteral("BLF (.blf)"), QStringLiteral("blf"));
+    m_formatCombo->addItem(QStringLiteral("ASC (.asc)"), QStringLiteral("asc"));
+    m_formatCombo->addItem(QStringLiteral("CSV (.csv)"), QStringLiteral("csv"));
     m_formatCombo->setCurrentIndex(0);
     fileLayout->addWidget(m_formatCombo, 2, 1, 1, 2);
+    formLayout->addWidget(m_fileGroup);
 
-    formLayout->addWidget(fileGroup);
-
-    // ---- 文件分割 ----
-    auto *splitGroup = new QGroupBox("文件分割", formHost);
-    auto *splitLayout = new QGridLayout(splitGroup);
+    m_splitGroup = new QGroupBox(formHost);
+    auto *splitLayout = new QGridLayout(m_splitGroup);
     splitLayout->setContentsMargins(0, 4, 0, 0);
     splitLayout->setSpacing(8);
 
-    m_splitBySize = new QCheckBox("按大小", splitGroup);
+    m_splitBySize = new QCheckBox(m_splitGroup);
     m_splitBySize->setChecked(true);
     splitLayout->addWidget(m_splitBySize, 0, 0);
-    splitLayout->addWidget(new QLabel("每", splitGroup), 0, 1);
-    m_sizeSpin = new QSpinBox(splitGroup);
+    m_everySizeLabel = new QLabel(m_splitGroup);
+    splitLayout->addWidget(m_everySizeLabel, 0, 1);
+    m_sizeSpin = new QSpinBox(m_splitGroup);
     m_sizeSpin->setRange(1, 9999);
     m_sizeSpin->setValue(100);
-    m_sizeSpin->setSuffix(" MB");
     splitLayout->addWidget(m_sizeSpin, 0, 2);
 
-    m_splitByTime = new QCheckBox("按时间", splitGroup);
+    m_splitByTime = new QCheckBox(m_splitGroup);
     splitLayout->addWidget(m_splitByTime, 1, 0);
-    splitLayout->addWidget(new QLabel("每", splitGroup), 1, 1);
-    m_timeSpin = new QSpinBox(splitGroup);
+    m_everyTimeLabel = new QLabel(m_splitGroup);
+    splitLayout->addWidget(m_everyTimeLabel, 1, 1);
+    m_timeSpin = new QSpinBox(m_splitGroup);
     m_timeSpin->setRange(1, 9999);
     m_timeSpin->setValue(60);
-    m_timeSpin->setSuffix(" 秒");
     m_timeSpin->setEnabled(false);
     splitLayout->addWidget(m_timeSpin, 1, 2);
 
-    // ---- 环形模式 ----
-    m_ringChk = new QCheckBox("环形模式 (覆盖最旧文件)", splitGroup);
+    m_ringChk = new QCheckBox(m_splitGroup);
     splitLayout->addWidget(m_ringChk, 2, 0, 1, 3);
-
     connect(m_splitByTime, &QCheckBox::toggled, m_timeSpin, &QWidget::setEnabled);
+    formLayout->addWidget(m_splitGroup);
 
-    formLayout->addWidget(splitGroup);
-
-    // ---- 缓冲区 ----
     auto *bufLayout = new QHBoxLayout;
-    bufLayout->addWidget(new QLabel("缓冲区大小:", formHost));
+    m_bufferLabel = new QLabel(formHost);
+    bufLayout->addWidget(m_bufferLabel);
     m_bufferCombo = new QComboBox(formHost);
-    m_bufferCombo->addItem("1000 帧");
-    m_bufferCombo->addItem("5000 帧");
-    m_bufferCombo->addItem("10000 帧");
-    m_bufferCombo->addItem("50000 帧");
+    m_bufferCombo->addItem(QString(), 1000);
+    m_bufferCombo->addItem(QString(), 5000);
+    m_bufferCombo->addItem(QString(), 10000);
+    m_bufferCombo->addItem(QString(), 50000);
     m_bufferCombo->setCurrentIndex(2);
     bufLayout->addWidget(m_bufferCombo);
     bufLayout->addStretch();
     formLayout->addLayout(bufLayout);
 
-    // ---- 录制过滤 ----
-    auto *filterGroup = new QGroupBox("录制过滤", formHost);
-    auto *filterLayout = new QVBoxLayout(filterGroup);
+    m_filterGroup = new QGroupBox(formHost);
+    auto *filterLayout = new QVBoxLayout(m_filterGroup);
     filterLayout->setContentsMargins(0, 4, 0, 0);
 
     auto *filterRow = new QHBoxLayout;
-    m_filterAll = new QCheckBox("全部", filterGroup);
+    m_filterAll = new QCheckBox(m_filterGroup);
     m_filterAll->setChecked(true);
-    m_filterRx = new QCheckBox("仅 Rx", filterGroup);
-    m_filterTx = new QCheckBox("仅 Tx", filterGroup);
-    m_filterFd = new QCheckBox("仅 CAN FD", filterGroup);
+    m_filterRx = new QCheckBox(m_filterGroup);
+    m_filterTx = new QCheckBox(m_filterGroup);
+    m_filterFd = new QCheckBox(m_filterGroup);
     filterRow->addWidget(m_filterAll);
     filterRow->addWidget(m_filterRx);
     filterRow->addWidget(m_filterTx);
@@ -147,54 +140,52 @@ RecordTab::RecordTab(QWidget *parent)
     filterLayout->addLayout(filterRow);
 
     auto *idRow = new QHBoxLayout;
-    idRow->addWidget(new QLabel("ID 过滤:", filterGroup));
-    m_idFilterEdit = new QLineEdit(filterGroup);
-    m_idFilterEdit->setPlaceholderText("逗号分隔, 例: 0x123,0x456");
+    m_idFilterLabel = new QLabel(m_filterGroup);
+    idRow->addWidget(m_idFilterLabel);
+    m_idFilterEdit = new QLineEdit(m_filterGroup);
     idRow->addWidget(m_idFilterEdit, 1);
     filterLayout->addLayout(idRow);
+    formLayout->addWidget(m_filterGroup);
 
-    formLayout->addWidget(filterGroup);
-
-    // ---- 触发录制 ----
-    m_triggerGroup = new QGroupBox("触发录制 (Trigger Recording)", formHost);
+    m_triggerGroup = new QGroupBox(formHost);
     auto *triggerLayout = new QGridLayout(m_triggerGroup);
     triggerLayout->setContentsMargins(0, 4, 0, 0);
     triggerLayout->setSpacing(8);
 
-    m_triggerEnable = new QCheckBox("启用触发录制", m_triggerGroup);
+    m_triggerEnable = new QCheckBox(m_triggerGroup);
     triggerLayout->addWidget(m_triggerEnable, 0, 0, 1, 4);
 
-    triggerLayout->addWidget(new QLabel("触发条件:", m_triggerGroup), 1, 0);
+    m_triggerCondLabel = new QLabel(m_triggerGroup);
+    triggerLayout->addWidget(m_triggerCondLabel, 1, 0);
     m_triggerExprEdit = new QLineEdit(m_triggerGroup);
-    m_triggerExprEdit->setPlaceholderText("例: id == 0x1A5 and data[0] == 0xFF");
     triggerLayout->addWidget(m_triggerExprEdit, 1, 1, 1, 3);
 
-    triggerLayout->addWidget(new QLabel("前置缓冲(s):", m_triggerGroup), 2, 0);
+    m_preTriggerLabel = new QLabel(m_triggerGroup);
+    triggerLayout->addWidget(m_preTriggerLabel, 2, 0);
     m_preTriggerSpin = new QDoubleSpinBox(m_triggerGroup);
     m_preTriggerSpin->setRange(0.1, 600.0);
     m_preTriggerSpin->setValue(5.0);
-    m_preTriggerSpin->setSuffix(" s");
+    m_preTriggerSpin->setSuffix(QStringLiteral(" s"));
     triggerLayout->addWidget(m_preTriggerSpin, 2, 1);
 
-    triggerLayout->addWidget(new QLabel("后置录制(s):", m_triggerGroup), 2, 2);
+    m_postTriggerLabel = new QLabel(m_triggerGroup);
+    triggerLayout->addWidget(m_postTriggerLabel, 2, 2);
     m_postTriggerSpin = new QDoubleSpinBox(m_triggerGroup);
     m_postTriggerSpin->setRange(0.1, 3600.0);
     m_postTriggerSpin->setValue(10.0);
-    m_postTriggerSpin->setSuffix(" s");
+    m_postTriggerSpin->setSuffix(QStringLiteral(" s"));
     triggerLayout->addWidget(m_postTriggerSpin, 2, 3);
 
-    m_repeatTriggerChk = new QCheckBox("重复触发", m_triggerGroup);
+    m_repeatTriggerChk = new QCheckBox(m_triggerGroup);
     m_repeatTriggerChk->setChecked(true);
     triggerLayout->addWidget(m_repeatTriggerChk, 3, 0, 1, 2);
 
-    m_triggerRecordBtn = new QPushButton("开始触发录制", m_triggerGroup);
+    m_triggerRecordBtn = new QPushButton(m_triggerGroup);
     m_triggerRecordBtn->setCheckable(true);
     triggerLayout->addWidget(m_triggerRecordBtn, 3, 2, 1, 2);
-
     formLayout->addWidget(m_triggerGroup);
 
-    // ---- 状态 ----
-    m_statusLabel = new QLabel("状态: 未录制", formHost);
+    m_statusLabel = new QLabel(formHost);
     m_statusLabel->setObjectName(QStringLiteral("StatusDim"));
     formLayout->addWidget(m_statusLabel);
 
@@ -202,18 +193,86 @@ RecordTab::RecordTab(QWidget *parent)
     mainLayout->addWidget(formHost, 0, Qt::AlignLeft | Qt::AlignTop);
     mainLayout->addStretch(1);
 
-    // ---- 信号连接 ----
-    connect(browseBtn, &QPushButton::clicked, this, &RecordTab::onBrowse);
-    connect(openDirBtn, &QPushButton::clicked, this, &RecordTab::onOpenDir);
+    connect(m_browseBtn, &QPushButton::clicked, this, &RecordTab::onBrowse);
+    connect(m_openDirBtn, &QPushButton::clicked, this, &RecordTab::onOpenDir);
     connect(m_recordBtn, &QPushButton::toggled, this, &RecordTab::onRecord);
     connect(m_triggerRecordBtn, &QPushButton::toggled, this, &RecordTab::onTriggerRecord);
     connect(m_pauseBtn, &QPushButton::clicked, this, &RecordTab::onPauseClicked);
     connect(m_stopBtn, &QPushButton::clicked, this, &RecordTab::onStopClicked);
+
+    retranslateUi();
+}
+
+void RecordTab::retranslateUi()
+{
+    m_fileGroup->setTitle(tr("File Settings"));
+    m_dirLabel->setText(tr("Directory:"));
+    m_browseBtn->setText(tr("Browse..."));
+    m_openDirBtn->setText(tr("Open Folder"));
+    m_openDirBtn->setToolTip(tr("Open the recording directory in the system file manager"));
+    m_prefixLabel->setText(tr("File name prefix:"));
+    m_formatLabel->setText(tr("File format:"));
+
+    m_splitGroup->setTitle(tr("File Splitting"));
+    m_splitBySize->setText(tr("By size"));
+    m_everySizeLabel->setText(tr("Every"));
+    m_sizeSpin->setSuffix(tr(" MB"));
+    m_splitByTime->setText(tr("By time"));
+    m_everyTimeLabel->setText(tr("Every"));
+    m_timeSpin->setSuffix(tr(" s"));
+    m_ringChk->setText(tr("Ring mode (overwrite oldest files)"));
+
+    m_bufferLabel->setText(tr("Buffer size:"));
+    const int bi = m_bufferCombo->currentIndex();
+    m_bufferCombo->setItemText(0, tr("%1 frames").arg(1000));
+    m_bufferCombo->setItemText(1, tr("%1 frames").arg(5000));
+    m_bufferCombo->setItemText(2, tr("%1 frames").arg(10000));
+    m_bufferCombo->setItemText(3, tr("%1 frames").arg(50000));
+    if (bi >= 0 && bi < m_bufferCombo->count())
+        m_bufferCombo->setCurrentIndex(bi);
+
+    m_filterGroup->setTitle(tr("Recording Filter"));
+    m_filterAll->setText(tr("All"));
+    m_filterRx->setText(tr("Rx only"));
+    m_filterTx->setText(tr("Tx only"));
+    m_filterFd->setText(tr("CAN FD only"));
+    m_idFilterLabel->setText(tr("ID filter:"));
+    m_idFilterEdit->setPlaceholderText(tr("Comma-separated, e.g. 0x123,0x456"));
+
+    m_triggerGroup->setTitle(tr("Trigger Recording"));
+    m_triggerEnable->setText(tr("Enable trigger recording"));
+    m_triggerCondLabel->setText(tr("Trigger condition:"));
+    m_triggerExprEdit->setPlaceholderText(
+        tr("e.g. id == 0x1A5 and data[0] == 0xFF"));
+    m_preTriggerLabel->setText(tr("Pre-buffer:"));
+    m_postTriggerLabel->setText(tr("Post-record:"));
+    m_repeatTriggerChk->setText(tr("Repeat trigger"));
+
+    m_stopBtn->setText(tr("Stop"));
+    refreshDynamicLabels();
+}
+
+void RecordTab::refreshDynamicLabels()
+{
+    const bool recording = m_recordBtn->isChecked();
+    m_recordBtn->setText(recording ? tr("Stop Recording") : tr("Start Recording"));
+    m_pauseBtn->setText(m_paused ? tr("Resume") : tr("Pause"));
+    const bool triggerOn = m_triggerRecordBtn->isChecked();
+    m_triggerRecordBtn->setText(
+        triggerOn ? tr("Stop Trigger Recording") : tr("Start Trigger Recording"));
+
+    if (!recording)
+        m_statusLabel->setText(tr("Status: Idle"));
+    else if (m_paused)
+        m_statusLabel->setText(tr("Status: Paused"));
+    else
+        m_statusLabel->setText(tr("Status: Recording..."));
 }
 
 void RecordTab::onBrowse()
 {
-    QString dir = QFileDialog::getExistingDirectory(this, "选择录制目录", m_dirEdit->text());
+    QString dir = QFileDialog::getExistingDirectory(
+        this, tr("Select recording directory"), m_dirEdit->text());
     if (!dir.isEmpty())
         m_dirEdit->setText(dir);
 }
@@ -222,13 +281,14 @@ void RecordTab::onOpenDir()
 {
     const QString dir = m_dirEdit->text().trimmed();
     if (dir.isEmpty()) {
-        QMessageBox::information(this, QStringLiteral("打开目录"),
-                                 QStringLiteral("请先设置录制文件目录"));
+        QMessageBox::information(this, tr("Open Folder"),
+                                 tr("Please set a recording directory first."));
         return;
     }
     if (!QDir(dir).exists()) {
-        QMessageBox::information(this, QStringLiteral("打开目录"),
-            QStringLiteral("目录不存在：\n%1\n\n（录制启动时会自动创建该目录）").arg(dir));
+        QMessageBox::information(this, tr("Open Folder"),
+            tr("Directory does not exist:\n%1\n\n"
+               "(It will be created when recording starts.)").arg(dir));
         return;
     }
     QDesktopServices::openUrl(QUrl::fromLocalFile(QDir(dir).absolutePath()));
@@ -236,12 +296,14 @@ void RecordTab::onOpenDir()
 
 void RecordTab::onRecord()
 {
-    bool on = m_recordBtn->isChecked();
-    m_recordBtn->setText(on ? "停止录制" : "开始录制");
+    const bool on = m_recordBtn->isChecked();
+    if (!on)
+        m_paused = false;
     m_pauseBtn->setEnabled(on);
     m_stopBtn->setEnabled(on);
-    m_statusLabel->setText(on ? "状态: 录制中..." : "状态: 未录制");
-    m_statusLabel->setObjectName(on ? "StatusRec" : "StatusDim");
+    m_statusLabel->setObjectName(on ? QStringLiteral("StatusRec")
+                                    : QStringLiteral("StatusDim"));
+    refreshDynamicLabels();
     emit recordToggled(on);
 }
 
@@ -249,30 +311,29 @@ void RecordTab::setRecording(bool recording)
 {
     m_recordBtn->blockSignals(true);
     m_recordBtn->setChecked(recording);
-    m_recordBtn->setText(recording ? "停止录制" : "开始录制");
+    if (!recording)
+        m_paused = false;
     m_pauseBtn->setEnabled(recording);
     m_stopBtn->setEnabled(recording);
-    m_statusLabel->setText(recording ? "状态: 录制中..." : "状态: 未录制");
-    m_statusLabel->setObjectName(recording ? "StatusRec" : "StatusDim");
+    m_statusLabel->setObjectName(recording ? QStringLiteral("StatusRec")
+                                           : QStringLiteral("StatusDim"));
     m_recordBtn->blockSignals(false);
+    refreshDynamicLabels();
 }
 
 void RecordTab::onTriggerRecord()
 {
-    bool on = m_triggerRecordBtn->isChecked();
-    m_triggerRecordBtn->setText(on ? "停止触发录制" : "开始触发录制");
+    const bool on = m_triggerRecordBtn->isChecked();
+    refreshDynamicLabels();
 
     if (on) {
-        // 检查是否启用了触发录制
         if (!m_triggerEnable->isChecked()) {
-            // 未启用触发录制，回退为普通录制
             m_triggerRecordBtn->blockSignals(true);
             m_triggerRecordBtn->setChecked(false);
-            m_triggerRecordBtn->setText("开始触发录制");
             m_triggerRecordBtn->blockSignals(false);
+            refreshDynamicLabels();
             return;
         }
-        // 发送触发录制配置
         emit triggerRecordingRequested(
             m_dirEdit->text(),
             m_prefixEdit->text(),
@@ -282,32 +343,30 @@ void RecordTab::onTriggerRecord()
             m_splitByTime->isChecked(),
             m_timeSpin->value(),
             m_ringChk->isChecked(),
-            10,     // maxFiles
+            10,
             m_triggerExprEdit->text(),
             m_preTriggerSpin->value(),
             m_postTriggerSpin->value(),
             m_repeatTriggerChk->isChecked());
     } else {
-        // 停止触发录制器（而非普通录制器）
         emit triggerRecordingStopped();
     }
 }
 
 void RecordTab::onPauseClicked()
 {
-    bool nowPaused = (m_pauseBtn->text() == "暂停");
-    m_pauseBtn->setText(nowPaused ? "继续" : "暂停");
-    m_statusLabel->setText(nowPaused ? "状态: 已暂停" : "状态: 录制中...");
-    emit pauseRequested(nowPaused);
+    m_paused = !m_paused;
+    refreshDynamicLabels();
+    emit pauseRequested(m_paused);
 }
 
 void RecordTab::onStopClicked()
 {
-    // 停止录制 = 取消录制按钮的选中状态（触发 onRecord → emit recordToggled(false)）
     m_recordBtn->setChecked(false);
-    m_pauseBtn->setText("暂停");
+    m_paused = false;
     m_pauseBtn->setEnabled(false);
     m_stopBtn->setEnabled(false);
+    refreshDynamicLabels();
 }
 
 QVariantMap RecordTab::configMap() const

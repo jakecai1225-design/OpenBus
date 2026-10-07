@@ -208,6 +208,12 @@ json AppConfig::defaultConfig()
         // 可设为 openbus_appstore 开发源 http://127.0.0.1:5173/market/market.json）
         {"market.url", ""},
 
+        {"telemetry.enabled", true},
+        {"telemetry.installId", ""},
+
+        // ---- Watcher (debugger-style watch) ----
+        {"watcher.refreshMs", 200},
+
         // ---- 工程 ----
         {"project.lastPath", ""},
         {"project.recent", "[]"},

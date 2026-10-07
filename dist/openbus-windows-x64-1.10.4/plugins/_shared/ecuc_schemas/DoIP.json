@@ -1,0 +1,114 @@
+{
+  "module": "DoIP",
+  "definition": "/AUTOSAR/EcucDefs/DoIP",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "DoIPConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DoIPConnections",
+          "kind": "string",
+          "default": "",
+          "summary": "DoIPConnections",
+          "detail": "AUTOSAR EcucDefs DoIPConnections parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPConfigSet/DoIPConnections"
+        },
+        {
+          "shortName": "DoIPChannel",
+          "kind": "string",
+          "default": "",
+          "summary": "DoIPChannel",
+          "detail": "AUTOSAR EcucDefs DoIPChannel parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPConfigSet/DoIPChannel"
+        },
+        {
+          "shortName": "DoIPLogicalAddress",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Logical address",
+          "detail": "Logical address",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPConfigSet/DoIPLogicalAddress"
+        },
+        {
+          "shortName": "DoIPMaxRequestBytes",
+          "kind": "numerical",
+          "default": "4095",
+          "summary": "Max request bytes",
+          "detail": "Max request bytes",
+          "range": "",
+          "min": 1,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPConfigSet/DoIPMaxRequestBytes"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "DoIPGeneral",
+      "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "DoIPDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DoIPDevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPGeneral/DoIPDevErrorDetect"
+        },
+        {
+          "shortName": "DoIPVin",
+          "kind": "string",
+          "default": "",
+          "summary": "DoIPVin",
+          "detail": "AUTOSAR EcucDefs DoIPVin parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPGeneral/DoIPVin"
+        },
+        {
+          "shortName": "DoIPVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPGeneral/DoIPVersionInfoApi"
+        },
+        {
+          "shortName": "DoIPEntityStatusMaxByteFieldUse",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EntityStatusMaxByteFieldUse",
+          "detail": "EntityStatusMaxByteFieldUse",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPGeneral/DoIPEntityStatusMaxByteFieldUse"
+        },
+        {
+          "shortName": "DoIPUseMacAddressForIdentification",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "UseMacAddressForIdentification",
+          "detail": "UseMacAddressForIdentification",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/DoIP/DoIPGeneral/DoIPUseMacAddressForIdentification"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

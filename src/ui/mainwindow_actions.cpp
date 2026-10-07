@@ -103,22 +103,25 @@ void MainWindow::onRecord()
     } else {
         QString defaultName = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss") + ".asc";
         QString path = QFileDialog::getSaveFileName(
-            this, "录制文件", defaultName, CanFileIO::writableFileFilters());
+            this, tr("Recording File"), defaultName, CanFileIO::writableFileFilters());
         if (path.isEmpty()) {
             m_recordAction->setChecked(false);
             return;
         }
         if (!CanFileIOFactory::canWrite(QFileInfo(path).suffix())) {
-            QMessageBox::warning(this, "录制",
-                "不支持的录制格式: ." + QFileInfo(path).suffix() + "\n请使用 ASC 或 CSV 格式。");
+            QMessageBox::warning(this, tr("Record"),
+                tr("Unsupported recording format: .%1\nPlease use ASC or CSV.")
+                    .arg(QFileInfo(path).suffix()));
             m_recordAction->setChecked(false);
             return;
         }
         if (!m_recorder->start(path)) {
-            QMessageBox::warning(this, "录制", "无法创建文件: " + path +
-                "\n请检查路径是否有效、磁盘空间是否足够。");
+            QMessageBox::warning(this, tr("Record"),
+                tr("Cannot create file: %1\nCheck that the path is valid and disk space is available.")
+                    .arg(path));
             m_recordAction->setChecked(false);
-            m_bottomPanel->addProblem(1, "Recorder", "无法创建录制文件: " + path);
+            m_bottomPanel->addProblem(1, QStringLiteral("Recorder"),
+                tr("Cannot create recording file: %1").arg(path));
             return;
         }
     }
@@ -169,24 +172,26 @@ void MainWindow::onClear()
 void MainWindow::onOpenFile()
 {
     QString path = QFileDialog::getOpenFileName(
-        this, "打开文件", {},
-        CanFileIO::allFileFilters(false) + ";;DBC 文件 (*.dbc);;所有文件 (*.*)");
+        this, tr("Open File"), {},
+        CanFileIO::allFileFilters(false) + tr(";;DBC Files (*.dbc);;All Files (*.*)"));
     if (path.isEmpty()) return;
 
     QFileInfo fi(path);
     if (fi.suffix().toLower() == "dbc") {
         if (!m_dbcManager->loadDbc(path))
-            m_bottomPanel->addProblem(1, "DBC", "加载失败: " + path);
+            m_bottomPanel->addProblem(1, QStringLiteral("DBC"),
+                tr("Load failed: %1").arg(path));
     } else {
         if (!m_player->load(path)) {
-            QMessageBox::warning(this, "打开", "无法加载: " + path);
-            m_bottomPanel->addProblem(1, "Player", "无法加载: " + path);
+            QMessageBox::warning(this, tr("Open"), tr("Cannot load: %1").arg(path));
+            m_bottomPanel->addProblem(1, QStringLiteral("Player"),
+                tr("Cannot load: %1").arg(path));
             return;
         }
         // 清除所有 Trace 和 Graphic 视图（经模块，拆分方案 B5）
         graphicInvoke(QStringLiteral("clearDataAll"));
         traceInvoke(QStringLiteral("clearTraceAll"));
-        m_bottomPanel->appendOutput(QString("已加载: %1 (%2 帧, %3s)")
+        m_bottomPanel->appendOutput(tr("Loaded: %1 (%2 frames, %3s)")
             .arg(fi.fileName()).arg(m_player->totalFrames())
             .arg(m_player->totalTime(), 0, 'f', 2));
         transceiveInvoke(QStringLiteral("setFileInfo"),
@@ -199,18 +204,18 @@ void MainWindow::onImportLog()
 {
     const auto filters = FileImportFactory::fileFilters();
     QString path = QFileDialog::getOpenFileName(
-        this, QStringLiteral("导入日志文件"), {},
+        this, tr("Import Log File"), {},
         filters.join(QStringLiteral(";;")));
     if (path.isEmpty()) return;
 
     auto importer = FileImportFactory::create(path);
     if (!importer) {
-        QMessageBox::warning(this, QStringLiteral("导入"), QStringLiteral("不支持的文件格式"));
+        QMessageBox::warning(this, tr("Import"), tr("Unsupported file format"));
         return;
     }
 
-    // 进度对话框（500ms 后显示，避免小文件闪烁）
-    QProgressDialog progress(QStringLiteral("正在导入..."), QStringLiteral("取消"), 0, 100, this);
+    // Progress dialog (show after 500ms to avoid flicker on small files)
+    QProgressDialog progress(tr("Importing..."), tr("Cancel"), 0, 100, this);
     progress.setWindowModality(Qt::WindowModal);
     progress.setMinimumDuration(500);
 
@@ -222,8 +227,8 @@ void MainWindow::onImportLog()
     if (progress.wasCanceled()) return;
 
     if (frames.isEmpty()) {
-        QMessageBox::warning(this, QStringLiteral("导入"),
-            QStringLiteral("文件为空或解析失败"));
+        QMessageBox::warning(this, tr("Import"),
+            tr("File is empty or could not be parsed"));
         return;
     }
 
@@ -257,11 +262,11 @@ void MainWindow::onImportLog()
     const int count = traceTab
         ? traceQuery(QStringLiteral("frameCount"), QVariant::fromValue(traceTab)).toInt()
         : frames.size();
-    m_bottomPanel->appendOutput(QString("导入完成: %1 (%2 帧, 格式: %3)")
+    m_bottomPanel->appendOutput(tr("Import complete: %1 (%2 frames, format: %3)")
         .arg(fi.fileName()).arg(frames.size()).arg(importer->formatName()));
-    m_frameCountLabel->setText(QString::number(count) + QStringLiteral(" 帧"));
-    m_rowCountLabel->setText(QString::number(count) + QStringLiteral("行"));
-    m_statusLabel->setText(QString("已导入 %1").arg(fi.fileName()));
+    m_frameCountLabel->setText(tr("%1 frames").arg(count));
+    m_rowCountLabel->setText(tr("%1 rows").arg(count));
+    m_statusLabel->setText(tr("Imported %1").arg(fi.fileName()));
 }
 
 void MainWindow::onAutoScrollToggled(bool on)
@@ -370,28 +375,25 @@ void MainWindow::processCommand(const QString &cmd)
 void MainWindow::updateStatistics()
 {
     if (m_measurementRunning) {
-        // 测量运行中：显示统一计数
         if (m_player->isLoaded()) {
             int total = m_player->totalFrames();
             m_frameCountLabel->setText(
-                QString::number(m_receivedFrameCount) + " / " +
-                QString::number(total) + " 帧");
+                tr("%1 / %2 frames").arg(m_receivedFrameCount).arg(total));
         } else {
-            m_frameCountLabel->setText(QString::number(m_receivedFrameCount) + " 帧");
+            m_frameCountLabel->setText(tr("%1 frames").arg(m_receivedFrameCount));
         }
-        m_rowCountLabel->setText(QString::number(m_receivedFrameCount) + "行");
+        m_rowCountLabel->setText(tr("%1 rows").arg(m_receivedFrameCount));
         m_filterLabel->setText(
-            QString("过滤%1/%2").arg(m_receivedFrameCount).arg(m_receivedFrameCount));
+            tr("Filter %1/%2").arg(m_receivedFrameCount).arg(m_receivedFrameCount));
         return;
     }
-    // 非测量状态：显示当前 Trace 标签页统计（经 trace 模块查询，拆分方案 B5）
     QWidget *active = m_editorArea->currentWidget();
     int total = traceQuery(QStringLiteral("isTrace"), QVariant::fromValue(active)).toBool()
         ? traceQuery(QStringLiteral("frameCount"), QVariant::fromValue(active)).toInt()
         : 0;
-    m_frameCountLabel->setText(QString::number(total) + " 帧");
-    m_rowCountLabel->setText(QString::number(total) + "行");
-    m_filterLabel->setText(QString("过滤%1/%2").arg(total).arg(total));
+    m_frameCountLabel->setText(tr("%1 frames").arg(total));
+    m_rowCountLabel->setText(tr("%1 rows").arg(total));
+    m_filterLabel->setText(tr("Filter %1/%2").arg(total).arg(total));
 }
 
 void MainWindow::updateActions()

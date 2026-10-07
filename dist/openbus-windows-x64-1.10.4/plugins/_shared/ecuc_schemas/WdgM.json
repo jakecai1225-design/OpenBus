@@ -1,0 +1,78 @@
+{
+  "module": "WdgM",
+  "definition": "/AUTOSAR/EcucDefs/WdgM",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "WdgMConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "WdgMMode",
+          "kind": "string",
+          "default": "0",
+          "summary": "WdgMMode",
+          "detail": "Mode",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMConfigSet/WdgMMode",
+          "min": 0,
+          "max": 255
+        },
+        {
+          "shortName": "WdgMSupervisedEntity",
+          "kind": "string",
+          "default": "",
+          "summary": "WdgMSupervisedEntity",
+          "detail": "AUTOSAR EcucDefs WdgMSupervisedEntity parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMConfigSet/WdgMSupervisedEntity"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "WdgMGeneral",
+      "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "WdgMDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "WdgMDevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMGeneral/WdgMDevErrorDetect"
+        },
+        {
+          "shortName": "WdgMMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "WdgMMainFunctionPeriod",
+          "detail": "AUTOSAR EcucDefs WdgMMainFunctionPeriod parameter.",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMGeneral/WdgMMainFunctionPeriod"
+        },
+        {
+          "shortName": "WdgMVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/WdgM/WdgMGeneral/WdgMVersionInfoApi"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

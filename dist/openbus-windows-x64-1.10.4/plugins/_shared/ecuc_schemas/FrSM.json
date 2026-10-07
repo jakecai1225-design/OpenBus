@@ -1,0 +1,79 @@
+{
+  "module": "FrSM",
+  "definition": "/AUTOSAR/EcucDefs/FrSM",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "FrSMConfig",
+      "definition": "/AUTOSAR/EcucDefs/FrSM/FrSMConfig",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "FrSMCluster",
+          "kind": "string",
+          "default": "",
+          "summary": "FrSMCluster",
+          "detail": "AUTOSAR EcucDefs FrSMCluster parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrSM/FrSMConfig/FrSMCluster"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "FrSMGeneral",
+      "definition": "/AUTOSAR/EcucDefs/FrSM/FrSMGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "FrSMDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "FrSMDevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrSM/FrSMGeneral/FrSMDevErrorDetect"
+        },
+        {
+          "shortName": "FrSMVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/FrSM/FrSMGeneral/FrSMVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "FrSMCluster"
+      ]
+    },
+    {
+      "shortName": "FrSMCluster",
+      "definition": "/AUTOSAR/EcucDefs/FrSM/FrSMGeneral/FrSMCluster",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "FrSMGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "FrSMComMNetworkHandleRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "FrSMComMNetworkHandleRef",
+          "detail": "Reference to ComMChannel",
+          "range": "",
+          "destination": "ComMChannel",
+          "definition": "/AUTOSAR/EcucDefs/FrSM/FrSMCluster/FrSMComMNetworkHandleRef"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

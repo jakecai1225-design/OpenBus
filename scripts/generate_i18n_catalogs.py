@@ -115,9 +115,49 @@ STRINGS: dict[str, list[tuple[str, dict[str, str]]]] = {
         ("Data Window", {}),
         ("I/O Graph", {}),
         ("Watcher", {
-            "zh_CN": "Watcher 观测", "zh_TW": "Watcher 觀測", "es": "Watcher",
+            "zh_CN": "观测", "zh_TW": "觀測", "es": "Watcher",
             "fr": "Watcher", "de": "Watcher", "ja": "Watcher",
             "pt_BR": "Watcher", "ru": "Watcher", "ko": "Watcher",
+        }),
+        ("Send", {
+            "zh_CN": "发送", "zh_TW": "傳送", "es": "Enviar",
+            "fr": "Envoyer", "de": "Senden", "ja": "送信",
+            "pt_BR": "Enviar", "ru": "Отправка", "ko": "송신",
+        }),
+        ("Playback", {
+            "zh_CN": "回放", "zh_TW": "回放", "es": "Reproducción",
+            "fr": "Lecture", "de": "Wiedergabe", "ja": "再生",
+            "pt_BR": "Reprodução", "ru": "Воспроизведение", "ko": "재생",
+        }),
+        ("Offline Analysis", {
+            "zh_CN": "离线分析", "zh_TW": "離線分析", "es": "Análisis offline",
+            "fr": "Analyse hors ligne", "de": "Offline-Analyse", "ja": "オフライン解析",
+            "pt_BR": "Análise offline", "ru": "Офлайн-анализ", "ko": "오프라인 분석",
+        }),
+        ("Devices", {
+            "zh_CN": "设备连接", "zh_TW": "裝置連線", "es": "Dispositivos",
+            "fr": "Périphériques", "de": "Geräte", "ja": "デバイス",
+            "pt_BR": "Dispositivos", "ru": "Устройства", "ko": "장치",
+        }),
+        ("Extensions", {
+            "zh_CN": "插件市场", "zh_TW": "擴充功能市集", "es": "Extensiones",
+            "fr": "Extensions", "de": "Erweiterungen", "ja": "拡張機能",
+            "pt_BR": "Extensões", "ru": "Расширения", "ko": "확장",
+        }),
+        ("CAN Flow", {
+            "zh_CN": "CAN Flow", "zh_TW": "CAN Flow", "es": "CAN Flow",
+            "fr": "CAN Flow", "de": "CAN Flow", "ja": "CAN Flow",
+            "pt_BR": "CAN Flow", "ru": "CAN Flow", "ko": "CAN Flow",
+        }),
+        ("Frame List %1", {
+            "zh_CN": "帧列表%1", "zh_TW": "幀列表%1", "es": "Lista de tramas %1",
+            "fr": "Liste de trames %1", "de": "Frame-Liste %1", "ja": "フレームリスト%1",
+            "pt_BR": "Lista de frames %1", "ru": "Список кадров %1", "ko": "프레임 목록 %1",
+        }),
+        ("Waveform %1", {
+            "zh_CN": "时序波形%1", "zh_TW": "時序波形%1", "es": "Forma de onda %1",
+            "fr": "Forme d'onde %1", "de": "Wellenform %1", "ja": "波形%1",
+            "pt_BR": "Forma de onda %1", "ru": "Осциллограмма %1", "ko": "파형 %1",
         }),
         ("Color Rule Editor...", {
             "zh_CN": "着色规则编辑器...", "zh_TW": "著色規則編輯器...",
@@ -523,6 +563,311 @@ STRINGS: dict[str, list[tuple[str, dict[str, str]]]] = {
             "pt_BR": "Retomar captura", "ru": "Продолжить захват", "ko": "캡처 재개",
         }),
     ],
+    "TransceivePanel": [
+        ("Transceive", {
+            "zh_CN": "收发", "zh_TW": "收發", "es": "Tx/Rx",
+            "fr": "Émission/Réception", "de": "Senden/Empfangen", "ja": "送受信",
+            "pt_BR": "Tx/Rx", "ru": "Приём/передача", "ko": "송수신",
+        }),
+        ("Send", {
+            "zh_CN": "发送", "zh_TW": "傳送", "es": "Enviar",
+            "fr": "Envoyer", "de": "Senden", "ja": "送信",
+            "pt_BR": "Enviar", "ru": "Отправка", "ko": "송신",
+        }),
+        ("Playback", {
+            "zh_CN": "回放", "zh_TW": "回放", "es": "Reproducción",
+            "fr": "Lecture", "de": "Wiedergabe", "ja": "再生",
+            "pt_BR": "Reprodução", "ru": "Воспроизведение", "ko": "재생",
+        }),
+        ("Offline Analysis", {
+            "zh_CN": "离线分析", "zh_TW": "離線分析", "es": "Análisis offline",
+            "fr": "Analyse hors ligne", "de": "Offline-Analyse", "ja": "オフライン解析",
+            "pt_BR": "Análise offline", "ru": "Офлайн-анализ", "ko": "오프라인 분석",
+        }),
+        ("Record", {
+            "zh_CN": "录制", "zh_TW": "錄製", "es": "Grabar",
+            "fr": "Enregistrer", "de": "Aufnehmen", "ja": "記録",
+            "pt_BR": "Gravar", "ru": "Запись", "ko": "녹화",
+        }),
+        ("Open Send tab", {
+            "zh_CN": "打开发送页", "zh_TW": "開啟傳送頁", "es": "Abrir Enviar",
+            "fr": "Ouvrir Envoyer", "de": "Senden öffnen", "ja": "送信を開く",
+            "pt_BR": "Abrir Enviar", "ru": "Открыть отправку", "ko": "송신 열기",
+        }),
+        ("Open Playback tab", {
+            "zh_CN": "打开回放页", "zh_TW": "開啟回放頁", "es": "Abrir Reproducción",
+            "fr": "Ouvrir Lecture", "de": "Wiedergabe öffnen", "ja": "再生を開く",
+            "pt_BR": "Abrir Reprodução", "ru": "Открыть воспроизведение", "ko": "재생 열기",
+        }),
+        ("Open Offline Analysis tab", {
+            "zh_CN": "打开离线分析页", "zh_TW": "開啟離線分析頁",
+            "es": "Abrir Análisis offline", "fr": "Ouvrir Analyse hors ligne",
+            "de": "Offline-Analyse öffnen", "ja": "オフライン解析を開く",
+            "pt_BR": "Abrir Análise offline", "ru": "Открыть офлайн-анализ",
+            "ko": "오프라인 분석 열기",
+        }),
+        ("Open Record tab", {
+            "zh_CN": "打开录制页", "zh_TW": "開啟錄製頁", "es": "Abrir Grabar",
+            "fr": "Ouvrir Enregistrer", "de": "Aufnehmen öffnen", "ja": "記録を開く",
+            "pt_BR": "Abrir Gravar", "ru": "Открыть запись", "ko": "녹화 열기",
+        }),
+    ],
+    "RecordTab": [
+        ("Start Recording", {
+            "zh_CN": "开始录制", "zh_TW": "開始錄製", "es": "Iniciar grabación",
+            "fr": "Démarrer l'enregistrement", "de": "Aufnahme starten", "ja": "記録開始",
+            "pt_BR": "Iniciar gravação", "ru": "Начать запись", "ko": "녹화 시작",
+        }),
+        ("Stop Recording", {
+            "zh_CN": "停止录制", "zh_TW": "停止錄製", "es": "Detener grabación",
+            "fr": "Arrêter l'enregistrement", "de": "Aufnahme stoppen", "ja": "記録停止",
+            "pt_BR": "Parar gravação", "ru": "Остановить запись", "ko": "녹화 정지",
+        }),
+        ("Pause", {
+            "zh_CN": "暂停", "zh_TW": "暫停", "es": "Pausa",
+            "fr": "Pause", "de": "Pause", "ja": "一時停止",
+            "pt_BR": "Pausar", "ru": "Пауза", "ko": "일시정지",
+        }),
+        ("Resume", {
+            "zh_CN": "继续", "zh_TW": "繼續", "es": "Reanudar",
+            "fr": "Reprendre", "de": "Fortsetzen", "ja": "再開",
+            "pt_BR": "Retomar", "ru": "Продолжить", "ko": "재개",
+        }),
+        ("Stop", {
+            "zh_CN": "停止", "zh_TW": "停止", "es": "Detener",
+            "fr": "Arrêt", "de": "Stopp", "ja": "停止",
+            "pt_BR": "Parar", "ru": "Стоп", "ko": "정지",
+        }),
+        ("File Settings", {
+            "zh_CN": "文件设置", "zh_TW": "檔案設定", "es": "Ajustes de archivo",
+            "fr": "Paramètres de fichier", "de": "Dateieinstellungen", "ja": "ファイル設定",
+            "pt_BR": "Configurações de arquivo", "ru": "Параметры файла", "ko": "파일 설정",
+        }),
+        ("Directory:", {
+            "zh_CN": "文件目录:", "zh_TW": "檔案目錄:", "es": "Directorio:",
+            "fr": "Répertoire :", "de": "Verzeichnis:", "ja": "ディレクトリ:",
+            "pt_BR": "Diretório:", "ru": "Каталог:", "ko": "디렉터리:",
+        }),
+        ("Browse...", {
+            "zh_CN": "浏览...", "zh_TW": "瀏覽...", "es": "Examinar...",
+            "fr": "Parcourir...", "de": "Durchsuchen...", "ja": "参照...",
+            "pt_BR": "Procurar...", "ru": "Обзор...", "ko": "찾아보기...",
+        }),
+        ("Open Folder", {
+            "zh_CN": "打开目录", "zh_TW": "開啟目錄", "es": "Abrir carpeta",
+            "fr": "Ouvrir le dossier", "de": "Ordner öffnen", "ja": "フォルダを開く",
+            "pt_BR": "Abrir pasta", "ru": "Открыть папку", "ko": "폴더 열기",
+        }),
+        ("Open the recording directory in the system file manager", {
+            "zh_CN": "在系统资源管理器中打开录制文件目录",
+            "zh_TW": "在系統檔案總管中開啟錄製目錄",
+            "es": "Abrir el directorio de grabación",
+            "fr": "Ouvrir le répertoire d'enregistrement",
+            "de": "Aufnahmeverzeichnis öffnen",
+            "ja": "記録ディレクトリを開く",
+            "pt_BR": "Abrir o diretório de gravação",
+            "ru": "Открыть каталог записи",
+            "ko": "녹화 디렉터리 열기",
+        }),
+        ("File name prefix:", {
+            "zh_CN": "文件名称前缀:", "zh_TW": "檔案名稱前綴:", "es": "Prefijo:",
+            "fr": "Préfixe :", "de": "Dateipräfix:", "ja": "ファイル名プレフィックス:",
+            "pt_BR": "Prefixo:", "ru": "Префикс:", "ko": "파일 이름 접두사:",
+        }),
+        ("File format:", {
+            "zh_CN": "文件格式:", "zh_TW": "檔案格式:", "es": "Formato:",
+            "fr": "Format :", "de": "Dateiformat:", "ja": "ファイル形式:",
+            "pt_BR": "Formato:", "ru": "Формат:", "ko": "파일 형식:",
+        }),
+        ("File Splitting", {
+            "zh_CN": "文件分割", "zh_TW": "檔案分割", "es": "División de archivo",
+            "fr": "Découpage de fichier", "de": "Dateiteilung", "ja": "ファイル分割",
+            "pt_BR": "Divisão de arquivo", "ru": "Разделение файла", "ko": "파일 분할",
+        }),
+        ("By size", {
+            "zh_CN": "按大小", "zh_TW": "依大小", "es": "Por tamaño",
+            "fr": "Par taille", "de": "Nach Größe", "ja": "サイズ別",
+            "pt_BR": "Por tamanho", "ru": "По размеру", "ko": "크기별",
+        }),
+        ("By time", {
+            "zh_CN": "按时间", "zh_TW": "依時間", "es": "Por tiempo",
+            "fr": "Par durée", "de": "Nach Zeit", "ja": "時間別",
+            "pt_BR": "Por tempo", "ru": "По времени", "ko": "시간별",
+        }),
+        ("Every", {
+            "zh_CN": "每", "zh_TW": "每", "es": "Cada",
+            "fr": "Tous les", "de": "Alle", "ja": "毎",
+            "pt_BR": "A cada", "ru": "Каждые", "ko": "매",
+        }),
+        (" MB", {
+            "zh_CN": " MB", "zh_TW": " MB", "es": " MB",
+            "fr": " Mo", "de": " MB", "ja": " MB",
+            "pt_BR": " MB", "ru": " МБ", "ko": " MB",
+        }),
+        (" s", {
+            "zh_CN": " 秒", "zh_TW": " 秒", "es": " s",
+            "fr": " s", "de": " s", "ja": " 秒",
+            "pt_BR": " s", "ru": " с", "ko": " 초",
+        }),
+        ("Ring mode (overwrite oldest files)", {
+            "zh_CN": "环形模式 (覆盖最旧文件)",
+            "zh_TW": "環形模式 (覆寫最舊檔案)",
+            "es": "Modo anillo (sobrescribir más antiguos)",
+            "fr": "Mode circulaire (écraser les plus anciens)",
+            "de": "Ringmodus (älteste Dateien überschreiben)",
+            "ja": "リングモード（古いファイルを上書き）",
+            "pt_BR": "Modo anel (sobrescrever mais antigos)",
+            "ru": "Кольцевой режим (перезаписывать старые)",
+            "ko": "링 모드 (오래된 파일 덮어쓰기)",
+        }),
+        ("Buffer size:", {
+            "zh_CN": "缓冲区大小:", "zh_TW": "緩衝區大小:", "es": "Tamaño de búfer:",
+            "fr": "Taille du tampon :", "de": "Puffergröße:", "ja": "バッファサイズ:",
+            "pt_BR": "Tamanho do buffer:", "ru": "Размер буфера:", "ko": "버퍼 크기:",
+        }),
+        ("%1 frames", {
+            "zh_CN": "%1 帧", "zh_TW": "%1 幀", "es": "%1 tramas",
+            "fr": "%1 trames", "de": "%1 Frames", "ja": "%1 フレーム",
+            "pt_BR": "%1 frames", "ru": "%1 кадров", "ko": "%1 프레임",
+        }),
+        ("Recording Filter", {
+            "zh_CN": "录制过滤", "zh_TW": "錄製篩選", "es": "Filtro de grabación",
+            "fr": "Filtre d'enregistrement", "de": "Aufnahmefilter", "ja": "記録フィルタ",
+            "pt_BR": "Filtro de gravação", "ru": "Фильтр записи", "ko": "녹화 필터",
+        }),
+        ("All", {
+            "zh_CN": "全部", "zh_TW": "全部", "es": "Todo",
+            "fr": "Tout", "de": "Alle", "ja": "すべて",
+            "pt_BR": "Tudo", "ru": "Все", "ko": "전체",
+        }),
+        ("Rx only", {
+            "zh_CN": "仅 Rx", "zh_TW": "僅 Rx", "es": "Solo Rx",
+            "fr": "Rx seulement", "de": "Nur Rx", "ja": "Rx のみ",
+            "pt_BR": "Somente Rx", "ru": "Только Rx", "ko": "Rx만",
+        }),
+        ("Tx only", {
+            "zh_CN": "仅 Tx", "zh_TW": "僅 Tx", "es": "Solo Tx",
+            "fr": "Tx seulement", "de": "Nur Tx", "ja": "Tx のみ",
+            "pt_BR": "Somente Tx", "ru": "Только Tx", "ko": "Tx만",
+        }),
+        ("CAN FD only", {
+            "zh_CN": "仅 CAN FD", "zh_TW": "僅 CAN FD", "es": "Solo CAN FD",
+            "fr": "CAN FD seulement", "de": "Nur CAN FD", "ja": "CAN FD のみ",
+            "pt_BR": "Somente CAN FD", "ru": "Только CAN FD", "ko": "CAN FD만",
+        }),
+        ("ID filter:", {
+            "zh_CN": "ID 过滤:", "zh_TW": "ID 篩選:", "es": "Filtro ID:",
+            "fr": "Filtre ID :", "de": "ID-Filter:", "ja": "ID フィルタ:",
+            "pt_BR": "Filtro de ID:", "ru": "Фильтр ID:", "ko": "ID 필터:",
+        }),
+        ("Comma-separated, e.g. 0x123,0x456", {
+            "zh_CN": "逗号分隔, 例: 0x123,0x456",
+            "zh_TW": "逗號分隔, 例: 0x123,0x456",
+            "es": "Separados por comas, p. ej. 0x123,0x456",
+            "fr": "Séparés par des virgules, ex. 0x123,0x456",
+            "de": "Kommagetrennt, z. B. 0x123,0x456",
+            "ja": "カンマ区切り、例: 0x123,0x456",
+            "pt_BR": "Separados por vírgula, ex.: 0x123,0x456",
+            "ru": "Через запятую, напр. 0x123,0x456",
+            "ko": "쉼표 구분, 예: 0x123,0x456",
+        }),
+        ("Trigger Recording", {
+            "zh_CN": "触发录制", "zh_TW": "觸發錄製", "es": "Grabación por disparo",
+            "fr": "Enregistrement déclenché", "de": "Trigger-Aufnahme", "ja": "トリガ記録",
+            "pt_BR": "Gravação por gatilho", "ru": "Запись по триггеру", "ko": "트리거 녹화",
+        }),
+        ("Enable trigger recording", {
+            "zh_CN": "启用触发录制", "zh_TW": "啟用觸發錄製", "es": "Activar grabación por disparo",
+            "fr": "Activer l'enregistrement déclenché", "de": "Trigger-Aufnahme aktivieren",
+            "ja": "トリガ記録を有効化", "pt_BR": "Ativar gravação por gatilho",
+            "ru": "Включить запись по триггеру", "ko": "트리거 녹화 사용",
+        }),
+        ("Trigger condition:", {
+            "zh_CN": "触发条件:", "zh_TW": "觸發條件:", "es": "Condición:",
+            "fr": "Condition :", "de": "Triggerbedingung:", "ja": "トリガ条件:",
+            "pt_BR": "Condição:", "ru": "Условие:", "ko": "트리거 조건:",
+        }),
+        ("e.g. id == 0x1A5 and data[0] == 0xFF", {
+            "zh_CN": "例: id == 0x1A5 and data[0] == 0xFF",
+            "zh_TW": "例: id == 0x1A5 and data[0] == 0xFF",
+            "es": "p. ej. id == 0x1A5 and data[0] == 0xFF",
+            "fr": "ex. id == 0x1A5 and data[0] == 0xFF",
+            "de": "z. B. id == 0x1A5 and data[0] == 0xFF",
+            "ja": "例: id == 0x1A5 and data[0] == 0xFF",
+            "pt_BR": "ex.: id == 0x1A5 and data[0] == 0xFF",
+            "ru": "напр. id == 0x1A5 and data[0] == 0xFF",
+            "ko": "예: id == 0x1A5 and data[0] == 0xFF",
+        }),
+        ("Pre-buffer:", {
+            "zh_CN": "前置缓冲:", "zh_TW": "前置緩衝:", "es": "Prebúfer:",
+            "fr": "Pré-tampon :", "de": "Vorpuffer:", "ja": "プリバッファ:",
+            "pt_BR": "Pré-buffer:", "ru": "Предбуфер:", "ko": "사전 버퍼:",
+        }),
+        ("Post-record:", {
+            "zh_CN": "后置录制:", "zh_TW": "後置錄製:", "es": "Post-grabación:",
+            "fr": "Post-enregistrement :", "de": "Nachaufnahme:", "ja": "ポスト記録:",
+            "pt_BR": "Pós-gravação:", "ru": "Постзапись:", "ko": "사후 녹화:",
+        }),
+        ("Repeat trigger", {
+            "zh_CN": "重复触发", "zh_TW": "重複觸發", "es": "Repetir disparo",
+            "fr": "Répéter le déclenchement", "de": "Trigger wiederholen", "ja": "トリガを繰り返す",
+            "pt_BR": "Repetir gatilho", "ru": "Повторять триггер", "ko": "트리거 반복",
+        }),
+        ("Start Trigger Recording", {
+            "zh_CN": "开始触发录制", "zh_TW": "開始觸發錄製", "es": "Iniciar grabación por disparo",
+            "fr": "Démarrer l'enregistrement déclenché", "de": "Trigger-Aufnahme starten",
+            "ja": "トリガ記録開始", "pt_BR": "Iniciar gravação por gatilho",
+            "ru": "Начать запись по триггеру", "ko": "트리거 녹화 시작",
+        }),
+        ("Stop Trigger Recording", {
+            "zh_CN": "停止触发录制", "zh_TW": "停止觸發錄製", "es": "Detener grabación por disparo",
+            "fr": "Arrêter l'enregistrement déclenché", "de": "Trigger-Aufnahme stoppen",
+            "ja": "トリガ記録停止", "pt_BR": "Parar gravação por gatilho",
+            "ru": "Остановить запись по триггеру", "ko": "트리거 녹화 정지",
+        }),
+        ("Status: Idle", {
+            "zh_CN": "状态: 未录制", "zh_TW": "狀態: 未錄製", "es": "Estado: inactivo",
+            "fr": "État : inactif", "de": "Status: Bereit", "ja": "状態: 待機",
+            "pt_BR": "Status: ocioso", "ru": "Состояние: простой", "ko": "상태: 대기",
+        }),
+        ("Status: Recording...", {
+            "zh_CN": "状态: 录制中...", "zh_TW": "狀態: 錄製中...", "es": "Estado: grabando...",
+            "fr": "État : enregistrement...", "de": "Status: Aufnahme...", "ja": "状態: 記録中...",
+            "pt_BR": "Status: gravando...", "ru": "Состояние: запись...", "ko": "상태: 녹화 중...",
+        }),
+        ("Status: Paused", {
+            "zh_CN": "状态: 已暂停", "zh_TW": "狀態: 已暫停", "es": "Estado: pausado",
+            "fr": "État : en pause", "de": "Status: Pausiert", "ja": "状態: 一時停止",
+            "pt_BR": "Status: pausado", "ru": "Состояние: пауза", "ko": "상태: 일시정지",
+        }),
+        ("Select recording directory", {
+            "zh_CN": "选择录制目录", "zh_TW": "選擇錄製目錄", "es": "Seleccionar directorio",
+            "fr": "Sélectionner le répertoire", "de": "Aufnahmeverzeichnis wählen",
+            "ja": "記録ディレクトリを選択", "pt_BR": "Selecionar diretório",
+            "ru": "Выбрать каталог записи", "ko": "녹화 디렉터리 선택",
+        }),
+        ("Please set a recording directory first.", {
+            "zh_CN": "请先设置录制文件目录", "zh_TW": "請先設定錄製目錄",
+            "es": "Configure primero un directorio de grabación.",
+            "fr": "Veuillez d'abord définir un répertoire d'enregistrement.",
+            "de": "Bitte zuerst ein Aufnahmeverzeichnis festlegen.",
+            "ja": "先に記録ディレクトリを設定してください。",
+            "pt_BR": "Defina primeiro um diretório de gravação.",
+            "ru": "Сначала укажите каталог записи.",
+            "ko": "먼저 녹화 디렉터리를 설정하세요.",
+        }),
+        ("Directory does not exist:\n%1\n\n(It will be created when recording starts.)", {
+            "zh_CN": "目录不存在：\n%1\n\n（录制启动时会自动创建该目录）",
+            "zh_TW": "目錄不存在：\n%1\n\n（錄製啟動時會自動建立該目錄）",
+            "es": "El directorio no existe:\n%1\n\n(Se creará al iniciar la grabación.)",
+            "fr": "Le répertoire n'existe pas :\n%1\n\n(Il sera créé au démarrage.)",
+            "de": "Verzeichnis existiert nicht:\n%1\n\n(Wird beim Start erstellt.)",
+            "ja": "ディレクトリが存在しません:\n%1\n\n（記録開始時に作成されます）",
+            "pt_BR": "O diretório não existe:\n%1\n\n(Será criado ao iniciar.)",
+            "ru": "Каталог не существует:\n%1\n\n(Будет создан при старте записи.)",
+            "ko": "디렉터리가 없습니다:\n%1\n\n(녹화 시작 시 생성됩니다.)",
+        }),
+    ],
     "PlaybackTab": [
         ("Playback", {
             "zh_CN": "回放", "zh_TW": "回放", "es": "Reproducción",
@@ -770,7 +1115,37 @@ def write_json_locales() -> None:
         print(f"wrote plugins/_shared/locales/{loc}.json")
 
 
+def merge_extra() -> None:
+    """Merge Shell+Market extras (and any future i18n_extra_*.py) into STRINGS."""
+    import importlib.util
+
+    for path in sorted((ROOT / "scripts").glob("i18n_extra_*.py")):
+        spec = importlib.util.spec_from_file_location(path.stem, path)
+        if not spec or not spec.loader:
+            continue
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        extra = getattr(mod, "EXTRA_STRINGS", None)
+        if not isinstance(extra, dict):
+            continue
+        for ctx, messages in extra.items():
+            bucket = STRINGS.setdefault(ctx, [])
+            existing = {src for src, _ in bucket}
+            for src, trans in messages:
+                if src in existing:
+                    # Prefer newer translation map from extra
+                    for i, (s, _) in enumerate(bucket):
+                        if s == src:
+                            bucket[i] = (src, trans)
+                            break
+                else:
+                    bucket.append((src, trans))
+                    existing.add(src)
+        print(f"merged {path.name}")
+
+
 def main() -> None:
+    merge_extra()
     TS_DIR.mkdir(parents=True, exist_ok=True)
     for loc in LOCALES:
         write_ts(loc)

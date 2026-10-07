@@ -339,6 +339,7 @@ json ProjectManager::stateToJson(const ProjectState &st,
         wj["name"] = w.name.toStdString();
         wj["messageName"] = w.messageName.toStdString();
         wj["extended"] = w.extended;
+        wj["recording"] = w.recording;
         watchArr.push_back(wj);
     }
     j["watchers"] = watchArr;
@@ -688,6 +689,7 @@ ProjectState ProjectManager::jsonToState(const json &j,
             if (w.contains("messageName") && w["messageName"].is_string())
                 we.messageName = QString::fromStdString(w["messageName"].get<std::string>());
             if (w.contains("extended")) we.extended = w["extended"].get<bool>();
+            if (w.contains("recording")) we.recording = w["recording"].get<bool>();
             st.watchers.append(we);
         }
     }

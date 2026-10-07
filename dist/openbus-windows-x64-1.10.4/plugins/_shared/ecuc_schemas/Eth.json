@@ -1,0 +1,94 @@
+{
+  "module": "Eth",
+  "definition": "/AUTOSAR/EcucDefs/Eth",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "EthConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/Eth/EthConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EthCtrlConfig",
+          "kind": "string",
+          "default": "",
+          "summary": "EthCtrlConfig",
+          "detail": "AUTOSAR EcucDefs EthCtrlConfig parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Eth/EthConfigSet/EthCtrlConfig"
+        },
+        {
+          "shortName": "EthCtrlIdx",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Controller index",
+          "detail": "Controller index",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Eth/EthConfigSet/EthCtrlIdx"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EthGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Eth/EthGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EthDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EthDevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Eth/EthGeneral/EthDevErrorDetect"
+        },
+        {
+          "shortName": "EthIndex",
+          "kind": "string",
+          "default": "",
+          "summary": "EthIndex",
+          "detail": "AUTOSAR EcucDefs EthIndex parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Eth/EthGeneral/EthIndex"
+        },
+        {
+          "shortName": "EthVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Eth/EthGeneral/EthVersionInfoApi"
+        },
+        {
+          "shortName": "EthGetCounterStateApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "GetCounterStateApi",
+          "detail": "GetCounterStateApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Eth/EthGeneral/EthGetCounterStateApi"
+        },
+        {
+          "shortName": "EthGlobalTimeSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "GlobalTimeSupport",
+          "detail": "GlobalTimeSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Eth/EthGeneral/EthGlobalTimeSupport"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

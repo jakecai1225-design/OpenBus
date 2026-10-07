@@ -1,0 +1,28 @@
+{
+    "name": "log-converter",
+    "version": "1.0.0",
+    "author": "openbus",
+    "displayName": "Log Converter",
+    "description": "Convert CAN / CAN FD bus logs between BLF, ASC, CSV, PCAP/PCAPNG and TRC. Batch jobs, inspect, and conversion history — VS Code–style workbench powered by the host CanFileIO engine.",
+    "main": "main.py",
+    "icon": "icon.svg",
+    "activationEvents": [
+        "onCommand:logConverter.open"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "id": "logConverter.open",
+                "title": "Log Converter"
+            }
+        ],
+        "fileFormats": [
+            { "extension": ".blf", "name": "Vector BLF" },
+            { "extension": ".asc", "name": "Vector ASC" },
+            { "extension": ".csv", "name": "CAN CSV log" },
+            { "extension": ".pcap", "name": "PCAP" },
+            { "extension": ".pcapng", "name": "PCAPNG" },
+            { "extension": ".trc", "name": "TRC Trace" }
+        ]
+    }
+}

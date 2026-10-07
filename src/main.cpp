@@ -7,6 +7,7 @@
 #include "core/canframe.h"
 #include "core/logging.h"
 #include "core/appconfig.h"
+#include "core/insights.h"
 #include "core/translationmanager.h"
 #include "core/sessionmanager.h"
 #include "core/module/moduleregistry.h"
@@ -75,8 +76,10 @@ int main(int argc, char *argv[])
 
     MainWindow window;
     window.showMaximized();
+    Insights::instance()->startSession();
 
     int ret = app.exec();
+    Insights::instance()->endSession();
     logging::shutdown();
     return ret;
     } catch (const std::exception &e) {

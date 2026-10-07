@@ -268,8 +268,8 @@ void MeasurementSetupView::buildEmptyAreaMenu(const QPointF &)
     // Show add options only when that module type doesn't already exist
     struct ModDef { QString id; QString icon; QString title; QColor color; };
     ModDef stdMods[] = {
-        {"watcher",  "", "Watcher 观测",     QColor(0x4C, 0xAF, 0x50)},
-        {"record",   "", "录制 Record",      QColor(0xFF, 0x98, 0x00)},
+        {"watcher",  "", "Watcher",          QColor(0x4C, 0xAF, 0x50)},
+        {"record",   "", "Record",           QColor(0xFF, 0x98, 0x00)},
     };
     
     for (const auto &mod : stdMods) {

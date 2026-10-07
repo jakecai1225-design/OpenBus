@@ -329,7 +329,7 @@ void MainWindow::onFrameAddToGraphic(const CanFrame &frame)
     const DbcMessage *msg = m_dbcManager->findMessage(frame.id);
     if (!msg) {
         m_bottomPanel->appendOutput(
-            QStringLiteral("未找到 ID=0x%1 对应的 DBC 报文定义")
+            tr("No DBC message definition for ID=0x%1")
                 .arg(frame.id, 0, 16).toUpper());
         return;
     }
@@ -342,7 +342,7 @@ void MainWindow::onFrameAddToGraphic(const CanFrame &frame)
     graphicInvoke(QStringLiteral("addSignals"),
                   QVariantList{ QVariant::fromValue(targetGv), sigMaps });
     m_bottomPanel->appendOutput(
-        QStringLiteral("已添加 %1 个信号到 Graphic (ID=0x%2)")
+        tr("Added %1 signals to Graphic (ID=0x%2)")
             .arg(msg->signalList.size()).arg(frame.id, 0, 16).toUpper());
 }
 
@@ -414,7 +414,7 @@ void MainWindow::onSignalDoubleClicked(quint32 canId, const QString &signalName)
                                 buildSignalMap(canId, msg && (msg->id > 0x7FF),
                                                signalName, *sig) });
 
-    m_bottomPanel->appendOutput(QString("已添加信号: %1 (ID=0x%2)")
+    m_bottomPanel->appendOutput(tr("Added signal: %1 (ID=0x%2)")
         .arg(signalName).arg(canId, 0, 16).toUpper());
 }
 
@@ -474,7 +474,7 @@ void MainWindow::onSignalAddToTrace(quint32 canId, const QString &signalName)
     traceInvoke(QStringLiteral("setFilterExpression"),
                 QVariantList{ QVariant::fromValue(target), filter, true });
 
-    m_bottomPanel->appendOutput(QString("已添加信号到 Trace: %1 (ID=0x%2)")
+    m_bottomPanel->appendOutput(tr("Added signal to Trace: %1 (ID=0x%2)")
         .arg(signalName).arg(canId, 0, 16).toUpper());
 }
 
@@ -692,8 +692,8 @@ void MainWindow::startMeasurementSession(bool replay)
 
 void MainWindow::onModuleToggled(const QString &blockId, const QString &name, bool enabled)
 {
-    m_bottomPanel->appendOutput(QString("模块 %1 %2")
-                                .arg(name).arg(enabled ? "已启用" : "已禁用"));
+    m_bottomPanel->appendOutput(tr("Module %1 %2")
+                                .arg(name).arg(enabled ? tr("enabled") : tr("disabled")));
     // 根据 blockId 控制对应实例的数据接收（经模块，拆分方案 B5）
     if (blockId.startsWith("trace")) {
         traceInvoke(QStringLiteral("setRunning"),

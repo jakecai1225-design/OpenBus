@@ -38,7 +38,7 @@ INTEGRATE_SECTIONS = (
     ("merge", "Merge", "Merge multiple DBC files", "sync"),
 )
 DELIVER_SECTIONS = (
-    ("export", "Export", "Export matrix / codegen", "export"),
+    ("export", "Export", "Matrix CSV/TSV/JSON/YAML/XML/MD/HTML + C codegen", "export"),
     ("library", "Library", "Recent and pinned DBC files", "database"),
 )
 

@@ -9,6 +9,7 @@
 #include "core/dbcmanager.h"
 #include "core/projectmanager.h"
 #include "core/appconfig.h"
+#include "core/insights.h"
 #include "core/dbc/dbc_adapter.h"
 #include "core/dbc/dbc_writer.h"
 
@@ -605,6 +606,7 @@ void PluginManager::activatePlugin(const QString &name)
 
     m_host->sendNotification(QStringLiteral("activate"), params);
     m_activatedPlugins.insert(name);
+    Insights::instance()->track(QStringLiteral("plugin_use"), name);
 
     spdlog::info("PluginManager: activated plugin '{}'", name.toStdString());
 

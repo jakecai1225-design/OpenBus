@@ -1,0 +1,89 @@
+{
+  "module": "LinTp",
+  "definition": "/AUTOSAR/EcucDefs/LinTp",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "LinTpGlobalConfig",
+      "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGlobalConfig",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "LinTpChannel",
+          "kind": "string",
+          "default": "",
+          "summary": "LinTpChannel",
+          "detail": "AUTOSAR EcucDefs LinTpChannel parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGlobalConfig/LinTpChannel"
+        },
+        {
+          "shortName": "LinTpNSdu",
+          "kind": "string",
+          "default": "",
+          "summary": "LinTpNSdu",
+          "detail": "AUTOSAR EcucDefs LinTpNSdu parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGlobalConfig/LinTpNSdu"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "LinTpGeneral",
+      "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "LinTpDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "LinTpDevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGeneral/LinTpDevErrorDetect"
+        },
+        {
+          "shortName": "LinTpVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGeneral/LinTpVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "LinTpChannel"
+      ]
+    },
+    {
+      "shortName": "LinTpChannel",
+      "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpGeneral/LinTpChannel",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "LinTpGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "LinTpChannelId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Channel Id",
+          "detail": "Channel Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/LinTp/LinTpChannel/LinTpChannelId"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

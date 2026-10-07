@@ -42,7 +42,7 @@ TerminalSession::TerminalSession(QWidget *parent)
     mono.setPointSize(10);
     setFont(mono);
 
-    appendSystem(QStringLiteral("openbus terminal v2.0.0"));
+    appendSystem(QStringLiteral("OpenBus terminal v2.0.0"));
     appendSystem(QStringLiteral("Type in this view and press Enter.  help | bash | powershell"));
     writePrompt();
 }
@@ -61,9 +61,9 @@ void TerminalSession::setMode(Mode mode)
     } else {
         killShell();
         m_mode = Mode::Repl;
-        appendSystem(QStringLiteral("Switched to openbus REPL"));
+        appendSystem(QStringLiteral("Switched to OpenBus REPL"));
         writePrompt();
-        emit titleChanged(QStringLiteral("openbus"));
+        emit titleChanged(QStringLiteral("OpenBus"));
     }
 }
 
@@ -85,7 +85,7 @@ void TerminalSession::clearScreen()
     clear();
     m_promptPos = 0;
     if (m_mode == Mode::Repl) {
-        appendSystem(QStringLiteral("openbus terminal — cleared"));
+        appendSystem(QStringLiteral("OpenBus terminal — cleared"));
         writePrompt();
     } else {
         appendSystem(QStringLiteral("(shell still running — output cleared)"));
@@ -315,13 +315,13 @@ void TerminalSession::stripAndAppend(QByteArray &buf)
 
 void TerminalSession::onShellFinished(int exitCode, QProcess::ExitStatus)
 {
-    appendSystem(QStringLiteral("Shell exited (%1) — back to openbus REPL").arg(exitCode));
+    appendSystem(QStringLiteral("Shell exited (%1) — back to OpenBus REPL").arg(exitCode));
     if (m_shell) {
         m_shell->deleteLater();
         m_shell = nullptr;
     }
     m_mode = Mode::Repl;
-    emit titleChanged(QStringLiteral("openbus"));
+    emit titleChanged(QStringLiteral("OpenBus"));
     writePrompt();
 }
 
@@ -476,7 +476,7 @@ void TerminalSession::contextMenuEvent(QContextMenuEvent *e)
         menu.addAction(QStringLiteral("Kill shell / back to REPL"), this, [this]() {
             killShell();
             m_mode = Mode::Repl;
-            emit titleChanged(QStringLiteral("openbus"));
+            emit titleChanged(QStringLiteral("OpenBus"));
             writePrompt();
         });
     }

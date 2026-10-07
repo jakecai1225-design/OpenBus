@@ -1,0 +1,90 @@
+{
+  "module": "EthSM",
+  "definition": "/AUTOSAR/EcucDefs/EthSM",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "EthSMConfiguration",
+      "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMConfiguration",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EthSMNetwork",
+          "kind": "string",
+          "default": "",
+          "summary": "EthSMNetwork",
+          "detail": "AUTOSAR EcucDefs EthSMNetwork parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMConfiguration/EthSMNetwork"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "EthSMGeneral",
+      "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "EthSMDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EthSMDevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMGeneral/EthSMDevErrorDetect"
+        },
+        {
+          "shortName": "EthSMMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "EthSMMainFunctionPeriod",
+          "detail": "AUTOSAR EcucDefs EthSMMainFunctionPeriod parameter.",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMGeneral/EthSMMainFunctionPeriod"
+        },
+        {
+          "shortName": "EthSMVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMGeneral/EthSMVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "EthSMNetwork"
+      ]
+    },
+    {
+      "shortName": "EthSMNetwork",
+      "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMGeneral/EthSMNetwork",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "EthSMGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "EthSMComMNetworkHandleRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "EthSMComMNetworkHandleRef",
+          "detail": "Reference to ComMChannel",
+          "range": "",
+          "destination": "ComMChannel",
+          "definition": "/AUTOSAR/EcucDefs/EthSM/EthSMNetwork/EthSMComMNetworkHandleRef"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

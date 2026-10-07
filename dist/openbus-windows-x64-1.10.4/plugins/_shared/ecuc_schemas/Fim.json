@@ -1,0 +1,147 @@
+{
+  "module": "Fim",
+  "definition": "/AUTOSAR/EcucDefs/Fim",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "FimConfig",
+      "definition": "/AUTOSAR/EcucDefs/Fim/FimConfig",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": [
+        "FimFid",
+        "FimInhibitionConfiguration"
+      ]
+    },
+    {
+      "shortName": "FimFid",
+      "definition": "/AUTOSAR/EcucDefs/Fim/FimConfig/FimFid",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "FimConfig",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "FimFidId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "FimFidId",
+          "detail": "AUTOSAR EcucDefs FimFidId parameter.",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Fim/FimFid/FimFidId"
+        },
+        {
+          "shortName": "FimInhibitionMask",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "FimInhibitionMask",
+          "detail": "AUTOSAR EcucDefs FimInhibitionMask parameter.",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Fim/FimFid/FimInhibitionMask"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "FimInhibitionConfiguration",
+      "definition": "/AUTOSAR/EcucDefs/Fim/FimConfig/FimInhibitionConfiguration",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "FimConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "FimInhibitionEventRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "FimInhibitionEventRef",
+          "detail": "AUTOSAR EcucDefs FimInhibitionEventRef parameter.",
+          "range": "",
+          "destination": "container",
+          "definition": "/AUTOSAR/EcucDefs/Fim/FimInhibitionConfiguration/FimInhibitionEventRef"
+        },
+        {
+          "shortName": "FimFidRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "FimFidRef",
+          "detail": "AUTOSAR EcucDefs FimFidRef parameter.",
+          "range": "",
+          "destination": "container",
+          "definition": "/AUTOSAR/EcucDefs/Fim/FimInhibitionConfiguration/FimFidRef"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "FimGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Fim/FimGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "FimDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Fim/FimGeneral/FimDevErrorDetect"
+        },
+        {
+          "shortName": "FimVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Fim/FimGeneral/FimVersionInfoApi"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "FimConfigSet",
+      "definition": "/AUTOSAR/EcucDefs/Fim/FimConfigSet",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [],
+      "subContainers": [
+        "FimFID"
+      ]
+    },
+    {
+      "shortName": "FimFID",
+      "definition": "/AUTOSAR/EcucDefs/Fim/FimConfigSet/FimFID",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "FimConfigSet",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "FimFunctionId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Function Id",
+          "detail": "Function Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Fim/FimFID/FimFunctionId"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

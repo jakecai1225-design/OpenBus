@@ -133,6 +133,8 @@ void TransceiveModule::invoke(const QString &action, const QVariant &arg)
                 tab->retranslateUi();
             else if (auto *tab = qobject_cast<OfflineAnalysisTab *>(it.value()))
                 tab->retranslateUi();
+            else if (auto *tab = qobject_cast<RecordTab *>(it.value()))
+                tab->retranslateUi();
         }
     }
 }

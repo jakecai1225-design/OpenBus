@@ -2,7 +2,7 @@
     "name": "dbc-studio",
     "version": "2.0.0",
     "author": "sin",
-    "description": "DBC Studio: Editor, Validate, Compare, Merge, Export and Library in one window (CANdb++-style). Replaces the separate dbc-lint / dbc-diff / dbc-merge / dbc-exporter / dbc-codegen tools.",
+    "description": "DBC Studio: edit, validate, compare, merge, and export signal matrices (CSV / Excel CSV / TSV / JSON / YAML / XML / Markdown / HTML) plus C pack/unpack codegen — VS Code–style workbench. Replaces dbc-lint / dbc-diff / dbc-merge / dbc-exporter / dbc-codegen.",
     "main": "main.py",
     "icon": "icon.svg",
     "activationEvents": [

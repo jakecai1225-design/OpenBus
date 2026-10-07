@@ -1,0 +1,2233 @@
+{
+  "module": "Com",
+  "definition": "/AUTOSAR/EcucDefs/Com",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "ComGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "ComConfigurationUseDet",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ComConfigurationUseDet",
+          "detail": "AUTOSAR EcucDefs ComConfigurationUseDet parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComConfigurationUseDet"
+        },
+        {
+          "shortName": "ComRetryFailedTransmitRequests",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Retry failed TX",
+          "detail": "Retry failed TX",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComRetryFailedTransmitRequests"
+        },
+        {
+          "shortName": "ComEnableMDTForCyclicTransmission",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "MDT for cyclic TX",
+          "detail": "MDT for cyclic TX",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComEnableMDTForCyclicTransmission"
+        },
+        {
+          "shortName": "ComVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Version info API",
+          "detail": "Enable Com_GetVersionInfo",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComVersionInfoApi"
+        },
+        {
+          "shortName": "ComMetaDataSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Meta data support",
+          "detail": "CAN FD / meta data path",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComMetaDataSupport"
+        },
+        {
+          "shortName": "ComEnableSignalGroupArrayApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EnableSignalGroupArrayApi",
+          "detail": "EnableSignalGroupArrayApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComEnableSignalGroupArrayApi"
+        },
+        {
+          "shortName": "ComSupportedIPduGroups",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SupportedIPduGroups",
+          "detail": "SupportedIPduGroups",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComSupportedIPduGroups",
+          "min": 1,
+          "max": 256
+        },
+        {
+          "shortName": "ComUserCbkHeaderInclude",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "UserCbkHeaderInclude",
+          "detail": "UserCbkHeaderInclude",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComUserCbkHeaderInclude"
+        },
+        {
+          "shortName": "ComEnableDynamicSignal",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EnableDynamicSignal",
+          "detail": "EnableDynamicSignal",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComEnableDynamicSignal"
+        },
+        {
+          "shortName": "ComCancellationSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "CancellationSupport",
+          "detail": "CancellationSupport",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComCancellationSupport"
+        },
+        {
+          "shortName": "ComEnableLargeDataTypes",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "EnableLargeDataTypes",
+          "detail": "EnableLargeDataTypes",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComEnableLargeDataTypes"
+        },
+        {
+          "shortName": "ComProvideTxSignalId",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ProvideTxSignalId",
+          "detail": "ProvideTxSignalId",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComProvideTxSignalId"
+        },
+        {
+          "shortName": "ComProvideRxSignalId",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ProvideRxSignalId",
+          "detail": "ProvideRxSignalId",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComProvideRxSignalId"
+        },
+        {
+          "shortName": "ComProvideTxIpduId",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ProvideTxIpduId",
+          "detail": "ProvideTxIpduId",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComProvideTxIpduId"
+        },
+        {
+          "shortName": "ComProvideRxIpduId",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "ProvideRxIpduId",
+          "detail": "ProvideRxIpduId",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComProvideRxIpduId"
+        },
+        {
+          "shortName": "ComMaxIPduCnt",
+          "kind": "numerical",
+          "default": "256",
+          "summary": "Max I-PDUs",
+          "detail": "Max I-PDUs",
+          "range": "",
+          "min": 1,
+          "max": 4096,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComMaxIPduCnt"
+        },
+        {
+          "shortName": "ComMaxSignalCnt",
+          "kind": "numerical",
+          "default": "512",
+          "summary": "Max signals",
+          "detail": "Max signals",
+          "range": "",
+          "min": 1,
+          "max": 8192,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComMaxSignalCnt"
+        },
+        {
+          "shortName": "ComMaxSignalGroupCnt",
+          "kind": "numerical",
+          "default": "64",
+          "summary": "Max signal groups",
+          "detail": "Max signal groups",
+          "range": "",
+          "min": 0,
+          "max": 512,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComMaxSignalGroupCnt"
+        },
+        {
+          "shortName": "ComDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "DET",
+          "detail": "Development error detection.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComDevErrorDetect"
+        },
+        {
+          "shortName": "ComUserCbkHeaderFile",
+          "kind": "string",
+          "default": "",
+          "summary": "User callback header",
+          "detail": "User callback header",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComUserCbkHeaderFile"
+        },
+        {
+          "shortName": "ComMultipartitionSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Multi-partition",
+          "detail": "Multi-partition",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComMultipartitionSupport"
+        },
+        {
+          "shortName": "ComGwInvalidateTx",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "GW invalidate on TX",
+          "detail": "GW invalidate on TX",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComGwInvalidateTx"
+        },
+        {
+          "shortName": "ComPublicCddHeaderFile",
+          "kind": "string",
+          "default": "",
+          "summary": "Public CDD header",
+          "detail": "Public CDD header",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComPublicCddHeaderFile"
+        },
+        {
+          "shortName": "ComFeatureFlag1",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 1",
+          "detail": "Feature flag 1 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag1"
+        },
+        {
+          "shortName": "ComFeatureFlag2",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 2",
+          "detail": "Feature flag 2 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag2"
+        },
+        {
+          "shortName": "ComFeatureFlag3",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 3",
+          "detail": "Feature flag 3 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag3"
+        },
+        {
+          "shortName": "ComFeatureFlag4",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 4",
+          "detail": "Feature flag 4 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag4"
+        },
+        {
+          "shortName": "ComFeatureFlag5",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 5",
+          "detail": "Feature flag 5 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag5"
+        },
+        {
+          "shortName": "ComFeatureFlag6",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 6",
+          "detail": "Feature flag 6 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag6"
+        },
+        {
+          "shortName": "ComFeatureFlag7",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 7",
+          "detail": "Feature flag 7 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag7"
+        },
+        {
+          "shortName": "ComFeatureFlag8",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 8",
+          "detail": "Feature flag 8 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag8"
+        },
+        {
+          "shortName": "ComFeatureFlag9",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 9",
+          "detail": "Feature flag 9 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag9"
+        },
+        {
+          "shortName": "ComFeatureFlag10",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 10",
+          "detail": "Feature flag 10 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag10"
+        },
+        {
+          "shortName": "ComFeatureFlag11",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 11",
+          "detail": "Feature flag 11 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag11"
+        },
+        {
+          "shortName": "ComFeatureFlag12",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 12",
+          "detail": "Feature flag 12 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag12"
+        },
+        {
+          "shortName": "ComFeatureFlag13",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 13",
+          "detail": "Feature flag 13 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag13"
+        },
+        {
+          "shortName": "ComFeatureFlag14",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 14",
+          "detail": "Feature flag 14 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag14"
+        },
+        {
+          "shortName": "ComFeatureFlag15",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 15",
+          "detail": "Feature flag 15 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag15"
+        },
+        {
+          "shortName": "ComFeatureFlag16",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 16",
+          "detail": "Feature flag 16 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag16"
+        },
+        {
+          "shortName": "ComFeatureFlag17",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 17",
+          "detail": "Feature flag 17 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag17"
+        },
+        {
+          "shortName": "ComFeatureFlag18",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 18",
+          "detail": "Feature flag 18 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag18"
+        },
+        {
+          "shortName": "ComFeatureFlag19",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 19",
+          "detail": "Feature flag 19 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag19"
+        },
+        {
+          "shortName": "ComFeatureFlag20",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 20",
+          "detail": "Feature flag 20 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag20"
+        },
+        {
+          "shortName": "ComFeatureFlag21",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 21",
+          "detail": "Feature flag 21 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag21"
+        },
+        {
+          "shortName": "ComFeatureFlag22",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 22",
+          "detail": "Feature flag 22 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag22"
+        },
+        {
+          "shortName": "ComFeatureFlag23",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 23",
+          "detail": "Feature flag 23 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag23"
+        },
+        {
+          "shortName": "ComFeatureFlag24",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 24",
+          "detail": "Feature flag 24 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag24"
+        },
+        {
+          "shortName": "ComFeatureFlag25",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 25",
+          "detail": "Feature flag 25 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag25"
+        },
+        {
+          "shortName": "ComFeatureFlag26",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 26",
+          "detail": "Feature flag 26 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag26"
+        },
+        {
+          "shortName": "ComFeatureFlag27",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 27",
+          "detail": "Feature flag 27 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag27"
+        },
+        {
+          "shortName": "ComFeatureFlag28",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 28",
+          "detail": "Feature flag 28 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag28"
+        },
+        {
+          "shortName": "ComFeatureFlag29",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 29",
+          "detail": "Feature flag 29 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag29"
+        },
+        {
+          "shortName": "ComFeatureFlag30",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 30",
+          "detail": "Feature flag 30 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGeneral/ComFeatureFlag30"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComConfig",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComConfig",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "ComDataMemSize",
+          "kind": "numerical",
+          "default": "4096",
+          "summary": "COM data memory size (bytes)",
+          "detail": "COM data memory size (bytes)",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComDataMemSize",
+          "min": 0,
+          "max": 1048576
+        },
+        {
+          "shortName": "ComMaxIPduCnt",
+          "kind": "numerical",
+          "default": "64",
+          "summary": "Max I-PDU count",
+          "detail": "Max I-PDU count",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComMaxIPduCnt",
+          "min": 1,
+          "max": 65535
+        },
+        {
+          "shortName": "ComTimeBase",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "COM time base (ms)",
+          "detail": "COM time base (ms)",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComTimeBase",
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "shortName": "ComFeatureFlag31",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 31",
+          "detail": "Feature flag 31 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag31"
+        },
+        {
+          "shortName": "ComFeatureFlag32",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 32",
+          "detail": "Feature flag 32 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag32"
+        },
+        {
+          "shortName": "ComFeatureFlag33",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 33",
+          "detail": "Feature flag 33 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag33"
+        },
+        {
+          "shortName": "ComFeatureFlag34",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 34",
+          "detail": "Feature flag 34 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag34"
+        },
+        {
+          "shortName": "ComFeatureFlag35",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 35",
+          "detail": "Feature flag 35 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag35"
+        },
+        {
+          "shortName": "ComFeatureFlag36",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 36",
+          "detail": "Feature flag 36 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag36"
+        },
+        {
+          "shortName": "ComFeatureFlag37",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 37",
+          "detail": "Feature flag 37 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag37"
+        },
+        {
+          "shortName": "ComFeatureFlag38",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 38",
+          "detail": "Feature flag 38 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag38"
+        },
+        {
+          "shortName": "ComFeatureFlag39",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 39",
+          "detail": "Feature flag 39 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag39"
+        },
+        {
+          "shortName": "ComFeatureFlag40",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 40",
+          "detail": "Feature flag 40 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag40"
+        },
+        {
+          "shortName": "ComFeatureFlag41",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 41",
+          "detail": "Feature flag 41 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag41"
+        },
+        {
+          "shortName": "ComFeatureFlag42",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 42",
+          "detail": "Feature flag 42 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag42"
+        },
+        {
+          "shortName": "ComFeatureFlag43",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 43",
+          "detail": "Feature flag 43 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag43"
+        },
+        {
+          "shortName": "ComFeatureFlag44",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 44",
+          "detail": "Feature flag 44 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag44"
+        },
+        {
+          "shortName": "ComFeatureFlag45",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 45",
+          "detail": "Feature flag 45 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag45"
+        },
+        {
+          "shortName": "ComFeatureFlag46",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 46",
+          "detail": "Feature flag 46 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag46"
+        },
+        {
+          "shortName": "ComFeatureFlag47",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 47",
+          "detail": "Feature flag 47 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag47"
+        },
+        {
+          "shortName": "ComFeatureFlag48",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 48",
+          "detail": "Feature flag 48 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag48"
+        },
+        {
+          "shortName": "ComFeatureFlag49",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Feature flag 49",
+          "detail": "Feature flag 49 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComFeatureFlag49"
+        },
+        {
+          "shortName": "ComConfigValue1",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 1",
+          "detail": "Config value 1 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComConfigValue1",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue2",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 2",
+          "detail": "Config value 2 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComConfigValue2",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue3",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 3",
+          "detail": "Config value 3 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComConfigValue3",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue4",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 4",
+          "detail": "Config value 4 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComConfigValue4",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue5",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 5",
+          "detail": "Config value 5 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComConfigValue5",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue6",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 6",
+          "detail": "Config value 6 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComConfigValue6",
+          "min": 0,
+          "max": 65535
+        }
+      ],
+      "subContainers": [
+        "ComIPduGroup",
+        "ComIPdu",
+        "ComMainFunctionTx",
+        "ComMainFunctionRx",
+        "ComGwMapping"
+      ]
+    },
+    {
+      "shortName": "ComIPduGroup",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComIPduGroup",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "ComConfig",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "ComIPduGroupHandleId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Group handle",
+          "detail": "Group handle",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPduGroup/ComIPduGroupHandleId",
+          "postBuild": true
+        },
+        {
+          "shortName": "ComIPduGroupGroupRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Parent group",
+          "detail": "Parent group",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPduGroup/ComIPduGroupGroupRef",
+          "destination": "ComIPduGroup"
+        },
+        {
+          "shortName": "ComIPduGroupReceptionEnable",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "IPduGroupReceptionEnable",
+          "detail": "IPduGroupReceptionEnable",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPduGroup/ComIPduGroupReceptionEnable"
+        },
+        {
+          "shortName": "ComIPduGroupTransmissionEnable",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "IPduGroupTransmissionEnable",
+          "detail": "IPduGroupTransmissionEnable",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPduGroup/ComIPduGroupTransmissionEnable"
+        },
+        {
+          "shortName": "ComStartIPduGroup",
+          "kind": "boolean",
+          "default": "true",
+          "summary": "Start at init",
+          "detail": "Start at init",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComIPduGroup/ComStartIPduGroup"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComIPdu",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComIPdu",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "ComConfig",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "ComIPduDirection",
+          "kind": "enumeration",
+          "default": "SEND",
+          "summary": "Direction",
+          "detail": "Direction",
+          "range": "",
+          "literals": [
+            "SEND",
+            "RECEIVE"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduDirection"
+        },
+        {
+          "shortName": "ComIPduSignalProcessing",
+          "kind": "enumeration",
+          "default": "IMMEDIATE",
+          "summary": "Signal processing",
+          "detail": "Signal processing",
+          "range": "",
+          "literals": [
+            "IMMEDIATE",
+            "DEFERRED"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduSignalProcessing"
+        },
+        {
+          "shortName": "ComIPduSize",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "I-PDU length bytes",
+          "detail": "I-PDU length bytes",
+          "range": "",
+          "min": 0,
+          "max": 64,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduSize"
+        },
+        {
+          "shortName": "ComPduIdRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Underlying PDU ref",
+          "detail": "Underlying PDU ref",
+          "range": "",
+          "destination": "pdu",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComPduIdRef"
+        },
+        {
+          "shortName": "ComIPduHandleId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "I-PDU handle",
+          "detail": "Numeric handle for Com_SendSignal API",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduHandleId",
+          "min": 0,
+          "max": 65535,
+          "postBuild": true
+        },
+        {
+          "shortName": "ComIPduType",
+          "kind": "enumeration",
+          "default": "NORMAL",
+          "summary": "I-PDU type",
+          "detail": "NORMAL or TP",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduType",
+          "literals": [
+            "NORMAL",
+            "TP"
+          ]
+        },
+        {
+          "shortName": "ComIPduCancellationSupport",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Cancellation support",
+          "detail": "Allow cancel transmit/receive",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduCancellationSupport",
+          "condition": "ComIPduType==TP"
+        },
+        {
+          "shortName": "ComIPduCallout",
+          "kind": "string",
+          "default": "",
+          "summary": "Callout",
+          "detail": "Optional C callout name",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduCallout"
+        },
+        {
+          "shortName": "ComIPduMinimumDelayTime",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "MDT seconds",
+          "detail": "MDT seconds",
+          "range": "",
+          "min": 0,
+          "max": 60,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduMinimumDelayTime"
+        },
+        {
+          "shortName": "ComTimeout",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Timeout seconds",
+          "detail": "Timeout seconds",
+          "range": "",
+          "min": 0,
+          "max": 3600,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComTimeout"
+        },
+        {
+          "shortName": "ComIPduNumberOfRepetitions",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Repetitions",
+          "detail": "Repetitions",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduNumberOfRepetitions"
+        },
+        {
+          "shortName": "ComIPduRepetitionPeriod",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Repetition period",
+          "detail": "Repetition period",
+          "range": "",
+          "min": 0,
+          "max": 60,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduRepetitionPeriod"
+        },
+        {
+          "shortName": "ComIPduGroupRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "I-PDU group ref",
+          "detail": "Reference to ComIPduGroup",
+          "range": "",
+          "destination": "ComIPduGroup",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduGroupRef"
+        },
+        {
+          "shortName": "ComIPduSignalGroupRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "ComIPduSignalGroupRef",
+          "detail": "Reference to ComSignalGroup",
+          "range": "",
+          "destination": "ComSignalGroup",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduSignalGroupRef"
+        },
+        {
+          "shortName": "ComIPduDynamicSignal",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "IPduDynamicSignal",
+          "detail": "IPduDynamicSignal",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduDynamicSignal"
+        },
+        {
+          "shortName": "ComIPduImmediateProcessing",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "IPduImmediateProcessing",
+          "detail": "IPduImmediateProcessing",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduImmediateProcessing"
+        },
+        {
+          "shortName": "ComIPduTriggerTransmit",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "IPduTriggerTransmit",
+          "detail": "IPduTriggerTransmit",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduTriggerTransmit"
+        },
+        {
+          "shortName": "ComIPduTriggerTransmitCallout",
+          "kind": "string",
+          "default": "",
+          "summary": "TriggerTransmit callout",
+          "detail": "TriggerTransmit callout",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComIPdu/ComIPduTriggerTransmitCallout"
+        },
+        {
+          "shortName": "ComIPduUnusedAreasDefault",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Unused areas default",
+          "detail": "Unused areas default",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComIPdu/ComIPduUnusedAreasDefault",
+          "min": 0,
+          "max": 255
+        },
+        {
+          "shortName": "ComIPduReplicationEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Replication enabled",
+          "detail": "Replication enabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComIPdu/ComIPduReplicationEnabled"
+        },
+        {
+          "shortName": "ComMetaDataDefault",
+          "kind": "string",
+          "default": "",
+          "summary": "Default meta data",
+          "detail": "Default meta data",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComIPdu/ComMetaDataDefault"
+        },
+        {
+          "shortName": "ComTxIPduMinimumDelayFactor",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Min delay factor",
+          "detail": "Min delay factor",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComIPdu/ComTxIPduMinimumDelayFactor",
+          "min": 0,
+          "max": 65535,
+          "condition": "ComIPduDirection==SEND"
+        },
+        {
+          "shortName": "ComTxIPduClearUpdateBit",
+          "kind": "enumeration",
+          "default": "Transmit",
+          "summary": "Clear update bit",
+          "detail": "Clear update bit",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComIPdu/ComTxIPduClearUpdateBit",
+          "literals": [
+            "Transmit",
+            "TriggerTransmit",
+            "Confirmation"
+          ],
+          "condition": "ComIPduDirection==SEND"
+        },
+        {
+          "shortName": "ComTxIPduUnusedAreasDefault",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "TX unused default",
+          "detail": "TX unused default",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComIPdu/ComTxIPduUnusedAreasDefault",
+          "min": 0,
+          "max": 255,
+          "condition": "ComIPduDirection==SEND"
+        },
+        {
+          "shortName": "ComConfigValue7",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 7",
+          "detail": "Config value 7 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue7",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue8",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 8",
+          "detail": "Config value 8 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue8",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue9",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 9",
+          "detail": "Config value 9 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue9",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue10",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 10",
+          "detail": "Config value 10 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue10",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue11",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 11",
+          "detail": "Config value 11 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue11",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue12",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 12",
+          "detail": "Config value 12 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue12",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue13",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 13",
+          "detail": "Config value 13 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue13",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue14",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 14",
+          "detail": "Config value 14 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue14",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue15",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 15",
+          "detail": "Config value 15 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue15",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue16",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 16",
+          "detail": "Config value 16 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue16",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue17",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 17",
+          "detail": "Config value 17 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue17",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue18",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 18",
+          "detail": "Config value 18 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue18",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue19",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 19",
+          "detail": "Config value 19 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue19",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue20",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 20",
+          "detail": "Config value 20 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue20",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue21",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 21",
+          "detail": "Config value 21 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue21",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue22",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 22",
+          "detail": "Config value 22 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue22",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue23",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 23",
+          "detail": "Config value 23 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue23",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue24",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 24",
+          "detail": "Config value 24 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue24",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue25",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 25",
+          "detail": "Config value 25 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue25",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue26",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 26",
+          "detail": "Config value 26 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue26",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue27",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 27",
+          "detail": "Config value 27 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue27",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue28",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 28",
+          "detail": "Config value 28 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue28",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue29",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 29",
+          "detail": "Config value 29 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue29",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue30",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 30",
+          "detail": "Config value 30 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue30",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue31",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 31",
+          "detail": "Config value 31 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue31",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue32",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 32",
+          "detail": "Config value 32 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue32",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue33",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 33",
+          "detail": "Config value 33 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue33",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue34",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 34",
+          "detail": "Config value 34 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue34",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue35",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 35",
+          "detail": "Config value 35 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue35",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue36",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 36",
+          "detail": "Config value 36 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue36",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue37",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 37",
+          "detail": "Config value 37 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue37",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue38",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 38",
+          "detail": "Config value 38 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue38",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComConfigValue39",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Config value 39",
+          "detail": "Config value 39 (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComConfigValue39",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComIPduSignalRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "Signal refs",
+          "detail": "Signal refs (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduSignalRef"
+        },
+        {
+          "shortName": "ComTxModeTrueRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "True TX mode",
+          "detail": "True TX mode (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComTxModeTrueRef"
+        },
+        {
+          "shortName": "ComTxModeFalseRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "False TX mode",
+          "detail": "False TX mode (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComTxModeFalseRef"
+        },
+        {
+          "shortName": "ComIPduCounterThreshold",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Counter threshold",
+          "detail": "Counter threshold (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduCounterThreshold",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComIPduCounterSize",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Counter size",
+          "detail": "Counter size (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComIPduCounterSize",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComGwMappingRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "GW mapping",
+          "detail": "GW mapping (AUTOSAR R22-11 EcucDefs).",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComGwMappingRef"
+        }
+      ],
+      "subContainers": [
+        "ComSignal",
+        "ComTxMode",
+        "ComSignalGroup"
+      ]
+    },
+    {
+      "shortName": "ComSignal",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "ComIPdu",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "ComBitPosition",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Bit position in I-PDU",
+          "detail": "Bit position in I-PDU",
+          "range": "",
+          "min": 0,
+          "max": 512,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComBitPosition"
+        },
+        {
+          "shortName": "ComBitSize",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "Bit size",
+          "detail": "Bit size",
+          "range": "",
+          "min": 1,
+          "max": 64,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComBitSize"
+        },
+        {
+          "shortName": "ComSignalEndianness",
+          "kind": "enumeration",
+          "default": "LITTLE_ENDIAN",
+          "summary": "Endianness",
+          "detail": "Endianness",
+          "range": "",
+          "literals": [
+            "LITTLE_ENDIAN",
+            "BIG_ENDIAN"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComSignalEndianness"
+        },
+        {
+          "shortName": "ComSignalType",
+          "kind": "enumeration",
+          "default": "UINT8",
+          "summary": "Signal type",
+          "detail": "Signal type",
+          "range": "",
+          "literals": [
+            "UINT8",
+            "UINT16",
+            "UINT32",
+            "BOOLEAN",
+            "FLOAT32"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComSignalType"
+        },
+        {
+          "shortName": "ComTransferProperty",
+          "kind": "enumeration",
+          "default": "PENDING",
+          "summary": "Transfer property",
+          "detail": "Transfer property",
+          "range": "",
+          "literals": [
+            "PENDING",
+            "TRIGGERED",
+            "TRIGGERED_WITHOUT_REPETITION"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComTransferProperty"
+        },
+        {
+          "shortName": "ComSignalInitValue",
+          "kind": "string",
+          "default": "0",
+          "summary": "Init value",
+          "detail": "Initial signal value after Com_Init",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComSignalInitValue"
+        },
+        {
+          "shortName": "ComTimeout",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Timeout (s)",
+          "detail": "0 = disabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComTimeout",
+          "min": 0,
+          "max": 60
+        },
+        {
+          "shortName": "ComSignalDataInvalidValue",
+          "kind": "string",
+          "default": "",
+          "summary": "Invalid value",
+          "detail": "Optional invalidation pattern",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComSignalDataInvalidValue"
+        },
+        {
+          "shortName": "ComSignalAccess",
+          "kind": "enumeration",
+          "default": "READ_WRITE",
+          "summary": "Access",
+          "detail": "Access",
+          "range": "",
+          "literals": [
+            "READ_ONLY",
+            "READ_WRITE"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComSignalAccess"
+        },
+        {
+          "shortName": "ComFirstTimeout",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "First timeout",
+          "detail": "First timeout",
+          "range": "",
+          "min": 0,
+          "max": 3600,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComFirstTimeout"
+        },
+        {
+          "shortName": "ComFactor",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Factor",
+          "detail": "Factor",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComFactor"
+        },
+        {
+          "shortName": "ComOffset",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Offset",
+          "detail": "Offset",
+          "range": "",
+          "min": -65535,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComOffset"
+        },
+        {
+          "shortName": "ComHandleId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Handle Id",
+          "detail": "Handle Id",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComHandleId",
+          "postBuild": true
+        },
+        {
+          "shortName": "ComSignalInitValueIncluded",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SignalInitValueIncluded",
+          "detail": "SignalInitValueIncluded",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComSignalInitValueIncluded"
+        },
+        {
+          "shortName": "ComUpdateBitPositionUsed",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "UpdateBitPositionUsed",
+          "detail": "UpdateBitPositionUsed",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComUpdateBitPositionUsed"
+        },
+        {
+          "shortName": "ComSignalDataInvalidValueIncluded",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "SignalDataInvalidValueIncluded",
+          "detail": "SignalDataInvalidValueIncluded",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComSignalDataInvalidValueIncluded"
+        },
+        {
+          "shortName": "ComFilterAlgorithm",
+          "kind": "enumeration",
+          "default": "ALWAYS",
+          "summary": "Filter",
+          "detail": "Filter",
+          "range": "",
+          "literals": [
+            "ALWAYS",
+            "NEVER",
+            "ONE_EVERY_N",
+            "MASKED_NEW_DIFFERS_MASKED_OLD",
+            "MASKED_NEW_EQUALS_X",
+            "MASKED_NEW_DIFFERS_X",
+            "NEW_IS_OUTSIDE",
+            "NEW_IS_WITHIN"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignal/ComFilterAlgorithm"
+        },
+        {
+          "shortName": "ComSignalLength",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Length for UINT8_N/DYN",
+          "detail": "Length for UINT8_N/DYN",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComSignalLength",
+          "min": 0,
+          "max": 64
+        },
+        {
+          "shortName": "ComUpdateBitPosition",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Update bit position",
+          "detail": "Update bit position",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComUpdateBitPosition",
+          "min": 0,
+          "max": 512
+        },
+        {
+          "shortName": "ComDataInvalidAction",
+          "kind": "enumeration",
+          "default": "NOTIFY",
+          "summary": "Invalid action",
+          "detail": "Invalid action",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComDataInvalidAction",
+          "literals": [
+            "NOTIFY",
+            "REPLACE"
+          ]
+        },
+        {
+          "shortName": "ComTimeoutNotification",
+          "kind": "string",
+          "default": "",
+          "summary": "Timeout notification",
+          "detail": "Timeout notification",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComTimeoutNotification"
+        },
+        {
+          "shortName": "ComNotification",
+          "kind": "string",
+          "default": "",
+          "summary": "RX/TX notification",
+          "detail": "RX/TX notification",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComNotification"
+        },
+        {
+          "shortName": "ComErrorNotification",
+          "kind": "string",
+          "default": "",
+          "summary": "Error notification",
+          "detail": "Error notification",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComErrorNotification"
+        },
+        {
+          "shortName": "ComInvalidNotification",
+          "kind": "string",
+          "default": "",
+          "summary": "Invalid notification",
+          "detail": "Invalid notification",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComInvalidNotification"
+        },
+        {
+          "shortName": "ComTimeoutSubstitutionValue",
+          "kind": "string",
+          "default": "",
+          "summary": "Timeout substitution",
+          "detail": "Timeout substitution",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComTimeoutSubstitutionValue"
+        },
+        {
+          "shortName": "ComFilterMask",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Filter mask",
+          "detail": "Filter mask",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComFilterMask",
+          "min": 0
+        },
+        {
+          "shortName": "ComFilterX",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Filter X",
+          "detail": "Filter X",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComFilterX",
+          "min": 0
+        },
+        {
+          "shortName": "ComFilterMin",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Filter min",
+          "detail": "Filter min",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComFilterMin"
+        },
+        {
+          "shortName": "ComFilterMax",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Filter max",
+          "detail": "Filter max",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComFilterMax"
+        },
+        {
+          "shortName": "ComFilterPeriod",
+          "kind": "numerical",
+          "default": "1",
+          "summary": "Filter period",
+          "detail": "Filter period",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComFilterPeriod",
+          "min": 1
+        },
+        {
+          "shortName": "ComFilterOffset",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Filter offset",
+          "detail": "Filter offset",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComFilterOffset",
+          "min": 0
+        },
+        {
+          "shortName": "ComSystemTemplateSystemSignalRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "System signal ref",
+          "detail": "System signal ref",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignal/ComSystemTemplateSystemSignalRef",
+          "destination": "signal"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComMainFunctionTx",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComMainFunctionTx",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "ComConfig",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "ComMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "0.01",
+          "summary": "MainFunction period (s)",
+          "detail": "Cyclic Com_MainFunctionTx period",
+          "range": "0.001..1",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComMainFunctionTx/ComMainFunctionPeriod",
+          "min": 0.001,
+          "max": 1.0
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComMainFunctionRx",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComMainFunctionRx",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "ComConfig",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "ComMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "0.01",
+          "summary": "MainFunction period (s)",
+          "detail": "Cyclic Com_MainFunctionRx period",
+          "range": "0.001..1",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComMainFunctionRx/ComMainFunctionPeriod",
+          "min": 0.001,
+          "max": 1.0
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComTxMode",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComTxMode",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "ComIPdu",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "ComTxModeMode",
+          "kind": "enumeration",
+          "default": "PERIODIC",
+          "summary": "Tx mode",
+          "detail": "PERIODIC / DIRECT / MIXED",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComTxMode/ComTxModeMode",
+          "literals": [
+            "PERIODIC",
+            "DIRECT",
+            "MIXED",
+            "NONE"
+          ]
+        },
+        {
+          "shortName": "ComTxModeNumberOfRepetitions",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Repetitions",
+          "detail": "Number of repetitions for DIRECT",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComTxMode/ComTxModeNumberOfRepetitions",
+          "min": 0,
+          "max": 255
+        },
+        {
+          "shortName": "ComTxModeTimePeriod",
+          "kind": "numerical",
+          "default": "0.1",
+          "summary": "Period (s)",
+          "detail": "Cyclic transmission period",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComTxMode/ComTxModeTimePeriod",
+          "min": 0.001,
+          "max": 10.0
+        },
+        {
+          "shortName": "ComTxModeTimeOffset",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Offset (s)",
+          "detail": "First transmission offset",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComTxMode/ComTxModeTimeOffset",
+          "min": 0,
+          "max": 10.0
+        },
+        {
+          "shortName": "ComTxModeRepetitionPeriod",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Repetition period",
+          "detail": "Repetition period",
+          "range": "",
+          "min": 0,
+          "max": 3600,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComTxMode/ComTxModeRepetitionPeriod"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComSignalGroup",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignalGroup",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "ComIPdu",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "ComSignalGroupHandleId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Handle Id",
+          "detail": "Signal group handle",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignalGroup/ComSignalGroupHandleId",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComTransferProperty",
+          "kind": "enumeration",
+          "default": "PENDING",
+          "summary": "Transfer property",
+          "detail": "Transfer property",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignalGroup/ComTransferProperty",
+          "literals": [
+            "PENDING",
+            "TRIGGERED",
+            "TRIGGERED_WITHOUT_REPETITION"
+          ]
+        },
+        {
+          "shortName": "ComGroupSignalRef",
+          "kind": "reference",
+          "default": "",
+          "summary": "ComGroupSignalRef",
+          "detail": "Reference to ComGroupSignal",
+          "range": "",
+          "destination": "ComGroupSignal",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignalGroup/ComGroupSignalRef"
+        },
+        {
+          "shortName": "ComHandleId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Handle",
+          "detail": "Handle",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignalGroup/ComHandleId",
+          "min": 0,
+          "max": 65535
+        },
+        {
+          "shortName": "ComUpdateBitPosition",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Update bit",
+          "detail": "Update bit",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignalGroup/ComUpdateBitPosition",
+          "min": 0,
+          "max": 512
+        },
+        {
+          "shortName": "ComTimeout",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Timeout",
+          "detail": "Timeout",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignalGroup/ComTimeout",
+          "min": 0
+        },
+        {
+          "shortName": "ComNotification",
+          "kind": "string",
+          "default": "",
+          "summary": "Notification",
+          "detail": "Notification",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignalGroup/ComNotification"
+        },
+        {
+          "shortName": "ComSignalGroupArrayAccess",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "Array access",
+          "detail": "Array access",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComIPdu/ComSignalGroup/ComSignalGroupArrayAccess"
+        }
+      ],
+      "subContainers": [
+        "ComGroupSignal"
+      ]
+    },
+    {
+      "shortName": "ComGroupSignal",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComSignalGroup/ComGroupSignal",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "ComSignalGroup",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "ComBitPosition",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Bit position",
+          "detail": "Bit position",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGroupSignal/ComBitPosition"
+        },
+        {
+          "shortName": "ComBitSize",
+          "kind": "numerical",
+          "default": "8",
+          "summary": "Bit size",
+          "detail": "Bit size",
+          "range": "",
+          "min": 1,
+          "max": 64,
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGroupSignal/ComBitSize"
+        },
+        {
+          "shortName": "ComSignalType",
+          "kind": "enumeration",
+          "default": "UINT8",
+          "summary": "Type",
+          "detail": "Type",
+          "range": "",
+          "literals": [
+            "UINT8",
+            "UINT16",
+            "BOOLEAN"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGroupSignal/ComSignalType"
+        },
+        {
+          "shortName": "ComSignalEndianness",
+          "kind": "enumeration",
+          "default": "LITTLE_ENDIAN",
+          "summary": "Endianness",
+          "detail": "Endianness",
+          "range": "",
+          "literals": [
+            "LITTLE_ENDIAN",
+            "BIG_ENDIAN"
+          ],
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGroupSignal/ComSignalEndianness"
+        },
+        {
+          "shortName": "ComSignalInitValue",
+          "kind": "string",
+          "default": "0",
+          "summary": "Init value",
+          "detail": "Init value",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignalGroup/ComGroupSignal/ComSignalInitValue"
+        },
+        {
+          "shortName": "ComHandleId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Handle",
+          "detail": "Handle",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComSignalGroup/ComGroupSignal/ComHandleId",
+          "min": 0
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "ComGwMapping",
+      "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComGwMapping",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "ComConfig",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "ComGwSource",
+          "kind": "reference",
+          "default": "",
+          "summary": "GW source",
+          "detail": "Reference to ComSignal",
+          "range": "",
+          "destination": "ComSignal",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGwMapping/ComGwSource"
+        },
+        {
+          "shortName": "ComGwDestination",
+          "kind": "reference",
+          "default": "",
+          "summary": "GW destination",
+          "detail": "Reference to ComSignal",
+          "range": "",
+          "destination": "ComSignal",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComGwMapping/ComGwDestination"
+        },
+        {
+          "shortName": "ComGwDestinationDescription",
+          "kind": "string",
+          "default": "",
+          "summary": "Description",
+          "detail": "Description",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Com/ComConfig/ComGwMapping/ComGwDestinationDescription"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

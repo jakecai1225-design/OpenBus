@@ -1,6 +1,6 @@
 # 3. Workbench overview
 
-openbus follows a **VS Code–style** layout: the activity bar switches workspaces, the center holds editor tabs, the bottom hosts a shared Panel, and the top bar holds menus and the command center.
+OpenBus follows a **VS Code–style** layout: the activity bar switches workspaces, the center holds editor tabs, the bottom hosts a shared Panel, and the top bar holds menus and the command center.
 
 ## 3.1 Layout regions
 

@@ -1,0 +1,112 @@
+{
+  "module": "TcpIp",
+  "definition": "/AUTOSAR/EcucDefs/TcpIp",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "TcpIpConfig",
+      "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpConfig",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "TcpIpCtrl",
+          "kind": "string",
+          "default": "",
+          "summary": "TcpIpCtrl",
+          "detail": "AUTOSAR EcucDefs TcpIpCtrl parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpConfig/TcpIpCtrl"
+        },
+        {
+          "shortName": "TcpIpLocalAddr",
+          "kind": "string",
+          "default": "",
+          "summary": "TcpIpLocalAddr",
+          "detail": "AUTOSAR EcucDefs TcpIpLocalAddr parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpConfig/TcpIpLocalAddr"
+        },
+        {
+          "shortName": "TcpIpSocketOwner",
+          "kind": "string",
+          "default": "",
+          "summary": "TcpIpSocketOwner",
+          "detail": "AUTOSAR EcucDefs TcpIpSocketOwner parameter.",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpConfig/TcpIpSocketOwner"
+        },
+        {
+          "shortName": "TcpIpLocalAddrId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Local addr Id",
+          "detail": "Local addr Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpConfig/TcpIpLocalAddrId"
+        }
+      ],
+      "subContainers": []
+    },
+    {
+      "shortName": "TcpIpGeneral",
+      "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "TcpIpDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TcpIpDevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpGeneral/TcpIpDevErrorDetect"
+        },
+        {
+          "shortName": "TcpIpVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpGeneral/TcpIpVersionInfoApi"
+        },
+        {
+          "shortName": "TcpIpTcpEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TcpEnabled",
+          "detail": "TcpEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpGeneral/TcpIpTcpEnabled"
+        },
+        {
+          "shortName": "TcpIpUdpEnabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "UdpEnabled",
+          "detail": "UdpEnabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpGeneral/TcpIpUdpEnabled"
+        },
+        {
+          "shortName": "TcpIpIpV6Enabled",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "IpV6Enabled",
+          "detail": "IpV6Enabled",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/TcpIp/TcpIpGeneral/TcpIpIpV6Enabled"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}

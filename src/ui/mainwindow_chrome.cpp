@@ -23,6 +23,7 @@
 #include "core/module/moduleregistry.h"
 #include "core/module/imodule.h"
 #include "core/signalrelay.h"   // DEF-08：字符串信号 → lambda 桥接
+#include "core/insights.h"
 #include "core/marketmodel.h"   // MarketItem（ExtensionsPanel 信号类型，经 QVariant 传给市场模块；B5-5 迁 data 层）
 // ui/udsview.h, ui/canopenview.h 已移除 — UDS/CANopen 由插件 uds-diagnostic/canopen-explorer 提供
 // ui/markettab.h 已移除 — 插件市场页经 ModuleRegistry "market" 模块创建（拆分方案 B0）
@@ -45,6 +46,7 @@
 #include "utils/svg_icon.h"
 #include "ui/settingspage.h"
 #include "ui/shortcutspage.h"
+#include "ui/watcherview.h"
 #include "ui/commandcenter.h"
 #include "ui/commandpalette.h"
 #include "core/file_import/file_importer.h"
@@ -210,7 +212,7 @@ void MainWindow::createMenuBar()
     m_helpMenu = menuBar()->addMenu(tr("Help(&H)"));
     m_helpMenu->addAction(tr("Welcome"), this, &MainWindow::onOpenWelcomeTab);
     m_helpMenu->addSeparator();
-    m_aboutAction = m_helpMenu->addAction(tr("About openbus"), this, &MainWindow::showAboutDialog);
+    m_aboutAction = m_helpMenu->addAction(tr("About OpenBus"), this, &MainWindow::showAboutDialog);
     m_helpMenu->addSeparator();
     m_docsAction = m_helpMenu->addAction(tr("Documentation"), this, []() {
         QDesktopServices::openUrl(QUrl(QStringLiteral("http://sin.org.cn/docs")));
@@ -268,7 +270,7 @@ void MainWindow::retranslateUi()
     if (m_clearAction) m_clearAction->setText(tr("Clear Trace"));
     if (m_autoScrollAction) m_autoScrollAction->setText(tr("Auto-scroll"));
     if (m_simAction) m_simAction->setText(tr("Simulator"));
-    if (m_aboutAction) m_aboutAction->setText(tr("About openbus"));
+    if (m_aboutAction) m_aboutAction->setText(tr("About OpenBus"));
     if (m_docsAction) m_docsAction->setText(tr("Documentation"));
     if (m_websiteAction) m_websiteAction->setText(tr("Website"));
     if (m_giteeAction) m_giteeAction->setText(tr("Gitee"));
@@ -292,6 +294,11 @@ void MainWindow::retranslateUi()
         m_activityBar->retranslateUi();
     if (m_settingsPage)
         m_settingsPage->retranslateUi();
+    if (m_sideBar && m_sideBar->transceivePanel())
+        m_sideBar->transceivePanel()->retranslateUi();
+    if (m_watcherView)
+        m_watcherView->retranslateUi();
+    retranslateOpenTabs();
 }
 
 void MainWindow::onLanguageChanged(const QString &locale)
@@ -321,7 +328,7 @@ void MainWindow::createWindowButtons()
     m_brandMark = new QLabel(brand);
     m_brandMark->setFixedSize(20, 20);
     m_brandMark->setAlignment(Qt::AlignCenter);
-    m_brandMark->setToolTip(QStringLiteral("openbus"));
+    m_brandMark->setToolTip(QStringLiteral("OpenBus"));
     brandLay->addWidget(m_brandMark, 0, Qt::AlignVCenter);
     menuBar()->setCornerWidget(brand, Qt::TopLeftCorner);
 
@@ -406,7 +413,7 @@ void MainWindow::createWindowButtons()
 void MainWindow::createCommandCenter()
 {
     m_commandCenter = new CommandCenter(menuBar());
-    m_commandCenter->setPlaceholder(QStringLiteral("Search openbus"));
+    m_commandCenter->setPlaceholder(QStringLiteral("Search OpenBus"));
     m_commandCenter->show();
 
     m_commandPalette = new CommandPalette(this);
@@ -764,8 +771,10 @@ void MainWindow::createLayout()
     // 设备连接页经 flow 模块创建（拆分方案 B4；单实例缓存在模块内）
     if (IBusinessModule *mod = ModuleRegistry::instance()->module(QStringLiteral("flow"))) {
         ShellContext ctx = makeShellContext();
-        if (QWidget *page = mod->createPage(QStringLiteral("device"), ctx))
-            openTab(page, QStringLiteral("设备连接"));
+        if (QWidget *page = mod->createPage(QStringLiteral("device"), ctx)) {
+            setPageKind(page, QStringLiteral("device"));
+            openTab(page, tr("Devices"));
+        }
     }
 
     // ---- 右侧 Dock ----
@@ -865,6 +874,22 @@ void MainWindow::onActivityChanged(int activity)
     if (!m_sideBarVisible)
         setSideBarExpanded(true);
 
+    const char *feat = nullptr;
+    switch (activity) {
+    case ActivityBar::Project: feat = "project"; break;
+    case ActivityBar::Analysis: feat = "flow"; break;
+    case ActivityBar::Device: feat = "device"; break;
+    case ActivityBar::Trace: feat = "trace"; break;
+    case ActivityBar::Graphic: feat = "graphic"; break;
+    case ActivityBar::Dbc: feat = "database"; break;
+    case ActivityBar::Transceive: feat = "transceive"; break;
+    case ActivityBar::Extensions: feat = "extensions"; break;
+    case ActivityBar::Settings: feat = "settings"; break;
+    default: break;
+    }
+    if (feat)
+        Insights::instance()->track(QStringLiteral("feature"), QString::fromLatin1(feat));
+
     // Link editor tabs to activity
     if (activity == ActivityBar::Trace) {
         // 在所有拆分组中查找 Trace 标签页
@@ -904,43 +929,16 @@ void MainWindow::onActivityChanged(int activity)
         // 收发面板：只切换侧边栏显示，不自动打开标签页
         // 用户点击侧边栏内的按钮才打开对应标签页
     } else if (activity == ActivityBar::Device) {
-        // 切换到已存在的设备连接标签页
-        const auto allTabs = m_editorArea->allTabWidgets();
-        bool found = false;
-        for (auto *tw : allTabs) {
-            for (int i = tw->count() - 1; i >= 0; --i) {
-                if (tw->tabText(i).contains("设备连接")) {
-                    tw->setCurrentIndex(i);
-                    m_tabLabel->setText(tw->tabText(i));
-                    found = true;
-                    break;
-                }
+        if (!activateTabByPageKind(QStringLiteral("device"))) {
+            if (QWidget *page = flowQuery(QStringLiteral("devicePage")).value<QWidget *>()) {
+                setPageKind(page, QStringLiteral("device"));
+                m_editorArea->addTab(page, tr("Devices"));
             }
-            if (found) break;
-        }
-        if (!found) {
-            // 设备页存在但不在任何标签组 → 重新挂回（经 flow 模块查询，拆分方案 B4）
-            if (QWidget *page = flowQuery(QStringLiteral("devicePage")).value<QWidget *>())
-                m_editorArea->addTab(page, QStringLiteral("设备连接"));
         }
     } else if (activity == ActivityBar::Analysis) {
         onOpenMeasurementSetup();
     } else if (activity == ActivityBar::Extensions) {
-        // 插件市场：打开统一插件市场标签页（v2，方案 §13.5）
-        const auto allTabs = m_editorArea->allTabWidgets();
-        bool found = false;
-        for (auto *tw : allTabs) {
-            for (int i = tw->count() - 1; i >= 0; --i) {
-                if (tw->tabText(i).contains(QStringLiteral("插件市场"))) {
-                    tw->setCurrentIndex(i);
-                    m_tabLabel->setText(tw->tabText(i));
-                    found = true;
-                    break;
-                }
-            }
-            if (found) break;
-        }
-        if (found) {
+        if (activateTabByPageKind(QStringLiteral("extensions"))) {
             if (m_marketWidget)
                 marketInvoke(QStringLiteral("refreshInstalled"));
         } else {

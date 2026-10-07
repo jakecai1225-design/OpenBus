@@ -11,7 +11,8 @@ class CanTraceProxyModel;
  * 功能:
  * - 自行绘制排序三角形（不使用 Qt 内置指示器），避免与过滤图标重叠
  * - 排序三角形在漏斗图标左侧，两者有明确间距
- * - 漏斗图标始终可见（浅灰），激活时蓝色高亮，悬停时加深
+ * - 排序：当前排序列始终显示 accent 三角；悬停未排序列显示灰化上下箭头提示
+ * - 漏斗：悬停时显示；该列有活跃过滤时始终显示（accent）
  * - 点击漏斗图标触发 filterClicked 信号 → 弹出列筛选对话框
  * - 点击非漏斗区域触发正常排序
  */
@@ -52,9 +53,9 @@ private:
 
     // 布局常量
     static constexpr int kFilterSize = 14;   ///< 漏斗图标边长
-    static constexpr int kSortSize = 9;       ///< 排序三角形边长
+    static constexpr int kSortSize = 12;      ///< 排序指示区域边长
     static constexpr int kRightMargin = 4;   ///< 距右边缘间距
-    static constexpr int kGap = 3;            ///< 排序与过滤图标间距
+    static constexpr int kGap = 4;            ///< 排序与过滤图标间距
 
     /// 获取漏斗图标的绘制区域
     QRect filterRect(const QRect &sectionRect) const;
@@ -63,9 +64,11 @@ private:
     /// 检查鼠标位置是否在漏斗图标上
     int sectionAtFilter(const QPoint &pos) const;
     /// 绘制漏斗图标
-    void drawFilterIcon(QPainter *painter, const QRect &rect, bool active, bool hovered) const;
-    /// 绘制排序三角形
+    void drawFilterIcon(QPainter *painter, const QRect &rect, bool active) const;
+    /// 绘制排序三角形（当前排序列）
     void drawSortIndicator(QPainter *painter, const QRect &rect, bool ascending) const;
+    /// 绘制可排序提示（灰化上下箭头）
+    void drawSortHint(QPainter *painter, const QRect &rect) const;
 };
 
 #endif // FILTERHEADERVIEW_H

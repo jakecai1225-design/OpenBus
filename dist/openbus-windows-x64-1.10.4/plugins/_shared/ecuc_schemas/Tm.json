@@ -1,0 +1,71 @@
+{
+  "module": "Tm",
+  "definition": "/AUTOSAR/EcucDefs/Tm",
+  "autosarRelease": "R22-11",
+  "containers": [
+    {
+      "shortName": "TmGeneral",
+      "definition": "/AUTOSAR/EcucDefs/Tm/TmGeneral",
+      "lowerMultiplicity": 1,
+      "upperMultiplicity": 1,
+      "parent": "",
+      "seed": false,
+      "params": [
+        {
+          "shortName": "TmMainFunctionPeriod",
+          "kind": "numerical",
+          "default": "10",
+          "summary": "TmMainFunctionPeriod",
+          "detail": "AUTOSAR EcucDefs TmMainFunctionPeriod parameter.",
+          "range": "",
+          "min": 0,
+          "max": 65535,
+          "definition": "/AUTOSAR/EcucDefs/Tm/TmGeneral/TmMainFunctionPeriod"
+        },
+        {
+          "shortName": "TmDevErrorDetect",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "TmDevErrorDetect",
+          "detail": "DevErrorDetect",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Tm/TmGeneral/TmDevErrorDetect"
+        },
+        {
+          "shortName": "TmVersionInfoApi",
+          "kind": "boolean",
+          "default": "false",
+          "summary": "VersionInfoApi",
+          "detail": "VersionInfoApi",
+          "range": "",
+          "definition": "/AUTOSAR/EcucDefs/Tm/TmGeneral/TmVersionInfoApi"
+        }
+      ],
+      "subContainers": [
+        "TmPredefTimer"
+      ]
+    },
+    {
+      "shortName": "TmPredefTimer",
+      "definition": "/AUTOSAR/EcucDefs/Tm/TmGeneral/TmPredefTimer",
+      "lowerMultiplicity": 0,
+      "upperMultiplicity": "*",
+      "parent": "TmGeneral",
+      "seed": true,
+      "params": [
+        {
+          "shortName": "TmTimerId",
+          "kind": "numerical",
+          "default": "0",
+          "summary": "Timer Id",
+          "detail": "Timer Id",
+          "range": "",
+          "min": 0,
+          "max": 255,
+          "definition": "/AUTOSAR/EcucDefs/Tm/TmPredefTimer/TmTimerId"
+        }
+      ],
+      "subContainers": []
+    }
+  ]
+}
